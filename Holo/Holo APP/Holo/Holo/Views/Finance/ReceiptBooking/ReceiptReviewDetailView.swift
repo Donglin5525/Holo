@@ -82,20 +82,9 @@ struct ReceiptReviewDetailView: View {
                 .padding(.bottom, 6)
                 .background(.ultraThinMaterial)
         }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button("删除这条草稿", systemImage: "trash", role: .destructive) {
-                        showDeleteConfirmation = true
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .disabled(isCommitting)
-            }
-        }
         .confirmationDialog("删除这条待复核记录？", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
             Button("删除", role: .destructive, action: deleteDraft)
+            Button("取消", role: .cancel) {}
         } message: {
             Text("草稿和暂存的证据图会被删除，且不会记账。")
         }
@@ -109,20 +98,25 @@ struct ReceiptReviewDetailView: View {
 
     // MARK: - 卡片
 
-    /// 汇总：多笔显示笔数与同向合计
+    /// 汇总：多笔显示笔数与同向合计；识别时间必显（2026-09-23 起旧草案一眼可辨）
     private var summaryCard: some View {
         card {
-            HStack {
-                Text(itemCountText)
-                    .font(.holoBody.weight(.semibold))
-                    .foregroundColor(.holoTextPrimary)
-                Spacer()
-                if let total = uniformTotalText {
-                    Text("¥\(total)")
-                        .font(.title3.weight(.bold))
-                        .monospacedDigit()
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(itemCountText)
+                        .font(.holoBody.weight(.semibold))
                         .foregroundColor(.holoTextPrimary)
+                    Spacer()
+                    if let total = uniformTotalText {
+                        Text("¥\(total)")
+                            .font(.title3.weight(.bold))
+                            .monospacedDigit()
+                            .foregroundColor(.holoTextPrimary)
+                    }
                 }
+                Text("识别于 \(ReceiptRecognizedTimeText.text(for: draft.createdAt))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -349,6 +343,14 @@ struct ReceiptReviewDetailView: View {
             }
             .disabled(!canCommit || isCommitting)
 
+            // 知情提示：默认开的自动归档必须让用户能预期照片会被保存（开关关时不显示）
+            if ReceiptBookingArchivePolicy.isAutoArchiveEnabled {
+                Text(String(localized: "确认后，凭证照片将自动归档为票根"))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity)
+            }
+
             Button {
                 dismiss()
             } label: {
@@ -362,6 +364,18 @@ struct ReceiptReviewDetailView: View {
                             .fill(Color.holoCardBackground)
                     )
             }
+            .disabled(isCommitting)
+
+            // 删除与「确认/稍后」并列为三选一（2026-10-02 东林拍板：从「…」菜单提为页面一等操作）
+            Button {
+                showDeleteConfirmation = true
+            } label: {
+                Label("删除这条草稿", systemImage: "trash")
+                    .font(.holoBody)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+            }
+            .tint(.red)
             .disabled(isCommitting)
         }
         .padding(.top, HoloSpacing.xs)
@@ -550,10 +564,11 @@ struct ReceiptReviewDetailView: View {
         for index in itemStates.indices {
             refreshCategorySuggestion(index: index)
         }
-        // 本机暂存的复核证据图（确认/删除后随之删除）
-        if let url = ReceiptBookingResultStore.evidenceImageURL(for: draft.id),
-           let data = try? Data(contentsOf: url) {
-            evidenceImage = UIImage(data: data)
+        // 本机暂存的复核证据图（确认/删除后随之删除）；降采样加载防整幅原图解码
+        if let url = ReceiptBookingResultStore.evidenceImageURL(for: draft.id) {
+            Task { @MainActor in
+                evidenceImage = await ImageDownsampler.image(at: url)
+            }
         }
     }
 
@@ -663,6 +678,11 @@ struct ReceiptReviewDetailView: View {
                     if result.created {
                         // 只有本次新建的笔才有撤销权；幂等命中的是账本里已存在的交易，不能撤
                         committedIDs.append(result.transactionID)
+                        // 一图多笔：每笔都挂证据票根（开关关时方法内直接返回）
+                        FinanceTransactionCommandService.shared.archiveEvidenceIfNeeded(
+                            draftID: draft.id,
+                            transactionID: result.transactionID
+                        )
                     } else {
                         duplicateCount += 1
                     }

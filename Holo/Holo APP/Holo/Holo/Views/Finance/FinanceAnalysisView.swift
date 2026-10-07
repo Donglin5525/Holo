@@ -15,6 +15,8 @@ struct FinanceAnalysisView: View {
     @ObservedObject var state: FinanceAnalysisState
     @Binding var selectedTab: AnalysisTab
     @State private var showCustomDateSheet: Bool = false
+    /// 顶部内联时间筛选条展开态（点胶囊切换，不弹抽屉）
+    @State private var showTimeFilterBlock: Bool = false
 
     init(
         state: FinanceAnalysisState,
@@ -33,9 +35,25 @@ struct FinanceAnalysisView: View {
             // 顶部栏
             headerView
 
-            // 时间范围标签（含自定义按钮）
+            // 时间范围标签（点击内联展开筛选条，不弹抽屉）
             TimeRangeLabel(state: state) {
-                showCustomDateSheet = true
+                withAnimation(HoloAnimation.standard) {
+                    showTimeFilterBlock.toggle()
+                }
+            }
+
+            // 内联时间筛选条：点档位立即生效并收起，数据区全程可见
+            if showTimeFilterBlock {
+                TimeFilterBlock(state: state) {
+                    withAnimation(HoloAnimation.standard) {
+                        showTimeFilterBlock = false
+                    }
+                } onCustomTap: {
+                    withAnimation(HoloAnimation.standard) {
+                        showTimeFilterBlock = false
+                    }
+                    showCustomDateSheet = true
+                }
             }
 
             // Tab 栏
@@ -44,14 +62,15 @@ struct FinanceAnalysisView: View {
             // 内容区
             tabContent
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .sheet(isPresented: $showCustomDateSheet) {
             CustomDateSheet(
                 startDate: .constant(state.currentDateRange.start),
-                endDate: .constant(state.currentDateRange.end.addingDays(-1))
-            ) { start, end in
-                state.setCustomDateRange(start: start, end: end)
-            }
+                endDate: .constant(state.currentDateRange.end.addingDays(-1)),
+                onConfirm: { start, end in
+                    state.setCustomDateRange(start: start, end: end)
+                }
+            )
         }
         // 节流合并：同步/导入风暴时 financeDataDidChange 连发，每条都全量重算图表会打爆主线程；
         // 首发立即刷（保持「记一笔立刻可见」），风暴窗口内只保留最新一条，终态与逐条刷新一致（体检 R0-11）
@@ -88,9 +107,9 @@ struct FinanceAnalysisView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .frame(width: 36, height: 36)
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(Circle())
                     .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
             }
@@ -98,8 +117,8 @@ struct FinanceAnalysisView: View {
             Spacer()
 
             Text("统计分析")
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.pageTitle)
+                .foregroundColor(.holoToolText)
 
             Spacer()
 
@@ -125,14 +144,14 @@ struct FinanceAnalysisView: View {
 
     private func tabButton(_ tab: AnalysisTab) -> some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.standard) {
                 selectedTab = tab
             }
         } label: {
             Text(tab.displayName)
-                .font(.holoCaption)
+                .holoText(.supporting)
                 .fontWeight(selectedTab == tab ? .semibold : .medium)
-                .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, HoloSpacing.xs)
                 .background(
@@ -149,24 +168,33 @@ struct FinanceAnalysisView: View {
 
     // MARK: - Tab 内容
 
-    @ViewBuilder
+    /// 加载态不能走 if/else 分支替换：isLoading 每次刷新（含「看项目全程」切范围、
+    /// 记账后数据变更）都会翻真，换分支会把整个页签子树拆掉重建，项目/账户
+    /// 子视图的选中态随之丢失、被弹回列表（2026-10-03 模拟器实锤）。
+    /// 内容常驻、加载指示做覆盖层，子树身份才稳定。
     private var tabContent: some View {
-        if state.isLoading {
-            loadingView
-        } else {
-            switch selectedTab {
-            case .overview:
-                OverviewTabView(state: state) { category in
-                    state.selectDetailCategory(category)
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        selectedTab = .detail
-                    }
+        tabContentBody
+            .overlay { if state.isLoading { loadingView } }
+    }
+
+    @ViewBuilder
+    private var tabContentBody: some View {
+        switch selectedTab {
+        case .overview:
+            OverviewTabView(state: state) { category in
+                state.selectDetailCategory(category)
+                withAnimation(HoloAnimation.standard) {
+                    selectedTab = .detail
                 }
-            case .detail:
-                DetailTabView(state: state)
-            case .category:
-                CategoryTabView(state: state)
             }
+        case .detail:
+            DetailTabView(state: state)
+        case .category:
+            CategoryTabView(state: state)
+        case .project:
+            ProjectTabView(state: state)
+        case .account:
+            AccountTabView(state: state)
         }
     }
 
@@ -178,8 +206,8 @@ struct FinanceAnalysisView: View {
                 .progressViewStyle(CircularProgressViewStyle(tint: .holoPrimary))
 
             Text("加载中...")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

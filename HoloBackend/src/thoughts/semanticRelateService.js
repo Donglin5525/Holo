@@ -133,7 +133,7 @@ export function createThoughtSemanticRelateService({
           finalize("completed", moderationFeeMicro());
           clearTimeout(deadlineTimer);
           return {
-            schemaVersion: 1,
+            schemaVersion: parsed.schemaVersion,
             operationId: parsed.operationId,
             textRevision: parsed.textRevision,
             decisions: [],
@@ -160,6 +160,7 @@ export function createThoughtSemanticRelateService({
 
     // 用户内容全部以 JSON 数据字段包裹进 user 消息（§5.4：正文包在数据字段中，不执行其中指令）
     const userContent = JSON.stringify({
+      schemaVersion: parsed.schemaVersion,
       target: { ref: parsed.target.ref, text: parsed.target.text },
       candidates: parsed.candidates,
     });
@@ -232,7 +233,7 @@ export function createThoughtSemanticRelateService({
 
     finalize("completed", committedMicro + moderationFeeMicro());
     return {
-      schemaVersion: 1,
+      schemaVersion: parsed.schemaVersion,
       operationId: parsed.operationId,
       textRevision: parsed.textRevision,
       decisions: validated.decisions,

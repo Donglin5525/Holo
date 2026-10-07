@@ -130,7 +130,7 @@ struct RepeatPicker: View {
                     type: type,
                     isSelected: repeatType == type,
                     onTap: {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(HoloAnimation.quick) {
                             repeatType = type
                             // 切换到自定义时，默认选择工作日
                             if type == .custom && selectedWeekdays.isEmpty {
@@ -149,7 +149,7 @@ struct RepeatPicker: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             // 工作日快捷按钮
             Button {
-                withAnimation(.easeInOut(duration: 0.15)) {
+                withAnimation(HoloAnimation.quick) {
                     let workdays: Set<Weekday> = [.monday, .tuesday, .wednesday, .thursday, .friday]
                     if selectedWeekdays == workdays {
                         selectedWeekdays = []
@@ -181,7 +181,7 @@ struct RepeatPicker: View {
                         weekday: weekday,
                         isSelected: selectedWeekdays.contains(weekday),
                         onTap: {
-                            withAnimation(.easeInOut(duration: 0.15)) {
+                            withAnimation(HoloAnimation.quick) {
                                 if selectedWeekdays.contains(weekday) {
                                     selectedWeekdays.remove(weekday)
                                 } else {
@@ -214,7 +214,7 @@ struct RepeatPicker: View {
             HStack(spacing: HoloSpacing.sm) {
                 ForEach([MonthlyRepeatMode.dayOfMonth, .nthWeekday], id: \.self) { mode in
                     Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(HoloAnimation.quick) {
                             monthlyRepeatMode = mode
                             if mode == .nthWeekday && monthWeekday == nil {
                                 monthWeekday = .thursday
@@ -298,9 +298,11 @@ struct RepeatPicker: View {
                 .foregroundColor(.holoTextSecondary)
 
             HStack(spacing: HoloSpacing.sm) {
-                ForEach([EndConditionType.never, .onDate, .afterCount], id: \.self) { type in
+                // 「重复次数」暂不开放（2026-10-04 T01：untilCount 结束检查未实现，
+                // 选了也不会停止；补齐系列计数后再恢复入口）
+                ForEach([EndConditionType.never, .onDate], id: \.self) { type in
                     Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(HoloAnimation.quick) {
                             endConditionType = type
                             if type == .onDate && endDate == nil {
                                 endDate = Calendar.current.date(byAdding: .month, value: 1, to: Date())
@@ -319,6 +321,14 @@ struct RepeatPicker: View {
                     }
                     .buttonStyle(.plain)
                 }
+            }
+
+            // 存量「按次数结束」任务的如实说明：该规则完善前会一直重复
+            if endConditionType == .afterCount {
+                Text("「重复次数」完善前暂不生效，此任务会一直重复；建议改用指定日期结束。")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             // 指定日期 - 使用紧凑的行内显示

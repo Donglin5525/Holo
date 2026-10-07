@@ -8,6 +8,7 @@
 
 import SwiftUI
 import EventKit
+import Combine
 
 /// 首页视图
 /// 设计布局：
@@ -22,7 +23,7 @@ struct HomeView: View {
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
     /// 当前窗口宽度（v2 断点判断用，旋转自动刷新）
-    @Environment(\.holoWindowWidth) private var holoWindowWidth
+    @Environment(\.holoContentWidth) private var holoContentWidth
     @Environment(\.horizontalSizeClass) private var homeSizeClass
 
     /// iPad v2 骨架：侧边栏是否在位（regular 宽度，即 iPad 全屏全部形态）
@@ -86,6 +87,16 @@ struct HomeView: View {
 
     /// AI 对话页面的预填文本
     @State private var chatPrefillText: String?
+    /// AI 对话页面「只聚焦不预填」信号：看板「对 Holo 说」/第一步行动卡跳转后
+    /// 光标直接落在输入框等用户开口，App 不替用户说话（示例句预填已废弃）
+    @State private var chatFocusTrigger: Int = 0
+
+    /// 新用户「第一步行动卡」：引导完成第一句 AI 记录（完成后自动消失，× 关闭落盘）
+    @State private var showFirstStepCard = false
+    /// 首次记录庆祝浮层（仅空库用户的第一笔，一次即封）
+    @State private var showFirstRecordCelebration = false
+    /// 本次启动时全库是否无记录：庆祝只对「启动时还是新用户」的人生第一笔触发，老用户升级永不误弹
+    @State private var wasEmptyAtLaunch = false
 
     /// 是否在打开 AI 对话后自动弹出语音输入面板
     @State private var openChatVoiceInput: Bool = false
@@ -160,7 +171,7 @@ struct HomeView: View {
 
     /// 宽度档位
     private var homeWidthTier: HoloWidthTier {
-        HoloWidthTier(width: holoWindowWidth, isRegular: HoloAdaptiveLayout.isRegularWidth(homeSizeClass))
+        HoloWidthTier(width: holoContentWidth, isRegular: HoloAdaptiveLayout.isRegularWidth(homeSizeClass))
     }
     
     // MARK: - Body
@@ -173,27 +184,32 @@ struct HomeView: View {
 
             // 首页内容：activeScreen 非 nil 时隐藏（但保留在视图树以维持状态）
             homeContent
+                .environment(\.holoMotionSurfaceIsActive, homeMotionIsVisible)
                 .opacity(activeScreen == nil ? 1 : 0)
+                .allowsHitTesting(activeScreen == nil)
+                .accessibilityHidden(activeScreen != nil)
                 .zIndex(0)
 
-            // 每一层在首次进入时创建，跳到下一模块后仅隐藏、不销毁。
-            // 因此返回来源时，对话、日期筛选、滚动位置等现场仍然存在。
-            // v2：expanded 宽度模块通铺（各模块自行控制内容密度），
-            // 其余宽度保持 720 限宽居中。
+            // 每个模块首次进入时挂载，之后仅隐藏、不销毁：侧边栏往返切换只翻转
+            // 可见性（交叉淡出），滚动位置、聊天现场等状态跨切换保留，重入零重建。
+            // zIndex 按挂载顺序稳定排列，顶层由 current 决定（与挂载顺序无关）。
             ForEach(Array(residentNavigation.routes.enumerated()), id: \.element.id) { index, route in
-                if HoloAdaptiveLayout.isExpandedWidth(holoWindowWidth) {
+                let isTop = residentNavigation.current == route.screen
+                if HoloAdaptiveLayout.isExpandedWidth(holoContentWidth) {
                     residentDestination(for: route.screen)
-                        .opacity(index == residentNavigation.routes.count - 1 ? 1 : 0)
-                        .allowsHitTesting(index == residentNavigation.routes.count - 1)
-                        .accessibilityHidden(index != residentNavigation.routes.count - 1)
+                        .environment(\.holoMotionSurfaceIsActive, isTop && !showDailyKanban && !showSettingsView && !showPersonalView && !showSettingsPage && !showPersonalPage)
+                        .opacity(isTop ? 1 : 0)
+                        .allowsHitTesting(isTop)
+                        .accessibilityHidden(!isTop)
                         .zIndex(Double(index + 1))
                         .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
                 } else {
                     residentDestination(for: route.screen)
                         .holoContentColumn(paintsBackground: false)
-                        .opacity(index == residentNavigation.routes.count - 1 ? 1 : 0)
-                        .allowsHitTesting(index == residentNavigation.routes.count - 1)
-                        .accessibilityHidden(index != residentNavigation.routes.count - 1)
+                        .environment(\.holoMotionSurfaceIsActive, isTop && !showDailyKanban && !showSettingsView && !showPersonalView && !showSettingsPage && !showPersonalPage)
+                        .opacity(isTop ? 1 : 0)
+                        .allowsHitTesting(isTop)
+                        .accessibilityHidden(!isTop)
                         .zIndex(Double(index + 1))
                         .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
                 }
@@ -236,10 +252,25 @@ struct HomeView: View {
                 .transition(.holoScreenTransition)
                 .zIndex(201)
             }
+
+            // 首次记录庆祝浮层：盖在常驻模块（含 AI 对话）之上——第一笔常在对话中产生
+            if showFirstRecordCelebration {
+                FirstRecordCelebrationOverlay(
+                    onOpenGallery: {
+                        showFirstRecordCelebration = false
+                        openRootScreen(.memoryGallery)
+                    },
+                    onDismiss: {
+                        showFirstRecordCelebration = false
+                    }
+                )
+                .zIndex(300)
+                .transition(.opacity)
+            }
         }
         // 首页三步聚光灯导览：挂在根 ZStack 上，覆盖首页内容与常驻模块
         .coachMarkTour(isPresented: showHomeCoachTour, steps: HomeCoachTour.steps) {
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.standard) {
                 showHomeCoachTour = false
             }
         }
@@ -314,10 +345,15 @@ struct HomeView: View {
             // 纪念日：初始化 + 兜底生成到期任务
             AnniversaryRepository.shared.setup()
             _ = await AnniversaryTaskGenerator.shared.generateDueTasks()
+            // 新用户激活判定要在 store 就绪后做，否则空库误判（老用户会闪现行动卡）
+            wasEmptyAtLaunch = !NewUserActivationState.hasAnyRecord()
+            refreshFirstStepCard()
         }
         // 轻量新人引导（结束后紧接着播放一次首页三步导览）
         .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
             startHomeCoachTourIfNeeded()
+            // 引导完成（或跳过）后行动卡才具备出现条件
+            refreshFirstStepCard()
         }) {
             HoloLightweightOnboardingView { _ in
                 showOnboarding = false
@@ -358,9 +394,13 @@ struct HomeView: View {
                         showDailyKanban = false
                         showAddTaskSheet = true
                     },
-                    onAddThought: {
+                    onQuickRecord: {
+                        // 「对 Holo 说」/看板 calm 态出口：关看板 → 进 AI → 落焦输入框。
+                        // 不预填示例句（「午饭花了 35 元」曾让用户误以为已记假账），
+                        // 输入框 placeholder 承担「说什么」的提示职责
                         showDailyKanban = false
-                        showThoughtEditor = true
+                        chatFocusTrigger += 1
+                        openRootScreen(.ai)
                     }
                 )
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
@@ -400,10 +440,11 @@ struct HomeView: View {
                 }
             }
         }
-        // Deep Link / 小组件 - 新建待办
+        // Deep Link / 小组件 / 看板 / 模块快捷键 - 新建待办
+        // （2026-10-07 起统一走新添加任务页：旧 TaskDetailView 空白态三合一不再承接新建）
         .sheet(isPresented: $showAddTaskSheet) {
             LazyView {
-                TaskDetailView(repository: TodoRepository.shared, list: nil)
+                TaskCreationSheet(repository: TodoRepository.shared)
             }
         }
         // Matter「进行中的事」列表（查看全部；内部路由，不占 Tab）
@@ -422,12 +463,15 @@ struct HomeView: View {
             )
         }
         // Matter 详情（首页焦点卡直达；讨论入口统一接线，§8.5）
+        // sheet 根视图需外部包栈：MatterDetailView 本体已去内嵌 NavigationStack
         .sheet(item: $matterDetailTarget) { target in
-            MatterDetailView(matterID: target.id) { discussID in
-                // 先保存 scoped 上下文再关 sheet（路由转换期间不清空 Matter context），随后进 resident Chat。
-                MatterChatContextStore.shared.enter(matterID: discussID, source: .homeFocusCard)
-                matterDetailTarget = nil
-                openRootScreen(.ai)
+            NavigationStack {
+                MatterDetailView(matterID: target.id) { discussID in
+                    // 先保存 scoped 上下文再关 sheet（路由转换期间不清空 Matter context），随后进 resident Chat。
+                    MatterChatContextStore.shared.enter(matterID: discussID, source: .homeFocusCard)
+                    matterDetailTarget = nil
+                    openRootScreen(.ai)
+                }
             }
         }
         // Deep Link / 小组件 - 记录想法
@@ -447,6 +491,13 @@ struct HomeView: View {
             let hadPendingDeepLink = deepLinkState.pendingTarget != nil
             handleDeepLink()
             guard !hadPendingDeepLink else { return }
+            #if DEBUG
+            // 模拟器无头走查：启动直达财务模块（-HoloOpenFinance，idb 不可用时的导航通道）
+            if ProcessInfo.processInfo.arguments.contains("-HoloOpenFinance") {
+                navigateToScreen(.finance)
+                return
+            }
+            #endif
             if LightweightOnboardingSettings.shouldPresent(deepLinkPending: false) {
                 showOnboarding = true
             }
@@ -476,6 +527,20 @@ struct HomeView: View {
         .onReceive(NotificationCenter.default.publisher(for: .replayHomeCoachTour)) { _ in
             replayHomeCoachTour()
         }
+        // 数据刷新只更新行动卡；庆祝只接收手动保存事件，避免云同步触发。
+        .onReceive(
+            NotificationCenter.default.publisher(for: .financeDataDidChange)
+                .merge(with: NotificationCenter.default.publisher(for: .todoDataDidChange))
+                .merge(with: NotificationCenter.default.publisher(for: .habitDataDidChange))
+                .merge(with: NotificationCenter.default.publisher(for: .thoughtDataDidChange))
+        ) { _ in
+            if showFirstStepCard {
+                refreshFirstStepCard()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .holoManualFinanceRecordSaved)) { _ in
+            checkFirstRecordCelebration()
+        }
     }
 
     // MARK: - 首页导览触发
@@ -485,7 +550,7 @@ struct HomeView: View {
     private func startHomeCoachTourIfNeeded() {
         guard !OnboardingProgressStore.hasSeen(OnboardingProgressStore.homeCoachTourKey) else { return }
         OnboardingProgressStore.markSeen(OnboardingProgressStore.homeCoachTourKey)
-        withAnimation(.easeInOut(duration: 0.25)) {
+        withAnimation(HoloAnimation.smooth) {
             showHomeCoachTour = true
         }
     }
@@ -498,8 +563,33 @@ struct HomeView: View {
             }
             selectedTab = .ai
         }
-        withAnimation(.easeInOut(duration: 0.25)) {
+        withAnimation(HoloAnimation.smooth) {
             showHomeCoachTour = true
+        }
+    }
+
+    // MARK: - 新用户激活（第一步行动卡 + 首次记录庆祝）
+
+    /// 行动卡与门：引导已完成 + 未手动关闭 + 全库无记录（交易/任务/想法/习惯任一出现即消失）
+    private func refreshFirstStepCard() {
+        let shouldShow = LightweightOnboardingSettings.isCompleted
+            && !OnboardingProgressStore.hasSeen(OnboardingProgressStore.firstStepCardDismissedKey)
+            && !NewUserActivationState.hasAnyRecord()
+        guard showFirstStepCard != shouldShow else { return }
+        withAnimation(HoloAnimation.standard) {
+            showFirstStepCard = shouldShow
+        }
+    }
+
+    /// 首次记录庆祝：只对「启动时全库为空」的用户在第一笔交易落库时弹一次
+    private func checkFirstRecordCelebration() {
+        guard wasEmptyAtLaunch,
+              !OnboardingProgressStore.hasSeen(OnboardingProgressStore.firstRecordCelebrationShownKey),
+              NewUserActivationState.isFirstTransactionEver()
+        else { return }
+        OnboardingProgressStore.markSeen(OnboardingProgressStore.firstRecordCelebrationShownKey)
+        withAnimation(HoloAnimation.standard) {
+            showFirstRecordCelebration = true
         }
     }
 
@@ -598,7 +688,8 @@ struct HomeView: View {
             ChatView(
                 goalPlanningRequest: $pendingGoalPlanningRequest,
                 prefillText: chatPrefillText,
-                opensVoiceInputOnAppear: openChatVoiceInput
+                opensVoiceInputOnAppear: openChatVoiceInput,
+                inputFocusTrigger: $chatFocusTrigger
             )
             .preferredColorScheme(DarkModeManager.shared.colorScheme)
 
@@ -775,6 +866,26 @@ struct HomeView: View {
                         openRootScreen(.ai)
                     }
                 )
+                // 新用户「第一步行动卡」（拍板方案 C）：气泡 + 虚线光圈指向中央 AI 按钮
+                .overlay {
+                    if showFirstStepCard {
+                        FirstStepActionBubble(
+                            onTap: {
+                                // 跳转 AI 落焦输入框，不预填不自动发送——
+                                // 说什么、发不发都由用户决定
+                                chatFocusTrigger += 1
+                                openRootScreen(.ai)
+                            },
+                            onDismiss: {
+                                OnboardingProgressStore.markSeen(OnboardingProgressStore.firstStepCardDismissedKey)
+                                withAnimation(HoloAnimation.standard) {
+                                    showFirstStepCard = false
+                                }
+                            }
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    }
+                }
                 .coachMarkTarget(HomeCoachTour.bottomNavID)
             } else {
                 // 侧边栏骨架下保留同等底部留白，主视觉不贴边
@@ -789,86 +900,90 @@ struct HomeView: View {
     // MARK: - 子视图
     
     /// 背景装饰元素 — 鲜艳渐变光球 + 装饰弧线
-    @State private var orbDrift: CGFloat = 0
-    @State private var arcRotation: Double = 0
-    @State private var dotTwinkle: Double = 1.0
+    @AppStorage(HoloMotionRollout.interactionKey) private var brandMotionEnabled = true
+    @Environment(\.scenePhase) private var motionScenePhase
 
+    private var homeMotionIsVisible: Bool {
+        activeScreen == nil && !showDailyKanban && !showSettingsView && !showPersonalView && !showSettingsPage && !showPersonalPage
+    }
     private var backgroundDecorations: some View {
-        ZStack {
-            // 中心大橙色光晕 — 缓慢浮动
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.holoPrimary.opacity(0.12), Color.holoPrimary.opacity(0)],
-                        center: .center, startRadius: 0, endRadius: 250
+        TimelineView(.animation(minimumInterval: 0.1, paused: !backgroundMotionActive)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            // 原参数正弦化：光晕浮动 0↔1（6s 周期）、弧线 60s/圈、闪烁 1↔0.3（4s 周期）；
+            // 相位只依赖绝对时间，跨暂停/恢复/门控翻转连续，无「转一半跳回起点」重置
+            let drift = CGFloat(0.5 + 0.5 * sin(2 * .pi * t / 6))
+            let arc = (t / 60).truncatingRemainder(dividingBy: 1) * 360
+            let twinkle = 0.65 + 0.35 * sin(2 * .pi * t / 4)
+            return ZStack {
+                // 中心大橙色光晕 — 缓慢浮动
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.holoPrimary.opacity(0.12), Color.holoPrimary.opacity(0)],
+                            center: .center, startRadius: 0, endRadius: 250
+                        )
                     )
-                )
-                .frame(width: 500, height: 500)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                .offset(y: orbDrift * 8)
-                .blur(radius: 80)
+                    .frame(width: 500, height: 500)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .offset(y: drift * 8)
+                    .blur(radius: 80)
 
-            // 右上紫 — 对向浮动
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.holoPurple.opacity(0.08), Color.holoPurple.opacity(0)],
-                        center: .center, startRadius: 0, endRadius: 210
+                // 右上紫 — 对向浮动
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.holoPurple.opacity(0.08), Color.holoPurple.opacity(0)],
+                            center: .center, startRadius: 0, endRadius: 210
+                        )
                     )
-                )
-                .frame(width: 420, height: 420)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .offset(x: 100, y: -40 + orbDrift * -6)
-                .blur(radius: 65)
+                    .frame(width: 420, height: 420)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .offset(x: 100, y: -40 + drift * -6)
+                    .blur(radius: 65)
 
-            // 左下蓝 — 独立节奏
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.holoInfo.opacity(0.06), Color.holoInfo.opacity(0)],
-                        center: .center, startRadius: 0, endRadius: 190
+                // 左下蓝 — 独立节奏
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.holoInfo.opacity(0.06), Color.holoInfo.opacity(0)],
+                            center: .center, startRadius: 0, endRadius: 190
+                        )
                     )
-                )
-                .frame(width: 380, height: 380)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .offset(x: -80, y: 60 + orbDrift * 10)
-                .blur(radius: 55)
+                    .frame(width: 380, height: 380)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .offset(x: -80, y: 60 + drift * 10)
+                    .blur(radius: 55)
 
-            // 装饰弧线 — 缓慢旋转
-            Circle()
-                .trim(from: 0, to: 0.3)
-                .stroke(Color.holoPrimary.opacity(0.15), style: StrokeStyle(lineWidth: 1, lineCap: .round))
-                .frame(width: 380, height: 380)
-                .rotationEffect(.degrees(-30 + arcRotation * 0.3))
+                // 装饰弧线 — 缓慢旋转
+                Circle()
+                    .trim(from: 0, to: 0.3)
+                    .stroke(Color.holoPrimary.opacity(0.15), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                    .frame(width: 380, height: 380)
+                    .rotationEffect(.degrees(-30 + arc * 0.3))
 
-            Circle()
-                .trim(from: 0.4, to: 0.7)
-                .stroke(Color.holoPurple.opacity(0.12), style: StrokeStyle(lineWidth: 1, lineCap: .round))
-                .frame(width: 350, height: 350)
-                .rotationEffect(.degrees(60 + arcRotation * 0.5))
+                Circle()
+                    .trim(from: 0.4, to: 0.7)
+                    .stroke(Color.holoPurple.opacity(0.12), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                    .frame(width: 350, height: 350)
+                    .rotationEffect(.degrees(60 + arc * 0.5))
 
-            // 弧线上的光点 — 闪烁
-            decorDot(color: .holoPrimary, size: 5, radius: 190, angle: -10, opacity: dotTwinkle)
-            decorDot(color: .holoPrimary, size: 3, radius: 190, angle: 70, opacity: dotTwinkle * 0.7)
-            decorDot(color: .holoPurple, size: 4, radius: 175, angle: 150, opacity: dotTwinkle * 0.8)
-            decorDot(color: .holoPurple, size: 3, radius: 175, angle: 210, opacity: dotTwinkle * 0.6)
-            decorDot(color: .holoInfo, size: 4, radius: 160, angle: 300, opacity: dotTwinkle * 0.9)
+                // 弧线上的光点 — 闪烁
+                decorDot(color: .holoPrimary, size: 5, radius: 190, angle: -10, opacity: twinkle)
+                decorDot(color: .holoPrimary, size: 3, radius: 190, angle: 70, opacity: twinkle * 0.7)
+                decorDot(color: .holoPurple, size: 4, radius: 175, angle: 150, opacity: twinkle * 0.8)
+                decorDot(color: .holoPurple, size: 3, radius: 175, angle: 210, opacity: twinkle * 0.6)
+                decorDot(color: .holoInfo, size: 4, radius: 160, angle: 300, opacity: twinkle * 0.9)
+            }
+            .allowsHitTesting(false)
         }
-        .allowsHitTesting(false)
         // v2：光球/弧线按手机画布设计（最大 500pt），大屏四角露黑；
         // 整组渐变无文字，缩放无损，宽屏放大铺满
         .scaleEffect(homeWidthTier == .expanded ? 1.7 : (homeWidthTier == .medium ? 1.3 : 1.0))
-        .onAppear {
-            withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
-                orbDrift = 1.0
-            }
-            withAnimation(.linear(duration: 60).repeatForever(autoreverses: false)) {
-                arcRotation = 360
-            }
-            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                dotTwinkle = 0.3
-            }
-        }
+    }
+
+    /// 背景光球的门：动效开关开启、首页可见、App 前台。减少动态效果不停转（2026-10-06 拍板）。
+    private var backgroundMotionActive: Bool {
+        brandMotionEnabled && homeMotionIsVisible && motionScenePhase == .active
     }
 
     /// 装饰光点
@@ -889,7 +1004,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Holo")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .kerning(1.2)
                 
                 Text(UserDisplayNameSettings.greetingText(
@@ -897,7 +1012,7 @@ struct HomeView: View {
                     rawName: userName
                 ))
                     .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
             
             Spacer()
@@ -918,7 +1033,7 @@ struct HomeView: View {
 
                         Image(systemName: "gearshape.fill")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                     }
                 }
                 .accessibilityLabel(String(localized: "设置"))
@@ -984,7 +1099,7 @@ struct HomeView: View {
                         .simultaneousGesture(
                             createDragGesture(for: item, at: index, positions: positions)
                         )
-                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
+                        .animation(HoloAnimation.snappy, value: isDragging)
                 }
             }
         }
@@ -1153,6 +1268,16 @@ struct HomeView: View {
     private func handleDeepLink() {
         guard let target = deepLinkState.pendingTarget else { return }
 
+        // 深链到达时先收起内容覆盖层（个人/设置、iPad 页面层、看板 cover）：
+        // 下方 navigateToScreen 只切常驻栈，导航发生在覆盖层下面时用户看到的
+        // 还是原界面（点小组件拉起后停在个人页不动的根因）。目标自身要开的层
+        // （看板、各编辑器 sheet、goalDetail 的个人页）在各 case 里再开。
+        showPersonalView = false
+        showSettingsView = false
+        showPersonalPage = false
+        showSettingsPage = false
+        showDailyKanban = false
+
         switch target {
         case .ai(let voiceInput):
             // 已在 AI 页则只更新预填参数，不重新触发转场
@@ -1200,6 +1325,9 @@ struct HomeView: View {
             pendingFinanceEvidenceReviewDeepLink = nil
             navigateToScreen(.finance)
             deepLinkState.pendingTarget = nil
+        case .budgetDetail:
+            // 结转回执通知：切到财务模块，pendingTarget 由 FinanceView 消费弹预算详情页
+            navigateToScreen(.finance)
         case .transactionDetail:
             navigateToScreen(.finance)
         case .financeAnalysis(let link):
@@ -1249,6 +1377,11 @@ struct HomeView: View {
         case .memoryInsight(_):
             // 目标由 ChatView 消费：洞察内容自长廊撤除回放卡后统一在 AI 页展示，
             // ChatView 打开对应回放卡片后清空 pendingTarget 并落已读。
+            if activeScreen != .ai {
+                navigateToScreen(.ai)
+            }
+        case .cloudAnalysisReport:
+            // 完成推送点开：切到 AI 页即可，定位由 ChatView 消费（滚动到结果消息）
             if activeScreen != .ai {
                 navigateToScreen(.ai)
             }

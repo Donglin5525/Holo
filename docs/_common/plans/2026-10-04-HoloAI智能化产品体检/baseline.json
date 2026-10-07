@@ -1,0 +1,39 @@
+{
+  "capturedAt": "2026-10-04T09:49:28.671815+08:00",
+  "repo": "/Users/tangyuxuan/Desktop/Claude/HOLO",
+  "head": "91265544ba7c0eacefd791f0e633cb59a896142e",
+  "sourceHashes": {
+    "Holo/Holo APP/Holo/Holo/Models/AI/HoloAICapability.swift": "f200f957ccf214b42eb2bda9dfab2f83b8feef82727ffab6792698d8b57ca59b",
+    "Holo/Holo APP/Holo/Holo/Models/AI/HoloPersonalContextControls.swift": "ed62ee0db0ddab65dcc5422a3a1ae5cc50c47b0a4a655b5cf4a81536ea329326",
+    "Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloContextChatPlanner.swift": "7ad85e522216d6dc11135ca01b39c3b6f1d9cb00f84ebe91c639c5aa4127e66f",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Agent/Cloud/HoloCloudAnalysisSnapshotBuilder.swift": "d5b11f28e8da3309c7b3d5277c8096e58d084e54c4f821f10c6f4500a980c815",
+    "HoloBackend/src/agent/cloudAnalysisExecutor.js": "00ae30662ff1931c224ab7e6ec01ac6b47d3fdbc11af4e36e314fa2e02ade8b1",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Agent/Cloud/HoloCloudAnalysisService.swift": "05dd8cf9694a3e119fb2114e5428d9aa3893ecda2deaf877cde228332684c891",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Agent/HoloLocalAgentRuntime.swift": "a5ee078f0602f40158d669b03391317a2e7a973c8926d5ab5168a4d79dcdb7e0",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Today/HoloTodayReliefCoordinator.swift": "a42ef9a14bbdbc9f8052e7880c548803ed1e2aef68c4949891c41108f6b891f5",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Agent/HoloOutcomeReviewStore.swift": "f63c2e8b0d804837f58a8e7a2441ba6660981bcbb38bf34747b56704afee9d47",
+    "Holo/Holo APP/Holo/Holo/Services/AI/InsightActionCandidateBuilder.swift": "fbe74277c8c29b4146f86cb36ee3b596ad95fefa0a0a250cf9b3cf5673930293",
+    "Holo/Holo APP/Holo/Holo/Services/FeatureFlags/InsightFeatureFlags.swift": "4292710c72c7a5e73c9301fc7451fb56dabcb03ebae8be7c2c90ea55c3ac5dd8",
+    "Holo/Holo APP/Holo/Holo/Services/AI/HoloMemoryObserverService.swift": "3049fa1aa005a565533f6731eb76e29b05178d4ed535a3619fc56be262e11cef",
+    "Holo/Holo APP/Holo/Holo/Services/AI/HoloAICapabilityProvider.swift": "d71332c991683ca9ddac1328cb40d43b73116637fc49559b0bf2fbaa7c40755a",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Agent/HoloAgentFollowUpRouter.swift": "16d0ca0fa621dd9a27c6a3a92dc39b0b3d3d8c49f554a6a11917a33caa45c0de",
+    "Holo/Holo APP/Holo/Holo/Views/Chat/ChatViewModel.swift": "db197f641bf22042941badafe60551858a03da094f571e77370b5cef6708048e",
+    "Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloContextPlanExecutionAdapter.swift": "a70bf4cd71c72c731f80ef6eceb8b6fc58fa45875a3ae912f04be567e3e94c1e",
+    "HoloBackend/tests/cloud-analysis-executor.test.js": "d8bd140d73c925ca76fcff26610ee116cbd655385e29c6c3fe175fa81845ec13",
+    "docs/_common/eval/personal-context/ab/summary-2026-09-07.json": "795043acc7aa4c2582c9ea40afb756ae4b819ccd4ac23dbccbaf422627d98b17",
+    "HoloBackend/src/agent/cloudAnalysisQueryEngine.js": "c6f7d972efbc62fffe20725d8c469146ea99056da84d79a15dbed3a9c2b24361"
+  },
+  "backendDirtyFiles": [],
+  "productionRelease": {
+    "ok": true,
+    "service": "holo-ai-gateway",
+    "release": {
+      "commit": "91265544ba7c0eacefd791f0e633cb59a896142e",
+      "sourceDigest": "dc8c2bc444e1dc23959356a062bd1208d46c5236508e50579e4ced3e7a5fa90e",
+      "buildTime": "2026-10-03T18:51:50Z"
+    }
+  },
+  "evidenceBoundary": "源码审阅、本地合成执行、82项后端mock测试、46条情境检索断言、官方资料。未做本轮真机/模拟器完整UI和真实模型评测。",
+  "additionalEvidenceNote": "交付前补核对查询引擎对截断元数据的消费。",
+  "changedSinceCapture": []
+}

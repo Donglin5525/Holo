@@ -89,11 +89,11 @@ struct DetailTabView: View {
         while current < end {
             let dayTxns = grouped[current] ?? []
             let expense = dayTxns
-                .filter { $0.transactionType == .expense }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+                .filter { $0.statisticsType == .expense }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
             let income = dayTxns
-                .filter { $0.transactionType == .income }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+                .filter { $0.statisticsType == .income }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
             points.append(ChartDataPoint(
                 date: current,
@@ -131,7 +131,7 @@ struct DetailTabView: View {
                 }
             }
             .scrollIndicators(.hidden)
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
         }
         .sheet(item: $editingTransaction) { transaction in
             AddTransactionSheet(editingTransaction: transaction) { _ in
@@ -227,8 +227,8 @@ struct DetailTabView: View {
             // 标题栏
             HStack {
                 Text(periodTitle(for: date))
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.sectionTitle)
+                    .foregroundColor(.holoToolText)
 
                 Spacer()
 
@@ -236,7 +236,7 @@ struct DetailTabView: View {
                     state.selectChartDate(nil)
                 } label: {
                     Text("查看全部")
-                        .font(.holoCaption)
+                        .holoText(.supporting)
                         .foregroundColor(.holoPrimary)
                 }
             }
@@ -286,39 +286,39 @@ struct DetailTabView: View {
     private func periodSummary(for date: Date) -> some View {
         let periodTxns = transactionsForPeriod(date)
         let expense = periodTxns
-            .filter { $0.transactionType == .expense }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .expense }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
         let income = periodTxns
-            .filter { $0.transactionType == .income }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .income }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
         return HStack(spacing: HoloSpacing.lg) {
             HStack(spacing: HoloSpacing.xs) {
                 Text("支出")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Text(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "¥0")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .foregroundColor(.holoError)
             }
 
             HStack(spacing: HoloSpacing.xs) {
                 Text("收入")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Text(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "¥0")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .foregroundColor(.holoSuccess)
             }
 
             Spacer()
 
             Text("\(periodTxns.count) 笔")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .padding(HoloSpacing.sm)
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
     }
 
@@ -368,13 +368,13 @@ struct DetailTabView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("\(category.name)明细")
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 Text("\(filteredTransactions.count) 笔 · 当前日期范围")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             Spacer()
@@ -383,7 +383,7 @@ struct DetailTabView: View {
                 state.selectDetailCategory(nil)
             } label: {
                 Text("清除")
-                    .font(.holoCaption)
+                    .holoText(.supporting)
                     .foregroundColor(.holoPrimary)
                     .padding(.horizontal, HoloSpacing.sm)
                     .padding(.vertical, HoloSpacing.xs)
@@ -393,7 +393,7 @@ struct DetailTabView: View {
             .buttonStyle(.plain)
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
@@ -402,12 +402,12 @@ struct DetailTabView: View {
     private var transactionListHeader: some View {
         HStack(spacing: HoloSpacing.sm) {
             Text("交易明细")
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.sectionTitle)
+                .foregroundColor(.holoToolText)
 
             Text("\(filteredTransactions.count) 笔")
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             Spacer()
 
@@ -488,16 +488,16 @@ struct DetailTabView: View {
 
     private func dateHeader(date: Date, transactions: [Transaction]) -> some View {
         let expense = transactions
-            .filter { $0.transactionType == .expense }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .expense }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
         let income = transactions
-            .filter { $0.transactionType == .income }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .income }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
         return HStack(spacing: HoloSpacing.sm) {
             Text(DetailTabFormatters.dayWeekday.string(from: date))
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
 
             Spacer()
 
@@ -561,11 +561,11 @@ struct DetailTabView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "tray")
                 .font(.system(size: 40, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             Text("暂无交易记录")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, HoloSpacing.xxl)

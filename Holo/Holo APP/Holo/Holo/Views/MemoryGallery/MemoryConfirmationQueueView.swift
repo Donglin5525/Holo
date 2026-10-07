@@ -242,7 +242,7 @@ struct MemoryConfirmationQueueView: View {
     }
 
     private func removeRecord(_ id: String) {
-        withAnimation(.easeInOut(duration: 0.25)) {
+        withAnimation(HoloAnimation.smooth) {
             records.removeAll { $0.id == id }
         }
         onRecordHandled?(id)

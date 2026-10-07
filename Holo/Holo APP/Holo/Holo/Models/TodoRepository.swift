@@ -42,11 +42,6 @@ class TodoRepository: ObservableObject {
     /// 回收站中的任务（已删除）
     @Published var trashedTasks: [TodoTask] = []
 
-    /// 全局任务完成撤回状态：正在完成中（3 秒撤回窗口）的任务 ID
-    /// 跨界面共享——无论在列表还是看板完成，撤回 banner 都一致显示
-    @Published var pendingCompletionTaskId: UUID? = nil
-    private var pendingCompletionWorkItem: DispatchWorkItem? = nil
-
     /// 是否已完成初始化（供 UI 判断加载状态）
     @Published private(set) var isReady: Bool = false
 
@@ -98,6 +93,8 @@ class TodoRepository: ObservableObject {
         loadFolders()
         loadActiveTasks()
         loadTrashedTasks()
+        // 旧优先级 → 轻重缓急两轴 一次性迁移（每设备一次，幂等；东林 2026-10-06 拍板放弃旧优先级体系）
+        TaskPriorityMigration.runIfNeeded(in: context)
         isReady = true
     }
 
@@ -208,17 +205,36 @@ class TodoRepository: ObservableObject {
     /// 返回 nil 表示没有可用的清单名（调用方落默认位置）。
     @discardableResult
     func matchOrCreateList(named suggested: String) throws -> (list: TodoList, created: Bool)? {
-        let lists = folders.flatMap { $0.listsArray } + unfiledLists
         guard let resolution = TodoListNameResolver.resolve(
             suggested: suggested,
-            existingListNames: lists.map(\.name)
+            existingListNames: existingListNamesForResolution()
         ) else { return nil }
-        if let matchedName = resolution.matchedExistingName,
-           let hit = lists.first(where: { $0.name == matchedName }) {
+        if let hit = matchList(for: resolution) {
             return (hit, false)
         }
         let list = try createList(name: resolution.name)
         return (list, true)
+    }
+
+    /// 只读匹配：按名命中已有清单，不落库不创建。
+    /// 确认卡预演展示「将放入哪个清单 / 将新建」时用——用户取消前不留副作用。
+    func matchList(named suggested: String) -> TodoList? {
+        guard let resolution = TodoListNameResolver.resolve(
+            suggested: suggested,
+            existingListNames: existingListNamesForResolution()
+        ) else { return nil }
+        return matchList(for: resolution)
+    }
+
+    private func existingListNamesForResolution() -> [String] {
+        let lists = folders.flatMap { $0.listsArray } + unfiledLists
+        return lists.map(\.name)
+    }
+
+    private func matchList(for resolution: TodoListNameResolver.Resolution) -> TodoList? {
+        guard let matchedName = resolution.matchedExistingName else { return nil }
+        let lists = folders.flatMap { $0.listsArray } + unfiledLists
+        return lists.first(where: { $0.name == matchedName })
     }
 
     /// 创建清单
@@ -292,6 +308,8 @@ class TodoRepository: ObservableObject {
         description: String? = nil,
         list: TodoList? = nil,
         priority: TaskPriority = .medium,
+        importance: TaskImportance = .unknown,
+        urgencyMode: TaskUrgencyMode = .auto,
         dueDate: Date? = nil,
         isAllDay: Bool = false,
         reminders: Set<TaskReminder>? = nil,
@@ -302,9 +320,10 @@ class TodoRepository: ObservableObject {
         plannedEnd: Date? = nil
     ) throws -> TodoTask {
         if plannedStart != nil || plannedEnd != nil {
+            // R06（2026-10-04 体检）：非法时段抛可捕获错误——precondition 是进程终止，catch 接不住
             guard let start = plannedStart, let end = plannedEnd,
                   TodoTask.isValidPlannedRange(start, end) else {
-                preconditionFailure("计划时间段必须成对、同一天且开始早于结束")
+                throw TaskInputError.invalidPlannedRange
             }
         }
         let task = TodoTask.create(
@@ -313,6 +332,8 @@ class TodoRepository: ObservableObject {
             desc: description,
             list: list,
             priority: priority,
+            importance: importance,
+            urgencyMode: urgencyMode,
             dueDate: dueDate,
             isAllDay: isAllDay,
             reminders: reminders,
@@ -382,16 +403,29 @@ class TodoRepository: ObservableObject {
         description: String? = nil,
         status: TaskStatus? = nil,
         priority: TaskPriority? = nil,
+        importance: TaskImportance? = nil,
+        urgencyMode: TaskUrgencyMode? = nil,
         dueDate: TaskDueDateUpdate? = nil,
         isAllDay: Bool? = nil,
         list: TaskListUpdate? = nil,
         reminders: Set<TaskReminder>? = nil,
         plannedTime: TaskPlannedTimeUpdate? = nil
     ) throws {
+        // R06（2026-10-04 体检）：先验证后变更——旧实现在检查前已改其他字段，
+        // 抛错会留下部分修改的对象
+        if case .set(let newStart, let newEnd) = plannedTime {
+            guard TodoTask.isValidPlannedRange(newStart, newEnd) else {
+                throw TaskInputError.invalidPlannedRange
+            }
+        }
         if let title = title { task.title = title }
         if let description = description { task.desc = description }
         if let status = status { task.taskStatus = status }
         if let priority = priority { task.taskPriority = priority }
+        // 轻重缓急两轴独立：nil = 不修改；unknown/auto 是明确设值（方案 §8.2）。
+        // 两轴变化不发 dueDateChanged、不触发提醒重排、不影响完成/延期计数。
+        if let importance = importance { task.importance = importance }
+        if let urgencyMode = urgencyMode { task.urgencyMode = urgencyMode }
         // 截止时间被改动时，需要把已调度的本地通知挪到新时间，
         // 否则旧通知仍按原时间响、新通知不会建（通知是一次性绑死在固定时间点的）。
         let dueDateChanged = dueDate != nil
@@ -408,9 +442,6 @@ class TodoRepository: ObservableObject {
         }
         switch plannedTime {
         case .set(let start, let end):
-            guard TodoTask.isValidPlannedRange(start, end) else {
-                preconditionFailure("计划时间段必须同一天且开始早于结束")
-            }
             task.plannedStart = start
             task.plannedEnd = end
         case .clear:
@@ -463,7 +494,7 @@ class TodoRepository: ObservableObject {
     /// 切换任务完成状态
     @discardableResult
     func toggleTaskCompletion(_ task: TodoTask) throws -> Bool {
-        let becameCompleted = try TodoCompletionCore.toggle(task, in: context)
+        let becameCompleted = try TodoCompletionCore.toggle(task, in: context, sourceSurface: "app.repository")
         loadActiveTasks()
         notifyDataChange()
 
@@ -478,7 +509,7 @@ class TodoRepository: ObservableObject {
 
     /// 完成任务
     func completeTask(_ task: TodoTask) throws {
-        try TodoCompletionCore.complete(task, in: context)
+        try TodoCompletionCore.complete(task, in: context, sourceSurface: "app.repository")
         loadActiveTasks()
         notifyDataChange()
         notifyTaskChange(.completed, taskId: task.id)
@@ -505,48 +536,8 @@ class TodoRepository: ObservableObject {
 
     // MARK: - 全局完成撤回
 
-    /// 开始完成撤回流程：乐观标记 UI，3 秒后真正落库，期间可撤回。
-    /// 跨界面共享 pendingCompletionTaskId，任何界面都能看到撤回 banner。
-    func startPendingCompletion(for task: TodoTask) {
-        // 如果有上一个待确认的任务，立即确认它
-        confirmPendingCompletion()
-
-        pendingCompletionTaskId = task.id
-
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self = self else { return }
-            self.confirmPendingCompletion()
-        }
-        pendingCompletionWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: workItem)
-    }
-
-    /// 确认待完成的任务（真正落库）
-    func confirmPendingCompletion() {
-        guard let pendingId = pendingCompletionTaskId else { return }
-        pendingCompletionWorkItem?.cancel()
-        pendingCompletionWorkItem = nil
-
-        if let task = findTask(by: pendingId) {
-            do {
-                if task.repeatRule != nil {
-                    _ = try completeRepeatingTask(task)
-                } else {
-                    try completeTask(task)
-                }
-            } catch {
-                logger.error("确认完成任务失败: \(error.localizedDescription)")
-            }
-        }
-        pendingCompletionTaskId = nil
-    }
-
-    /// 撤回待完成的任务（取消 3 秒计时，不落库）
-    func undoPendingCompletion() {
-        pendingCompletionWorkItem?.cancel()
-        pendingCompletionWorkItem = nil
-        pendingCompletionTaskId = nil
-    }
+    /// 完成撤回流程已上移到 HoloTaskCompletionCoordinator（动效融合 G1 完成契约）：
+    /// 本仓库只保留 completeTask / completeRepeatingTask / toggleTaskCompletion 等原子操作。
 
     /// 完成重复任务并生成下一个实例
     /// - Parameter task: 要完成的重复任务
@@ -607,6 +598,8 @@ class TodoRepository: ObservableObject {
         let taskId = task.id
         TodoNotificationService.shared.removeReminders(for: task)
         deleteAllAttachmentFiles(for: task)
+        // 分步推进数据随真实归属清理（规格 §9.3）
+        HoloTaskExecutionRepository(context: context).purgeExecutionData(taskID: taskId)
         context.delete(task)
         try context.save()
         loadActiveTasks()
@@ -742,6 +735,18 @@ class TodoRepository: ObservableObject {
         monthDay: Int? = nil,
         untilDate: Date? = nil
     ) throws -> RepeatRule {
+        // R05（2026-10-04 体检）：写入入口统一验证——手动 UI 有界，此为兜底；
+        // AI/导入入口已在建任务前整单验证。非法即抛，不产生半成品规则。
+        try RepeatRuleContract.validatedInterval(interval)
+        switch type {
+        case .weekly, .custom:
+            try RepeatRuleContract.validatedWeekdays(weekdays ?? [])
+        case .daily, .monthly, .yearly:
+            break
+        }
+        if let monthDay {
+            try RepeatRuleContract.validatedMonthDay(monthDay)
+        }
         let rule = RepeatRule.create(in: context, type: type, task: task)
 
         if let weekdays = weekdays {
@@ -776,6 +781,16 @@ class TodoRepository: ObservableObject {
         monthWeekday: Weekday? = nil,
         untilCount: Int? = nil
     ) throws {
+        // R05：变更前统一验证，非法即抛不改对象
+        if let monthDay = monthDay {
+            try RepeatRuleContract.validatedMonthDay(monthDay)
+        }
+        if let monthWeekOrdinal = monthWeekOrdinal {
+            try RepeatRuleContract.validatedMonthWeekOrdinal(monthWeekOrdinal)
+        }
+        if let untilCount = untilCount {
+            try RepeatRuleContract.validatedUntilCount(untilCount)
+        }
         if let monthDay = monthDay {
             rule.monthDay = Int16(monthDay)
         }
@@ -794,12 +809,28 @@ class TodoRepository: ObservableObject {
 
     // MARK: - Query Methods
 
-    /// 通过 ID 查找任务
+    /// 通过 ID 查找任务（同 id 多行副本时取物理行号最小的规范行，方案 §7.3/§8.2：
+    /// 写入口按 UUID 获取同一规范副本，避免写进云端大行号副本）
     func findTask(by id: UUID) -> TodoTask? {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
-        request.fetchLimit = 1
-        return (try? context.fetch(request).first) ?? nil
+        guard let rows = try? context.fetch(request), !rows.isEmpty else { return nil }
+        guard rows.count > 1 else { return rows[0] }
+        return rows.min { DuplicateRowFilter.physicalRowNumber($0) < DuplicateRowFilter.physicalRowNumber($1) }
+    }
+
+    /// 轻重缓急直接操作（方案 §8.2）：按 UUID 重新获取规范副本验证可用后，
+    /// 一次保存两轴并走既有变更通知；nil 轴保持不变。
+    /// 只发送任务数据变化，不触发截止变化/提醒重排/完成或延期计数。
+    func updateTaskClassification(
+        taskID: UUID,
+        importance: TaskImportance?,
+        urgencyMode: TaskUrgencyMode?
+    ) throws {
+        guard let task = findTask(by: taskID) else {
+            throw TaskInputError.taskNotFound
+        }
+        try updateTask(task, importance: importance, urgencyMode: urgencyMode)
     }
 
     /// 标记任务的 AI 确认流程来源（对账用，与 Transaction.aiSourceMessageId 同构）
@@ -924,6 +955,7 @@ class TodoRepository: ObservableObject {
         let trashed = getTrashedTasks()
         let taskIds = trashed.map { $0.id }
         for task in trashed {
+            HoloTaskExecutionRepository(context: context).purgeExecutionData(taskID: task.id)
             context.delete(task)
         }
         try context.save()

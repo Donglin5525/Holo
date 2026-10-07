@@ -52,11 +52,17 @@ struct TaskDetailView: View {
 
     @Environment(\.dismiss) var dismiss
 
+    /// 完成协调层（G1 完成契约：完成改走统一撤回窗口，confirm 落库成功后再弹时长面板）
+    @ObservedObject private var completionCoordinator = HoloTaskCompletionCoordinator.shared
+    /// 详情页出现时刻：只对在场期间发生的 confirm 回执反应，不吃页面打开前的旧回执
+    @State private var appearedAt: Date? = nil
+    /// 已弹过时长面板的那次 confirm（防重复弹）
+    @State private var durationPromptedAt: Date? = nil
+
     // ===== 内容 =====
     @State private var title = ""
     @State private var description = ""
     @State private var descriptionEditorHeight = TaskDescriptionEditorLayout.minHeight
-    @State private var priority: TaskPriority = .medium
     @State private var dueDate = Date()
     @State private var hasDueDate = false
     @State private var hasTime = false
@@ -131,6 +137,15 @@ struct TaskDetailView: View {
     // ===== 状态（编辑模式） =====
     @State private var taskStatus: TaskStatus = .todo
 
+    // ===== 轻重缓急（2026-10-06 任务重构方案 §6.2）=====
+    /// 详情草稿：打开分类子弹层选择先写这里，确定回详情；沿用详情现有保存时点
+    @State private var classificationImportance: TaskImportance = .unknown
+    @State private var classificationUrgencyMode: TaskUrgencyMode = .auto
+    @State private var showClassificationSheet = false
+    /// 新建模式从轻量弹层预填的两轴（保存时随 createTask 一次写入）
+    var prefilledImportance: TaskImportance? = nil
+    var prefilledUrgencyMode: TaskUrgencyMode? = nil
+
     // ===== 记忆 =====
     @AppStorage("lastSelectedListId") private var lastSelectedListId: String?
     @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
@@ -161,7 +176,6 @@ struct TaskDetailView: View {
 
         _title = State(initialValue: task.title)
         _description = State(initialValue: task.desc ?? "")
-        _priority = State(initialValue: task.taskPriority)
         _dueDate = State(initialValue: task.dueDate ?? Date())
         _hasDueDate = State(initialValue: task.dueDate != nil)
         _hasTime = State(initialValue: !task.isAllDay)
@@ -189,6 +203,8 @@ struct TaskDetailView: View {
         }
 
         _taskStatus = State(initialValue: task.taskStatus)
+        _classificationImportance = State(initialValue: task.importance)
+        _classificationUrgencyMode = State(initialValue: task.urgencyMode)
     }
 
     /// 新建模式：底部「＋」、首页深链、看板、日程转任务进入
@@ -198,18 +214,26 @@ struct TaskDetailView: View {
         defaultDueDate: Date? = nil,
         prefilledTitle: String? = nil,
         prefilledDescription: String? = nil,
-        prefilledPlannedRange: (start: Date, end: Date)? = nil
+        prefilledPlannedRange: (start: Date, end: Date)? = nil,
+        prefilledImportance: TaskImportance? = nil,
+        prefilledUrgencyMode: TaskUrgencyMode? = nil,
+        prefilledDueIsAllDay: Bool? = nil
     ) {
         self.repository = repository
         self.existingTask = nil
         self.defaultDueDate = defaultDueDate
         self.onBack = nil
+        self.prefilledImportance = prefilledImportance
+        self.prefilledUrgencyMode = prefilledUrgencyMode
 
         let rememberedId = list?.id ?? (UserDefaults.standard.string(forKey: "lastSelectedListId").flatMap { UUID(uuidString: $0) })
         _selectedListId = State(initialValue: rememberedId)
         _dueDate = State(initialValue: defaultDueDate ?? Date())
         _hasDueDate = State(initialValue: defaultDueDate != nil)
-        _hasTime = State(initialValue: false)
+        _hasTime = State(initialValue: prefilledDueIsAllDay.map { !$0 } ?? false)
+        // 轻重缓急草稿：预填即初始（来自象限的上下文可见、可调整）
+        _classificationImportance = State(initialValue: prefilledImportance ?? .unknown)
+        _classificationUrgencyMode = State(initialValue: prefilledUrgencyMode ?? .auto)
         // 日程转任务等场景的预填
         if let prefilledTitle, !prefilledTitle.isEmpty {
             _title = State(initialValue: prefilledTitle)
@@ -237,6 +261,28 @@ struct TaskDetailView: View {
                     ScrollView {
                         VStack(spacing: HoloSpacing.lg) {
                             titleSection
+
+                            // 分步推进（2026-09-25 实施规格 §4.7）：与 Matter 下一步同组件同状态；
+                            // 未采纳时展示「帮我拆开」入口，已采纳展示当前动作
+                            if let task = existingTask, !task.completed,
+                               HoloTaskExecutionRolloutPolicy.entryEnabled || task.isExecutionManaged {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(verbatim: "一步步做")
+                                        .font(.caption.weight(.bold))
+                                        .tracking(1)
+                                        .foregroundStyle(.secondary)
+                                    MatterExecutionContent(
+                                        taskID: task.id,
+                                        repository: repository,
+                                        originMatterID: nil,
+                                        sourceSurface: "taskDetail"
+                                    )
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.holoNestedCardBackground)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                            }
 
                             // 来源想法紧跟标题：想法转来的任务标题常被改写，
                             // 原话是高频查看项，不能压在属性设置之后
@@ -290,6 +336,36 @@ struct TaskDetailView: View {
                 }
             }
         }
+        // 撤回窗口 banner（与任务列表同一样式；confirm 落库前可撤回）
+        .overlay(alignment: .bottom) {
+            completionUndoBanner
+        }
+        // 完成回执：保留一次性收页节奏，视觉使用 Holo 标准卡片，不挡操作。
+        .overlay(alignment: .top) {
+            if isCompletionPending,
+               HoloTaskMotionRolloutPolicy.isEnabled,
+               let task = existingTask {
+                TaskPaperCompletionReceipt(title: task.title)
+                    .id(task.id)
+                    .padding(.top, 72)
+                    .allowsHitTesting(false)
+            }
+        }
+        .onAppear {
+            appearedAt = Date()
+        }
+        // confirm 落库成功回执：命中当前详情任务且带计划时间段、未记录过时长 → 弹「实际用了多久」
+        .onReceive(completionCoordinator.$lastConfirmed) { confirmed in
+            guard let confirmed, let task = existingTask else { return }
+            // 只对详情页在场期间发生的确认反应（@Published 订阅会先发当前值，不吃页面打开前的旧回执）
+            guard let appearedAt, confirmed.confirmedAt >= appearedAt else { return }
+            guard confirmed.taskID == task.id else { return }
+            guard durationPromptedAt != confirmed.confirmedAt else { return }
+            durationPromptedAt = confirmed.confirmedAt
+            if task.hasPlannedTimeRange, task.actualDurationMinutes == nil {
+                showActualDurationSheet = true
+            }
+        }
         .sheet(isPresented: $showListPicker) {
             listPickerSheet
         }
@@ -328,6 +404,20 @@ struct TaskDetailView: View {
                     ),
                     onPostpone: applyDetailPostpone
                 )
+            }
+        }
+        .sheet(isPresented: $showClassificationSheet) {
+            // 分类子弹层：选择先写详情草稿，确定回详情；沿用详情现有保存时点（§6.2）
+            TaskClassificationSheet(
+                initialImportance: classificationImportance,
+                initialUrgencyMode: classificationUrgencyMode,
+                contextEffectiveDue: TodoTaskDatePolicy.effectiveDueDate(
+                    dueDate: hasDueDate ? dueDate : nil,
+                    isAllDay: !hasTime
+                )
+            ) { importance, urgencyMode in
+                classificationImportance = importance
+                classificationUrgencyMode = urgencyMode
             }
         }
         .sheet(isPresented: $showTaskVoiceInput, onDismiss: insertPendingTaskVoiceTranscript) {
@@ -456,9 +546,11 @@ struct TaskDetailView: View {
         if let task = existingTask {
             return title != task.title
                 || description != (task.desc ?? "")
-                || priority != task.taskPriority
                 || selectedListId != task.list?.id
                 || checkItems.count != (task.checkItems?.count ?? 0)
+                // 轻重缓急草稿纳入变更判断（§6.2）
+                || classificationImportance != task.importance
+                || classificationUrgencyMode != task.urgencyMode
         } else {
             return !title.trimmingCharacters(in: .whitespaces).isEmpty
                 || !description.isEmpty
@@ -466,6 +558,9 @@ struct TaskDetailView: View {
                 || hasRepeat
                 || hasPlannedRange
                 || !pendingCheckItems.isEmpty
+                // 分类草稿离开预填初始值才算用户编辑（预填不算，§5.4）
+                || classificationImportance != (prefilledImportance ?? .unknown)
+                || classificationUrgencyMode != (prefilledUrgencyMode ?? .auto)
         }
     }
 
@@ -496,9 +591,11 @@ struct TaskDetailView: View {
                     Button {
                         toggleCompletion()
                     } label: {
-                        Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
+                        // 撤回窗口内视觉与已完成一致（对齐列表/看板的完成中表现）
+                        let isDone = task.completed || isCompletionPending
+                        Image(systemName: isDone ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 24, weight: .medium))
-                            .foregroundColor(task.completed ? .holoSuccess : .holoTextSecondary)
+                            .foregroundColor(isDone ? .holoSuccess : .holoTextSecondary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -506,7 +603,7 @@ struct TaskDetailView: View {
                 TextField("输入任务名称", text: $title)
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
-                    .strikethrough(existingTask?.completed == true, color: .holoTextSecondary)
+                    .strikethrough(existingTask?.completed == true || isCompletionPending, color: .holoTextSecondary)
                     .focused($isTitleFocused)
             }
 
@@ -703,29 +800,89 @@ struct TaskDetailView: View {
 
     // MARK: - 完成切换（编辑模式）
 
-    private func toggleCompletion() {
+    /// 当前详情任务是否处于完成撤回窗口内
+    private var isCompletionPending: Bool {
+        guard let task = existingTask else { return false }
+        return completionCoordinator.pending?.taskID == task.id
+    }
+
+    /// - Parameter trigger: 由「子任务全勾」联动触发时带出触发子任务快照，撤回时恢复其原勾选状态
+    private func toggleCompletion(trigger: (checkItemID: UUID, wasChecked: Bool)? = nil) {
         guard let task = existingTask else { return }
-        let wasCompleted = task.completed
-        let shouldPromptActual = !wasCompleted && task.hasPlannedTimeRange && task.actualDurationMinutes == nil
-        do {
-            if task.repeatRule != nil && !task.completed {
-                let generated = try repository.completeRepeatingTask(task)
-                if generated {
-                    repository.context.refresh(task, mergeChanges: true)
-                }
-            } else {
+        if task.completed {
+            // 已完成 → 取消完成（立即落库，无撤回语义）
+            do {
                 let isCompleted = try repository.toggleTaskCompletion(task)
                 if !isCompleted {
                     taskStatus = .todo
                 }
+                HapticManager.taskCompletion()
+            } catch {
+                Self.logger.error("切换完成状态失败: \(error.localizedDescription)")
             }
+        } else if isCompletionPending {
+            // 撤回窗口内再点完成圈 → 撤回（与列表/看板一致）
+            completionCoordinator.undo(in: repository)
+            HapticManager.light()
+        } else {
+            // 未完成 → 走统一撤回窗口；confirm 落库成功后由 lastConfirmed 订阅弹时长面板
+            completionCoordinator.requestCompletion(
+                taskID: task.id,
+                source: .taskDetail,
+                trigger: trigger,
+                in: repository
+            )
             HapticManager.taskCompletion()
-            // 完成带时间段任务且未记录过实际用时 → 弹确认（跳过也行）
-            if shouldPromptActual, task.completed {
-                showActualDurationSheet = true
+        }
+    }
+
+    /// 撤回窗口 banner：使用 Holo 统一操作回执。
+    @ViewBuilder
+    private var completionUndoBanner: some View {
+        if isCompletionPending {
+            if HoloTaskMotionRolloutPolicy.isEnabled {
+                HoloUndoToast(
+                    message: String(localized: "已完成 · \(Int(HoloTaskCompletionCoordinator.confirmDelay)) 秒内可撤回"),
+                    onUndo: {
+                        completionCoordinator.undo(in: repository)
+                        HapticManager.light()
+                    }
+                )
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.bottom, 8)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                HStack {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.holoSuccess)
+                        Text("任务已完成")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        completionCoordinator.undo(in: repository)
+                        HapticManager.light()
+                    } label: {
+                        Text("撤回")
+                            .font(.holoBody)
+                            .foregroundColor(.holoPrimary)
+                            .fontWeight(.semibold)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color.holoCardBackground)
+                .cornerRadius(HoloRadius.md)
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.bottom, 8)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-        } catch {
-            Self.logger.error("切换完成状态失败: \(error.localizedDescription)")
         }
     }
 
@@ -750,12 +907,9 @@ struct TaskDetailView: View {
                 Spacer()
 
                 if totalCheckItemCount > 0 {
-                    if existingTask != nil {
-                        let completed = checkItems.filter(\.isChecked).count
-                        Text("\(completed)/\(checkItems.count)")
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
-                    } else {
+                    if existingTask == nil {
+                        // 新建模式：只报步骤数；编辑模式的进度由下方
+                        // 「已完成 n/m 项」文字承载，标题行不再重复计数（动效融合定稿 §5）
                         Text("\(pendingCheckItems.count)")
                             .font(.holoTinyLabel)
                             .foregroundColor(.holoTextSecondary)
@@ -766,10 +920,11 @@ struct TaskDetailView: View {
             .padding(.top, 12)
             .padding(.bottom, 4)
 
-            // 进度条（编辑模式，基于本地数组实时计算）
+            // 子任务计数文字（编辑模式，基于本地数组实时计算）：
+            // 只保留「已完成 n/m 项」辅助语，去掉迷你进度条
+            //（动效融合定稿 §5：移去重复表达完成比例的迷你条）
             if existingTask != nil, !checkItems.isEmpty {
                 let completedCount = checkItems.filter(\.isChecked).count
-                let percent = min(max(displayedChecklistProgress, 0), 1)
                 let isComplete = checklistProgress >= 1.0
 
                 HStack {
@@ -780,22 +935,18 @@ struct TaskDetailView: View {
                         .contentTransition(.numericText())
                 }
                 .padding(.horizontal, 12)
-
-                TaskChecklistProgressBar(progress: percent, isComplete: isComplete)
-                    .frame(height: 4)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 8)
-                    .overlay {
-                        if showChecklistCompletionCelebration {
-                            TaskChecklistCelebrationView {
-                                showChecklistCompletionCelebration = false
-                            }
-                            .id(checklistCompletionCelebrationID)
-                            .frame(height: 90)
-                            .offset(y: -28)
-                            .allowsHitTesting(false)
+                .padding(.bottom, 8)
+                .overlay {
+                    if showChecklistCompletionCelebration {
+                        TaskChecklistCelebrationView {
+                            showChecklistCompletionCelebration = false
                         }
+                        .id(checklistCompletionCelebrationID)
+                        .frame(height: 90)
+                        .offset(y: -28)
+                        .allowsHitTesting(false)
                     }
+                }
             }
 
             // 子任务列表
@@ -820,7 +971,7 @@ struct TaskDetailView: View {
                         Spacer()
 
                         Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
+                            withAnimation(HoloAnimation.standard) {
                                 pendingCheckItems.removeAll { $0.id == item.id }
                             }
                         } label: {
@@ -942,7 +1093,7 @@ struct TaskDetailView: View {
             }
             .buttonStyle(.plain)
             .disabled(!hasText)
-            .animation(.easeInOut(duration: 0.16), value: hasText)
+            .animation(HoloAnimation.quick, value: hasText)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -974,6 +1125,8 @@ struct TaskDetailView: View {
         displayedChecklistProgress = progressBeforeChange
 
         do {
+            // 勾选前先取旧值：作为「触发父任务完成」的撤回恢复依据（与任务卡同一契约）
+            let wasChecked = item.isChecked
             try repository.toggleCheckItem(item)
             if let task = existingTask {
                 let items = task.checkItems?.allObjects as? [CheckItem] ?? []
@@ -981,9 +1134,14 @@ struct TaskDetailView: View {
 
                 // 与任务卡同一条联动规则：子任务全勾 → 自动完成主任务；
                 // 已完成任务出现未勾子任务 → 自动回未完成，避免「父完成 + 子未完成」矛盾状态
+                // 分步接管任务（executionSchemaVersion>=1）禁止清单全勾隐式完成根（规格 §8.4-2）
                 let allChecked = !items.isEmpty && items.allSatisfy(\.isChecked)
-                if allChecked != task.completed {
-                    toggleCompletion()
+                if task.allowsChecklistAutoCompletion {
+                    if allChecked != task.completed {
+                        toggleCompletion(trigger: allChecked ? (checkItemID: item.id, wasChecked: wasChecked) : nil)
+                    }
+                } else if !allChecked && task.completed {
+                    toggleCompletion(trigger: nil)
                 }
             }
             applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
@@ -1250,6 +1408,8 @@ struct TaskDetailView: View {
             selectedAttachmentPhotos = []
             var failedCount = 0
             var permissionRequired = false
+            var limitedAccess = false
+            var cloudFailed = false
 
             if let task = existingTask {
                 for item in items {
@@ -1257,6 +1417,8 @@ struct TaskDetailView: View {
                     guard case .data(let data) = outcome else {
                         failedCount += 1
                         if case .permissionRequired = outcome { permissionRequired = true }
+                        if case .limitedAccess = outcome { limitedAccess = true }
+                        if case .cloudDownloadFailed = outcome { cloudFailed = true }
                         continue
                     }
                     do {
@@ -1276,12 +1438,14 @@ struct TaskDetailView: View {
                     } else {
                         failedCount += 1
                         if case .permissionRequired = outcome { permissionRequired = true }
+                        if case .limitedAccess = outcome { limitedAccess = true }
+                        if case .cloudDownloadFailed = outcome { cloudFailed = true }
                     }
                 }
                 guard !images.isEmpty || failedCount > 0 else { return }
                 pendingImages.append(contentsOf: images)
             }
-            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired)
+            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired, limitedAccess: limitedAccess, cloudFailed: cloudFailed)
         }
     }
 
@@ -1413,8 +1577,35 @@ struct TaskDetailView: View {
 
             Divider().padding(.horizontal, 12)
 
-            // 优先级：四档平铺，不再折叠
-            priorityRow
+            // 轻重缓急（§6.2-2）：当前象限/待整理 + 判断方式；点击编辑两个维度
+            Button {
+                showClassificationSheet = true
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    rowIcon("square.grid.2x2")
+
+                    Text("轻重缓急")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+
+                    Spacer(minLength: HoloSpacing.md)
+
+                    Text(classificationSummaryText)
+                        .font(.holoCaption)
+                        .foregroundColor(classificationImportance == .unknown ? .holoTextSecondary : .holoPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .multilineTextAlignment(.trailing)
+
+                    rowChevron
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+            .buttonStyle(.plain)
+
 
             // 状态（编辑模式）
             if existingTask != nil {
@@ -1439,6 +1630,32 @@ struct TaskDetailView: View {
             return .holoError
         }
         return Calendar.current.isDateInToday(dueDate) ? .holoPrimary : .holoTextPrimary
+    }
+
+    /// 轻重缓急行摘要：P 档 · 紧急分 · 去向（未判断=待整理）（2026-10-07 紧急分体系）
+    private var classificationSummaryText: String {
+        let effectiveDue = TodoTaskDatePolicy.effectiveDueDate(
+            dueDate: hasDueDate ? dueDate : nil,
+            isAllDay: !hasTime
+        )
+        let quadrant = TaskQuadrantResolver.quadrant(
+            importance: classificationImportance,
+            mode: classificationUrgencyMode,
+            effectiveDue: effectiveDue,
+            now: Date(),
+            calendar: TaskAnalyticsPeriod.makeCalendar()
+        )
+        guard classificationImportance != .unknown else {
+            return "\(quadrant.displayTitle) · \(String(localized: "未判断"))"
+        }
+        let score = TaskQuadrantResolver.urgencyScore(
+            importance: classificationImportance,
+            mode: classificationUrgencyMode,
+            effectiveDue: effectiveDue,
+            now: Date(),
+            calendar: TaskAnalyticsPeriod.makeCalendar()
+        ).map { "\($0)" } ?? "—"
+        return "\(classificationImportance.displayTitle) · \(String(localized: "紧急分")) \(score) · \(quadrant.displayTitle)"
     }
 
     /// 时间段行右侧摘要：「今天 10:00–12:00」；非今明用「M/d」
@@ -1489,42 +1706,6 @@ struct TaskDetailView: View {
         } catch {
             Logger(subsystem: "com.holo.app", category: "TaskDetailView").error("延期失败: \(error.localizedDescription)")
         }
-    }
-
-    private var priorityRow: some View {
-        HStack(spacing: HoloSpacing.sm) {
-            rowIcon("flag")
-
-            Text("优先级")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-
-            Spacer(minLength: HoloSpacing.md)
-
-            HStack(spacing: 5) {
-                ForEach([TaskPriority.urgent, .high, .medium, .low], id: \.self) { p in
-                    Button {
-                        priority = p
-                    } label: {
-                        Text(p.shortTitle)
-                            .font(.system(size: 11.5, weight: .medium))
-                            .foregroundColor(priority == p ? .white : p.color)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 7)
-                                    .fill(priority == p ? p.color : p.color.opacity(0.12))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-        .frame(minHeight: 44)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
     }
 
     private var statusRow: some View {
@@ -1988,6 +2169,11 @@ struct TaskDetailView: View {
     private func saveAndDismiss() {
         isSaving = true
 
+        // 保存前把子任务输入框里未提交的内容收进来：点返回不一定先经过
+        // 失焦回调（onChange(focused) 与保存存在竞态），只靠失焦兜底会丢字；
+        // addCheckItem 对空输入幂等，与失焦路径双跑也只入列一次
+        addCheckItem()
+
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
         // 无截止日时只保留绝对提醒（相对提醒依赖截止日，无意义）。
         // 空集也要照常写入：reminders 传 nil 是「不修改」，清空必须靠写空集。
@@ -2007,7 +2193,8 @@ struct TaskDetailView: View {
                         title: finalTitle,
                         description: description,
                         status: taskStatus,
-                        priority: priority,
+                        importance: classificationImportance,
+                        urgencyMode: classificationUrgencyMode,
                         dueDate: hasDueDate ? .set(dueDate) : .clear,
                         isAllDay: !hasTime,
                         // 收件箱是显式保存意图：nil 会被「不修改」语义吞掉，任务永远留在原清单
@@ -2022,7 +2209,8 @@ struct TaskDetailView: View {
                         title: trimmedTitle,
                         description: description.isEmpty ? nil : description,
                         list: selectedList,
-                        priority: priority,
+                        importance: classificationImportance,
+                        urgencyMode: classificationUrgencyMode,
                         dueDate: hasDueDate ? dueDate : nil,
                         isAllDay: !hasTime,
                         reminders: remindersToSave,
@@ -2163,33 +2351,6 @@ enum TaskDetailTimeDefault {
         components.hour = hour
         components.minute = minute
         return calendar.date(from: components) ?? allDayDate
-    }
-}
-
-// MARK: - TaskChecklistProgressBar
-
-private struct TaskChecklistProgressBar: View {
-    let progress: Double
-    let isComplete: Bool
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(Color.holoTextSecondary.opacity(0.15))
-
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(isComplete ? Color.holoSuccess : Color.holoPrimary)
-                    .frame(width: geometry.size.width * progress)
-                    .shadow(
-                        color: (isComplete ? Color.holoSuccess : Color.holoPrimary).opacity(isComplete ? 0.24 : 0),
-                        radius: 4,
-                        x: 0,
-                        y: 0
-                    )
-                    .animation(.easeInOut(duration: 0.62), value: progress)
-            }
-        }
     }
 }
 

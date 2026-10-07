@@ -10,6 +10,7 @@ import SwiftUI
 import os.log
 
 struct KanbanHabitSection: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @ObservedObject var habitRepo: HabitRepository
     @ObservedObject private var displaySettings = HabitStatsDisplaySettings.shared
@@ -23,7 +24,11 @@ struct KanbanHabitSection: View {
 
     private var activeHabits: [Habit] {
         // 今日看板展示所有可见习惯（含每日/每周/每月）：周月习惯每天打卡会推进本周/月目标，
-        // 连续性统计已按周/月聚合去重（calculatePeriodicStreak），每天打卡不会破坏 streak
+        // 连续性统计已按周/月聚合去重（calculatePeriodicStreak），每天打卡不会破坏 streak。
+        // 显式全部关闭（configured 标记）→ 真空列表，不回退成「显示全部」
+        if let visibleIds = displaySettings.effectiveDashboardVisibleIds(), visibleIds.isEmpty {
+            return []
+        }
         let visibleIds = displaySettings.dashboardVisibleHabitIds
         if visibleIds.isEmpty { return habitRepo.activeHabits }
         let visibleSet = Set(visibleIds)
@@ -40,6 +45,7 @@ struct KanbanHabitSection: View {
                 VStack(spacing: 0) {
                     ForEach(activeHabits, id: \.id) { habit in
                         habitRow(habit: habit)
+                            .holoRecordArrival(habit.id, domain: .habit)
                         if habit.id != activeHabits.last?.id {
                             Divider().background(Color.holoDivider)
                         }
@@ -217,7 +223,7 @@ struct KanbanHabitSection: View {
                     .foregroundColor(.white)
                     .opacity(isCompleted ? 1 : 0)
             }
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isCompleted)
+            .animation(reduceMotion ? nil : HoloAnimation.snappy, value: isCompleted)
         }
         .buttonStyle(.plain)
     }
@@ -324,8 +330,10 @@ struct KanbanHabitSection: View {
 
             if wasCompleted {
                 completedHabits.remove(habit.id)
+                HoloMotionFeedbackCenter.shared.cancelHabitResponse(habit.id)
             } else {
                 completedHabits.insert(habit.id)
+                if !habit.isBadHabit { HoloMotionFeedbackCenter.shared.completedHabit(habit.id) }
                 HapticManager.taskCompletion()
             }
         } catch {
@@ -336,8 +344,10 @@ struct KanbanHabitSection: View {
 
     private func incrementCount(_ habit: Habit) {
         do {
+            let firstOfToday = (todayValues[habit.id] ?? 0) == 0
             _ = try habitRepo.incrementCount(for: habit)
             todayValues[habit.id] = habitRepo.getTodayValue(for: habit)
+            if firstOfToday && !habit.isBadHabit { HoloMotionFeedbackCenter.shared.completedHabit(habit.id) }
             HapticManager.light()
         } catch {
             Logger(subsystem: "com.holo.app", category: "UI").error("计数失败: \(error.localizedDescription)")
@@ -357,6 +367,7 @@ struct KanbanHabitSection: View {
             } else {
                 todayValues.removeValue(forKey: habit.id)
                 completedHabits.remove(habit.id)
+                HoloMotionFeedbackCenter.shared.cancelHabitResponse(habit.id)
             }
             HapticManager.light()
         } catch {

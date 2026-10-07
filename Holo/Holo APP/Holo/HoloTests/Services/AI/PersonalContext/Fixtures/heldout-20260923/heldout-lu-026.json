@@ -1,0 +1,91 @@
+{
+  "fixtureID": "tpl-noise-input-07",
+  "domainTags": [
+    "出行",
+    "照护",
+    "噪声"
+  ],
+  "sources": [
+    {
+      "sourceID": "habit:habit-care",
+      "sourceDomain": "habit",
+      "sourceKind": "habitDefinition",
+      "plainText": "给摩卡换水",
+      "recordedAt": "2026-09-02T08:00:00+08:00",
+      "revisionDigest": "rev-1",
+      "derivedCheckins": [
+        {
+          "sourceID": "habit:habit-care#ck0",
+          "eventTime": "2026-09-13T08:00:00+08:00",
+          "state": "done"
+        },
+        {
+          "sourceID": "habit:habit-care#ck1",
+          "eventTime": "2026-09-14T08:00:00+08:00",
+          "state": "done"
+        },
+        {
+          "sourceID": "habit:habit-care#ck2",
+          "eventTime": "2026-09-15T08:00:00+08:00",
+          "state": "done"
+        }
+      ]
+    },
+    {
+      "sourceID": "thought:note-noise",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "今天追的剧完结了；摩卡最近精神不错；公司楼下的咖啡换了豆子；股票又绿了。",
+      "recordedAt": "2026-09-20T23:00:00+08:00",
+      "eventTime": "2026-09-20T23:00:00+08:00",
+      "revisionDigest": "rev-1"
+    },
+    {
+      "sourceID": "finance:tx-noise",
+      "sourceDomain": "finance",
+      "sourceKind": "transaction",
+      "plainText": "视频网站年费续费",
+      "recordedAt": "2026-09-19T12:00:00+08:00",
+      "eventTime": "2026-09-19T12:00:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "我 11 月 8 日到 13 日回老家，出发前有什么要安排的？",
+    "referenceTime": "2026-09-23T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户可能存在对%s的持续照料责任",
+      "basisSourceIDs": [
+        "habit:habit-care"
+      ],
+      "epistemicStatus": "inferred"
+    }
+  ],
+  "unknowns": [
+    "摩卡的物种与身份",
+    "出行期间照料安排"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldInclude",
+      "description": "建议核实出行期间摩卡的照料安排"
+    },
+    {
+      "effectKind": "shouldExclude",
+      "description": "无关噪声（剧集/咖啡/股票）不得影响建议"
+    }
+  ],
+  "forbiddenClaims": [
+    "把无关内容当依据",
+    "断言摩卡是狗"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "删除照料习惯",
+      "expectedEffect": "不再出现个性化照料建议"
+    }
+  ]
+}

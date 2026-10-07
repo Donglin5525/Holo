@@ -109,6 +109,157 @@ final class HoloXhsShotUITests: XCTestCase {
         print("[XHS] saved \(out)")
     }
 
+    // MARK: - 整体介绍剧本（intro-week）
+
+    private func launchIntroWeek(route: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = route
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "intro-week"
+        app.launch()
+        return app
+    }
+
+    /// 记忆长廊洞察页：展开「观察中」折叠卡，打印关键行精确 frame（点）后截图。
+    func testShotIntroWeekInsightExpanded() throws {
+        let app = launchIntroWeek(route: "memory-insight")
+        sleep(14)
+        app.swipeUp()
+        sleep(2)
+        // 折叠卡标题来自种子记忆摘要，两种元素类型都尝试
+        let text = app.staticTexts["节奏有点乱"].firstMatch
+        let button = app.buttons["节奏有点乱"].firstMatch
+        if text.waitForExistence(timeout: 6), text.isHittable {
+            text.tap()
+            sleep(3)
+        } else if button.exists, button.isHittable {
+            button.tap()
+            sleep(3)
+        }
+        for label in ["节奏有点乱", "待办", "习惯", "消费", "健康", "活跃热力图"] {
+            let el = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label == %@", label)).firstMatch
+            print("[XHS] \(label) exists=\(el.exists) frame=\(el.exists ? el.frame.debugDescription : "nil")")
+        }
+        print("[XHS] app.frame=\(app.frame)")
+        try saveShot("intro-week-insight-expanded")
+    }
+
+    /// 深度分析报告详情：记忆长廊理解页顶部「全部报告 ›」入口，免滚动。
+    func testShotIntroWeekWeeklyReplay() throws {
+        let app = launchIntroWeek(route: "memory-insight")
+        sleep(14)
+        let entry = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS '全部报告'")).firstMatch
+        if entry.waitForExistence(timeout: 8), entry.isHittable {
+            entry.tap()
+            sleep(3)
+        } else {
+            print("[XHS] 全部报告入口 missing; staticTexts=\(app.staticTexts.allElementsBoundByIndex.map(\.label).prefix(30).joined(separator: "|"))")
+        }
+        try saveShot("intro-week-report-detail")
+    }
+
+    /// 记忆长廊日历：切到「月」视图，展示整月时间线。
+
+    /// 记忆观察卡坐标探针：滚动到「观察中」分区，打印关键元素精确 frame（点），
+    /// 并保存整屏截图——供排版脚本按真实坐标裁出干净卡片区域。
+    func testShotIntroWeekMemoryCardProbe() throws {
+        let app = launchIntroWeek(route: "memory-insight")
+        sleep(14)
+        app.swipeUp()
+        sleep(1)
+        app.swipeUp()
+        sleep(2)
+        let observe = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS '观察中'")).firstMatch
+        let cardTitle = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS '节奏有点乱'")).firstMatch
+        let heatmap = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS '活跃热力图'")).firstMatch
+        let copy = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS '不会用于回答'")).firstMatch
+        print("[XHS] app.frame=\(app.frame)")
+        print("[XHS] observe exists=\(observe.exists) frame=\(observe.exists ? observe.frame.debugDescription : "nil")")
+        print("[XHS] cardTitle exists=\(cardTitle.exists) frame=\(cardTitle.exists ? cardTitle.frame.debugDescription : "nil")")
+        print("[XHS] heatmap exists=\(heatmap.exists) frame=\(heatmap.exists ? heatmap.frame.debugDescription : "nil")")
+        print("[XHS] copy exists=\(copy.exists) frame=\(copy.exists ? copy.frame.debugDescription : "nil")")
+        try saveShot("intro-week-memory-probe")
+    }
+
+    /// 待确认观察：memory-insight 深链落洞察 Tab，进「想和你确认的」逐条确认队列。
+    /// 两个 Tab 都常驻视图树，必须 isHittable 确认在可见 Tab 上再点（004 验证过的拍法）。
+    func testShotIntroWeekConfirmQueue() throws {
+        let app = launchIntroWeek(route: "memory-insight")
+        sleep(12)
+        let group = app.staticTexts["想和你确认的"]
+        XCTAssertTrue(group.waitForExistence(timeout: 30), "想和你确认的分组未出现")
+        XCTAssertTrue(group.isHittable, "洞察 Tab 未落地，分组不可见")
+        group.tap()
+        sleep(3)
+        try saveShot("intro-week-confirm-queue")
+    }
+
+    /// 会员中心权益表：自动弹会员中心，滚动到「每周生活计划」行完整可见后截图。
+    func testShotIntroWeekMembershipTable() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "home"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "intro-week"
+        app.launchEnvironment["HOLO_DEBUG_AUTO_SURFACE"] = "membership"
+        app.launch()
+        sleep(10)
+        let row = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS '每周生活计划'")).firstMatch
+        // isHittable 对未滚入视口的元素也可能为 true，改用 frame 是否进入屏幕下沿判断
+        func rowFullyVisible() -> Bool {
+            guard row.exists else { return false }
+            let f = row.frame
+            let s = app.frame
+            return !f.isEmpty && f.maxY <= s.maxY - 60 && f.minY >= s.minY
+        }
+        for i in 0..<5 {
+            if i > 0 && rowFullyVisible() { break }
+            app.swipeUp()
+            sleep(1)
+        }
+        sleep(2)
+        print("[XHS] membership row visible=\(rowFullyVisible()) frame=\(row.exists ? row.frame.debugDescription : "nil")")
+        try saveShot("intro-week-membership-table")
+    }
+
+    /// 记忆长廊理解页（稳定版）：等动画结束、右滑对齐横向分页、回到页首后截图。
+    func testShotIntroWeekInsightSettled() throws {
+        let app = launchIntroWeek(route: "memory-insight")
+        sleep(16)
+        // 理解页可能停在横向分页中间：从左缘向右轻拖对齐当前页
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.08, dy: 0.5))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+        start.press(forDuration: 0.1, thenDragTo: end)
+        sleep(2)
+        app.swipeDown()
+        sleep(2)
+        try saveShot("intro-week-insight-settled")
+    }
+
+    /// 记忆长廊日历：切到「月」视图，展示整月时间线。
+    func testShotIntroWeekGalleryMonth() throws {
+        let app = launchIntroWeek(route: "memory-calendar")
+        sleep(12)
+        let monthAny = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label == '月'")).firstMatch
+        if monthAny.waitForExistence(timeout: 6), monthAny.isHittable {
+            monthAny.tap()
+        } else {
+            print("[XHS] month element missing; buttons=\(app.buttons.allElementsBoundByIndex.map(\.label).joined(separator: "|"))")
+            print("[XHS] staticTexts=\(app.staticTexts.allElementsBoundByIndex.map(\.label).prefix(30).joined(separator: "|"))")
+            // 坐标兜底：档位条（日/周/月/轴）在屏幕上部
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.615, dy: 0.132)).tap()
+        }
+        sleep(3)
+        try saveShot("intro-week-gallery-month")
+    }
+
     // MARK: - 里程碑八月剧本（第二篇笔记）
 
     private func launchMilestone(route: String) -> XCUIApplication {
@@ -208,6 +359,15 @@ final class HoloXhsShotUITests: XCTestCase {
         app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
         app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = route
         app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "busy-week"
+        app.launch()
+        return app
+    }
+
+    private func launchLifeFlow(route: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = route
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "life-flow"
         app.launch()
         return app
     }
@@ -312,6 +472,65 @@ final class HoloXhsShotUITests: XCTestCase {
             sleep(2)
             try saveShot("busy4-07-replay-expanded-2")
         }
+    }
+
+    // MARK: - 生活化 App Store 六张图（真实模拟器截图）
+
+    /// 01 一句话把会议、签证和给家人买药交给 Holo，保留真实执行结果卡。
+    func testShotLifeFlow01Actions() throws {
+        let app = launchLifeFlow(route: "ai-actions")
+        sleep(15)
+        try saveShot("life-flow-01-actions")
+    }
+
+    /// 02 首页：同一组生活数据在首页的周节奏摘要与入口布局。
+    func testShotLifeFlow02Home() throws {
+        let app = launchLifeFlow(route: "home")
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 60), "首页窗口未出现")
+        sleep(6)
+        try saveShot("life-flow-02-home")
+    }
+
+    /// 03 追问最近为什么总觉得时间不够，向上回看至真实的跨域分析卡。
+    func testShotLifeFlow03Analysis() throws {
+        let app = launchLifeFlow(route: "ai-analysis")
+        sleep(15)
+        drag(app, fromDy: 0.35, toDy: 0.68)
+        sleep(3)
+        let button = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS '查看详细分析'")
+        ).firstMatch
+        if button.waitForExistence(timeout: 8) {
+            button.tap()
+            sleep(3)
+        }
+        try saveShot("life-flow-03-analysis")
+    }
+
+    /// 04 周回放：把会议、签证、支出和观点放在一起读。
+    func testShotLifeFlow04WeeklyReplay() throws {
+        let app = launchLifeFlow(route: "period-replay-weekly")
+        sleep(16)
+        try saveShot("life-flow-04-period-replay")
+    }
+
+    /// 05 待确认记忆：会议前留缓冲、出行先列清单，由用户决定是否保留。
+    func testShotLifeFlow05MemoryInsight() throws {
+        let app = launchLifeFlow(route: "memory-insight")
+        sleep(12)
+        let group = app.staticTexts["想和你确认的"]
+        XCTAssertTrue(group.waitForExistence(timeout: 30), "想和你确认的分组未出现")
+        XCTAssertTrue(group.isHittable, "洞察 Tab 未落地，分组不可见")
+        group.tap()
+        sleep(3)
+        try saveShot("life-flow-05-memory-insight")
+    }
+
+    /// 06 记忆长廊日回放：会议材料、签证准备、咖啡与云，组成普通的一天。
+    func testShotLifeFlow06MemoryGallery() throws {
+        let app = launchLifeFlow(route: "memory-calendar")
+        sleep(12)
+        try saveShot("life-flow-06-memory-gallery")
     }
 
     /// 探针，长按主屏空白进入编辑模式，截图并打印元素树（用于小组件自动化）

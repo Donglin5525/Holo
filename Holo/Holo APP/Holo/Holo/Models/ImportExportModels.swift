@@ -30,7 +30,8 @@ enum ExportFormat: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .csv: return "通用表格格式，Excel/Numbers 可直接打开"
-        case .json: return "完整备份格式，含分类和账户数据"
+        // JSON 目前只能导出、没有对应的导入恢复入口，不得自称「完整备份」（2026-10-04 体检 D04）
+        case .json: return "结构化财务导出，含分类和账户数据，暂不支持导入恢复"
         }
     }
     
@@ -108,11 +109,14 @@ struct TransactionDTO: Codable {
     let tags: [String]?
     let createdAt: Date
     let updatedAt: Date
+    /// 小票图片文件名（仅「包含小票图片」导出时有值；对应 ZIP 包内 receipts/ 目录同名文件）
+    let receipts: [String]?
 
     // 兼容旧版 JSON（无 accountId/categoryId 字段时使用默认值）
     init(id: String, amount: Double, type: String, categoryName: String, accountName: String,
          accountId: String? = nil, categoryId: String? = nil,
-         date: Date, note: String?, tags: [String]?, createdAt: Date, updatedAt: Date) {
+         date: Date, note: String?, tags: [String]?, createdAt: Date, updatedAt: Date,
+         receipts: [String]? = nil) {
         self.id = id
         self.amount = amount
         self.type = type
@@ -125,6 +129,7 @@ struct TransactionDTO: Codable {
         self.tags = tags
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.receipts = receipts
     }
 
     init(from decoder: Decoder) throws {
@@ -141,6 +146,7 @@ struct TransactionDTO: Codable {
         tags = try container.decodeIfPresent([String].self, forKey: .tags)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        receipts = try container.decodeIfPresent([String].self, forKey: .receipts)
     }
 }
 
@@ -266,6 +272,8 @@ struct FieldMapping {
     var merchantIndex: Int?
     /// 标签列索引
     var tagsIndex: Int?
+    /// 分期列索引（HOLO 导出「分期」列，值 "x/y"；无分期列为 nil）
+    var installmentIndex: Int? = nil
     // MARK: 账单导入扩展列（微信/支付宝/银行账单；普通 CSV 为 nil）
     /// 交易对方列索引（优先于 merchantIndex 进 note）
     var counterpartyIndex: Int? = nil
@@ -462,6 +470,20 @@ struct ImportScanSummary {
     var billInfo: BillScanInfo? = nil
     /// 账单数据行的轻量投影（软检测用；普通 CSV 或超出保护上限时为 nil）
     var billProjections: [BillRowProjection]? = nil
+    /// 分期识别结论（强信号自动归组 + 弱信号疑似组；无分期信号的文件为 nil）
+    var installmentInfo: InstallmentScanInfo? = nil
+}
+
+/// 分期识别的完整结论（扫描期一次成型；预览区块展示与导入落库共用）
+struct InstallmentScanInfo {
+    /// 强信号自动归组：过滤后数据行号（1-based） → 期次赋值
+    let assignments: [Int: InstallmentImportRecognizer.Assignment]
+    /// 自动识别的分期组摘要（预览展示）
+    let groups: [InstallmentImportRecognizer.GroupSummary]
+    /// 弱信号疑似组（用户确认后按日期序归组，不确认不生效）
+    let suspected: [InstallmentImportRecognizer.SuspectedGroup]
+    /// 带分期信号但未能归组的行数（降级为普通交易，分期信息保留在备注中）
+    let ungroupedSignalCount: Int
 }
 
 /// 账单扫描附加信息（账单智能导入）

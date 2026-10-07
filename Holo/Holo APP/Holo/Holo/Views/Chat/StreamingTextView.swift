@@ -12,7 +12,6 @@ struct StreamingTextView: View {
 
     let text: String
     let isStreaming: Bool
-    @State private var cursorVisible = false
     @State private var renderedMarkdown: AttributedString?
 
     var body: some View {
@@ -27,10 +26,8 @@ struct StreamingTextView: View {
                 Text("|")
                     .font(.holoBody)
                     .foregroundColor(.holoPrimary)
-                    .opacity(cursorVisible ? 1 : 0)
-                    .animation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true), value: cursorVisible)
+                    .holoAmbientOpacity()
             }
-            .onAppear { cursorVisible = true }
         } else {
             // 完成后：默认先纯文本秒开，短文本再异步升级成 Markdown
             Text(renderedMarkdown ?? AttributedString(text))

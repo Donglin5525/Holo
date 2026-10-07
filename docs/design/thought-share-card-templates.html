@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holo 想法分享卡 · 模板对比</title>
+  <style>
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #17151a; color: #f8f3ee; }
+    main { max-width: 1500px; margin: auto; padding: 52px 34px 70px; }
+    header { display: flex; justify-content: space-between; align-items: end; gap: 24px; margin-bottom: 34px; }
+    .eyebrow { color: #ec935f; font-size: 11px; font-weight: 700; letter-spacing: .24em; }
+    h1 { margin: 12px 0 8px; font-size: clamp(28px, 3vw, 43px); letter-spacing: -.03em; }
+    header p, .hint { margin: 0; color: #aaa3a5; font-size: 13px; line-height: 1.7; }
+    .hint { max-width: 340px; text-align: right; }
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(250px, 1fr)); gap: 22px; align-items: start; }
+    .option { min-width: 0; }
+    .card-wrap { padding: 8px; background: #29242b; border: 1px solid #42353c; border-radius: 17px; box-shadow: 0 20px 35px #0004; }
+    .card { min-height: 494px; padding: 28px 27px 0; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+    .date { font-size: 9px; letter-spacing: .11em; white-space: nowrap; }
+    .ornament { width: 31px; height: 31px; display: inline-block; flex: none; background-repeat: no-repeat; background-position: center; background-size: 150%; }
+    .sprig { background-image: url('../../Holo/Holo%20APP/Holo/Holo/Assets.xcassets/ShareOrnamentSprig.imageset/ShareOrnamentSprig.png'); }
+    .quote { background-image: url('../../Holo/Holo%20APP/Holo/Holo/Assets.xcassets/ShareOrnamentQuote.imageset/ShareOrnamentQuote.png'); }
+    .moon { background-image: url('../../Holo/Holo%20APP/Holo/Holo/Assets.xcassets/ShareOrnamentMoon.imageset/ShareOrnamentMoon.png'); background-size: 200%; }
+    .mood-label { font-size: 10px; letter-spacing: .08em; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .rule { height: 1px; flex: none; }
+    .body { font-size: 15px; line-height: 1.95; margin: 0; }
+    .body strong { font-weight: 700; }
+    .photo { height: 117px; margin-top: 20px; position: relative; overflow: hidden; background: linear-gradient(160deg, #7e8d80 2%, #b6ac90 38%, #d3a17b 39%, #8a5949 63%, #494f53 64%); }
+    .photo:after { content: ""; position: absolute; width: 60px; height: 60px; border-radius: 50%; left: 56%; top: 13%; background: #e5cb9c80; box-shadow: 0 0 30px #e5cb9c77; }
+    .tags { font-size: 10px; margin-top: 18px; }
+    .brand { margin-top: auto; text-align: center; font-size: 9px; letter-spacing: .24em; padding: 16px 0 20px; }
+    .label { padding: 17px 2px 0; }
+    .label h2 { font-size: 17px; margin: 0 0 7px; }
+    .label p { color: #bcb3b7; margin: 0; font-size: 12px; line-height: 1.65; }
+    .journal { background: radial-gradient(circle at 12% 3%, #fce7d5, transparent 38%), linear-gradient(155deg, #fffaf0, #f8ecd9); color: #3d3229; }
+    .journal .date { color: #a08d77; }
+    .journal .mood-label { color: #a08d77; margin-right: auto; }
+    .journal .rule { margin: 17px 0 18px; background: repeating-linear-gradient(90deg, #dcaa80 0 3px, transparent 3px 7px); }
+    .journal .body { font-family: "Songti SC", "STSong", serif; }
+    .journal .photo { border: 6px solid #fff; border-bottom-width: 17px; transform: rotate(-1.5deg); box-shadow: 0 5px 14px #6a4b3a3a; }
+    .journal .tags { color: #cf632f; }
+    .journal .brand { color: #a9947e; border-top: 1px dashed #cbb49b; margin-top: 24px; }
+    .book { background: #f8f7f3; color: #2e302d; }
+    .book .smallhead { color: #896044; font: 600 10px Georgia, serif; letter-spacing: .2em; }
+    .book h3 { font: 30px "Songti SC", "STSong", serif; margin: 20px 0 10px; font-weight: 400; }
+    .book .date { color: #8e918b; }
+    .book .rule { margin: 24px 0 27px; background: #b9aa9a; }
+    .book .body { font-family: "Songti SC", "STSong", serif; letter-spacing: .02em; }
+    .book .tags { color: #896044; }
+    .book .brand { color: #98958e; border-top: 1px solid #c8c7c0; margin-top: 24px; }
+    .midnight { background: #152027; color: #f4f1e4; }
+    .midnight .smallhead { color: #e9b079; font: 700 9px ui-monospace, monospace; letter-spacing: .12em; }
+    .midnight h3 { font: 31px "Songti SC", "STSong", serif; font-weight: 400; margin: 27px 0 15px; }
+    .midnight .date { color: #aeb8b6; font-family: ui-monospace, monospace; }
+    .midnight .rule { margin: 20px 0 23px; background: #b98961; }
+    .midnight .body { font-family: "Songti SC", "STSong", serif; font-size: 16px; }
+    .midnight .tags { color: #e9b079; }
+    .midnight .brand { color: #a5aaa4; border-top: 1px solid #876b58; margin-top: 25px; }
+    .archive { background: #e9efe8; color: #25372e; border-left: 5px solid #4e7157; padding-left: 23px; }
+    .archive .smallhead { color: #4e7157; font-size: 12px; font-weight: 700; letter-spacing: .12em; }
+    .archive-head { display: flex; align-items: flex-start; gap: 14px; }
+    .archive-stamp { width: 58px; height: 68px; border: 1px solid #8ba693; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .archive-stamp b { color: #25372e; font-size: 27px; font-weight: 300; line-height: 1; }
+    .archive-stamp small { color: #809185; font: 9px ui-monospace, monospace; margin-top: 5px; }
+    .archive-meta { display: flex; flex-direction: column; gap: 8px; padding-top: 2px; }
+    .archive .archive-date { color: #809185; font-size: 10px; line-height: 1.4; }
+    .archive .rule { margin: 18px 0 23px; background: #8caa94; }
+    .archive .body { font-size: 15px; line-height: 1.9; }
+    .archive .tags { color: #4e7157; }
+    .archive .tags b { display: block; font: 700 9px ui-monospace, monospace; letter-spacing: .12em; margin-bottom: 5px; color: #8a9b8d; }
+    .archive .brand { color: #809185; border-top: 1px solid #a4b7a7; margin-top: 24px; }
+    @media(max-width: 1170px) { .grid { grid-template-columns: repeat(2, minmax(250px, 1fr)); } }
+    @media(max-width: 630px) { main { padding: 30px 18px; } header { display: block; } .hint { text-align: left; margin-top: 12px; } .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div><div class="eyebrow">HOLO · THOUGHT SHARE</div><h1>同一条想法，四种表达。</h1><p>现有手账保留为默认；其余三款在分享时切换。</p></div>
+    <p class="hint">下面用同一段示例内容对比排版。App 里会用用户的真实想法、照片和标签生成完整长图。</p>
+  </header>
+  <section class="grid">
+    <div class="option"><div class="card-wrap"><article class="card journal"><div class="row"><span class="ornament sprig"></span><span class="mood-label">平静</span><span class="date">2026年9月27日 · 周日 10:24</span></div><div class="rule"></div><p class="body">今天散步时忽然想到：<strong>生活不是等一切安排妥当才开始。</strong><br><br>那些临时起意的小事，也值得被认真记下来。傍晚的光、街角的树，还有一个尚未说出口的念头。</p><div class="photo"></div><div class="tags">#生活观察 &nbsp; #灵感</div><div class="brand">HOLO · 人生数据库</div></article></div><div class="label"><h2>01 暖纸手账</h2><p>温暖、私密、有照片记忆感。保留现有默认模板。</p></div></div>
+    <div class="option"><div class="card-wrap"><article class="card book"><div class="row"><span class="smallhead">HOLO / NOTES</span><span class="ornament quote"></span></div><h3>写给此刻</h3><div class="date">2026年9月27日 · 周日 10:24 &nbsp; / &nbsp; 平静</div><div class="rule"></div><p class="body">今天散步时忽然想到：<strong>生活不是等一切安排妥当才开始。</strong><br><br>那些临时起意的小事，也值得被认真记下来。傍晚的光、街角的树，还有一个尚未说出口的念头。</p><div class="photo"></div><div class="tags">#生活观察 &nbsp; #灵感</div><div class="brand">HOLO · 人生数据库</div></article></div><div class="label"><h2>02 留白书页</h2><p>像书摘，留白更多，适合观点、长文字与公开分享。</p></div></div>
+    <div class="option"><div class="card-wrap"><article class="card midnight"><div class="row"><span class="smallhead">HOLO / AFTER HOURS</span><span class="ornament moon"></span></div><h3>深夜来信</h3><div class="date">2026年9月27日 · 周日 10:24 &nbsp; / &nbsp; 平静</div><div class="rule"></div><p class="body">今天散步时忽然想到：<strong>生活不是等一切安排妥当才开始。</strong><br><br>那些临时起意的小事，也值得被认真记下来。傍晚的光、街角的树，还有一个尚未说出口的念头。</p><div class="photo"></div><div class="tags">#生活观察 &nbsp; #灵感</div><div class="brand">HOLO · 人生数据库</div></article></div><div class="label"><h2>03 深夜来信</h2><p>深色、低照度、情绪更浓，适合私密感受与夜间记录。</p></div></div>
+    <div class="option"><div class="card-wrap"><article class="card archive"><div class="archive-head"><div class="archive-stamp"><b>27</b><small>2026.09</small></div><div class="archive-meta"><span class="smallhead">想法档案</span><span class="archive-date">2026年9月27日 · 周日 10:24</span><span class="smallhead">平静</span></div></div><div class="rule"></div><p class="body">今天散步时忽然想到：<strong>生活不是等一切安排妥当才开始。</strong><br><br>那些临时起意的小事，也值得被认真记下来。傍晚的光、街角的树，还有一个尚未说出口的念头。</p><div class="photo"></div><div class="tags"><b>KEYWORDS</b>#生活观察 &nbsp; #灵感</div><div class="brand">HOLO · 人生数据库</div></article></div><div class="label"><h2>04 灵感档案</h2><p>结构清楚、偏理性，适合方法、清单和工作灵感。</p></div></div>
+  </section>
+</main>
+</body>
+</html>

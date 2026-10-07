@@ -41,7 +41,6 @@ struct AIReadableResponseView: View {
     var onRetry: (() -> Void)? = nil
 
     @State private var isShowingDetails = false
-    @State private var cursorVisible = false
     /// 解析后的文档结构（异步解析一次，缓存复用，避免每次 body 都全文重算）
     @State private var document: AIReadableResponseDocument?
     /// 每个 block 文本对应的富文本结果缓存（避免每次 body 重复同步解析 Markdown）
@@ -120,7 +119,7 @@ struct AIReadableResponseView: View {
         HStack(spacing: 5) {
             ForEach(0..<3, id: \.self) { index in
                 Circle()
-                    .fill(Color.holoTextSecondary.opacity(0.55))
+                    .fill(Color.holoToolTextSecondary.opacity(0.55))
                     .frame(width: 6, height: 6)
                     .modifier(AIReadingDotAnimation(delay: Double(index) * 0.18))
             }
@@ -133,21 +132,15 @@ struct AIReadableResponseView: View {
         HStack(alignment: .bottom, spacing: 2) {
             Text(text)
                 .font(.body)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("│")
                 .font(.body.weight(.medium))
                 .foregroundColor(.holoPrimary)
-                .opacity(cursorVisible ? 1 : 0)
-                .animation(
-                    .easeInOut(duration: 0.5).repeatForever(autoreverses: true),
-                    value: cursorVisible
-                )
+                .holoAmbientOpacity()
         }
-        .onAppear { cursorVisible = true }
-        .onDisappear { cursorVisible = false }
     }
 
     @ViewBuilder
@@ -161,7 +154,7 @@ struct AIReadableResponseView: View {
         } else {
             Text(text)
                 .font(.body)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -183,7 +176,7 @@ struct AIReadableResponseView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(inlineAttributedString(text))
                 .font(.body)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -211,7 +204,7 @@ struct AIReadableResponseView: View {
     private func detailDisclosure(detailBlocks: [AIReadableResponseBlock]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.standard) {
                     isShowingDetails.toggle()
                 }
             } label: {
@@ -250,7 +243,7 @@ struct AIReadableResponseView: View {
         case .lead(let text):
             Text(inlineAttributedString(text))
                 .font(.body.weight(.semibold))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -258,7 +251,7 @@ struct AIReadableResponseView: View {
         case .paragraph(let text):
             Text(inlineAttributedString(text))
                 .font(.body)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -266,7 +259,7 @@ struct AIReadableResponseView: View {
         case .heading(let text):
             Text(inlineAttributedString(text))
                 .font(.headline)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 4)
                 .textSelection(.enabled)
@@ -331,11 +324,11 @@ struct AIReadableResponseView: View {
                         isHeader: true,
                         fillsWidth: fillsWidth
                     )
-                    .background(Color.holoTextPrimary.opacity(0.045))
+                    .background(Color.holoToolText.opacity(0.045))
                 }
             }
 
-            tableDividerRow(columnCount: columnCount, color: Color.holoTextPrimary.opacity(0.14))
+            tableDividerRow(columnCount: columnCount, color: Color.holoToolText.opacity(0.14))
 
             ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
                 if index > 0 {
@@ -356,7 +349,7 @@ struct AIReadableResponseView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(Color.holoBorder.opacity(0.5), lineWidth: 0.5)
+                .stroke(Color.holoToolBorder.opacity(0.5), lineWidth: 0.5)
         )
     }
 
@@ -375,7 +368,7 @@ struct AIReadableResponseView: View {
     private func tableCell(_ text: String, isHeader: Bool, fillsWidth: Bool) -> some View {
         let content = Text(inlineAttributedString(text))
             .font(isHeader ? .caption.weight(.semibold) : .caption)
-            .foregroundColor(isHeader ? .holoTextSecondary : .holoTextPrimary)
+            .foregroundColor(isHeader ? .holoToolTextSecondary : .holoToolText)
             .lineSpacing(3)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
@@ -396,7 +389,7 @@ struct AIReadableResponseView: View {
     private func listText(_ text: String) -> some View {
         Text(inlineAttributedString(text))
             .font(.body)
-            .foregroundColor(.holoTextPrimary)
+            .foregroundColor(.holoToolText)
             .lineSpacing(5)
             .fixedSize(horizontal: false, vertical: true)
             .textSelection(.enabled)
@@ -419,17 +412,7 @@ struct AIReadableResponseView: View {
 
 private struct AIReadingDotAnimation: ViewModifier {
     let delay: Double
-    @State private var isBright = false
-
     func body(content: Content) -> some View {
-        content
-            .opacity(isBright ? 0.9 : 0.3)
-            .animation(
-                .easeInOut(duration: 0.65)
-                    .repeatForever(autoreverses: true)
-                    .delay(delay),
-                value: isBright
-            )
-            .onAppear { isBright = true }
+        content.holoAmbientOpacity(dimmed: 0.3, duration: 0.65, delay: delay)
     }
 }

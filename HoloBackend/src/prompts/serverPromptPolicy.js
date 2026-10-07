@@ -35,6 +35,7 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   thought_semantic_relate_v1: "thought_semantic_relate_v1",
   thought_topic_name_v1: "thought_topic_name_v1",
   thought_topic_summary_v1: "thought_topic_summary_v1",
+  thought_insight_v1: "thought_insight_v1",
   category_pattern_induction: "category_pattern_induction",
   bill_column_mapping: "bill_column_mapping",
   bill_categorization: "bill_categorization",
@@ -46,6 +47,8 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   vision_extraction: "vision_extraction",
   matter_reconciliation: "matter_reconciliation",
   goal_workshop: "goal_workshop",
+  matter_execution_plan: "matter_execution_plan",
+  today_relief_plan: "today_relief_plan",
 });
 
 // 多语言输出指令（一期繁体/二期英文）：客户端随请求传 x-holo-language，

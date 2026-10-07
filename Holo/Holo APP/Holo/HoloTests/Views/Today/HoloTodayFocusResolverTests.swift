@@ -383,6 +383,144 @@ final class HoloTodayFocusResolverTests: XCTestCase {
         )
         XCTAssertNil(HoloTodayFocusResolver.resolve(input: makeInput(tasks: [done], matters: [matter])))
     }
+    // MARK: 显式日计划分层（「今天减负」§9.2）
+
+    /// 计划生效：未来截止的已选任务进入主卡（旧 P4 条件 dueAt==nil 不再挡）。
+    func testPlanFutureDueSelectedTaskEntersFocus() {
+        let selected = HoloTodayTaskCandidate(
+            id: UUID(), title: "预订旅行机票",
+            dueAt: date(2026, 9, 20, 10, 0)  // 未来截止
+        )
+        let input = makeInput(tasks: [selected])
+        let planInput = HoloTodayFocusInput(
+            referenceTime: base, dayStart: dayStart, dayEnd: dayEnd,
+            tasks: [selected],
+            plan: HoloTodayPlanResolverContext(
+                orderedSelectableTaskIDs: [selected.id],
+                deferredTaskIDs: [],
+                acknowledgedDeferredTaskIDs: []
+            )
+        )
+        XCTAssertNil(HoloTodayFocusResolver.resolve(input: input), "无计划时未来截止不进主卡（旧行为）")
+        let focus = HoloTodayFocusResolver.resolve(input: planInput)
+        XCTAssertEqual(focus?.action, .openTask(selected.id))
+        XCTAssertEqual(focus?.reasonCode, .plannedToday)
+    }
+
+    /// 计划生效：已确认放下的逾期任务不占主卡（风险可见由约束区表达）。
+    func testPlanAcknowledgedDeferredOverdueStaysOffFocus() {
+        let overdue = HoloTodayTaskCandidate(
+            id: UUID(), title: "旧逾期", dueAt: date(2026, 9, 10, 10, 0)
+        )
+        let selected = HoloTodayTaskCandidate(id: UUID(), title: "今天的选择", dueAt: nil)
+        let focus = HoloTodayFocusResolver.resolve(input: HoloTodayFocusInput(
+            referenceTime: base, dayStart: dayStart, dayEnd: dayEnd,
+            tasks: [overdue, selected],
+            plan: HoloTodayPlanResolverContext(
+                orderedSelectableTaskIDs: [selected.id],
+                deferredTaskIDs: [overdue.id],
+                acknowledgedDeferredTaskIDs: [overdue.id]
+            )
+        ))
+        XCTAssertEqual(focus?.action, .openTask(selected.id), "已确认放下的逾期不得强占主卡（R17）")
+    }
+
+    /// 计划生效：未确认放下的临近风险（精确时刻已过）压过选择。
+    func testPlanUnackedPreciseRiskBeatsSelection() {
+        let risk = HoloTodayTaskCandidate(
+            id: UUID(), title: "今晚到期", dueAt: date(2026, 9, 14, 10, 30)  // 30 分钟内
+        )
+        let selected = HoloTodayTaskCandidate(id: UUID(), title: "选择", dueAt: nil)
+        let focus = HoloTodayFocusResolver.resolve(input: HoloTodayFocusInput(
+            referenceTime: base, dayStart: dayStart, dayEnd: dayEnd,
+            tasks: [risk, selected],
+            plan: HoloTodayPlanResolverContext(
+                orderedSelectableTaskIDs: [selected.id, risk.id],
+                deferredTaskIDs: [],
+                acknowledgedDeferredTaskIDs: []
+            )
+        ))
+        XCTAssertEqual(focus?.action, .openTask(risk.id))
+        XCTAssertEqual(focus?.severity, .risk)
+    }
+
+    /// 计划生效：普通历史逾期（不在 60 分钟风险窗、未确认放下）不整群强占；
+    /// 全天今日截止在白天不催（日末口径）。
+    func testPlanGenericOverdueDoesNotFloodFocus() {
+        let oldAllDay = HoloTodayTaskCandidate(
+            id: UUID(), title: "全天今日", dueAt: dayStart, isAllDay: true
+        )
+        let selected = HoloTodayTaskCandidate(id: UUID(), title: "选择", dueAt: nil)
+        let focus = HoloTodayFocusResolver.resolve(input: HoloTodayFocusInput(
+            referenceTime: base, dayStart: dayStart, dayEnd: dayEnd,
+            tasks: [oldAllDay, selected],
+            plan: HoloTodayPlanResolverContext(
+                orderedSelectableTaskIDs: [selected.id],
+                deferredTaskIDs: [],
+                acknowledgedDeferredTaskIDs: []
+            )
+        ))
+        XCTAssertEqual(focus?.action, .openTask(selected.id), "白天不催全天截止（R18：日末口径）")
+    }
+
+    /// 计划生效：atRisk Matter 不再绕过用户选择回主卡（R20）。
+    func testPlanActiveSuppressesMatterCandidates() {
+        let matterID = UUID()
+        let matterTask = HoloTodayTaskCandidate(
+            id: UUID(), title: "Matter 已链任务", dueAt: date(2026, 9, 13, 10, 0),  // 逾期
+            matterID: matterID
+        )
+        let matter = HoloTodayMatterCandidate(
+            id: matterID, title: "旅行",
+            attention: .atRisk,
+            loops: [],
+            linkedTaskIDs: [matterTask.id]
+        )
+        let selected = HoloTodayTaskCandidate(id: UUID(), title: "选择", dueAt: nil)
+        let focus = HoloTodayFocusResolver.resolve(input: HoloTodayFocusInput(
+            referenceTime: base, dayStart: dayStart, dayEnd: dayEnd,
+            tasks: [matterTask, selected],
+            matters: [matter],
+            plan: HoloTodayPlanResolverContext(
+                orderedSelectableTaskIDs: [selected.id],
+                deferredTaskIDs: [],
+                acknowledgedDeferredTaskIDs: []
+            )
+        ))
+        // matter 链接的逾期任务未确认放下 → 仍是风险，但 Matter 泛化候选不另起炉灶
+        XCTAssertEqual(focus?.action, .openTask(matterTask.id))
+        XCTAssertEqual(focus?.matterID, matter.id, "风险行带 Matter 归属但来源仍是任务")
+    }
+
+    /// 计划选择顺序：entries 顺序即推进顺序。
+    func testPlanSelectionOrderRespected() {
+        let first = HoloTodayTaskCandidate(id: UUID(), title: "第一件", dueAt: nil)
+        let second = HoloTodayTaskCandidate(id: UUID(), title: "第二件", dueAt: nil)
+        let focus = HoloTodayFocusResolver.resolve(input: HoloTodayFocusInput(
+            referenceTime: base, dayStart: dayStart, dayEnd: dayEnd,
+            tasks: [second, first],
+            plan: HoloTodayPlanResolverContext(
+                orderedSelectableTaskIDs: [first.id, second.id],
+                deferredTaskIDs: [],
+                acknowledgedDeferredTaskIDs: []
+            )
+        ))
+        XCTAssertEqual(focus?.action, .openTask(first.id), "顺序由 entries 数组表达")
+        // 稍后第一件 → 第二件顶上
+        let postponed = HoloTodayFocusResolver.postponeKey(for: .task(first.id))
+        let next = HoloTodayFocusResolver.resolve(input: HoloTodayFocusInput(
+            referenceTime: base, dayStart: dayStart, dayEnd: dayEnd,
+            tasks: [second, first],
+            postponedKeys: [postponed],
+            plan: HoloTodayPlanResolverContext(
+                orderedSelectableTaskIDs: [first.id, second.id],
+                deferredTaskIDs: [],
+                acknowledgedDeferredTaskIDs: []
+            )
+        ))
+        XCTAssertEqual(next?.action, .openTask(second.id))
+    }
+
 }
 
 // MARK: - Helpers

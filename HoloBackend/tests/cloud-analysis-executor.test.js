@@ -63,6 +63,9 @@ function makeExecutor(provider, extras = {}) {
     route: { provider: "fake", model: "m", temperature: 0.2, maxTokens: 1024 },
     providerRetries: 1,
     log: () => {},
+    // 既有用例默认跳过解析员（mock 响应序列不含解析员调用）；
+    // 解析员用例显式传 injectedQuestionTimeResolver: undefined 走真解析员。
+    injectedQuestionTimeResolver: { resolveQuestionTime: async () => null },
     ...extras,
   });
   return { database, store, executor };
@@ -112,6 +115,10 @@ test("period_replay：素材→单轮生成→complete+推送「回放已生成�
   // 推送文案区分任务类型
   assert.equal(pushes.length, 1);
   assert.equal(pushes[0].payload.title, "回放已生成");
+  // 路由字段：iOS 点通知直达结果卡的依据（custom 经 APNs sender 平铺到 payload 顶层）
+  assert.equal(pushes[0].payload.custom.taskId, task.id);
+  assert.equal(pushes[0].payload.custom.taskType, "period_replay");
+  assert.equal(pushes[0].payload.category, "CLOUD_ANALYSIS_DONE");
   // 完成即焚仍适用
   assert.ok(store.isDataDestroyed(task.id));
 });
@@ -404,8 +411,11 @@ test("执行器全循环：need_tools→工具结果→final_claims→完成即�
 test("final_claims 叙事契约：模型未产出叙事字段时落 null，不伪造", async () => {
   const provider = makeProvider([
     agentJson("final_claims", {
+      // 定性表述（无数字、无规律断言词）：本用例只验叙事字段契约；空台账下
+      // 定性规律结论（2026-10-04 体检 R01 起）与数字 claim（S02 起）都会被
+      // 交付核验撤回，不再作为本用例载荷。
       claims: [{
-        displayText: "本月餐饮支出合计 102 元",
+        displayText: "本月餐饮支出多发生在工作日",
         metricAssertions: [],
         evidenceIDs: ["finance.transactions#0"],
       }],
@@ -638,6 +648,8 @@ test("执行器：聚合+行明细混合查询→final result.evidence 回传 me
       ],
     }),
     agentJson("final_claims", {
+      // 正文提到行内明细金额（3316）→ 按 AI02-A 白名单契约须同时挂行证据
+      // （rows-* 事件原文含 3316），聚合断言挂 metric 事件——引用对了才保留。
       claims: [{
         summary: "音乐 3436 元",
         displayText: "音乐类支出 3436 元，其中 3316 元是一笔「TIMA音乐盛典」购票",
@@ -649,7 +661,7 @@ test("执行器：聚合+行明细混合查询→final result.evidence 回传 me
           comparison: "音乐",
           evidenceIDs: [],
         }],
-        evidenceIDs: ["dynamic-finance_transactions.cat_sum.__"],
+        evidenceIDs: ["dynamic-finance_transactions.cat_sum.__", "rows-finance_transactions-0"],
       }],
     }),
   ]);
@@ -922,6 +934,52 @@ test("引擎 P0：时间窗内无数据时空结论可解释（含窗口诊断�
   assert.ok(result.warnings[0].message.includes("共 4 行"), "空结论说明数据集规模");
 });
 
+test("目录与空结论：截断元数据 totalRows/coveredFrom 如实呈现（体检 E19）", async () => {
+  // 此前目录 rows=N 与空结论「数据集共 N 行」都取截断后的 provided 数：iOS 快照
+  // 2000 行上限截断时，模型把截断明细当全量，年度/高记录量总额被低估。
+  // 现在快照带 totalRows/coveredFrom 时如实声明；非截断数据集格式不变。
+  const { buildCloudToolCatalog } = await import("../src/agent/cloudAnalysisQueryEngine.js");
+  const truncated = {
+    version: 1,
+    generatedAt: "2026-10-01T00:00:00Z",
+    historyDays: 365,
+    datasets: {
+      "finance.transactions": {
+        fields: [
+          { name: "date", type: "date" },
+          { name: "amount", type: "number", unit: "元" },
+        ],
+        rows: [
+          { date: "2026-09-01", amount: -100 },
+          { date: "2026-09-02", amount: -200 },
+        ],
+        totalRows: 3500,
+        coveredFrom: "2025-10-04",
+      },
+    },
+  };
+  const catalog = buildCloudToolCatalog(truncated);
+  assert.ok(catalog.includes("rows=2/3500"), "目录呈现截断前总量");
+  assert.ok(catalog.includes("快照截断"), "目录声明明细非全量");
+  assert.ok(catalog.includes("coveredFrom=2025-10-04"), "目录呈现覆盖起点");
+  const plain = buildCloudToolCatalog(NOTE_SNAPSHOT);
+  assert.ok(plain.includes("rows=3 "), "非截断数据集目录格式不变");
+
+  const engine = createCloudAnalysisQueryEngine();
+  const empty = engine.execute({
+    source: "finance.transactions",
+    filters: [],
+    groupBy: [],
+    aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+    derivations: [],
+    timeRange: { start: sec("2026-01-01"), end: sec("2026-02-01") },
+  }, truncated);
+  assert.equal(empty.status, "empty");
+  const message = empty.warnings[0].message;
+  assert.ok(message.includes("共 3500 行"), "空结论说明截断前总量");
+  assert.ok(message.includes("快照仅提供 2 行"), "空结论注明快照实际提供的行数");
+});
+
 test("交付核验：空 claims 修复一轮仍空 → 诚实 failed（不包装成完成）", async () => {
   const provider = makeProvider([
     agentJson("final_claims", { claims: [] }),
@@ -947,49 +1005,276 @@ test("交付核验：空 claims 修复一轮仍空 → 诚实 failed（不包装
   assert.ok(failure.includes("可核验"), `失败原因须诚实可解释，实际：${failure}`);
 });
 
-test("交付核验：数字断言与 Ledger 对不上 → 剥离该断言并记 warning（降级不放行编数）", async () => {
+test("交付核验：断言对账失败 → 正文数字同撤回进修复轮，改正后 completed（体检 R03 翻转）", async () => {
+  // 2026-10-04 体检 AI02-A/B：此前断言 -999 对账失败只剥离断言，正文「999 元」
+  // 因合法引用照常交付（R03 实锤：真实 -319 编成 999 还 completed）。现在正文
+  // 数字必须与工具结果一致，对不上整条撤回进修复轮；修复轮改正（319 与
+  // ledger 一致）则正常交付——收紧不误杀正确答案。
+  const toolRequest = {
+    id: "t1",
+    tool: "finance",
+    query: "dynamic_query",
+    parameters: {
+      dynamicPlan: {
+        source: "finance.transactions",
+        filters: [],
+        groupBy: [],
+        aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+        derivations: [],
+      },
+    },
+  };
+  const fabricated = () => agentJson("final_claims", {
+    claims: [{
+      displayText: "本月总支出 999 元",
+      metricAssertions: [{
+        metricKey: "dynamic.finance_transactions.total.all",
+        value: -999,
+        baselineValue: null,
+        unit: "元",
+        comparison: null,
+        evidenceIDs: [],
+      }],
+      evidenceIDs: ["dynamic.finance_transactions.total.all"],
+    }],
+  });
+  const corrected = agentJson("final_claims", {
+    claims: [{
+      displayText: "本月总支出 319 元",
+      metricAssertions: [{
+        metricKey: "dynamic.finance_transactions.total.all",
+        value: -319,
+        baselineValue: null,
+        unit: "元",
+        comparison: null,
+        evidenceIDs: [],
+      }],
+      evidenceIDs: ["dynamic.finance_transactions.total.all"],
+    }],
+  });
   const provider = makeProvider([
-    agentJson("need_tools", {
-      toolRequests: [{
-        id: "t1",
-        tool: "finance",
-        query: "dynamic_query",
-        parameters: {
-          dynamicPlan: {
-            source: "finance.transactions",
-            filters: [],
-            groupBy: [],
-            aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
-            derivations: [],
-          },
-        },
-      }],
-    }),
-    agentJson("final_claims", {
-      claims: [{
-        displayText: "本月总支出 999 元",
-        metricAssertions: [{
-          metricKey: "dynamic.finance_transactions.total.all",
-          value: -999,
-          baselineValue: null,
-          unit: "元",
-          comparison: null,
-          evidenceIDs: [],
-        }],
-        evidenceIDs: ["dynamic.finance_transactions.total.all"],
-      }],
-    }),
+    agentJson("need_tools", { toolRequests: [toolRequest] }),
+    fabricated(),
+    corrected,
   ]);
   const { store, executor } = makeExecutor(provider);
   const task = store.create({ deviceId: "d-mismatch", question: "本月花了多少" });
   store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
 
   assert.equal(await executor.run(task.id), "completed");
+  // 一轮工具 + 一轮编造 + 一轮修复
+  assert.equal(provider.calls.length, 3);
   const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
-  // 真实总额 -319，断言 -999 对不上：断言被剥离，claim 因仍有合法引用而降级保留
-  assert.equal(result.claims.length, 1);
-  assert.equal(result.claims[0].metricAssertions.length, 0);
-  assert.ok(result.warnings.some((w) => w.startsWith("METRIC_MISMATCH")), "须记录对账失败警告");
+  assert.equal(result.claims.length, 1, "修复后的 claim 正常交付");
+  assert.equal(result.claims[0].metricAssertions.length, 1, "对账一致的断言保留");
+  assert.ok(result.claims[0].displayText.includes("319"), "正文金额与工具结果一致");
+  assert.ok(!result.warnings.some((w) => w.startsWith("METRIC_MISMATCH")), "修复轮后不再有对账失败警告");
+});
+
+test("交付核验 R03：断言对不上且修复轮仍编造 → 诚实 failed（不再剥断言留正文）", async () => {
+  const toolRequest = {
+    id: "t1",
+    tool: "finance",
+    query: "dynamic_query",
+    parameters: {
+      dynamicPlan: {
+        source: "finance.transactions",
+        filters: [],
+        groupBy: [],
+        aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+        derivations: [],
+      },
+    },
+  };
+  const fabricated = () => agentJson("final_claims", {
+    claims: [{
+      displayText: "本月总支出 999 元",
+      metricAssertions: [{
+        metricKey: "dynamic.finance_transactions.total.all",
+        value: -999,
+        baselineValue: null,
+        unit: "元",
+        comparison: null,
+        evidenceIDs: [],
+      }],
+      evidenceIDs: ["dynamic.finance_transactions.total.all"],
+    }],
+  });
+  const provider = makeProvider([
+    agentJson("need_tools", { toolRequests: [toolRequest] }),
+    fabricated(),
+    fabricated(),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-mismatch-stubborn", question: "本月花了多少" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "failed");
+  assert.equal(provider.calls.length, 3, "原始 + 修复轮各一次");
+  const failure = store.getDecrypted(task.id, ["failureReason"]).failureReason;
+  assert.ok(failure.includes("可核验"), `失败原因须诚实可解释，实际：${failure}`);
+});
+
+test("交付核验 R02：合法引用护不住编造金额 → 撤回，修复轮仍编 → 诚实 failed", async () => {
+  // 体检 R02 实锤：查出真实总额 -319，正文写「最近总支出 9999 元」，只挂一条
+  // 合法引用（无断言）——修复前引用存在即可让编造金额照常 completed 交付。
+  const toolRequest = {
+    id: "t1",
+    tool: "finance",
+    query: "dynamic_query",
+    parameters: {
+      dynamicPlan: {
+        source: "finance.transactions",
+        filters: [],
+        groupBy: [],
+        aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+        derivations: [],
+      },
+    },
+  };
+  const fabricated = () => agentJson("final_claims", {
+    claims: [{
+      displayText: "最近总支出 9999 元",
+      metricAssertions: [],
+      evidenceIDs: ["dynamic.finance_transactions.total.all"],
+    }],
+  });
+  const provider = makeProvider([
+    agentJson("need_tools", { toolRequests: [toolRequest] }),
+    fabricated(),
+    fabricated(),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-cited-fabrication", question: "最近花了多少" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "failed");
+  const failure = store.getDecrypted(task.id, ["failureReason"]).failureReason;
+  assert.ok(failure.includes("可核验"), `编造金额不得借合法引用交付，实际：${failure}`);
+});
+
+test("交付核验 R01：空台账定性规律 → 撤回，修复轮仍编 → 诚实 failed（NO_TOOL_EVIDENCE 不再放行）", async () => {
+  // 体检 R01 实锤：空数据下「支出以餐饮外卖为主」这类无证据定性判断，修复前
+  // 仅记 NO_TOOL_EVIDENCE 警告即 completed。现在无任何指标入账时定性规律一律
+  // 撤回；诚实说明「记录不足/无法判断」的 claim 不受影响（见下个用例）。
+  const fabricated = () => agentJson("final_claims", {
+    claims: [{
+      id: "c1",
+      type: "observation",
+      summary: "支出以餐饮外卖为主",
+      displayText: "支出以餐饮外卖为主",
+      metricAssertions: [],
+      evidenceIDs: [],
+    }],
+  });
+  const provider = makeProvider([fabricated(), fabricated()]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-qualitative", question: "最近的钱主要花在哪" });
+  store.attachSnapshot({
+    id: task.id,
+    snapshot: JSON.stringify({
+      version: 1,
+      generatedAt: "2026-10-04T00:00:00Z",
+      historyDays: 180,
+      datasets: {},
+    }),
+  });
+
+  assert.equal(await executor.run(task.id), "failed");
+  assert.equal(provider.calls.length, 2, "原始 + 修复轮各一次");
+  const failure = store.getDecrypted(task.id, ["failureReason"]).failureReason;
+  assert.ok(failure.includes("可核验"), `无数据支持的定性规律不得交付，实际：${failure}`);
+});
+
+test("交付核验：空台账诚实说明与行证据单笔金额不误杀（AI02-A/C 收紧边界）", async () => {
+  // 空台账 + 诚实降级表述（无数字、无定性规律）→ 正常交付，不因收紧被拦。
+  const honestProvider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{
+        id: "c1",
+        type: "observation",
+        summary: "目前记录不足，无法判断支出结构，建议先记录几笔",
+        displayText: "目前记录不足，无法判断支出结构，建议先记录几笔",
+        metricAssertions: [],
+        evidenceIDs: [],
+      }],
+    }),
+  ]);
+  const honest = makeExecutor(honestProvider);
+  const honestTask = honest.store.create({ deviceId: "d-honest", question: "最近的钱主要花在哪" });
+  honest.store.attachSnapshot({
+    id: honestTask.id,
+    snapshot: JSON.stringify({
+      version: 1,
+      generatedAt: "2026-10-04T00:00:00Z",
+      historyDays: 180,
+      datasets: {},
+    }),
+  });
+  assert.equal(await honest.executor.run(honestTask.id), "completed");
+  const honestResult = JSON.parse(honest.store.getDecrypted(honestTask.id, ["result"]).result);
+  assert.equal(honestResult.claims.length, 1, "诚实降级 claim 正常交付");
+
+  // 行证据的单笔金额：claim 引用 snapshot_rows 取样行，正文里的单笔金额
+  // （-199，不在聚合 ledger 里）由证据原文支持 → 保留，不误杀。
+  const rowsProvider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [{
+        id: "t1",
+        tool: "snapshot_rows",
+        query: "rows_sample",
+        parameters: { source: "finance.transactions", filters: [], sortBy: "amount", sortDirection: "ascending", limit: 5 },
+      }],
+    }),
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "最大的一笔是京东购物 199 元",
+        metricAssertions: [],
+        evidenceIDs: ["rows-finance_transactions-0"],
+      }],
+    }),
+  ]);
+  const rows = makeExecutor(rowsProvider);
+  const rowsTask = rows.store.create({ deviceId: "d-rows", question: "最大一笔花销" });
+  rows.store.attachSnapshot({ id: rowsTask.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await rows.executor.run(rowsTask.id), "completed");
+  const rowsResult = JSON.parse(rows.store.getDecrypted(rowsTask.id, ["result"]).result);
+  assert.equal(rowsResult.claims.length, 1, "行证据支持的单笔金额保留");
+  assert.ok(rowsResult.claims[0].displayText.includes("199"));
+});
+
+test("交付核验 S02：空台账编造数字结论 → 剥离后诚实 failed（体检 2026-10-04 合成复现回归）", async () => {
+  // 体检 E02 场景：空快照 + 模型不调工具直接 final_claims「本月支出 99999 元」——
+  // 修复前该结论以 completed 交付（仅 NO_TOOL_EVIDENCE 警告，客户端照常呈现）；
+  // 修复后数字 claim 无断言/引用一律剥离，修复轮仍编造则诚实失败，
+  // 无证据数字不再能冒充事实。注意：正常如实回答「记录不足」的定性 observation
+  // （无数字）不受影响，仍可交付。
+  const fabricated = () => agentJson("final_claims", {
+    claims: [{
+      id: "c1",
+      type: "observation",
+      summary: "本月支出 99999 元",
+      displayText: "本月支出 99999 元",
+      metricAssertions: [],
+      evidenceIDs: [],
+    }],
+  });
+  const provider = makeProvider([fabricated(), fabricated()]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-no-evidence", question: "本月支出多少" });
+  store.attachSnapshot({
+    id: task.id,
+    snapshot: JSON.stringify({
+      version: 1,
+      generatedAt: "2026-10-04T00:00:00Z",
+      historyDays: 180,
+      datasets: {},
+    }),
+  });
+
+  assert.equal(await executor.run(task.id), "failed");
+  const failure = store.getDecrypted(task.id, ["failureReason"]).failureReason;
+  assert.ok(failure.includes("可核验"), `失败原因须诚实可解释，实际：${failure}`);
 });
 
 test("交付核验：narrativeSummary 出现 Ledger 不支持的数字 → 清空该字段（iOS 有回退不丢事实）", async () => {
@@ -1054,7 +1339,9 @@ test("冻结任务：快照带 answerTask 时注入场景/范围/清单；旧客
   };
   const provider = makeProvider([
     agentJson("final_claims", {
-      claims: [{ displayText: "支出以餐饮外卖为主", metricAssertions: [], evidenceIDs: [] }],
+      // 诚实降级表述：本用例聚焦冻结任务注入；无数据支持的定性规律结论
+      // （2026-10-04 体检 R01 起）会被交付核验撤回，不再作为本用例载荷。
+      claims: [{ displayText: "记录不足，暂时无法判断支出结构", metricAssertions: [], evidenceIDs: [] }],
     }),
   ]);
   const { store, executor } = makeExecutor(provider);
@@ -1076,7 +1363,7 @@ test("冻结任务：快照带 answerTask 时注入场景/范围/清单；旧客
   // 旧客户端：无 answerTask → 保守默认任务（问题原话 + 快照截止），行为不回归
   const legacyProvider = makeProvider([
     agentJson("final_claims", {
-      claims: [{ displayText: "支出以餐饮为主", metricAssertions: [], evidenceIDs: [] }],
+      claims: [{ displayText: "记录不足，暂时无法判断支出构成", metricAssertions: [], evidenceIDs: [] }],
     }),
   ]);
   const legacy = makeExecutor(legacyProvider);
@@ -1183,4 +1470,304 @@ test("context_plan：快照为空白→failed（不调模型、阶段failed）",
   assert.equal(await executor.run(task.id), "failed");
   assert.equal(provider.calls.length, 0);
   assert.equal(store.get(task.id).stage, "failed");
+});
+
+// —— v23 claimTitle 点破式标题：透传与数字对账（2026-09-21 财务深析改造）——
+
+test("claimTitle：数字对得上的透传，编数的清空并记 warning（iOS 有短句回退）", async () => {
+  const provider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [{
+        id: "t1",
+        tool: "finance",
+        query: "dynamic_query",
+        parameters: {
+          dynamicPlan: {
+            source: "finance.transactions",
+            filters: [],
+            groupBy: [{ type: "field", field: "category" }],
+            aggregations: [{ id: "cat_total", operation: "sum", field: "amount", unit: "元" }],
+            derivations: [],
+            limit: 10,
+            evidenceLimit: 10,
+          },
+        },
+      }],
+    }),
+    agentJson("final_claims", {
+      title: "餐饮是本期的主去向",
+      claims: [
+        {
+          summary: "餐饮 102 元",
+          displayText: "本月餐饮支出合计 102 元，集中在晚间",
+          claimTitle: "餐饮合计102元",
+          metricAssertions: [{
+            metricKey: "dynamic.finance_transactions.cat_total.__",
+            value: -102,
+            baselineValue: null,
+            unit: "元",
+            comparison: "餐饮",
+            evidenceIDs: [],
+          }],
+          evidenceIDs: ["dynamic-finance_transactions.cat_total.__"],
+          type: "change",
+          confidence: 0.8,
+        },
+        {
+          summary: "交通 18 元",
+          displayText: "本月交通支出合计 18 元",
+          // 编数标题：58 不在本条正文/断言，也不在 Ledger（-102/-60/-42/-18…）
+          claimTitle: "打车花掉了58元",
+          metricAssertions: [{
+            metricKey: "dynamic.finance_transactions.cat_total.__",
+            value: -18,
+            baselineValue: null,
+            unit: "元",
+            comparison: "交通",
+            evidenceIDs: [],
+          }],
+          evidenceIDs: ["dynamic-finance_transactions.cat_total.__"],
+          type: "observation",
+          confidence: 0.7,
+        },
+      ],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+
+  const task = store.create({ deviceId: "device-title", question: "分析我的支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 2);
+  assert.equal(result.claims[0].claimTitle, "餐饮合计102元");
+  assert.equal(result.claims[1].claimTitle, null, "编数标题必须被清空");
+  assert.ok(result.warnings.some((w) => w.startsWith("CLAIM_TITLE_INCONSISTENT")));
+});
+
+test("冻结任务块注入任务类型（v23 展开豁免的确定性识别）", async () => {
+  const provider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [{
+        id: "t1",
+        tool: "finance",
+        query: "dynamic_query",
+        parameters: {
+          dynamicPlan: {
+            source: "finance.transactions",
+            filters: [],
+            groupBy: [],
+            aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+            derivations: [],
+            limit: 5,
+            evidenceLimit: 5,
+          },
+        },
+      }],
+    }),
+    agentJson("final_claims", {
+      claims: [{
+        summary: "支出合计 319 元",
+        displayText: "本期支出合计 319 元",
+        metricAssertions: [{
+          metricKey: "dynamic.finance_transactions.total.all",
+          value: -319,
+          baselineValue: null,
+          unit: "元",
+          comparison: null,
+          evidenceIDs: [],
+        }],
+        evidenceIDs: [],
+        type: "observation",
+        confidence: 0.6,
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-kind", question: "深度分析我的消费", taskType: "deep_analysis" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const system = provider.calls[0].messages.find((m) => m.role === "system");
+  assert.ok(system.content.includes("任务类型：deep_analysis"), "冻结任务块应含任务类型");
+});
+
+// —— 任务窗默认护栏（2026-09-24「问近一周答 180 天」根治）——
+
+test("任务窗护栏：timeRange 缺省默认到冻结任务窗，显式宽窗不夹紧", async () => {
+  const startMs = new Date("2026-08-03T00:00:00+08:00").getTime();
+  const endMs = new Date("2026-08-06T00:00:00+08:00").getTime();
+  const plan = (extra = {}) => ({
+    source: "finance.transactions",
+    filters: [],
+    groupBy: [],
+    aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+    derivations: [],
+    limit: 10,
+    evidenceLimit: 10,
+    ...extra,
+  });
+  const provider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [
+        { id: "t-defaulted", tool: "finance", query: "dynamic_query", parameters: { dynamicPlan: plan() } },
+        { id: "t-explicit", tool: "finance", query: "dynamic_query", parameters: { dynamicPlan: plan({ timeRange: { start: 1_700_000_000, end: 1_800_000_000 } }) } },
+      ],
+    }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "近几日支出不大", displayText: "近几日支出不大", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+
+  const task = store.create({ deviceId: "device-clamp", question: "最近一周花了多少" });
+  store.attachSnapshot({
+    id: task.id,
+    snapshot: JSON.stringify({
+      ...SNAPSHOT,
+      answerTask: {
+        scenarioID: "",
+        userQuestion: "最近一周花了多少",
+        questionKind: "general",
+        primaryTimeRange: { label: "问句指定：最近一周", start: startMs, end: endMs },
+        answerChecklist: [],
+      },
+    }),
+  });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const toolTurn = provider.calls[1].messages.find((m) => m.content?.startsWith("toolResults:"));
+  assert.ok(toolTurn, "第二轮应携带 toolResults");
+  const payload = JSON.parse(toolTurn.content.slice("toolResults: ".length));
+
+  // 缺省窗口：被默认到任务窗（8/3-8/5，sum=-18-28=-46），且带护栏提示
+  const defaulted = payload.find((r) => r.toolRequestID === "t-defaulted");
+  assert.equal(defaulted.status, "success");
+  assert.equal(defaulted.metrics[0].value, -245, "timeRange 缺省应按任务窗过滤（8/3+8/4+8/5，含 8/5 购物）");
+  assert.ok(
+    (defaulted.warnings ?? []).some((w) => w.includes("TIME_RANGE_DEFAULTED_TO_TASK")),
+    "应告知模型已按任务窗默认过滤"
+  );
+
+  // 显式窗口：尊重不夹紧（全窗 sum=-319）
+  const explicit = payload.find((r) => r.toolRequestID === "t-explicit");
+  assert.equal(explicit.status, "success");
+  assert.equal(explicit.metrics[0].value, -319, "模型显式宽窗（个人基线场景）不得被夹紧");
+  assert.ok(!(explicit.warnings ?? []).some((w) => w.includes("TIME_RANGE_DEFAULTED_TO_TASK")));
+});
+
+// —— 时间窗解析员（保险二，2026-09-24）——
+// 客户端词表没冻结窗时，任务开始前用一次小 LLM 调用确定性解析问句时间；
+// 任何故障静默回落无窗，绝不阻塞任务。
+
+const NOW_MS = new Date("2026-09-24T23:00:00+08:00").getTime();
+const SNAP_START_MS = NOW_MS - 180 * 86_400_000;
+
+function snapshotWithQuestion(question, extra = {}) {
+  return JSON.stringify({
+    version: 1,
+    generatedAt: new Date(NOW_MS).toISOString(),
+    historyDays: 180,
+    datasets: { ...SNAPSHOT.datasets },
+    statics: {},
+    ...extra,
+  });
+}
+
+test("时间窗解析员：词表外时间(国庆以来)解析成冻结窗并回显 taskRange", async () => {
+  const guoqingStartMs = new Date("2026-10-01T00:00:00+08:00").getTime();
+  // 注意国庆在快照截止之后——用「五一以来」类已发生语义不合适，改用已过去的节日锚点：
+  const parsedStartSec = Math.floor(new Date("2026-06-01T00:00:00+08:00").getTime() / 1000); // 例：6月以来
+  const provider = makeProvider([
+    JSON.stringify({ hasTime: true, startUnix: parsedStartSec, endUnix: Math.floor(NOW_MS / 1000), matchedText: "6月以来" }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "近几个月支出平稳", displayText: "近几个月支出平稳", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider, { injectedQuestionTimeResolver: undefined });
+  const task = store.create({ deviceId: "d-resolver", question: "6月以来花了多少钱" });
+  store.attachSnapshot({ id: task.id, snapshot: snapshotWithQuestion("6月以来花了多少钱") });
+
+  assert.equal(await executor.run(task.id), "completed");
+  // 解析出的窗口必须回显进结果 taskRange（iOS 据此显示范围标签）
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.ok(result.taskRange, "解析出的窗口应回显 taskRange");
+  assert.equal(result.taskRange.start, parsedStartSec);
+  assert.ok(result.taskRange.label.includes("问句解析"), `label 应注明来源: ${result.taskRange.label}`);
+  // 第二轮模型请求的 system prompt 应包含冻结主时间范围行
+  const sysMsg = provider.calls[1].messages.find((m) => m.role === "system");
+  assert.ok(sysMsg.content.includes("主时间范围"), "冻结块应含主时间范围");
+  void guoqingStartMs;
+});
+
+test("时间窗解析员：无时间词(hasTime=false)回落无窗兜底指令，任务正常完成", async () => {
+  const provider = makeProvider([
+    JSON.stringify({ hasTime: false }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "整体支出平稳", displayText: "整体支出平稳", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider, { injectedQuestionTimeResolver: undefined });
+  const task = store.create({ deviceId: "d-notime", question: "我的钱都花哪了" });
+  store.attachSnapshot({ id: task.id, snapshot: snapshotWithQuestion("我的钱都花哪了") });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const sysMsg = provider.calls[1].messages.find((m) => m.role === "system");
+  assert.ok(sysMsg.content.includes("未冻结"), "无窗时应注入无窗兜底指令");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.ok(!result.taskRange, "无时间词时不得回显窗口");
+});
+
+test("时间窗解析员：垃圾输出静默回落，任务不受阻", async () => {
+  const provider = makeProvider([
+    "我觉得这个问题需要看很多数据（无法给出JSON）",
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "结论", displayText: "结论", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider, { injectedQuestionTimeResolver: undefined });
+  const task = store.create({ deviceId: "d-garbage", question: "最近购物花了多少" });
+  store.attachSnapshot({ id: task.id, snapshot: snapshotWithQuestion("最近购物花了多少") });
+
+  assert.equal(await executor.run(task.id), "completed", "解析员输出垃圾不得阻塞任务");
+  const sysMsg = provider.calls[1].messages.find((m) => m.role === "system");
+  assert.ok(sysMsg.content.includes("未冻结"));
+});
+
+test("时间窗解析员：窗口越快照界被截断（交非空保留）", async () => {
+  const beyondSec = Math.floor((SNAP_START_MS - 30 * 86_400_000) / 1000); // 比快照早 30 天
+  const futureSec = Math.floor((NOW_MS + 30 * 86_400_000) / 1000);        // 比快照晚 30 天
+  const provider = makeProvider([
+    JSON.stringify({ hasTime: true, startUnix: beyondSec, endUnix: futureSec, matchedText: "近一年" }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "年度概览", displayText: "年度概览", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider, { injectedQuestionTimeResolver: undefined });
+  const task = store.create({ deviceId: "d-clamp", question: "近一年花了多少钱" });
+  store.attachSnapshot({ id: task.id, snapshot: snapshotWithQuestion("近一年花了多少钱") });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.ok(Math.abs(result.taskRange.start - SNAP_START_MS / 1000) < 5, "start 应截断到快照起点");
+  assert.ok(Math.abs(result.taskRange.end - NOW_MS / 1000) < 5, "end 应截断到快照截止");
+});
+
+test("时间窗解析员：旧客户端(无 answerTask)同样触发解析", async () => {
+  const startSec = Math.floor((NOW_MS - 7 * 86_400_000) / 1000);
+  const provider = makeProvider([
+    JSON.stringify({ hasTime: true, startUnix: startSec, endUnix: Math.floor(NOW_MS / 1000), matchedText: "最近一周" }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", type: "observation", summary: "一周支出", displayText: "一周支出", evidenceIDs: [], metricAssertions: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider, { injectedQuestionTimeResolver: undefined });
+  const task = store.create({ deviceId: "d-legacy", question: "最近一周花了多少钱" });
+  // 旧客户端快照：顶层无 answerTask 键
+  store.attachSnapshot({ id: task.id, snapshot: snapshotWithQuestion("最近一周花了多少钱") });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.taskRange.start, startSec, "旧客户端问句时间同样冻结");
 });

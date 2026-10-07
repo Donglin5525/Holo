@@ -53,7 +53,8 @@ enum HoloMemorySummaryProvider {
                 aiUseSummary: record.aiUseSummary,
                 useScopeLabels: record.sourceDomains.map(\.rawValue),
                 prohibitedInferences: record.prohibitedInferences,
-                anchorGroupLabel: anchorGroupLabel(for: record)
+                anchorGroupLabel: anchorGroupLabel(for: record),
+                isQualifiedAdvice: record.decisionMetadata?.v2?.useLevel == .qualifiedAdvice
             )
         }
         let coverage: HoloMemoryCoverageLevel

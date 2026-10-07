@@ -1,0 +1,39 @@
+[
+  {
+    "id": "gw-001",
+    "domain": "learning",
+    "turns": [
+      {
+        "turn": "understand",
+        "kind": "question",
+        "assistantText": "这个愿望挺具体的——不是「学好英语」，而是「在会上敢开口」。想先弄清楚卡点在哪，才好定路径。",
+        "question": {
+          "text": "回想一下最近一次会上没开口的时刻，最主要卡住你的是什么——是话到嘴边怕说错、语法不完美所以不敢说，还是听不太跟得上、等你想好别人已经换话题了，又或者是根本没找到合适的插话时机？",
+          "whyItMatters": "这三种卡点对应的练法完全不同：怕说错要靠低风险的开口暴露，听跟不上要先练听力和接话，找不到时机则要准备固定句式并刻意抢插话点，混着练容易两个都练不到。"
+        }
+      }
+    ],
+    "violations": [],
+    "needsHumanReview": true,
+    "error": "HTTP 429: {\"error\":{\"code\":\"QUOTA_EXCEEDED\",\"message\":\"当前会员额度已用完\",\"quotaType\":\"chat\",\"tier\":\"free\",\"limit\":15,\"used\":15,\"remaining\":0,\"resetAt\":\"2026-09-19T00:00:00+08:00\",\"period\":\"day\",\"upgradeAvailable\":true}}",
+    "contractOK": false
+  },
+  {
+    "id": "gw-002",
+    "domain": "learning",
+    "turns": [],
+    "violations": [],
+    "needsHumanReview": true,
+    "error": "HTTP 429: {\"error\":{\"code\":\"QUOTA_EXCEEDED\",\"message\":\"当前会员额度已用完\",\"quotaType\":\"chat\",\"tier\":\"free\",\"limit\":15,\"used\":15,\"remaining\":0,\"resetAt\":\"2026-09-19T00:00:00+08:00\",\"period\":\"day\",\"upgradeAvailable\":true}}",
+    "contractOK": false
+  },
+  {
+    "id": "gw-003",
+    "domain": "learning",
+    "turns": [],
+    "violations": [],
+    "needsHumanReview": true,
+    "error": "HTTP 429: {\"error\":{\"code\":\"QUOTA_EXCEEDED\",\"message\":\"当前会员额度已用完\",\"quotaType\":\"chat\",\"tier\":\"free\",\"limit\":15,\"used\":15,\"remaining\":0,\"resetAt\":\"2026-09-19T00:00:00+08:00\",\"period\":\"day\",\"upgradeAvailable\":true}}",
+    "contractOK": false
+  }
+]

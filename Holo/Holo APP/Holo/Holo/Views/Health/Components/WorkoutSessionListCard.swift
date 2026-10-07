@@ -25,12 +25,12 @@ struct WorkoutSessionListCard: View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack {
                 Text("今日运动")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
                 Spacer()
                 Text(String(localized: "\(sessions.count) 次训练"))
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             ForEach(sessions) { session in
@@ -38,7 +38,7 @@ struct WorkoutSessionListCard: View {
             }
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     private func sessionRow(_ session: WorkoutSessionData) -> some View {
@@ -56,11 +56,11 @@ struct WorkoutSessionListCard: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(session.localizedName)
                         .font(.holoLabel)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
 
                     Text("\(Self.timeFormatter.string(from: session.start))–\(Self.timeFormatter.string(from: session.end))")
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
 
                 Spacer(minLength: 0)
@@ -68,17 +68,17 @@ struct WorkoutSessionListCard: View {
                 VStack(alignment: .trailing, spacing: 3) {
                     Text(String(localized: "\(Int(session.minutes.rounded())) 分钟"))
                         .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
 
                     Text(sessionSummary(session))
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(1)
                 }
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.5))
             }
             .padding(HoloSpacing.sm)
             .background(Color.holoNestedCardBackground)
@@ -119,5 +119,5 @@ struct WorkoutSessionListCard: View {
         onSelect: { _ in }
     )
     .padding()
-    .background(Color.holoBackground)
+    .background(Color.holoToolBackground)
 }

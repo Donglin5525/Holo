@@ -463,6 +463,10 @@ struct ContextExtractionStandaloneTests {
         expect(page1.map(\.sourceID) == ["s-old"], "按 updatedAt 升序取首页")
         let (page2, nextCursor) = try await paging.fetchContextSourcePage(after: cursor, limit: 1, baseline: nil)
         expect(page2.map(\.sourceID) == ["s-new"], "游标翻页")
-        expect(nextCursor == nil, "末页无游标")
+        // G1 语义统一：末页（非空）必须返回页尾游标，nextCursor=nil 只表示全库追平（空页）；
+        // 否则「页满但无更多」会把萃取水位清空、下一轮重启全历史。
+        expect(nextCursor != nil, "末页保留页尾游标（追平只由空页表达）")
+        let (page3, endCursor) = try await paging.fetchContextSourcePage(after: nextCursor, limit: 1, baseline: nil)
+        expect(page3.isEmpty && endCursor == nil, "游标之后的下一页为空，返回 nil 表示追平")
     }
 }

@@ -101,7 +101,7 @@ struct TaskStatsView: View {
                     title: period.displayName,
                     isSelected: selectedPeriod == period
                 ) {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(HoloAnimation.quick) {
                         selectedPeriod = period
                     }
                 }

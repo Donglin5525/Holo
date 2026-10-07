@@ -18,7 +18,7 @@ struct MemoryHeatmapView: View {
 
     /// 宽屏分档（通宵冲刺 D4，v2 三批欠账）：expanded 档半年 26 周、格径 20，
     /// 修复 13 周×16pt 固定小图在宽内容列右侧大片空白；iPhone/竖屏维持 13 周×16
-    @Environment(\.holoWindowWidth) private var heatmapWindowWidth
+    @Environment(\.holoContentWidth) private var heatmapWindowWidth
     private var weekCount: Int {
         HoloAdaptiveLayout.isExpandedWidth(heatmapWindowWidth) ? 26 : 13
     }

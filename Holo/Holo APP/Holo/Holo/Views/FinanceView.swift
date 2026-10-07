@@ -62,14 +62,16 @@ struct FinanceView: View {
     /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
     @Environment(\.holoDismiss) private var holoDismiss
     /// 当前窗口宽度（v2 断点判断用）
-    @Environment(\.holoWindowWidth) private var holoWindowWidth
+    @Environment(\.holoContentWidth) private var holoContentWidth
     /// expanded 宽度（≥1024pt）：内部 Tab 上移顶部，底部导航栏退役
     private var isExpandedWidth: Bool {
-        HoloAdaptiveLayout.isExpandedWidth(holoWindowWidth)
+        HoloAdaptiveLayout.isExpandedWidth(holoContentWidth)
     }
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: FinanceTab
+    /// 顶部切换条选中胶囊的滑动命名空间
+    @Namespace private var financeTabNamespace
     @State private var showAddTransaction: Bool = false
     /// Cmd+F 触发计数：切到账本 Tab 并转发给 FinanceLedgerView 打开搜索
     @State private var searchTrigger: Int = 0
@@ -77,6 +79,8 @@ struct FinanceView: View {
     /// 图片自动记账深链（§25.3）：待复核直达 / 最近结果
     @State private var receiptReviewDeepLink: ReceiptReviewDeepLinkID?
     @State private var showReceiptBookingSettings = false
+    /// 结转回执通知 Deep Link → 预算详情页
+    @State private var showBudgetDetail = false
     @State private var analysisDeepLink: FinanceAnalysisDeepLink?
     @State private var evidenceReviewDeepLink: FinanceEvidenceReviewDeepLink?
     @ObservedObject private var deepLinkState = DeepLinkState.shared
@@ -100,7 +104,7 @@ struct FinanceView: View {
 
     var body: some View {
         ZStack {
-            Color.holoBackground.ignoresSafeArea()
+            Color.holoToolBackground.ignoresSafeArea()
 
             // 内容锁宽：子页滚动内容的理想宽度（图表图例 fixedSize 长行等）会经
             // ScrollView 上泄参与 ZStack 取最大，把整个模块撑到比屏幕宽
@@ -193,10 +197,20 @@ struct FinanceView: View {
             .holoSheetWidth(.form)
         }
         .sheet(item: $deepLinkedTransaction) { transaction in
-            AddTransactionSheet(editingTransaction: transaction) { _ in
-                NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+            // 退款笔深链走退款编辑层（类型/分类不属于退款语义，不进通用表单）
+            if transaction.isRefund,
+               let originalId = transaction.refundOfTransactionId,
+               let original = FinanceRepository.shared.findTransaction(by: originalId) {
+                RefundEntrySheet(original: original, editingRefund: transaction)
+            } else if transaction.isRefund {
+                // 原交易已删（悬空）：给一个原交易=自身的占位编辑层，至少能改金额日期
+                RefundEntrySheet(original: transaction, editingRefund: transaction)
+            } else {
+                AddTransactionSheet(editingTransaction: transaction) { _ in
+                    NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+                }
+                .holoSheetWidth(.form)
             }
-            .holoSheetWidth(.form)
         }
         // 图片自动记账：待复核直达（§25.3）与最近结果
         .sheet(item: $receiptReviewDeepLink, onDismiss: {
@@ -212,6 +226,10 @@ struct FinanceView: View {
             }
             .holoSheetWidth(.form)
         }
+        // 结转回执通知 Deep Link 落点：预算详情页（额度构成主舞台）
+        .sheet(isPresented: $showBudgetDetail) {
+            BudgetDetailView(anchoredAccountId: nil)
+        }
         .onAppear {
             handleDeepLink(deepLinkState.pendingTarget)
         }
@@ -222,6 +240,10 @@ struct FinanceView: View {
 
     private func handleDeepLink(_ target: DeepLinkTarget?) {
         switch target {
+        case .budgetDetail:
+            selectedTab = .ledger
+            showBudgetDetail = true
+            deepLinkState.pendingTarget = nil
         case .transactionDetail(let transactionId):
             selectedTab = .ledger
             if let transaction = FinanceRepository.shared.findTransaction(by: transactionId) {
@@ -274,14 +296,14 @@ struct FinanceView: View {
             .padding(.top, 8)
             .padding(.bottom, bottomInset)
             .background(
-                Color.holoCardBackground
+                Color.holoToolSurface
                     .shadow(color: HoloShadow.card, radius: 10, x: 0, y: -2)
                     .ignoresSafeArea(edges: .bottom)
             )
         }
         .frame(height: 88)
         .frame(maxWidth: .infinity)
-        .background(Color.holoCardBackground.ignoresSafeArea(edges: .bottom))
+        .background(Color.holoToolSurface.ignoresSafeArea(edges: .bottom))
         .zIndex(40)
     }
 
@@ -306,30 +328,33 @@ struct FinanceView: View {
     }
 
     /// v2 expanded 顶部切换条：胶囊式，替代吸底导航栏
+    /// 选中胶囊用 matchedGeometryEffect 在段间平滑滑动
     private var financeTopTabBar: some View {
         HStack(spacing: 8) {
             ForEach(FinanceTab.allCases, id: \.self) { tab in
                 Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
+                    withAnimation(HoloAnimation.quick) {
                         selectedTab = tab
                     }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: tab.icon)
                             .font(.system(size: 12, weight: .medium))
+                            .symbolEffect(.bounce, value: selectedTab == tab)
                         Text(tab.displayName)
                             .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(
-                        Capsule().fill(
-                            selectedTab == tab
-                                ? Color.holoPrimary.opacity(0.15)
-                                : Color.holoCardBackground
-                        )
-                    )
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                    .background {
+                        if selectedTab == tab {
+                            Capsule().fill(Color.holoPrimary.opacity(0.15))
+                                .matchedGeometryEffect(id: "financeTopTabCapsule", in: financeTabNamespace)
+                        } else {
+                            Capsule().fill(Color.holoToolSurface)
+                        }
+                    }
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
                 }
                 .buttonStyle(PlainButtonStyle())
                 .holoHover()
@@ -338,13 +363,13 @@ struct FinanceView: View {
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.sm)
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
     }
 
     /// 单个 Tab 按钮
     private func financeTabButton(_ tab: FinanceTab) -> some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(HoloAnimation.quick) {
                 selectedTab = tab
             }
         } label: {
@@ -355,12 +380,12 @@ struct FinanceView: View {
 
                 Image(systemName: tab.icon)
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
 
                 Text(tab.displayName)
                     .font(.holoTinyLabel)
                     .fontWeight(selectedTab == tab ? .bold : .medium)
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoToolTextSecondary)
             }
             .frame(maxWidth: .infinity)
         }

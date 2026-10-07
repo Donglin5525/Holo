@@ -80,6 +80,7 @@ struct HealthInsightEvidenceSheet: View {
             }
             .navigationTitle("为什么这么说")
             .navigationBarTitleDisplayMode(.inline)
+            .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("关闭") { dismiss() }

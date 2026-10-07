@@ -1,168 +1,138 @@
-//
-//  ThoughtOrganizationSettingsView.swift
-//  Holo
-//
-//  P1 知识树「整理设置」页（东林拍板：想法模块 AI 整理设置统一收口知识树）
-//  内容：AI 自动分类开关（自系统设置迁移，一处事实源）+ 标签治理入口 + 说明文案
-//  方案：docs/thoughts/plans/2026-08-16-想法智能标签端侧治理实施方案.md §4.1
-//
-
 import SwiftUI
+import CoreData
 
+/// 想法模块的唯一设置入口；主题管理、标签管理与 AI 处理状态集中在此。
 struct ThoughtOrganizationSettingsView: View {
-
-    @AppStorage(ThoughtAIClassificationPolicy.isEnabledKey)
-    private var isThoughtAutoOrganizationEnabled: Bool = true
-
-    @State private var showTagManagement: Bool = false
+    @AppStorage(ThoughtSemanticFeatureFlags.automaticKey) private var automatic = ThoughtSemanticFeatureFlags.automaticEnabled
+    @AppStorage(ThoughtSemanticFeatureFlags.newTopicsKey) private var newTopics = true
+    @AppStorage(ThoughtSemanticFeatureFlags.relatedKey) private var related = true
+    private enum Destination: String, Identifiable {
+        case topics, tags, index, clear
+        var id: String { rawValue }
+    }
+    @State private var destination: Destination?
+    @State private var stats: ThoughtSemanticStore.IndexStats?
+    @State private var granted = false
+    @State private var busy = false
+    @State private var message: String?
+    @State private var discoveryMessage: String?
+    /// 成果视角计数：已归类笔记数与可见主题数（与工程视角的索引/队列数互补）
+    @State private var classifiedCount = 0
+    @State private var topicCount = 0
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            List {
+            Form {
                 Section {
-                    Toggle(isOn: $isThoughtAutoOrganizationEnabled) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("AI 自动整理")
-                                .font(.holoBody)
-                                .foregroundColor(.holoTextPrimary)
-                            Text("保存想法后自动提取最多 2 个有原文依据的标签，直接可筛选；同一方向攒够 3 条自动形成合集")
-                                .font(.holoCaption)
-                                .foregroundColor(.holoTextSecondary)
-                        }
-                    }
-                    .tint(.holoPrimary)
-                } header: {
-                    Text("自动整理")
-                } footer: {
-                    Text("开启后，Holo 会把这条想法及匹配标签所需的信息发送给 AI 服务生成标签；想法和标签仍由你的设备保存，Holo 不为这项功能建立云端资料库。关闭后新想法不再自动请求 AI，历史标签不受影响；你仍可对单条想法点「重新整理」。")
+                    Toggle("AI 智能整理", isOn: $automatic)
+                        .accessibilityIdentifier("thoughts.settings.automatic")
+                    Toggle("自动形成新主题", isOn: $newTopics).disabled(!automatic)
+                        .accessibilityIdentifier("thoughts.settings.newTopics")
+                    Toggle("显示相关笔记", isOn: $related).disabled(!automatic)
+                        .accessibilityIdentifier("thoughts.settings.related")
+                } header: { Text("智能整理") } footer: {
+                    Text("随手记录时，Holo 根据笔记内容把笔记归入已有主题，积累同一方向后自动形成新主题；这些功能默认开启，关闭后停止新的 AI 处理，已形成的主题和手动标签保留。处理时会将必要的脱敏正文和少量相关笔记交给 AI 服务核对；需要你已授予 HoloAI 数据处理授权。")
                 }
-
+                // 小屏适配：内容管理是固定高度的高频入口，必须排在会随整理数据长高的
+                // 「整理状态」之前——否则数据一多它就被推到折叠线以下，静止状态下页面
+                // 看起来「到此为止」，管理入口像被裁掉。
+                Section("内容管理") {
+                    Button("主题管理") { destination = .topics }
+                    Button("标签管理") { destination = .tags }
+                    Button("设备智能索引与缓存") { destination = .index }
+                }
+                Section("整理状态") {
+                    if !automatic { Text("已关闭自动处理") }
+                    else if !granted {
+                        NavigationLink("授权后开始整理") { AIDataProcessingConsentView() }
+                    } else if let stats {
+                        LabeledContent("已归类", value: "\(classifiedCount) 条笔记 · \(topicCount) 个主题")
+                        LabeledContent("整理进度", value: stats.pendingJobs + stats.runningJobs > 0
+                                       ? "\(stats.pendingJobs + stats.runningJobs) 条排队中" : "全部处理完成")
+                        if let last = stats.lastFinishedAt {
+                            LabeledContent("最近整理", value: last.formatted(.relative(presentation: .named)))
+                        } else if stats.activeItems == 0 {
+                            Text("还没有开始整理，保持 App 打开会自动进行")
+                                .font(.holoCaption).foregroundStyle(Color.holoTextSecondary)
+                        }
+                        // 等待原因只保留一条：与主题发现状态撞同一文案时去重，避免同句提示重复出现
+                        if let reason = stats.waitingReason {
+                            Text(ThoughtSemanticRetryPolicy.userMessage(for: reason))
+                                .font(.holoCaption).foregroundStyle(Color.holoTextSecondary)
+                        } else if newTopics, let discoveryMessage, discoveryMessage != ThoughtSemanticRetryPolicy.userMessage(for: stats.waitingReason ?? "") {
+                            Text(discoveryMessage).font(.holoCaption).foregroundStyle(Color.holoTextSecondary)
+                        }
+                        Text("处理完成的笔记不一定需要归类；只有原文支持具体主题时才会归入。")
+                            .font(.holoCaption).foregroundStyle(Color.holoTextSecondary)
+                    } else { Text("正在准备智能整理") }
+                    // 未授权/已关闭时这个按钮永远不可用，藏掉而不是灰着占一行
+                    if automatic && granted {
+                        Button("核对全部笔记并重试失败项") {
+                            busy = true
+                            Task {
+                                await ThoughtSemanticPipeline.shared.bootstrap()
+                                if let store = await ThoughtSemanticPipeline.shared.store { try? await store.retryFailedJobs() }
+                                await ThoughtAutomaticTopicDiscovery.shared.retryNow()
+                                await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts()
+                                await refresh()
+                                message = "已排入整理队列，返回后会继续处理。"
+                                busy = false
+                                Task { await ThoughtSemanticPipeline.shared.kickQueue() }
+                            }
+                        }.disabled(busy)
+                        if let message { Text(message).font(.holoCaption).foregroundStyle(Color.holoTextSecondary) }
+                    }
+                }
                 Section {
-                    Button {
-                        showTagManagement = true
-                    } label: {
-                        HStack {
-                            Label("标签治理", systemImage: "tag")
-                                .font(.holoBody)
-                                .foregroundColor(.holoTextPrimary)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
-                        }
-                    }
-                } header: {
-                    Text("标签库")
-                } footer: {
-                    Text("集中管理「我的标签」与「AI 建议标签」：确认采用、改名、合并或删除，避免标签越积越碎。")
-                }
-
-                #if DEBUG
-                semanticDebugSection
-                feedbackDebugSection
-                #endif
+                    Button("清理想法数据") { destination = .clear }
+                } footer: { Text("清理的数据进入回收站，自动整理不会代替你删除笔记。") }
             }
-            .navigationTitle("整理设置")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showTagManagement) {
-                ThoughtTagManagementView()
-            }
-            #if DEBUG
-            .sheet(isPresented: $showEvaluationExport) {
-                if let url = evaluationExportURL {
-                    ShareSheet(items: [url])
+            .tint(.holoPrimary)
+            .navigationTitle("想法设置").navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
+            .holoSheetShell()
+            .sheet(item: $destination) { target in
+                switch target {
+                case .topics: NavigationStack { TopicManagementView(topicRepository: TopicRepository(), thoughtRepository: ThoughtRepository()) }
+                case .tags: ThoughtTagManagementView()
+                case .index: NavigationStack { DeviceIntelligenceIndexView().holoSheetShell() }
+                case .clear: ModuleClearSheet(module: .thought)
                 }
             }
-            #endif
+            .task {
+                while !Task.isCancelled {
+                    await refresh()
+                    do { try await Task.sleep(for: .seconds(5)) } catch { break }
+                }
+            }
+            .onChange(of: automatic) { _, _ in ThoughtSemanticFeatureFlags.settingsChanged(); Task { await refresh() } }
+            .onChange(of: newTopics) { _, _ in ThoughtSemanticFeatureFlags.settingsChanged() }
+            .onChange(of: related) { _, _ in ThoughtSemanticFeatureFlags.settingsChanged() }
         }
     }
-
-    // MARK: - Debug：语义候选（P2 shadow/inject/回填/评估导出，Release 不编译）
-
-    #if DEBUG
-    @AppStorage(ThoughtSemanticCandidateMode.storageKey)
-    private var semanticModeRaw: String = ThoughtSemanticCandidateMode.off.rawValue
-
-    @State private var embeddingCount: Int = 0
-    @State private var backfillResult: String?
-    @State private var backfillRunning = false
-    @State private var showEvaluationExport = false
-    @State private var evaluationExportURL: URL?
-
-    private var semanticDebugSection: some View {
-        Section {
-            Picker("语义候选模式", selection: $semanticModeRaw) {
-                Text("关闭").tag(ThoughtSemanticCandidateMode.off.rawValue)
-                Text("影子（记录不注入）").tag(ThoughtSemanticCandidateMode.shadow.rawValue)
-                Text("注入").tag(ThoughtSemanticCandidateMode.inject.rawValue)
-            }
-
-            HStack {
-                Text("已缓存向量")
-                Spacer()
-                Text("\(embeddingCount) 条")
-                    .foregroundColor(.holoTextSecondary)
-            }
-
-            Button("回填语义向量（批量，≤64 条）") {
-                guard !backfillRunning else { return }
-                backfillRunning = true
-                Task {
-                    let count = await ThoughtSemanticCandidateEngine.backfill()
-                    embeddingCount = await ThoughtEmbeddingStore.shared.count()
-                    backfillResult = String(localized: "回填完成：\(count) 条")
-                    backfillRunning = false
-                }
-            }
-            .disabled(backfillRunning)
-
-            if let backfillResult {
-                Text(backfillResult)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-            }
-
-            Button("导出语义评估样本（40 条候选对比）") {
-                Task {
-                    evaluationExportURL = await SemanticEvaluationExporter.export()
-                    if evaluationExportURL != nil { showEvaluationExport = true }
-                }
-            }
-        } header: {
-            Text("Debug · 语义候选（P2）")
-        } footer: {
-            Text("影子=计算并记录但不影响分类；注入=语义近邻标签进入分类候选。评估样本用于人工标注候选池覆盖率（Gate：提升 ≥10pp 才开注入）。")
-        }
-        .onAppear {
-            Task {
-                embeddingCount = await ThoughtEmbeddingStore.shared.count()
-            }
-        }
+    @MainActor private func refresh() async {
+        granted = HoloAIDataProcessingConsent.shared.isGranted
+        if let store = await ThoughtSemanticPipeline.shared.store { stats = try? await store.indexStats() }
+        discoveryMessage = await ThoughtAutomaticTopicDiscovery.shared.statusMessage
+        await refreshOutcomeCounts()
     }
 
-    // MARK: - Debug：分类反馈（Release 不编译）
-
-    @State private var feedbackSummary: String = ""
-
-    private var feedbackDebugSection: some View {
-        Section {
-            Button("刷新反馈聚合") {
-                Task {
-                    let summary = await ThoughtClassificationFeedbackStore.shared.acceptanceSummary()
-                    let count = await ThoughtClassificationFeedbackStore.shared.allEvents().count
-                    feedbackSummary = String(localized: "事件 \(count) 条 · 确认 \(summary.confirmed) · 拒绝 \(summary.rejected) · 接受率 \(String(format: "%.0f%%", summary.acceptanceRate * 100))")
-                }
-            }
-            if !feedbackSummary.isEmpty {
-                Text(feedbackSummary)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-            }
-        } header: {
-            Text("Debug · 分类反馈")
-        } footer: {
-            Text("策略版本 \(ThoughtOrganizationPresentationPolicy.version)；本机记录，不随 iCloud 同步。")
+    /// 成果计数（已归类笔记/可见主题）。数据量在数百条级，直接投影统计。
+    @MainActor private func refreshOutcomeCounts() async {
+        let context = CoreDataStack.shared.viewContext
+        let (classified, topics) = await context.perform {
+            let request = Thought.fetchRequest()
+            request.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
+            let thoughts = (try? context.fetch(request)) ?? []
+            let classified = thoughts.filter {
+                !ThoughtTopicLinkProjection.effectiveTopics(for: $0).filter(\.isVisibleTopic).isEmpty
+            }.count
+            let topicRequest = Topic.fetchRequest()
+            let topics = ((try? context.fetch(topicRequest)) ?? []).filter(\.isVisibleTopic).count
+            return (classified, topics)
         }
+        classifiedCount = classified
+        topicCount = topics
     }
-    #endif
 }

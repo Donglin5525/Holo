@@ -33,6 +33,20 @@ nonisolated struct HoloPlanningRequestFrame: Codable, Equatable, Sendable {
     var retrievalDirections: [String]
     /// 解析时间（相对时间锚点）。
     var referenceTime: Date
+    // MARK: R3 情境框架扩展（方案 2026-09-23 §3.3 SituationFrameV2；全部可选，旧数据兼容）
+    /// 用户明说的事实（仅来自本轮输入或可验证记录；与 derivedHypotheses 严格区分）。
+    var declaredFacts: [String]?
+    /// 推断检查方向（如「离家期间日常责任执行条件变化」）；只是检索方向，不创建个人事实。
+    var derivedHypotheses: [String]?
+    /// 本地时区标识（影响计算的日边界依据）。
+    var localTimeZone: String?
+    /// 冻结情境区间（本地日半开区间；时间重叠判定以此为准，不回落 now+30）。
+    var resolvedIntervalStart: Date?
+    var resolvedIntervalEnd: Date?
+    /// 触发来源（userRequest / situationChange…）。
+    var trigger: String?
+    /// 来源覆盖快照（域 → authorized/scanning/complete/unavailable）。
+    var sourceCoverageSnapshot: [String: String]?
 
     init(
         utterance: String,
@@ -43,7 +57,14 @@ nonisolated struct HoloPlanningRequestFrame: Codable, Equatable, Sendable {
         existingArrangements: [String] = [],
         unknowns: [String] = [],
         retrievalDirections: [String] = [],
-        referenceTime: Date
+        referenceTime: Date,
+        declaredFacts: [String]? = nil,
+        derivedHypotheses: [String]? = nil,
+        localTimeZone: String? = nil,
+        resolvedIntervalStart: Date? = nil,
+        resolvedIntervalEnd: Date? = nil,
+        trigger: String? = nil,
+        sourceCoverageSnapshot: [String: String]? = nil
     ) {
         self.utterance = utterance
         self.goalSummary = goalSummary
@@ -54,12 +75,29 @@ nonisolated struct HoloPlanningRequestFrame: Codable, Equatable, Sendable {
         self.unknowns = unknowns
         self.retrievalDirections = Array(retrievalDirections.prefix(4))
         self.referenceTime = referenceTime
+        self.declaredFacts = declaredFacts
+        self.derivedHypotheses = derivedHypotheses
+        self.localTimeZone = localTimeZone
+        self.resolvedIntervalStart = resolvedIntervalStart
+        self.resolvedIntervalEnd = resolvedIntervalEnd
+        self.trigger = trigger
+        self.sourceCoverageSnapshot = sourceCoverageSnapshot
+    }
+
+    /// 冻结情境区间（两端齐全才有值；缺任一端不伪造）。
+    var resolvedInterval: (start: Date, end: Date)? {
+        guard let start = resolvedIntervalStart, let end = resolvedIntervalEnd, start < end else {
+            return nil
+        }
+        return (start, end)
     }
 
     enum CodingKeys: String, CodingKey {
         case utterance, goalSummary, successConditions, scope
         case timeRangeExpression, existingArrangements, unknowns
         case retrievalDirections, referenceTime
+        case declaredFacts, derivedHypotheses, localTimeZone
+        case resolvedIntervalStart, resolvedIntervalEnd, trigger, sourceCoverageSnapshot
     }
 
     init(from decoder: Decoder) throws {
@@ -73,6 +111,13 @@ nonisolated struct HoloPlanningRequestFrame: Codable, Equatable, Sendable {
         unknowns = try c.decodeIfPresent([String].self, forKey: .unknowns) ?? []
         retrievalDirections = Array((try c.decodeIfPresent([String].self, forKey: .retrievalDirections) ?? []).prefix(4))
         referenceTime = try c.decode(Date.self, forKey: .referenceTime)
+        declaredFacts = try c.decodeIfPresent([String].self, forKey: .declaredFacts)
+        derivedHypotheses = try c.decodeIfPresent([String].self, forKey: .derivedHypotheses)
+        localTimeZone = try c.decodeIfPresent(String.self, forKey: .localTimeZone)
+        resolvedIntervalStart = try c.decodeIfPresent(Date.self, forKey: .resolvedIntervalStart)
+        resolvedIntervalEnd = try c.decodeIfPresent(Date.self, forKey: .resolvedIntervalEnd)
+        trigger = try c.decodeIfPresent(String.self, forKey: .trigger)
+        sourceCoverageSnapshot = try c.decodeIfPresent([String: String].self, forKey: .sourceCoverageSnapshot)
     }
 }
 
@@ -324,18 +369,79 @@ nonisolated struct HoloContextPlanCoverage: Codable, Equatable, Sendable {
 
 /// 方案影响（P0）：证明个人情况改变了什么——增加/取消/调序/改时/方案选择，
 /// 每个变化连接有效依据。可选字段（旧草案兼容）；没有个人依据的变化不展示。
+/// R3 增量（方案 2026-09-23 §3.4）：effect/requirement/证据链与「为什么」解释，
+/// kind 白名单 add/adjust/skip/choice 映射（兼容旧 remove/reorder/reschedule）。
 nonisolated struct HoloContextPlanEffect: Codable, Equatable, Sendable {
-    /// 变化类型：add / remove / reorder / reschedule / choice（渲染层白名单映射）。
+    /// 变化类型：add / adjust / skip / choice（R3 白名单）；
+    /// 旧草案的 remove/reorder/reschedule 保持可解码，渲染层映射到 adjust/skip。
     var kind: String
     /// 用户可读的一句话变化说明。
     var summary: String
     /// 该变化依据的情境 ID（一般性调整时空，不进「因你的情况」区块）。
     var contextRefs: [String]?
+    // MARK: R3 增量（全部可选，旧草案解码不失败）
+    /// 稳定效果 ID（effect ↔ item 关联与增量对账）。
+    var effectID: String?
+    /// 对应的 requirement 键（责任命题 + 情境类型 + 时间窗 + 事项）。
+    var requirementKey: String?
+    /// 支撑该变化的证据引用（evidenceRefs ID）。
+    var evidenceRefs: [String]?
+    /// 为什么是现在（情境触发原因，用户可读）。
+    var whyNow: String?
+    /// 不考虑个人情况时的常规做法（对照基线）。
+    var baseline: String?
+    /// 个人情况带来的差异（相对 baseline 的变化说明）。
+    var personalizedDelta: String?
+    /// 关联的草案条目 ID（effect ↔ item 稳定关联）。
+    var affectedItemID: String?
+    /// 生成时各来源修订（失效重算依据）。
+    var sourceRevisions: [String: String]?
 
-    init(kind: String, summary: String, contextRefs: [String]? = nil) {
+    init(
+        kind: String,
+        summary: String,
+        contextRefs: [String]? = nil,
+        effectID: String? = nil,
+        requirementKey: String? = nil,
+        evidenceRefs: [String]? = nil,
+        whyNow: String? = nil,
+        baseline: String? = nil,
+        personalizedDelta: String? = nil,
+        affectedItemID: String? = nil,
+        sourceRevisions: [String: String]? = nil
+    ) {
         self.kind = kind
         self.summary = summary
         self.contextRefs = contextRefs
+        self.effectID = effectID
+        self.requirementKey = requirementKey
+        self.evidenceRefs = evidenceRefs
+        self.whyNow = whyNow
+        self.baseline = baseline
+        self.personalizedDelta = personalizedDelta
+        self.affectedItemID = affectedItemID
+        self.sourceRevisions = sourceRevisions
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind, summary, contextRefs
+        case effectID, requirementKey, evidenceRefs
+        case whyNow, baseline, personalizedDelta, affectedItemID, sourceRevisions
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try c.decode(String.self, forKey: .kind)
+        summary = try c.decode(String.self, forKey: .summary)
+        contextRefs = try c.decodeIfPresent([String].self, forKey: .contextRefs)
+        effectID = try c.decodeIfPresent(String.self, forKey: .effectID)
+        requirementKey = try c.decodeIfPresent(String.self, forKey: .requirementKey)
+        evidenceRefs = try c.decodeIfPresent([String].self, forKey: .evidenceRefs)
+        whyNow = try c.decodeIfPresent(String.self, forKey: .whyNow)
+        baseline = try c.decodeIfPresent(String.self, forKey: .baseline)
+        personalizedDelta = try c.decodeIfPresent(String.self, forKey: .personalizedDelta)
+        affectedItemID = try c.decodeIfPresent(String.self, forKey: .affectedItemID)
+        sourceRevisions = try c.decodeIfPresent([String: String].self, forKey: .sourceRevisions)
     }
 }
 

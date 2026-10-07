@@ -15,17 +15,11 @@ final class ThoughtRichContentTests: XCTestCase {
     // MARK: - In-Memory Core Data
 
     private func makeRepo() throws -> (ThoughtRepository, NSManagedObjectContext) {
-        let model = CoreDataTestSupport.sharedModel
-        let container = NSPersistentContainer(name: "RichContentTest", managedObjectModel: model)
-        let description = NSPersistentStoreDescription()
-        description.type = NSInMemoryStoreType
-        container.persistentStoreDescriptions = [description]
-        var storeError: Error?
-        container.loadPersistentStores { _, error in storeError = error }
-        if let storeError { throw storeError }
-        let ctx = container.viewContext
+        // R4-1 政策：进程唯一测试容器（每用例 +1 次 loadPersistentStores 会把
+        // 全量进程的模型 load 次数推过阈值，触发 134020 实体映射歧义假失败）
+        let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearAllEntities(ctx)
         let repository = ThoughtRepository(context: ctx)
-        CoreDataTestSupport.retain(container, ctx, repository)
         return (repository, ctx)
     }
 

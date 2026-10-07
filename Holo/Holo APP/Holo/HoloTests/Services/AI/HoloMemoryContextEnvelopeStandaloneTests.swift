@@ -56,6 +56,44 @@ struct HoloMemoryContextEnvelopeStandaloneTests {
             "解释型问题仍可参考长期记忆"
         )
 
+        let factSummary = HoloMemoryPromptSummary(
+            sourceIDs: ["memory-fact"],
+            coverage: .partial,
+            entries: [HoloMemorySummaryEntry(
+                id: "memory-fact",
+                title: "事实记忆",
+                aiUseSummary: "已确认的事实",
+                useScopeLabels: ["thought"],
+                prohibitedInferences: []
+            )]
+        )
+        let qualifiedSummary = HoloMemoryPromptSummary(
+            sourceIDs: ["memory-qualified"],
+            coverage: .partial,
+            entries: [HoloMemorySummaryEntry(
+                id: "memory-qualified",
+                title: "推断记忆",
+                aiUseSummary: "从记录推断的结论",
+                useScopeLabels: ["thought"],
+                prohibitedInferences: [],
+                isQualifiedAdvice: true
+            )]
+        )
+        let factRendered = HoloMemoryContextEnvelope.render(factSummary)
+        let qualifiedRendered = HoloMemoryContextEnvelope.render(qualifiedSummary)
+        expect(
+            !factRendered.contains("事实记忆：〔谨慎参考〕"),
+            "普通事实记忆条目不应带限定标记"
+        )
+        expect(
+            qualifiedRendered.contains("推断记忆：〔谨慎参考〕"),
+            "限定建议记忆条目必须带限定表达标记（2026-10-03 修正后与长廊口径一致）"
+        )
+        expect(
+            HoloMemoryContextEnvelope.renderBackground(qualifiedSummary).contains("推断记忆：〔谨慎参考〕"),
+            "背景注入同样要带限定标记"
+        )
+
         let parsed = HoloMemoryUsageMarker.parseAndStrip(
             "回答正文\n[[HOLO_MEMORY_IDS:memory-running,fake-id]]",
             allowedMemoryIDs: ["memory-running"]

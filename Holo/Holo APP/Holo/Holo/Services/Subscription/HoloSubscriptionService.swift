@@ -42,8 +42,10 @@ final class HoloSubscriptionService: ObservableObject {
 
     func refreshStatus() async {
         #if DEBUG
-        // 截图摆拍模式下权益由 Seeder 本地置为 Plus，不与服务端同步，避免后端 free 态覆盖摆拍状态
-        if HoloAppStoreScreenshotSeeder.isRequested { return }
+        // 截图摆拍 / Plus 功能验收通道（HOLO_DEBUG_PLUS）下权益由本地置为 Plus，
+        // 不与服务端同步，避免后端 free 态覆盖摆拍状态（踩坑记录：plus-badge-squash 案）
+        if HoloAppStoreScreenshotSeeder.isRequested
+            || ProcessInfo.processInfo.environment["HOLO_DEBUG_PLUS"] == "1" { return }
         #endif
         guard let url = URL(string: "\(baseURL)/v1/subscription/status") else { return }
         entitlementState.setRefreshing(true)
@@ -54,6 +56,8 @@ final class HoloSubscriptionService: ObservableObject {
             request.httpMethod = "GET"
             request.timeoutInterval = 30
             request.setValue(deviceIdProvider(), forHTTPHeaderField: "X-Holo-Device-Id")
+            // S01：设备会话头与 APIClient 主链路同一注入规则
+            await HoloDeviceSessionManager.shared.attachAuthorization(to: &request)
 
             let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse,
@@ -267,6 +271,8 @@ final class HoloSubscriptionService: ObservableObject {
         request.timeoutInterval = 30
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(deviceIdProvider(), forHTTPHeaderField: "X-Holo-Device-Id")
+        // S01：设备会话头与 APIClient 主链路同一注入规则
+        await HoloDeviceSessionManager.shared.attachAuthorization(to: &request)
         request.httpBody = try JSONEncoder().encode(
             HoloSubscriptionSyncRequest(
                 productId: transaction.productID,

@@ -51,22 +51,22 @@ struct FeatureButtonContent: View {
         ZStack {
             // 系统毛玻璃底板，自动适配深浅模式
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .fill(.thinMaterial)
+                .fill(Color.holoToolSurface.opacity(0.85))
                 .frame(width: 56, height: 56)
 
             // 图标 — 自适应色，深色模式浅色、浅色模式深色
             Image(systemName: config.icon)
                 .font(.system(size: 20, weight: .medium))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
         }
-        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
+
     }
     
     /// 标题文字
     private var titleText: some View {
         Text(config.title)
             .font(.holoLabel)
-            .foregroundColor(.holoTextPrimary.opacity(0.7))
+            .foregroundColor(.holoToolTextSecondary)
     }
 }
 
@@ -92,6 +92,7 @@ struct FeatureButton: View {
         Button(action: action) {
             FeatureButtonContent(config: config)
         }
+        .buttonStyle(HoloPressStyle())
     }
 }
 

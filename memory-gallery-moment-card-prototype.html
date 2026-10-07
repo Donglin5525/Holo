@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>记忆长廊 · 照片堆叠清晰化提案 v2</title>
+<style>
+  :root {
+    --paper: #FAF8F2;
+    --paper-deep: #F3EFE5;
+    --card: #FFFFFF;
+    --ink: #3A3230;
+    --ink-2: #857C76;
+    --ink-3: #B8AFA8;
+    --seal: #B34636;
+    --thought: #EC4899;
+    --primary: #F46D38;
+    --green: #22C55E;
+    --border: rgba(58,50,48,.11);
+    --red-note: #E23B2E;
+    --serif: Georgia, "New York", "Songti SC", "Noto Serif SC", serif;
+    --sans: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: var(--sans);
+    background:
+      radial-gradient(900px 400px at 15% -5%, rgba(244,109,56,.06), transparent 60%),
+      radial-gradient(800px 500px at 90% 10%, rgba(236,72,153,.05), transparent 60%),
+      var(--paper-deep);
+    color: var(--ink);
+    padding: 44px 28px 80px;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; }
+
+  .page-head h1 { font-family: var(--serif); font-size: 30px; letter-spacing: 1px; }
+  .page-head .sub { margin-top: 10px; color: var(--ink-2); font-size: 14px; line-height: 1.9; max-width: 900px; }
+  .page-head .sub b { color: var(--ink); }
+  .meta-chips { display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; }
+  .meta-chips span {
+    font-size: 12px; color: var(--ink-2);
+    background:#fff; border:1px solid var(--border);
+    padding: 5px 12px; border-radius: 999px;
+  }
+  .meta-chips b { color: var(--ink); font-weight: 600; }
+
+  .section-title {
+    font-family: var(--serif); font-size: 20px; margin: 52px 0 6px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .section-title .no {
+    width:26px; height:26px; border-radius:8px; background:var(--ink); color:#fff;
+    display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-family:var(--sans);
+  }
+  .section-sub { color: var(--ink-2); font-size: 13.5px; line-height: 1.9; margin-bottom: 22px; max-width: 920px; }
+  .section-sub b { color: var(--ink); }
+
+  /* ===== 手机 ===== */
+  .phones { display:flex; gap:34px; flex-wrap:wrap; align-items:flex-start; }
+  .phone-col { flex: 0 0 auto; width: 392px; }
+  .phone {
+    width: 392px; background:#171412; border-radius: 56px; padding: 10px;
+    box-shadow: 0 24px 60px rgba(40,25,15,.22), 0 4px 14px rgba(40,25,15,.14);
+  }
+  .screen { background: var(--paper); border-radius: 47px; overflow: hidden; position: relative; height: 796px; }
+  .screen-scroll { height: 100%; overflow-y: auto; scrollbar-width: none; padding-bottom: 26px; }
+  .screen-scroll::-webkit-scrollbar { display:none; }
+  .phone-cap { margin-top: 14px; text-align:center; }
+  .phone-cap .t { font-family: var(--serif); font-size: 16.5px; }
+  .phone-cap .d { font-size: 12.5px; color: var(--ink-2); margin-top: 4px; }
+
+  /* ===== App 页面公共 ===== */
+  .statusbar { display:flex; justify-content:space-between; align-items:center; padding: 16px 26px 6px; font-size: 14px; font-weight:600; }
+  .statusbar .right { display:flex; align-items:center; gap:6px; }
+  .battery { width:22px; height:11px; border:1.5px solid var(--ink); border-radius:3.5px; position:relative; }
+  .battery::before { content:""; position:absolute; inset:1.5px; right:5px; background:var(--ink); border-radius:1.5px; }
+  .battery::after { content:""; position:absolute; right:-4px; top:2.5px; width:2px; height:5px; background:var(--ink); border-radius:1px; }
+  .navbar { display:flex; align-items:center; justify-content:space-between; padding: 8px 20px 10px; }
+  .navbar .back { font-size: 22px; line-height:1; color: var(--ink); width: 30px; }
+  .navbar .title { font-family: var(--serif); font-size: 17.5px; font-weight: 700; letter-spacing: 2px; }
+  .navbar .cal {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--primary);
+    display:flex; align-items:center; justify-content:center; color:#fff; font-size: 14px;
+    box-shadow: 0 2px 6px rgba(244,109,56,.35);
+  }
+  .segbar { display:flex; align-items:center; gap:8px; padding: 6px 16px 12px; }
+  .seg { flex:1; display:flex; background:#fff; border:1px solid var(--border); border-radius: 14px; padding: 3px; }
+  .seg span { flex:1; text-align:center; font-size: 13.5px; color: var(--ink-2); padding: 7px 0; border-radius: 11px; }
+  .seg span.on {
+    background:#fff; color: var(--primary); font-weight:700;
+    box-shadow: inset 0 0 0 1.5px rgba(244,109,56,.55), 0 1px 4px rgba(58,50,48,.08);
+  }
+  .segbar .today-link { font-size: 13.5px; color: var(--ink-2); white-space: nowrap; padding-right: 2px; }
+  .now-divider { display:flex; align-items:center; gap:12px; padding: 12px 26px 4px; }
+  .now-divider .line { flex:1; height:1px; background: linear-gradient(90deg, transparent, rgba(58,50,48,.25), transparent); }
+  .now-divider .txt { font-size: 11.5px; color: var(--ink-3); letter-spacing: 2px; }
+  .date-row { display:flex; align-items:center; gap: 14px; padding: 12px 20px 6px; }
+  .big-day { font-family: var(--serif); font-size: 58px; font-weight: 500; line-height: 1; width: 56px; text-align:center; }
+  .date-meta { flex: 1; }
+  .date-meta .d1 { font-family: var(--serif); font-size: 17px; font-weight: 700; display:flex; align-items:center; gap:8px; }
+  .today-pill { font-family: var(--sans); font-size: 10.5px; font-weight: 700; color: var(--primary); background: rgba(244,109,56,.12); border-radius: 7px; padding: 2.5px 7px; }
+  .date-meta .d2 { font-size: 12px; color: var(--ink-2); margin-top: 5px; letter-spacing: .3px; }
+  .filter-pill { font-size: 12.5px; color: var(--ink-2); background:#fff; border:1px solid var(--border); padding: 8px 13px; border-radius: 13px; white-space: nowrap; }
+  .period { display:flex; align-items:center; gap: 10px; padding: 16px 20px 4px 34px; }
+  .period .t { font-family: var(--serif); font-size: 12.5px; color: var(--ink-2); letter-spacing: 3px; }
+  .period .line { flex:1; height:1px; background: linear-gradient(90deg, rgba(58,50,48,.30), transparent); }
+  .habit-row { display:flex; gap: 9px; padding: 8px 16px 0; align-items:flex-start; }
+  .habit-time { width: 44px; text-align: right; font-size: 11px; color: var(--ink-2); padding-top: 15px; font-variant-numeric: tabular-nums; }
+  .habit-card { flex:1; background:#fff; border:1px solid var(--border); border-radius: 16px; padding: 12px 14px; }
+  .chip { display:inline-flex; align-items:center; gap:4px; font-size: 10.5px; font-weight: 700; border-radius: 9px; padding: 4.5px 8px; }
+  .chip svg { width: 10px; height: 10px; }
+  .chip.habit { color: var(--green); background: rgba(34,197,94,.10); }
+  .habit-card .name { font-size: 14.5px; font-weight: 600; margin-top: 8px; }
+  .habit-card .done { font-size: 12px; color: var(--ink-2); margin-top: 5px; }
+  .day-foot { display:flex; align-items:center; gap: 10px; padding: 26px 26px 8px; }
+  .day-foot .line { flex:1; height:1px; background: rgba(58,50,48,.16); }
+  .day-foot .t { font-size: 10.5px; color: var(--ink-3); letter-spacing: 1px; white-space: nowrap; }
+
+  /* ===== 照片占位图 ===== */
+  .ph { width:100%; height:100%; border-radius:3.5px; position:relative; overflow:hidden; }
+  .ph::after {
+    content:""; position:absolute; left:0; right:0; bottom:0; height:34%;
+    background:#241209; opacity:.82;
+    clip-path: polygon(0 62%, 16% 62%, 24% 44%, 30% 44%, 36% 60%, 58% 60%, 66% 40%, 74% 40%, 80% 62%, 100% 62%, 100% 100%, 0 100%);
+  }
+  .img-1 {
+    background:
+      radial-gradient(120px 42px at 30% 40%, rgba(255,220,175,.60), transparent 70%),
+      radial-gradient(150px 46px at 74% 28%, rgba(255,196,150,.55), transparent 70%),
+      radial-gradient(210px 60px at 48% 56%, rgba(255,124,70,.42), transparent 75%),
+      linear-gradient(180deg, #F7CBA2 0%, #EF8A5E 32%, #D4502F 58%, #6D2A18 86%, #3F1A0E 100%);
+  }
+  .img-2 {
+    background:
+      radial-gradient(130px 44px at 34% 34%, rgba(255,255,255,.42), transparent 70%),
+      radial-gradient(160px 50px at 72% 48%, rgba(210,225,245,.40), transparent 72%),
+      linear-gradient(180deg, #CFE0F0 0%, #8FB3D9 34%, #4A6A9C 66%, #26374F 100%);
+  }
+  .img-3 {
+    background:
+      radial-gradient(130px 46px at 40% 36%, rgba(255,235,220,.55), transparent 70%),
+      radial-gradient(170px 54px at 70% 52%, rgba(255,190,180,.45), transparent 72%),
+      linear-gradient(180deg, #FBE3D3 0%, #EDA89B 36%, #B96B74 68%, #5F3A4A 100%);
+  }
+
+  .polaroid {
+    position:absolute; left:50%; top:0;
+    background:#fff; border-radius:6px; padding:7px;
+    margin-left: -86px; /* 由各档宽度覆盖 */
+  }
+
+  /* 印章 */
+  .seal {
+    width:28px; height:28px; border-radius:6px;
+    background: rgba(250,248,242,.80);
+    border:1.5px solid rgba(179,70,54,.60);
+    color: var(--seal);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    font-family: var(--serif);
+    transform: rotate(8deg);
+    pointer-events:none;
+  }
+  .seal .n { font-size:12.5px; font-weight:700; line-height:1; }
+  .seal .u { font-size:6.5px; letter-spacing:2px; margin-left:2px; }
+
+  /* ===== 现状复刻 ===== */
+  .stack-now { height:226px; position:relative; }
+  .stack-now .polaroid { width:196px; height:158px; margin-left:-98px; }
+  .stack-now .polaroid:nth-child(1) { transform: translateX(26%) translateY(6%) scale(.93) rotate(3.4deg); }
+  .stack-now .polaroid:nth-child(2) { transform: translateX(-24%) translateY(10%) scale(.89) rotate(-4.6deg); }
+  .stack-now .polaroid.top { transform: rotate(-3.2deg); }
+  .stack-now .seal { position:absolute; top:4px; right:-19px; z-index:9; }
+  .caption-now { display:flex; align-items:baseline; gap:10px; padding:14px 0 0 2px; }
+  .caption-now .txt {
+    font-family: var(--serif); font-size:14.5px; font-weight:600; line-height:1.65; flex:1;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .caption-now .time { font-size:11px; color:var(--ink-2); font-variant-numeric:tabular-nums; white-space:nowrap; transform:translateX(14px); }
+  .ring { position:absolute; border:2px dashed var(--red-note); border-radius:12px; pointer-events:none; z-index:30; }
+  .ring .tag {
+    position:absolute; top:-12px; left:-12px; width:24px; height:24px; border-radius:50%;
+    background:var(--red-note); color:#fff; font-size:13px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 6px rgba(226,59,46,.4);
+  }
+  .legend { margin:18px 6px 0; }
+  .legend li { display:flex; gap:10px; font-size:13.5px; line-height:1.85; color:var(--ink); margin-bottom:8px; list-style:none; }
+  .legend .no {
+    flex:0 0 22px; height:22px; border-radius:50%; background:var(--red-note); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; margin-top:3px;
+  }
+  .legend b { font-weight:700; }
+  .legend li .hint { color:var(--ink-2); }
+
+  /* ===== 新方案：清晰叠层（两档共用） ===== */
+  .stack { position:relative; cursor:grab; touch-action:pan-y; }
+  .stack:active { cursor:grabbing; }
+  .stack .polaroid { transition: transform .5s cubic-bezier(.22,1.2,.36,1), filter .5s, box-shadow .5s; }
+  .stack .polaroid .seal { position:absolute; top:13px; right:13px; opacity:0; transition:opacity .3s; }
+  .stack .polaroid.pos-0 .seal { opacity:1; }
+
+  /* 一档：各露约四成 */
+  .stack.s1 { height:196px; }
+  .stack.s1 .polaroid { width:172px; height:138px; margin-left:-86px; }
+  .stack.s1 .pos-0 { transform: translateX(0) translateY(0) scale(1) rotate(-2deg); z-index:3;
+    box-shadow: 0 6px 14px rgba(0,0,0,.13), 0 16px 30px rgba(0,0,0,.12); }
+  .stack.s1 .pos-1 { transform: translateX(74px) translateY(13px) scale(.95) rotate(5.5deg); z-index:2;
+    filter: brightness(.90); box-shadow: 0 2px 6px rgba(0,0,0,.10); }
+  .stack.s1 .pos-2 { transform: translateX(-74px) translateY(22px) scale(.90) rotate(-7deg); z-index:1;
+    filter: brightness(.84); box-shadow: 0 2px 6px rgba(0,0,0,.10); }
+
+  /* 二档：展开更多，各露约六成 */
+  .stack.s2 { height:222px; }
+  .stack.s2 .polaroid { width:164px; height:130px; margin-left:-82px; }
+  .stack.s2 .pos-0 { transform: translateX(0) translateY(0) scale(1) rotate(-3deg); z-index:3;
+    box-shadow: 0 6px 14px rgba(0,0,0,.13), 0 16px 30px rgba(0,0,0,.12); }
+  .stack.s2 .pos-1 { transform: translateX(86px) translateY(26px) scale(.97) rotate(9deg); z-index:2;
+    filter: brightness(.90); box-shadow: 0 2px 6px rgba(0,0,0,.10); }
+  .stack.s2 .pos-2 { transform: translateX(-86px) translateY(34px) scale(.94) rotate(-10.5deg); z-index:1;
+    filter: brightness(.84); box-shadow: 0 2px 6px rgba(0,0,0,.10); }
+
+  .pager { display:flex; justify-content:center; align-items:center; gap:14px; margin-top:18px; }
+  .dots { display:flex; gap:7px; }
+  .dots i { width:7px; height:7px; border-radius:4px; background:rgba(58,50,48,.22); transition:all .3s; }
+  .dots i.on { width:20px; background:var(--seal); }
+  .pager .frac { font-family:var(--serif); font-size:12px; color:var(--ink-2); font-variant-numeric:tabular-nums; letter-spacing:1px; }
+  .swipe-hint { text-align:center; font-size:11px; color:var(--ink-3); margin-top:9px; letter-spacing:1px; transition:opacity .6s; }
+  .swipe-hint.gone { opacity:0; }
+
+  /* 新 caption：时间独占一行 */
+  .caption-new { padding:15px 2px 0; }
+  .caption-new .row { display:flex; align-items:center; gap:8px; padding-right:6px; }
+  .chip.thought { color:var(--thought); background:rgba(236,72,153,.10); }
+  .caption-new .time { margin-left:auto; font-size:11px; color:var(--ink-2); font-variant-numeric:tabular-nums; }
+  .caption-new .quote-text { margin-top:9px; font-family:var(--serif); font-size:14.5px; font-weight:600; line-height:1.7; padding-right:6px; }
+  .caption-new .quote-text .q { color:var(--thought); opacity:.75; font-weight:700; }
+
+  .moment-zone { padding:6px 16px 0; }
+
+  /* 标注（新方案） */
+  .note-dot {
+    position:absolute; z-index:30; width:24px; height:24px; border-radius:50%;
+    background:var(--seal); color:#fff; font-size:13px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 8px rgba(179,70,54,.45);
+  }
+  .legend.soft .no { background:var(--seal); }
+
+  /* ===== 对比 & 拍板 ===== */
+  table.cmp { border-collapse:collapse; width:100%; max-width:980px; background:#fff; border-radius:16px; overflow:hidden; box-shadow:0 2px 10px rgba(40,25,15,.05); }
+  table.cmp th, table.cmp td { padding:13px 18px; text-align:left; font-size:13.5px; line-height:1.7; border-bottom:1px solid var(--border); vertical-align:top; }
+  table.cmp th { font-family:var(--serif); font-size:14px; background:var(--paper); }
+  table.cmp tr:last-child td { border-bottom:none; }
+  table.cmp td:first-child { color:var(--ink-2); width:200px; }
+  .advice { max-width:980px; background:#fff; border-radius:16px; padding:22px 26px; border-left:4px solid var(--seal); box-shadow:0 2px 10px rgba(40,25,15,.05); margin-top:18px; }
+  .advice h3 { font-family:var(--serif); font-size:16px; margin-bottom:10px; }
+  .advice p { font-size:13.5px; line-height:2.0; }
+  .advice .muted { color:var(--ink-2); }
+  .decide { max-width:980px; margin-top:18px; background:#fff; border-radius:16px; padding:22px 26px; box-shadow:0 2px 10px rgba(40,25,15,.05); }
+  .decide h3 { font-family:var(--serif); font-size:16px; margin-bottom:12px; }
+  .decide li { list-style:none; display:flex; gap:12px; font-size:13.5px; line-height:1.9; margin-bottom:10px; }
+  .decide .box { flex:0 0 18px; height:18px; border:2px solid var(--ink-3); border-radius:5px; margin-top:5px; }
+  .decide .rec { color:var(--seal); font-weight:700; }
+  .try-tip {
+    margin:0 0 14px; display:inline-flex; align-items:center; gap:8px;
+    background:rgba(179,70,54,.08); border:1px dashed rgba(179,70,54,.4); color:var(--seal);
+    font-size:13px; border-radius:12px; padding:9px 16px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ 页头 ============ -->
+  <div class="page-head">
+    <h1>记忆长廊 · 照片堆叠清晰化（v2）</h1>
+    <p class="sub">
+      按你的方向重做：<b>保留三张卡片堆叠的样式</b>，不在堆叠外面加缩略条，而是把堆叠本身做清楚——
+      让旁边两张照片露出足够多的画面、层次和姿态拉开，一眼读出「一摞三张照片」，翻片依然靠左右滑。
+      同时修掉两个排版 bug：<b>时间被长正文挤到屏幕外</b>、<b>「3张」印章漂出屏幕</b>。
+      页面里的手机可以直接上手试：按住照片左右拖动翻片。
+    </p>
+    <div class="meta-chips">
+      <span>涉及模块｜<b>记忆长廊 · 日回放</b></span>
+      <span>改动范围｜<b>纯 iOS 界面</b></span>
+      <span>后端｜<b>无需发版</b></span>
+      <span>状态｜<b>待拍板</b></span>
+    </div>
+  </div>
+
+  <!-- ============ 现状 ============ -->
+  <div class="section-title"><span class="no">0</span>现状的三个问题</div>
+  <p class="section-sub">按你截图复刻。核心矛盾：旁边两张只露出一条窄边，又都是同一场晚霞、颜色相近，叠在一起就看成「一张照片带了花边」。</p>
+
+  <div class="phones">
+    <div class="phone-col">
+      <div class="phone"><div class="screen"><div class="screen-scroll">
+        <div data-chrome></div>
+        <div class="moment-zone" style="position:relative;">
+          <div style="position:relative;">
+            <div class="stack-now">
+              <div class="polaroid"><div class="ph img-2"></div></div>
+              <div class="polaroid"><div class="ph img-3"></div></div>
+              <div class="polaroid top"><div class="ph img-1"></div></div>
+              <div class="seal"><span class="n">3</span><span class="u">张</span></div>
+            </div>
+            <div class="ring" style="left:6px; top:2px; width:300px; height:216px;"><span class="tag">1</span></div>
+            <div class="ring" style="right:-6px; top:-4px; width:56px; height:52px; border-radius:10px;"><span class="tag" style="left:auto; right:-10px;">3</span></div>
+          </div>
+          <div style="position:relative;">
+            <div class="caption-now">
+              <div class="txt">博尔赫斯说 时间是构成我的 substance（实体），而落日是时间里最温柔的刻度</div>
+              <div class="time">01:21</div>
+            </div>
+            <div class="ring" style="left:0; top:8px; right:6px; height:56px;"><span class="tag">2</span></div>
+          </div>
+        </div>
+        <div class="habit-row">
+          <div class="habit-time">01:07</div>
+          <div class="habit-card">
+            <span class="chip habit"><svg viewBox="0 0 24 24"><path d="M9.5 17.5 4 12l1.7-1.7 3.8 3.8 8.8-8.8L20 7z" fill="currentColor"/></svg>习惯</span>
+            <div class="name">维生素</div>
+            <div class="done">已完成</div>
+          </div>
+        </div>
+        <div class="day-foot"><div class="line"></div><div class="t">继续向下，回看前一天</div><div class="line"></div></div>
+      </div></div></div>
+      <div class="phone-cap"><div class="t">现状</div><div class="d">照片糊成一摞 · 时间被挤 · 印章出界</div></div>
+      <ul class="legend">
+        <li><span class="no">1</span><div>旁边两张各只露约 15% 的边，加上三张颜色相近，<b>看不出是三张照片</b>；翻片也没有任何提示。</div></li>
+        <li><span class="no">2</span><div><b>时间和长正文挤在同一行</b>：正文一长就把「01:21」顶到屏幕边上，后半截看不见。</div></li>
+        <li><span class="no">3</span><div>「3张」印章定位锚错、<b>漂出屏幕右缘</b>。</div></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ 一档 ============ -->
+  <div class="section-title"><span class="no">一</span>清晰叠层 · 一档（推荐）：还是一摞，但每张都认得出</div>
+  <p class="section-sub">
+    堆叠骨架不动，做四处调整：<b>①露出更多</b>——左右两张各露约四成画面，能看清各自拍了什么；
+    <b>②层次拉开</b>——下层照片轻微压暗、顶片投影加深，「上下叠放」的立体感一眼可读；
+    <b>③姿态错开</b>——三张角度各不相同，是「随手摞上去的三张」而不是「一张的边框」；
+    <b>④翻片可发现</b>——下面加页码点和计数，首次给一次性滑动提示，翻过即隐。
+  </p>
+
+  <div class="try-tip">🖐 按住照片左右拖动试试翻片</div>
+  <div class="phones">
+    <div class="phone-col">
+      <div class="phone"><div class="screen"><div class="screen-scroll">
+        <div data-chrome></div>
+        <div class="moment-zone" style="position:relative;">
+          <div style="position:relative;">
+            <div class="stack s1" id="stack1">
+              <div class="polaroid" data-i="0"><div class="ph img-1"></div><div class="seal"><span class="n">3</span><span class="u">张</span></div></div>
+              <div class="polaroid" data-i="1"><div class="ph img-2"></div><div class="seal"><span class="n">3</span><span class="u">张</span></div></div>
+              <div class="polaroid" data-i="2"><div class="ph img-3"></div><div class="seal"><span class="n">3</span><span class="u">张</span></div></div>
+            </div>
+            <span class="note-dot" style="left:2px; top:36px;">1</span>
+            <span class="note-dot" style="right:14px; top:-4px;">5</span>
+            <span class="note-dot" style="left:50%; margin-left:-90px; top:172px;">4</span>
+          </div>
+          <div class="pager">
+            <div class="dots" id="dots1"><i class="on"></i><i></i><i></i></div>
+            <div class="frac" id="frac1">1 / 3</div>
+          </div>
+          <div class="swipe-hint" id="hint1">‹ 左右滑动，翻看下一张 ›</div>
+          <div class="caption-new" style="position:relative;">
+            <span class="note-dot" style="right:-4px; top:-14px;">6</span>
+            <div class="row">
+              <span class="chip thought"><svg viewBox="0 0 24 24"><path d="M12 2.5a6.3 6.3 0 0 0-3.8 11.3c.55.42.9 1.05 1 1.7l.12.7h5.36l.12-.7c.1-.65.45-1.28 1-1.7A6.3 6.3 0 0 0 12 2.5z" fill="currentColor"/><rect x="9.6" y="17.6" width="4.8" height="1.7" rx=".85" fill="currentColor"/><rect x="10.3" y="19.9" width="3.4" height="1.5" rx=".75" fill="currentColor"/></svg>想法</span>
+              <span class="time">01:21</span>
+            </div>
+            <div class="quote-text"><span class="q">「</span>博尔赫斯说 时间是构成我的 substance（实体），而落日是时间里最温柔的刻度<span class="q">」</span></div>
+            <span class="note-dot" style="left:-8px; top:34px;">2</span>
+          </div>
+        </div>
+        <div class="habit-row">
+          <div class="habit-time">01:07</div>
+          <div class="habit-card">
+            <span class="chip habit"><svg viewBox="0 0 24 24"><path d="M9.5 17.5 4 12l1.7-1.7 3.8 3.8 8.8-8.8L20 7z" fill="currentColor"/></svg>习惯</span>
+            <div class="name">维生素</div>
+            <div class="done">已完成</div>
+          </div>
+        </div>
+        <div class="day-foot"><div class="line"></div><div class="t">继续向下，回看前一天</div><div class="line"></div></div>
+      </div></div></div>
+      <div class="phone-cap"><div class="t">清晰叠层 · 一档</div><div class="d">各露约四成 · 堆叠感保留得最完整</div></div>
+      <ul class="legend soft">
+        <li><span class="no">1</span><div><b>露出更多</b>：左右两张各露约四成画面，每张拍了什么一眼可辨。</div></li>
+        <li><span class="no">2</span><div><b>想法身份牌 + 引号</b>：解决「认不出是想法」。</div></li>
+        <li><span class="no">4</span><div><b>页码点 + 计数</b>：知道有几张、翻到哪；首次出现给一次性滑动提示，翻过即隐。</div></li>
+        <li><span class="no">5</span><div><b>印章收回顶片右上角内侧</b>：保留手账味和计数，不再出屏。</div></li>
+        <li><span class="no">6</span><div><b>时间独占一行</b>：从正文行挪到身份牌行的右端，正文再长也挤不到它——结构上根除遮挡。</div></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ============ 二档 ============ -->
+  <div class="section-title"><span class="no">二</span>清晰叠层 · 二档：再展开一些，每张露出六成</div>
+  <p class="section-sub">
+    同样的堆叠语言，展开幅度更大：左右两张各露约六成、错位更远、角度更大。
+    三张照片的辨识度最高，代价是卡片更高一点（约 +26pt）、构图更「铺开」。
+  </p>
+
+  <div class="try-tip">🖐 按住照片左右拖动试试翻片</div>
+  <div class="phones">
+    <div class="phone-col">
+      <div class="phone"><div class="screen"><div class="screen-scroll">
+        <div data-chrome></div>
+        <div class="moment-zone">
+          <div class="stack s2" id="stack2">
+            <div class="polaroid" data-i="0"><div class="ph img-1"></div><div class="seal"><span class="n">3</span><span class="u">张</span></div></div>
+            <div class="polaroid" data-i="1"><div class="ph img-2"></div><div class="seal"><span class="n">3</span><span class="u">张</span></div></div>
+            <div class="polaroid" data-i="2"><div class="ph img-3"></div><div class="seal"><span class="n">3</span><span class="u">张</span></div></div>
+          </div>
+          <div class="pager">
+            <div class="dots" id="dots2"><i class="on"></i><i></i><i></i></div>
+            <div class="frac" id="frac2">1 / 3</div>
+          </div>
+          <div class="swipe-hint" id="hint2">‹ 左右滑动，翻看下一张 ›</div>
+          <div class="caption-new">
+            <div class="row">
+              <span class="chip thought"><svg viewBox="0 0 24 24"><path d="M12 2.5a6.3 6.3 0 0 0-3.8 11.3c.55.42.9 1.05 1 1.7l.12.7h5.36l.12-.7c.1-.65.45-1.28 1-1.7A6.3 6.3 0 0 0 12 2.5z" fill="currentColor"/><rect x="9.6" y="17.6" width="4.8" height="1.7" rx=".85" fill="currentColor"/><rect x="10.3" y="19.9" width="3.4" height="1.5" rx=".75" fill="currentColor"/></svg>想法</span>
+              <span class="time">01:21</span>
+            </div>
+            <div class="quote-text"><span class="q">「</span>博尔赫斯说 时间是构成我的 substance（实体），而落日是时间里最温柔的刻度<span class="q">」</span></div>
+          </div>
+        </div>
+        <div class="habit-row">
+          <div class="habit-time">01:07</div>
+          <div class="habit-card">
+            <span class="chip habit"><svg viewBox="0 0 24 24"><path d="M9.5 17.5 4 12l1.7-1.7 3.8 3.8 8.8-8.8L20 7z" fill="currentColor"/></svg>习惯</span>
+            <div class="name">维生素</div>
+            <div class="done">已完成</div>
+          </div>
+        </div>
+        <div class="day-foot"><div class="line"></div><div class="t">继续向下，回看前一天</div><div class="line"></div></div>
+      </div></div></div>
+      <div class="phone-cap"><div class="t">清晰叠层 · 二档</div><div class="d">各露约六成 · 辨识度最高、卡片略高</div></div>
+    </div>
+  </div>
+
+  <!-- ============ 对比与建议 ============ -->
+  <div class="section-title"><span class="no">✓</span>两档对比与我的建议</div>
+  <p class="section-sub">两档的交互完全一样（滑动翻片 + 页码点 + 一次性提示 + 时间/印章修复），差别只在展开幅度。</p>
+
+  <table class="cmp">
+    <tr><th style="width:200px"></th><th>一档 · 各露四成（推荐）</th><th>二档 · 各露六成</th></tr>
+    <tr><td>照片辨识度</td><td>好——四成画面足够认出内容</td><td class="rec" style="color:var(--seal); font-weight:600">最好——六成画面几乎全可见</td></tr>
+    <tr><td>「一摞照片」的堆叠感</td><td class="rec" style="color:var(--seal); font-weight:600">保留最完整</td><td>稍松，接近「错落摆开」</td></tr>
+    <tr><td>卡片高度</td><td>约与现状持平（略降）</td><td>约 +26pt</td></tr>
+    <tr><td>适合</td><td>长廊信息密度优先</td><td>照片可读性优先</td></tr>
+  </table>
+
+  <div class="advice">
+    <h3>我的建议：先做一档</h3>
+    <p>
+      一档已经解决了「看成一张」的根本问题（露出四成 + 压暗分层 + 角度错开，三重信号叠加），
+      同时保住你喜欢的堆叠气质，卡片高度不吃亏。真机上如果同场景照片（如三张晚霞）仍嫌糊，
+      再把展开幅度当成一个「旋钮」调到二档即可——两档是同一套代码的不同参数。
+    </p>
+    <p class="muted">时间遮挡的修法两档相同：时间从正文那一行挪出，单独放在「想法」身份牌那一行的右端，结构上不可能再被正文挤压；印章固定盖在顶片内沿，也不再出屏。</p>
+  </div>
+
+  <div class="decide">
+    <h3>待你拍板的点</h3>
+    <li><span class="box"></span><div><span class="rec">① 展开幅度：一档还是二档？</span>（我推一档，两档同参数可调）</div></li>
+    <li><span class="box"></span><div>② 除了滑动，要不要加「点一下旁边露出的照片，直接翻到那张」？（建议加：点侧片=翻页，点顶片=进想法详情，两个动作不冲突）</div></li>
+    <li><span class="box"></span><div>③ 「想法」身份牌 + 引号维持上版方案，时间改到身份牌行右端——确认这个修法？</div></li>
+    <li><span class="box"></span><div>④ 印章：收回顶片内沿保留（默认），还是干脆去掉？</div></li>
+    <li><span class="box"></span><div class="muted">备注：纯 iOS 界面改动，不涉及后端发版；拍板后直接排实现。</div></li>
+  </div>
+
+</div>
+
+<script>
+/* ============ 公共页面骨架 ============ */
+const chrome = `
+<div class="statusbar"><span>12:35</span><span class="right">
+  <svg width="17" height="11" viewBox="0 0 17 11"><g fill="#3A3230"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="5" width="3" height="6" rx="1"/><rect x="9" y="2.5" width="3" height="8.5" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></g></svg>
+  <svg width="16" height="11" viewBox="0 0 16 11"><path d="M8 9.2 5.6 6.9a3.6 3.6 0 0 1 4.8 0L8 9.2zM3.4 4.7a6.6 6.6 0 0 1 9.2 0l-1.5 1.5a4.6 4.6 0 0 0-6.2 0L3.4 4.7zM.9 2.2a10 10 0 0 1 14.2 0l-1.5 1.5a7.9 7.9 0 0 0-11.2 0L.9 2.2z" fill="#3A3230"/></svg>
+  <span style="font-size:11px;font-weight:600">80</span><span class="battery"></span>
+</span></div>
+<div class="navbar">
+  <span class="back">‹</span>
+  <span class="title">记忆长廊</span>
+  <span class="cal">▦</span>
+</div>
+<div class="segbar">
+  <div class="seg"><span class="on">日</span><span>周</span><span>月</span><span>轴</span></div>
+  <span class="today-link">今天</span>
+</div>
+<div class="now-divider"><div class="line"></div><div class="txt">今天的记忆还在继续</div><div class="line"></div></div>
+<div class="date-row">
+  <div class="big-day">7</div>
+  <div class="date-meta">
+    <div class="d1">9月 · 星期一 <span class="today-pill">今天</span></div>
+    <div class="d2">2 个记忆时刻 · 01:07—01:21</div>
+  </div>
+  <div class="filter-pill">≡ 全部</div>
+</div>
+<div class="period"><span class="t">凌晨</span><div class="line"></div></div>
+`;
+document.querySelectorAll('[data-chrome]').forEach(el => { el.innerHTML = chrome; });
+
+/* ============ 通用叠层交互 ============ */
+function setupStack(stackId, dotsId, fracId, hintId) {
+  const stack = document.getElementById(stackId);
+  if (!stack) return;
+  const cards = stack.querySelectorAll('.polaroid');
+  const dots = document.querySelectorAll('#' + dotsId + ' i');
+  const frac = document.getElementById(fracId);
+  const hint = document.getElementById(hintId);
+  let index = 0, interacted = false;
+
+  function render() {
+    cards.forEach(c => {
+      const depth = (+c.dataset.i - index + cards.length) % cards.length;
+      c.classList.remove('pos-0', 'pos-1', 'pos-2');
+      c.style.zIndex = 10 - depth;
+      c.classList.add('pos-' + Math.min(depth, 2));
+    });
+    dots.forEach((d, i) => d.classList.toggle('on', i === index));
+    frac.textContent = (index + 1) + ' / ' + cards.length;
+  }
+  function go(i) {
+    index = (i + cards.length) % cards.length;
+    render();
+    if (!interacted && hint) { interacted = true; hint.classList.add('gone'); }
+  }
+
+  let startX = null, dx = 0, topCard = null;
+  stack.addEventListener('pointerdown', e => {
+    startX = e.clientX; dx = 0;
+    topCard = stack.querySelector('.pos-0');
+    stack.setPointerCapture(e.pointerId);
+  });
+  stack.addEventListener('pointermove', e => {
+    if (startX === null || !topCard) return;
+    dx = e.clientX - startX;
+    topCard.style.transition = 'none';
+    topCard.style.transform = 'translateX(' + dx + 'px) rotate(' + (dx * 0.03) + 'deg)';
+  });
+  stack.addEventListener('pointerup', () => {
+    if (startX === null) return;
+    topCard.style.transition = '';
+    if (Math.abs(dx) > 46) go(index + (dx < 0 ? 1 : -1)); else render();
+    startX = null; topCard = null;
+  });
+
+  render();
+}
+setupStack('stack1', 'dots1', 'frac1', 'hint1');
+setupStack('stack2', 'dots2', 'frac2', 'hint2');
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "service": "holo-ai-gateway",
+  "release": {
+    "commit": "91265544ba7c0eacefd791f0e633cb59a896142e",
+    "sourceDigest": "dc8c2bc444e1dc23959356a062bd1208d46c5236508e50579e4ced3e7a5fa90e",
+    "buildTime": "2026-10-03T18:51:50Z"
+  }
+}

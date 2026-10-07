@@ -131,12 +131,16 @@ struct CalendarEventProvider {
         let records = habitRepo.getRecords(from: range.start, to: range.end)
         let events: [CalendarEvent] = records.compactMap { record in
             guard let habit = habitMap[record.habitId] else { return nil }
+            // 取消打卡 = 保留记录行翻 isCompleted=NO（为保备注）。用户已撤回这次确认，
+            // 不算一条记忆（与周点阵 getWeekCompletionPatterns 同口径）；数值型行
+            // isCompleted 恒为 false，不适用此过滤。
+            if habit.isCheckInType, !record.isCompleted { return nil }
             let detail: String?
             if habit.isNumericType, let value = record.valueDouble {
                 let unit = habit.unit ?? ""
                 detail = unit.isEmpty ? "\(value)" : "\(value) \(unit)"
             } else if habit.isCheckInType {
-                detail = record.isCompleted ? String(localized: "已完成") : String(localized: "未完成")
+                detail = String(localized: "已完成")
             } else {
                 detail = nil
             }
@@ -176,22 +180,25 @@ struct CalendarEventProvider {
     private func fetchThought(in range: DateInterval) -> Partial {
         do {
             let thoughts = try thoughtRepo.fetchThoughts(from: range.start, to: range.end)
+            // 册页风照片堆：消费已生成的 300×300 缩略图（imageData 原图不进长廊列表）。
+            // 走附件投影查询——读托管对象会把附件整行（含原图大二进制）拉进内存。
+            let thumbnailsByThought = try thoughtRepo.fetchAttachmentThumbnails(
+                from: range.start, to: range.end
+            )
             let events: [CalendarEvent] = thoughts.map { thought in
                 let title = thought.previewText.isEmpty ? String(localized: "未命名想法") : thought.previewText
-                // P3：经 Thought.topics 间接体现观点（取所有可见状态的观点标题）
-                let topics = (thought.topics as? Set<Topic> ?? [])
+                // P3：观点的主题标题（读源统一 P0-A：link 投影，与卡片徽章同口径）
+                let topics = ThoughtTopicLinkProjection.effectiveTopics(for: thought)
                     .filter(\.isVisibleTopic)
                     .map { $0.title }
                     .sorted()
-                // 册页风照片堆：直接消费已生成的 300×300 缩略图（imageData 原图不进长廊列表）
-                let thumbnails = thought.sortedAttachments.compactMap(\.thumbnailData)
                 return CalendarEvent(
                     module: .thought,
                     date: thought.createdAt,
                     title: title,
                     detail: thought.moodType?.displayName,
                     relatedTopics: topics.isEmpty ? nil : topics,
-                    attachmentThumbnails: thumbnails,
+                    attachmentThumbnails: thumbnailsByThought[thought.id] ?? [],
                     originID: thought.objectID
                 )
             }

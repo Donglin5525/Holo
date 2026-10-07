@@ -174,7 +174,7 @@ struct HoloFinanceTool: HoloDataTool {
             label: "交易明细",
             timeField: "date",
             fields: [
-                HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易日期", label: "日期"),
+                HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易发生时刻（含时分，可按时段分组）", label: "日期"),
                 HoloDataField(name: "amount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "交易金额", label: "金额"),
                 HoloDataField(name: "type", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "expense 或 income", label: "收支方向"),
                 HoloDataField(name: "category", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易分类", label: "分类"),

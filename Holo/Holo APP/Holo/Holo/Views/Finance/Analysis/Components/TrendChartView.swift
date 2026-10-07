@@ -2,12 +2,14 @@
 //  TrendChartView.swift
 //  Holo
 //
-//  总览 Tab 趋势卡（双轴同图·资产总览风格）：
-//  - 下层：每日收支柱（红=支出、绿=收入）贴底，走左轴；当日最大支出日整柱高亮
-//  - 上层：余额线（冷蓝，独立刻度）走右轴，两根轴都标刻度，明着双尺不误导
-//  - 极淡横向网格只铺柱区；余额信息另外在卡头「较期初」与点按明细里可读
+//  总览 Tab 趋势卡（双轴同图·常规样式）：
+//  - 每日收支柱（红=支出、绿=收入）贴底，走左轴，几乎全高；当日最大支出日整柱高亮
+//  - 余额线（冷蓝，独立刻度）按右轴铺满整个绘图区、从柱间穿过，两根轴各自铺满，明着双尺不误导
+//  - 极淡横向网格随左轴刻度铺满全高；余额信息另外在卡头「较期初」与点按明细里可读
 //  - 单日尖峰超过次高值 2 倍且有效天数 ≥5 时，柱轴上限压缩并对尖峰柱做「断口」截断
 //  - 横向拖动/点按查看单日（柱后高亮带 + 明细），纵向手势交还页面滚动，点空白收起
+//  - X 轴刻度文字全部由 chartOverlay 自绘（AxisValueLabel 位置不可控会右偏，
+//    2026-10-07 实测 Mac/iOS 柱子对不上刻度），与柱子/气泡共用 position(forX:) 坐标系
 //
 
 import SwiftUI
@@ -18,33 +20,49 @@ import Charts
 /// 总览趋势卡（收支柱 + 余额线双轴同图）
 struct TrendChartView: View {
     let dataPoints: [ChartDataPoint]
+    /// 是否画余额线与右轴余额刻度（项目维度下项目不是资金容器，无余额语义，整体隐藏）
+    var showsBalanceLine: Bool = true
 
     @State private var hoveredIndex: Int? = nil
 
     // MARK: 画布几何（y 抽象单位，domain [0, plotUnitMax]，值越大越靠上）
     private let plotUnitMax: Double = 100
-    private let barTopUnit: Double = 55          // 柱带：0...55（柱轴上限映射到 55）
-    private let lineBandLow: Double = 62         // 线带：62...95（余额最小值→62，最大值→95）
-    private let lineBandHigh: Double = 95
-    private let barOffsetUnits: Double = 0.29    // 支出/收入柱相对当天中线的偏移（x 单位）
+    private let barTopUnit: Double = 90          // 柱带：0...90（柱轴上限映射到 90，顶部留断口标注空间）
+    private let lineBandLow: Double = 8          // 线带：8...94（余额最小值→8，最大值→94，铺满全高穿柱而过）
+    private let lineBandHigh: Double = 94
     private let restBarOpacity: Double = 0.78    // 非峰值日柱子透明度（峰值日实色高亮）
 
-    private var allValuesZero: Bool {
-        dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 && $0.balance == 0 }
+    /// 整月无收支动作即视为空图（余额不为零也不画）：画出来只会是
+    /// 「左轴缩到 0~1 元的假轴 + 走平余额线 + 三只同值右轴刻度」，不如直接出空态
+    private var hasNoFlowActivity: Bool {
+        dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 }
+    }
+
+    /// 图表动画触发值：ChartDataPoint 的 id 是每次构造的随机 UUID（不可作 diff 依据），
+    /// 用支出/收入/余额数值序列当指纹，切时间范围/数据更新时柱与线平滑插值而非跳变
+    private var animatedSignature: [Double] {
+        dataPoints.flatMap {
+            [Double(truncating: $0.expense as NSDecimalNumber),
+             Double(truncating: $0.income as NSDecimalNumber),
+             Double(truncating: $0.balance as NSDecimalNumber)]
+        }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             chartLegend
 
-            if dataPoints.isEmpty || allValuesZero {
+            if dataPoints.isEmpty || hasNoFlowActivity {
                 emptyChartView
+                    .transition(.opacity)
             } else {
                 chartContent
+                    .transition(.opacity)
             }
         }
+        .animation(HoloAnimation.smooth, value: dataPoints.isEmpty || hasNoFlowActivity)
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     // MARK: 图例（右侧：余额较期初变化）
@@ -53,9 +71,11 @@ struct TrendChartView: View {
         HStack(spacing: HoloSpacing.lg) {
             LegendItem(color: .holoError, label: String(localized: "支出"))
             LegendItem(color: .holoSuccess, label: String(localized: "收入"))
-            LegendItem(color: .holoChart1, label: String(localized: "余额"))
+            if showsBalanceLine {
+                LegendItem(color: .holoChart1, label: String(localized: "余额"))
+            }
             Spacer()
-            if let delta = balanceDelta {
+            if showsBalanceLine, let delta = balanceDelta {
                 Text("余额较期初 \(delta > 0 ? "+" : "-")\(NumberFormatter.compactCurrency(abs(delta)))")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(delta > 0 ? .holoSuccessDark : .holoError)
@@ -75,76 +95,27 @@ struct TrendChartView: View {
     // MARK: 图表组装
 
     private var chartContent: some View {
-        let plan = barAxisPlan
-        let range = balanceValueRange
-        let balanceTicks = self.balanceTicks(range: range)
-        let peakDay = peakDayIndex
+        GeometryReader { geometry in
+            let plan = barAxisPlan
+            let range = balanceValueRange
+            let balanceTicks = showsBalanceLine ? self.balanceTicks(range: range) : []
+            let peakDay = peakDayIndex
+            let slotWidthPt = ChartBarPairLayout.estimatedSlotWidthPt(
+                containerWidthPt: geometry.size.width,
+                pointCount: dataPoints.count
+            )
 
-        return trendChart(cap: plan.cap, clippedIndices: plan.clippedIndices,
-                          peakDayIndex: peakDay, balanceTicks: balanceTicks)
-            .chartOverlay { proxy in
-                GeometryReader { geometry in
-                    let overlayFrame = geometry.frame(in: .local)
-                    let plotFrame = proxy.plotFrame.map { geometry[$0] }
-
-                    // —— 触摸当日：柱后淡色高亮带 ——
-                    // position(forX/Y:) 返回的是绘图区（plot area）内坐标，作为全图 overlay 坐标使用时必须补回 plotFrame 偏移，
-                    // 否则高亮带/气泡整体左移一个 Y 轴刻度栏宽（≈3 天），看起来「不跟手、有错位」
-                    if let index = hoveredIndex,
-                       let slotXPos = proxy.position(forX: Double(index)), let plotFrame {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.holoTextPrimary.opacity(0.05))
-                            .frame(width: plotFrame.width / CGFloat(dataPoints.count), height: plotFrame.height)
-                            .position(x: plotFrame.minX + slotXPos, y: plotFrame.midY)
-                    }
-
-                    // —— 断口截断标注 ——
-                    if let plotFrame {
-                        ForEach(plan.clippedIndices, id: \.self) { index in
-                            if let capTopY = proxy.position(forY: barTopUnit),
-                               let barXPos = proxy.position(forX: breakBarX(index)) {
-                                clippedBreakAnnotations(
-                                    capTopY: plotFrame.minY + capTopY,
-                                    barXPos: plotFrame.minX + barXPos,
-                                    amountLabel: Self.axisAmountLabel(clippedAmount(index))
-                                )
-                            }
-                        }
-                    }
-
-                    // —— 触摸手势：拖动/点按查看单日，纵向手势交还页面滚动 ——
-                    DirectionalChartGestureOverlay(
-                        onChanged: { location in
-                            hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame) ?? hoveredIndex
-                        },
-                        onEnded: { _ in
-                            hoveredIndex = nil
-                        },
-                        onCancelled: {
-                            hoveredIndex = nil
-                        },
-                        onTap: { location in
-                            hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame)
-                        }
-                    )
-
-                    // —— 触摸态：明细 tooltip ——
-                    if let index = hoveredIndex,
-                       let anchorXPos = proxy.position(forX: Double(index)), let plotFrame {
-                        amountTooltip(
-                            point: dataPoints[index],
-                            dateLabel: ChartTooltipDateLabel.string(for: dataPoints[index], points: dataPoints),
-                            x: min(max(plotFrame.minX + anchorXPos, 60), overlayFrame.width - 60),
-                            y: min(max(plotFrame.minY + plotFrame.height * 0.14, 16), overlayFrame.height - 16)
-                        )
-                    }
-                }
-            }
-            .frame(height: 200)
+            return trendChart(cap: plan.cap, clippedIndices: plan.clippedIndices,
+                              peakDayIndex: peakDay, balanceTicks: balanceTicks,
+                              slotWidthPt: slotWidthPt)
+                .animation(HoloAnimation.smooth, value: animatedSignature)
+        }
+        .frame(height: 200)
     }
 
     private func trendChart(cap: Double, clippedIndices: [Int],
-                            peakDayIndex: Int?, balanceTicks: [(unit: Double, label: String)]) -> some View {
+                            peakDayIndex: Int?, balanceTicks: [(unit: Double, label: String)],
+                            slotWidthPt: CGFloat) -> some View {
         Chart {
             ForEach(dataPoints.indices, id: \.self) { index in
                 flowBars(
@@ -152,26 +123,22 @@ struct TrendChartView: View {
                     dataPoints[index],
                     cap: cap,
                     isPeakDay: index == peakDayIndex,
-                    isClipped: clippedIndices.contains(index)
+                    isClipped: clippedIndices.contains(index),
+                    slotWidthPt: slotWidthPt
                 )
             }
-            ForEach(dataPoints.indices, id: \.self) { index in
-                balanceLine(index, dataPoints[index])
+            if showsBalanceLine {
+                ForEach(dataPoints.indices, id: \.self) { index in
+                    balanceLine(index, dataPoints[index])
+                }
             }
         }
         .chartXScale(domain: xDomain)
         .chartYScale(domain: 0...plotUnitMax)
-        .chartXAxis {
-            AxisMarks(values: xAxisTickValues) { value in
-                AxisValueLabel {
-                    if let axisValue = value.as(Double.self) {
-                        Text(tickLabel(axisValue))
-                            .font(.system(size: 10))
-                            .foregroundStyle(Color.holoTextSecondary)
-                    }
-                }
-            }
-        }
+        // X 刻度已由 chartOverlay 自绘；必须显式隐藏默认轴——不提供 chartXAxis 时
+        // Charts 会自画一套数字刻度（0/10/20…），与自绘日期刻度同区混排悬浮
+        // （习惯回顾趋势图 2026-10-07 东林真机实锤同病，预防性同治）
+        .chartXAxis(.hidden)
         .chartYAxis {
             // 左轴：收支柱刻度（含 0 基线网格）
             AxisMarks(position: .leading, values: [0.0, barY(cap * 0.5, cap: cap), barY(cap, cap: cap)]) { value in
@@ -201,23 +168,108 @@ struct TrendChartView: View {
                 .padding(.leading, 2)
                 .padding(.trailing, 2)
         }
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                let overlayFrame = geometry.frame(in: .local)
+                let plotFrame = proxy.plotFrame.map { geometry[$0] }
+
+                // —— X 轴刻度自绘（含末位）：Swift Charts 的 AxisValueLabel 摆放位置不可控，
+                //    2026-10-07 Mac/iOS 实测相对数据点整体右偏 0.25-0.4 槽，柱子/气泡全对不上
+                //    刻度文字；改用与柱子同一坐标系（position(forX:)）自绘，位置即数据点位置 ——
+                if let plotFrame {
+                    ForEach(axisLabelIndices, id: \.index) { tick in
+                        if let xPos = proxy.position(forX: Double(tick.index)) {
+                            Text(tick.label)
+                                .font(.system(size: 10))
+                                .foregroundStyle(Color.holoToolTextSecondary)
+                                .position(x: plotFrame.minX + xPos, y: plotFrame.maxY + 10)
+                        }
+                    }
+                    if let lastXPos = proxy.position(forX: Double(dataPoints.count - 1)) {
+                        Text(dataPoints[dataPoints.count - 1].label)
+                            .font(.system(size: 10))
+                            .foregroundStyle(Color.holoToolTextSecondary)
+                            .position(x: plotFrame.minX + lastXPos, y: plotFrame.maxY + 10)
+                    }
+                }
+
+                // —— 触摸当日：柱后淡色高亮带 ——
+                // position(forX/Y:) 返回的是绘图区（plot area）内坐标，作为全图 overlay 坐标使用时必须补回 plotFrame 偏移，
+                // 否则高亮带/气泡整体左移一个 Y 轴刻度栏宽（≈3 天），看起来「不跟手、有错位」
+                if let index = hoveredIndex,
+                   let slotXPos = proxy.position(forX: Double(index)), let plotFrame {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.holoToolText.opacity(0.05))
+                        .frame(width: plotFrame.width / CGFloat(dataPoints.count), height: plotFrame.height)
+                        .position(x: plotFrame.minX + slotXPos, y: plotFrame.midY)
+                }
+
+                // —— 断口截断标注 ——
+                if let plotFrame {
+                    ForEach(clippedIndices, id: \.self) { index in
+                        if let capTopY = proxy.position(forY: barTopUnit),
+                           let barXPos = proxy.position(forX: breakBarX(index, slotWidthPt: slotWidthPt)) {
+                            // 标注默认画柱右侧；尖峰落在月末时右侧是右轴刻度区，
+                            // 金额会叠在刻度上（2026-10-01 东林实测 9/30 挤成一团），越界即翻到柱左侧
+                            let labelCenterX = plotFrame.minX + barXPos + barWidthPt / 2 + 24
+                            let placeLabelLeft = labelCenterX + 20 > plotFrame.maxX - 2
+                            clippedBreakAnnotations(
+                                capTopY: plotFrame.minY + capTopY,
+                                barXPos: plotFrame.minX + barXPos,
+                                barWidthPt: barWidthPt,
+                                amountLabel: Self.axisAmountLabel(clippedAmount(index)),
+                                placeLabelLeft: placeLabelLeft
+                            )
+                        }
+                    }
+                }
+
+                // —— 触摸手势：拖动/点按查看单日，纵向手势交还页面滚动 ——
+                DirectionalChartGestureOverlay(
+                    onChanged: { location in
+                        hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame) ?? hoveredIndex
+                    },
+                    onEnded: { _ in
+                        hoveredIndex = nil
+                    },
+                    onCancelled: {
+                        hoveredIndex = nil
+                    },
+                    onTap: { location in
+                        hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame)
+                    }
+                )
+
+                // —— 触摸态：明细 tooltip ——
+                if let index = hoveredIndex,
+                   let anchorXPos = proxy.position(forX: Double(index)), let plotFrame {
+                    amountTooltip(
+                        point: dataPoints[index],
+                        dateLabel: ChartTooltipDateLabel.string(for: dataPoints[index], points: dataPoints),
+                        x: min(max(plotFrame.minX + anchorXPos, 60), overlayFrame.width - 60),
+                        y: min(max(plotFrame.minY + plotFrame.height * 0.14, 16), overlayFrame.height - 16)
+                    )
+                }
+            }
+        }
     }
 
     /// 某天的支出/收入成对柱；峰值日整柱实色高亮；截断柱画「断口」：主柱 + 留白 + 小帽
     @ChartContentBuilder
-    private func flowBars(_ index: Int, _ point: ChartDataPoint, cap: Double, isPeakDay: Bool, isClipped: Bool) -> some ChartContent {
+    private func flowBars(_ index: Int, _ point: ChartDataPoint, cap: Double, isPeakDay: Bool, isClipped: Bool, slotWidthPt: CGFloat) -> some ChartContent {
         let expenseVal = Double(truncating: point.expense as NSDecimalNumber)
         let incomeVal = Double(truncating: point.income as NSDecimalNumber)
         let opacity = isPeakDay ? 1.0 : restBarOpacity
+        let offset = barOffsetUnits(slotWidthPt: slotWidthPt)
 
-        flowBar(x: Double(index) - barOffsetUnits, value: expenseVal, cap: cap,
-                color: .holoError, opacity: opacity, isClipped: isClipped && expenseVal >= incomeVal)
-        flowBar(x: Double(index) + barOffsetUnits, value: incomeVal, cap: cap,
-                color: .holoSuccess, opacity: opacity, isClipped: isClipped && incomeVal > expenseVal)
+        flowBar(x: Double(index) - offset, value: expenseVal, cap: cap,
+                color: .holoError, opacity: opacity, isClipped: isClipped && expenseVal >= incomeVal, barWidthPt: barWidthPt)
+        flowBar(x: Double(index) + offset, value: incomeVal, cap: cap,
+                color: .holoSuccess, opacity: opacity, isClipped: isClipped && incomeVal > expenseVal, barWidthPt: barWidthPt)
     }
 
     @ChartContentBuilder
-    private func flowBar(x: Double, value: Double, cap: Double, color: Color, opacity: Double, isClipped: Bool) -> some ChartContent {
+    private func flowBar(x: Double, value: Double, cap: Double, color: Color, opacity: Double, isClipped: Bool, barWidthPt: CGFloat) -> some ChartContent {
         if value > 0 {
             if isClipped {
                 // 截断柱画整根到量程顶，由 clippedBreakAnnotations 用卡片底色斜缝
@@ -226,7 +278,7 @@ struct TrendChartView: View {
                     x: .value("日期", x),
                     yStart: .value("起点", 0.0),
                     yEnd: .value("金额", barTopUnit),
-                    width: .fixed(barWidth)
+                    width: .fixed(barWidthPt)
                 )
                 .cornerRadius(2)
                 .foregroundStyle(color.opacity(opacity))
@@ -235,7 +287,7 @@ struct TrendChartView: View {
                     x: .value("日期", x),
                     yStart: .value("起点", 0.0),
                     yEnd: .value("金额", barY(value, cap: cap)),
-                    width: .fixed(barWidth)
+                    width: .fixed(barWidthPt)
                 )
                 .cornerRadius(2)
                 .foregroundStyle(color.opacity(opacity))
@@ -243,7 +295,7 @@ struct TrendChartView: View {
         }
     }
 
-    /// 余额线（冷蓝，独立刻度映射到上层条带）
+    /// 余额线（冷蓝，独立刻度铺满全绘图区）
     @ChartContentBuilder
     private func balanceLine(_ index: Int, _ point: ChartDataPoint) -> some ChartContent {
         let balanceVal = Double(truncating: point.balance as NSDecimalNumber)
@@ -260,11 +312,12 @@ struct TrendChartView: View {
     // MARK: 断口标注（只接收坐标结果）
 
     /// 断口柱的 x 位置（x 单位）
-    private func breakBarX(_ index: Int) -> Double {
+    private func breakBarX(_ index: Int, slotWidthPt: CGFloat) -> Double {
         let point = dataPoints[index]
         let expenseVal = Double(truncating: point.expense as NSDecimalNumber)
         let incomeVal = Double(truncating: point.income as NSDecimalNumber)
-        return Double(index) + (incomeVal > expenseVal ? barOffsetUnits : -barOffsetUnits)
+        let offset = barOffsetUnits(slotWidthPt: slotWidthPt)
+        return Double(index) + (incomeVal > expenseVal ? offset : -offset)
     }
 
     /// 断口柱的真实金额
@@ -277,13 +330,14 @@ struct TrendChartView: View {
     }
 
     /// 断口：柱身画整根，用两道卡片底色斜缝在柱顶下方切出断口（旧版白杠深色模式刺眼、
-    /// 浅色模式不可见，且缝画在柱外空隙里等于隐身）+ 柱右侧真实值标注（原与纵轴刻度重叠）
+    /// 浅色模式不可见，且缝画在柱外空隙里等于隐身）+ 真实值标注（默认柱右侧；
+    /// `placeLabelLeft` 时翻到柱左侧并右对齐，避免与右轴刻度叠印）
     @ViewBuilder
-    private func clippedBreakAnnotations(capTopY: CGFloat, barXPos: CGFloat, amountLabel: String) -> some View {
+    private func clippedBreakAnnotations(capTopY: CGFloat, barXPos: CGFloat, barWidthPt: CGFloat, amountLabel: String, placeLabelLeft: Bool) -> some View {
         ForEach(0..<2, id: \.self) { slashIndex in
             Capsule()
-                .fill(Color.holoCardBackground)
-                .frame(width: barWidth + 3, height: 1.6)
+                .fill(Color.holoToolSurface)
+                .frame(width: barWidthPt + 3, height: 1.6)
                 .rotationEffect(.degrees(-24))
                 .position(x: barXPos, y: capTopY + 6.5 + CGFloat(slashIndex) * 4.5)
         }
@@ -291,29 +345,29 @@ struct TrendChartView: View {
         Text(amountLabel)
             .font(.system(size: 9, weight: .semibold))
             .foregroundColor(.holoSuccessDark)
-            .frame(width: 40, alignment: .leading)
-            .position(x: barXPos + barWidth / 2 + 24, y: capTopY - 7)
+            .frame(width: 40, alignment: placeLabelLeft ? .trailing : .leading)
+            .position(x: placeLabelLeft ? barXPos - barWidthPt / 2 - 24 : barXPos + barWidthPt / 2 + 24,
+                      y: capTopY - 7)
     }
 
     // MARK: 数值换算
 
-    private var barWidth: CGFloat {
-        dataPoints.count > 14 ? 4.2 : 8
+    /// 每日双柱几何：组内缝必须小于组间缝，否则前一天的收入柱和后一天的支出柱
+    /// 贴成一团，读成「同一个时间点三根柱」（2026-10-03 东林实报 9/29+9/30 连续两天
+    /// 有收支时穿帮）。窄槽（月视图 ≈10pt/槽）沿用既有槽宽比例；宽槽（周粒度 12 桶
+    /// 在 Mac/iPad 可达 ≈80pt/槽）按 pt 封顶——比例偏移会把柱子推离槽位中心、
+    /// 组内缝拉到比柱宽还宽，柱子看着不在它的刻度上（2026-10-07 东林实报）。
+    private func barOffsetUnits(slotWidthPt: CGFloat) -> Double {
+        ChartBarPairLayout.barOffsetUnits(pointCount: dataPoints.count, slotWidthPt: slotWidthPt)
+    }
+
+    private var barWidthPt: CGFloat {
+        ChartBarPairLayout.barWidth(pointCount: dataPoints.count)
     }
 
     private var xDomain: ClosedRange<Double> {
         let upper = Double(max(dataPoints.count - 1, 0)) + 0.5
         return -0.5...upper
-    }
-
-    private var xAxisTickValues: [Double] {
-        axisLabelIndices.map { Double($0.index) }
-    }
-
-    private func tickLabel(_ axisValue: Double) -> String {
-        let dataIndex = Int(axisValue.rounded())
-        guard dataIndex < dataPoints.count else { return "" }
-        return dataPoints[dataIndex].label
     }
 
     private func balanceValue(_ point: ChartDataPoint) -> Double {
@@ -326,7 +380,7 @@ struct TrendChartView: View {
         return lower...max(values.max() ?? 1, lower + 1)
     }
 
-    /// 余额线映射到上层条带（全幅极值归一化）
+    /// 余额线映射到全绘图区（全幅极值归一化）
     private func lineY(_ balance: Double, range: ClosedRange<Double>) -> Double {
         guard range.upperBound > range.lowerBound else { return (lineBandLow + lineBandHigh) / 2 }
         let t = (balance - range.lowerBound) / (range.upperBound - range.lowerBound)
@@ -337,29 +391,34 @@ struct TrendChartView: View {
         lineY(balance, range: balanceValueRange)
     }
 
-    /// 右轴余额刻度：最小 / 中位 / 最大 三档（走平时期合并为单档）
+    /// 右轴余额刻度：最小 / 中位 / 最大 三档；三档标签重复（余额走平或波动远小于
+    /// 刻度精度，如整月只差几元）时按标签去重，避免同值刻度竖排一列
     private func balanceTicks(range: ClosedRange<Double>) -> [(unit: Double, label: String)] {
+        let candidates: [(unit: Double, label: String)]
         if range.upperBound - range.lowerBound < 0.01 {
-            return [(lineY(range.lowerBound, range: range), Self.axisAmountLabel(range.lowerBound))]
+            candidates = [(lineY(range.lowerBound, range: range), Self.axisAmountLabel(range.lowerBound))]
+        } else {
+            let values = [range.lowerBound, (range.lowerBound + range.upperBound) / 2, range.upperBound]
+            candidates = values.map { (lineY($0, range: range), Self.axisAmountLabel($0)) }
         }
-        let values = [range.lowerBound, (range.lowerBound + range.upperBound) / 2, range.upperBound]
-        return values.map { (lineY($0, range: range), Self.axisAmountLabel($0)) }
+        var seenLabels = Set<String>()
+        return candidates.filter { seenLabels.insert($0.label).inserted }
     }
 
     private func balanceTickLabel(_ axisValue: Double, ticks: [(unit: Double, label: String)]) -> String {
         ticks.first { abs($0.unit - axisValue) < 0.01 }?.label ?? ""
     }
 
-    /// 数据点多（>14）时 X 轴稀疏展示（最多 6 个）
+    /// 数据点多（>14）时 X 轴稀疏展示（5 格 + 末位）。
+    /// 末位数据点不进刻度层——现已全刻度自绘（见 chartOverlay 注释），这里保留原
+    /// 稀疏节奏：前 5 格 + overlay 里补末位，避免 90 桶全画挤成一团。
     private var axisLabelIndices: [(index: Int, label: String)] {
         let count = dataPoints.count
-        guard count > 0 else { return [] }
-        guard count > 14 else { return (0..<count).map { ($0, dataPoints[$0].label) } }
-        let desiredCount = 6
-        let lastIndex = count - 1
-        let step = max(Double(lastIndex) / Double(desiredCount - 1), 1)
-        return (0..<desiredCount).compactMap { stepIndex in
-            let dataIndex = min(Int((Double(stepIndex) * step).rounded()), lastIndex)
+        guard count > 1 else { return [] }
+        guard count > 14 else { return (0..<(count - 1)).map { ($0, dataPoints[$0].label) } }
+        let step = max(Double(count - 1) / 5, 1)
+        return (0..<5).compactMap { stepIndex in
+            let dataIndex = min(Int((Double(stepIndex) * step).rounded()), count - 2)
             return (dataIndex, dataPoints[dataIndex].label)
         }
     }
@@ -432,16 +491,9 @@ struct TrendChartView: View {
         return bestIndex
     }
 
-    /// 轴刻度金额紧凑口径：万 / 千 / 整数
+    /// 轴刻度金额紧凑口径：万 / 千 / 整数（实现收在 NumberFormatter.compactAxisAmount，可单测）
     private static func axisAmountLabel(_ value: Double) -> String {
-        if abs(value) < 1 { return value == 0 ? "0" : "" }
-        let absValue = abs(value)
-        if absValue >= 10_000 {
-            return String(format: String(localized: "%.1f万"), value / 10_000)
-        } else if absValue >= 1_000 {
-            return String(format: String(localized: "%.1f千"), value / 1_000)
-        }
-        return String(format: "%.0f", value)
+        NumberFormatter.compactAxisAmount(value)
     }
 
     // MARK: Tooltip
@@ -450,7 +502,7 @@ struct TrendChartView: View {
         VStack(spacing: 2) {
             Text(dateLabel)
                 .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             HStack(spacing: 6) {
                 if point.expense > 0 {
                     Text("-\(NumberFormatter.compactCurrency(point.expense))")
@@ -465,18 +517,20 @@ struct TrendChartView: View {
                 if point.expense == 0 && point.income == 0 {
                     Text("无收支")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
-            Text("余额 \(NumberFormatter.compactCurrency(point.balance))")
-                .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.holoChart1)
+            if showsBalanceLine {
+                Text("余额 \(NumberFormatter.compactCurrency(point.balance))")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundColor(.holoChart1)
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 5)
         .background(
             RoundedRectangle(cornerRadius: 6)
-                .fill(Color.holoCardBackground)
+                .fill(Color.holoToolSurface)
                 .shadow(color: .black.opacity(0.1), radius: 3, y: 1)
         )
         .fixedSize()
@@ -489,11 +543,11 @@ struct TrendChartView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "chart.line.uptrend.xyaxis")
                 .font(.system(size: 40, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             Text("暂无数据，这就开始记一笔吧！")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(height: 160)
         .frame(maxWidth: .infinity)
@@ -516,5 +570,5 @@ struct TrendChartView: View {
         Spacer()
     }
     .padding()
-    .background(Color.holoBackground)
+    .background(Color.holoToolBackground)
 }

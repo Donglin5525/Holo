@@ -24,6 +24,9 @@ final class HoloMatterStateMachineTests: XCTestCase {
             (.candidate, .active),
             (.candidate, .dismissed),
             (.active, .completed),
+            // 2026-09-21：详情菜单对 active 提供「归档=轻性收起」入口（搁置进行中的事
+            // 是真实需求，强迫先完成=数据撒谎）；此前表里缺失导致确认后静默失败。
+            (.active, .archived),
             (.completed, .active),
             (.completed, .archived),
             (.archived, .active),
@@ -39,7 +42,6 @@ final class HoloMatterStateMachineTests: XCTestCase {
     func testLifecycleIllegalTransitions() {
         let illegal: [(HoloMatterLifecycleStatus, HoloMatterLifecycleStatus)] = [
             (.active, .candidate),          // 不能回候选
-            (.active, .archived),           // 必须先完成再归档
             (.active, .dismissed),          // 活跃事项不可 dismiss（candidate 专属）
             (.completed, .dismissed),
             (.completed, .candidate),

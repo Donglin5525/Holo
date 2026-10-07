@@ -17,6 +17,8 @@ struct HealthDetailView: View {
     @StateObject private var repository = HealthRepository.shared
     @State private var weeklyData: [DailyHealthData] = []
     @State private var isLoading = true
+    /// 日/周加载共享代数（R10，2026-10-04 体检）：快速切天时过期请求不发布、不提前关加载态
+    @State private var detailLoadGeneration = 0
     @State private var currentValue: Double = 0
     @State private var currentAvailability: HealthMetricAvailability = .noData
     @State private var sleepDetail: HealthSleepDetail?
@@ -88,7 +90,7 @@ struct HealthDetailView: View {
                 }
             }
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .toolbar(.hidden, for: .navigationBar)
         .swipeBackToDismiss(ignoreNavigationStack: true) {
             dismiss()
@@ -97,13 +99,13 @@ struct HealthDetailView: View {
             WorkoutSessionDetailSheet(session: session)
         }
         .task {
-            await loadDateData()
-            await loadWeeklyData()
+            await loadDateData(for: selectedDate)
+            await loadWeeklyData(for: selectedDate)
         }
         .onChange(of: selectedDate) {
             Task {
-                await loadDateData()
-                await loadWeeklyData()
+                await loadDateData(for: selectedDate)
+                await loadWeeklyData(for: selectedDate)
             }
         }
     }
@@ -113,14 +115,14 @@ struct HealthDetailView: View {
         VStack(spacing: HoloSpacing.sm) {
             Image(systemName: "figure.run")
                 .font(.system(size: 28, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
             Text("这一天没有运动记录")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 24)
-        .holoCard()
+        .holoSurface()
     }
 
     /// 近 7 天趋势（图内自带标题与均值行，外层不再重复标题）
@@ -134,7 +136,7 @@ struct HealthDetailView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     private var detailHeader: some View {
@@ -171,20 +173,20 @@ struct HealthDetailView: View {
     private var detailHeaderText: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(type.displayName)
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.pageTitle)
+                .foregroundColor(.holoToolText)
                 .lineLimit(1)
 
             Text(detailSubtitleText)
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
         }
     }
 
     private var detailStatusBadge: some View {
         Text(metric.statusText)
-            .font(.holoLabel)
+            .holoText(.metadata)
             .foregroundColor(type.color)
             .lineLimit(1)
             .padding(.horizontal, 10)
@@ -201,9 +203,9 @@ struct HealthDetailView: View {
         } label: {
             Image(systemName: "chevron.left")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .frame(width: 40, height: 40)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(Circle())
                 .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         }
@@ -236,24 +238,24 @@ struct HealthDetailView: View {
 
                     Text(metric.type.unit)
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 .frame(width: 92)
             }
 
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                 Text(detailTitle)
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.sectionTitle)
+                    .foregroundColor(.holoToolText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(detailSubtitle)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineSpacing(2)
 
                 Text(metric.statusText)
-                    .font(.holoLabel)
+                    .holoText(.metadata)
                     .foregroundColor(type.color)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -264,11 +266,11 @@ struct HealthDetailView: View {
             Spacer(minLength: 0)
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.xl)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoToolBorder, lineWidth: 1)
         )
         .shadow(color: HoloShadow.card, radius: 6, y: 2)
     }
@@ -285,25 +287,25 @@ struct HealthDetailView: View {
         VStack(spacing: 4) {
             Text(title)
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             Text(value)
                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
 
             Text(unit)
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 14)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoToolBorder, lineWidth: 1)
         )
     }
 
@@ -318,12 +320,12 @@ struct HealthDetailView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(insightTitle)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
 
                 Text(insightDetail)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -342,13 +344,13 @@ struct HealthDetailView: View {
     private var relatedSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             Text("关联线索")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.body)
+                .foregroundColor(.holoToolText)
 
             ForEach(relatedRows, id: \.title) { row in
                 HStack(alignment: .top, spacing: HoloSpacing.sm) {
                     Text(row.badge)
-                        .font(.holoLabel)
+                        .holoText(.metadata)
                         .foregroundColor(.white)
                         .frame(width: 28, height: 28)
                         .background(row.color)
@@ -356,11 +358,11 @@ struct HealthDetailView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(row.title)
-                            .font(.holoLabel)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolText)
                         Text(row.detail)
                             .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     Spacer()
@@ -368,34 +370,46 @@ struct HealthDetailView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoToolBorder, lineWidth: 1)
         )
     }
 
-    private func loadDateData() async {
-        let data = await repository.fetchDayData(for: selectedDate)
+    private func loadDateData(for date: Date) async {
+        // R10（2026-10-04 体检）：日期作为请求身份，await 后不读变化中的 selectedDate；
+        // 各分支取齐全部数据后一次性发布，不再出现数值/明细来自不同日期的混合态
+        detailLoadGeneration += 1
+        let generation = detailLoadGeneration
+        let data = await repository.fetchDayData(for: date)
         switch type {
         case .steps:
+            let hourly = await repository.fetchHourlySteps(for: date)
+            guard generation == detailLoadGeneration else { return }
             currentValue = data.steps
             currentAvailability = data.steps > 0 ? .available : .noData
-            hourlySteps = await repository.fetchHourlySteps(for: selectedDate)
+            hourlySteps = hourly
         case .sleep:
+            // 复用 AI 工具已有的按晚聚合明细，无阶段数据时卡片自动隐藏
+            let detail = await repository.fetchSleepDetailRange(from: date, to: date).first
+            let timeline = await repository.fetchSleepTimeline(forWakeDay: date)
+            guard generation == detailLoadGeneration else { return }
             currentValue = data.sleep
             currentAvailability = data.sleep > 0 ? .available : .noData
-            // 复用 AI 工具已有的按晚聚合明细，无阶段数据时卡片自动隐藏
-            sleepDetail = await repository.fetchSleepDetailRange(from: selectedDate, to: selectedDate).first
-            sleepTimeline = await repository.fetchSleepTimeline(forWakeDay: selectedDate)
+            sleepDetail = detail
+            sleepTimeline = timeline
         case .standHours:
+            guard generation == detailLoadGeneration else { return }
             currentValue = data.standHours
             currentAvailability = data.standHours > 0 ? .available : (data.activeMinutes > 0 ? .unsupported : .noData)
         case .activeMinutes:
+            guard generation == detailLoadGeneration else { return }
             currentValue = data.activeMinutes
             currentAvailability = data.activeMinutes > 0 ? .available : .noData
         case .workout:
+            guard generation == detailLoadGeneration else { return }
             workoutSessions = data.workoutSessions
             currentValue = data.workoutMinutes
             currentAvailability = data.workoutMinutes > 0 ? .available : .noData
@@ -535,16 +549,21 @@ struct HealthDetailView: View {
         }
     }
 
-    private func loadWeeklyData() async {
+    private func loadWeeklyData(for date: Date) async {
+        detailLoadGeneration += 1
+        let generation = detailLoadGeneration
         isLoading = true
-        weeklyData = await repository.fetchWeeklyData(for: type, endingOn: selectedDate)
+        let data = await repository.fetchWeeklyData(for: type, endingOn: date)
+        // R10：过期请求不发布，也不替新请求提前关掉加载态
+        guard generation == detailLoadGeneration else { return }
+        weeklyData = data
         isLoading = false
     }
 
     /// 左右滑动切天：与看板页、日期胶囊共用同一条边界规则（不越过今天）
     private func switchDay(forward: Bool) {
         guard let newDate = HealthDateNavigator.steppedDate(from: selectedDate, forward: forward) else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(HoloAnimation.standard) {
             selectedDate = newDate
         }
     }

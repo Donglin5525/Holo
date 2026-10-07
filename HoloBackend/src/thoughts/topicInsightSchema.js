@@ -12,7 +12,7 @@ import { GatewayError } from "../errors.js";
  */
 
 export const TOPIC_NAME_LIMITS = Object.freeze({
-  requestBodyMaxBytes: 48 * 1024,
+  requestBodyMaxBytes: 256 * 1024,
   representativeMaxCount: 8,
   representativeTextMaxUTF16: 240,
   nameMaxUTF16: 32,
@@ -68,11 +68,11 @@ function parseRepresentatives(value, limits, label, errorFactory) {
   });
 }
 
-function requireEnvelope(body, limits, errorFactory) {
+function requireEnvelope(body, limits, errorFactory, allowV2 = false) {
   if (!body || typeof body !== "object") {
     throw errorFactory("Request body must be an object");
   }
-  if (body.schemaVersion !== 1) {
+  if (body.schemaVersion !== 1 && !(allowV2 && body.schemaVersion === 2)) {
     throw errorFactory("schemaVersion must be 1");
   }
   if (!isCleanShortString(body.operationId, limits.idMaxUTF16)) {
@@ -89,12 +89,12 @@ function requireEnvelope(body, limits, errorFactory) {
  */
 export function validateTopicNameRequest(body) {
   const fail = (message) => new GatewayError("INVALID_REQUEST", message, 400);
-  requireEnvelope(body, TOPIC_NAME_LIMITS, fail);
+  requireEnvelope(body, TOPIC_NAME_LIMITS, fail, true);
   const representatives = parseRepresentatives(
-    body.representatives, TOPIC_NAME_LIMITS, "representatives", fail,
+    body.representatives, body.schemaVersion === 2 ? { ...TOPIC_NAME_LIMITS, representativeTextMaxUTF16: 8000 } : TOPIC_NAME_LIMITS, "representatives", fail,
   );
   return {
-    schemaVersion: 1,
+    schemaVersion: body.schemaVersion,
     operationId: body.operationId,
     engineVersion: body.engineVersion,
     representatives,
@@ -108,6 +108,23 @@ export function validateTopicNameRequest(body) {
  */
 export function validateTopicNameOutput(output, parsedRequest) {
   if (!output || typeof output !== "object") return { malformed: true, reason: "not_object" };
+  if (parsedRequest.schemaVersion === 2) {
+    if (output.outcome === "no_topic") return { outcome: "no_topic", name: "", definition: "", members: [] };
+    if (output.outcome !== "topic" || !isCleanShortString(output.name, 32)
+        || !isBoundedText(output.definition, 240) || !Array.isArray(output.members)
+        || output.members.length < 3 || output.members.length > 8) return { malformed: true, reason: "topic_evidence_shape" };
+    const byRef = new Map(parsedRequest.representatives.map(r => [r.ref, r.text]));
+    const seen = new Set(), texts = new Set(), members = [];
+    for (const member of output.members) {
+      const text = byRef.get(member?.ref);
+      if (!text || seen.has(member.ref) || texts.has(text.trim()) || !isBoundedText(member.quote, 120)) return { malformed: true, reason: "member_invalid" };
+      const start = text.indexOf(member.quote);
+      if (start < 0) return { malformed: true, reason: "member_quote_invalid" };
+      seen.add(member.ref); texts.add(text.trim());
+      members.push({ ref: member.ref, quote: member.quote, rangeUTF16: [start, start + member.quote.length] });
+    }
+    return { outcome: "topic", name: output.name.trim(), definition: output.definition.trim(), members };
+  }
   const name = output.name;
   if (!isCleanShortString(name, TOPIC_NAME_LIMITS.nameMaxUTF16)) {
     return { malformed: true, reason: "name_shape" };

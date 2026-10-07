@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Holo 1.1 · 今天减负 — 保留首页布局</title>
+  <style>
+    :root { color-scheme: light; --orange:#f46d38; --orange-dark:#c64b20; --cream:#fdfcf8; --card:#fff; --ink:#33332f; --secondary:#77746d; --line:#eeeae3; --wash:#f8f5ef; --tint:#fff1e8; --risk:#ab4436; --green:#3b7356; --shadow:rgba(66,45,25,.08); --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC",sans-serif; --serif:"Songti SC","STSong","Noto Serif CJK SC",serif; }
+    [data-theme="dark"] { color-scheme:dark; --cream:#1c1c1e; --card:#2c2c2e; --ink:#f3f0ea; --secondary:#b0aca5; --line:#414143; --wash:#242426; --tint:#392a23; --risk:#f6a394; --green:#9ac7ab; --shadow:rgba(0,0,0,.3); }
+    * { box-sizing:border-box; }
+    body { margin:0; color:#423b31; background:#f1eee7; font-family:var(--sans); -webkit-font-smoothing:antialiased; }
+    button,input,textarea { font:inherit; }
+    button { cursor:pointer; -webkit-tap-highlight-color:transparent; }
+    button:focus-visible,summary:focus-visible,textarea:focus-visible { outline:3px solid #bd6946; outline-offset:4px; }
+    button:disabled { cursor:default; opacity:.45; }
+    button svg { pointer-events:none; }
+    [hidden] { display:none !important; }
+    .symbol-bank { position:absolute; width:0; height:0; overflow:hidden; }
+    .ico { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.65; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+    .page { max-width:1130px; margin:auto; padding:38px 34px 40px; }
+    .masthead { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:34px; }
+    .wordmark { font-size:18px; letter-spacing:.04em; font-weight:650; }
+    .page-meta { display:flex; align-items:center; gap:10px; color:#82796c; font-size:12px; }
+    .meta-dot { width:5px; height:5px; border-radius:50%; background:var(--orange); }
+    .stage { display:grid; grid-template-columns:minmax(0,1fr) 393px; align-items:center; gap:80px; }
+    .eyebrow { color:#986c51; font-size:11px; font-weight:650; letter-spacing:.18em; margin-bottom:20px; }
+    .intro h1 { margin:0; font-family:var(--serif); font-weight:500; font-size:45px; line-height:1.4; letter-spacing:-.02em; }
+    .intro h1 .accent { color:#bc613e; }
+    .intro .lede { max-width:370px; font-size:14px; line-height:1.95; color:#7e7568; margin:24px 0 32px; }
+    .scenario-label { display:flex; align-items:center; gap:8px; font-size:11px; letter-spacing:.1em; color:#8b8071; margin-bottom:12px; }
+    .scenario-list { display:flex; flex-direction:column; gap:9px; max-width:365px; }
+    .scenario { background:transparent; border:1px solid #ded7cb; border-radius:14px; padding:14px 16px; text-align:left; color:#5d5549; display:flex; gap:12px; align-items:center; transition:background .18s,border-color .18s; min-height:62px; }
+    .scenario .ico { width:19px; height:19px; color:#a1856d; }
+    .scenario strong { font-size:13px; font-weight:600; display:block; }
+    .scenario small { display:block; font-size:11px; line-height:1.6; margin-top:3px; color:#938979; }
+    .scenario[aria-pressed="true"] { background:#fbf6ee; border-color:#cda78b; box-shadow:0 3px 16px #7c57360a; }
+    .scenario[aria-pressed="true"] .ico { color:#bc613e; }
+    .route { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:28px 0 18px; font-size:11px; color:#9b8e7d; }
+    .route span { color:#706354; }
+    .review-tools { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding-top:20px; border-top:1px solid #e0d9cd; max-width:365px; }
+    .review-tools button { padding:7px 10px; color:#7d7061; border:0; background:transparent; border-radius:8px; font-size:12px; min-height:36px; }
+    .review-tools button:hover { background:#e9e3d8; }
+    .step-caption { margin-top:14px; color:#8a7e6d; font-size:11px; min-height:32px; line-height:1.8; max-width:365px; }
+    .phone { width:393px; height:852px; border:7px solid #2d2b28; border-radius:47px; background:var(--cream); box-shadow:0 25px 70px -18px #5b41263b,0 3px 8px #35291d19; position:relative; overflow:hidden; color:var(--ink); isolation:isolate; }
+    .statusbar { height:48px; display:flex; align-items:center; justify-content:space-between; padding:9px 25px 0; font-size:13px; font-weight:650; position:relative; z-index:8; background:var(--cream); }
+    .status-right { display:flex; align-items:center; gap:7px; }
+    .status-right .ico { width:16px; height:16px; stroke-width:1.8; }
+    .island { position:absolute; width:102px; height:26px; top:8px; left:50%; transform:translateX(-50%); border-radius:18px; background:#242321; }
+    .home { height:calc(100% - 48px); padding:30px 24px 27px; display:flex; flex-direction:column; }
+    .home-header { display:flex; align-items:center; justify-content:space-between; }
+    .home-brand { font-size:12px; letter-spacing:1.2px; color:var(--secondary); }
+    .greeting { font-size:22px; font-weight:600; margin-top:4px; }
+    .gear { width:52px; height:52px; border:1px solid var(--line); border-radius:50%; display:grid; place-items:center; background:var(--card); color:var(--ink); box-shadow:0 3px 12px var(--shadow); }
+    .gear .ico { width:21px; height:21px; }
+    .home-reminder { align-self:center; background:var(--card); border:0; border-radius:30px; padding:9px 17px; font-size:12px; color:var(--ink); margin-top:22px; box-shadow:0 5px 15px var(--shadow); display:flex; gap:8px; align-items:center; min-height:36px; }
+    .home-reminder i { display:inline-block; width:7px; height:7px; border-radius:50%; background:#e6a45d; }
+    .home-spacer { flex:1; min-height:0; }
+    .pentagon { position:relative; height:420px; flex:none; }
+    .feature { position:absolute; width:62px; padding:0; background:none; border:0; transform:translate(-50%,-50%); text-align:center; color:var(--secondary); }
+    .feature .feature-icon { width:54px; height:54px; background:var(--wash); border-radius:16px; display:grid; place-items:center; margin:0 auto 7px; box-shadow:0 3px 8px var(--shadow); color:var(--orange-dark); }
+    .feature .ico { width:25px; height:25px; stroke-width:1.6; }
+    .feature span { font-size:11px; }
+    .feature.task { left:50%; top:45px; }
+    .feature.finance { left:94%; top:152px; }
+    .feature.habit { left:77%; top:325px; }
+    .feature.health { left:23%; top:325px; }
+    .feature.thought { left:6%; top:152px; }
+    .orb-button { border:0; width:192px; height:192px; padding:0; border-radius:50%; background:none; position:absolute; left:50%; top:210px; transform:translate(-50%,-50%); z-index:1; }
+    .orb-art { width:192px; height:192px; filter:drop-shadow(0 10px 23px #f46d3847); }
+    .orbit-decoration { position:absolute; pointer-events:none; top:210px; left:50%; border-radius:50%; transform:translate(-50%,-50%); border:1px dashed #f46d3824; }
+    .orbit-decoration.outer { width:320px; height:320px; border-width:.5px; opacity:.65; }
+    .orbit-decoration.inner { width:256px; height:256px; border-color:#f46d382c; }
+    .orb-core { animation:breathe 3s ease-in-out infinite; transform-origin:96px 96px; }
+    @keyframes breathe { 0%,100% { opacity:.55; transform:scale(.9); } 50% { opacity:1; transform:scale(1.07); } }
+    .bottom-nav { display:flex; align-items:center; justify-content:space-between; background:var(--card); border:1px solid var(--line); border-radius:24px; padding:11px 22px; min-height:83px; box-shadow:0 7px 20px var(--shadow); }
+    .nav-item { display:flex; flex-direction:column; align-items:center; gap:4px; background:none; border:0; padding:4px; color:var(--secondary); font-size:10px; min-width:55px; }
+    .nav-item .ico { width:20px; height:20px; }
+    .nav-ai { display:flex; flex-direction:column; align-items:center; gap:6px; background:none; border:0; padding:0 6px; }
+    .nav-ai > span { width:56px; height:56px; background:var(--orange); border-radius:50%; color:#fff; display:grid; place-items:center; box-shadow:0 4px 18px #f46d384d; }
+    .nav-ai .ico { width:26px; height:26px; }
+    .nav-ai i { width:6px; height:6px; border-radius:50%; background:#dba348; }
+    .home-indicator { position:absolute; width:126px; height:4px; left:50%; bottom:8px; transform:translateX(-50%); border-radius:8px; background:var(--ink); opacity:.8; z-index:10; }
+    .app-screen { position:absolute; top:48px; bottom:17px; left:0; right:0; z-index:3; background:var(--cream); overflow-y:auto; scrollbar-width:none; }
+    .app-screen::-webkit-scrollbar,.sheet-scroll::-webkit-scrollbar { display:none; }
+    .app-bar { position:sticky; top:0; z-index:2; background:var(--cream); padding:12px 16px 10px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .app-bar strong { font-size:18px; font-weight:600; }
+    .icon-button { display:grid; place-items:center; width:38px; height:38px; border-radius:50%; background:var(--card); color:var(--secondary); border:1px solid var(--line); flex:none; }
+    .icon-button .ico { width:18px; height:18px; }
+    .date-text { font-size:11px; color:var(--secondary); }
+    .screen-content { padding:5px 16px 30px; }
+    .focus-card { border-radius:20px; background:var(--card); padding:17px; box-shadow:0 3px 13px var(--shadow); }
+    .kicker { font-size:11px; color:var(--secondary); margin-bottom:9px; display:flex; align-items:center; gap:5px; }
+    .kicker .ico { width:14px; height:14px; }
+    .focus-title { font-size:19px; font-weight:600; line-height:1.4; margin:0 0 7px; }
+    .hint { font-size:12px; line-height:1.7; color:var(--secondary); margin:0; }
+    .hint.risk { color:var(--risk); }
+    .primary { width:100%; background:var(--orange); color:#fff; border:0; border-radius:12px; padding:12px 15px; font-size:14px; font-weight:600; min-height:46px; }
+    .focus-card .primary { margin-top:15px; }
+    .relief-entry { background:var(--tint); border:0; width:100%; margin-top:12px; border-radius:13px; display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; font-size:14px; font-weight:600; color:var(--orange-dark); min-height:48px; }
+    [data-theme="dark"] .relief-entry { color:#ffb68d; }
+    .relief-entry .ico { width:18px; height:18px; }
+    .section { margin-top:22px; }
+    .section-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
+    .section-head h3 { font-size:14px; font-weight:600; margin:0; }
+    .section-head small { font-size:10px; color:var(--secondary); }
+    .list { background:var(--card); border-radius:15px; overflow:hidden; padding:0 12px; }
+    .task-row { display:flex; gap:10px; align-items:center; min-height:64px; padding:12px 0; border-bottom:1px solid var(--line); }
+    .task-row:last-child { border-bottom:0; }
+    .task-row .title { font-size:13px; line-height:1.5; color:var(--ink); font-weight:500; }
+    .task-row .sub { font-size:10px; color:var(--secondary); margin-top:3px; line-height:1.6; }
+    .task-copy { flex:1; min-width:0; }
+    .row-circle { width:18px; height:18px; flex:none; border:1.2px solid var(--orange); border-radius:50%; display:grid; place-items:center; color:var(--green); font-size:12px; }
+    .row-circle.complete { border-color:var(--green); background:var(--wash); }
+    .row-open { padding:4px; background:none; border:0; color:var(--secondary); min-height:40px; }
+    .row-open .ico { width:16px; height:16px; }
+    .text-button { background:none; border:0; color:var(--orange-dark); font-size:12px; min-height:40px; padding:6px 8px; }
+    [data-theme="dark"] .text-button { color:#ffb68d; }
+    .matter-row { display:flex; align-items:center; gap:10px; border-radius:14px; border:1px solid var(--line); padding:12px; }
+    .matter-icon { width:35px; height:35px; display:grid; place-items:center; background:var(--tint); color:var(--orange); border-radius:11px; }
+    .matter-icon .ico { width:19px; height:19px; }
+    .quiet-strip { display:flex; flex-wrap:wrap; gap:8px; font-size:11px; color:var(--secondary); }
+    .quiet-strip span { background:var(--wash); border-radius:8px; padding:7px 9px; }
+    details.held { margin-top:13px; font-size:11px; color:var(--secondary); }
+    details.held summary { min-height:42px; display:flex; align-items:center; cursor:pointer; }
+    .notice { padding:11px 12px; border-radius:12px; background:var(--tint); font-size:11px; line-height:1.7; margin-bottom:13px; color:var(--ink); display:flex; align-items:center; gap:5px; }
+    .notice span { flex:1; }
+    .sheet-mask { position:absolute; z-index:12; inset:0; display:flex; flex-direction:column; justify-content:flex-end; background:rgba(35,29,23,.27); animation:fade-in .16s ease-out; }
+    .sheet { background:var(--cream); border-radius:25px 25px 0 0; max-height:91%; min-height:57%; display:flex; flex-direction:column; box-shadow:0 -12px 38px #2b1d1620; animation:sheet-up .28s cubic-bezier(.2,.8,.2,1); padding-bottom:19px; }
+    .sheet-grabber { flex:none; width:33px; height:4px; border-radius:8px; background:var(--secondary); opacity:.26; margin:10px auto 7px; }
+    .sheet-top { display:flex; align-items:center; justify-content:space-between; padding:3px 20px 9px; gap:10px; flex:none; }
+    .sheet-top .word { font-size:11px; color:var(--secondary); display:flex; align-items:center; gap:6px; }
+    .sheet-top .word .ico { width:14px; height:14px; color:var(--orange); }
+    .sheet-top .icon-button { width:31px; height:31px; }
+    .sheet-scroll { flex:1; overflow-y:auto; padding:0 20px 14px; scrollbar-width:none; }
+    .sheet h2 { margin:7px 0 10px; font-size:22px; font-weight:600; line-height:1.5; letter-spacing:-.03em; }
+    .sheet-description { color:var(--secondary); font-size:12px; line-height:1.85; margin:0 0 18px; }
+    .input-area { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px 14px 9px; }
+    .input-area textarea { background:transparent; color:var(--ink); border:0; padding:2px 0; resize:vertical; font-size:16px; line-height:1.65; width:100%; min-height:96px; max-height:180px; }
+    .input-area textarea::placeholder { color:var(--secondary); opacity:.75; }
+    .input-under { display:flex; justify-content:space-between; align-items:center; color:var(--secondary); font-size:10px; }
+    .voice-example { background:var(--wash); border:0; color:var(--secondary); border-radius:50%; width:35px; height:35px; display:grid; place-items:center; }
+    .voice-example .ico { width:16px; height:16px; }
+    .quick-phrases { display:flex; flex-wrap:wrap; gap:7px; margin:11px 0 18px; }
+    .quick-phrases button { padding:8px 11px; background:var(--wash); border:0; border-radius:10px; font-size:11px; min-height:36px; color:var(--secondary); }
+    .context-preview { padding:13px 0 0; border-top:1px solid var(--line); }
+    .context-preview .context-label { font-size:10px; color:var(--secondary); margin-bottom:8px; }
+    .context-line { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ink); margin:7px 0; }
+    .context-line .ico { width:14px; height:14px; color:var(--secondary); }
+    .sheet-footer { padding:12px 20px 7px; flex:none; border-top:1px solid var(--line); background:var(--cream); }
+    .sheet-footer .footer-note { margin:9px 0 0; color:var(--secondary); text-align:center; font-size:10px; line-height:1.6; }
+    .loading-body { min-height:185px; display:grid; align-content:center; justify-items:center; gap:15px; }
+    .loader { width:28px; height:28px; border:2px solid var(--line); border-top-color:var(--orange); border-radius:50%; animation:spin .85s linear infinite; }
+    .loading-body p { color:var(--secondary); font-size:12px; }
+    .suggestion-intro { font-size:13px; color:var(--secondary); line-height:1.8; margin-bottom:17px; }
+    .group-label { display:flex; justify-content:space-between; align-items:center; margin:18px 0 10px; gap:8px; }
+    .group-label h3 { font-size:13px; font-weight:600; margin:0; }
+    .group-label small { color:var(--secondary); font-size:10px; }
+    .change-group { border-radius:15px; background:var(--card); padding:0 13px; }
+    .change-row { display:flex; align-items:start; gap:10px; padding:13px 0; border-bottom:1px solid var(--line); min-height:60px; }
+    .change-row:last-child { border-bottom:0; }
+    .change-row .title { font-size:13px; font-weight:500; line-height:1.5; }
+    .change-row .reason { font-size:11px; line-height:1.7; margin-top:4px; color:var(--secondary); }
+    .change-row .pill { display:inline-block; font-size:9px; padding:2px 5px; background:var(--wash); border-radius:5px; color:var(--secondary); margin-top:5px; }
+    .change-row button { min-height:36px; padding:5px 4px; border:0; color:var(--secondary); background:none; font-size:10px; flex:none; }
+    .check-mark { width:18px; height:18px; border:1px solid var(--orange); border-radius:50%; display:grid; place-items:center; color:var(--orange); font-size:11px; margin-top:2px; flex:none; }
+    .held-mark { width:18px; height:18px; display:grid; place-items:center; color:var(--secondary); font-size:15px; flex:none; }
+    .constraint-note { display:flex; gap:7px; margin-top:14px; font-size:10px; line-height:1.8; color:var(--secondary); }
+    .constraint-note .ico { width:13px; height:13px; margin-top:3px; }
+    .basis { font-size:10px; line-height:1.8; color:var(--secondary); margin-top:7px; }
+    .basis summary { min-height:35px; display:flex; align-items:center; cursor:pointer; }
+    .basis p { margin:3px 0; }
+    .review-secondary { display:block; text-align:center; width:100%; margin-top:6px; min-height:36px; background:none; border:0; font-size:11px; color:var(--secondary); }
+    .task-result { background:var(--wash); border-radius:12px; padding:12px; font-size:12px; line-height:1.75; margin-bottom:16px; color:var(--secondary); }
+    .current-step { border-left:3px solid var(--orange); padding:4px 0 4px 12px; margin:13px 0 20px; }
+    .current-step strong { font-size:16px; font-weight:600; line-height:1.5; display:block; }
+    .step-list { font-size:11px; color:var(--secondary); line-height:2.3; padding-left:17px; }
+    .toast { position:absolute; bottom:32px; left:18px; right:18px; z-index:15; border-radius:12px; color:var(--ink); background:var(--card); border:1px solid var(--line); padding:12px; font-size:11px; text-align:center; box-shadow:0 7px 25px var(--shadow); pointer-events:none; }
+    .page-footer { margin-top:30px; font-size:11px; color:#9c9182; text-align:center; line-height:1.8; }
+    @keyframes fade-in { from { opacity:0; } to { opacity:1; } }
+    @keyframes sheet-up { from { transform:translateY(24px); } to { transform:translateY(0); } }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none !important; transition:none !important; } }
+    @media (max-width:960px) { .stage { gap:35px; } .intro h1 { font-size:36px; } .page { padding:25px 24px; } }
+    @media (max-width:760px) { .stage { display:flex; flex-direction:column; gap:30px; } .intro { width:100%; max-width:393px; } .intro h1 { font-size:32px; } .intro .lede { margin:13px 0 17px; font-size:13px; } .scenario-list { max-width:none; flex-direction:row; gap:6px; } .scenario { flex:1; padding:10px 8px; gap:0; min-height:46px; justify-content:center; text-align:center; } .scenario .ico,.scenario small { display:none; } .scenario strong { font-size:11px; } .eyebrow { margin-bottom:10px; } .route { margin:17px 0 8px; } .review-tools { padding-top:8px; max-width:none; } .step-caption { margin-top:6px; min-height:0; } .phone { flex:none; } .masthead { margin-bottom:25px; } .page-footer { margin-top:18px; } }
+    @media (max-width:440px) { .page { padding:20px 12px; } .phone { width:100%; max-width:393px; border-width:5px; border-radius:39px; height:810px; } .home { padding:27px 20px 25px; } .feature.finance { left:92%; } .feature.thought { left:8%; } .home-indicator { bottom:7px; } .masthead { padding:0 4px; } }
+    @media (max-width:360px) { .phone { height:780px; } .home { padding:23px 16px; } .greeting { font-size:20px; } .feature .feature-icon { width:47px; height:47px; border-radius:14px; } .feature.finance { left:91%; } .feature.thought { left:9%; } .orb-button,.orb-art { width:172px; height:172px; } .orbit-decoration.outer { width:280px; height:280px; } .orbit-decoration.inner { width:226px; height:226px; } .bottom-nav { padding:9px 16px; } .sheet-scroll { padding:0 16px 12px; } .sheet-footer { padding:11px 16px 6px; } }
+  </style>
+</head>
+<body>
+  <svg class="symbol-bank" aria-hidden="true"><defs>
+    <symbol id="i-task" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="17" rx="4" fill="currentColor" opacity=".09"/><path d="M9 4V3h6v3H9V4M7 10l1 1 2-2M12 10h5M7 15l1 1 2-2M12 15h5M5 6v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6"/></symbol>
+    <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 7h15v13H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2l12-2v4" fill="currentColor" opacity=".1"/><path d="M4 7h15v13H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2l12-2v4M15 12h6v5h-6zM17 14.5h.1"/></symbol>
+    <symbol id="i-leaf" viewBox="0 0 24 24"><path d="M4 19C2 9 9 4 20 3c1 10-3 18-13 17" fill="currentColor" opacity=".11"/><path d="M4 19C2 9 9 4 20 3c1 10-3 18-13 17M3 22 15 10M8 17v-5M8 17h5"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20 4 12C-1 5 7 1 12 7c5-6 13-2 8 5z" fill="currentColor" opacity=".1"/><path d="M12 20 4 12C-1 5 7 1 12 7c5-6 13-2 8 5zM5 12h4l2-4 2 8 2-4h4"/></symbol>
+    <symbol id="i-thought" viewBox="0 0 24 24"><path d="M8 17C1 11 7 1 14 4c6 2 5 9 2 12l-1 2H9z" fill="currentColor" opacity=".1"/><path d="M8 17C1 11 7 1 14 4c6 2 5 9 2 12l-1 2H9M9 21h6M10 18v-6h4v6"/></symbol>
+    <symbol id="i-person" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4" fill="currentColor" opacity=".15"/><path d="M5 21v-3a7 7 0 0 1 14 0v3" fill="currentColor" opacity=".13"/><circle cx="12" cy="7" r="3.5"/><path d="M5 21v-3a7 7 0 0 1 14 0v3"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M3 4c4-1 6 0 9 2 3-2 5-3 9-2v15c-4-1-6 0-9 2-3-2-5-3-9-2z" fill="currentColor" opacity=".1"/><path d="M3 4c4-1 6 0 9 2 3-2 5-3 9-2v15c-4-1-6 0-9 2-3-2-5-3-9-2zM12 6v15"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5zM20 3v4M18 5h4"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><path d="m10 3-.5 2-2 .8-1.9-.6-2 3.5 1.4 1.5v2.5L3.6 14l2 3.5 1.9-.6 2 .8.5 2.3h4l.5-2.3 2-.8 1.9.6 2-3.5-1.4-1.3v-2.5l1.4-1.5-2-3.5-1.9.6-2-.8L14 3z"/><circle cx="12" cy="11.5" r="3"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></symbol>
+    <symbol id="i-wind" viewBox="0 0 24 24"><path d="M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h6a2 2 0 1 1-2 2"/></symbol>
+    <symbol id="i-return" viewBox="0 0 24 24"><path d="m8 3-5 5 5 5M3 8h11a7 7 0 1 1-6 10"/></symbol>
+    <symbol id="i-plane" viewBox="0 0 24 24"><path d="m3 10 8 1 6-7c2-2 5 0 3 2l-6 7 1 8-2 1-3-7-5 3-2-1 4-5-6-1z"/></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M6 10v2a6 6 0 0 0 12 0v-2M12 18v3M9 21h6"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></symbol>
+    <symbol id="i-wifi" viewBox="0 0 24 24"><path d="M3 8a15 15 0 0 1 18 0M6 12a10 10 0 0 1 12 0M9 16a5 5 0 0 1 6 0M12 20h.01"/></symbol>
+    <symbol id="i-battery" viewBox="0 0 24 24"><rect x="2" y="7" width="18" height="10" rx="2"/><path d="M22 10v4M5 10h12v4H5z"/></symbol>
+  </defs></svg>
+  <main class="page">
+    <header class="masthead"><div class="wordmark">Holo<span style="color:#ac9077">.</span></div><div class="page-meta"><span class="meta-dot"></span><span>1.1 产品原型 · 模拟数据</span></div></header>
+    <div class="stage">
+      <section class="intro" aria-label="原型体验说明">
+        <div class="eyebrow">MAKE ROOM FOR TODAY</div>
+        <h1>事情多的时候，<br>先把今天<span class="accent">理轻一点。</span></h1>
+        <p class="lede">从熟悉的「今天」开始。说说现在的情况，保留要紧的事，把其余的先放下，再接着推进。</p>
+        <div class="scenario-label">体验一种真实处境</div>
+        <div class="scenario-list">
+          <button class="scenario" type="button" data-scenario="time" aria-pressed="true"><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg><span><strong>突然加班</strong><small>只有半小时，先做什么？</small></span></button>
+          <button class="scenario" type="button" data-scenario="light" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-wind"/></svg><span><strong>今天很累</strong><small>保留要紧的，其他先放下。</small></span></button>
+          <button class="scenario" type="button" data-scenario="resume" aria-pressed="false"><svg class="ico" aria-hidden="true"><use href="#i-return"/></svg><span><strong>停了几天</strong><small>不用从头，找到下一步。</small></span></button>
+        </div>
+        <div class="route"><span>点首页光球</span> → <span>帮我理一理</span> → <span>采用安排</span></div>
+        <div class="review-tools"><button type="button" data-act="reset">重新体验</button><button type="button" data-act="theme">切换深色</button><button type="button" data-act="home">回到首页</button></div>
+        <div class="step-caption" id="step-caption" aria-live="polite">首页沿用原结构。点击中间的光球，进入「今天」。</div>
+      </section>
+      <div class="phone" id="phone" aria-label="Holo 手机交互原型">
+        <div class="statusbar"><span>20:00</span><span class="island" aria-hidden="true"></span><div class="status-right"><svg class="ico" aria-hidden="true"><use href="#i-wifi"/></svg><svg class="ico" aria-hidden="true"><use href="#i-battery"/></svg></div></div>
+        <section class="home" id="home-screen" aria-label="现有首页布局">
+          <div class="home-header"><div><div class="home-brand">Holo</div><div class="greeting">晚上好，东林</div></div><button type="button" class="gear" data-act="unrelated" aria-label="设置"><svg class="ico" aria-hidden="true"><use href="#i-gear"/></svg></button></div>
+          <button type="button" class="home-reminder" data-act="today"><i aria-hidden="true"></i><span id="home-reminder-copy">有 4 个任务待完成</span></button>
+          <div class="home-spacer"></div>
+          <div class="pentagon" id="home-layout">
+            <div class="orbit-decoration outer" aria-hidden="true"></div><div class="orbit-decoration inner" aria-hidden="true"></div>
+            <button class="feature task" type="button" data-act="unrelated"><div class="feature-icon"><svg class="ico" aria-hidden="true"><use href="#i-task"/></svg></div><span>任务</span></button>
+            <button class="feature finance" type="button" data-act="unrelated"><div class="feature-icon"><svg class="ico" aria-hidden="true"><use href="#i-wallet"/></svg></div><span>财务</span></button>
+            <button class="feature habit" type="button" data-act="unrelated"><div class="feature-icon"><svg class="ico" aria-hidden="true"><use href="#i-leaf"/></svg></div><span>习惯</span></button>
+            <button class="feature health" type="button" data-act="unrelated"><div class="feature-icon"><svg class="ico" aria-hidden="true"><use href="#i-heart"/></svg></div><span>健康</span></button>
+            <button class="feature thought" type="button" data-act="unrelated"><div class="feature-icon"><svg class="ico" aria-hidden="true"><use href="#i-thought"/></svg></div><span>想法</span></button>
+            <button class="orb-button" type="button" data-act="today" aria-label="今天，查看今日安排">
+              <svg class="orb-art" viewBox="0 0 192 192" aria-hidden="true"><defs><linearGradient id="orb-fill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fed7aa"/><stop offset=".52" stop-color="#f46d38"/><stop offset="1" stop-color="#ea580c"/></linearGradient><radialGradient id="orb-glow"><stop stop-color="#fff" stop-opacity=".65"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient><path id="orb-arc" d="M 39 139 A 72 72 0 0 0 153 139"/></defs><circle cx="96" cy="96" r="94" fill="url(#orb-fill)"/><circle cx="96" cy="96" r="52" fill="none" stroke="#fff" stroke-opacity=".1" stroke-width="3.5"/><circle cx="96" cy="96" r="52" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="3.5" stroke-dasharray="143 327" stroke-linecap="round" transform="rotate(-105 96 96)"/><circle cx="96" cy="96" r="37.5" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="2.8"/><circle cx="96" cy="96" r="37.5" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width="2.8" stroke-dasharray="110 236" stroke-linecap="round" transform="rotate(30 96 96)"/><circle cx="96" cy="96" r="24.5" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="2.2"/><circle cx="96" cy="96" r="24.5" fill="none" stroke="#fff" stroke-opacity=".26" stroke-width="2.2" stroke-dasharray="65 154" stroke-linecap="round" transform="rotate(80 96 96)"/><circle class="orb-core" cx="96" cy="96" r="10" fill="url(#orb-glow)"/><text font-size="10.5" fill="#fff" fill-opacity=".88" letter-spacing="2.5"><textPath href="#orb-arc" startOffset="50%" text-anchor="middle" id="orb-caption">今天有4项安排</textPath></text></svg>
+            </button>
+          </div>
+          <div class="home-spacer"></div>
+          <nav class="bottom-nav" aria-label="首页底部导航"><button type="button" class="nav-item" data-act="unrelated"><svg class="ico" aria-hidden="true"><use href="#i-person"/></svg><span>个人</span></button><button type="button" class="nav-ai" data-act="ai" aria-label="Holo AI"><span><svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg></span><i aria-hidden="true"></i></button><button type="button" class="nav-item" data-act="unrelated"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg><span>记忆长廊</span></button></nav>
+        </section>
+        <section class="app-screen" id="today-screen" aria-label="今天" hidden></section>
+        <div class="sheet-mask" id="sheet-mask" hidden><section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-heading"></section></div>
+        <div class="toast" id="toast" role="status" hidden></div>
+        <div class="home-indicator" aria-hidden="true"></div>
+      </div>
+    </div>
+    <footer class="page-footer">首页保持原有结构，调整发生在「今天」与弹层中。模拟任务与规则演示，不连接真实 AI 或个人数据。</footer>
+  </main>
+  <script>
+    (() => {
+      'use strict';
+      const $ = id => document.getElementById(id);
+      const icon = name => '<svg class="ico" aria-hidden="true"><use href="#i-' + name + '"/></svg>';
+      const escapeHTML = text => String(text).replace(/[&<>"']/g, c => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[c]));
+      const tasks = [
+        {id:'signup', title:'提交活动报名', meta:'今晚 21:00 截止', reason:'今晚到期，先把这件要紧的事保留。'},
+        {id:'flight', title:'预订旅行机票', meta:'10 月 10 日截止 · 旅行筹备', reason:'今天只推进已有步骤：查看两个合适航班。'},
+        {id:'materials', title:'整理旅行资料', meta:'无截止日期 · 旅行筹备', reason:'今天先放下，资料仍留在旅行事项里。'},
+        {id:'photos', title:'整理照片', meta:'无截止日期', reason:'没有近期截止，今天可以先放下。'}
+      ];
+      const scenarios = {
+        time:{input:'突然加班，只剩半小时。帮我理一理今天，先做什么？', keep:['signup','flight'], title:'先保留要紧的，其他放一放。', summary:'先完成报名，有余力再看两个航班。两件整理任务今天先放下。', caption:'时间不够时，保留期限，减少今天主动推进的事。'},
+        light:{input:'今天很累，想早点休息。帮我保留要紧的事情，其他先放一放。', keep:['signup'], title:'今天先保留这一件。', summary:'报名今晚截止，先保留。旅行和整理今天先放下，原来的任务都还在。', caption:'负担太重时，可以只保留一件事，不自动把其他任务塞到明天。'},
+        resume:{input:'这几天都没打开，旅行准备做到哪里了？帮我看看今天怎么接着来。', keep:['signup','flight'], title:'从停下的地方，接着来。', summary:'旅行已经确认了出行日期，接下来是查看候选航班。先照顾今晚的报名，再从这一小步继续。', caption:'中断以后沿用原任务和步骤，不重新生成一整套待办。'}
+      };
+      const initial = scenario => ({scenario, route:'home', modal:null, text:'', selected:tasks.map(t=>t.id), draft:[], completed:[], flightStepDone:false, adopted:false, previousSelected:tasks.map(t=>t.id), previousAdopted:false, receipt:'', activeTask:'signup', generation:0});
+      let state = initial('time');
+      let theme = 'light';
+      let toastTimer;
+      let focusBeforeModal;
+      const storageKey = 'holo-today-relief-demo-v1';
+      try {
+        const saved = JSON.parse(localStorage.getItem(storageKey));
+        if (saved && scenarios[saved.scenario]) {
+          state = initial(saved.scenario);
+          for (const key of ['selected','previousSelected','completed']) if (Array.isArray(saved[key])) state[key] = [...new Set(saved[key].filter(id=>tasks.some(t=>t.id===id)))];
+          for (const key of ['flightStepDone','adopted','previousAdopted']) state[key] = saved[key] === true;
+        }
+      } catch (_) { /* 原型存储不可用时，照常从示例开始。 */ }
+      const doneForToday = id => id === 'flight' ? state.flightStepDone : state.completed.includes(id);
+      const taskById = id => tasks.find(t=>t.id===id);
+      const pendingSelected = () => state.selected.map(taskById).filter(t=>t&&!doneForToday(t.id));
+      function persist() {
+        try { const {scenario, selected, previousSelected, completed, flightStepDone, adopted, previousAdopted} = state; localStorage.setItem(storageKey, JSON.stringify({scenario,selected,previousSelected,completed,flightStepDone,adopted,previousAdopted})); } catch (_) { /* 演示仍可继续。 */ }
+      }
+      function toast(message) { clearTimeout(toastTimer); $('toast').textContent=message; $('toast').hidden=false; toastTimer=setTimeout(()=>{$('toast').hidden=true;},2200); }
+      function dismissToast(){ clearTimeout(toastTimer); $('toast').hidden=true; }
+      function action(name, label, className='primary', task='') { return '<button type="button" class="'+className+'" data-act="'+name+'"'+(task?' data-task="'+task+'"':'')+'>'+label+'</button>'; }
+      function taskRow(t, held=false) {
+        const done = doneForToday(t.id);
+        const sub = t.id==='flight'&&state.adopted ? (done?'今天已推进一步 · 机票尚未预订':'今天只推进：查看两个合适航班') : t.meta;
+        return '<div class="task-row"><span class="row-circle'+(done?' complete':'')+'" aria-hidden="true">'+(done?'✓':'')+'</span><div class="task-copy"><div class="title">'+t.title+'</div><div class="sub">'+sub+'</div></div>'+(held?action('readd','加入','text-button',t.id):action('task',icon('arrow'), 'row-open',t.id).replace('<button ','<button aria-label="查看'+t.title+'" '))+'</div>';
+      }
+      function renderToday() {
+        const focus = pendingSelected()[0];
+        const held = tasks.filter(t=>!state.selected.includes(t.id)&&!doneForToday(t.id));
+        const selected = state.selected.map(taskById).filter(Boolean);
+        let html = '<header class="app-bar"><strong>今天</strong><span class="date-text">10 月 3 日 · 周六</span>'+action('home',icon('close'),'icon-button').replace('<button ','<button aria-label="关闭今天，返回首页" ')+'</header><div class="screen-content">';
+        if(state.receipt) html+='<div class="notice"><span>'+escapeHTML(state.receipt)+'</span>'+(state.adopted?action('undo','撤销安排','text-button'):'')+'</div>';
+        html+='<div class="focus-card">';
+        if(focus){ html+='<div class="kicker">'+icon(focus.id==='signup'?'clock':'task')+(focus.id==='signup'?'现在需要关注':'现在最值得推进')+'</div><h2 class="focus-title">'+focus.title+'</h2><p class="hint'+(focus.id==='signup'?' risk':'')+'">'+(focus.id==='flight'&&state.adopted?'先看两个合适航班，有余力再继续。':focus.meta)+'</p>'+action('task',focus.id==='flight'?'继续这一步':'查看任务','primary',focus.id); }
+        else html+='<div class="kicker">按自己的节奏</div><h2 class="focus-title">今天先推进到这里。</h2><p class="hint">已有进度会保留，可以下次接着来。</p>';
+        html+='</div>'+action('input',icon('wind')+'帮我理一理','relief-entry');
+        html+='<section class="section"><div class="section-head"><h3>'+(state.adopted?'今天选择推进':'今天的安排')+'</h3><small>'+selected.length+' 件</small></div><div class="list">'+selected.map(t=>taskRow(t)).join('')+'</div></section>';
+        if(!state.selected.includes('signup')&&!state.completed.includes('signup')) html+='<section class="section"><div class="section-head"><h3>固定安排与截止</h3></div><div class="list">'+taskRow(tasks[0])+'</div></section>';
+        if(held.length) html+='<details class="held"><summary>今天先放下 · '+held.length+' 件　⌄</summary><div class="list">'+held.map(t=>taskRow(t,true)).join('')+'</div></details>';
+        html+='<section class="section"><div class="section-head"><h3>正在推进</h3><small>查看全部</small></div><div class="matter-row"><span class="matter-icon">'+icon('plane')+'</span><div class="task-copy"><div style="font-size:13px;font-weight:500">旅行筹备</div><div class="hint">机票 10 月 10 日截止</div></div>'+action('task',icon('arrow'),'row-open','flight').replace('<button ','<button aria-label="查看旅行筹备的机票任务" ')+'</div></section>';
+        html+='<section class="section"><div class="section-head"><h3>保持状态</h3></div><div class="quiet-strip"><span>习惯 · 今天 2 / 3</span><span>步数 · 8,240</span></div></section><section class="section"><div class="section-head"><h3>今日概况</h3></div><p class="hint">今天支出 ¥86.50</p></section></div>';
+        $('today-screen').innerHTML=html;
+      }
+      function sheetHead(label) { return '<div class="sheet-grabber" aria-hidden="true"></div><div class="sheet-top"><span class="word">'+icon('spark')+label+'</span>'+action('close-modal',icon('close'),'icon-button').replace('<button ','<button aria-label="关闭弹层" ')+'</div>'; }
+      function renderInput() {
+        $('sheet').innerHTML=sheetHead('和 Holo 理一理')+'<div class="sheet-scroll"><h2 id="sheet-heading">今天怎么安排<br>更合适？</h2><p class="sheet-description">说说现在的情况。Holo 会结合已有安排，帮你保留要紧的事情。</p><div class="input-area"><label for="situation" class="hint" style="display:block;margin-bottom:5px">现在的情况</label><textarea id="situation" maxlength="500" placeholder="例如：突然加班，今晚只剩半小时……">'+escapeHTML(state.text)+'</textarea><div class="input-under"><span>文字或语音都可以</span>'+action('voice',icon('mic'),'voice-example').replace('<button ','<button aria-label="填入模拟语音转写" ')+'</div></div><div class="quick-phrases">'+action('phrase-time','时间不够了','')+action('phrase-light','今天想轻一点','')+action('phrase-resume','想接着上次做','')+'</div><div class="context-preview"><div class="context-label">结合你已有的安排</div><div class="context-line">'+icon('clock')+'活动报名 · 今晚 21:00 截止</div><div class="context-line">'+icon('plane')+'旅行机票 · 已有具体下一步</div></div></div><div class="sheet-footer">'+action('generate','帮我理一理')+'<p class="footer-note">查看建议时，原来的任务和安排保持不变。</p></div>';
+      }
+      function renderLoading(){ $('sheet').innerHTML=sheetHead('正在整理')+'<div class="sheet-scroll"><h2 id="sheet-heading">把今天理清楚。</h2><div class="loading-body"><span class="loader" aria-hidden="true"></span><p role="status">正在结合你的安排整理……</p></div></div><div class="sheet-footer">'+action('close-modal','先保留原安排','review-secondary')+'</div>'; }
+      function reviewRow(t, keep){
+        const locked=t.id==='signup';
+        return '<div class="change-row"><span class="'+(keep?'check-mark':'held-mark')+'" aria-hidden="true">'+(keep?'✓':'−')+'</span><div class="task-copy"><div class="title">'+t.title+'</div><div class="reason">'+(keep?(t.id==='flight'?'只推进已有步骤：查看两个合适航班':locked?'今晚 21:00 截止，先保留。':'保留在今天，按自己的节奏推进。'):'留在原事项或清单，不自动移到明天。')+'</div>'+(t.id==='flight'?'<span class="pill">原截止：10 月 10 日</span>':'')+'</div>'+(locked?'<span class="pill" style="margin-top:4px">期限保留</span>':action(keep?'defer':'keep',keep?'先放下':'保留','',t.id))+'</div>';
+      }
+      function renderReview(){
+        const scenario=scenarios[state.scenario];
+        const open=tasks.filter(t=>!doneForToday(t.id));
+        const kept=open.filter(t=>state.draft.includes(t.id));
+        const held=open.filter(t=>!state.draft.includes(t.id));
+        const originalSuggestion=kept.length===scenario.keep.length&&scenario.keep.every(id=>state.draft.includes(id));
+        const title=originalSuggestion?scenario.title:kept.length?'今天保留 '+kept.length+' 件，按自己的节奏。':'今天先推进到这里。';
+        const summary=originalSuggestion?scenario.summary:(kept.length?'今天保留'+kept.map(t=>'「'+t.title+'」').join('、')+'。':'今天先不增加要推进的事，已有进度会保留。')+(held.length?'另外 '+held.length+' 件今天先放下，原来的任务和截止日期都还在。':'原来的截止日期保持不变。');
+        let html=sheetHead('今天的调整')+'<div class="sheet-scroll"><h2 id="sheet-heading">'+title+'</h2><div class="suggestion-intro">'+summary+'</div>';
+        if(kept.length) html+='<div class="group-label"><h3>今天保留</h3><small>'+kept.length+' 件</small></div><div class="change-group">'+kept.map(t=>reviewRow(t,true)).join('')+'</div>';
+        if(held.length) html+='<div class="group-label"><h3>今天先放下</h3><small>'+held.length+' 件</small></div><div class="change-group">'+held.map(t=>reviewRow(t,false)).join('')+'</div>';
+        html+='<div class="constraint-note">'+icon('lock')+'<span>原截止日期保留。完成机票的一步，不等于已经预订机票。</span></div><details class="basis"><summary>为什么这样安排　⌄</summary><p>依据：你刚才表达的当前情况、报名今晚到期，以及旅行已有的步骤。报名耗时未核实，不承诺半小时能全部完成。</p></details></div><div class="sheet-footer">'+action('adopt','采用这个安排')+action('input','再说一句','review-secondary')+'</div>';
+        $('sheet').innerHTML=html;
+      }
+      function renderTask(){
+        const t=taskById(state.activeTask)||tasks[0];
+        let html=sheetHead('原任务')+'<div class="sheet-scroll"><h2 id="sheet-heading">'+t.title+'</h2><p class="sheet-description">'+t.meta+'</p>';
+        if(t.id==='flight'){
+          html+='<div class="task-result">任务结果：确认并购买旅行机票。<br>当前状态：尚未预订。</div><div class="kicker">'+(state.flightStepDone?'今天已经推进一步':'接着上次的进度')+'</div><div class="current-step"><strong>'+(state.flightStepDone?'下一步：比较候选航班':'查看两个合适航班')+'</strong><p class="hint" style="margin-top:7px">'+(state.flightStepDone?'今天可以停在这里，下次从这一步继续。':'找到两个候选并记下时间，做到这里就完成这一步。')+'</p></div><ol class="step-list"><li>已完成：确认出行日期</li><li>'+(state.flightStepDone?'已完成：':'待推进：')+'查看两个合适航班</li><li>比较价格与时间</li><li>确认并购买机票</li></ol></div><div class="sheet-footer">'+action(state.flightStepDone?'close-modal':'complete-step',state.flightStepDone?'回到今天':'这步好了')+'<p class="footer-note">这一步的进度已保留，机票尚未预订。</p></div>';
+        } else {
+          const done=state.completed.includes(t.id);
+          html+='<div class="task-result">'+(done?'这件事已经完成。':'按原任务要求完成后，再确认完成。')+'</div></div><div class="sheet-footer">'+action(done?'close-modal':'complete-task',done?'回到今天':'我已完成这件事','primary',t.id)+'</div>';
+        }
+        $('sheet').innerHTML=html;
+      }
+      function render(){
+        document.documentElement.dataset.theme=theme;
+        document.querySelector('[data-act="theme"]').textContent=theme==='light'?'切换深色':'切换浅色';
+        document.querySelectorAll('[data-scenario]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.scenario===state.scenario)));
+        $('home-screen').hidden=state.route!=='home';
+        $('today-screen').hidden=state.route==='home';
+        $('home-screen').inert=state.route!=='home'||!!state.modal;
+        $('today-screen').inert=state.route==='home'||!!state.modal;
+        const unfinished=tasks.filter(t=>!state.completed.includes(t.id)).length;
+        $('home-reminder-copy').textContent='有 '+unfinished+' 个任务待完成';
+        $('orb-caption').textContent=state.adopted?'今天先推进'+pendingSelected().length+'件事':'今天有'+pendingSelected().length+'项安排';
+        if(state.route==='today') renderToday();
+        $('sheet-mask').hidden=!state.modal;
+        if(state.modal==='input') renderInput();
+        if(state.modal==='loading') renderLoading();
+        if(state.modal==='review') renderReview();
+        if(state.modal==='task') renderTask();
+        const captions={input:'说一句当前情况，或点一个快捷表达。原型将展示对应情境的模拟建议。',loading:'正在演示整理过程，可以随时取消。',review:'看看要保留什么、放下什么；可以逐项调整，再一次采用。',task:'继续原任务。机票只完成一步时，整个预订任务仍未完成。'};
+        $('step-caption').textContent=state.modal?captions[state.modal]:(state.route==='home'?'首页沿用原结构。点击中间的光球，进入「今天」。':state.adopted?'采用后仍在原来的「今天」。试着完成报名，再推进机票一步。':'整理入口位于「今天」内，首页不用增加任何卡片或按钮。');
+      }
+      function openModal(kind){ dismissToast(); focusBeforeModal=document.activeElement; state.modal=kind; render(); const first=$('sheet').querySelector(kind==='input'?'textarea':'button'); if(first) first.focus({preventScroll:true}); }
+      function closeModal(){ state.generation++; state.modal=null; render(); const target=focusBeforeModal&&focusBeforeModal.isConnected?focusBeforeModal:$('today-screen').querySelector('[data-act="input"]'); if(target) target.focus({preventScroll:true}); }
+      function selectScenario(id){ dismissToast(); const generation=state.generation+1; state=initial(id); state.generation=generation; persist(); render(); }
+      document.addEventListener('click',event=>{
+        const scenario=event.target.closest('[data-scenario]');
+        if(scenario){ selectScenario(scenario.dataset.scenario); return; }
+        const button=event.target.closest('[data-act]');
+        if(!button) return;
+        const act=button.dataset.act;
+        if(act==='theme'){ theme=theme==='light'?'dark':'light'; render(); return; }
+        if(act==='reset'){ selectScenario(state.scenario); return; }
+        if(act==='unrelated'){ toast('这个入口保留原位置；本原型只演示今天减负。'); return; }
+        if(act==='home'){ state.generation++; state.modal=null; state.route='home'; render(); return; }
+        if(act==='today'){ state.route='today'; render(); return; }
+        if(act==='ai'){ state.route='today'; state.text=scenarios[state.scenario].input; openModal('input'); toast('AI 对话也可以进入同一整理流程。'); return; }
+        if(act==='input'){ if(!state.text) state.text=scenarios[state.scenario].input; openModal('input'); return; }
+        if(act==='close-modal'){ closeModal(); return; }
+        if(act==='voice'){ state.text=scenarios[state.scenario].input; renderInput(); toast('已填入模拟语音转写，没有调用麦克风。'); return; }
+        if(act.startsWith('phrase-')){ const id=act==='phrase-time'?'time':act==='phrase-light'?'light':'resume'; state.scenario=id; state.text=scenarios[id].input; render(); return; }
+        if(act==='generate'){
+          state.text=$('situation').value.trim();
+          if(!state.text){ $('situation').setAttribute('aria-invalid','true'); $('situation').focus(); toast('先说一句当前情况。'); return; }
+          state.draft=scenarios[state.scenario].keep.filter(id=>!doneForToday(id));
+          state.modal='loading'; const token=++state.generation; render();
+          setTimeout(()=>{ if(state.generation!==token||state.modal!=='loading') return; state.modal='review'; render(); $('sheet').querySelector('button').focus({preventScroll:true}); },550);
+          return;
+        }
+        if(act==='keep'||act==='defer'){
+          const id=button.dataset.task;
+          if(id==='signup') return;
+          state.draft=act==='keep'?[...new Set([...state.draft,id])]:state.draft.filter(x=>x!==id);
+          renderReview(); return;
+        }
+        if(act==='adopt'){
+          const nextSelected=tasks.filter(t=>doneForToday(t.id)||state.draft.includes(t.id)).map(t=>t.id);
+          if(nextSelected.length===state.selected.length&&nextSelected.every(id=>state.selected.includes(id))){ closeModal(); toast('按原来的安排继续，今天没有新增调整。'); return; }
+          state.previousSelected=[...state.selected]; state.previousAdopted=state.adopted;
+          state.selected=nextSelected;
+          state.adopted=true; const held=tasks.filter(t=>!state.selected.includes(t.id)&&!doneForToday(t.id)).length;
+          state.receipt='已更新今天，'+held+' 件事今天先放下。'; state.modal=null; persist(); render(); $('today-screen').scrollTop=0; return;
+        }
+        if(act==='undo'){ state.selected=[...state.previousSelected]; state.adopted=state.previousAdopted; state.receipt='已恢复上次的今日安排，完成进度保留。'; persist(); render(); return; }
+        if(act==='readd'){ const id=button.dataset.task; if(!state.selected.includes(id)) state.selected.push(id); state.receipt='已将「'+taskById(id).title+'」重新加入今天。'; persist(); render(); return; }
+        if(act==='task'){ state.activeTask=button.dataset.task; openModal('task'); return; }
+        if(act==='complete-task'){
+          const id=button.dataset.task;
+          if(!state.completed.includes(id))state.completed.push(id);
+          state.receipt='已完成「'+taskById(id).title+'」。'; state.modal=null; persist(); render(); return;
+        }
+        if(act==='complete-step'){ state.flightStepDone=true; state.receipt='机票已推进一步，预订任务仍未完成。'; persist(); render(); return; }
+      });
+      document.addEventListener('input',event=>{ if(event.target.id==='situation'){ state.text=event.target.value.slice(0,500); event.target.removeAttribute('aria-invalid'); } });
+      $('sheet-mask').addEventListener('click',event=>{ if(event.target===$('sheet-mask')) closeModal(); });
+      document.addEventListener('keydown',event=>{
+        if(!state.modal)return;
+        if(event.key==='Escape'){ event.preventDefault(); closeModal(); return; }
+        if(event.key==='Tab'){
+          const controls=Array.from($('sheet').querySelectorAll('button:not([disabled]),textarea,input,summary')).filter(el=>el.getClientRects().length>0);
+          if(!controls.length)return;
+          const first=controls[0],last=controls[controls.length-1];
+          if(event.shiftKey&&document.activeElement===first){ event.preventDefault(); last.focus(); }
+          if(!event.shiftKey&&document.activeElement===last){ event.preventDefault(); first.focus(); }
+        }
+      });
+      render();
+    })();
+  </script>
+</body>
+</html>

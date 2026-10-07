@@ -50,6 +50,11 @@ struct ImportPreviewSheet: View {
                         // 账单区块（AI 匹配 / 账户映射 / 疑似重复；仅账单文件显示）
                         BillImportSection(viewModel: viewModel)
 
+                        // 分期识别区块（自动归组 + 疑似组确认；有识别结果时显示）
+                        if let installmentInfo = viewModel.installmentScanInfo {
+                            InstallmentImportSection(viewModel: viewModel, info: installmentInfo)
+                        }
+
                         // 字段映射（可点击编辑）
                         mappingSection(summary)
 

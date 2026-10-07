@@ -28,15 +28,15 @@ struct MonthlySummaryCard: View {
                         .font(.system(size: 13))
                         .foregroundColor(iconColor)
                     Text(title)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
 
                 Spacer(minLength: 0)
 
                 if todayAmount != nil {
                     Text("今日")
-                        .font(.system(size: 13, weight: .medium))
+                        .holoText(.metadata)
                         .foregroundColor(.holoTextPlaceholder)
                 }
             }
@@ -44,8 +44,9 @@ struct MonthlySummaryCard: View {
             // Row 2: 金额行 — 本月金额(左) | 今日金额(右)，基线对齐
             HStack(alignment: .firstTextBaseline) {
                 Text(formatAmount(amount))
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.sectionTitle)
+                    .monospacedDigit()
+                    .foregroundColor(.holoToolText)
                     .lineLimit(1)
 
                 Spacer(minLength: 0)
@@ -53,7 +54,7 @@ struct MonthlySummaryCard: View {
                 if let today = todayAmount {
                     Text(formatAmount(today))
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .lineLimit(1)
                 }
             }
@@ -69,7 +70,8 @@ struct MonthlySummaryCard: View {
             }
         }
         .padding(20)
-        // 月度卡片位于账本页的大卡片容器内，使用独立表面保持层级清晰
+        // 月度卡片位于账本页的白色大面板内，必须是带底色的嵌套卡；
+        // holoSurface 体系(independent/floating 均白底)在白面板上会隐形
         .holoNestedCard()
     }
 
@@ -100,6 +102,6 @@ struct MonthlySummaryCard: View {
                     .font(.system(size: 12, weight: .medium))
             }
         }
-        .foregroundColor(isIncrease ? .holoError : (isNeutral ? .holoTextSecondary : .holoSuccess))
+        .foregroundColor(isIncrease ? .holoError : (isNeutral ? .holoToolTextSecondary : .holoSuccess))
     }
 }

@@ -40,24 +40,8 @@ struct ChatCardView<Content: View>: View {
         VStack(alignment: .leading, spacing: 14) {
             content
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 18)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color.holoCardBackground,
-                    Color.holoCardBackground.opacity(0.96)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.holoBorder.opacity(0.75), lineWidth: 1)
-        )
-        .shadow(color: HoloShadow.card.opacity(0.55), radius: 14, x: 0, y: 7)
+        .padding(HoloSpacing.md)
+        .holoSurface()
         .opacity(isDeleted ? 0.5 : 1.0)
         .saturation(isDeleted ? 0 : 1)
     }
@@ -66,15 +50,7 @@ struct ChatCardView<Content: View>: View {
 // MARK: - 卡片交互样式
 
 /// 卡片按下效果：scale(0.97) + opacity(0.8)
-struct CardButtonStyle: ButtonStyle {
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .opacity(configuration.isPressed ? 0.8 : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
-    }
-}
+typealias CardButtonStyle = HoloPressStyle
 
 // MARK: - 卡片通用组件
 
@@ -104,16 +80,17 @@ struct CardHeaderView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .fontWeight(.medium)
+                    .foregroundColor(.holoToolText)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .strikethrough(isDeleted)
 
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(2)
                         .strikethrough(isDeleted)
                 }
@@ -169,8 +146,8 @@ struct CardFooterView: View {
     var body: some View {
         HStack {
             Text(timeText)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
                 .strikethrough(isDeleted)
 
             Spacer()
@@ -178,11 +155,11 @@ struct CardFooterView: View {
             if isDeleted {
                 Text("已删除")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(
-                        Capsule().fill(Color.holoTextSecondary.opacity(0.12))
+                        Capsule().fill(Color.holoToolTextSecondary.opacity(0.12))
                     )
             } else if showsChevron {
                 Image(systemName: "chevron.right")
@@ -205,7 +182,7 @@ struct HoloAIHeroMetric: View {
         VStack(alignment: .leading, spacing: 7) {
             Text(label)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             Text(value)
                 .font(.system(size: 30, weight: .bold))
@@ -216,7 +193,7 @@ struct HoloAIHeroMetric: View {
             if let note, !note.isEmpty {
                 Text(note)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -245,11 +222,11 @@ struct HoloAIFactItem: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(kicker)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Text(bodyText)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolText)
                     .lineSpacing(3)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
@@ -258,11 +235,11 @@ struct HoloAIFactItem: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.holoBorder.opacity(0.55), lineWidth: 1)
+                .stroke(Color.holoToolBorder.opacity(0.55), lineWidth: 1)
         )
     }
 }
@@ -277,28 +254,28 @@ struct HoloAIMetricTile: View {
         VStack(alignment: .leading, spacing: 7) {
             Text(label)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             Text(value)
                 .font(.system(size: isProminent ? 26 : 21, weight: .bold))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .minimumScaleFactor(0.78)
                 .lineLimit(1)
 
             if let note, !note.isEmpty {
                 Text(note)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 15)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoCardBackground.opacity(0.72))
+        .background(Color.holoToolSurface.opacity(0.72))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.holoBorder.opacity(0.7), lineWidth: 1)
+                .stroke(Color.holoToolBorder.opacity(0.7), lineWidth: 1)
         )
     }
 }
@@ -309,10 +286,10 @@ struct HoloAISectionLabel: View {
     var body: some View {
         Text(text)
             .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(.holoTextSecondary)
+            .foregroundColor(.holoToolTextSecondary)
             .padding(.horizontal, 11)
             .padding(.vertical, 7)
-            .background(Color.holoTextSecondary.opacity(0.08))
+            .background(Color.holoToolTextSecondary.opacity(0.08))
             .clipShape(Capsule())
     }
 }

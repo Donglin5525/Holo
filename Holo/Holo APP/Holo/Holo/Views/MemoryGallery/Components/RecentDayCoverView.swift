@@ -16,8 +16,8 @@ struct RecentDayCoverView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("最近的日子")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.body)
+                .foregroundColor(.holoToolText)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if sections.isEmpty {
@@ -42,7 +42,7 @@ struct RecentDayCoverView: View {
             HStack {
                 Text(section.displayLabel)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Spacer()
 
@@ -70,11 +70,11 @@ struct RecentDayCoverView: View {
         .padding(HoloSpacing.md)
         .frame(width: 140, alignment: .topLeading)
         .frame(minHeight: 120)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder.opacity(0.5), lineWidth: 1)
+                .stroke(Color.holoToolBorder.opacity(0.5), lineWidth: 1)
         )
     }
 
@@ -118,7 +118,7 @@ struct RecentDayCoverView: View {
 
             Text(text)
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
         }
     }
@@ -127,7 +127,7 @@ struct RecentDayCoverView: View {
 
     private var emptyHint: some View {
         Text("暂无最近记录")
-            .font(.holoCaption)
+            .holoText(.supporting)
             .foregroundColor(.holoTextPlaceholder)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, HoloSpacing.md)

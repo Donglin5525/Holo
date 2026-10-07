@@ -18,6 +18,7 @@ extension AddTransactionSheet {
         amountString = formatAmount(absoluteAmount)
         selectedCategory = transaction.category
         selectedAccount = transaction.account
+        // 收支都可挂靠（2026-10-04 定稿）：编辑回填原挂靠，退款笔照常回填其继承挂靠
         selectedProject = transaction.financeProjectId.flatMap {
             FinanceProjectRepository.shared.findProject(by: $0)
         }
@@ -63,12 +64,7 @@ extension AddTransactionSheet {
         selectedProject = nil
     }
 
-    /// 启动光标闪烁动画
-    func startCursorAnimation() {
-        withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
-            cursorOpacity = 0
-        }
-    }
+
 }
 
 // MARK: - 快捷标签

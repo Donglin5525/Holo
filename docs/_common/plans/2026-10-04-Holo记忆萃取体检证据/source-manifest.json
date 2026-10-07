@@ -1,0 +1,277 @@
+{
+  "capturedAt": "2026-10-04T15:31:41.213118+00:00",
+  "head": "9869a398f2294b6799b5a9f7a521aab012049df7",
+  "note": "当前脏工作区的文件指纹，不代表已提交或已发布；未复制业务原文或用户数据库。",
+  "files": [
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Models/AI/HoloAICapability.swift",
+      "sha256": "f200f957ccf214b42eb2bda9dfab2f83b8feef82727ffab6792698d8b57ca59b",
+      "bytes": 23794
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Models/AI/HoloPersonalContextControls.swift",
+      "sha256": "ed62ee0db0ddab65dcc5422a3a1ae5cc50c47b0a4a655b5cf4a81536ea329326",
+      "bytes": 5025
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemorySignals/MemorySignalDataAdapter.swift",
+      "sha256": "95d1b554cb27ad4d54df13b7bf127cb1023b3c4556df6f1bdbcdae26f9d173d3",
+      "bytes": 19055
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloLifeSourceObservation.swift",
+      "sha256": "5eb06767dbdf8ac4016ccfe64e02792be50225feac81af9632b9233a8ee00916",
+      "bytes": 20084
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloPersonalContextExtractor.swift",
+      "sha256": "a66ed322f7da918ba2c78bf434f9f2a34324037b43c5fe1a0fe2ff18fdda709f",
+      "bytes": 26009
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryObservation/HoloDomainMemoryOutputValidator.swift",
+      "sha256": "fb3b0d095e58cb61f818460e5a1aca11f65222d3ff677b17d48c35c00e9b6b6d",
+      "bytes": 12098
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemorySignals/ConversationMemorySignalBuilder.swift",
+      "sha256": "ac61a20b1d6061b21f2ac45be26a5ed59defd0be89d1e1e80bd9f37d36ee9e41",
+      "bytes": 2941
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryCore/HoloMemoryIdentity.swift",
+      "sha256": "6bcb8140d323da4ee0d6cf24ffdca31cee408df57243b1bca52885cb0998431a",
+      "bytes": 2745
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryCore/HoloMemoryDecisionPolicy.swift",
+      "sha256": "fedb8aab625c54fc35f8d55bf17effdc09f3e39d1a3fb9a6ecf3d3ea22e0bbbb",
+      "bytes": 45412
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryCore/HoloMemoryActivationPolicy.swift",
+      "sha256": "3f33d62624bd420752f225fa505f2f5290177f520b721524d472342de21eb617",
+      "bytes": 12177
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloPersonalContextValidator.swift",
+      "sha256": "7f36b8d8c7ee9080e6d66988d341ddb3a9a6d96299d4dadcd25d6b81431c9f8d",
+      "bytes": 16982
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloContextReconciler.swift",
+      "sha256": "c9b768ea97b3987c507ee83c4d60f21bee322c93fb7d48af23aaf04d4c3d1be9",
+      "bytes": 11321
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/HoloMemoryFeedbackService.swift",
+      "sha256": "b3837e0ad0ed3e768e1cedb59e20bc9baa2c6bbaee3778864aadd8648dd877a7",
+      "bytes": 4737
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloContextAccessPolicy.swift",
+      "sha256": "68c54b8e89eec5679c885edf7d3098b0f8fadf075b243b448cf5f272abb4180f",
+      "bytes": 7795
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryRepository/CoreDataHoloMemoryRepository.swift",
+      "sha256": "e555d99b3917f5dd11b3ffa03ec5ce9e84ca334d1d0848cc4230b2b5cf957dfe",
+      "bytes": 39045
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryRepository/HoloMemoryForgettingService.swift",
+      "sha256": "72e82265ac69676d19c043e3f162f05c12ddcfc964fa6c5fd9ed61846cbce916",
+      "bytes": 6245
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryObservation/HoloMemoryLiveObservationCoordinator.swift",
+      "sha256": "f3d666f5390b7348b4d15afeba7e5a9526a7a588fabaf4957348e8b5ddf72e1f",
+      "bytes": 26185
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryObservation/HoloMemoryObservationScheduler.swift",
+      "sha256": "7dd262941af9f73cd529cda90680f797cf61f8c48ce2dec4d3648b4070c94c03",
+      "bytes": 14374
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloPersonalContextRuntime.swift",
+      "sha256": "55f50c9b0c9dc48a9c1a10e2577f021c0de87af476b17e07e61ed9e5ddc7acca",
+      "bytes": 18778
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/UserContextBuilder.swift",
+      "sha256": "c044ba667dcb5063679bc2431d15696bdd648bd369d39204198e083de0712e23",
+      "bytes": 24049
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/HoloMemorySummaryProvider.swift",
+      "sha256": "bcc1b995d64a97f417cd92e967aab03fa14e33a8517c0990b1d1a0f614f946f4",
+      "bytes": 5817
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryQuery/HoloMemoryQueryRouter.swift",
+      "sha256": "dae63ee4e4ab8beb1a2e262309c3cd78a8c58a050a6948c50585dcceb9daef11",
+      "bytes": 7257
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/Agent/HoloAgentRuntimeShared.swift",
+      "sha256": "8bf0bdeaedaa7c59a538fe3528006197183ff201da2b6f4bda0bc6e35de1e60a",
+      "bytes": 21263
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/Agent/Cloud/HoloCloudAnalysisSnapshotBuilder.swift",
+      "sha256": "d5b11f28e8da3309c7b3d5277c8096e58d084e54c4f821f10c6f4500a980c815",
+      "bytes": 10987
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/HoloMemoryAttributionReconciler.swift",
+      "sha256": "baeb995f4a47cafcaa0b3726dd424c5c3ce7d269aee8144b51ccb957985c0fde",
+      "bytes": 3437
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/Chat/ChatViewModel.swift",
+      "sha256": "db197f641bf22042941badafe60551858a03da094f571e77370b5cef6708048e",
+      "bytes": 210735
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/MemoryGallery/MemoryGalleryView.swift",
+      "sha256": "c260fb09fc3f19a893026513204ee28fead7299313b14d6912ef73e3d4d5159c",
+      "bytes": 24606
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/HoloApp.swift",
+      "sha256": "ad9834ffa6c31d3247a2a6eac869c99d3c30b9e142b99dfdb6f84639620419b4",
+      "bytes": 26775
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/AIProvider.swift",
+      "sha256": "1b2155b3516262fdd41395cc9888dd33a0a1aa065ea7a737fdec7b7be195f782",
+      "bytes": 10376
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/PersonalContext/HoloContextSourceReader.swift",
+      "sha256": "cfbaa8ea0ddf72503c5420c545b3a34bb46ec3e134980be61c6d739f5ba5cbcf",
+      "bytes": 10278
+    },
+    {
+      "path": "HoloBackend/src/prompts/defaultPrompts.json",
+      "sha256": "f69b0fb0efe02cf64fc457b76ec030da5c802ed76da75eb876e88364cc90305e",
+      "bytes": 159259
+    },
+    {
+      "path": "HoloBackend/src/prompts/promptRegistry.js",
+      "sha256": "d5d17eafe312c69434f9908d88a2bcb33e5e30795cfb552a63cdbf96002949c1",
+      "bytes": 23976
+    },
+    {
+      "path": "HoloBackend/src/agent/cloudAnalysisExecutor.js",
+      "sha256": "e878e8472f6c1f234eacb7f28420636f99973e10e12f0a14322096b8eb1f1806",
+      "bytes": 57238
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/Agent/Tools/HoloMemoryDataSource.swift",
+      "sha256": "8c29420dbce54cc51fb4130daa151a507ca37da3c21893655b48c79f38617304",
+      "bytes": 2154
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryQuery/HoloMemoryQueryService.swift",
+      "sha256": "9a956378d30d161316a53a2f49f1dc12b857a93d776b8bfc4f5c69b0bf9a9325",
+      "bytes": 8772
+    },
+    {
+      "path": "HoloBackend/src/app.js",
+      "sha256": "a2338404e08789df09782f2d077c8be9185ff0e84be47f1a4ddbc029eb3801ca",
+      "bytes": 110921
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Models/AI/HoloMemoryRecord.swift",
+      "sha256": "4af55e8b720e10b3c5d619aabca1806ac01d77d5b3ffa5844f8d17ccb82cbe85",
+      "bytes": 11036
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Models/AI/HoloMemoryEvidence.swift",
+      "sha256": "94eef9d0ac4c89824f07421f3e243adc50014d6a4538eac29a2fd8b476848da7",
+      "bytes": 3002
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Models/AI/HoloPersonalContextModels.swift",
+      "sha256": "3d7e66a4db19d12e4f50a172cd3d619a922f399440b26ac886b5723b65f0b15e",
+      "bytes": 32883
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Models/AI/HoloLongTermMemoryModels.swift",
+      "sha256": "8d60d8dd1873bc7cd96fb464a48d09956a9ca6da1b283d0d69d6c9cf7ebe9bbf",
+      "bytes": 7930
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Models/AI/HoloShortTermMemoryModels.swift",
+      "sha256": "105c9109a494aecdf721ba3b07c78a6e67362912ff0cdefc9e4a62f5f35c5488",
+      "bytes": 2677
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Models/AI/HoloDomainMemoryObservation.swift",
+      "sha256": "b14a8227ad6ba9683783e8705bcf802943b7c629d2afeb07ef61e0d150228393",
+      "bytes": 3998
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryCore/HoloMemoryAttentionPolicy.swift",
+      "sha256": "fdd0357ee9940958dcfb00f2655ae0f48f9da34b6b27e97186f1e8a13e008bc0",
+      "bytes": 2689
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryCore/HoloMemoryScorer.swift",
+      "sha256": "10329d1fa7ca2c0c573c2c51bda1a4a0d44ef782bc8f890deee6c54875a47c8f",
+      "bytes": 3132
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryCore/HoloMemoryLifecycle.swift",
+      "sha256": "b6ceadd34171861b8b269cfa2c77cdca7fdc5b7730eab290a2a7027948c241ff",
+      "bytes": 5920
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryCore/HoloSemanticTombstoneMatcher.swift",
+      "sha256": "52843454f1d783aa4a3c703cd30ef9b18ebc81c6ba2111294eab32357c970c64",
+      "bytes": 2596
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryRepository/HoloMemoryRepository.swift",
+      "sha256": "37ebd9666475474cc3f833bb90c7ae64e8865c2e5d1ed53b697c24cd91046f74",
+      "bytes": 3779
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryObservation/HoloMemoryDirtyRegistry.swift",
+      "sha256": "16140ed696a3ccfd8014d0a0757ce515856e7c5acd8e408c9ed31a872a82331f",
+      "bytes": 4342
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryObservation/HoloDomainSignalBuilder.swift",
+      "sha256": "c886694915e26747630cc64c0e4f6778dea776ebcc321c72e6bfb9f3e10d9a0a",
+      "bytes": 2630
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/MemoryObservation/HoloDomainObservationPackageBuilder.swift",
+      "sha256": "c54780ee2f3c0de681e889dea0ef23d5149058dde9907200730e1652222ef717",
+      "bytes": 2325
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/Personal/PersonalView.swift",
+      "sha256": "e17b3115d26dc2471b28e32a7a52873366f760ebc3958d8b55b9969a537f37b9",
+      "bytes": 21779
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/Personal/PersonalMemorySettingsView.swift",
+      "sha256": "a88dadf64403d983d257ea3128ffe0fbef1e7c242d777530c8db6c03552e5565",
+      "bytes": 6149
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/Onboarding/OnboardingAIConsentPage.swift",
+      "sha256": "2a6c377040d24cb37702c78d48c5e668d9be50012cabb3f259156ba7f8ed8ede",
+      "bytes": 3889
+    },
+    {
+      "path": "Holo/Holo APP/Holo/HoloTests/Services/AI/PersonalContext/ContextExtractorOrchestratorStandaloneTests.swift",
+      "sha256": "1edf68f87f8628ec7cff8554904d352ef278c9531e0ef1be45dcb4bae28d1a3e",
+      "bytes": 27439
+    }
+  ]
+}

@@ -63,11 +63,11 @@ struct SuggestionPanelView: View {
             candidateList
         }
         .frame(maxWidth: 280)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
-                .stroke(Color.holoBorder.opacity(0.6), lineWidth: 0.5)
+                .stroke(Color.holoToolBorder.opacity(0.6), lineWidth: 0.5)
         )
         .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 6)
     }
@@ -97,10 +97,10 @@ struct SuggestionPanelView: View {
         HStack(spacing: 6) {
             Image(systemName: isTagMode ? "number" : "text.bubble")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.holoTextSecondary.opacity(0.7))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.7))
             Text(isTagMode ? String(localized: "输入文字创建新标签") : String(localized: "没有匹配的想法"))
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary.opacity(0.8))
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary.opacity(0.8))
             Spacer(minLength: 0)
         }
     }
@@ -137,11 +137,11 @@ struct SuggestionPanelView: View {
             HStack(spacing: 8) {
                 Image(systemName: icon)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(isCreate ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(isCreate ? .holoPrimary : .holoToolTextSecondary)
                     .frame(width: 18)
                 Text("#\(path)")
                     .font(.subheadline.weight(.medium))
-                    .foregroundColor(isCreate ? .holoPrimary : .holoTextPrimary)
+                    .foregroundColor(isCreate ? .holoPrimary : .holoToolText)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }
@@ -167,17 +167,17 @@ struct SuggestionPanelView: View {
                     // 候选面板也保留 @ 前缀，和插入后的行内 Token、外层阅读态保持同一语义。
                     Text("@\(title)")
                         .font(.subheadline.weight(.medium))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .lineLimit(1)
                     Spacer(minLength: 0)
                     Text(dateText)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary.opacity(0.7))
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.7))
                 }
                 if !preview.isEmpty {
                     Text(preview)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary.opacity(0.8))
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.8))
                         .lineLimit(1)
                 }
             }

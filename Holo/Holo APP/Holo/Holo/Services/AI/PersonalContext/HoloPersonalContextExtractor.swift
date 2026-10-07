@@ -34,6 +34,9 @@ nonisolated protocol HoloPersonalContextRecordWriting: Sendable {
     func activeTombstones() async throws -> [HoloMemoryTombstone]
     func loadCursor() async throws -> HoloContextExtractionCursorState?
     func saveCursor(_ cursor: HoloContextExtractionCursorState) async throws
+    /// R1 四域：按域读写游标（thought 域实现须回落旧方法以兼容既有存储键）。
+    func loadCursor(domain: String) async throws -> HoloContextExtractionCursorState?
+    func saveCursor(_ cursor: HoloContextExtractionCursorState, domain: String) async throws
     /// 当前控制代际（用户决策版本 + 学习基线）；每批前后复查。
     func currentGeneration() async throws -> HoloContextExtractionGeneration
     /// 来源当前修订目录（对账用：sourceID → 当前修订）。
@@ -56,6 +59,20 @@ nonisolated struct HoloContextExtractionProgress: Codable, Equatable, Sendable {
     var discardedCandidates = 0
     var mergedCandidates = 0
     var createdRecords = 0
+
+    /// 跨域聚合（R1 四域轮转诊断）：数值逐项相加。
+    func byAdding(_ other: HoloContextExtractionProgress) -> HoloContextExtractionProgress {
+        var summed = self
+        summed.scannedSources += other.scannedSources
+        summed.processedRevisions += other.processedRevisions
+        summed.pendingBatches += other.pendingBatches
+        summed.failedBatches += other.failedBatches
+        summed.suppressedCandidates += other.suppressedCandidates
+        summed.discardedCandidates += other.discardedCandidates
+        summed.mergedCandidates += other.mergedCandidates
+        summed.createdRecords += other.createdRecords
+        return summed
+    }
 }
 
 // MARK: - 游标状态
@@ -88,6 +105,8 @@ nonisolated struct HoloContextExtractionCursorState: Codable, Equatable, Sendabl
 
 nonisolated enum HoloPersonalContextPromptBuilder {
     /// 萃取输入包 prompt：来源片段（含 role/时间）、供合并的既有候选。
+    /// G1 修复（A06）：来源契约完整进 Prompt——业务状态、归属、领域、种类、血缘
+    /// 与记录时间同等保留；下游模型才能区分「计划/已发生」「本人/代购/引用」。
     static func extractionPrompt(
         packageSegments: [HoloContextSegment],
         sourcesByID: [String: HoloContextSourceSnapshot],
@@ -98,25 +117,46 @@ nonisolated enum HoloPersonalContextPromptBuilder {
             let source = sourcesByID[segment.sourceID]
             var fields = "\"sourceID\":\(jsonString(segment.sourceID))"
             fields += ",\"revision\":\(jsonString(segment.revision))"
-            if let role = source?.role { fields += ",\"role\":\(jsonString(role))" }
-            if let recorded = source?.sourceCreatedAt {
-                fields += ",\"recordedAt\":\(jsonString(iso(recorded)))"
-            }
-            if let event = source?.eventTime {
-                fields += ",\"eventTime\":\(jsonString(iso(event)))"
+            if let source {
+                fields += ",\"sourceDomain\":\(jsonString(source.sourceDomain))"
+                fields += ",\"sourceKind\":\(jsonString(source.sourceKind))"
+                if let role = source.role { fields += ",\"role\":\(jsonString(role))" }
+                if let authorship = source.authorship {
+                    fields += ",\"authorship\":\(jsonString(authorship))"
+                }
+                if let businessState = source.businessState, !businessState.isEmpty {
+                    let entries = businessState
+                        .sorted { $0.key < $1.key }
+                        .map { "\(jsonString($0.key)):\(jsonString($0.value))" }
+                    fields += ",\"businessState\":{" + entries.joined(separator: ",") + "}"
+                }
+                if let lineageRootIDs = source.lineageRootIDs, !lineageRootIDs.isEmpty {
+                    let ids = lineageRootIDs.map { jsonString($0) }.joined(separator: ",")
+                    fields += ",\"lineageRootIDs\":[" + ids + "]"
+                }
+                fields += ",\"recordedAt\":\(jsonString(iso(source.sourceCreatedAt)))"
+                if let event = source.eventTime {
+                    fields += ",\"eventTime\":\(jsonString(iso(event)))"
+                }
             }
             fields += ",\"plainText\":\(jsonString(segment.text))"
             lines.append("{" + fields + "}")
         }
-        let existing = existingCandidates.map { payload in
-            "{\"contextID\":\(jsonString(payload.contextID)),\"statement\":\(jsonString(payload.statement))}"
-        }
+        let existing = existingCandidates
+            .sorted { $0.contextID < $1.contextID }
+            .map { payload in
+                "{\"contextID\":\(jsonString(payload.contextID)),\"statement\":\(jsonString(payload.statement))}"
+            }
         let sourcesJSON = lines.joined(separator: ",")
         let existingJSON = existing.joined(separator: ",")
-        return "{\"sources\":[" + sourcesJSON + "],\"existingCandidates\":[" + existingJSON + "]}"
+        // existingCandidates 是跨包稳定块：按 contextID 钉死排序并置于 JSON 开头，
+        // 相邻包之间请求前缀一致，上下文缓存按命中价（约原价 2%-4%）计费。
+        return "{\"existingCandidates\":[" + existingJSON + "],\"sources\":[" + sourcesJSON + "]}"
     }
 
     /// 核验 prompt：候选声明 + 引用原文片段；批量（每包候选上限 16）。
+    /// 核验器必须看到与萃取同一份来源契约（状态/归属/血缘），否则无法核对
+    /// 「计划被写成已发生」「他人被写成本人」类语义偏差。
     static func verificationPrompt(
         candidates: [HoloContextExtractionCandidateDTO],
         sourcesByID: [String: HoloContextSourceSnapshot]
@@ -141,7 +181,25 @@ nonisolated enum HoloPersonalContextPromptBuilder {
         }
         var sourceLines: [String] = []
         for (id, source) in sourcesByID.sorted(by: { $0.key < $1.key }) {
-            sourceLines.append("{\"sourceID\":" + jsonString(id) + ",\"plainText\":" + jsonString(source.plainText) + "}")
+            var fields = "\"sourceID\":" + jsonString(id)
+            fields += ",\"sourceDomain\":" + jsonString(source.sourceDomain)
+            fields += ",\"sourceKind\":" + jsonString(source.sourceKind)
+            if let role = source.role { fields += ",\"role\":" + jsonString(role) }
+            if let authorship = source.authorship {
+                fields += ",\"authorship\":" + jsonString(authorship)
+            }
+            if let businessState = source.businessState, !businessState.isEmpty {
+                let entries = businessState
+                    .sorted { $0.key < $1.key }
+                    .map { "\(jsonString($0.key)):\(jsonString($0.value))" }
+                fields += ",\"businessState\":{" + entries.joined(separator: ",") + "}"
+            }
+            if let lineageRootIDs = source.lineageRootIDs, !lineageRootIDs.isEmpty {
+                let ids = lineageRootIDs.map { jsonString($0) }.joined(separator: ",")
+                fields += ",\"lineageRootIDs\":[" + ids + "]"
+            }
+            fields += ",\"plainText\":" + jsonString(source.plainText)
+            sourceLines.append("{" + fields + "}")
         }
         let candidatesJSON = lines.joined(separator: ",")
         let sourcesJSON = sourceLines.joined(separator: ",")
@@ -186,19 +244,26 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
     static let candidatesPerPackageLimit = 16
     /// 页大小（方案 §6 初始预算：源分页 50）。
     static let pageSize = 50
+    /// 发给模型的既有候选上限（宽召回超量时的截断闸）：当前库容远低于此，正常
+    /// 使用下预筛即全量；上限把「请求体积随情境记录增长」的曲线钉成恒定。
+    static let promptCandidateLimit = 300
 
     let paging: any HoloContextSourcePaging
     let llm: any HoloPersonalContextLLMCalling
     let writer: any HoloPersonalContextRecordWriting
+    /// 本编排器服务的来源域（R1 四域；游标与批次进度按域隔离）。
+    let domain: String
 
     init(
         paging: any HoloContextSourcePaging,
         llm: any HoloPersonalContextLLMCalling,
-        writer: any HoloPersonalContextRecordWriting
+        writer: any HoloPersonalContextRecordWriting,
+        domain: String = "thought"
     ) {
         self.paging = paging
         self.llm = llm
         self.writer = writer
+        self.domain = domain
     }
 
     enum ExtractionError: Error, Equatable {
@@ -223,7 +288,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
     /// 任一包失败即抛出、游标不动（下次重试，已成功包按 receipt 幂等跳过）。
     /// - Parameter now: 注入时钟。
     func runOneBatch(now: Date) async throws -> BatchOutcome {
-        var cursor = try await writer.loadCursor() ?? HoloContextExtractionCursorState()
+        var cursor = try await writer.loadCursor(domain: domain) ?? HoloContextExtractionCursorState()
         let generationAtStart = try await writer.currentGeneration()
 
         // 组包：一页来源 → 全部切段 → 取一个包。
@@ -237,11 +302,13 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         guard sourceIndex.conflictingIDs.isEmpty else { throw ExtractionError.conflictingSources }
         let page = sourceIndex.sources
         guard !page.isEmpty else {
-            // 全量追平：清游标从头对账（新修改由 watermark 语义进入下一轮）。
-            if nextCursor == nil && cursor.sourceCursor != nil {
-                cursor.sourceCursor = nil
+            // 全库追平：保留水位（G1 修复——不再清游标重启全历史对账）。
+            // (updatedAt,id) 时间轴下任何修改都会推高 updatedAt 自然重进页；
+            // 清空重扫只会反复全库扫描、放大幂等查询，且与「最早 N 条截断」缺陷
+            // 叠加时形成空页→重置→再截断的死循环。watermark 如实记录本轮时间。
+            if nextCursor == nil {
                 cursor.watermark = now
-                try await writer.saveCursor(cursor)
+                try await writer.saveCursor(cursor, domain: domain)
             }
             return BatchOutcome()
         }
@@ -263,11 +330,14 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             guard !package.isEmpty else { break }
             remaining = remainder
 
-            // 本包批次键：身份 = 包内来源修订 + 版本，重试幂等粒度为包。
+            // 本包批次键：身份 = 包内来源修订 + 包内片段范围 + 版本，重试幂等粒度为包。
+            // G1 修复（A08）：单条长来源切段跨多包时，仅凭来源修订无法区分包——第一包
+            // 成功落 receipt 后第二包被幂等跳过。段范围指纹让同来源的不同包各自幂等。
             let packageSourceIDs = Set(package.map(\.sourceID))
             let packageSources = page.filter { packageSourceIDs.contains($0.sourceID) }
             let packageBatchKey = Self.batchKey(
                 sources: packageSources,
+                segments: package,
                 extractorVersion: cursor.extractorVersion,
                 policyVersion: cursor.admissionPolicyVersion
             )
@@ -280,8 +350,15 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             var batchRecords: [HoloMemoryRecord] = []
 
             // 萃取调用（每包重读既有记录：同页先处理包的产出参与后续包归并）。
+            // Reconciler 本地归并用全量 existingRecords；发给模型的候选清单走宽召回
+            // 预筛（同域/文字重合/近 7 天三路并集 + 上限），请求体积不随库无限增长。
             let existingRecords = try await writer.existingContextRecords()
-            let existingCandidates = existingRecords.compactMap(\.personalContext?.v1)
+            let existingCandidates = Self.promptCandidatePayloads(
+                from: existingRecords,
+                package: package,
+                sourcesByID: sourcesByID,
+                now: now
+            )
             let extractionRaw = try await llm.extract(
                 prompt: HoloPersonalContextPromptBuilder.extractionPrompt(
                     packageSegments: package,
@@ -396,16 +473,78 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         cursor.progress.mergedCandidates += outcome.mergedRecords
         cursor.progress.createdRecords += outcome.createdRecords
         cursor.watermark = now
-        try await writer.saveCursor(cursor)
+        try await writer.saveCursor(cursor, domain: domain)
 
         return outcome
     }
 
+    // MARK: - 模型候选预筛（宽召回）
+
+    /// 发给模型的既有候选：同域全带 ∪ 文字重合 ∪ 近 7 天更新，超上限按
+    /// 重合 > 同域 > 近期 > 更新时间截断。本地 Reconciler 归并不受此影响
+    /// （它拿全量 existingRecords）；预筛只作用于请求文本。
+    static func promptCandidatePayloads(
+        from records: [HoloMemoryRecord],
+        package: [HoloContextSegment],
+        sourcesByID: [String: HoloContextSourceSnapshot],
+        now: Date
+    ) -> [HoloPersonalContextPayloadV1] {
+        guard !records.isEmpty else { return [] }
+        let packageDomains = Set(
+            package.compactMap { sourcesByID[$0.sourceID]?.sourceDomain }
+        )
+        let packageBigrams = Self.bigrams(
+            package.map(\.text).joined()
+        )
+        let recentCutoff = now.addingTimeInterval(-7 * 86_400)
+
+        let scored = records.map { record -> (record: HoloMemoryRecord, overlap: Bool, sameDomain: Bool, recent: Bool) in
+            let payload = record.personalContext?.v1
+            return (
+                record,
+                payload.map { !Self.bigrams($0.statement).isDisjoint(with: packageBigrams) } ?? false,
+                record.primaryDomain.map { packageDomains.contains($0.rawValue) } ?? false,
+                record.updatedAt >= recentCutoff
+            )
+        }
+
+        let recall = scored.filter { $0.overlap || $0.sameDomain || $0.recent }
+        var selected: [(record: HoloMemoryRecord, overlap: Bool, sameDomain: Bool, recent: Bool)]
+        if recall.count <= promptCandidateLimit {
+            selected = recall
+        } else {
+            selected = Array(recall
+                .sorted {
+                    if $0.overlap != $1.overlap { return $0.overlap }
+                    if $0.sameDomain != $1.sameDomain { return $0.sameDomain }
+                    if $0.recent != $1.recent { return $0.recent }
+                    return $0.record.updatedAt != $1.record.updatedAt
+                        ? $0.record.updatedAt > $1.record.updatedAt
+                        : $0.record.id < $1.record.id
+                }
+                .prefix(promptCandidateLimit))
+        }
+
+        return selected.compactMap { $0.record.personalContext?.v1 }
+    }
+
+    /// 字符 bigram 集合：宽召回用（两段文本共享任一双字串即视为相关），
+    /// 比分词轻、比单字准，足以承担「宁多带不漏带」的召回职责。
+    nonisolated private static func bigrams(_ text: String) -> Set<String> {
+        let chars = Array(text)
+        guard chars.count >= 2 else { return [] }
+        return Set(
+            zip(chars, chars.dropFirst()).map { "\($0)\($1)" }
+        )
+    }
+
     // MARK: - 记录构造
 
-    /// 稳定批次键：source revision + extractorVersion + policyVersion。
+    /// 稳定批次键：source revision + 包内片段范围 + extractorVersion + policyVersion。
+    /// 切段是同修订来源上的确定性纯函数，段范围指纹在同一修订内稳定、跨修订自然失效。
     static func batchKey(
         sources: [HoloContextSourceSnapshot],
+        segments: [HoloContextSegment],
         extractorVersion: Int,
         policyVersion: Int
     ) -> String {
@@ -413,7 +552,11 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             .sorted { $0.sourceID < $1.sourceID }
             .map { "\($0.sourceID)@\($0.revisionDigest)" }
             .joined(separator: ",")
-        return "pc-batch-\(HoloContextSuppressionKeys.stableDigest("v\(extractorVersion)|p\(policyVersion)|\(identity)"))"
+        let segmentIdentity = segments
+            .map { "\($0.sourceID)#\($0.utf16Location)-\($0.utf16RangeEnd)" }
+            .sorted()
+            .joined(separator: ",")
+        return "pc-batch-\(HoloContextSuppressionKeys.stableDigest("v\(extractorVersion)|p\(policyVersion)|\(identity)|\(segmentIdentity)"))"
     }
 
     /// String → 既有记忆域（快照域是开放字符串；未知回落 thought）。
@@ -454,7 +597,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
                 observedAt: now
             )
         }
-        return HoloMemoryRecord(
+        var record = HoloMemoryRecord(
             id: stableID,
             scope: .domain,
             primaryDomain: domain,
@@ -469,6 +612,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             evidenceRefs: evidence,
             upstreamMemoryIDs: [],
             counterEvidenceRefs: [],
+            lastSupportedAt: now,
             confidenceScore: 0.5,
             freshnessScore: 0.5,
             scoringVersion: 1,
@@ -482,6 +626,11 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
             updatedAt: now,
             personalContext: HoloPersonalContextPayloadEnvelope(v1: payload)
         )
+        // 五路决策（§11.1）：新写入挂 decision metadata；admission 由决策单向投影，
+        // 不再独立裁决。discard（第三方/敏感无授权等）直接不落库。
+        guard HoloMemoryDecisionPolicy.isEnabled else { return record }
+        let decision = HoloMemoryDecisionPolicy.evaluate(record, now: now)
+        return HoloMemoryDecisionPolicy.attach(decision, to: record, now: now)
     }
 
     /// 合并既有记录：复用稳定 ID 与 contextID，追加证据、推进版本。
@@ -516,6 +665,20 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         record.personalContext = HoloPersonalContextPayloadEnvelope(v1: mergedPayload)
         record.recordVersion += 1
         record.updatedAt = now
+        // 证据追加即重新获得支持；缺此字段 freshness 恒 0 会被压缩服务秒归档（二分实证回归）。
+        record.lastSupportedAt = now
+        // 证据追加后按 v4 重评估（§11.1 唯一裁决者）；discard 不在此处删除既有记录
+        //（合并目标已有历史价值，交由压缩/反馈治理），仅不赋予使用权限。
+        if HoloMemoryDecisionPolicy.isEnabled {
+            let decision = HoloMemoryDecisionPolicy.evaluate(record, now: now)
+            if let reattached = HoloMemoryDecisionPolicy.attach(decision, to: record, now: now) {
+                record = reattached
+            } else {
+                record.decisionMetadata = HoloMemoryDecisionMetadataEnvelope(
+                    v2: decision.metadata
+                )
+            }
+        }
         return record
     }
 }

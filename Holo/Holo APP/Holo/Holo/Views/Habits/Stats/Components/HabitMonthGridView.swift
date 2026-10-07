@@ -39,8 +39,8 @@ struct HabitMonthGridView: View {
         RoundedRectangle(cornerRadius: HoloRadius.sm)
             .fill(dayCellBackground(day))
             .overlay {
-                // 今天未打卡：描边环提示
-                if day.isToday && !day.hasRecord && !day.isOverLimit {
+                // 今天未打卡：描边环提示（冻结日不打扰）
+                if day.isToday && !day.hasRecord && !day.isOverLimit && !day.isPausedDay {
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
                         .stroke(accentColor, lineWidth: 1.5)
                 }
@@ -53,6 +53,15 @@ struct HabitMonthGridView: View {
                         .padding(4)
                 }
             }
+            .overlay(alignment: .bottomTrailing) {
+                // 冻结日：「休」角标（不红不绿的中性态）
+                if day.isPausedDay && !day.hasRecord && !day.isOverLimit {
+                    Text("休")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(3)
+                }
+            }
             .aspectRatio(1, contentMode: .fit)
     }
 
@@ -62,6 +71,9 @@ struct HabitMonthGridView: View {
         }
         if day.hasRecord {
             return accentColor
+        }
+        if day.isPausedDay {
+            return Color.holoTextSecondary.opacity(0.10)
         }
         if day.isToday {
             return accentColor.opacity(0.12)
@@ -75,6 +87,9 @@ struct HabitMonthGridView: View {
         }
         if day.hasRecord {
             return .white
+        }
+        if day.isPausedDay {
+            return .holoTextSecondary
         }
         if day.isToday {
             return accentColor

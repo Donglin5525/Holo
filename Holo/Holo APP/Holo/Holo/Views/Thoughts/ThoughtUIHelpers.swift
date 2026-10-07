@@ -178,15 +178,16 @@ extension Thought {
         return own + confirmed
     }
 
-    /// 是否已被收纳进有效主题。
+    /// 是否已被收纳进有效主题。读源统一（2026-09-27 P0-A）：走 link 投影，
+    /// V3 AI 归入的关系同样使「未归类」翻转。
     var hasActiveTopic: Bool {
-        guard let topics = topics as? Set<Topic> else { return false }
-        return topics.contains { topic in
+        ThoughtTopicLinkProjection.effectiveTopics(for: self).contains { topic in
             topic.status != "hidden" && topic.status != "merged"
         }
     }
 
-    /// 当前所属的分类主题（classification 单选语义，nil = 未归类）
+    /// 当前所属的分类主题（classification 单选语义，nil = 未归类）。
+    /// 保持读旧关系：V2 分类待确认队列专属口径，不掺 V3 AI 关系（P0-A 决策）。
     var classificationTopic: Topic? {
         guard let topics = topics as? Set<Topic> else { return nil }
         return topics.first { $0.isClassificationTopic }

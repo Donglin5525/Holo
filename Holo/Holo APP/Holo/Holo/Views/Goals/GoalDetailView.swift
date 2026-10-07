@@ -50,7 +50,7 @@ struct GoalDetailView: View {
             // 纵读详情在 iPad 限宽居中（通宵冲刺 D7）；iPhone 直通
             .holoContentColumn(paintsBackground: false)
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .navigationTitle("目标详情")
         .navigationBarTitleDisplayMode(.inline)
         .confirmationDialog("删除目标", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
@@ -91,12 +91,12 @@ struct GoalDetailView: View {
     private func header(_ progress: GoalProgressSummary) -> some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text(goal.title)
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.pageTitle)
+                .foregroundColor(.holoToolText)
             if let summary = goal.summary, !summary.isEmpty {
                 Text(summary)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             if goal.isQuantitative, let metric = GoalMetricEvaluator.evaluate(goal: goal) {
                 metricProgressCard(metric)
@@ -128,14 +128,14 @@ struct GoalDetailView: View {
         HStack(alignment: .top, spacing: 6) {
             Image(systemName: icon)
                 .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .frame(width: 16)
             Text("\(label)：")
                 .font(.system(size: 13))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Text(value)
                 .font(.system(size: 13))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -149,9 +149,9 @@ struct GoalDetailView: View {
                 }
             }
         ))
-        .font(.holoBody)
+        .holoText(.body)
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     private var proactiveNudgeToggle: some View {
@@ -164,18 +164,18 @@ struct GoalDetailView: View {
                     }
                 }
             ))
-            .font(.holoBody)
+            .holoText(.body)
             .disabled(!goal.allowAIContext)
 
             if !goal.allowAIContext {
                 Text("需先开启「允许 HoloAI 参考此目标」")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
                     .padding(.leading, 4)
             }
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     private var taskSection: some View {
@@ -183,8 +183,8 @@ struct GoalDetailView: View {
             sectionHeader(title: String(localized: "关联任务"))
             if goal.sortedTasks.isEmpty {
                 Text("暂无关联任务")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
             } else {
                 ForEach(goal.sortedTasks, id: \.id) { task in
                     linkedEntityRow(title: task.title, icon: "checklist") {
@@ -200,8 +200,8 @@ struct GoalDetailView: View {
             sectionHeader(title: String(localized: "关联习惯"))
             if goal.sortedHabits.isEmpty {
                 Text("暂无关联习惯")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
             } else {
                 ForEach(goal.sortedHabits, id: \.id) { habit in
                     linkedEntityRow(title: habit.name, icon: "checkmark.circle") {
@@ -227,19 +227,19 @@ struct GoalDetailView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(metricHeadlineText(metric))
                         .font(.system(size: 26, weight: .bold, design: .rounded))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
 
                     if goal.goalKindEnum == .target {
                         // 达标型基线视角：已减 2.5 kg / 共 5 kg，而非从 0 起的百分比
                         Text(metricBaselineText(metric))
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolTextSecondary)
                     } else {
                         Text("已完成 \(Int((metric.progress * 100).rounded()))%")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
 
@@ -256,7 +256,7 @@ struct GoalDetailView: View {
                         Image(systemName: "plus.circle.fill")
                             .font(.system(size: 14))
                         Text("记一笔")
-                            .font(.holoBody)
+                            .holoText(.body)
                             .fontWeight(.semibold)
                     }
                     .foregroundColor(.white)
@@ -264,7 +264,7 @@ struct GoalDetailView: View {
                     .padding(.vertical, 8)
                     .background(Capsule().fill(Color.holoPrimary))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoloPressStyle())
             } else {
                 metricSourceLabel
             }
@@ -314,7 +314,7 @@ struct GoalDetailView: View {
             }
         } else {
             // 进度 <10% 低速段：预测波动大，只提示不输出结论
-            forecastLabel(icon: "leaf", color: .holoTextSecondary, text: String(localized: "刚起步，多记几笔再看趋势"))
+            forecastLabel(icon: "leaf", color: .holoToolTextSecondary, text: String(localized: "刚起步，多记几笔再看趋势"))
         }
     }
 
@@ -342,7 +342,7 @@ struct GoalDetailView: View {
                 } label: {
                     sourceLabelRow(text: String(localized: "数据来自：\(habit.name)"))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoloPressStyle())
             }
         case .ledger:
             Button {
@@ -350,7 +350,7 @@ struct GoalDetailView: View {
             } label: {
                 sourceLabelRow(text: String(localized: "数据来自：账本（按全账本净结余计算，含信用卡负债）"))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(HoloPressStyle())
         }
     }
 
@@ -360,11 +360,11 @@ struct GoalDetailView: View {
                 .font(.system(size: 12))
             Text(text)
                 .font(.system(size: 13))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
                 .font(.system(size: 11))
-                .foregroundColor(.holoTextSecondary.opacity(0.6))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.6))
         }
     }
 
@@ -379,7 +379,7 @@ struct GoalDetailView: View {
                     .foregroundColor(.orange)
                 Text("数据源习惯已删除或归档，进度暂停计算，点此重新选择")
                     .font(.system(size: 13))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(HoloSpacing.sm)
@@ -387,7 +387,7 @@ struct GoalDetailView: View {
             .background(Color.orange.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloPressStyle())
     }
 
     /// 手动源的记录列表（可删除误记，删除后进度实时重算）
@@ -398,17 +398,17 @@ struct GoalDetailView: View {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                 HStack {
                     Text("记录")
-                        .font(.holoBody)
+                        .holoText(.body)
                         .fontWeight(.semibold)
                     Spacer()
                     Text("\(logs.count) 条")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 if logs.isEmpty {
                     Text("还没有记录，点「记一笔」开始")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolTextSecondary)
                 } else {
                     ForEach(logs, id: \.id) { log in
                         metricLogRow(log)
@@ -423,17 +423,17 @@ struct GoalDetailView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
                     Text("\(goal.goalKindEnum == .target ? "" : "+ ")\(GoalMetricEvaluator.formatValue(log.value))\(unitDisplay)")
-                        .font(.holoBody)
+                        .holoText(.body)
                         .fontWeight(.semibold)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     Text(GoalMetricEvaluator.displayDateFormatter.string(from: log.date))
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 if let note = log.note, !note.isEmpty {
                     Text(note)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(1)
                 }
             }
@@ -445,21 +445,21 @@ struct GoalDetailView: View {
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 13))
-                    .foregroundColor(.holoTextSecondary.opacity(0.6))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.6))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(HoloPressStyle())
         }
         .padding(.vertical, HoloSpacing.xs)
     }
 
     private func sectionHeader(title: String) -> some View {
         HStack {
-            Text(title).font(.holoBody).fontWeight(.semibold)
+            Text(title).holoText(.body).fontWeight(.semibold)
             Spacer()
             Button("管理") {
                 showLinkManager = true
             }
-            .font(.holoCaption)
+            .holoText(.supporting)
             .foregroundColor(.holoPrimary)
         }
     }
@@ -504,17 +504,17 @@ struct GoalDetailView: View {
                 Image(systemName: icon)
                     .foregroundColor(.holoPrimary)
                 Text(title)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
                     .lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .padding(.vertical, HoloSpacing.sm)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloPressStyle())
     }
 
     private func perform(_ action: () throws -> Void) {
@@ -531,6 +531,7 @@ struct GoalDetailView: View {
 
 /// 数字进度的环形呈现（trim 写法对齐 TripleHealthRingView，中心显示百分比）
 private struct GoalMetricRingView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let progress: Double
 
     var body: some View {
@@ -545,11 +546,11 @@ private struct GoalMetricRingView: View {
                     style: StrokeStyle(lineWidth: 10, lineCap: .round)
                 )
                 .rotationEffect(.degrees(-90))
-                .animation(.easeInOut(duration: 0.45), value: progress)
+                .animation(reduceMotion ? nil : HoloAnimation.grounded, value: progress)
 
             Text("\(Int((progress * 100).rounded()))%")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
         }
@@ -589,7 +590,7 @@ struct GoalEditSheet: View {
                 .padding(.top, HoloSpacing.md)
                 .padding(.bottom, 100)
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle("编辑目标")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -607,7 +608,7 @@ struct GoalEditSheet: View {
                     save()
                 } label: {
                     Text(isSaving ? String(localized: "保存中") : String(localized: "保存修改"))
-                        .font(.holoBody)
+                        .holoText(.body)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
@@ -617,7 +618,7 @@ struct GoalEditSheet: View {
                 .disabled(!canSave)
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: -2)
             }
             .alert("保存失败", isPresented: Binding(

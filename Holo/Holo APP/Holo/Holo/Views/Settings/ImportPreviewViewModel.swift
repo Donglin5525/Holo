@@ -96,6 +96,45 @@ final class ImportPreviewViewModel: ObservableObject {
         return base
     }
 
+    // MARK: - 分期识别（账单/CSV 导入）
+
+    /// 用户确认为分期的疑似组 id
+    @Published private(set) var confirmedSuspectedIds: Set<UUID> = []
+    /// 用户判定不是分期的疑似组 id（含撤销已确认）
+    @Published private(set) var ignoredSuspectedIds: Set<UUID> = []
+
+    /// 分期识别区块展示信息（无识别结果不显示区块）
+    var installmentScanInfo: InstallmentScanInfo? {
+        guard let info = scanSummary?.installmentInfo,
+              !info.groups.isEmpty || !info.suspected.isEmpty || info.ungroupedSignalCount > 0
+        else { return nil }
+        return info
+    }
+
+    /// 疑似组确认归组（未确认/已忽略的不参与）
+    func confirmSuspectedGroup(_ id: UUID) {
+        confirmedSuspectedIds.insert(id)
+        ignoredSuspectedIds.remove(id)
+    }
+
+    /// 疑似组判非分期（同时用于撤销已确认）
+    func ignoreSuspectedGroup(_ id: UUID) {
+        ignoredSuspectedIds.insert(id)
+        confirmedSuspectedIds.remove(id)
+    }
+
+    /// 导入时的最终分期归组：强信号自动组 + 用户确认的疑似组
+    var installmentAssignmentsForImport: [Int: InstallmentImportRecognizer.Assignment] {
+        guard let info = scanSummary?.installmentInfo else { return [:] }
+        var merged = info.assignments
+        for group in info.suspected where confirmedSuspectedIds.contains(group.id) {
+            for (row, assignment) in InstallmentImportRecognizer.assignments(forConfirmed: group) {
+                merged[row] = assignment
+            }
+        }
+        return merged
+    }
+
     // MARK: - UI 状态
 
     @Published var progress: ImportProgress = .idle
@@ -439,6 +478,9 @@ final class ImportPreviewViewModel: ObservableObject {
         categoryImportPlan = .empty
         matchStats = (0, 0, 0, 0)
         duplicateResult = nil
+        // 重扫会重新识别分期，疑似组 id 全新，确认状态归零
+        confirmedSuspectedIds = []
+        ignoredSuspectedIds = []
         performScan()
     }
 
@@ -458,6 +500,7 @@ final class ImportPreviewViewModel: ObservableObject {
         let categoryOverrides = categoryOverridesForImport
         let accountOverrides = accountMapping
         let defaultAccount = defaultAccountName
+        let installmentAssignments = installmentAssignmentsForImport
         let skipRows: Set<Int>
         if case .skipDuplicates = policy, let dup = duplicateResult {
             skipRows = dup.autoSkipRowIndices
@@ -477,7 +520,8 @@ final class ImportPreviewViewModel: ObservableObject {
                 categoryOverrides: categoryOverrides,
                 accountOverrides: accountOverrides,
                 defaultAccountName: defaultAccount,
-                skipRowIndices: skipRows
+                skipRowIndices: skipRows,
+                installmentAssignments: installmentAssignments
             ) { current, total in
                 Task { @MainActor in
                     self.progress = .importing(current: current, total: total)

@@ -69,7 +69,7 @@ struct ChatInputView: View {
                             .foregroundColor(.holoPrimary)
                         Text(draft.rootUserQuestion)
                             .font(.system(size: 12.5, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -79,7 +79,7 @@ struct ChatInputView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .frame(width: 26, height: 26)
                     }
                     .buttonStyle(.plain)
@@ -88,7 +88,7 @@ struct ChatInputView: View {
                 .padding(.leading, 10)
                 .padding(.trailing, 5)
                 .padding(.vertical, 6)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
@@ -97,17 +97,21 @@ struct ChatInputView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
-            HStack(alignment: .bottom, spacing: 12) {
+            HStack(alignment: .bottom, spacing: HoloSpacing.xs) {
                 // 输入框
                 TextField(String(localized: "告诉 Holo 发生了什么…"), text: $viewModel.inputText, axis: .vertical)
                     .focused($isInputFocused)
                     .lineLimit(1...5)
                     .textFieldStyle(.plain)
-                    .font(.holoBody)
+                    .holoText(.body)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Color.holoCardBackground)
-                    .cornerRadius(20)
+                    .background(Color.holoToolSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                            .strokeBorder(Color.holoToolBorder, lineWidth: 0.5)
+                    }
                     .simultaneousGesture(
                         TapGesture().onEnded {
                             onInputActivated()
@@ -125,11 +129,12 @@ struct ChatInputView: View {
                 } label: {
                     if isLoadingPick {
                         ProgressView()
-                            .frame(width: 28, height: 28)
+                            .frame(width: 44, height: 44)
                     } else {
                         Image(systemName: "photo.circle.fill")
                             .font(.system(size: 28))
                             .foregroundColor(imageButtonColor)
+                            .frame(width: 44, height: 44)
                     }
                 }
                 .disabled(viewModel.isStreaming || isLoadingPick)
@@ -141,6 +146,7 @@ struct ChatInputView: View {
                     Image(systemName: "mic.circle.fill")
                         .font(.system(size: 28))
                         .foregroundColor(voiceButtonColor)
+                            .frame(width: 44, height: 44)
                 }
                 .disabled(viewModel.isStreaming)
                 .accessibilityLabel(String(localized: "语音输入"))
@@ -155,6 +161,7 @@ struct ChatInputView: View {
                         Image(systemName: "stop.circle.fill")
                             .font(.system(size: 28))
                             .foregroundColor(.holoError)
+                            .frame(width: 44, height: 44)
                     }
                     .keyboardShortcut(".", modifiers: .command)
                     .accessibilityLabel(String(localized: "停止生成"))
@@ -165,6 +172,7 @@ struct ChatInputView: View {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.system(size: 28))
                             .foregroundColor(sendButtonColor)
+                            .frame(width: 44, height: 44)
                     }
                     .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     // 外接键盘 Cmd+回车发送。纯回车保留换行（TextField 竖轴默认行为），
@@ -176,11 +184,11 @@ struct ChatInputView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         // v2：宽屏输入条收窄居中（修复「一条宽带横在大屏中央」的观感）
         .frame(maxWidth: HoloAdaptiveLayout.isExpandedWidth(inputWindowWidth) ? 720 : .infinity)
         .frame(maxWidth: .infinity)
-        .animation(.easeInOut(duration: 0.18), value: viewModel.continuationDraft != nil)
+        .animation(HoloAnimation.standard, value: viewModel.continuationDraft != nil)
         .confirmationDialog(
             String(localized: "识别图片记账"),
             isPresented: $showImageSourceDialog,
@@ -241,17 +249,17 @@ struct ChatInputView: View {
     // 说明：confirmationDialog 的「从相册选择」无法命令式拉起 PHPicker，
     // 因此相册走这个独立按钮；dialog 只保留拍照入口与说明。
     private var imageButtonColor: Color {
-        (viewModel.isStreaming || isLoadingPick) ? .holoTextSecondary.opacity(0.3) : .holoTextSecondary
+        (viewModel.isStreaming || isLoadingPick) ? .holoToolTextSecondary.opacity(0.3) : .holoToolTextSecondary
     }
 
     private var voiceButtonColor: Color {
-        viewModel.isStreaming ? .holoTextSecondary.opacity(0.3) : .holoTextSecondary
+        viewModel.isStreaming ? .holoToolTextSecondary.opacity(0.3) : .holoToolTextSecondary
     }
 
     private var sendButtonColor: Color {
         return viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? .holoTextSecondary.opacity(0.3)
-            : .holoPrimary
+            ? .holoToolTextSecondary.opacity(0.3)
+            : .holoToolAction
     }
 
     private func loadAndForward(item: PhotosPickerItem) {

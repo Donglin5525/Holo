@@ -21,6 +21,79 @@ struct TodayMatterSection: View {
     let onDiscuss: (HoloTodayMatterItem) -> Void
 
     var body: some View {
+        if HoloMatterRolloutPolicy.unifiedLaunchV2Enabled {
+            v2Body
+        } else {
+            legacyBody
+        }
+    }
+
+    // MARK: V2（2026-09-21 战略收敛 §4.3：压缩注意力）
+
+    /// V2：无 active 整块隐藏（含 loading/空态）；最多两行紧凑行，只报进度不重复下一步文案
+    /// （INV-06：Focus 已占用该任务的唯一展示位）。超过两件给「全部」入口进完整列表。
+    @ViewBuilder
+    private var v2Body: some View {
+        if !matters.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    sectionHeader("正在推进")
+                    Spacer()
+                    if matters.count > 2 {
+                        Button(action: onViewAll) {
+                            Text(verbatim: "全部 \(matters.count) 件")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.holoPrimary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                ForEach(Array(matters.prefix(2)), id: \.id) { item in
+                    v2CompactRow(item)
+                }
+            }
+        }
+    }
+
+    private func v2CompactRow(_ item: HoloTodayMatterItem) -> some View {
+        Button {
+            onCard(item)
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(item.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Spacer()
+                    if item.planTotalCount > 0 {
+                        Text(verbatim: "\(item.planDoneCount)/\(item.planTotalCount)")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Color.holoPrimary)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                if let days = item.daysUntilTarget, days >= 0, days <= 7 {
+                    Text(verbatim: days == 0 ? "今天出发" : "还有 \(days) 天")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.md)
+                    .fill(Color(.systemBackground))
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: 旧布局（V2 开关关闭的回退路径）
+
+    private var legacyBody: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 sectionHeader(String(localized: "进行中的事"))

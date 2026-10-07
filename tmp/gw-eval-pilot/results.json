@@ -1,0 +1,71 @@
+[
+  {
+    "id": "gw-001",
+    "domain": "learning",
+    "turns": [
+      {
+        "turn": "understand",
+        "kind": "question",
+        "assistantText": "这个愿望挺具体的，想先搞清楚一件事再往下拆。",
+        "question": {
+          "text": "在会议里卡住的那一刻，更接近哪种情况——是脑子里想好了但紧张到说不出口，还是词和句子一时跟不上、来不及反应？",
+          "whyItMatters": "这两种卡点对应完全不同的练法：前者需要低压力开口暴露，后者需要提前准备表达素材和反应速度练习。"
+        }
+      },
+      {
+        "turn": "propose_options",
+        "kind": "question",
+        "optionCount": 0,
+        "recommended": null
+      },
+      {
+        "turn": "build_plan",
+        "kind": "plan",
+        "title": "评测路径（待确认目标）",
+        "taskCount": 0,
+        "habitCount": 0,
+        "assumptionCount": 3
+      }
+    ],
+    "violations": [
+      "[propose_options] propose_options 轮返回 question",
+      "[build_plan] 成功证据为空"
+    ],
+    "needsHumanReview": true,
+    "contractOK": false
+  },
+  {
+    "id": "gw-002",
+    "domain": "learning",
+    "turns": [
+      {
+        "turn": "understand",
+        "kind": "question",
+        "assistantText": "三个月考过 PMP，节奏主要卡在报名前置这一块，我先确认一下你现在的位置。",
+        "question": {
+          "text": "你现在到哪一步了——35 小时的项目管理培训学时完成了没有，考试报名提交了吗？",
+          "whyItMatters": "PMP 有培训学时和报名审核两道硬门槛，卡在报名前还是已进入备考，直接决定三个月是够用还是偏紧，也决定路径怎么排。"
+        }
+      },
+      {
+        "turn": "propose_options",
+        "kind": "question",
+        "optionCount": 0,
+        "recommended": null
+      },
+      {
+        "turn": "build_plan",
+        "kind": "plan",
+        "title": "评测路径开展计划（目标细节待确认）",
+        "taskCount": 1,
+        "habitCount": 0,
+        "assumptionCount": 3
+      }
+    ],
+    "violations": [
+      "[propose_options] propose_options 轮返回 question"
+    ],
+    "needsHumanReview": true,
+    "contractOK": false
+  }
+]

@@ -89,7 +89,7 @@ test("validateRelateRequest 接受合法请求并保留候选结构", () => {
 });
 
 test("validateRelateRequest 拒绝 schemaVersion/候选数/代表片段数/长度越界", () => {
-  assert.throws(() => validateRelateRequest(relateBody({ schemaVersion: 2 })));
+  assert.throws(() => validateRelateRequest(relateBody({ schemaVersion: 3 })));
   assert.throws(() => validateRelateRequest(relateBody({
     candidates: [1, 2, 3, 4].map((i) => ({
       ref: `P${i}`, title: `主题${i}`, representatives: [{ ref: "R", text: "片段" }],
@@ -263,4 +263,27 @@ test("预算：日预算耗尽返回 429 BUDGET_EXCEEDED", async () => {
   assert.equal(second.status, 429);
   const body = await second.json();
   assert.equal(body.error.code, "BUDGET_EXCEEDED");
+});
+
+// 新协议的正式写入必须有目标和主题双方的实际原文证据。
+test("V2 关联拒绝伪造主题证据，允许两个独立主题", () => {
+  const parsed = validateRelateRequest(relateBody({schemaVersion: 2}));
+  const quote = parsed.target.text.slice(0, 7);
+  const d = {candidateRef: "P0", relation: "same_thread", quote, rangeUTF16: [0,7], representativeRef: "R0", representativeQuote: "左膝不舒服", sharedSubject: "个人跑步训练"};
+  const none = {candidateRef:"P1",relation:"none"};
+  assert.equal(validateRelateModelOutput({decisions:[d,none]}, parsed).decisions.length, 2);
+  assert.equal(validateRelateModelOutput({decisions:[d]}, parsed).malformed,true, "漏掉候选不能视为已经核对完毕");
+  assert.equal(validateRelateModelOutput({decisions:[{...d, representativeQuote:"凭空证据"},none]}, parsed).reason, "representative_quote_not_verbatim");
+  assert.equal(validateRelateModelOutput({decisions:[{...d, sharedSubject:null},none]}, parsed).reason, "shared_subject_missing");
+  assert.equal(validateRelateModelOutput({decisions:[{...d, representativeRef:"其他主题"},none]}, parsed).reason, "representative_quote_not_verbatim");
+  const mixed = validateRelateModelOutput({decisions:[d,{candidateRef:"P1",relation:"related",quote:null}]},parsed);
+  assert.equal(mixed.decisions[0].relation,"same_thread", "不归属的相关候选不阻止另一主题的合法归入");
+  assert.equal(mixed.decisions[1].quote,null);
+});
+test("V2 空预设主题使用定义核对；旧协议仍拒绝空代表片段", () => {
+  const candidates = [{ref:"P0", title:"跑步训练", representatives:[]}];
+  assert.throws(() => validateRelateRequest(relateBody({candidates})));
+  const parsed = validateRelateRequest(relateBody({schemaVersion:2,candidates}));
+  const d = {candidateRef:"P0", relation:"same_thread", quote:parsed.target.text.slice(0,7), rangeUTF16:[0,7], representativeRef:"definition", representativeQuote:"跑步训练", sharedSubject:"个人跑步"};
+  assert.equal(validateRelateModelOutput({decisions:[d]}, parsed).decisions.length,1);
 });

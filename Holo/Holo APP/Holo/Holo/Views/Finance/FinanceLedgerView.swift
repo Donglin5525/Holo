@@ -9,6 +9,7 @@ import SwiftUI
 import os.log
 
 struct FinanceLedgerView: View {
+    @Environment(\.holoMotionSurfaceIsActive) private var parentMotionSurfaceActive
 
     private let logger = Logger(subsystem: "com.holo.app", category: "FinanceLedgerView")
 
@@ -37,11 +38,39 @@ struct FinanceLedgerView: View {
     /// 复制目标日期
     @State private var copyTargetDate: Date = Date()
 
+    /// 记退款的目标原交易（长按菜单 / iPad 详情面板发起）
+    @State private var refundTarget: Transaction? = nil
+
+    /// 正在编辑的退款笔（点退款行直接进退款编辑层）
+    @State private var refundEditing: Transaction? = nil
+
+    /// 详情面板退款属性行点击：先列名下退款笔，选一笔去编辑
+    @State private var refundListTarget: Transaction? = nil
+
     /// 长按日期快速记账：弹出 Sheet 时使用的预设日期
     @State private var quickAddDate: Date? = nil
 
     /// 是否显示搜索页
     @State private var showSearch: Bool = false
+    /// 预算总览卡点击 → 预算详情页（2026-09-27 方案一期入口）
+    @State private var showBudgetDetail: Bool = false
+
+    // --- 图片自动记账（顶栏直达，2026-10-06 东林反馈「放出来」） ---
+    /// 有待复核直达复核列表
+    @State private var showReceiptReviewList: Bool = false
+    /// 无待复核进图片记账页（最近结果 / 快捷指令设置）
+    @State private var showReceiptBookingEntry: Bool = false
+    /// 待复核数量：顶栏按钮角标，不进设置页也能看见「有账等你确认」
+    @State private var receiptDraftCount: Int = 0
+    @Environment(\.scenePhase) private var scenePhase
+
+    /// iPad 双栏（方案 2A）：宽屏左账本 + 右详情面板；记录在右栏核对与处理，
+    /// 账本侧的日期、筛选、滚动位置在切换记录时保持不动。
+    @Environment(\.holoContentWidth) private var ledgerContentWidth
+    private var isWideLayout: Bool {
+        HoloLayoutPolicy.isSplitReady(contentWidth: ledgerContentWidth)
+    }
+    @State private var selectedTransactionId: UUID? = nil
 
     /// 首屏内容是否已就绪（预算 + 日历数据全部加载完成后，内容区一次性淡入，
     /// 避免入场转场期间各区域随 @Published 逐次更新而分批弹入）
@@ -110,67 +139,47 @@ struct FinanceLedgerView: View {
     }
     
     // MARK: - Body
-    
+
     var body: some View {
-        VStack(spacing: 0) {
-            // 顶部导航（安全区内，避开灵动岛）
-            headerView
-            
-            // 日历区域：ZStack 统一容器，单一高度值驱动外层布局
-            ZStack(alignment: .top) {
-                // 周视图：仅 opacity 渐隐，不改变高度
-                WeekView(calendarState: calendarState)
-                    .opacity(Double(1 - revealProgress))
-
-                // 月历：通过高度 + clip 逐步揭示
-                ExpandedCalendarView(calendarState: calendarState)
-                    .frame(height: effectiveCalendarHeight)
-                    .clipped()
-                    .allowsHitTesting(effectiveCalendarHeight > 0)
-            }
-            .frame(height: calendarAreaHeight)
-            .clipped()
-            
-            // ===== Bottom Sheet 容器 =====
-            VStack(spacing: 0) {
-                // 拖拽手柄
-                calendarDragHandle
-            
-            // 收支概览
-            summaryCards
-                .padding(.top, HoloSpacing.xs)
-
-            // 预算总览卡片
-            if let summary = globalBudgetSummary {
-                BudgetSummaryCard(summary: summary, warnings: categoryWarnings)
-                    .padding(.horizontal, 14)
-                    .padding(.top, HoloSpacing.sm)
-                    .padding(.bottom, 8)
-            }
-
-            // 交易列表（支持左右滑动切换日期）：滑动状态隔离在子容器，
-            // 避免每帧拖动重算整页 body（头部/汇总卡/列表陪跑，行多时跟手性下降）
-            DaySwipeContainer(state: daySwipeState, onDayChange: { forward in
-                if let newDate = Calendar.current.date(
-                    byAdding: .day,
-                    value: forward ? 1 : -1,
-                    to: calendarState.selectedDate
-                ) {
-                    calendarState.selectDate(newDate)
+        // 宽屏：左账本 + 右详情（方案 2A 财务工作台）；窄屏/iPhone 单列语义不变
+        HoloListDetailSplit {
+            ledgerColumn
+        } detail: {
+            FinanceTransactionDetailPane(
+                transaction: selectedTransaction,
+                daySummary: daySummaryForPane,
+                onEdit: {
+                    if let tx = selectedTransaction {
+                        // 退款笔不走通用编辑表单（类型/分类不属于退款语义），弹退款编辑层
+                        if tx.isRefund {
+                            refundEditing = tx
+                        } else {
+                            editingTransaction = tx
+                        }
+                    }
+                },
+                onCopy: {
+                    if let tx = selectedTransaction {
+                        copyingTransaction = tx
+                        copyTargetDate = tx.date
+                    }
+                },
+                onDelete: {
+                    if let tx = selectedTransaction {
+                        transactionToDelete = tx
+                        if tx.isInstallment { showInstallmentDeleteOptions = true }
+                    }
+                },
+                onRecordRefund: {
+                    if let tx = selectedTransaction { refundTarget = tx }
+                },
+                onEditRefunds: {
+                    if let tx = selectedTransaction { refundListTarget = tx }
                 }
-            }) {
-                ScrollView(showsIndicators: false) {
-                    transactionListView
-                        .padding(.bottom, HoloSpacing.lg)
-                }
-                .frame(maxHeight: .infinity)
-            }
-            }
-            .opacity(isInitialContentReady ? 1 : 0)
-            .background(Color.holoCardBackground)
-            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
+            )
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
+        .environment(\.holoMotionSurfaceIsActive, parentMotionSurfaceActive && !showAddTransaction && editingTransaction == nil && quickAddDate == nil && refundTarget == nil && refundEditing == nil && !showSearch)
         .overlay(alignment: .top) {
             if let operationMessage {
                 operationToast(operationMessage)
@@ -179,6 +188,10 @@ struct FinanceLedgerView: View {
             }
         }
         // --- 弹窗月历（底部抽屉） ---
+        // 预算详情页（预算总览卡点击进入）
+        .sheet(isPresented: $showBudgetDetail) {
+            BudgetDetailView(anchoredAccountId: nil)
+        }
         .sheet(isPresented: $calendarState.isPopupVisible) {
             PopupCalendarSheet(calendarState: calendarState)
         }
@@ -186,6 +199,26 @@ struct FinanceLedgerView: View {
             AddTransactionSheet(editingTransaction: transaction) { _ in
                 calendarState.refreshAfterDataChange()
                 showOperationMessage(String(localized: "记账已保存"), isError: false)
+            }
+        }
+        // 记退款（从原支出发起）：成功后刷新日历与统计
+        .sheet(item: $refundTarget) { original in
+            RefundEntrySheet(original: original)
+                .onDisappear { calendarState.refreshAfterDataChange() }
+        }
+        // 编辑退款笔：按退款笔解析原交易后进入同一弹层
+        .sheet(item: $refundEditing) { refund in
+            RefundEntrySheet(
+                original: refund.refundOfTransactionId.flatMap { FinanceRepository.shared.findTransaction(by: $0) } ?? refund,
+                editingRefund: refund
+            )
+            .onDisappear { calendarState.refreshAfterDataChange() }
+        }
+        // 详情面板退款属性行 → 名下退款列表 → 选一笔进退款编辑层
+        .sheet(item: $refundListTarget) { original in
+            RefundPickerSheet(original: original) { refund in
+                refundListTarget = nil
+                refundEditing = refund
             }
         }
         // 长按日期快速记账 Sheet
@@ -206,6 +239,22 @@ struct FinanceLedgerView: View {
         }
         .onChange(of: searchTrigger) { _, _ in
             showSearch = true
+        }
+        // 图片自动记账：有待复核直达复核列表，无则进图片记账页（与 FinanceView 深链同款弹层）
+        .sheet(isPresented: $showReceiptReviewList, onDismiss: refreshReceiptDraftCount) {
+            ReceiptReviewListView()
+                .holoSheetWidth(.form)
+        }
+        .sheet(isPresented: $showReceiptBookingEntry, onDismiss: refreshReceiptDraftCount) {
+            NavigationStack {
+                ReceiptBookingSettingsView()
+            }
+            .holoSheetWidth(.form)
+        }
+        // 角标刷新：进页 + 回前台（快捷指令多在 App 后台跑完，草稿在后台落盘）
+        .onAppear { refreshReceiptDraftCount() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { refreshReceiptDraftCount() }
         }
         // 复制交易日期选择
         .sheet(item: $copyingTransaction) { tx in
@@ -249,7 +298,7 @@ struct FinanceLedgerView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
-            calendarState.refreshAfterDataChange()
+            // 账本数据刷新由 CalendarState 统一监听通知负责，这里只补视图本地的预算数据
             loadBudgetData()
         }
         // 监听长按日期事件，触发快速记账 Sheet
@@ -272,9 +321,9 @@ struct FinanceLedgerView: View {
                 Button(action: { onBack() }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .frame(width: 40, height: 40)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(Circle())
                         .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
                 }
@@ -282,13 +331,44 @@ struct FinanceLedgerView: View {
                 Spacer()
 
                 HStack(spacing: 8) {
+                    // 图片自动记账按钮：待复核有账时挂数字角标；
+                    // 点击有待复核直达复核列表，无则进图片记账页
+                    Button {
+                        if receiptDraftCount > 0 {
+                            showReceiptReviewList = true
+                        } else {
+                            showReceiptBookingEntry = true
+                        }
+                    } label: {
+                        Image(systemName: "camera.viewfinder")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.holoToolTextSecondary)
+                            .frame(width: 40, height: 40)
+                            .background(Color.holoToolSurface)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                            .overlay(alignment: .topTrailing) {
+                                if receiptDraftCount > 0 {
+                                    Text(receiptDraftCount >= 100 ? "99+" : "\(receiptDraftCount)")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 2)
+                                        .background(Capsule().fill(Color.holoError))
+                                        .fixedSize()
+                                        .offset(x: 4, y: -3)
+                                }
+                            }
+                    }
+                    .accessibilityLabel(Text("图片自动记账"))
+
                     // 搜索按钮
                     Button { showSearch = true } label: {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .frame(width: 40, height: 40)
-                            .background(Color.holoCardBackground)
+                            .background(Color.holoToolSurface)
                             .clipShape(Circle())
                             .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                     }
@@ -314,9 +394,9 @@ struct FinanceLedgerView: View {
                     Button(action: { calendarState.showPopupCalendar() }) {
                         Image(systemName: "calendar")
                             .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(calendarState.isPopupVisible ? .holoPrimary : .holoTextSecondary)
+                            .foregroundColor(calendarState.isPopupVisible ? .holoPrimary : .holoToolTextSecondary)
                             .frame(width: 40, height: 40)
-                            .background(Color.holoCardBackground)
+                            .background(Color.holoToolSurface)
                             .clipShape(Circle())
                             .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                     }
@@ -328,12 +408,12 @@ struct FinanceLedgerView: View {
 
             // Row 2: 标题居中（不受左右按钮宽度影响）
             Text(headerTitle)
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.pageTitle)
+                .foregroundColor(.holoToolText)
                 .frame(maxWidth: .infinity)
                 .padding(.bottom, 12)
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
     }
     
     /// 标题：今天显示"今日账本"，其他日期仅显示"M月d日"
@@ -341,6 +421,11 @@ struct FinanceLedgerView: View {
         if calendarState.selectedDate.isToday { return String(localized: "今日账本") }
         let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("MMMd")
         return f.string(from: calendarState.selectedDate)
+    }
+
+    /// 待复核角标刷新：读草稿目录计数（轻量小文件，与设置页同款口径）
+    private func refreshReceiptDraftCount() {
+        receiptDraftCount = ReceiptBookingResultStore.shared.loadDrafts().count
     }
     
     // MARK: - 拖拽手柄（控制月历展开/收起）
@@ -354,7 +439,7 @@ struct FinanceLedgerView: View {
     private var calendarDragHandle: some View {
         Image(systemName: "chevron.down")
             .font(.system(size: 9, weight: .semibold))
-            .foregroundColor(.holoTextSecondary.opacity(0.45))
+            .foregroundColor(.holoToolTextSecondary.opacity(0.45))
             .rotationEffect(.degrees(isCalendarExpanded ? 180 : 0))
             .contentTransition(.symbolEffect(.replace))
             .frame(maxWidth: .infinity, minHeight: 28)
@@ -401,6 +486,94 @@ struct FinanceLedgerView: View {
         }
     }
     
+    /// 当前右栏所选记录：从当日列表实时解析——记录被删除或日期切走后
+    /// 自然回到无选中态，不展示过期详情（方案 3.2 统一详情规则）
+    private var selectedTransaction: Transaction? {
+        guard let id = selectedTransactionId else { return nil }
+        return calendarState.liveDayTransactions.first { $0.id == id }
+    }
+
+    /// 可对一笔交易发起退款：普通支出（非分期、自身非退款笔）
+    private func canRecordRefund(_ tx: Transaction) -> Bool {
+        tx.transactionType == .expense && !tx.isInstallment && !tx.isRefund
+    }
+
+    /// 无选中时右栏的本日摘要（统计口径：退款笔按负支出冲减当日支出）
+    private var daySummaryForPane: FinanceTransactionDetailPane.DaySummary {
+        let dayTx = calendarState.liveDayTransactions
+        let expense = dayTx
+            .filter { $0.statisticsType == .expense }
+            .reduce(Decimal.zero) { $0 + ($1.statisticsAmount) }
+        let income = dayTx
+            .filter { $0.statisticsType == .income }
+            .reduce(Decimal.zero) { $0 + ($1.statisticsAmount) }
+        return .init(expense: expense, income: income, count: dayTx.count)
+    }
+
+    /// 账本列（原单列整页内容）：顶部导航 + 日历 + 汇总 + 交易列表
+    private var ledgerColumn: some View {
+        VStack(spacing: 0) {
+            // 顶部导航（安全区内，避开灵动岛）
+            headerView
+
+            // 日历区域：ZStack 统一容器，单一高度值驱动外层布局
+            ZStack(alignment: .top) {
+                // 周视图：仅 opacity 渐隐，不改变高度
+                WeekView(calendarState: calendarState)
+                    .opacity(Double(1 - revealProgress))
+
+                // 月历：通过高度 + clip 逐步揭示
+                ExpandedCalendarView(calendarState: calendarState)
+                    .frame(height: effectiveCalendarHeight)
+                    .clipped()
+                    .allowsHitTesting(effectiveCalendarHeight > 0)
+            }
+            .frame(height: calendarAreaHeight)
+            .clipped()
+
+            // ===== Bottom Sheet 容器 =====
+            VStack(spacing: 0) {
+                // 拖拽手柄
+                calendarDragHandle
+
+                // 收支概览
+                summaryCards
+                    .padding(.top, HoloSpacing.xs)
+
+                // 预算总览卡片
+                if let summary = globalBudgetSummary {
+                    BudgetSummaryCard(summary: summary, warnings: categoryWarnings) {
+                        showBudgetDetail = true
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.top, HoloSpacing.sm)
+                    .padding(.bottom, 8)
+                }
+
+                // 交易列表（支持左右滑动切换日期）：滑动状态隔离在子容器，
+                // 避免每帧拖动重算整页 body（头部/汇总卡/列表陪跑，行多时跟手性下降）
+                DaySwipeContainer(state: daySwipeState, onDayChange: { forward in
+                    if let newDate = Calendar.current.date(
+                        byAdding: .day,
+                        value: forward ? 1 : -1,
+                        to: calendarState.selectedDate
+                    ) {
+                        calendarState.selectDate(newDate)
+                    }
+                }) {
+                    ScrollView(showsIndicators: false) {
+                        transactionListView
+                            .padding(.bottom, HoloSpacing.lg)
+                    }
+                    .frame(maxHeight: .infinity)
+                }
+            }
+            .opacity(isInitialContentReady ? 1 : 0)
+            .background(Color.holoToolSurface)
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
+        }
+    }
+
     // MARK: - 月度收支概览卡片
 
     private var summaryCards: some View {
@@ -459,8 +632,8 @@ struct FinanceLedgerView: View {
         VStack(spacing: 0) {
             HStack {
                 Text("交易记录")
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.sectionTitle)
+                    .foregroundColor(.holoToolText)
                 Spacer()
             }
             .padding(.horizontal, HoloSpacing.lg)
@@ -469,15 +642,29 @@ struct FinanceLedgerView: View {
             
             // LazyVStack：账单一天可能几十上百行，懒加载只布局可见行
             LazyVStack(spacing: 0) {
-                ForEach(Array(calendarState.selectedDayTransactions.enumerated()), id: \.element) { index, tx in
-                    TransactionRowView(transaction: tx) {
+                ForEach(Array(calendarState.liveDayTransactions.enumerated()), id: \.element) { index, tx in
+                    TransactionRowView(transaction: tx, isSelected: selectedTransactionId == tx.id) {
                         // 容器 allowsHitTesting 在快速轻扫时会滞后一帧，执行时再查实时手势状态兜底
                         guard !daySwipeState.isSwiping else { return }
-                        editingTransaction = tx
+                        if isWideLayout {
+                            // 宽屏：右栏核对详情，编辑走右栏「编辑」入口（方案 2A）
+                            withAnimation(HoloAnimation.quick) {
+                                selectedTransactionId = tx.id
+                            }
+                        } else if tx.isRefund {
+                            // 退款笔不走通用编辑表单，直接进退款编辑层
+                            refundEditing = tx
+                        } else {
+                            editingTransaction = tx
+                        }
                     }
                     .contextMenu {
                             Button {
-                                editingTransaction = tx
+                                if tx.isRefund {
+                                    refundEditing = tx
+                                } else {
+                                    editingTransaction = tx
+                                }
                             } label: {
                                 Label("编辑", systemImage: "pencil")
                             }
@@ -489,6 +676,14 @@ struct FinanceLedgerView: View {
                                 Label("复制", systemImage: "doc.on.doc")
                             }
 
+                            if canRecordRefund(tx) {
+                                Button {
+                                    refundTarget = tx
+                                } label: {
+                                    Label("记退款", systemImage: "arrow.uturn.backward")
+                                }
+                            }
+
                             Button(role: .destructive) {
                                 transactionToDelete = tx
                                 if tx.isInstallment {
@@ -498,9 +693,15 @@ struct FinanceLedgerView: View {
                                 Label("删除", systemImage: "trash")
                             }
                         }
+                    // 行离场（删除/删分期）向右滑出淡出，与想法列表同一离场语言
+                    // （不挂错峰入场：账本 DaySwipe 滑切天高频整体刷新，行行重播淡入是噪音）
+                    .transition(.asymmetric(
+                        insertion: .opacity,
+                        removal: .opacity.combined(with: .move(edge: .trailing))
+                    ))
                 }
 
-                if calendarState.selectedDayTransactions.isEmpty && !calendarState.isLoading {
+                if calendarState.liveDayTransactions.isEmpty && !calendarState.isLoading {
                     EmptyStateView(
                         // 真·第一笔（全库无任何已发生交易）才走激活引导；老用户空天只留陈述句
                         isFirstRecord: !calendarState.hasAnyTransaction,
@@ -560,6 +761,10 @@ struct FinanceLedgerView: View {
     
     /// 从列表直接删除交易
     private func deleteTransactionFromList(_ transaction: Transaction) {
+        // 删除已过确认，先带动画从当日明细乐观移除（行滑出），删库失败时由 refresh 还原
+        withAnimation(HoloAnimation.grounded) {
+            calendarState.selectedDayTransactions.removeAll { $0.id == transaction.id }
+        }
         Task {
             do {
                 try await FinanceRepository.shared.deleteTransaction(transaction)
@@ -569,6 +774,7 @@ struct FinanceLedgerView: View {
             } catch {
                 logger.error("删除交易失败: \(error)")
                 showOperationMessage(String(localized: "删除失败：\(error.localizedDescription)"), isError: true)
+                await calendarState.refreshData()
             }
             transactionToDelete = nil
         }
@@ -576,6 +782,10 @@ struct FinanceLedgerView: View {
 
     /// 删除整个分期组
     private func deleteInstallmentGroupFromList(_ groupId: UUID) {
+        // 同单笔删除：先乐观移除该组落在当天的所有行，失败由 refresh 还原
+        withAnimation(HoloAnimation.grounded) {
+            calendarState.selectedDayTransactions.removeAll { $0.installmentGroupId == groupId }
+        }
         Task {
             do {
                 try await FinanceRepository.shared.deleteInstallmentGroup(groupId: groupId)
@@ -585,6 +795,7 @@ struct FinanceLedgerView: View {
             } catch {
                 logger.error("删除分期组失败: \(error)")
                 showOperationMessage(String(localized: "删除失败：\(error.localizedDescription)"), isError: true)
+                await calendarState.refreshData()
             }
             transactionToDelete = nil
         }
@@ -626,7 +837,7 @@ struct FinanceLedgerView: View {
             try? await Task.sleep(nanoseconds: 1_800_000_000)
             await MainActor.run {
                 guard operationMessage == message else { return }
-                withAnimation(.easeOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.enter) {
                     operationMessage = nil
                 }
             }
@@ -760,7 +971,7 @@ struct DaySwipeContainer<Content: View>: View {
             ? -UIScreen.main.bounds.width * 0.3
             : UIScreen.main.bounds.width * 0.3
 
-        withAnimation(.easeOut(duration: 0.15)) {
+        withAnimation(HoloAnimation.enter) {
             offset = slideOut
         }
 

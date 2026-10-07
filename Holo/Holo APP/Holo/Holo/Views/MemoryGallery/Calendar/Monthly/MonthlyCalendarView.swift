@@ -45,11 +45,11 @@ struct MonthlyCalendarView: View {
             }
         }
         .padding(10)
-        .background(Color.holoCardBackground.opacity(0.46))
+        .background(Color.holoToolSurface.opacity(0.46))
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
-                .stroke(Color.holoBorder.opacity(0.46), lineWidth: 1)
+                .stroke(Color.holoToolBorder.opacity(0.46), lineWidth: 1)
         )
     }
 
@@ -58,7 +58,7 @@ struct MonthlyCalendarView: View {
             ForEach(weekdays, id: \.self) { w in
                 Text(w)
                     .font(.system(size: 10, weight: .semibold, design: .serif))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(maxWidth: .infinity)
             }
         }

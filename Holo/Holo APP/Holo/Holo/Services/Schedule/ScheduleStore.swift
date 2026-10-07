@@ -385,9 +385,15 @@ final class ScheduleStore: ObservableObject {
         completedDays = result
     }
 
-    private func persistCompletions() {
-        if let data = try? JSONEncoder().encode(completionRecords) {
-            try? data.write(to: completionsFileURL, options: .atomic)
+    /// 持久化完成记录；失败返回 false 由调用方如实反馈（D01），不再静默吞错
+    @discardableResult
+    private func persistCompletions() -> Bool {
+        guard let data = try? JSONEncoder().encode(completionRecords) else { return false }
+        do {
+            try data.write(to: completionsFileURL, options: .atomic)
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -397,11 +403,17 @@ final class ScheduleStore: ObservableObject {
     }
 
     /// 勾/取消一场日程的完成态（仅 Holo 本地，不写系统日历）
-    func setCompleted(_ item: ScheduleItem, _ completed: Bool) {
+    /// - Returns: 持久化是否成功（D01：写盘失败时内存状态回滚，调用方如实提示，
+    ///   不能让用户以为勾上了重启却弹回）
+    @discardableResult
+    func setCompleted(_ item: ScheduleItem, _ completed: Bool) -> Bool {
         loadCompletionsIfNeeded()
         let key = item.completionKey
         if completed {
-            guard !(completedDays[key]?.contains(item.occurrenceDay) ?? false) else { return }
+            guard !(completedDays[key]?.contains(item.occurrenceDay) ?? false) else { return true }
+        }
+        let previousRecords = completionRecords
+        if completed {
             completionRecords.append(
                 CompletionRecord(externalId: key, occurrenceDay: item.occurrenceDay, completedAt: Date())
             )
@@ -410,8 +422,14 @@ final class ScheduleStore: ObservableObject {
                 $0.externalId == key && $0.occurrenceDay == item.occurrenceDay
             }
         }
-        persistCompletions()
+        guard persistCompletions() else {
+            // 写盘失败：回滚内存变更，保持与磁盘一致
+            completionRecords = previousRecords
+            rebuildCompletedDays()
+            return false
+        }
         rebuildCompletedDays()
+        return true
     }
 
     private func loadCompletionsIfNeeded() {

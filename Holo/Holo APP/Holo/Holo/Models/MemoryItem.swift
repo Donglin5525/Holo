@@ -86,12 +86,13 @@ extension MemoryItem {
     }
 
     /// 从习惯记录创建 MemoryItem
+    /// 调用方已过滤取消打卡的行（isCompleted=NO 仅在取消后出现），打卡型此处恒为已完成
     static func from(habitRecord: HabitRecord, habit: Habit) -> MemoryItem {
         var subtitle: String?
         if habit.isNumericType, let value = habitRecord.valueDouble {
             subtitle = "\(value)\(habit.unit ?? "")"
         } else if habit.isCheckInType {
-            subtitle = habitRecord.isCompleted ? "已完成" : "未完成"
+            subtitle = "已完成"
         }
 
         return MemoryItem(

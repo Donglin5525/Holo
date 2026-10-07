@@ -14,8 +14,11 @@ struct KanbanTaskSection: View {
     @State private var showAddSheet = false
     @State private var refreshTrigger = false
 
-    /// 撤回窗口（来自 repository 全局状态，与 TaskListView 共享）
-    private var pendingCompletionTaskId: UUID? { todoRepo.pendingCompletionTaskId }
+    /// 完成协调层（G1 完成契约：与 TaskListView 等入口共享同一撤回窗口）
+    @ObservedObject private var completionCoordinator = HoloTaskCompletionCoordinator.shared
+
+    /// 撤回窗口（来自完成协调层全局状态，与 TaskListView 共享）
+    private var pendingCompletionTaskId: UUID? { completionCoordinator.pending?.taskID }
 
     /// 选中查看详情的任务
     private struct TaskSelection: Identifiable, Equatable {
@@ -76,7 +79,7 @@ struct KanbanTaskSection: View {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.holoSuccess)
-                        Text("任务已完成")
+                        Text("已勾选，可撤回")
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
                     }
@@ -369,27 +372,46 @@ struct KanbanTaskSection: View {
             // 撤回窗口内再点完成圈 → 撤回完成（与任务列表一致）
             undoCompletion()
         } else {
-            // 未完成 → 走全局 3 秒撤回流程
-            todoRepo.startPendingCompletion(for: task)
+            // 未完成 → 走统一完成协调层的 3 秒撤回流程
+            completionCoordinator.requestCompletion(taskID: task.id, source: .todayTaskSection, in: todoRepo)
             HapticManager.taskCompletion()
         }
     }
 
     /// 撤回任务完成
     private func undoCompletion() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            todoRepo.undoPendingCompletion()
+        withAnimation(HoloAnimation.snappy) {
+            completionCoordinator.undo(in: todoRepo)
         }
         HapticManager.light()
     }
 
     private func addToToday(_ task: TodoTask) {
-        do {
-            try todoRepo.planTask(task, for: Date())
-            HapticManager.light()
-        } catch {
-            Logger(subsystem: "com.holo.app", category: "UI").error("加入今日失败: \(error.localizedDescription)")
+        // 「加入今日」= 当日注意力选择，不再误改 dueDate（R04；2026-10-03 方案 §9.3）
+        Task { @MainActor in
+            let scope = HoloTodayDayScope.current()
+            let heads = Self.currentTodayPlanHeadIDs(scope: scope)
+            do {
+                _ = try await HoloTodayPlanService.shared.addTask(
+                    taskID: task.id,
+                    goal: .taskResult,
+                    scope: scope,
+                    expectedHeads: heads,
+                    operationID: UUID().uuidString
+                )
+                HapticManager.light()
+            } catch {
+                Logger(subsystem: "com.holo.app", category: "UI").error("加入今日失败: \(error.localizedDescription)")
+            }
         }
+    }
+
+    /// 当前日计划 heads（采用前防线：服务端校验一致才写；conflict/syncing 返回空由服务拒绝）。
+    @MainActor
+    static func currentTodayPlanHeadIDs(scope: HoloTodayDayScope) -> [UUID] {
+        let read = HoloTodayPlanRepository(context: CoreDataStack.shared.viewContext).currentPlan(scope: scope)
+        if case .active(_, let headRevisionIDs) = read.state { return headRevisionIDs }
+        return []
     }
 
     private func priorityColor(_ priority: TaskPriority) -> Color {

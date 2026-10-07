@@ -3,12 +3,15 @@
 > 计划文档：`docs/plans/2026-09-06-qa-ten-round-walkthrough-plan.md`
 > 编号规则：R{轮次}-{序号}；分级：P0 崩溃/数据丢失，P1 功能不可用/明显卡顿/流程走不通，P2 体验瑕疵。
 
+> **2026-09-16 G1 对齐记录**：第 3 轮实际已于 2026-09-06 完成并提交（9b532a53f），台账标题与汇总表此前未同步更新，本次补齐。第 1–3 轮进入「只抽验易回归问题」状态；第 4 轮起继续按计划补齐。抽验与新增专项记录在 `journey-matrix.md` 与各轮小节。
+
 ## 状态汇总
 
 | 轮次 | 发现 | P0 | P1 | P2 | 已修复 | 待拍板 | 真机项 |
 |---|---|---|---|---|---|---|---|
 | 第 1 轮 稳定性与数据安全 | 12 | 2 | 5 | 5 | 8（含测试基建） | 0 | 0 |
 | 第 2 轮 手势与触控 | 4+8灰 | 0 | 1 | 3 | 4 | 1（轴档三问题重报） | 1（R2-G1） |
+| 第 3 轮 滚动与性能 | 10+灰 | 0 | 1 | 9 | 10 | 轴档改名挂起/前瞻条未定；轴档①②待实施确认 | 0 |
 
 ---
 
@@ -95,7 +98,8 @@ CategoryManagementView、SpendingProjectDetailView（pendingDeletionID 范式）
 
 ---
 
-## 第 3 轮：滚动与性能（进行中）
+## 第 3 轮：滚动与性能（✅ 完成 2026-09-06，台账状态 2026-09-16 补记对齐）
+
 
 ### 已完成并推送（0ba273813）
 - R3-1 [P2→已修] 周历捏合缩放：@GestureState 内存连续变化 + @AppStorage 松手一次写 + 缩放期 scrollDisabled（R2-G2）
@@ -132,3 +136,24 @@ CategoryManagementView、SpendingProjectDetailView（pendingDeletionID 范式）
 - 想法删除加回收站提示 → R3-10 已修；学习映射删除加确认 → R3-9 已修；
 - 轴档改名「排程」：**挂起**，东林要再想想；「下一个事项」前瞻条已向他解释含义（顶部常驻小横条：下一个安排+多久开始+今日剩余空档），待他决定是否加；
 - 轴档①滑动劫持治理（0.5s 长按+震动+可见把手）与②凌晨折叠（复用周历模式）暂列待实施，动工前再与东林确认方案细节。
+
+## 第 4 轮：页面状态与生命周期（G1 2026-09-16 开工，进行中）
+
+### 确认问题与修复
+
+| 编号 | 级别 | 位置 | 问题 | 修复 | 回归 |
+|---|---|---|---|---|---|
+| R4-1 | P1（测试门禁；无直接用户影响实证） | 测试进程实体模型污染：`FinanceReconciliationTests`（sharedModel 独立容器）× `ChatMessageRepositoryCacheRecoveryTests`（真栈）× `ReceiptBookingKernelTests`（真栈） | 全量单测 1126 条中 3 条红（ReceiptBooking 原子写/并发/幂等三测，报 `accountMissing`）。单独跑、双跑、多数小组合全绿；最小复现 = FinanceReconciliationTests + ChatMessageRepositoryCacheRecoveryTests → ReceiptBooking 必挂（两次复现）。机制：同进程两套 NSManagedObjectModel 反复 load 跨阈值后 `Account` 类→实体映射歧义，`findAccount` 的 `try? context.fetch` 把 fetch 失败吞成 nil，误报「账户不存在」。佐证：FinanceReconciliationTests 注释明载同类系统层错误（模型不兼容 134020）及其容器共享规避 | **已修（2026-09-16 深夜，东林拍板「先A后B」）**。A：`CoreDataTestSupport` 新增进程唯一测试容器 `sharedTestContainer` + `clearEntities` 辅助；ReceiptBookingKernelTests 迁入（不再依赖真栈/seedDefaultData），`FinanceTransactionCommandService.commit` 加 `repository` 注入参数（默认 `.shared`，生产零变化）。B：FinanceReconciliationTests、FinanceProjectRepositoryTests 两个自建容器同批迁入共享容器（进程内 load 次数 -2）；政策注释落在 `CoreDataTestSupport.sharedTestContainer`——新增测试类禁止自建容器，存量其余 24 类按域渐进收编（grep `loadPersistentStores` 得清单）。C 项（`findAccount` 去 try?）未做：生产路径改动需单独评审，另立事项 | 证据：最小复现组合修复前两连红 → 修复后 47/47 绿（含并行会话新增 5 条通知测试）；全量重跑结果见下。**B 政策扩展（2026-09-17 凌晨）**：并行会话提交 1d5a39c25 后，其在 ThoughtRichContentTests 新增 ~7 用例（每用例自建容器 +1 load）把全量进程 load 总数推过阈值，134020 同族复发（7 红）；已按同政策迁入 sharedTestContainer（CoreDataTestSupport 增 clearAllEntities 辅助），worktree（HEAD+己方改动）全量 **1108/0 全绿** 复验。worktree 法在并行中间态挡编译时使用（主工作区当时被并行未提交的 ThoughtReferenceListView.swift 重复声明卡死，不代改） |
+
+
+| R4-2 | P2（演示/走查基建；非功能回归） | MatterVerticalSliceUITests.testFocusCardDetailRevertComplete 断言首页 Matter 焦点卡 | 全量 UITests 该测报「首页焦点卡应出现（种子+flag）」失败；两台模拟器复现。排查链：干净机复现→疑 seed 坏→给 MatterDemoSeed 加沙盒诊断日志（临时）→实测 `args=true → deleteAll 成功 → matter created id=…` **种子工作正常**→根因=首页焦点卡按 T0-T5（1ec53a4b7）设计退役：`matterFocusSection` 有 `!HoloTodayRolloutPolicy.isEnabled` 门（§4/T4「新版开启后 Matter 焦点并入 Today 页」），M0-M3 时代的老测试断言的是已退役的首页卡。新版「今天」语义已由 TodayMatterVerticalSliceUITests 覆盖且 PASS | **不修代码，交拍板**：① 老测试断言迁「今天」页焦点 或 ② 直接退役（新版已有覆盖）。因涉及历史验收口径，未单方面改 | 诊断日志+复跑日志在案；matter-seed-diag.log 沙盒文件在 Skip Audit 模拟器 |
+
+
+| R4-3 | P1（测试门禁）→ 已根治 | `createDataModel()` 每次调用生成新 NSManagedObjectModel 实例（真栈与测试栈各一份，内容相同实例不同） | 134020 第三轮复发：R4-1 迁共享容器后，并行新增测试把进程负载推过阈值，13 条 ThoughtRichContent 域测试报「模型不兼容」。worktree HEAD 复现确认非在途引入 | **根治：数据模型进程唯一单例**——`CoreDataStack.sharedDataModel` static let 惰性初始化，`createDataModel()` 改为返回同一实例（生产仅 buildContainer 调一次，行为不变；真栈/测试栈/standalone 共享一份 → 子类→实体映射全进程唯一，歧义根除）。修复后全量 **1131/2**（13 条 134020 全消） | 三轮复现→单例后复归绿；证据 /tmp/qa_p0-unittests3.log |
+
+**遗留移交（2026-09-17）**：`HoloAgentSchedulerTests.testRunLoop_健康锁屏…` 在 HEAD（6644e776f）单跑确定性失败（「锁屏不得产生 evidence」）——09-16 深夜基线绿、源码自 08-22 未变，回归变量在 1d5a39c25→6644e776f 区间的已提交内容，属 Agent 域（并行会话领域），已单跑+HEAD 隔离定性，未代修。
+
+### G1 基线备注（2026-09-16）
+
+- 修复前基线：1126 执行 / 3 失败（全部 R4-1）/ 230s；**R4-1 修复后全量重跑：1131 执行 / 0 失败 / 230s，TEST SUCCEEDED**（1131=1126+并行会话新增 5 条通知测试，DerivedData 复用 `/tmp/holo-g1-baseline-dd`）。
+- 第 1-3 轮抽验（代码层）：R2-1 让位判定在批次③改动后完好（在途 diff 是「挂载点整层失效」新修复，两者兼容）；R1-8 想法删除「先移数组再删库」仍在；R3-10 转正在途标志/回收站提示仍在。UI 层抽验并入旅程矩阵 J2/J3 执行。

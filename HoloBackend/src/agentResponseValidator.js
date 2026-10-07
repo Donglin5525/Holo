@@ -7,7 +7,7 @@ const FILTER_OPERATIONS = new Set([
   "lessThan", "lessThanOrEqual", "contains", "oneOf",
 ]);
 const FIELD_TYPES = new Set(["number", "text", "date", "boolean"]);
-const GROUP_TYPES = new Set(["day", "week", "month", "weekend", "field"]);
+const GROUP_TYPES = new Set(["day", "week", "month", "weekend", "hour", "field"]);
 const AGGREGATION_OPERATIONS = new Set(["count", "sum", "average", "min", "max", "distinctCount"]);
 const DERIVATION_OPERATIONS = new Set([
   "difference", "ratio", "percentageChange", "rate", "perDay", "linearTrend", "coverage",
@@ -322,6 +322,9 @@ function normalizeClaim(claim, index, status, repairs) {
   claim.prohibitedInferences = normalizeStringArray(claim.prohibitedInferences);
   // interpretation（v21）：claim 级生活化解读，字符串或 null，其他类型归一化为 null。
   claim.interpretation = optionalString(claim.interpretation);
+  // claimTitle（v23）：claim 级点破式标题（iOS 卡片主题），门控规则同顶层
+  // title——仅 final_claims 状态透传，其余状态强制 null。
+  claim.claimTitle = status === "final_claims" ? optionalString(claim.claimTitle) : null;
   claim.confidence = finiteNumber(claim.confidence) ?? 0.5;
   if (!Array.isArray(claim.metricAssertions)) {
     return `claims[${index}].metricAssertions must be an array`;
@@ -342,13 +345,15 @@ function normalizeClaim(claim, index, status, repairs) {
 
 function normalizeTimeRange(value) {
   if (!isObject(value)
-      || typeof value.label !== "string"
       || typeof value.start !== "number"
       || typeof value.end !== "number") {
     return null;
   }
+  // label 可选：工具目录只约定 start/end 用 Unix 秒、未要求 label，此前
+  // 无 label 的时间窗整段被丢弃成 null——模型按提示词传的时间被静默吞掉
+  // （2026-09-24「问近一周答 180 天」生产日志 timeRange 全 null 的帮凶）。
   return {
-    label: value.label,
+    label: typeof value.label === "string" ? value.label : "",
     start: value.start,
     end: value.end,
   };

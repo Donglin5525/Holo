@@ -9,6 +9,7 @@ import SwiftUI
 import UIKit
 
 struct HealthKitDiagnosticsView: View {
+    @State private var syncRotation = 0.0
     @Environment(\.dismiss) private var dismiss
 
     @State private var reportText: String = ""
@@ -52,11 +53,10 @@ struct HealthKitDiagnosticsView: View {
                 HStack(spacing: HoloSpacing.sm) {
                     Image(systemName: isGenerating ? "arrow.triangle.2.circlepath" : "heart.text.square")
                         .font(.system(size: 16, weight: .semibold))
-                        .rotationEffect(.degrees(isGenerating ? 360 : 0))
-                        .animation(
-                            isGenerating ? .linear(duration: 1).repeatForever(autoreverses: false) : .default,
-                            value: isGenerating
-                        )
+                        .rotationEffect(.degrees(syncRotation))
+                        .holoRepeatingPhase($syncRotation, from: 0, to: 360,
+                                            animation: .linear(duration: 1).repeatForever(autoreverses: false),
+                                            enabled: isGenerating)
 
                     Text(isGenerating ? String(localized: "生成中") : String(localized: "生成诊断报告"))
                         .font(.holoBody)

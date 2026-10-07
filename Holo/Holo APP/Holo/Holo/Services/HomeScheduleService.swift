@@ -50,6 +50,10 @@ class HomeScheduleService: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     private var refreshTimer: Timer?
+    /// 是否已启动（R08，2026-10-04 体检）：setup 由 HomeView.task 调用，而首页会随根页
+    /// switch 切换反复重建——无幂等保护时监听和 Timer 逐次累积（越切越慢、重复刷新、耗电）。
+    /// 服务是单例，一个进程只需一套监听 + 一个 Timer。
+    private var isObserving = false
     private let logger = Logger(subsystem: "com.holo.app", category: "HomeScheduleService")
 
     /// 延迟访问 TodoRepository（避免 init 时触发 Core Data I/O）
@@ -63,8 +67,11 @@ class HomeScheduleService: ObservableObject {
 
     // MARK: - Setup
 
-    /// 初始化监听和定时器（在 .task 中调用）
+    /// 初始化监听和定时器（在 .task 中调用）；幂等——重复调用无任何副作用（R08）
     func setup() {
+        guard !isObserving else { return }
+        isObserving = true
+
         // 首次刷新
         refresh()
 
@@ -92,7 +99,8 @@ class HomeScheduleService: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // 定时刷新（保证跨时段后文案更新）
+        // 定时刷新（保证跨时段后文案更新）；换 Timer 前先销毁旧的（旧 Timer 仍挂在 RunLoop 上）
+        refreshTimer?.invalidate()
         refreshTimer = Timer.scheduledTimer(
             withTimeInterval: Self.refreshInterval,
             repeats: true

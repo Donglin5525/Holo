@@ -34,8 +34,8 @@ struct DailyActivityPatternCard: View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack {
                 Text("一天怎么动的")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
                 Spacer()
                 if let sedentary = longestSedentaryRange {
                     Text("最长静坐 \(sedentary.count) 小时")
@@ -54,8 +54,8 @@ struct DailyActivityPatternCard: View {
 
             if let sedentary = longestSedentaryRange {
                 Text("\(hourLabel(sedentary.lowerBound))–\(hourLabel(sedentary.upperBound - 1)) 连续静坐 \(sedentary.count) 小时，是今天最长的静坐段。")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolText)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, HoloSpacing.sm)
@@ -66,7 +66,7 @@ struct DailyActivityPatternCard: View {
             }
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     // MARK: - 24 柱图（自绘，静坐区间高亮）
@@ -92,7 +92,7 @@ struct DailyActivityPatternCard: View {
                         ForEach(0..<bars.count, id: \.self) { hour in
                             let isQuiet = hour >= 8 && hour < 22 && bars[hour] < 100 && totalSteps > 0
                             Capsule()
-                                .fill(isQuiet ? Color.holoTextSecondary.opacity(0.3) : Color.holoChart6)
+                                .fill(isQuiet ? Color.holoToolTextSecondary.opacity(0.3) : Color.holoChart6)
                                 .frame(width: barWidth,
                                        height: maxSteps > 0 ? max(3, bars[hour] / maxSteps * proxy.size.height) : 3)
                         }
@@ -105,7 +105,7 @@ struct DailyActivityPatternCard: View {
                 ForEach([0, 6, 12, 18, 23], id: \.self) { hour in
                     Text("\(hour)")
                         .font(.system(size: 9))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .frame(maxWidth: hour == 0 || hour == 23 ? .infinity : .infinity, alignment: hour == 0 ? .leading : (hour == 23 ? .trailing : .center))
                 }
             }
@@ -117,36 +117,36 @@ struct DailyActivityPatternCard: View {
             VStack(spacing: 2) {
                 Text(windowText)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                 Text("活动时间窗")
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .frame(maxWidth: .infinity)
 
             VStack(spacing: 2) {
                 Text(features.peakHour.map { "\(hourLabel($0))" } ?? "—")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                 Text("最活跃时段")
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .frame(maxWidth: .infinity)
 
             VStack(spacing: 2) {
                 Text(eveningText)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                 Text("晚间步数占比")
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .frame(maxWidth: .infinity)
         }
         .padding(.top, 2)
         .overlay(alignment: .top) {
-            Rectangle().fill(Color.holoBorder).frame(height: 1)
+            Rectangle().fill(Color.holoToolBorder).frame(height: 1)
         }
     }
 
@@ -177,5 +177,5 @@ struct DailyActivityPatternCard: View {
     ])
     return DailyActivityPatternCard(hourly: hourly)
         .padding()
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
 }

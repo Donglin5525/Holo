@@ -18,6 +18,22 @@ nonisolated struct HoloRenderedAgentSection: Codable, Equatable, Sendable {
     var kind: String? = nil
     /// v21：这条数据在用户生活里意味着什么的低置信解读；旧 JSON 缺失解码为 nil 不展示。
     var interpretation: String? = nil
+    /// 已与工具台账对账的结构化数字断言（2026-09-24 报告可读性改造）：
+    /// 云端 v23 起随 claim 回传，此前仅落协议未上屏；旧 JSON 解码为 nil 不渲染图表。
+    var metricAssertions: [HoloRenderedMetricAssertion]? = nil
+}
+
+/// 报告图表消费的核验数字：值与基线均经云端交付核验（metricKey 对账），
+/// 可直接作为数字真相绘制「本期 vs 基线」对比图与指标行。
+nonisolated struct HoloRenderedMetricAssertion: Codable, Equatable, Sendable, Identifiable {
+    var metricKey: String
+    var value: Double? = nil
+    var baselineValue: Double? = nil
+    var unit: String? = nil
+    var comparison: String? = nil
+    var evidenceIDs: [String]? = nil
+
+    var id: String { metricKey }
 }
 
 nonisolated struct HoloRenderedFinanceDrilldown: Codable, Equatable, Sendable {
@@ -39,6 +55,13 @@ nonisolated struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
     var formula: String? = nil
     /// 对比基线的可读描述（基线值 + 基线窗口 + 对比方向）；无基线时为 nil。
     var baselineText: String? = nil
+    /// 2026-09-24 报告可读性改造：核验数值本体（与 summary 口径句同源），
+    /// 供依据卡渲染指标行；旧 JSON 解码为 nil 走纯文本。
+    var metricValue: Double? = nil
+    var metricUnit: String? = nil
+    /// 证据来源数据集（finance.transactions / health.sleep 等，稳定标识）；
+    /// 报告趋势图按它回查本机逐日序列，不可映射时不画图。
+    var datasetName: String? = nil
 }
 
 /// 证据公式的用户可读翻译。证据计算全部发生在本地工具层（HoloDataTool 等），
@@ -102,6 +125,12 @@ nonisolated struct HoloRenderedAnswerScope: Codable, Equatable, Sendable {
     var snapshotCutoffAt: Date?
     /// 查询窗口来源；旧消息 JSON 缺失时为 nil，退回旧格式。
     var attribution: HoloAgentTimeRangeAttribution? = nil
+    /// S03 截断标注（2026-10-04 体检）：快照数据集发生 2000 行截断时如实随
+    /// 范围行展示；旧消息 JSON 缺失时为 nil。
+    var truncatedNote: String? = nil
+    /// AI02 交付核验标注（2026-10-04 体检）：云端交付核验发生结论撤回/降级时
+    /// 如实随范围行展示；旧消息 JSON 缺失时为 nil。
+    var verificationNote: String? = nil
 
     var displayLabel: String {
         var trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -115,6 +144,12 @@ nonisolated struct HoloRenderedAnswerScope: Codable, Equatable, Sendable {
         }
         if provenance == .unspecified {
             trimmed = "默认范围"
+        }
+        if let truncatedNote, !truncatedNote.isEmpty {
+            trimmed += "（\(truncatedNote)）"
+        }
+        if let verificationNote, !verificationNote.isEmpty {
+            trimmed += "（\(verificationNote)）"
         }
         // 滚动窗口（近半年/模型解析/用户点选）的起止是算出来的，用户不知道具体日期，必须晒出来；
         // 词表命中的自然周期（本月/上月/今年）边界不言自明，不加冗余。
@@ -1132,6 +1167,26 @@ nonisolated struct HoloAgentResultRenderer {
         let first = cleaned.split { separators.contains($0) }.first.map(String.init) ?? cleaned
         let title = String(first.prefix(14)).trimmingCharacters(in: .whitespacesAndNewlines)
         return title.isEmpty ? "数据解读" : title
+    }
+
+    /// 云端深度分析的 section 语义标题（温暖陪伴 P0 统一展示口径）：
+    /// 与本地轨道 metricTitle 缺失时的路径同源——正文首句短标题，不再使用固定「发现 N」。
+    /// 重名时退「数据解读」保持每卡可区分（与本地 appendSection 终值一致）。
+    static func cloudSectionTitle(for body: String, usedTitles: inout Set<String>) -> String {
+        let title = shortTitle(from: body)
+        let unique = usedTitles.contains(title) ? "数据解读" : title
+        usedTitles.insert(unique)
+        return unique
+    }
+
+    /// v23 云端点破式标题的消费入口（prompt 已令模型给每条 claim 一个 ≤12 字提炼，
+    /// 后端已做数字对账）。本地反偷懒防线：标题等于正文首句短标题、或为正文前缀时
+    /// 视为模型偷懒复述正文，返回 nil 让调用方回退 cloudSectionTitle，改动不落空。
+    static func validatedClaimTitle(_ title: String?, body: String) -> String? {
+        guard let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        if trimmed == shortTitle(from: body) { return nil }
+        if body.hasPrefix(trimmed) { return nil }
+        return trimmed
     }
 
     private static func normalize(_ text: String) -> String {

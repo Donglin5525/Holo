@@ -10,6 +10,11 @@ import SwiftUI
 // MARK: - HealthView
 
 struct HealthView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var motionScenePhase
+    @Environment(\.holoMotionSurfaceIsActive) private var motionSurfaceActive
+    @AppStorage(HoloMotionRollout.interactionKey) private var motionEnabled = true
+    private var animateSync: Bool { isRefreshing && motionEnabled && !reduceMotion && motionScenePhase == .active && motionSurfaceActive }
     @Environment(\.dismiss) private var dismiss
     /// ZStack 平级常驻模式下的关闭动作（由 HomeView 注入）。
     /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
@@ -26,15 +31,19 @@ struct HealthView: View {
     @State private var trendMetric: HealthMetricType = .sleep
     @State private var isRefreshing = false
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    /// 切天内容滑入方向：切明天从右进、切昨天从左进（switchDay 里更新）
+    @State private var dayContentEdge: Edge = .leading
     /// 左右滑动切天的实时手势标记：快速轻扫时点击回调需同步读取，防止误触进详情/弹层
     @State private var daySwipeState = DaySwipeGestureState()
     @State private var dayData = HealthDayData()
     @State private var insightViewModel = HealthInsightViewModel()
     @State private var selectedEvidenceInsight: GeneratedHealthInsight?
+    /// 日期数据加载代数（R10，2026-10-04 体检）：快速切天时旧请求不得覆盖新日期
+    @State private var dateLoadGeneration = 0
 
     /// 宽屏双栏（通宵冲刺 D1）：expanded 档左（hero+指标+数据源）/右（洞察+生活闭环+周趋势），
     /// 修复单列卡片流在 iPad 全宽拉伸的「放大版 iPhone」观感；iPhone/竖屏单列不变。
-    @Environment(\.holoWindowWidth) private var healthWindowWidth
+    @Environment(\.holoContentWidth) private var healthWindowWidth
     private var isExpandedWidth: Bool {
         HoloAdaptiveLayout.isExpandedWidth(healthWindowWidth)
     }
@@ -107,7 +116,7 @@ struct HealthView: View {
             await insightViewModel.load()
         }
         .onChange(of: selectedDate) {
-            Task { await loadDateData() }
+            Task { await loadDateData(for: selectedDate) }
         }
         .sheet(item: $selectedEvidenceInsight) { insight in
             HealthInsightEvidenceSheet(insight: insight, evidence: insightViewModel.snapshot?.evidence ?? [])
@@ -171,11 +180,17 @@ struct HealthView: View {
                             }
                         }
                     }
+                    // 切天内容方向性滑入：id 随日期切换换身份触发过渡（滚动位置同步重置回顶部）
+                    .id(selectedDate)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: dayContentEdge).combined(with: .opacity),
+                        removal: .opacity
+                    ))
                     .padding(HoloSpacing.md)
                 }
             }
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
     }
 
     /// 数据源状态卡只在异常（部分连接）时常驻展示；
@@ -187,7 +202,7 @@ struct HealthView: View {
     private var healthFootnote: some View {
         Text("健康数据由 AI 分析，仅供参考")
             .font(.system(size: 11))
-            .foregroundColor(.holoTextSecondary.opacity(0.7))
+            .foregroundColor(.holoToolTextSecondary.opacity(0.7))
             .frame(maxWidth: .infinity, alignment: .center)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -199,9 +214,9 @@ struct HealthView: View {
         } label: {
             Image(systemName: "chevron.left")
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .frame(width: 40, height: 40)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(Circle())
                 .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         }
@@ -225,12 +240,12 @@ struct HealthView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("健康")
-                        .font(.holoTitle)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.pageTitle)
+                        .foregroundColor(.holoToolText)
 
                     Text(syncStatusText)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
 
                 Spacer()
@@ -264,12 +279,10 @@ struct HealthView: View {
                             style: StrokeStyle(lineWidth: 2, lineCap: .round)
                         )
                         .frame(width: 18, height: 18)
-                        .rotationEffect(.degrees(isRefreshing ? 360 : 0))
+                        .rotationEffect(.degrees(animateSync ? 360 : 0))
                         .animation(
-                            isRefreshing
-                                ? .linear(duration: 0.9).repeatForever(autoreverses: false)
-                                : .default,
-                            value: isRefreshing
+                            animateSync ? HoloAnimation.loadingRotation : nil,
+                            value: animateSync
                         )
 
                     Circle()
@@ -278,7 +291,7 @@ struct HealthView: View {
                 }
 
                 Text(isRefreshing ? String(localized: "同步中") : String(localized: "同步"))
-                    .font(.holoLabel)
+                    .holoText(.metadata)
                     .foregroundColor(.holoPrimary)
                     .lineLimit(1)
             }
@@ -301,17 +314,17 @@ struct HealthView: View {
 
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                 Text(snapshot.statusTitle)
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.sectionTitle)
+                    .foregroundColor(.holoToolText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Text(snapshot.statusSubtitle)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineSpacing(2)
 
                 Text(snapshot.ringBadgeText)
-                    .font(.holoLabel)
+                    .holoText(.metadata)
                     .foregroundColor(.holoPrimary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -322,11 +335,11 @@ struct HealthView: View {
             Spacer(minLength: 0)
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.xl)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoToolBorder, lineWidth: 1)
         )
         .shadow(color: HoloShadow.card, radius: 6, y: 2)
     }
@@ -340,20 +353,18 @@ struct HealthView: View {
             HStack(spacing: HoloSpacing.md) {
                 Image(systemName: "heart.fill")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(.holoToolAction)
                     .frame(width: 34, height: 34)
-                    .background(
-                        LinearGradient(colors: [.holoChart4, .holoChart7], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
+                    .background(Color.holoToolInset)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("身体状态")
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolText)
                     Text("静息心率 · HRV · 呼吸频率")
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
 
                 Spacer()
@@ -361,19 +372,19 @@ struct HealthView: View {
                 HStack(spacing: 4) {
                     Text("近 30 天")
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                 }
             }
             .padding(.horizontal, HoloSpacing.md)
             .padding(.vertical, 11)
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .stroke(Color.holoBorder, lineWidth: 1)
+                    .stroke(Color.holoToolBorder, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -406,18 +417,18 @@ struct HealthView: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(metric.type.color)
                 Text(metric.title)
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
                 Spacer()
                 // chevron 暗示可点击进入详情
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.5))
             }
 
             Text(metric.valueText)
                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
@@ -434,17 +445,17 @@ struct HealthView: View {
 
             Text(metric.targetText)
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
         .padding(12)
         .frame(maxWidth: .infinity, minHeight: 104)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoToolBorder, lineWidth: 1)
         )
     }
 
@@ -452,28 +463,28 @@ struct HealthView: View {
         HStack(spacing: HoloSpacing.md) {
             ZStack {
                 RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .fill(Color.holoTextPrimary)
+                    .fill(Color.holoToolText)
                     .frame(width: 42, height: 42)
 
                 Image(systemName: "apple.logo")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(.holoCardBackground)
+                    .foregroundColor(.holoToolSurface)
             }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(repository.dataSourceState.title)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
 
                 Text(repository.dataSourceState.subtitle)
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             Spacer()
 
             Text(repository.dataSourceState.badgeText)
-                .font(.holoLabel)
+                .holoText(.metadata)
                 .foregroundColor(repository.dataSourceState.badgeColor)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
@@ -484,15 +495,15 @@ struct HealthView: View {
             if repository.dataSourceState == .partiallyConnected {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoToolBorder, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onTapGesture {
@@ -525,25 +536,25 @@ struct HealthView: View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack {
                 Text("生活闭环")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
                 Spacer()
                 Text("\(lifestyleRows.count) 条关联")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             if lifestyleRows.isEmpty {
                 Text(lifestyleEmptyHint)
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 VStack(spacing: HoloSpacing.sm) {
                     ForEach(Array(lifestyleRows.enumerated()), id: \.offset) { _, row in
                         HStack(alignment: .top, spacing: HoloSpacing.sm) {
                             Text(row.badge)
-                                .font(.holoLabel)
+                                .holoText(.metadata)
                                 .foregroundColor(.white)
                                 .frame(width: 28, height: 28)
                                 .background(row.color)
@@ -551,12 +562,12 @@ struct HealthView: View {
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(row.title)
-                                    .font(.holoLabel)
-                                    .foregroundColor(.holoTextPrimary)
+                                    .holoText(.metadata)
+                                    .foregroundColor(.holoToolText)
 
                                 Text(row.detail)
                                     .font(.holoTinyLabel)
-                                    .foregroundColor(.holoTextSecondary)
+                                    .foregroundColor(.holoToolTextSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
 
@@ -574,11 +585,11 @@ struct HealthView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoToolBorder, lineWidth: 1)
         )
     }
 
@@ -643,7 +654,7 @@ struct HealthView: View {
                     selectedMetric = trendMetric
                 } label: {
                     Text("详情")
-                        .font(.holoLabel)
+                        .holoText(.metadata)
                         .foregroundColor(trendMetric.color)
                 }
                 .buttonStyle(.plain)
@@ -652,7 +663,7 @@ struct HealthView: View {
             HealthTrendChart(data: trendData, type: trendMetric)
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     private var trendPicker: some View {
@@ -663,8 +674,8 @@ struct HealthView: View {
                     trendMetric = metric
                 } label: {
                     Text(metric.displayName)
-                        .font(.holoLabel)
-                        .foregroundColor(trendMetric == metric ? metric.color : .holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(trendMetric == metric ? metric.color : .holoToolTextSecondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(trendMetric == metric ? metric.color.opacity(0.12) : Color.clear)
@@ -695,12 +706,12 @@ struct HealthView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(title)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
 
                 Text(detail)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -720,16 +731,16 @@ struct HealthView: View {
         VStack(spacing: HoloSpacing.lg) {
             Image(systemName: repository.dataSourceState == .denied ? "heart.slash.fill" : "iphone.slash")
                 .font(.system(size: 48, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.55))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.55))
 
             VStack(spacing: HoloSpacing.sm) {
                 Text(repository.dataSourceState.title)
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.sectionTitle)
+                    .foregroundColor(.holoToolText)
 
                 Text(repository.dataSourceState.subtitle)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                     .multilineTextAlignment(.center)
             }
 
@@ -739,13 +750,13 @@ struct HealthView: View {
                         UIApplication.shared.open(url)
                     }
                 }
-                .font(.holoBody)
+                .holoText(.body)
                 .foregroundColor(.holoPrimary)
             }
         }
         .padding(HoloSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
     }
 
     private var syncStatusText: String {
@@ -762,7 +773,7 @@ struct HealthView: View {
         case .denied:
             return String(localized: "健康权限已关闭")
         case .unavailable:
-            return String(localized: "此设备不支持 HealthKit")
+            return String(localized: "健康功能暂不支持 iPad 和 Mac")
         }
     }
 
@@ -772,20 +783,32 @@ struct HealthView: View {
 
     private func refreshAll() async {
         await repository.refresh()
-        await loadDateData()
+        await loadDateData(for: selectedDate)
     }
 
-    private func loadDateData() async {
-        dayData = await repository.fetchDayData(for: selectedDate)
-        weeklySleepData = await repository.fetchWeeklyData(for: .sleep, endingOn: selectedDate)
-        weeklyStepsData = await repository.fetchWeeklyData(for: .steps, endingOn: selectedDate)
-        weeklyWorkoutData = await repository.fetchWeeklyData(for: .workout, endingOn: selectedDate)
+    private func loadDateData(for date: Date) async {
+        // R10（2026-10-04 体检）：日期作为请求身份——四路查询一律用捕获的日期，
+        // 不在 await 后读变化中的 selectedDate；发布前核对代数，过期请求整体丢弃，
+        // 不再出现「标题是新日期、数值来自旧日期」或「日数据与周数据来自不同日期」
+        dateLoadGeneration += 1
+        let generation = dateLoadGeneration
+        let day = await repository.fetchDayData(for: date)
+        let sleep = await repository.fetchWeeklyData(for: .sleep, endingOn: date)
+        let steps = await repository.fetchWeeklyData(for: .steps, endingOn: date)
+        let workout = await repository.fetchWeeklyData(for: .workout, endingOn: date)
+        guard generation == dateLoadGeneration else { return }
+        dayData = day
+        weeklySleepData = sleep
+        weeklyStepsData = steps
+        weeklyWorkoutData = workout
     }
 
     /// 左右滑动切天：与日期胶囊共用同一条边界规则（不越过今天）
     private func switchDay(forward: Bool) {
         guard let newDate = HealthDateNavigator.steppedDate(from: selectedDate, forward: forward) else { return }
-        withAnimation(.easeInOut(duration: 0.2)) {
+        // 内容方向性过渡：切到明天新内容从右缘进，切到昨天从左缘进（与滑动方向一致）
+        dayContentEdge = forward ? .trailing : .leading
+        withAnimation(HoloAnimation.standard) {
             selectedDate = newDate
         }
     }

@@ -410,6 +410,7 @@ extension FinanceRepository {
         accountOverrides: [String: String] = [:],
         defaultAccountName: String? = nil,
         skipRowIndices: Set<Int> = [],
+        installmentAssignments: [Int: InstallmentImportRecognizer.Assignment] = [:],
         onProgress: @escaping (Int, Int) -> Void
     ) async -> BatchImportResult {
         let batchId = UUID()
@@ -642,14 +643,23 @@ extension FinanceRepository {
                 transaction.updatedAt = now
                 // 导入追踪字段
                 transaction.importBatchId = batchId
+                // 分期归组：命中行打上组标识；指纹带期次后缀（同文件多期同金额不互撞）
+                // dataRowIndex 与扫描侧 rowIndex 同口径（过滤后 1-based，进入本函数即自增）
+                let installment = installmentAssignments[dataRowIndex]
                 transaction.importFingerprint = DataImportService.makeFingerprint(
                     date: item.date,
                     amount: item.amount,
                     type: item.type,
                     primaryCategory: item.primaryCategory,
                     subCategory: item.subCategory,
-                    accountName: item.accountName
+                    accountName: item.accountName,
+                    installment: installment.map { (index: $0.index, total: $0.total) }
                 )
+                if let installment {
+                    transaction.installmentGroupId = installment.groupId
+                    transaction.installmentIndex = Int16(installment.index)
+                    transaction.installmentTotal = Int16(installment.total)
+                }
                 transaction.importOriginalUpdatedAt = now
                 // 账单来源与原始单号（同源防重 + 追溯 + 对账）
                 transaction.importSource = importSourceToken

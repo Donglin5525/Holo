@@ -25,21 +25,30 @@ struct LineChartView: View {
 
     @State private var hoveredDate: Date? = nil
 
+    /// 图表动画触发值：ChartDataPoint 的 id 是每次构造的随机 UUID（不可作 diff 依据），
+    /// 用当前口径（支出/收入）的金额序列当指纹，切日期范围或切换收支类型时线与面积平滑插值
+    private var animatedSignature: [Double] {
+        dataPoints.map { Double(truncating: amount(for: $0) as NSDecimalNumber) }
+    }
+
     private var selectablePoints: [ChartDataPoint] {
         (selectionDataPoints ?? dataPoints).filter(\.hasTransactions)
     }
 
     private var axisMarkDates: [Date] {
-        guard dataPoints.count > 14 else { return dataPoints.map(\.date) }
+        // 末位日期不进刻度层（会被尾侧 Y 轴截出的刻度文字层右缘钳位叠印），
+        // 由 chartOverlay 在绘图区右下角右对齐自绘，这里只出前面的刻度
+        let count = dataPoints.count
+        guard count > 1 else { return [] }
 
-        let desiredCount = 6
-        let lastIndex = dataPoints.count - 1
-        let step = max(Double(lastIndex) / Double(desiredCount - 1), 1)
-
-        return (0..<desiredCount).compactMap { index in
-            let dataIndex = min(Int((Double(index) * step).rounded()), lastIndex)
-            return dataPoints[dataIndex].date
+        if count > 14 {
+            let step = max(Double(count - 1) / 5, 1)
+            return (0..<5).compactMap { index in
+                let dataIndex = min(Int((Double(index) * step).rounded()), count - 2)
+                return dataPoints[dataIndex].date
+            }
         }
+        return dataPoints.dropLast().map(\.date)
     }
 
     /// 稳定 Y 轴域：取数据最大值向上取整到「好看」的刻度，避免小幅数据变动导致轴抖动
@@ -74,13 +83,16 @@ struct LineChartView: View {
             // 图表
             if dataPoints.isEmpty {
                 emptyChartView
+                    .transition(.opacity)
             } else {
                 chartContent
+                    .transition(.opacity)
             }
         }
+        .animation(HoloAnimation.smooth, value: dataPoints.isEmpty)
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 14)
-        .holoCard()
+        .holoSurface()
     }
 
     // MARK: - 图例
@@ -91,11 +103,11 @@ struct LineChartView: View {
                 Text("收支趋势")
                     .font(.holoLabel)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 Text(subtitle)
                     .font(.system(size: 10))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             Spacer(minLength: HoloSpacing.sm)
@@ -152,7 +164,7 @@ struct LineChartView: View {
                     x: .value("选中日期", point.date),
                     y: .value("选中金额", Double(truncating: amount(for: point) as NSDecimalNumber))
                 )
-                .foregroundStyle(Color.holoCardBackground)
+                .foregroundStyle(Color.holoToolSurface)
                 .symbolSize(66)
 
                 PointMark(
@@ -166,6 +178,7 @@ struct LineChartView: View {
         .chartXScale(
             range: .plotDimension(startPadding: 12, endPadding: 12)
         )
+        .animation(HoloAnimation.smooth, value: animatedSignature)
         .chartYScale(
             domain: yAxisDomain,
             range: .plotDimension(startPadding: 9, endPadding: 12)
@@ -177,7 +190,7 @@ struct LineChartView: View {
                        let label = labelForAxisDate(date) {
                         Text(label)
                             .font(.system(size: 10))
-                            .foregroundStyle(Color.holoTextSecondary)
+                            .foregroundStyle(Color.holoToolTextSecondary)
                     }
                 }
             }
@@ -190,7 +203,7 @@ struct LineChartView: View {
                     if let val = value.as(Double.self) {
                         Text(formatAxisValue(val))
                             .font(.system(size: 10))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .frame(width: 40, alignment: .trailing)
                     }
                 }
@@ -232,6 +245,17 @@ struct LineChartView: View {
                     }
                 )
 
+                // 末位日期自绘（原因见 axisMarkDates 注释）：右对齐钉在绘图区右缘
+                if let plotFrame,
+                   let lastPoint = dataPoints.last,
+                   let lastLabel = labelForAxisDate(lastPoint.date) {
+                    Text(lastLabel)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .frame(width: plotFrame.width, alignment: .trailing)
+                        .position(x: plotFrame.midX, y: plotFrame.maxY + 10)
+                }
+
                 // 触摸金额标注
                 if let hoveredDate,
                    let point = selectablePoints.first(where: { Calendar.current.isDate($0.date, inSameDayAs: hoveredDate) }),
@@ -261,7 +285,7 @@ struct LineChartView: View {
         VStack(spacing: 2) {
             Text(ChartTooltipDateLabel.string(for: point, points: dataPoints))
                 .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Text("\(displayedType == .expense ? "-" : "+")\(NumberFormatter.compactCurrency(amount(for: point)))")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(lineColor)
@@ -270,7 +294,7 @@ struct LineChartView: View {
         .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 4)
-                .fill(Color.holoCardBackground)
+                .fill(Color.holoToolSurface)
                 .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
         )
         .fixedSize()
@@ -353,11 +377,11 @@ struct LineChartView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "chart.line.uptrend.xyaxis")
                 .font(.system(size: 40, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             Text("暂无数据，这就开始记一笔吧！")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(height: 142)
         .frame(maxWidth: .infinity)
@@ -378,7 +402,7 @@ struct LegendItem: View {
                 .frame(width: 8, height: 8)
             Text(label)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
                 .fixedSize()
         }
@@ -404,5 +428,5 @@ struct LegendItem: View {
         Spacer()
     }
     .padding()
-    .background(Color.holoBackground)
+    .background(Color.holoToolBackground)
 }

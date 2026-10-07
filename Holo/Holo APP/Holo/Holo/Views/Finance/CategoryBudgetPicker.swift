@@ -101,7 +101,7 @@ struct CategoryBudgetPicker: View {
 
             // 独立的展开箭头：控制子分类显隐，不影响选中
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
+                withAnimation(HoloAnimation.standard) {
                     expandedParentId = isExpanded ? nil : parent.id
                 }
             } label: {

@@ -58,7 +58,7 @@ struct FirstVisitWelcomeBar: View {
 
                 Button {
                     OnboardingProgressStore.markSeen(seenKey)
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         visible = false
                     }
                 } label: {

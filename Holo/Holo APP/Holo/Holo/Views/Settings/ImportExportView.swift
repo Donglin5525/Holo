@@ -36,25 +36,19 @@ struct ImportExportView: View {
     @State private var showBillTutorial = false
     
     var body: some View {
-        VStack(spacing: HoloSpacing.md) {
-            // 区块标题
-            HStack {
-                Text("数据管理")
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
-                Spacer()
-            }
-            
+        HoloSettingsSection(title: "数据管理") {
             // 导出数据
             settingsRow(
                 icon: "square.and.arrow.up",
                 iconColor: .holoPrimary,
                 title: String(localized: "导出数据"),
-                subtitle: String(localized: "导出交易记录为 CSV 或 JSON")
+                subtitle: String(localized: "导出交易记录为 CSV/JSON，可含小票图片")
             ) {
                 showExportSheet = true
             }
-            
+
+            HoloSettingsDivider()
+
             // 导入数据
             settingsRow(
                 icon: "square.and.arrow.down",
@@ -65,16 +59,20 @@ struct ImportExportView: View {
                 showFilePicker = true
             }
 
+            HoloSettingsDivider()
+
             // 如何导出账单（图文教程）
             settingsRow(
                 icon: "questionmark.circle",
-                iconColor: .blue,
+                iconColor: .holoInfo,
                 title: String(localized: "如何导出账单"),
                 subtitle: String(localized: "微信/支付宝/银行账单的导出步骤")
             ) {
                 showBillTutorial = true
             }
-            
+
+            HoloSettingsDivider()
+
             // 下载导入模板
             settingsRow(
                 icon: "doc.text",
@@ -89,6 +87,7 @@ struct ImportExportView: View {
             // 开发环境：从沙箱 Documents 加载 CSV
             if let docURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
                FileManager.default.fileExists(atPath: docURL.appendingPathComponent("holo_import.csv").path) {
+                HoloSettingsDivider()
                 settingsRow(
                     icon: "flask",
                     iconColor: .orange,
@@ -100,7 +99,6 @@ struct ImportExportView: View {
             }
             #endif
         }
-        .padding(.horizontal, HoloSpacing.lg)
         // 导出选项 Sheet
         .sheet(isPresented: $showExportSheet) {
             ExportOptionsSheet()
@@ -160,7 +158,7 @@ struct ImportExportView: View {
     
     // MARK: - 设置行组件
     
-    /// 通用设置行样式
+    /// 通用设置行样式（外观统一走 HoloSettingsRow）
     private func settingsRow(
         icon: String,
         iconColor: Color,
@@ -169,37 +167,14 @@ struct ImportExportView: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: HoloSpacing.md) {
-                // 图标
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(iconColor.opacity(0.1))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(iconColor)
-                }
-                
-                // 文字
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-                    Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
-                }
-                
-                Spacer()
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
+            HoloSettingsRow(
+                icon: icon,
+                iconColor: iconColor,
+                title: title,
+                subtitle: subtitle
+            ) {
+                HoloSettingsChevron()
             }
-            .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -299,6 +274,7 @@ struct ExportOptionsSheet: View {
     
     @State private var selectedFormat: ExportFormat = .csv
     @State private var selectedRange: ExportDateRange = .all
+    @State private var includeReceipts = false
     @State private var isExporting = false
     @State private var shareURL: URL? = nil
     @State private var errorMessage: String? = nil
@@ -332,7 +308,7 @@ struct ExportOptionsSheet: View {
                         Text("日期范围")
                             .font(.holoHeading)
                             .foregroundColor(.holoTextPrimary)
-                        
+
                         // 使用 FlowLayout 式的标签
                         LazyVGrid(columns: [
                             GridItem(.flexible()),
@@ -343,6 +319,16 @@ struct ExportOptionsSheet: View {
                                 rangeTag(range)
                             }
                         }
+                    }
+                    .padding(.horizontal, HoloSpacing.lg)
+
+                    // 小票图片
+                    optionRow(
+                        title: String(localized: "包含小票图片"),
+                        subtitle: String(localized: "打包为 ZIP：账目数据 + 按日期命名的小票图片"),
+                        isSelected: includeReceipts
+                    ) {
+                        includeReceipts.toggle()
                     }
                     .padding(.horizontal, HoloSpacing.lg)
                     
@@ -375,7 +361,7 @@ struct ExportOptionsSheet: View {
             .background(Color.holoBackground)
             .navigationBarHidden(true)
         }
-        .presentationDetents([.height(460)])
+        .presentationDetents([.height(545)])
         .presentationDragIndicator(.hidden)
         // 分享
         .sheet(isPresented: Binding(
@@ -395,21 +381,26 @@ struct ExportOptionsSheet: View {
     
     /// 格式选项卡
     private func formatOption(_ format: ExportFormat) -> some View {
-        Button {
+        optionRow(title: format.rawValue, subtitle: format.description, isSelected: selectedFormat == format) {
             selectedFormat = format
-        } label: {
+        }
+    }
+
+    /// 通用选项行（单选卡片样式；格式选择与小票图片开关共用）
+    private func optionRow(title: String, subtitle: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(format.rawValue)
+                    Text(title)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
-                    Text(format.description)
+                    Text(subtitle)
                         .font(.system(size: 12))
                         .foregroundColor(.holoTextSecondary)
                 }
                 Spacer()
-                Image(systemName: selectedFormat == format ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(selectedFormat == format ? .holoPrimary : .holoTextSecondary.opacity(0.3))
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary.opacity(0.3))
                     .font(.system(size: 20))
             }
             .padding(HoloSpacing.md)
@@ -418,7 +409,7 @@ struct ExportOptionsSheet: View {
                     .fill(Color.holoCardBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: HoloRadius.md)
-                            .stroke(selectedFormat == format ? Color.holoPrimary.opacity(0.3) : Color.clear, lineWidth: 1.5)
+                            .stroke(isSelected ? Color.holoPrimary.opacity(0.3) : Color.clear, lineWidth: 1.5)
                     )
             )
         }
@@ -454,7 +445,8 @@ struct ExportOptionsSheet: View {
             do {
                 let url = try await DataExportService.shared.generateExportFile(
                     format: selectedFormat,
-                    dateRange: selectedRange.dateRange
+                    dateRange: selectedRange.dateRange,
+                    includeReceipts: includeReceipts
                 )
                 shareURL = url
             } catch {

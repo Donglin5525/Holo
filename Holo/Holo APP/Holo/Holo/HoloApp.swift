@@ -69,6 +69,9 @@ struct HoloApp: App {
         // V3 Phase 1：存量想法-主题关系一次性回填 ThoughtTopicLink（幂等，后台执行）
         ThoughtTopicLinkBackfillBootstrap.performIfNeeded()
 
+        // 一次性清洗：收入交易解除项目挂靠（口径=收入不挂项目；表单侧同批已修，此处清存量）
+        FinanceProjectIncomeDetachBootstrap.performIfNeeded()
+
         // V3 Phase 2：本机语义索引冷启动装配（幂等；默认 flag off 不产生网络行为）
         Task.detached(priority: .utility) {
             await ThoughtSemanticPipeline.shared.bootstrap()
@@ -131,6 +134,7 @@ struct HoloApp: App {
     /// 业务根视图与启动链；hosted test 下不挂载（见 init 注释）。
     private var appRoot: some View {
         ContentView()
+            .modifier(StoreConflictRecoveryGate())
             .preferredColorScheme(darkModeManager.colorScheme)
             .onOpenURL { url in
                 guard url.isFileURL else {
@@ -172,6 +176,13 @@ struct HoloApp: App {
             .task {
                 await SensitiveDebugDataMigration.runIfNeeded()
                 await HoloSubscriptionService.shared.refreshStatus()
+                #if DEBUG
+                // Plus 功能验收通道：HOLO_DEBUG_PLUS=1 本地按 Plus 展示（不落盘、不与服务端同步权益）。
+                // 放服务端刷新之后：后端免费态先落、本地覆盖最后写，测试机无网/有网都成立。
+                if ProcessInfo.processInfo.environment["HOLO_DEBUG_PLUS"] == "1" {
+                    HoloEntitlementState.shared.applyScreenshotPlusOverride()
+                }
+                #endif
 
                 // 检查通知权限状态
                 TodoNotificationService.shared.checkAuthorizationStatus()
@@ -189,9 +200,10 @@ struct HoloApp: App {
                 // 习惯打卡提醒 + 周一晨报：滚动重排
                 await HabitReminderScheduler.shared.handleAppActivity()
                 await WeeklyBriefScheduler.shared.handleAppActivity()
-                // 财务提醒：周期账单到期（Plus）+ 预算超支检查
+                // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
                 await BillDueReminderScheduler.shared.handleAppActivity()
                 await BudgetOverrunNotificationService.shared.handleAppActivity()
+                await BudgetCarryoverNotificationService.shared.handleAppActivity()
 
                 #if DEBUG
                 let appStoreScreenshotModeActive =
@@ -222,6 +234,12 @@ struct HoloApp: App {
 
                 // 统一领域记忆链是唯一写入口；旧 JSON 仅保留一个版本用于迁移回滚。
                 FinanceRepository.shared.setup()
+                #if DEBUG
+                // 财务图表/账本模拟器纵向验收合成数据（-FinanceDemoSeed 启动参数触发，幂等）
+                await FinanceDemoSeed.seedIfNeeded()
+                // 统计页「项目×分类」走查种子（-FinanceProjectSeed 触发，幂等）
+                await FinanceDemoSeed.seedProjectIfNeeded()
+                #endif
                 // 图片快捷指令自动记账（2026-09-14 方案 §27.2）：启动清理过期复核草案/证据（7 天），
                 // 不常驻轮询
                 ReceiptBookingResultStore.shared.purgeExpired()
@@ -270,10 +288,12 @@ struct HoloApp: App {
                 if HoloAIFeatureFlags.agentRuntimeEnabled {
                     await MainActor.run {
                         HoloBackgroundContinuationManager.shared.appDidLaunch()
-                        // 网络恢复自动唤醒等待网络的 Agent 任务（锁屏高可用）
-                        HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
-                        // 云端分析：恢复上次会话未领取的云端任务（结果云端暂存 ≤7 天）
-                        HoloCloudAnalysisService.shared.recoverIfNeeded()
+                    // 网络恢复自动唤醒等待网络的 Agent 任务（锁屏高可用）
+                    HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
+                    // 云端分析：恢复上次会话未领取的云端任务（结果云端暂存 ≤7 天）
+                    HoloCloudAnalysisService.shared.recoverIfNeeded()
+                    // 设备会话预热（S01）：提前持钥换会话，首个业务请求不必等两段往返
+                    HoloDeviceSessionManager.shared.warmUp()
                     }
                     // 遥测增量上报：上次会话的锁屏/租约/终态事件落服务端，出障可查
                     Task { await HoloAgentTelemetryUploader.shared.uploadIfNeeded() }
@@ -306,8 +326,17 @@ struct HoloApp: App {
                     }
                 case .active:
                     HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
+                    #if DEBUG
+                    // 删除链路 UITest 冒烟播种：须在兜底弹出之前落盘，弹出检查才能看到草案
+                    ReceiptBookingResultStore.shared.seedDraftsForUITestsIfRequested()
+                    #endif
+                    // 图片快捷记账确认页必达（2026-09-22）：回前台统一兜底——存在
+                    // 未自动弹过的待复核草案就直接弹复核页。用户从横幅/图标/多任务
+                    // 任何一路回到 Holo 都命中这里，不再依赖快捷指令拉起或通知点击。
+                    ReceiptBookingForegroundPresenter.presentIfNeeded()
                     // 想法整理：断网期间回退 pending 的条目，回前台有网时续做（幂等）
                     ThoughtOrganizationQueue.shared.appWillEnterForeground()
+                Task { await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts(); await ThoughtSemanticPipeline.shared.kickQueue() }
                     // 权益状态回前台刷新：长期后台驻留后续订/降级/他设备购买，本会话档位需跟上
                     Task { await HoloSubscriptionService.shared.refreshStatus() }
                     Task {
@@ -315,9 +344,10 @@ struct HoloApp: App {
                         await DailyBriefScheduler.shared.handleAppActivity()
                         await HabitReminderScheduler.shared.handleAppActivity()
                         await WeeklyBriefScheduler.shared.handleAppActivity()
-                        // 财务提醒：周期账单到期（Plus）+ 预算超支检查
+                        // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
                         await BillDueReminderScheduler.shared.handleAppActivity()
                         await BudgetOverrunNotificationService.shared.handleAppActivity()
+                        await BudgetCarryoverNotificationService.shared.handleAppActivity()
                         await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
                         await HoloReplayDigestService.shared.backfillIfNeeded(
                             historyRepo: MemoryInsightRepository()
@@ -346,45 +376,59 @@ struct HoloApp: App {
 
 /// 菜单栏命令：全部经 HoloShortcutBus 广播，由 ContentView（模块直跳）/ HomeView（新建/关闭/设置）响应。
 /// 替代旧「透明按钮挂快捷键」方案：接硬件键盘时菜单栏常显、任何页面都响应。
+/// Mac（为 iPad 设计）运行态例外：该运行态对菜单命令 ⌘ 快捷键的响应不可靠，
+/// 快捷键改由 ContentView 视图层直挂，这里菜单项保留但不注册快捷键，避免双触发。
 struct HoloIPadCommands: Commands {
+
+    /// 仅原生 iPadOS 注册菜单快捷键
+    private var registersShortcuts: Bool { !ProcessInfo.processInfo.isiOSAppOnMac }
+
+    /// 菜单命令按钮：按运行态决定是否携带 ⌘ 快捷键
+    @ViewBuilder
+    private func commandButton(
+        _ title: String,
+        key: KeyEquivalent,
+        action: @escaping () -> Void
+    ) -> some View {
+        if registersShortcuts {
+            Button(title, action: action)
+                .keyboardShortcut(key, modifiers: .command)
+        } else {
+            Button(title, action: action)
+        }
+    }
 
     var body: some Commands {
         CommandMenu(String(localized: "前往")) {
             ForEach(HoloSidebarDestination.mainItems) { dest in
                 if let number = dest.shortcutNumber {
-                    Button(dest.title) {
+                    commandButton(dest.title, key: KeyEquivalent(Character(String(number)))) {
                         HoloShortcutBus.shared.post(.goToSidebar(dest))
                     }
-                    .keyboardShortcut(KeyEquivalent(Character(String(number))), modifiers: .command)
                 }
             }
             Divider()
-            Button(String(localized: "个人")) {
+            commandButton(String(localized: "个人"), key: "9") {
                 HoloShortcutBus.shared.post(.goToSidebar(.profile))
             }
-            .keyboardShortcut("9", modifiers: .command)
-            Button(String(localized: "设置")) {
+            commandButton(String(localized: "设置"), key: ",") {
                 HoloShortcutBus.shared.post(.openSettings)
             }
-            .keyboardShortcut(",", modifiers: .command)
         }
 
         CommandMenu(String(localized: "文件")) {
-            Button(String(localized: "新建")) {
+            commandButton(String(localized: "新建"), key: "n") {
                 HoloShortcutBus.shared.post(.newItemAtCurrentModule)
             }
-            .keyboardShortcut("n", modifiers: .command)
-            Button(String(localized: "关闭当前模块")) {
+            commandButton(String(localized: "关闭当前模块"), key: "w") {
                 HoloShortcutBus.shared.post(.closeCurrentModule)
             }
-            .keyboardShortcut("w", modifiers: .command)
         }
 
         CommandMenu(String(localized: "编辑")) {
-            Button(String(localized: "在当前模块搜索")) {
+            commandButton(String(localized: "在当前模块搜索"), key: "f") {
                 HoloShortcutBus.shared.post(.searchInCurrentModule)
             }
-            .keyboardShortcut("f", modifiers: .command)
         }
     }
 }

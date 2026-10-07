@@ -52,6 +52,13 @@ class CalendarState: ObservableObject {
     
     /// 选中日期的交易列表
     @Published var selectedDayTransactions: [Transaction] = []
+
+    /// 渲染用有效明细：外部删除路径（如分类删除连查明细）落库后、刷新落地前，
+    /// 数组会短暂残留已失效对象（managedObjectContext 已被清空），
+    /// SwiftUI 渲染读其属性会强桥接崩溃（开发规范 13 节场景 C），消费方一律用本属性
+    var liveDayTransactions: [Transaction] {
+        selectedDayTransactions.filter { $0.managedObjectContext != nil }
+    }
     
     /// 选中日期支出/收入
     @Published var selectedDayExpense: Decimal = 0
@@ -75,18 +82,46 @@ class CalendarState: ObservableObject {
     
     /// 缓存：key = 月首日，value = 月度 DailySummary
     private var summaryCache: [Date: [Date: DailySummary]] = [:]
+
+    /// 已并入 dailySummaries 共享桶的月份（key = 月首日）：
+    /// 周历/月历按天查桶且可见日期可跨月，桶里必须同时有相邻月的数据
+    private var loadedSummaryMonths: Set<Date> = []
+
     private let repository = FinanceRepository.shared
+
+    /// 财务数据变化通知订阅
+    private var changeObserver: AnyCancellable?
+
+    init() {
+        // 与 FinanceView 同生命周期，在此统一监听财务数据变化并清缓存重载：
+        // 不依赖账本视图恰好在屏（此前在固定支出页落账后切回账本，月度卡片仍是旧缓存）
+        changeObserver = NotificationCenter.default
+            .publisher(for: .financeDataDidChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                Task { @MainActor in self?.refreshAfterDataChange() }
+            }
+    }
     
     // MARK: - 日期操作
     
     /// 选中某一天（自动加载交易数据）
     func selectDate(_ date: Date) {
+        // 跨月选日时必须重载该月汇总与环比，否则顶部"本月支出"卡残留上一个月的数字
+        let monthChanged = !date.isSameMonth(as: currentMonth)
         selectedDate = date
         currentWeekStart = date.startOfWeek
-        if !date.isSameMonth(as: currentMonth) {
+        if monthChanged {
             currentMonth = date.startOfMonth
         }
-        Task { await loadSelectedDayData() }
+        Task {
+            if monthChanged {
+                await loadMonthSummaries(for: currentMonth)
+                await loadPreviousPeriodComparison()
+            }
+            await ensureWeekMonthsLoaded()
+            await loadSelectedDayData()
+        }
     }
     
     func goToNextMonth() { currentMonth = currentMonth.addingMonths(1); loadMonthIfNeeded() }
@@ -151,28 +186,41 @@ class CalendarState: ObservableObject {
         await loadSelectedDayData()
         loadMonthlySummary()
         await loadPreviousPeriodComparison()
+        await ensureWeekMonthsLoaded()
         await loadHasAnyTransaction()
         isLoading = false
     }
+
+    /// 周历可见 7 天可能横跨两个月：把两端月份的汇总都并入共享桶，
+    /// 否则缺月一侧的日期金额显示为空（loadMonthSummaries 带缓存，重复调用无害）
+    func ensureWeekMonthsLoaded() async {
+        await loadMonthSummaries(for: currentWeekStart)
+        await loadMonthSummaries(for: currentWeekStart.addingDays(6))
+    }
     
-    /// 加载指定月的汇总（带缓存）
+    /// 加载指定月的汇总（带缓存；结果并入共享桶，不整桶替换）
     func loadMonthSummaries(for month: Date) async {
         let key = month.startOfMonth
         if let cached = summaryCache[key] {
-            dailySummaries = cached
-            if currentMonth.startOfMonth == key { loadMonthlySummary() }
+            mergeSummaries(cached, for: key)
             return
         }
         do {
             let data = try await repository.getDailySummaries(for: key)
             summaryCache[key] = data
-            if currentMonth.startOfMonth == key {
-                dailySummaries = data
-                loadMonthlySummary()
-            }
+            mergeSummaries(data, for: key)
         } catch {
             logger.error("加载月汇总失败: \(error)")
         }
+    }
+
+    /// 月度数据并入 dailySummaries 共享桶：
+    /// 周历/月历的可见日期会跨月（如 9/28~10/4 那一周），整桶替换会让
+    /// 跨月日的金额随加载顺序闪没（2026-10-01 东林实测），所以按月合并、共存于桶内
+    private func mergeSummaries(_ data: [Date: DailySummary], for monthKey: Date) {
+        dailySummaries.merge(data) { _, new in new }
+        loadedSummaryMonths.insert(monthKey)
+        if currentMonth.startOfMonth == monthKey { loadMonthlySummary() }
     }
     
     /// 加载选中日的交易 + 统计
@@ -181,19 +229,28 @@ class CalendarState: ObservableObject {
             let txns = try await repository.getTransactionsForDay(selectedDate)
                 .filter { !$0.isDeleted }
             selectedDayTransactions = txns
-            selectedDayExpense = txns.filter { $0.transactionType == .expense }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
-            selectedDayIncome = txns.filter { $0.transactionType == .income }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            // 统计口径：退款笔按负支出并入当日支出（冲到账当月当日），不进收入
+            selectedDayExpense = txns.filter { $0.statisticsType == .expense }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
+            selectedDayIncome = txns.filter { $0.statisticsType == .income }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
         } catch {
             logger.error("加载日交易失败: \(error)")
         }
     }
 
-    /// 数据变更后刷新（清缓存 + 重新加载，await 版本）
+    /// 数据变更后刷新（清缓存 + 重载所有已并入月份，await 版本）
     func refreshData() async {
         summaryCache.removeAll()
-        await loadMonthSummaries(for: currentMonth)
+        // 当月先刷（月度卡片最显眼），其余已并入月份补齐跨月周历
+        let currentKey = currentMonth.startOfMonth
+        var months = loadedSummaryMonths.filter { $0 != currentKey }.sorted()
+        if loadedSummaryMonths.contains(currentKey) {
+            months.insert(currentKey, at: 0)
+        }
+        for month in months {
+            await loadMonthSummaries(for: month)
+        }
         await loadSelectedDayData()
         await loadPreviousPeriodComparison()
         await loadHasAnyTransaction()
@@ -215,11 +272,11 @@ class CalendarState: ObservableObject {
     
     // MARK: - 月度汇总 & 环比
 
-    /// 从已缓存的 dailySummaries 聚合当月总支出/收入
+    /// 聚合当月总支出/收入（共享桶内可能并有多月数据，必须从当月缓存圈定）
     func loadMonthlySummary() {
         var totalExpense: Decimal = 0
         var totalIncome: Decimal = 0
-        for (_, summary) in dailySummaries {
+        for (_, summary) in summaryCache[currentMonth.startOfMonth] ?? [:] {
             totalExpense += summary.totalExpense
             totalIncome += summary.totalIncome
         }

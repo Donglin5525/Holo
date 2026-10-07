@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>习惯痕迹设计 V3 · 三方案对比（30 天）</title>
+<style>
+  :root {
+    --bg:#1C1C1E; --surface:#2C2C2E; --inset:#3A3A3C; --border:#48484A;
+    --text:#F5F5F5; --text2:#A8A8A8; --accent:#FF8A5C; --primary:#EA580C;
+  }
+  .light {
+    --bg:#FDFCF8; --surface:#FFFFFF; --inset:#F7F1EA; --border:#E9E4DA;
+    --text:#333333; --text2:#6E6E6E; --accent:#EA580C; --primary:#EA580C;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body {
+    background:#000; font-family:-apple-system,"PingFang SC",sans-serif;
+    display:flex; gap:32px; justify-content:center; align-items:flex-start;
+    padding:28px 16px; min-height:100vh;
+  }
+  .panel { width:250px; padding:18px; background:#111; border:1px solid #333; border-radius:14px; position:sticky; top:28px; }
+  .panel h1 { font-size:15px; color:#fff; margin-bottom:4px; }
+  .panel p.desc { font-size:11px; color:#888; line-height:1.6; margin-bottom:14px; }
+  .panel .grp { margin-bottom:14px; }
+  .panel .grp label { display:block; font-size:11px; color:#aaa; margin-bottom:6px; }
+  .panel button {
+    display:block; width:100%; padding:9px 10px; margin-bottom:6px;
+    background:#1e1e1e; color:#ddd; border:1px solid #333; border-radius:8px;
+    font-size:12px; cursor:pointer; text-align:left; line-height:1.5;
+  }
+  .panel button:hover { border-color:#EA580C; }
+  .panel button.on { border-color:#EA580C; color:#FF8A5C; }
+  .panel button small { display:block; color:#888; font-size:10px; }
+  .panel button.on small { color:#c9714a; }
+  .panel .note { font-size:11px; color:#777; line-height:1.7; border-top:1px solid #333; padding-top:12px; }
+  .panel .note b { color:#FF8A5C; font-weight:600; }
+
+  .phone {
+    width:390px; height:844px; border-radius:44px; overflow:hidden;
+    border:6px solid #222; background:var(--bg); position:relative;
+    display:flex; flex-direction:column; color:var(--text); transition:background .25s;
+  }
+  .statusbar { height:44px; display:flex; align-items:center; justify-content:space-between; padding:0 26px; font-size:14px; font-weight:600; flex-shrink:0; }
+  .scroll { flex:1; overflow-y:auto; padding:0 20px 20px; }
+  .navrow { display:flex; align-items:center; justify-content:space-between; }
+  .navrow .back { font-size:18px; width:40px; height:40px; display:flex; align-items:center; }
+  .navrow .add { width:36px; height:36px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:18px; color:#fff; }
+  h1.title { font-size:24px; font-weight:800; margin-bottom:2px; }
+  .dateline { font-size:13px; color:var(--text2); margin-bottom:12px; }
+  .dateline b { color:var(--text); font-weight:600; }
+
+  /* 七天抽屉（沿用已确认布局） */
+  .drawer { background:var(--surface); border-radius:12px; margin-bottom:10px; overflow:hidden; }
+  .drawer-head { display:flex; align-items:center; gap:8px; padding:11px 14px; cursor:pointer; }
+  .drawer-head .t { font-size:13px; font-weight:600; flex:1; }
+  .drawer-head .sum { font-size:12px; color:var(--text2); }
+  .drawer-head .chev { font-size:11px; color:var(--text2); transition:transform .25s; }
+  .drawer.open .drawer-head .chev { transform:rotate(90deg); }
+  .drawer-body { max-height:0; overflow:hidden; transition:max-height .3s ease; }
+  .drawer.open .drawer-body { max-height:120px; }
+  .weekstrip { display:flex; gap:6px; padding:2px 14px 14px; }
+  .day { flex:1; border-radius:9px; background:var(--inset); display:flex; flex-direction:column; align-items:center; gap:2px; padding:7px 0; }
+  .day .d { font-size:10px; color:var(--text2); }
+  .day .c { font-size:13px; font-weight:600; }
+  .day .c.zero { color:var(--text2); opacity:.55; }
+  .day.today { background:var(--primary); }
+  .day.today .d { color:rgba(255,255,255,.85); }
+  .day.today .c { color:#fff; }
+
+  .grouprow { display:flex; align-items:center; justify-content:space-between; margin:4px 0 2px; }
+  .grouprow .g { font-size:12px; font-weight:600; color:var(--text2); }
+  .seg { display:flex; background:var(--inset); border-radius:8px; padding:2px; }
+  .seg span { font-size:11px; padding:4px 10px; border-radius:6px; color:var(--text2); cursor:pointer; }
+  .seg span.on { background:var(--surface); color:var(--text); font-weight:600; }
+  .light .seg span.on { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+
+  .rows { display:flex; flex-direction:column; }
+  .row { padding:11px 0 12px; border-bottom:.5px solid var(--border); }
+  .row:last-child { border-bottom:none; }
+  .rowmain { display:flex; align-items:center; gap:12px; }
+  .hicon { width:34px; height:34px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .hmain { flex:1; min-width:0; }
+  .hname { font-size:16px; font-weight:600; margin-bottom:2px; }
+  .hsub { font-size:12px; color:var(--text2); }
+  .hsub b { color:var(--text); font-weight:500; }
+  .hsub .ok { color:var(--accent); }
+  .actions { display:flex; align-items:center; gap:9px; flex-shrink:0; }
+  .val { font-size:18px; font-weight:700; min-width:24px; text-align:center; }
+  .mini { width:30px; height:30px; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .mini.ghost { background:transparent; color:var(--text2); font-size:16px; }
+  .mini.filled { background:var(--hc); color:#fff; }
+  .pill { border:none; cursor:pointer; border-radius:999px; padding:8px 15px; font-size:13px; font-weight:600; background:var(--inset); color:var(--text); }
+  .pill.done { background:var(--hc); color:#fff; }
+
+  /* ══ 痕迹区（行宽 350pt）══ */
+  .trailbox { margin-top:10px; cursor:pointer; }
+  .trail-legend { font-size:9px; color:var(--text2); opacity:.6; margin-top:5px; letter-spacing:.3px; }
+
+  /* ── 方案 A 刻度墨尺 ── */
+  .tA { position:relative; height:20px; }
+  .tA .rail { position:absolute; left:0; right:0; top:10px; height:1px; background:var(--border); }
+  .tA .slot { position:absolute; width:11.67%; top:0; bottom:0; }
+  .tA .slot .tick { position:absolute; left:50%; transform:translateX(-50%); width:2.5px; border-radius:1.5px; background:var(--border); opacity:.7; }
+  .tA .slot.hit .tick { height:12px; top:4.5px; background:var(--hc); opacity:.9; }
+  .tA .slot.miss .tick { height:5px; top:8px; }
+  .tA .slot.retro .tick { width:5.5px; height:12px; top:4.5px; background:transparent; border:1.2px solid var(--hc); opacity:.85; }
+  .tA .slot.pause .tick { width:2.5px; height:2.5px; border-radius:50%; top:9px; }
+  .tA .slot.today::after { content:""; position:absolute; left:50%; transform:translateX(-50%); top:0; width:3.5px; height:3.5px; border-radius:50%; background:var(--hc); }
+
+  /* ── 方案 B 缝线日课 ── */
+  .tB { position:relative; height:20px; display:flex; }
+  .tB .slot { flex:1; position:relative; }
+  .tB .slot .st { position:absolute; left:50%; transform:translateX(-50%); border-radius:2px; }
+  .tB .slot.hit .st { width:6px; height:3px; top:9px; background:var(--hc); opacity:.9; }
+  .tB .slot.miss .st { width:2.5px; height:2.5px; border-radius:50%; top:9px; background:var(--border); opacity:.7; }
+  .tB .slot.retro .st { width:6px; height:3px; top:9px; background:var(--hc); opacity:.9; box-shadow:0 2.5px 0 -0.5px var(--hc); opacity:.85; }
+  .tB .slot.pause .st { width:6px; height:1px; top:10px; background:var(--border); opacity:.8; }
+  .tB .slot.today::after { content:""; position:absolute; left:50%; transform:translateX(-50%); top:2px; width:4px; height:4px; border-radius:50%; border:1px solid var(--hc); opacity:.65; }
+
+  /* ── 方案 C 墨条生长 ── */
+  .tC { position:relative; height:12px; display:flex; align-items:center; }
+  .tC .rail { position:absolute; left:0; right:0; height:4px; border-radius:2px; background:var(--inset); }
+  .light .tC .rail { background:var(--inset); }
+  .tC .slot { position:absolute; top:4px; height:4px; width:3.72%; background:transparent; }
+  .tC .slot.hit { background:var(--hc); opacity:.88; }
+  .tC .slot.retro { background:var(--hc); opacity:.45; }
+  .tC .slot.pause { background:transparent; }
+  .tC .slot.pause::after { content:""; position:absolute; left:50%; transform:translateX(-50%); top:-1px; width:3px; height:6px; background:var(--bg); border-radius:1px; }
+  .tC .slot.pause::before { content:""; position:absolute; left:50%; transform:translateX(-50%); top:1.5px; width:3px; height:1px; background:var(--border); }
+  .tC .pen { position:absolute; top:3.5px; width:5px; height:5px; border-radius:50%; background:var(--hc); box-shadow:0 0 0 1.5px var(--bg); z-index:2; }
+  .light .tC .pen { box-shadow:0 0 0 1.5px var(--bg); }
+
+  /* 原始小点（对比用） */
+  .tO { display:flex; gap:7px; margin-top:10px; }
+  .tO i { width:7px; height:7px; border-radius:50%; background:var(--inset); }
+  .light .tO i { background:var(--border); }
+  .tO i.hit { background:var(--hc); opacity:.85; }
+
+  .bottomnav { flex-shrink:0; background:var(--surface); display:flex; padding:8px 0 26px; }
+  .bottomnav div { flex:1; text-align:center; }
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <h1>痕迹设计 · 三方案（30 天）</h1>
+  <p class="desc">ios-design 专项产出的三个方向，全部按 <b>30 天信息密度</b>设计。点痕迹区任意位置，弹层会告诉你落在哪一天。</p>
+  <div class="grp">
+    <label>方案切换</label>
+    <button id="psC" class="on" onclick="setPlan('C')">C · 墨条生长（设计推荐）<small>连续坚持连成一段墨条，长度=坚持的长度；笔尖停在今天</small></button>
+    <button id="psA" onclick="setPlan('A')">A · 刻度墨尺<small>一根发丝底线串 30 个刻度，记录是落墨，可数单日</small></button>
+    <button id="psB" onclick="setPlan('B')">B · 缝线日课<small>手工缝线：坚持是连续针脚，漏掉是针眼，补录是回针双线</small></button>
+    <button id="psO" onclick="setPlan('O')">旧版小点（对比用）</button>
+  </div>
+  <div class="grp">
+    <label>外观</label>
+    <button id="btnDark" class="on" onclick="setTheme('dark')">深色</button>
+    <button id="btnLight" onclick="setTheme('light')">浅色</button>
+  </div>
+  <div class="note">
+    <b>四态图例（各方案形状区分，不靠颜色）</b><br>
+    实心满形 = 已记录 ｜ 半形/露轨 = 未记录 ｜ 空心/浅色带缝 = 补录 ｜ 独立小断口 = 暂停日（不算断）<br><br>
+    <b>点击痕迹区</b>会弹出落点日期——验证"点某天看当天"的交互。
+  </div>
+</div>
+
+<div class="phone" id="phone">
+  <div class="statusbar"><span>23:06</span><span>🔋 56</span></div>
+  <div class="scroll">
+    <div class="navrow">
+      <div class="back">‹</div>
+      <div class="add">＋</div>
+    </div>
+    <h1 class="title">习惯</h1>
+    <div class="dateline">10月6日 星期二 · <b>已记录 1 项</b></div>
+
+    <div class="drawer" id="weekDrawer">
+      <div class="drawer-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="t">📅 最近七天</span>
+        <span class="sum">本周 3 天有记录</span>
+        <span class="chev">›</span>
+      </div>
+      <div class="drawer-body">
+        <div class="weekstrip">
+          <div class="day"><span class="d">30日</span><span class="c zero">0</span></div>
+          <div class="day"><span class="d">1日</span><span class="c zero">0</span></div>
+          <div class="day"><span class="d">2日</span><span class="c">1</span></div>
+          <div class="day"><span class="d">3日</span><span class="c zero">0</span></div>
+          <div class="day"><span class="d">4日</span><span class="c">2</span></div>
+          <div class="day"><span class="d">5日</span><span class="c zero">0</span></div>
+          <div class="day today"><span class="d">6日</span><span class="c">1</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grouprow">
+      <span class="g">每日习惯</span>
+      <div class="seg">
+        <span class="on">全部</span><span onclick="this.classList.toggle('on');this.previousElementSibling.classList.toggle('on')">未记录</span>
+      </div>
+    </div>
+
+    <div class="rows" id="rows"></div>
+  </div>
+
+  <div class="bottomnav">
+    <div><div style="width:4px;height:4px;border-radius:50%;background:var(--accent);margin:0 auto 3px;"></div><div style="font-size:20px;">✔️</div><div style="font-size:10px;color:var(--accent);margin-top:2px;">今天</div></div>
+    <div><div style="width:4px;height:4px;margin:0 auto 3px;"></div><div style="font-size:20px;opacity:.55;">🗓</div><div style="font-size:10px;color:var(--text2);margin-top:2px;">回顾</div></div>
+    <div><div style="width:4px;height:4px;margin:0 auto 3px;"></div><div style="font-size:20px;opacity:.55;">🎚</div><div style="font-size:10px;color:var(--text2);margin-top:2px;">管理</div></div>
+  </div>
+</div>
+
+<script>
+/* 状态: 1=已记录 0=未记录 2=补录 3=暂停；最后一位=今天 */
+const habits = [
+  { name:"晨间阅读", icon:"📖", color:"#D9662C", kind:"checkin",
+    sub:'<b>连续达标 1 天</b> · <span class="ok">已达标</span>',
+    actions:'<button class="pill done">✓</button>',
+    trail:[1,1,1,0,0,1,1,1,1,1,0,0,1,1,1,1,1,0,0,0,1,1,1,0,1,1,1,1,1,1] },
+  { name:"23:30 前上床", icon:"🌙", color:"#8063CE", kind:"checkin",
+    sub:"未记录",
+    actions:'<button class="pill">打卡</button>',
+    trail:[0,0,1,1,1,0,0,0,1,1,0,0,0,1,1,1,0,0,3,3,3,3,0,0,0,0,0,0,0,0] },
+  { name:"30 分钟运动", icon:"🏃", color:"#2FA360", kind:"checkin",
+    sub:"未记录",
+    actions:'<button class="pill">打卡</button>',
+    trail:[1,0,0,0,1,1,1,0,0,0,1,1,1,1,0,0,1,1,1,0,0,1,1,1,1,1,0,0,1,0] },
+  { name:"戒烟", icon:"🚭", color:"#D64545", kind:"count",
+    sub:'今天 <b>1 / 10 支</b>',
+    actions:'<button class="mini ghost">−</button><span class="val">1</span><button class="mini filled">＋</button>',
+    trail:[0,1,0,2,0,0,1,0,1,0,0,1,0,0,2,0,0,1,0,1,0,0,1,0,1,0,2,0,0,1] },
+  { name:"体重", icon:"⚖️", color:"#1F9E9E", kind:"measure",
+    sub:"上次 64.2 kg · 10月4日",
+    actions:'<button class="pill">记录</button>',
+    trail:[0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0] },
+];
+
+let plan = "C";
+
+function trailHTML(h) {
+  const n = h.trail.length;
+  if (plan === "O") {
+    return `<div class="tO">${h.trail.map(t=>`<i class="${t===1||t===2?'hit':''}"></i>`).join("")}</div>`;
+  }
+  if (plan === "C") {
+    const slots = h.trail.map((t,i)=>{
+      const cls = t===1?'hit':t===2?'retro':t===3?'pause':'';
+      return `<div class="slot ${cls}" style="left:${i*100/n}%"></div>`;
+    }).join("");
+    const penLeft = `calc(${(n-0.5)*100/n}% - 2.5px)`;
+    return `<div class="tC"><div class="rail"></div>${slots}<div class="pen" style="left:${penLeft}"></div></div>`;
+  }
+  if (plan === "A") {
+    const slots = h.trail.map((t,i)=>{
+      const cls = t===1?'hit':t===2?'retro':t===3?'pause':'miss';
+      return `<div class="slot ${cls}" style="left:${i*100/n}%"><div class="tick"></div></div>`;
+    }).join("");
+    return `<div class="tA"><div class="rail"></div>${slots}</div>`;
+  }
+  /* B */
+  const slots = h.trail.map((t,i)=>{
+    const cls = t===1?'hit':t===2?'retro':t===3?'pause':'miss';
+    const today = i===n-1 ? ' today' : '';
+    return `<div class="slot ${cls}${today}"><div class="st"></div></div>`;
+  }).join("");
+  return `<div class="tB">${slots}</div>`;
+}
+
+function render() {
+  const rows = document.getElementById("rows");
+  rows.innerHTML = "";
+  for (const h of habits) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.setProperty("--hc", h.color);
+    row.innerHTML = `
+      <div class="rowmain">
+        <div class="hicon" style="background:${h.color}22;color:${h.color}">${h.icon}</div>
+        <div class="hmain">
+          <div class="hname">${h.name}</div>
+          <div class="hsub">${h.sub}</div>
+        </div>
+        <div class="actions">${h.actions}</div>
+      </div>
+      <div class="trailbox" onclick="trailTap(event, this, '${h.name}')">${trailHTML(h)}
+        <div class="trail-legend" id="lg"></div>
+      </div>`;
+    rows.appendChild(row);
+  }
+  legend();
+}
+
+function legend() {
+  const texts = {
+    C:"30 天 · 实心=已记录 ｜ 露轨=未记录 ｜ 浅色带缝=补录 ｜ 断口=暂停 ｜ 圆点=今天（点痕迹区试定位）",
+    A:"30 天刻度 · 满高墨迹=已记录 ｜ 半高=未记录 ｜ 空心=补录 ｜ 轨上圆点=暂停 ｜ 悬点=今天",
+    B:"30 天针脚 · 针脚=已记录 ｜ 针眼=未记录 ｜ 双线=补录 ｜ 搭线=暂停 ｜ 空圈=今天",
+    O:"7→30 天小点（原版，供对比）"
+  };
+  document.querySelectorAll(".trail-legend").forEach(el=>el.textContent = texts[plan] || "");
+}
+
+/* 点击痕迹区：按落点吸附最近一天，弹层展示对应日期 */
+function trailTap(evt, box, name) {
+  const rect = box.getBoundingClientRect();
+  const ratio = Math.min(Math.max((evt.clientX - rect.left) / rect.width, 0), 0.999);
+  const idx = Math.floor(ratio * 30);
+  const dayOffset = 29 - idx;
+  const d = new Date(); d.setDate(d.getDate() - dayOffset);
+  const txt = `${d.getMonth()+1}月${d.getDate()}日`;
+  const t = habits.find(h=>h.name===name).trail[idx];
+  const state = t===1?"已记录":t===2?"补录":t===3?"暂停日":"未记录";
+  const old = box.querySelector(".tapfly");
+  if (old) old.remove();
+  const fly = document.createElement("div");
+  fly.className = "tapfly";
+  fly.style.cssText = "position:absolute;top:-26px;left:"+ratio*100+"%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:10px;padding:3px 8px;border-radius:6px;white-space:nowrap;z-index:5;";
+  fly.textContent = `${txt} · ${state}`;
+  box.appendChild(fly);
+  setTimeout(()=>fly.remove(), 1400);
+}
+
+function setPlan(p) {
+  plan = p;
+  ["C","A","B","O"].forEach(k=>document.getElementById("ps"+k).classList.toggle("on", k===p));
+  render();
+}
+function setTheme(t) {
+  document.getElementById("phone").classList.toggle("light", t==="light");
+  document.getElementById("btnDark").classList.toggle("on", t==="dark");
+  document.getElementById("btnLight").classList.toggle("on", t==="light");
+}
+render();
+</script>
+</body>
+</html>

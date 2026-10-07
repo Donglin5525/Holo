@@ -229,6 +229,12 @@ final class HoloBackendAIProvider: AIProvider {
         try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .matterReconciliation)
     }
 
+    /// 任务分步推进：后端注入 matter_execution_plan 系统 prompt（proposal/clarification/cannotHelp 契约）。
+    /// 输入为最小任务快照，输出由 HoloTaskExecutionProposalCoordinator 解析校验；采纳前零业务写入。
+    func generateExecutionPlan(prompt: String, context: UserContext) async throws -> String {
+        try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .matterExecutionPlan)
+    }
+
     /// 个人情境萃取：后端注入 personal_context_extraction 系统 prompt（JSON 契约），
     /// prompt 已含来源片段与既有候选；解析由 HoloPersonalContextResponseParser 负责。
     func extractPersonalContext(prompt: String, context: UserContext) async throws -> String {
@@ -276,11 +282,13 @@ final class HoloBackendAIProvider: AIProvider {
 
     /// 使用自定义 purpose 的非流式 chat 调用（不注入 UserContext）。
     /// step 非 nil 且 purpose 为 agentLoop 时按 §8.1 携带 runId/stepId/requestHash（step 幂等）。
+    /// explicitUsageActionId：会话稳定额度动作 ID（today_relief_plan 等修复沿用同一动作）。
     func chat(messages: [ChatMessageDTO], purpose: HoloBackendPurpose,
-              step: HoloAgentLLMRequestRecord? = nil) async throws -> String {
+              step: HoloAgentLLMRequestRecord? = nil,
+              explicitUsageActionId: String? = nil) async throws -> String {
         try ensureDataProcessingConsent()
         let responseFormat: ResponseFormat? = (purpose == .agentLoop || purpose == .weeklyPlanGeneration) ? .jsonObject : nil
-        let request = buildRequest(purpose: purpose, messages: messages, responseFormat: responseFormat, step: step)
+        let request = buildRequest(purpose: purpose, messages: messages, responseFormat: responseFormat, step: step, explicitUsageActionId: explicitUsageActionId)
         let completion: APIClient.Response<ChatCompletionResponse> = try await apiClient.sendWithResponse(request)
         let response = completion.value
         let requestId = completion.httpResponse.value(forHTTPHeaderField: "X-Holo-Request-Id")
@@ -356,6 +364,24 @@ final class HoloBackendAIProvider: AIProvider {
         let request = APIRequest(
             baseURL: baseURL,
             path: "/v1/thoughts/topic-summary",
+            method: .post,
+            headers: [
+                "Content-Type": "application/json",
+                "X-Holo-Device-Id": deviceIdProvider()
+            ],
+            body: body
+        )
+        return try await apiClient.send(request)
+    }
+
+    /// 想法按需洞察（POST /v1/thoughts/insight，2026-09-24 方案 §5.1「帮我想想」）。
+    /// 只带当前笔记脱敏正文；回答区分原文观察与 AI 推测；隐私闸门未核实时
+    /// 后端 503，调用方展示「暂不可用」。需要后端发版后才生效。
+    func thoughtInsight(_ body: ThoughtInsightRequestDTO) async throws -> ThoughtInsightResponseDTO {
+        try ensureDataProcessingConsent()
+        let request = APIRequest(
+            baseURL: baseURL,
+            path: "/v1/thoughts/insight",
             method: .post,
             headers: [
                 "Content-Type": "application/json",
@@ -489,7 +515,8 @@ final class HoloBackendAIProvider: AIProvider {
         messages: [ChatMessageDTO],
         stream: Bool = false,
         responseFormat: ResponseFormat? = nil,
-        step: HoloAgentLLMRequestRecord? = nil
+        step: HoloAgentLLMRequestRecord? = nil,
+        explicitUsageActionId: String? = nil
     ) -> APIRequest {
         // §8.1：step 三字段仅 agentLoop 携带；其他 purpose 保持兼容不编码
         let includeStep = purpose == .agentLoop ? step : nil
@@ -516,7 +543,7 @@ final class HoloBackendAIProvider: AIProvider {
                 runId: includeStep?.runID,
                 stepId: includeStep?.stepID,
                 requestHash: includeStep?.requestHash,
-                usageActionId: includeStep?.runID ?? UUID().uuidString
+                usageActionId: explicitUsageActionId ?? includeStep?.runID ?? UUID().uuidString
             ),
             timeoutInterval: timeout
         )
@@ -695,11 +722,42 @@ enum HoloBackendPurpose: String {
     case personalContextPlanning = "personal_context_planning"
     /// Matter「进行中的事」对账（typed proposal 契约，方案 §12）
     case matterReconciliation = "matter_reconciliation"
+    /// 任务分步推进提案（2026-09-25 实施规格 §6.3）
+    case matterExecutionPlan = "matter_execution_plan"
     case personalContextExtraction = "personal_context_extraction"
     case personalContextVerification = "personal_context_verification"
     // 账单智能导入（docs/plans/2026-08-17-finance-bill-import-ai-plan.md §5）
     case billColumnMapping = "bill_column_mapping"
     case billCategorization = "bill_categorization"
+    // 目标共创（2026-09-17 完整开发计划 §2.2）：分阶段会话契约，独立 purpose 不走通用 chat
+    case goalWorkshop = "goal_workshop"
+    // 「今天减负」当日安排整理（2026-10-03 实施方案 §10.2）：proposal/clarification/cannotHelp 契约
+    case todayReliefPlan = "today_relief_plan"
+}
+
+extension HoloBackendAIProvider: GoalWorkshopModelServicing {
+    /// 目标共创模型调用：非流式、user message 为版本化 JSON 请求体。
+    /// 系统 Prompt 由后端 goal_workshop purpose 注入；不沿用通用 completeGoalPlanning
+    /// 的全量 UserContext 注入（§1.5：上下文范围受限 + purpose 隔离 + metadata_only 日志）。
+    func sendGoalWorkshop(_ bodyJSON: String) async throws -> String {
+        try await chat(messages: [ChatMessageDTO.user(bodyJSON)], purpose: .goalWorkshop)
+    }
+}
+
+// MARK: - 「今天减负」模型服务（2026-10-03 实施方案 §10.2）
+
+/// today_relief_plan 专用模型协议：仿 goal workshop，避免旧 provider 默默回退普通 chat。
+@MainActor
+protocol HoloTodayReliefModelServicing {
+    /// 发送版本化 JSON 请求体，返回原始文本（raw JSON）。
+    /// usageActionId 由协调器提供（会话稳定请求 ID；结构修复沿用同一额度动作）。
+    func sendTodayReliefPlan(bodyJSON: String, usageActionId: String) async throws -> String
+}
+
+extension HoloBackendAIProvider: HoloTodayReliefModelServicing {
+    func sendTodayReliefPlan(bodyJSON: String, usageActionId: String) async throws -> String {
+        try await chat(messages: [ChatMessageDTO.user(bodyJSON)], purpose: .todayReliefPlan, explicitUsageActionId: usageActionId)
+    }
 }
 
 extension AIActionParserKind {

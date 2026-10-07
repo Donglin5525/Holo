@@ -105,6 +105,12 @@ enum HoloPlusBenefits {
             freeValue: .feature(false),
             plusValue: .feature(true)
         ),
+        .init(
+            icon: "pause.circle",
+            name: String(localized: "习惯暂停"),
+            freeValue: .feature(false),
+            plusValue: .feature(true)
+        ),
     ]
 }
 

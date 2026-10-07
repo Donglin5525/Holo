@@ -15,7 +15,7 @@ mkdir -p "$OUT"
 
 BIN="$OUT/ThoughtTopicLinkProjectionStandaloneTests"
 
-swiftc -o "$BIN" \
+swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/Thoughts/ThoughtTopicLinkProjectionStandaloneTests.swift" \
   "$APP/Models/ThoughtTopicLink+CoreDataClass.swift" \
   "$APP/Services/Thoughts/ThoughtTopicLinkProjection.swift" \

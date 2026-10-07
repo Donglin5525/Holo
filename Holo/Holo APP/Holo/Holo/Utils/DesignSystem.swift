@@ -244,6 +244,13 @@ extension Font {
     
     /// 超小标签，用于底部导航标签；跟随系统动态字体缩放。
     static let holoTinyLabel = Font.caption2.weight(.medium)
+
+    // MARK: 衬线字体（动效融合定稿 §3）
+    /// 衬线标题：只用于聚光标题、任务回执、事簿记录行与 Matter 纸片标题。
+    /// 正文、按钮、清单继续用系统无衬线；禁止扩散到普通页面标题。
+    static let holoSerifTitle = Font.system(.title2, design: .serif).weight(.semibold)
+    /// 衬线正文级：回执/记录行的任务标题
+    static let holoSerifBody = Font.system(.subheadline, design: .serif).weight(.semibold)
 }
 
 // MARK: - 间距系统
@@ -277,6 +284,8 @@ struct HoloRadius {
     static let lg: CGFloat = 16
     /// 超大圆角 - 24pt，用于弹窗
     static let xl: CGFloat = 24
+    /// 习惯磁贴 - 20pt（温润纸感磁贴专用）
+    static let tile: CGFloat = 20
     /// 圆形 - 用于头像等
     static let full: CGFloat = 9999
 }
@@ -302,12 +311,35 @@ struct HoloShadow {
 
 // MARK: - 动画系统
 
+/// 展示开关与设计系统共用，供主 App 和 Widget 编译；不参与业务保存。
+nonisolated enum HoloMotionRollout {
+    static let interactionKey = "holo.motion.interactionEnabled"
+    static let recordKey = "holo.motion.recordFeedbackEnabled"
+    static let completionKey = "holo.motion.completionFeedbackEnabled"
+    static let replayKey = "holo.motion.replayEnabled"
+}
+
 /// Holo 应用动画 token。
 ///
 /// 全 App 动画时长 / 弹簧参数的唯一来源。新增动画从这里取值，
 /// 禁止在业务代码里裸写 `.easeInOut(duration: 0.15)`、`.spring(response: 0.3, ...)` 这类魔法数字。
 /// 现有页面可渐进迁移到本 token；值与原习惯值一致，迁移不改变现有手感。
 enum HoloAnimation {
+    /// 按压只缩小内容，不改变布局或命中区域。
+    static let pressScale: CGFloat = 0.98
+    static let recordSettleDuration: TimeInterval = 0.4
+    static let recordSettle: Animation = .easeOut(duration: recordSettleDuration)
+    static let completionGlowDuration: TimeInterval = 0.6
+    static let completionGlow: Animation = .easeOut(duration: completionGlowDuration)
+    static let replayReveal: Animation = .easeOut(duration: 0.3)
+    static let replayOffset: CGFloat = 6
+    static let completionGlowExpansion: CGFloat = 0.025
+    static let waitingPulse: Animation = .easeInOut(duration: 1.4).repeatForever(autoreverses: true)
+    static let loadingRotation: Animation = .linear(duration: 0.9).repeatForever(autoreverses: false)
+    /// 最晚一组在 300ms 开始，全部展开在 600ms 内完成。
+    static func replayDelay(order: Int) -> TimeInterval {
+        Double(min(max(order, 0), 3)) * 0.1
+    }
     // MARK: 时长动画（easeInOut）
     /// 微交互——开关切换、高亮、按压反馈
     static let quick: Animation = .easeInOut(duration: 0.15)
@@ -315,12 +347,21 @@ enum HoloAnimation {
     static let standard: Animation = .easeInOut(duration: 0.2)
     /// 较慢切换——导航高亮、板块过渡
     static let smooth: Animation = .easeInOut(duration: 0.25)
+    /// 入场减速——列表行/卡片淡入出现（easeOut 曲线：起快收缓，出现不拖沓）
+    static let enter: Animation = .easeOut(duration: 0.2)
 
     // MARK: 弹簧动画（spring）
     /// 弹性交互（最常用）——拖拽、卡片弹入、选中态回弹
     static let snappy: Animation = .spring(response: 0.3, dampingFraction: 0.7)
     /// 沉稳弹性——滑动返回、大块视图位移
     static let grounded: Animation = .spring(response: 0.45, dampingFraction: 0.82)
+
+    // MARK: B 活页归档（动效融合 G2）
+    /// 收页回执整段时长：一次「升起微弹 → 上浮淡出」的自播关键帧，播完即隐
+    /// （原型 receipt-in 0.75s 的转译；Reduce Motion 下改为静态显示同一时长）
+    static let paperReceiptDuration: TimeInterval = 0.75
+    /// 记录行/纸页行入场：轻微显现，不做表演
+    static let paperSettle: Animation = .spring(response: 0.4, dampingFraction: 0.85)
 }
 
 // MARK: - Holo Plus 主题
@@ -384,6 +425,87 @@ enum HoloPlusTheme {
     static let planSelectedTint = Color.holoPrimary.opacity(0.07)
 }
 
+// MARK: - B 活页归档纸面主题（动效融合 G2）
+
+/// B「活页归档」的纸面语言 token（动效融合定稿 §3）。
+/// 色值从已选 HTML 原型转译，浅/深模式分别定义；
+/// 只用于任务完成表达（纸页行、事簿记录、回执、撤回 toast、纸页头），
+/// 禁止扩散到无关页面；运动节奏见 `HoloAnimation.paperReceiptDuration`。
+enum HoloTaskPaperTheme {
+    // MARK: 纸页行（未完成任务卡）
+    /// 纸页行底：暖纸白 / 深色暗纸
+    static let rowBackground = Color.holoDynamic(
+        light: UIColor(red: 1.000, green: 0.992, blue: 0.969, alpha: 1),   // 原型 #FFFDF7
+        dark:  UIColor(red: 0.145, green: 0.129, blue: 0.114, alpha: 1))
+    /// 纸页细边
+    static let rowBorder = Color.holoDynamic(
+        light: UIColor(red: 0.882, green: 0.835, blue: 0.780, alpha: 1),   // 原型 #E1D5C7
+        dark:  UIColor(red: 0.263, green: 0.235, blue: 0.204, alpha: 1))
+
+    // MARK: 今日事簿记录行（完成任务收页后的记录）
+    /// 记录行底：牛皮纸浅 / 暗棕
+    static let recordBackground = Color.holoDynamic(
+        light: UIColor(red: 0.969, green: 0.933, blue: 0.890, alpha: 1),   // 原型 #F7EEE3
+        dark:  UIColor(red: 0.180, green: 0.153, blue: 0.125, alpha: 1))
+    /// 记录行左色条 + 印章描边的棕红
+    static let recordStripe = Color.holoDynamic(
+        light: UIColor(red: 0.722, green: 0.396, blue: 0.271, alpha: 1),   // 原型 #B86545
+        dark:  UIColor(red: 0.784, green: 0.478, blue: 0.353, alpha: 1))
+
+    // MARK: 完成回执（印章 + 衬线标题）
+    /// 回执底：暖光纸
+    static let receiptBackground = Color.holoDynamic(
+        light: UIColor(red: 1.000, green: 0.969, blue: 0.918, alpha: 1),   // 原型 #FFF7EA
+        dark:  UIColor(red: 0.196, green: 0.161, blue: 0.129, alpha: 1))
+    /// 回执描边
+    static let receiptBorder = Color.holoDynamic(
+        light: UIColor(red: 0.894, green: 0.784, blue: 0.659, alpha: 1),   // 原型 #E4C8A8
+        dark:  UIColor(red: 0.302, green: 0.247, blue: 0.192, alpha: 1))
+    /// 印章字色（「成」）
+    static let sealText = Color.holoDynamic(
+        light: UIColor(red: 0.718, green: 0.357, blue: 0.235, alpha: 1),   // 原型 #B75B3C
+        dark:  UIColor(red: 0.910, green: 0.608, blue: 0.471, alpha: 1))
+
+    // MARK: 撤回 toast（深底横条）
+    /// toast 底：深墨（两模式同走深底；深色模式提亮一档并靠描边分层）
+    static let undoToastBackground = Color.holoDynamic(
+        light: UIColor(red: 0.188, green: 0.169, blue: 0.157, alpha: 1),   // 原型 #302B28
+        dark:  UIColor(red: 0.243, green: 0.220, blue: 0.196, alpha: 1))
+    /// toast 主文字：暖白
+    static let undoToastText = Color.holoDynamic(
+        light: UIColor(red: 1.000, green: 0.980, blue: 0.949, alpha: 1),
+        dark:  UIColor(red: 1.000, green: 0.980, blue: 0.949, alpha: 1))
+    /// toast 撤回动作色：杏仁橙
+    static let undoAction = Color(red: 1.000, green: 0.780, blue: 0.647)   // 原型 #FFC7A5
+
+    // MARK: 纸页头（任务列表顶部）
+    /// 纸页头渐变：暖光入纸白（深色模式走暗纸两级）
+    static let headerGradient = LinearGradient(
+        colors: [
+            Color.holoDynamic(light: UIColor(red: 1.000, green: 0.961, blue: 0.910, alpha: 1),   // #FFF5E8
+                              dark:  UIColor(red: 0.196, green: 0.169, blue: 0.137, alpha: 1)),
+            Color.holoDynamic(light: UIColor(red: 1.000, green: 0.992, blue: 0.973, alpha: 1),   // #FFFDF8
+                              dark:  UIColor(red: 0.149, green: 0.129, blue: 0.106, alpha: 1))
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    // MARK: 形状
+    /// 纸页不对称圆角：右上大、其余小，像一页翻起的纸（原型 8/18/9/9）
+    static let rowShape = UnevenRoundedRectangle(
+        topLeadingRadius: 8, bottomLeadingRadius: 9,
+        bottomTrailingRadius: 9, topTrailingRadius: 18,
+        style: .continuous
+    )
+    /// 回执用的小号纸页圆角（原型 8/18/9/9 同语言）
+    static let receiptShape = UnevenRoundedRectangle(
+        topLeadingRadius: 8, bottomLeadingRadius: 9,
+        bottomTrailingRadius: 9, topTrailingRadius: 18,
+        style: .continuous
+    )
+}
+
 // MARK: - 卡片样式
 
 /// Holo 标准卡片样式
@@ -437,6 +559,26 @@ extension View {
     }
 }
 
+// MARK: - 弹层统一壳
+
+/// Holo 弹层统一壳：品牌暖底铺满 + 隐藏 List/Form 系统灰底。
+/// 一切 sheet / fullScreenCover 内容根部必须套用（见设计规范 §8.3），
+/// 否则弹层会露出系统默认白/灰底——品牌色问题曾多次由此复发。
+struct HoloSheetShellModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(Color.holoBackground.ignoresSafeArea())
+            .scrollContentBackground(.hidden)
+    }
+}
+
+extension View {
+    /// 弹层统一壳，sheet / fullScreenCover 内容根部套用。
+    func holoSheetShell() -> some View {
+        modifier(HoloSheetShellModifier())
+    }
+}
+
 // MARK: - 习惯磁贴配色
 
 extension Color {
@@ -448,5 +590,206 @@ extension Color {
     /// 习惯磁贴未完成态的描边浓度
     static func habitTileBorderOpacity(_ scheme: ColorScheme) -> Double {
         scheme == .dark ? 0.30 : 0.16
+    }
+
+    /// 习惯色 → 完成磁贴底色（暖化钳制，2026-10-06 温润纸感方案）：
+    /// 压饱和、压亮度保证白字可读（≥3:1），**色相不动**（色彩语义是用户数据，
+    /// 用户的绿色不能变橙）。存量任意旧色一并治理；深色模式把亮度钳进可见区间。
+    static func holoHabitSurface(_ base: Color, scheme: ColorScheme) -> Color {
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        guard UIColor(base).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else {
+            return base
+        }
+        if scheme == .dark {
+            let clamped = min(max(brightness, 0.60), 0.88)
+            return Color(hue: hue, saturation: min(saturation, 0.70), brightness: clamped, opacity: alpha)
+        }
+        return Color(hue: hue, saturation: min(saturation, 0.75), brightness: min(brightness, 0.82), opacity: alpha)
+    }
+}
+
+
+// MARK: - V2 工具界面（与首页品牌光球隔离）
+
+extension Color {
+    static let holoToolBackground = Color("ToolBackground")
+    static let holoToolSurface = Color("ToolSurface")
+    static let holoToolInset = Color("ToolInset")
+    static let holoToolText = Color("ToolText")
+    static let holoToolTextSecondary = Color("ToolTextSecondary")
+    static let holoToolBorder = Color("ToolBorder")
+    static let holoToolAction = Color("ToolAction")
+    static let holoToolOnAction = Color("ToolOnAction")
+}
+
+extension HoloSpacing {
+    static let page: CGFloat = 20
+}
+
+/// 按内容角色缩放文字；图标仍使用自己的尺寸，金额不靠缩小字号适配。
+enum HoloTextRole {
+    case pageTitle, sectionTitle, body, supporting, metadata, amount
+
+    var size: CGFloat {
+        switch self {
+        case .pageTitle: return 28
+        case .sectionTitle: return 20
+        case .body: return 17
+        case .supporting: return 15
+        case .metadata: return 13
+        case .amount: return 32
+        }
+    }
+
+    var relativeTo: Font.TextStyle {
+        switch self {
+        case .pageTitle: return .title
+        case .sectionTitle: return .title3
+        case .body: return .body
+        case .supporting: return .subheadline
+        case .metadata: return .caption
+        case .amount: return .largeTitle
+        }
+    }
+
+    var weight: Font.Weight {
+        switch self {
+        case .pageTitle, .sectionTitle: return .semibold
+        case .amount: return .medium
+        default: return .regular
+        }
+    }
+}
+
+struct HoloTextStyle: ViewModifier {
+    let role: HoloTextRole
+    @ScaledMetric private var pointSize: CGFloat
+
+    init(role: HoloTextRole) {
+        self.role = role
+        _pointSize = ScaledMetric(wrappedValue: role.size, relativeTo: role.relativeTo)
+    }
+
+    func body(content: Content) -> some View {
+        content.font(.system(size: pointSize, weight: role.weight))
+    }
+}
+
+/// 连续内容不包卡片；独立操作用轻描边；只有真正悬浮的容器才使用阴影。
+enum HoloSurfaceRole {
+    case continuous, independent, floating
+}
+
+struct HoloSurfaceStyle: ViewModifier {
+    let role: HoloSurfaceRole
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        switch role {
+        case .continuous:
+            content
+        case .independent:
+            content
+                .background(Color.holoToolSurface)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                        .strokeBorder(Color.holoToolBorder, lineWidth: 0.5)
+                }
+        case .floating:
+            content
+                .background(Color.holoToolSurface)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: HoloRadius.xl, style: .continuous)
+                        .strokeBorder(Color.holoToolBorder, lineWidth: 0.5)
+                }
+                .shadow(color: HoloShadow.card, radius: 8, y: 3)
+        }
+    }
+}
+
+enum HoloActionRole {
+    case primary, secondary, destructive
+}
+
+/// 只负责外观和按压反馈，不附加保存、重试或触觉等业务副作用。
+struct HoloActionStyle: ButtonStyle {
+    @AppStorage(HoloMotionRollout.interactionKey) private var motionEnabled = true
+    let role: HoloActionRole
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .holoText(.body)
+            .fontWeight(.medium)
+            .padding(.horizontal, HoloSpacing.md)
+            .frame(minHeight: 44)
+            .foregroundStyle(foreground)
+            .background(background)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                    .strokeBorder(role == .secondary ? Color.holoToolBorder : Color.clear, lineWidth: 0.5)
+            }
+            .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.5)
+            .scaleEffect(configuration.isPressed && motionEnabled && !reduceMotion ? HoloAnimation.pressScale : 1)
+            .animation(reduceMotion || !motionEnabled ? nil : HoloAnimation.quick, value: configuration.isPressed)
+    }
+
+    private var foreground: Color {
+        role == .secondary ? .holoToolText : (role == .destructive ? .white : .holoToolOnAction)
+    }
+
+    private var background: Color {
+        switch role {
+        case .primary: return .holoToolAction
+        case .secondary: return .holoToolSurface
+        case .destructive: return .holoErrorDark
+        }
+    }
+}
+
+/// 局部状态由调用方提供真实文案和恢复动作，不自行制造进度或成功状态。
+struct HoloInlineState: View {
+    enum Kind { case loading, empty, failure }
+    let kind: Kind
+    let message: String
+    var actionTitle: String? = nil
+    var action: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(alignment: .top, spacing: HoloSpacing.sm) {
+                if kind == .loading {
+                    ProgressView().tint(Color.holoToolAction)
+                } else {
+                    Image(systemName: kind == .failure ? "exclamationmark.circle" : "tray")
+                        .foregroundStyle(kind == .failure ? Color.holoError : Color.holoToolTextSecondary)
+                        .accessibilityHidden(true)
+                }
+                Text(message)
+                    .holoText(.supporting)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(HoloActionStyle(role: .secondary))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+extension View {
+    func holoText(_ role: HoloTextRole) -> some View {
+        modifier(HoloTextStyle(role: role))
+    }
+
+    func holoSurface(_ role: HoloSurfaceRole = .independent) -> some View {
+        modifier(HoloSurfaceStyle(role: role))
     }
 }

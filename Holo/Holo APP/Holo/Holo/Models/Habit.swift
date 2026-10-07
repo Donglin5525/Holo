@@ -28,6 +28,11 @@ public class Habit: NSManagedObject {
     @NSManaged public var aggregationType: Int16
     @NSManaged public var isBadHabit: Bool
     @NSManaged public var isArchived: Bool
+    @NSManaged public var isPaused: Bool
+    /// 计划恢复日（startOfDay；nil = 无限期暂停，手动恢复）
+    @NSManaged public var pausedUntil: Date?
+    /// 历次暂停窗口（[HabitPauseWindow] 的 Codable 编码；连续天数冻结口径的数据底账）
+    @NSManaged public var pauseWindowsData: Data?
     @NSManaged public var sortOrder: Int16
     @NSManaged public var reminderMode: String
     @NSManaged public var reminderHour: Int16
@@ -75,6 +80,36 @@ public class Habit: NSManagedObject {
     /// 是否为打卡型习惯
     var isCheckInType: Bool {
         habitType == .checkIn
+    }
+
+    // MARK: - 暂停窗口（冻结口径：暂停日不算断、不计数）
+
+    /// 历次暂停窗口（编码存 pauseWindowsData）
+    var pauseWindows: [HabitPauseWindow] {
+        get {
+            guard let data = pauseWindowsData else { return [] }
+            return (try? JSONDecoder().decode([HabitPauseWindow].self, from: data)) ?? []
+        }
+        set {
+            pauseWindowsData = try? JSONEncoder().encode(newValue)
+        }
+    }
+
+    /// 某一天是否处于暂停窗口内（开放窗口视为延伸至今天）
+    func isDayPaused(_ day: Date, calendar: Calendar = .current) -> Bool {
+        let dayStart = calendar.startOfDay(for: day)
+        let today = calendar.startOfDay(for: Date())
+        return pauseWindows.contains { window in
+            let start = calendar.startOfDay(for: window.startDate)
+            guard dayStart >= start else { return false }
+            guard let end = window.endDate else { return dayStart <= today }
+            return dayStart <= calendar.startOfDay(for: end)
+        }
+    }
+
+    /// 进行中（未关闭）的暂停窗口；无则 nil
+    var openPauseWindow: HabitPauseWindow? {
+        pauseWindows.last { $0.endDate == nil }
     }
     
     /// 是否为数值型习惯
@@ -160,6 +195,17 @@ public class Habit: NSManagedObject {
 // MARK: - Identifiable
 
 extension Habit: Identifiable {}
+
+// MARK: - 暂停窗口
+
+/// 一次暂停的时间窗口（连续天数冻结口径的最小数据单元）
+/// - startDate: 暂停生效日（当天）
+/// - endDate: 最后一个被冻结的日子（含）；nil = 进行中，计算时延伸至今天。
+///   恢复日 = endDate 的次日；当天暂停当天恢复的窗口（start >= end）无效，落库前移除。
+struct HabitPauseWindow: Codable, Equatable {
+    var startDate: Date
+    var endDate: Date?
+}
 
 // MARK: - 打卡提醒模式
 

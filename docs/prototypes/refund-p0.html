@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 退款功能 P0 原型 · 关联原交易 · 统计冲减</title>
+<style>
+  :root{
+    --primary:#F46D38; --primary-dark:#EA580C; --primary-light:#FED7AA;
+    --green:#22C55E; --green-dark:#16A34A; --green-bg:#DCFCE7;
+    --red:#EF4444; --red-bg:#FEE2E2;
+    --text:#1F2937; --text2:#6B7280; --text3:#9CA3AF;
+    --bg:#F7F5F0; --card:#FFFFFF; --line:#F0EDE6;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","SF Pro SC","Helvetica Neue",sans-serif;background:#EDEAE3;color:var(--text);padding:36px 28px 80px;}
+  .page-title{font-size:26px;font-weight:800;letter-spacing:.5px;}
+  .page-title em{font-style:normal;color:var(--primary);}
+  .page-sub{margin-top:8px;font-size:14px;color:var(--text2);line-height:1.7;max-width:860px;}
+  .banner{margin-top:18px;background:linear-gradient(135deg,#FFF7ED,#FFEDD5);border:1px solid #FED7AA;border-radius:14px;padding:14px 18px;font-size:13.5px;line-height:1.8;color:#7C2D12;}
+  .banner b{color:#C2410C;}
+  .boards{display:flex;flex-wrap:wrap;gap:34px;margin-top:34px;align-items:flex-start;}
+  .board{width:392px;}
+  .board-tag{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+  .board-tag .no{width:24px;height:24px;border-radius:8px;background:var(--primary);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;flex:none;}
+  .board-tag .tt{font-size:15px;font-weight:700;}
+  .board-tag .dd{font-size:12px;color:var(--text2);margin-top:2px;}
+  .board-tag>div:last-child{flex:1;}
+  /* 手机壳 */
+  .phone{width:392px;background:var(--bg);border-radius:44px;border:10px solid #1B1B1F;overflow:hidden;box-shadow:0 24px 48px -18px rgba(0,0,0,.35);position:relative;}
+  .status{height:46px;display:flex;align-items:center;justify-content:space-between;padding:0 30px;font-size:14px;font-weight:600;}
+  .status .icons{font-size:12px;letter-spacing:2px;color:var(--text);}
+  .navbar{height:48px;display:flex;align-items:center;justify-content:center;position:relative;font-size:17px;font-weight:700;background:var(--bg);}
+  .navbar .back{position:absolute;left:18px;font-size:26px;color:var(--primary);font-weight:400;line-height:1;}
+  .content{padding:6px 16px 28px;}
+  .sec-label{font-size:12px;color:var(--text3);letter-spacing:1px;font-weight:700;margin:16px 4px 8px;}
+  .day-header{display:flex;justify-content:space-between;align-items:baseline;padding:10px 4px 8px;font-size:12.5px;color:var(--text2);}
+  .day-header b{color:var(--text);font-weight:600;}
+  .txlist{background:var(--card);border-radius:18px;overflow:hidden;border:1px solid rgba(0,0,0,.03);}
+  .tx{display:flex;align-items:center;padding:12px 14px;gap:12px;position:relative;}
+  .tx+.tx{border-top:1px solid var(--line);}
+  .tx .ic{width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;flex:none;}
+  .tx .mid{flex:1;min-width:0;}
+  .tx .t1{display:flex;align-items:center;gap:6px;font-size:15px;font-weight:600;}
+  .tx .t2{font-size:12px;color:var(--text2);margin-top:3px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;}
+  .tx .amt{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;}
+  .amt.exp{color:var(--primary);}
+  .amt.inc{color:var(--green);}
+  .badge{display:inline-flex;align-items:center;height:19px;padding:0 7px;border-radius:9.5px;font-size:10.5px;font-weight:700;flex:none;line-height:1;}
+  .badge.refund{background:var(--green-bg);color:var(--green-dark);}
+  .badge.installment{background:var(--primary-light);color:var(--primary-dark);}
+  .strike{position:relative;}
+  /* 长按菜单 */
+  .dim{position:absolute;inset:0;background:rgba(60,50,40,.45);backdrop-filter:blur(1.5px);border-radius:34px;z-index:5;}
+  .ctx{position:absolute;z-index:6;left:50%;top:118px;transform:translateX(-50%);background:rgba(40,38,42,.96);border-radius:16px;padding:7px;width:250px;box-shadow:0 16px 40px rgba(0,0,0,.4);}
+  .ctx .row{display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:10px;color:#fff;font-size:14.5px;}
+  .ctx .row+.row{border-top:1px solid rgba(255,255,255,.09);}
+  .ctx .row .ic2{width:22px;text-align:center;font-size:16px;}
+  .ctx .row.hl{background:var(--primary);}
+  .ctx .row.danger{color:#FF6B6B;}
+  .ctx .row .hint{margin-left:auto;font-size:11px;color:rgba(255,255,255,.5);}
+  /* 弹层 */
+  .sheet-dim{background:rgba(50,45,40,.35);}
+  .sheet{background:var(--bg);border-radius:26px 26px 0 0;margin-top:auto;overflow:hidden;}
+  .grabber{width:38px;height:5px;border-radius:3px;background:#D6D2C8;margin:9px auto 3px;}
+  .sheet-title{text-align:center;font-size:17px;font-weight:700;padding:6px 0 2px;}
+  .sheet-sub{text-align:center;font-size:12px;color:var(--text2);padding-bottom:10px;}
+  .orig-card{margin:6px 14px 10px;background:var(--card);border:1px solid rgba(0,0,0,.04);border-radius:16px;padding:13px 14px;display:flex;align-items:center;gap:12px;}
+  .orig-card .info{flex:1;}
+  .orig-card .info .n{font-size:15px;font-weight:700;display:flex;gap:6px;align-items:center;}
+  .orig-card .info .m{font-size:12px;color:var(--text2);margin-top:3px;}
+  .field{margin:0 14px 10px;background:var(--card);border-radius:16px;overflow:hidden;border:1px solid rgba(0,0,0,.04);}
+  .frow{display:flex;align-items:center;padding:13px 15px;gap:10px;}
+  .frow+.frow{border-top:1px solid var(--line);}
+  .frow .lb{font-size:14px;color:var(--text2);width:74px;flex:none;}
+  .frow .vl{flex:1;font-size:15px;font-weight:600;text-align:right;}
+  .frow .vl input{width:100%;border:none;outline:none;background:transparent;font:inherit;color:var(--primary-dark);text-align:right;font-size:22px;font-weight:800;}
+  .frow .arw{color:var(--text3);font-size:14px;}
+  .progress{margin:2px 15px 10px;height:8px;border-radius:4px;background:#EDE9E0;overflow:hidden;}
+  .progress i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--green-dark));border-radius:4px;transition:width .25s;}
+  .warn{margin:0 15px 10px;background:var(--red-bg);color:#B91C1C;border-radius:12px;padding:10px 13px;font-size:12.5px;font-weight:600;display:none;}
+  .oknote{margin:0 15px 12px;color:var(--text3);font-size:11.5px;line-height:1.6;}
+  .btn{margin:2px 15px 18px;height:52px;border-radius:16px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;font-size:16.5px;font-weight:700;display:flex;align-items:center;justify-content:center;letter-spacing:1px;box-shadow:0 10px 22px -8px rgba(244,109,56,.55);}
+  .btn.disabled{background:#D6D2C8;box-shadow:none;color:#fff;}
+  /* 统计画板 */
+  .stat-card{background:var(--card);border-radius:18px;padding:16px;margin:10px 4px 0;border:1px solid rgba(0,0,0,.04);}
+  .stat-card h4{font-size:13px;color:var(--text2);font-weight:600;margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+  .bigrow{display:flex;align-items:baseline;justify-content:space-between;padding:6px 2px;}
+  .bigrow .n{font-size:14px;font-weight:600;color:var(--text2);}
+  .bigrow .v{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;}
+  .arrowbox{display:flex;align-items:center;gap:10px;background:var(--bg);border-radius:14px;padding:10px 14px;margin-top:8px;}
+  .arrowbox .a-from{font-size:15px;color:var(--text3);text-decoration:line-through;font-weight:600;}
+  .arrowbox .a-to{font-size:19px;color:var(--green-dark);font-weight:800;}
+  .arrowbox .a-diff{margin-left:auto;font-size:12px;font-weight:700;color:var(--green-dark);background:var(--green-bg);padding:4px 9px;border-radius:9px;}
+  .catbar{display:flex;align-items:center;gap:10px;padding:9px 2px;}
+  .catbar .cn{font-size:13.5px;font-weight:600;width:64px;}
+  .catbar .track{flex:1;height:22px;border-radius:8px;background:#F1EEE7;overflow:hidden;display:flex;}
+  .catbar .bar{height:100%;background:linear-gradient(90deg,#FB923C,var(--primary));border-radius:8px;transition:width .3s;}
+  .catbar .bar.g{background:linear-gradient(90deg,#4ADE80,var(--green-dark));}
+  .catbar .cv{font-size:13px;font-weight:700;width:70px;text-align:right;font-variant-numeric:tabular-nums;}
+  .note-strip{margin-top:10px;background:#FFF7ED;border:1px dashed #FDBA74;border-radius:12px;padding:10px 13px;font-size:12px;color:#9A3412;line-height:1.7;}
+  .note-strip b{color:#C2410C;}
+  /* 详情面板 */
+  .detail-head{background:var(--card);border-radius:18px;margin:10px 4px;padding:18px 16px;border:1px solid rgba(0,0,0,.04);text-align:center;}
+  .detail-head .dn{font-size:16px;font-weight:700;margin-top:6px;display:flex;justify-content:center;gap:6px;align-items:center;}
+  .detail-head .da{font-size:30px;font-weight:800;color:var(--primary);margin-top:6px;font-variant-numeric:tabular-nums;}
+  .attrs{background:var(--card);border-radius:18px;margin:10px 4px;border:1px solid rgba(0,0,0,.04);overflow:hidden;}
+  .arow{display:flex;align-items:center;padding:13px 15px;gap:10px;}
+  .arow+.arow{border-top:1px solid var(--line);}
+  .arow .al{font-size:13.5px;color:var(--text2);width:80px;flex:none;}
+  .arow .av{flex:1;font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px;}
+  .arow .av .chev{color:var(--text3);}
+  .arow.link .av{color:var(--primary-dark);}
+  .refund-chip{background:var(--green-bg);color:var(--green-dark);font-size:12px;font-weight:700;border-radius:9px;padding:3px 8px;}
+  .foot-note{margin-top:44px;text-align:center;font-size:12px;color:var(--text3);line-height:1.8;}
+</style>
+</head>
+<body>
+
+<div class="page-title">Holo · 退款关联功能 <em>P0 原型</em></div>
+<div class="page-sub">场景：9月23日买衣服 ¥500（微信支付），9月25日试穿不合适，退款到账。方案：<b>单独记一笔退款、挂回原交易、统计自动冲减</b>——不改原记录金额（流水对得上银行账单），也不算成收入（收支不虚增）。</div>
+<div class="banner">
+  <b>拍板口径：</b>① 退款单独成笔，挂在原支出上；② 统计按「退款到账当月」冲减原分类支出（9月买10月退 → 冲10月）；③ 支持一次全额 / 多次部分退款，累计不超原额；④ 分期交易一期暂不支持发起退款；⑤ 找不到原交易的零星退款，仍可记普通「退款」收入（现状能力保留）。
+</div>
+
+<div class="boards">
+
+<!-- ═══════════ 画板1 入口 ═══════════ -->
+<div class="board">
+  <div class="board-tag"><div class="no">1</div><div><div class="tt">入口 · 长按原交易</div><div class="dd">流水行长按菜单新增「记退款」，与编辑/复制/删除并列</div></div></div>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span class="icons">●●● ●● 📍 🔋</span></div>
+    <div class="navbar"><span class="back">‹</span>账本</div>
+    <div class="content">
+      <div class="day-header"><span><b>9月23日</b> 周二 · 支出 ¥560.00</span><span>收入 ¥0.00</span></div>
+      <div class="txlist">
+        <div class="tx">
+          <div class="ic" style="background:#FEE2E2;">👕</div>
+          <div class="mid">
+            <div class="t1">买衣服 <span class="badge installment">退款</span></div>
+            <div class="t2">服饰 · 微信支付</div>
+          </div>
+          <div class="amt exp">-500.00</div>
+        </div>
+        <div class="tx">
+          <div class="ic" style="background:#D1FAE5;">🍱</div>
+          <div class="mid"><div class="t1">午餐</div><div class="t2">餐饮 · 微信支付</div></div>
+          <div class="amt exp">-35.00</div>
+        </div>
+        <div class="tx">
+          <div class="ic" style="background:#DBEAFE;">🚇</div>
+          <div class="mid"><div class="t1">地铁</div><div class="t2">交通 · Apple Pay</div></div>
+          <div class="amt exp">-25.00</div>
+        </div>
+      </div>
+    </div>
+    <div class="dim"></div>
+    <div class="ctx">
+      <div class="row"><span class="ic2">✏️</span>编辑交易</div>
+      <div class="row"><span class="ic2">📋</span>复制交易</div>
+      <div class="row hl"><span class="ic2">↩️</span>记退款<span class="hint">新增</span></div>
+      <div class="row danger"><span class="ic2">🗑</span>删除</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 画板2 首次退款弹层（可交互） ═══════════ -->
+<div class="board">
+  <div class="board-tag"><div class="no">2</div><div><div class="tt">退款弹层 · 首次退款（可交互）</div><div class="dd">金额默认全额、可改小试试部分退款；日期默认到账日，账户默认原账户</div></div></div>
+  <div class="phone" style="display:flex;flex-direction:column;">
+    <div class="status sheet-dim"><span>9:41</span><span class="icons">🔋</span></div>
+    <div class="navbar sheet-dim" style="background:transparent;"></div>
+    <div class="sheet" style="flex:1;">
+      <div class="grabber"></div>
+      <div class="sheet-title">记退款</div>
+      <div class="sheet-sub">退款单独成笔 · 自动关联这笔支出</div>
+      <div class="orig-card">
+        <div class="ic" style="width:42px;height:42px;border-radius:14px;background:#FEE2E2;display:flex;align-items:center;justify-content:center;font-size:20px;">👕</div>
+        <div class="info">
+          <div class="n">买衣服</div>
+          <div class="m">9月23日 · 服饰 · 微信支付</div>
+        </div>
+        <div style="font-size:17px;font-weight:800;color:var(--primary);">¥500.00</div>
+      </div>
+      <div class="field">
+        <div class="frow">
+          <span class="lb">退款金额</span>
+          <span class="vl"><span style="font-size:16px;color:var(--text2);font-weight:600;">¥ </span><input id="amt1" type="number" value="500" min="0" step="0.01" oninput="calc1()"></span>
+        </div>
+        <div class="frow"><span class="lb">到账日期</span><span class="vl" style="color:var(--primary-dark);">今天 · 9月25日</span><span class="arw">›</span></div>
+        <div class="frow"><span class="lb">到账账户</span><span class="vl">微信支付</span><span class="arw">›</span></div>
+      </div>
+      <div class="progress" id="bar1"><i style="width:100%"></i></div>
+      <div class="warn" id="warn1">⚠️ 超出可退金额：这笔支出最多还可退 ¥500.00</div>
+      <div class="oknote" id="note1">确认后：9月25日多一笔绿色退款流水；「服饰」分类支出自动冲减 ¥500.00；月支出同步减少。原交易保持 -¥500.00 不变，并挂上「已退款」徽章。</div>
+      <div class="btn" id="btn1">确认退款</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 画板3 二次退款+超额拦截（可交互） ═══════════ -->
+<div class="board">
+  <div class="board-tag"><div class="no">3</div><div><div class="tt">退款弹层 · 多次退款与超额拦截（可交互）</div><div class="dd">场景：原 ¥500 已退过 ¥300，剩 ¥200 可退。输入 250 试试拦截</div></div></div>
+  <div class="phone" style="display:flex;flex-direction:column;">
+    <div class="status sheet-dim"><span>9:41</span><span class="icons">🔋</span></div>
+    <div class="navbar sheet-dim" style="background:transparent;"></div>
+    <div class="sheet" style="flex:1;">
+      <div class="grabber"></div>
+      <div class="sheet-title">记退款</div>
+      <div class="sheet-sub">这笔支出已退 1 次 · 已退 ¥300.00</div>
+      <div class="orig-card">
+        <div class="ic" style="width:42px;height:42px;border-radius:14px;background:#FEE2E2;display:flex;align-items:center;justify-content:center;font-size:20px;">👕</div>
+        <div class="info">
+          <div class="n">买衣服 <span class="badge refund">已退 ¥300</span></div>
+          <div class="m">9月23日 · 服饰 · 微信支付</div>
+        </div>
+        <div style="font-size:17px;font-weight:800;color:var(--primary);">¥500.00</div>
+      </div>
+      <div class="field">
+        <div class="frow">
+          <span class="lb">退款金额</span>
+          <span class="vl"><span style="font-size:16px;color:var(--text2);font-weight:600;">¥ </span><input id="amt2" type="number" value="200" min="0" step="0.01" oninput="calc2()"></span>
+        </div>
+        <div class="frow"><span class="lb">到账日期</span><span class="vl" style="color:var(--primary-dark);">今天 · 9月25日</span><span class="arw">›</span></div>
+        <div class="frow"><span class="lb">到账账户</span><span class="vl">微信支付</span><span class="arw">›</span></div>
+      </div>
+      <div class="progress"><i id="bar2" style="width:60%"></i></div>
+      <div class="warn" id="warn2">⚠️ 超出可退金额：这笔支出最多还可退 ¥200.00</div>
+      <div class="oknote" id="note2">已退 ¥300 / ¥500，本次最多可退 ¥200。确认后累计退款将达上限，「已退款」徽章转满额样式。</div>
+      <div class="btn" id="btn2">确认退款</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 画板4 退款后的流水 ═══════════ -->
+<div class="board">
+  <div class="board-tag"><div class="no">4</div><div><div class="tt">退款后 · 流水列表</div><div class="dd">原交易金额不动、挂「已退」徽章；退款笔在到账日单独一行，可互跳</div></div></div>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span class="icons">●●● ●● 📍 🔋</span></div>
+    <div class="navbar"><span class="back">‹</span>账本</div>
+    <div class="content">
+      <div class="day-header"><span><b>9月25日</b> 周四 · 支出 ¥18.00</span><span>退款 ¥300.00</span></div>
+      <div class="txlist">
+        <div class="tx">
+          <div class="ic" style="background:var(--green-bg);">↩️</div>
+          <div class="mid">
+            <div class="t1">买衣服·退款 <span class="badge refund">退款</span></div>
+            <div class="t2">服饰 · 来自 9月23日的支出 ›</div>
+          </div>
+          <div class="amt inc">+300.00</div>
+        </div>
+        <div class="tx">
+          <div class="ic" style="background:#FEE2E2;">☕️</div>
+          <div class="mid"><div class="t1">咖啡</div><div class="t2">餐饮 · 微信支付</div></div>
+          <div class="amt exp">-18.00</div>
+        </div>
+      </div>
+      <div class="day-header"><span><b>9月23日</b> 周二 · 支出 ¥560.00</span><span>收入 ¥0.00</span></div>
+      <div class="txlist">
+        <div class="tx">
+          <div class="ic" style="background:#FEE2E2;">👕</div>
+          <div class="mid">
+            <div class="t1">买衣服 <span class="badge refund">已退 ¥300</span></div>
+            <div class="t2">服饰 · 微信支付 · 退款 1 笔 ›</div>
+          </div>
+          <div class="amt exp">-500.00</div>
+        </div>
+        <div class="tx">
+          <div class="ic" style="background:#D1FAE5;">🍱</div>
+          <div class="mid"><div class="t1">午餐</div><div class="t2">餐饮 · 微信支付</div></div>
+          <div class="amt exp">-35.00</div>
+        </div>
+      </div>
+      <div class="note-strip" style="margin-top:12px;">对比：旧做法记一笔「退款」收入 → 当月收入虚增 ¥300、服饰支出仍算 ¥500；新做法 → 收入不动，服饰支出自动变 ¥200。</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 画板5 统计冲减 ═══════════ -->
+<div class="board">
+  <div class="board-tag"><div class="no">5</div><div><div class="tt">统计冲减 · 报表口径</div><div class="dd">同月退款与跨月退款两个场景；预算「已花」同步回补</div></div></div>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span class="icons">●●● ●● 📍 🔋</span></div>
+    <div class="navbar">统计</div>
+    <div class="content">
+      <div class="stat-card">
+        <h4>📅 场景A · 同月退（9月23买 ¥500，9月25退 ¥300）</h4>
+        <div class="bigrow"><span class="n">本月支出</span></div>
+        <div class="arrowbox"><span class="a-from">¥1,560</span><span style="color:var(--text3);">→</span><span class="a-to">¥1,260</span><span class="a-diff">▼ 冲减 ¥300</span></div>
+        <div class="catbar"><span class="cn">服饰</span><div class="track"><div class="bar" style="width:38%;opacity:.45;"></div></div><span class="cv">¥200</span></div>
+        <div class="catbar"><span class="cn">餐饮</span><div class="track"><div class="bar" style="width:22%;"></div></div><span class="cv">¥320</span></div>
+        <div class="catbar"><span class="cn">住房</span><div class="track"><div class="bar" style="width:70%;"></div></div><span class="cv">¥700</span></div>
+        <div class="note-strip">灰色部分 = 被退款冲减掉的支出。收入侧完全不动——退款不进收入统计。</div>
+      </div>
+      <div class="stat-card">
+        <h4>📅 场景B · 跨月退（9月买 ¥500，10月15退 ¥500）</h4>
+        <div class="bigrow"><span class="n">9月报表</span><span class="v" style="color:var(--text2);font-size:16px;">保持原样（支出 ¥500）</span></div>
+        <div class="bigrow" style="padding-top:0;"><span class="n">10月报表</span><span class="v" style="color:var(--green-dark);font-size:19px;">服饰支出 -¥500（净冲减）</span></div>
+        <div class="note-strip">按拍板口径「冲到账当月」：钱哪个月回来，就冲哪个月的支出——符合现金流的直觉，历史月报不漂移。</div>
+      </div>
+      <div class="stat-card">
+        <h4>🎯 预算联动</h4>
+        <div class="bigrow"><span class="n">服饰预算 ¥800 · 已花</span><span class="v" style="color:var(--primary);">¥200 <span style="font-size:12px;color:var(--text3);font-weight:500;">（原 ¥500）</span></span></div>
+        <div class="note-strip">统计冲减、预算回补同一个口径，不会出现「报表说没花、预算说花超了」的打架。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ 画板6 详情关联 ═══════════ -->
+<div class="board">
+  <div class="board-tag"><div class="no">6</div><div><div class="tt">详情 · 关联交易互跳</div><div class="dd">原交易详情新增「退款」属性行，点击直达退款笔（反向同理）</div></div></div>
+  <div class="phone">
+    <div class="status"><span>9:41</span><span class="icons">●●● ●● 📍 🔋</span></div>
+    <div class="navbar"><span class="back">‹</span>交易详情</div>
+    <div class="content">
+      <div class="detail-head">
+        <div style="font-size:34px;">👕</div>
+        <div class="dn">买衣服 <span class="badge refund">已退 ¥300/¥500</span></div>
+        <div class="da">-¥500.00</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:4px;">9月23日 周二 · 服饰 · 微信支付</div>
+      </div>
+      <div class="attrs">
+        <div class="arow"><span class="al">名称</span><span class="av">买衣服</span></div>
+        <div class="arow"><span class="al">分类</span><span class="av">👕 服饰</span></div>
+        <div class="arow link"><span class="al">退款</span><span class="av"><span class="refund-chip">1 笔 · 共 ¥300.00</span> 点击查看 ›</span><span class="chev"></span></div>
+        <div class="arow"><span class="al">账户</span><span class="av">微信支付</span></div>
+        <div class="arow"><span class="al">日期</span><span class="av">2025年9月23日 14:32</span></div>
+      </div>
+      <div class="note-strip" style="margin-top:14px;">退款笔可编辑金额/日期、可删除；删除退款 = 解除关联，原交易徽章自动消失，统计口径随之还原。原交易被删除时，退款笔降级为普通「退款」流水（绿色徽章保留，不影响账户余额与冲减语义）。</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<div class="foot-note">
+  Holo · 退款关联 P0 原型 · 2026-09-25 · 口径已拍板：冲到账当月 / 仅手动链路 / 多次部分退款 / 分期暂不支持<br>
+  P1 预告：对 Holo 说「衣服退款到了」自动找原交易出确认卡 · 账单导入退款行按单号自动关联
+</div>
+
+<script>
+function calc1(){
+  const v=parseFloat(document.getElementById('amt1').value)||0;
+  const warn=document.getElementById('warn1'),btn=document.getElementById('btn1'),bar=document.getElementById('bar1'),note=document.getElementById('note1');
+  if(v>500){warn.style.display='block';btn.classList.add('disabled');btn.textContent='超出可退金额';}
+  else{warn.style.display='none';btn.classList.remove('disabled');btn.textContent='确认退款';}
+  bar.firstElementChild.style.width=Math.min(v/500*100,100)+'%';
+  note.textContent=v>=500
+    ?'全额退款：确认后「买衣服」挂满额「已退款」徽章，服饰分类本月支出冲减 ¥500.00。'
+    :'部分退款：确认后服饰分类本月支出冲减 ¥'+v.toFixed(2)+'，之后仍可继续退余下 ¥'+(500-v).toFixed(2)+'。';
+}
+function calc2(){
+  const v=parseFloat(document.getElementById('amt2').value)||0;
+  const warn=document.getElementById('warn2'),btn=document.getElementById('btn2'),bar=document.getElementById('bar2'),note=document.getElementById('note2');
+  if(v>200){warn.style.display='block';btn.classList.add('disabled');btn.textContent='超出可退金额';}
+  else{warn.style.display='none';btn.classList.remove('disabled');btn.textContent='确认退款';}
+  bar.style.width=Math.min((300+v)/500*100,100)+'%';
+  note.textContent=v>=0&&v<=200
+    ?'本次退 ¥'+v.toFixed(2)+'，累计 ¥'+(300+v).toFixed(2)+' / ¥500。'+((300+v)>=500?'满额后将不能再退。':'')
+    :'请输入 ¥0 ~ ¥200 之间的金额。';
+}
+</script>
+</body>
+</html>

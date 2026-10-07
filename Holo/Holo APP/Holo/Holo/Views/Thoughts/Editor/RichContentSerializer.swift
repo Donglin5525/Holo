@@ -197,6 +197,69 @@ nonisolated enum RichContentSerializer {
         }
     }
 
+    // MARK: - 预览用节点压缩
+
+    /// 列表预览专用：把 text 节点中的**空行**压掉，Token 节点与空格行原样保留。
+    ///
+    /// 预览行数是稀缺配额（卡片 7 行上限）：段落间空行没有信息量，却会占掉一行、
+    /// 把末尾短行（如「by 纯银」这类签名行）挤出可见范围。只用于预览渲染与
+    /// 溢出判定，存储内容、详情页和编辑器都不经过这里，原文格式不受影响。
+    ///
+    /// 「空行」= 长度为零的行；**只含空格的行不算空行**——那是用户显式敲下的留白，
+    /// 预览里照常占位，否则用户会发现"我敲的内容在预览里消失了"（2026-09-24 东林拍板）。
+    ///
+    /// 边界处理：非首节点开头的空行承担着「与前一节点（Token）的分界」，
+    /// 直接删会把正文并进标签行——保留一个换行；结尾同理（除非是最后一个节点）。
+    static func previewNodes(from nodes: [HoloContentNode]) -> [HoloContentNode] {
+        nodes.enumerated().compactMap { index, node in
+            guard case .text(let value) = node else { return node }
+            let compressed = compressedPreviewText(
+                value,
+                keepsLeadingBreak: index > 0,
+                keepsTrailingBreak: index < nodes.count - 1
+            )
+            return compressed.isEmpty ? nil : HoloContentNode.text(value: compressed)
+        }
+    }
+
+    /// 压掉单段文本里的空行（首部/尾部/段间）；前后是否保留一个换行由调用方按节点位置决定。
+    private static func compressedPreviewText(
+        _ value: String,
+        keepsLeadingBreak: Bool,
+        keepsTrailingBreak: Bool
+    ) -> String {
+        let lines = value.components(separatedBy: "\n")
+        // 只认零长度行为空行；纯空格行是用户显式留白，保留占位
+        func isBlankLine(_ line: String) -> Bool {
+            line.isEmpty
+        }
+        var start = 0
+        while start < lines.count, isBlankLine(lines[start]) {
+            start += 1
+        }
+        var end = lines.count
+        while end > start, isBlankLine(lines[end - 1]) {
+            end -= 1
+        }
+        let leadingBlankLines = start
+        let trailingBlankLines = lines.count - end
+        // 中间的空行整行删除：相邻非空行之间由 join 的单换行自然分段（纯空格行不过滤）
+        let kept = lines[start..<end].filter { !isBlankLine($0) }
+
+        guard !kept.isEmpty else {
+            // 整段都是空白行：只保留与相邻 Token 之间的最小分界
+            return (keepsLeadingBreak || keepsTrailingBreak) ? "\n" : ""
+        }
+        var result = kept.joined(separator: "\n")
+        if keepsLeadingBreak, leadingBlankLines > 0 {
+            result = "\n" + result
+        }
+        if keepsTrailingBreak, trailingBlankLines > 0 {
+            result += "\n"
+        }
+        return result
+    }
+
     // MARK: - firstLine 派生
 
     /// @ 候选列表标题：派生平文本的首个非空行，超长截断

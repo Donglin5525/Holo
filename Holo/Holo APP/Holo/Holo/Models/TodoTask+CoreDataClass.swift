@@ -21,6 +21,10 @@ class TodoTask: NSManagedObject {
     @NSManaged var desc: String?
     @NSManaged var status: String
     @NSManaged var priority: Int16
+    /// 轻重缓急：重要性 0=暂未判断 1=重要 2=不重要（枚举桥接见 TaskClassification.swift）
+    @NSManaged var importanceRaw: Int16
+    /// 轻重缓急：紧急方式 0=按日期 1=手动紧急 2=手动不紧急
+    @NSManaged var urgencyModeRaw: Int16
     @NSManaged var dueDate: Date?
     @NSManaged var isAllDay: Bool
     /// 计划时间段开始（时间块）：与 plannedEnd 成对出现，两者同时有值或同时为空；不允许跨天
@@ -82,6 +86,15 @@ class TodoTask: NSManagedObject {
     /// 选中文字转任务时，被选中的文字原文快照。用于正文 ✅ 标记反向定位。
     /// nil = 非选中转化（整篇转化或纪念日生成等）。
     @NSManaged var sourceTextSnippet: String?
+
+    // MARK: - Execution（分步推进兼容字段，2026-09-25 实施规格 §7.2-A）
+
+    /// 0=普通任务（原有完成语义）；1=分步执行模型接管（清单全勾不再自动完成根）。
+    /// 数据语义由此字段固定，不随灰度 flag 改变。
+    @NSManaged var executionSchemaVersion: Int16
+
+    /// 本地快速定位当前有效版本的提示指针；完整版本选择仍需验证版本链
+    @NSManaged var activeExecutionRevisionID: UUID?
 }
 
 // MARK: - Core Data Generated Accessors

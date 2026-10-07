@@ -202,9 +202,8 @@ final class ReceiptBookingCoordinator {
                 choice: request.accountChoice
             )
             let primaryTransaction = understanding.transactions.first
-            let typeIsIncome = primaryTransaction?.isIncome ?? false
             let projectResolution = FinanceProjectRepository.shared.activeProjects().isEmpty
-                ? (resolution: ReceiptProjectResolution.none, dateOutsideRange: false, incomeConflict: false)
+                ? (resolution: ReceiptProjectResolution.none, dateOutsideRange: false)
                 : FinanceTransactionDraftResolver.shared.resolveProject(
                     choice: request.projectChoice,
                     caption: request.caption,
@@ -213,8 +212,7 @@ final class ReceiptBookingCoordinator {
                         understanding.summary,
                         primaryTransaction?.note,
                     ],
-                    transactionDate: Self.resolveTransactionDate(understanding: understanding, capturedAt: request.capturedAt),
-                    typeIsIncome: typeIsIncome
+                    transactionDate: Self.resolveTransactionDate(understanding: understanding, capturedAt: request.capturedAt)
                 )
 
             // 6. 门禁（纯函数）
@@ -238,14 +236,10 @@ final class ReceiptBookingCoordinator {
                     return false
                 }(),
                 projectChoiceUnavailable: {
-                    if case .fixedUnavailable = projectResolution.resolution { return true }
+                    if case .fixedUnavailable = accountResolution { return true }
                     return false
                 }(),
                 projectAmbiguous: projectResolution.resolution == .ambiguous,
-                incomeWithAttachedProject: {
-                    if case .resolved = projectResolution.resolution { return projectResolution.incomeConflict }
-                    return false
-                }(),
                 transactionDateOutsideProjectRange: projectResolution.dateOutsideRange,
                 hasHighCertaintyDuplicate: false,
                 hasAmbiguousDuplicate: !outcome.duplicateHints.isEmpty,
@@ -307,7 +301,7 @@ final class ReceiptBookingCoordinator {
     private static func commitDraft(
         understanding: HoloVisionUnderstanding,
         accountResolution: ReceiptAccountResolution,
-        projectResolution: (resolution: ReceiptProjectResolution, dateOutsideRange: Bool, incomeConflict: Bool),
+        projectResolution: (resolution: ReceiptProjectResolution, dateOutsideRange: Bool),
         request: ReceiptBookingRequest,
         sourceKey: String,
         itemKey: String
@@ -359,7 +353,7 @@ final class ReceiptBookingCoordinator {
             ))
         }
 
-        // 项目（收入冲突已被门禁拦成复核，这里 resolved 只出现在支出侧）
+        // 项目（收支同权：收入也可挂项目，如旅行退款；resolved 不再区分收支侧）
         let projectID: UUID?
         let projectName: String?
         switch projectResolution.resolution {

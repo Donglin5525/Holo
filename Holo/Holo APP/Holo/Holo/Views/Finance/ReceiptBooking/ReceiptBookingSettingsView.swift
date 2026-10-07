@@ -20,6 +20,11 @@ struct ReceiptBookingSettingsView: View {
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
     @AppStorage("receiptShortcutNotificationsEnabled") private var notificationsEnabled = true
 
+    // 识图凭证自动归档（票根）
+    @AppStorage(ReceiptBookingArchivePolicy.autoArchiveKey) private var autoArchiveEnabled = true
+    @State private var receiptBookingCount = 0
+    @State private var showPurgeReceiptsConfirm = false
+
     var body: some View {
         List {
             Section {
@@ -101,6 +106,21 @@ struct ReceiptBookingSettingsView: View {
             }
 
             Section {
+                Toggle("识图凭证自动归档", isOn: $autoArchiveEnabled)
+                    .tint(.holoPrimary)
+
+                if receiptBookingCount > 0 {
+                    Button("清理识图票根", role: .destructive) {
+                        showPurgeReceiptsConfirm = true
+                    }
+                }
+            } header: {
+                Text("票根")
+            } footer: {
+                Text("确认落账后，凭证照片会压缩保存为该笔账的票根（原图上限 2048px、约 200-500KB/张，随 iCloud 同步）。关闭后不再保存新票根，已归档的不受影响；交易本身不会被清理。")
+            }
+
+            Section {
                 Label("仅在需要复核时暂存压缩图；确认、删除或 7 天到期后自动清理", systemImage: "lock.shield")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
@@ -127,6 +147,7 @@ struct ReceiptBookingSettingsView: View {
         }
         .navigationTitle(Text("图片自动记账"))
         .contentMargins(.bottom, 92, for: .scrollContent)
+        .holoSheetShell()
         .task {
             refresh()
             await refreshNotificationStatus()
@@ -138,6 +159,22 @@ struct ReceiptBookingSettingsView: View {
             NavigationStack {
                 AIDataProcessingConsentView()
             }
+        }
+        .confirmationDialog(
+            "清理全部识图票根？",
+            isPresented: $showPurgeReceiptsConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("清理 \(receiptBookingCount) 张识图票根", role: .destructive) {
+                let purged = (try? FinanceRepository.shared.purgeReceiptBookingReceipts()) ?? 0
+                if purged > 0 {
+                    HoloToastCenter.shared.show(String(localized: "已清理 \(purged) 张识图票根"), type: .success)
+                }
+                refresh()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("只删除识图自动保存的票根照片，手动贴的票根和交易本身都不受影响。")
         }
     }
 
@@ -213,6 +250,7 @@ struct ReceiptBookingSettingsView: View {
     private func refresh() {
         results = ReceiptBookingResultStore.shared.loadResults()
         draftCount = ReceiptBookingResultStore.shared.loadDrafts().count
+        receiptBookingCount = FinanceRepository.shared.receiptBookingReceiptCount()
     }
 
     @MainActor

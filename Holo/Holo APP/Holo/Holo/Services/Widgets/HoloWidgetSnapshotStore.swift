@@ -46,6 +46,14 @@ nonisolated struct HoloWidgetSnapshotStore {
         try write(snapshot, fileName: HoloWidgetSharedContainer.entitlementFileName)
     }
 
+    func writeThoughtWalkPool(_ snapshot: HoloWidgetThoughtWalkSnapshot) throws {
+        try write(snapshot, fileName: HoloWidgetSharedContainer.thoughtWalkPoolFileName)
+    }
+
+    func writeThoughtWalkSelection(_ selection: HoloWidgetThoughtWalkSelection) throws {
+        try write(selection, fileName: HoloWidgetSharedContainer.thoughtWalkSelectionFileName)
+    }
+
     func readQuickActions() -> HoloWidgetQuickActionsSnapshot? {
         read(HoloWidgetQuickActionsSnapshot.self, fileName: HoloWidgetSharedContainer.quickActionsFileName)
     }
@@ -76,6 +84,14 @@ nonisolated struct HoloWidgetSnapshotStore {
 
     func readEntitlement() -> HoloWidgetEntitlementSnapshot? {
         read(HoloWidgetEntitlementSnapshot.self, fileName: HoloWidgetSharedContainer.entitlementFileName)
+    }
+
+    func readThoughtWalkPool() -> HoloWidgetThoughtWalkSnapshot? {
+        read(HoloWidgetThoughtWalkSnapshot.self, fileName: HoloWidgetSharedContainer.thoughtWalkPoolFileName)
+    }
+
+    func readThoughtWalkSelection() -> HoloWidgetThoughtWalkSelection? {
+        read(HoloWidgetThoughtWalkSelection.self, fileName: HoloWidgetSharedContainer.thoughtWalkSelectionFileName)
     }
 
     private func write<T: Encodable>(_ value: T, fileName: String) throws {
@@ -114,4 +130,20 @@ nonisolated struct HoloWidgetSnapshotStore {
         decoder.dateDecodingStrategy = .iso8601
         return decoder
     }()
+}
+
+extension HoloWidgetSnapshotStore {
+    /// 桌面卡片应显示的那条想法：当天手动换过→手选那条；否则→当日主推；
+    /// 候选池缺失（旧版本写入的数据）时回落单条快照。
+    func resolvedThoughtWalkItem(on date: Date = Date()) -> HoloWidgetThoughtMemorySnapshot? {
+        if let pool = readThoughtWalkPool(), !pool.items.isEmpty {
+            if let selection = readThoughtWalkSelection(),
+               selection.isActive(on: date),
+               let selected = pool.items.first(where: { $0.thoughtId == selection.thoughtId }) {
+                return selected
+            }
+            return pool.items[max(0, min(pool.featuredIndex, pool.items.count - 1))]
+        }
+        return readThoughtMemory()
+    }
 }

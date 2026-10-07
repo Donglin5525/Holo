@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>习惯 · 今天页 · 最终效果模拟</title>
+<style>
+  :root {
+    --bg:#1C1C1E; --surface:#2C2C2E; --inset:#3A3A3C; --border:#48484A;
+    --text:#F5F5F5; --text2:#A8A8A8; --accent:#FF8A5C; --primary:#EA580C;
+  }
+  .light {
+    --bg:#FDFCF8; --surface:#FFFFFF; --inset:#F0E9E0; --border:#DDD6C9;
+    --text:#333333; --text2:#6E6E6E; --accent:#EA580C; --primary:#EA580C;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#000; font-family:-apple-system,"PingFang SC",sans-serif;
+    display:flex; gap:36px; justify-content:center; align-items:flex-start;
+    padding:28px 16px; min-height:100vh;
+  }
+  .note { width:250px; padding:20px; background:#111; border:1px solid #333; border-radius:14px; position:sticky; top:28px; color:#bbb; font-size:12.5px; line-height:2; }
+  .note h2 { color:#fff; font-size:15px; margin-bottom:8px; }
+  .note b { color:#FF8A5C; font-weight:600; }
+  .note .sep { border-top:1px solid #333; margin:12px 0; }
+  .note button { width:100%; margin-top:4px; padding:9px; background:#1e1e1e; color:#ddd; border:1px solid #333; border-radius:8px; font-size:12px; cursor:pointer; }
+  .note button:hover { border-color:#EA580C; }
+
+  .phone {
+    width:390px; min-height:844px; border-radius:44px; overflow:hidden;
+    border:6px solid #222; background:var(--bg); position:relative;
+    display:flex; flex-direction:column; color:var(--text);
+  }
+  .statusbar { height:44px; display:flex; align-items:center; justify-content:space-between; padding:0 26px; font-size:14px; font-weight:600; flex-shrink:0; }
+  .scroll { flex:1; overflow-y:auto; padding:0 20px 30px; }
+  .navrow { display:flex; align-items:center; justify-content:space-between; }
+  .navrow .back { font-size:18px; width:40px; height:40px; display:flex; align-items:center; }
+  .navrow .add { width:36px; height:36px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:18px; color:#fff; }
+  h1.title { font-size:24px; font-weight:800; margin-bottom:2px; }
+  .dateline { font-size:13px; color:var(--text2); margin-bottom:12px; }
+  .dateline b { color:var(--text); font-weight:600; }
+
+  /* 七天抽屉（收起态默认） */
+  .drawer { background:var(--surface); border-radius:12px; margin-bottom:10px; overflow:hidden; }
+  .drawer-head { display:flex; align-items:center; gap:8px; padding:11px 14px; cursor:pointer; }
+  .drawer-head .t { font-size:13px; font-weight:600; flex:1; }
+  .drawer-head .sum { font-size:12px; color:var(--text2); }
+  .drawer-head .chev { font-size:11px; color:var(--text2); transition:transform .25s; }
+  .drawer.open .drawer-head .chev { transform:rotate(90deg); }
+  .drawer-body { max-height:0; overflow:hidden; transition:max-height .3s ease; }
+  .drawer.open .drawer-body { max-height:120px; }
+  .weekstrip { display:flex; gap:6px; padding:2px 14px 14px; }
+  .day { flex:1; border-radius:9px; background:var(--inset); display:flex; flex-direction:column; align-items:center; gap:2px; padding:7px 0; }
+  .day .d { font-size:10px; color:var(--text2); }
+  .day .c { font-size:13px; font-weight:600; }
+  .day .c.zero { color:var(--text2); opacity:.55; }
+  .day.today { background:var(--primary); }
+  .day.today .d { color:rgba(255,255,255,.85); }
+  .day.today .c { color:#fff; }
+
+  .grouprow { display:flex; align-items:center; justify-content:space-between; margin:4px 0 2px; }
+  .grouprow .g { font-size:12px; font-weight:600; color:var(--text2); }
+  .seg { display:flex; background:var(--inset); border-radius:8px; padding:2px; }
+  .seg span { font-size:11px; padding:4px 10px; border-radius:6px; color:var(--text2); cursor:pointer; }
+  .seg span.on { background:var(--surface); color:var(--text); font-weight:600; }
+  .light .seg span.on { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+
+  .row { padding:11px 0 12px; border-bottom:.5px solid var(--border); position:relative; }
+  .row:last-child { border-bottom:none; }
+  .rowmain { display:flex; align-items:center; gap:12px; }
+  .hicon { width:34px; height:34px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .hmain { flex:1; min-width:0; }
+  .hname { font-size:16px; font-weight:600; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hsub { font-size:12px; color:var(--text2); }
+  .hsub b { color:var(--text); font-weight:500; }
+  .hsub .ok { color:var(--accent); font-weight:600; }
+  .actions { display:flex; align-items:center; gap:9px; flex-shrink:0; }
+  .val { font-size:18px; font-weight:700; min-width:24px; text-align:center; }
+  .mini { width:30px; height:30px; border-radius:50%; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:15px; background:transparent; color:var(--text2); }
+  .mini.filled { background:var(--hc); color:#fff; font-size:14px; }
+  .pill { border:none; cursor:pointer; border-radius:999px; padding:8px 15px; font-size:13px; font-weight:600; background:var(--inset); color:var(--text); }
+  .pill.done { background:var(--hc); color:#fff; }
+
+  /* 缝线日课（B 方案，2026-10-07 东林选定）。针脚=已记录 针眼=未记录 双线=补录 搭线=暂停 空圈=今天。
+     类名 tB/slot/st——不与筛选器 .seg 等其他组件撞名（10-07 事故教训） */
+  .trailbox { margin-top:9px; }
+  .tB { position:relative; height:20px; display:flex; }
+  .tB .slot { flex:1; position:relative; }
+  .tB .slot .st { position:absolute; left:50%; transform:translateX(-50%); border-radius:2px; }
+  .tB .slot.hit .st { width:6px; height:3px; top:9px; background:var(--hc); opacity:.9; }
+  .tB .slot.miss .st { width:2.5px; height:2.5px; border-radius:50%; top:9px; background:var(--border); opacity:.7; }
+  /* 补录=空心针脚：实针=当天记的，空针=后来补的。比旧双线做法区分度高一目（10-07 东林反馈重设计） */
+  .tB .slot.retro .st { width:7px; height:4px; top:8.5px; background:transparent; border:1.2px solid var(--hc); opacity:.9; }
+  .tB .slot.pause .st { width:6px; height:1px; top:10px; background:var(--border); opacity:.8; }
+  .tB .slot.today::after { content:""; position:absolute; left:50%; transform:translateX(-50%); top:2px; width:4px; height:4px; border-radius:50%; border:1px solid var(--hc); opacity:.65; }
+
+  /* 撤销条 */
+  .undo { position:absolute; left:20px; right:20px; bottom:16px; display:flex; align-items:center; gap:10px; background:var(--surface); border-radius:999px; padding:11px 18px; box-shadow:0 8px 24px rgba(0,0,0,.4); opacity:0; transform:translateY(10px); transition:opacity .25s, transform .25s; pointer-events:none; z-index:5; }
+  .undo.show { opacity:1; transform:translateY(0); pointer-events:auto; }
+  .undo .uic { color:var(--accent); }
+  .undo .ut { flex:1; font-size:13px; }
+  .undo .ub { color:var(--accent); font-weight:600; font-size:13px; cursor:pointer; }
+
+  /* 测量输入浮层 */
+  .sheetmask { position:absolute; inset:0; background:rgba(0,0,0,.45); display:none; align-items:flex-end; z-index:9; }
+  .sheetmask.show { display:flex; }
+  .sheet { width:100%; background:var(--surface); border-radius:18px 18px 0 0; padding:20px; }
+  .sheet h3 { font-size:16px; margin-bottom:12px; }
+  .sheet .inrow { display:flex; align-items:center; gap:10px; margin-bottom:14px; }
+  .sheet input { flex:1; font-size:22px; font-weight:700; background:var(--inset); border:none; border-radius:10px; padding:10px 14px; color:var(--text); outline:none; }
+  .sheet .unit { color:var(--text2); font-size:14px; }
+  .sheet .save { width:100%; padding:12px; border:none; border-radius:999px; background:var(--accent); color:#fff; font-size:15px; font-weight:600; cursor:pointer; }
+  .light .sheet .save { background:var(--primary); }
+</style>
+</head>
+<body>
+
+<div class="note">
+  <h2>今天页 · 最终效果模拟</h2>
+  直接当 App 用：<b>点「打卡」</b>看落墨动效和撤销条；<b>点 ✓</b> 撤销；<b>计数行点 ＋ / −</b>；<b>体重行点「记录」</b>输入数值；<b>「最近七天」</b>点开是抽屉。右下角可切浅色。
+  <div class="sep"></div>
+  每行下面的缝线 = 最近 30 天：<b>实针</b>是坚持的日子，<b>空心针</b>是补录，<b>针眼</b>是漏做，<b>细搭线</b>是暂停（不算断），<b>空圈</b>是今天。打卡就是缝一针。
+  <div class="sep"></div>
+  <button onclick="document.getElementById('phone').classList.toggle('light')">切浅色 / 深色</button>
+</div>
+
+<div class="phone" id="phone">
+  <div class="statusbar"><span>09:30</span><span>🔋 56</span></div>
+  <div class="scroll">
+    <div class="navrow">
+      <div class="back">‹</div>
+      <div class="add">＋</div>
+    </div>
+    <h1 class="title">习惯</h1>
+    <div class="dateline">10月7日 星期三 · <b id="countLine">已记录 2 项</b></div>
+
+    <div class="drawer" id="weekDrawer">
+      <div class="drawer-head" onclick="this.parentElement.classList.toggle('open')">
+        <span class="t">📅 最近七天</span>
+        <span class="sum" id="weekSum">本周 3 天有记录</span>
+        <span class="chev">›</span>
+      </div>
+      <div class="drawer-body">
+        <div class="weekstrip">
+          <div class="day"><span class="d">1日</span><span class="c">3</span></div>
+          <div class="day"><span class="d">2日</span><span class="c">4</span></div>
+          <div class="day"><span class="d">3日</span><span class="c">2</span></div>
+          <div class="day"><span class="d">4日</span><span class="c zero">0</span></div>
+          <div class="day"><span class="d">5日</span><span class="c">4</span></div>
+          <div class="day"><span class="d">6日</span><span class="c">3</span></div>
+          <div class="day today"><span class="d">7日</span><span class="c" id="todayCount">2</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grouprow">
+      <span class="g">每日习惯</span>
+      <div class="seg"><span class="on">全部</span><span onclick="this.classList.toggle('on');this.previousElementSibling.classList.toggle('on')">未记录</span></div>
+    </div>
+
+    <div id="rows"></div>
+  </div>
+
+  <div class="undo" id="undo">
+    <span class="uic">✔</span>
+    <span class="ut">已记录</span>
+    <span class="ub" onclick="undoLast()">撤销</span>
+  </div>
+
+  <div class="sheetmask" id="sheetmask">
+    <div class="sheet">
+      <h3>记录体重</h3>
+      <div class="inrow">
+        <input id="weightInput" type="number" step="0.1" placeholder="64.5">
+        <span class="unit">kg</span>
+      </div>
+      <button class="save" onclick="saveWeight()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── 数据：30 天痕迹，index 0 = 29 天前，29 = 今天 ──
+   1=已记录 2=补录 0=未记录。state.done = 今天是否已记录 */
+const habits = [
+  { name:"晨间阅读", icon:"📖", color:"#D9662C", kind:"checkin", done:true,
+    base:'<b>连续 8 天</b> · <span class="ok">已达标</span>', undoSub:'<b>连续 7 天</b> · 未记录',
+    trail:[1,1,0,1,1,1,1,1,1,1,0,1,1,1,2,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1] },
+  { name:"23:30 前上床", icon:"🌙", color:"#8063CE", kind:"checkin", done:false,
+    base:"<b>连续 1 天</b> · 今日已打卡", undoSub:"未记录",
+    trail:[0,0,1,1,1,0,0,0,1,1,0,0,0,1,1,1,0,0,3,3,3,3,0,0,0,0,0,0,0,0] },
+  { name:"30 分钟运动", icon:"🏃", color:"#2FA360", kind:"checkin", done:false,
+    base:"<b>连续 7 天</b> · 今日已打卡", undoSub:"连续 6 天",
+    trail:[0,1,1,0,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,0] },
+  { name:"好好喝水", icon:"💧", color:"#1F9E9E", kind:"count", done:true, cups:3, target:8,
+    base:'今天 <b>3 / 8 杯</b>', undoSub:"未记录",
+    trail:[1,1,1,0,1,1,1,1,0,1,1,1,1,1,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1] },
+  { name:"体重", icon:"⚖️", color:"#8063CE", kind:"measure", done:false, last:"64.2",
+    base:"上次 64.2 kg · 10月5日", undoSub:"上次 64.2 kg · 10月5日",
+    trail:[1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0,1,0,0] },
+];
+
+let lastAction = null;   // { habit, kind } 供撤销
+
+function trailHTML(h) {
+  const n = h.trail.length;
+  /* 缝线日课：每天一个针位。1=针脚 2=回针双线 3=搭线(暂停) 0=针眼；done 时今天缝上针脚。
+     所有针位必须包在 .tB 里——样式以 .tB 为作用域，漏掉包裹层整条缝线不可见（10-07 事故教训） */
+  const state = h.trail.slice();
+  if (h.done) state[n-1] = 1;
+  const slots = state.map((t,i)=>{
+    const cls = t===1?'hit':t===2?'retro':t===3?'pause':'miss';
+    const today = i===n-1 ? ' today' : '';
+    return `<div class="slot ${cls}${today}"><div class="st"></div></div>`;
+  }).join("");
+  return `<div class="tB">${slots}</div>`;
+}
+
+/* 落针动效（针脚从无到有缝上；.st 的 CSS transform 是 translateX(-50%)，keyframe 必须带着它否则针脚跳位） */
+const STITCH_IN = [
+  {transform:"translateX(-50%) scale(0)",opacity:0},
+  {transform:"translateX(-50%) scale(1.35)",opacity:1,offset:.65},
+  {transform:"translateX(-50%) scale(1)",opacity:.9}
+];
+
+/* 只重画一行的缝线：打卡/撤销后今天针位换状态，不重建整行（保留按钮动效现场） */
+function renderTrail(h) {
+  const box = rowEl(h.name).querySelector(".trailbox");
+  if (box) box.innerHTML = trailHTML(h);
+}
+
+function subHTML(h) {
+  if (h.kind === "count" && h.done) return `今天 <b>${h.cups} / ${h.target} 杯</b>`;
+  return h.done ? h.base : h.undoSub;
+}
+
+function actionsHTML(h) {
+  if (h.kind === "checkin") {
+    return `<button class="pill ${h.done?'done':''}" data-h="${h.name}" data-act="checkin">${h.done?'✓':'打卡'}</button>`;
+  }
+  if (h.kind === "count") {
+    return `<button class="mini" data-h="${h.name}" data-act="dec">−</button>
+            <span class="val" data-val="${h.name}">${h.done?h.cups:'−'}</span>
+            <button class="mini filled" data-h="${h.name}" data-act="inc">＋</button>`;
+  }
+  return `<button class="pill" data-h="${h.name}" data-act="measure">记录</button>`;
+}
+
+function render() {
+  const rows = document.getElementById("rows");
+  rows.innerHTML = "";
+  for (const h of habits) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.setProperty("--hc", h.color);
+    row.innerHTML = `
+      <div class="rowmain">
+        <div class="hicon" style="background:${h.color}22;color:${h.color}">${h.icon}</div>
+        <div class="hmain">
+          <div class="hname">${h.name}</div>
+          <div class="hsub" data-sub="${h.name}">${subHTML(h)}</div>
+        </div>
+        <div class="actions">${actionsHTML(h)}</div>
+      </div>
+      <div class="trailbox">${trailHTML(h)}</div>`;
+    rows.appendChild(row);
+  }
+  bind();
+  updateCountLine();
+}
+
+function rowOf(name) { return habits.find(x=>x.name===name); }
+function rowEl(name) { return [...document.querySelectorAll(".row")].find(r=>r.querySelector(`[data-h="${name}"]`)); }
+
+function updateCountLine() {
+  const c = habits.filter(h=>h.done).length;
+  document.getElementById("countLine").textContent = `已记录 ${c} 项`;
+  document.getElementById("todayCount").textContent = c;
+}
+
+/* ── 打卡动效（一次完整时序，element.animate 驱动）── */
+async function animCheckIn(h) {
+  const row = rowEl(h.name);
+  const btn = row.querySelector('[data-act="checkin"]');
+  const f = m => btn.animate(m, {duration:250, easing:"cubic-bezier(.34,1.6,.64,1)", fill:"both"});
+  /* 1 按压 */
+  btn.animate([{transform:"scale(1)"},{transform:"scale(.93)"},{transform:"scale(1)"}], {duration:130, easing:"ease-out"});
+  await new Promise(r=>setTimeout(r,130));
+  /* 2 变勾 */
+  h.done = true; lastAction = { habit:h, kind:"checkin" };
+  btn.classList.add("done"); btn.textContent = "✓";
+  f([{transform:"scale(1.5)",opacity:.4},{transform:"scale(1)",opacity:1}]);
+  /* 3 缝一针：重画缝线让今天针脚就位，再落针压实 */
+  renderTrail(h);
+  const st = row.querySelector(".slot.today .st");
+  if (st) st.animate(STITCH_IN, {duration:260, easing:"cubic-bezier(.34,1.6,.64,1)", fill:"both"});
+  /* 4 文案 */
+  const sub = row.querySelector("[data-sub]");
+  if (sub) sub.innerHTML = subHTML(h);
+  showUndo();
+  updateCountLine();
+}
+
+async function animUndo(h) {
+  const row = rowEl(h.name);
+  /* 1 拆针：今天针脚缩小淡出 */
+  const st = row.querySelector(".slot.today .st");
+  if (st) st.animate([
+    {transform:"translateX(-50%) scale(1)",opacity:.9},
+    {transform:"translateX(-50%) scale(0)",opacity:0}
+  ], {duration:200, easing:"ease-in", fill:"both"});
+  await new Promise(r=>setTimeout(r,210));
+  /* 2 缝线重画：今天回到针眼 */
+  h.done = false;
+  renderTrail(h);
+  /* 3 按钮还原 */
+  const btn = row.querySelector('[data-act="checkin"]');
+  if (btn) { btn.classList.remove("done"); btn.textContent = "打卡"; }
+  const sub = row.querySelector("[data-sub]");
+  if (sub) sub.innerHTML = subHTML(h);
+  updateCountLine();
+}
+
+function showUndo() {
+  const u = document.getElementById("undo");
+  u.classList.add("show");
+  clearTimeout(u._t);
+  u._t = setTimeout(()=>u.classList.remove("show"), 4000);
+}
+
+async function undoLast() {
+  if (!lastAction) return;
+  const { habit:h, kind } = lastAction;
+  document.getElementById("undo").classList.remove("show");
+  if (kind === "checkin") { await animUndo(h); return; }
+  if (kind === "inc") {
+    h.cups--; if (h.cups === 0) { h.done = false; }
+    refreshRow(h);
+    lastAction = null;
+  }
+}
+
+function refreshRow(h) {
+  const row = rowEl(h.name);
+  row.querySelector("[data-sub]").innerHTML = subHTML(h);
+  const v = row.querySelector(`[data-val="${h.name}"]`);
+  if (v) {
+    const nv = document.createElement("span");
+    nv.textContent = h.done ? h.cups : "−";
+    v.textContent = nv.textContent;
+  }
+  updateCountLine();
+}
+
+/* ── 事件绑定 ── */
+function bind() {
+  document.querySelectorAll("[data-act]").forEach(btn=>{
+    btn.onclick = async () => {
+      const h = rowOf(btn.dataset.h);
+      if (btn.dataset.act === "checkin") {
+        if (h.done) { lastAction = { habit:h, kind:"checkin" }; await animUndo(h); }
+        else await animCheckIn(h);
+      } else if (btn.dataset.act === "inc") {
+        const wasDone = h.done;
+        h.cups++; if (!h.done) { h.done = true; }
+        lastAction = { habit:h, kind:"inc" };
+        refreshRow(h);
+        if (!wasDone) renderTrail(h);   /* 从 0 到 1：缝上今天的针脚 */
+        const st = rowEl(h.name).querySelector(".slot.today .st");
+        if (st) {
+          if (!wasDone) st.animate(STITCH_IN, {duration:260, easing:"cubic-bezier(.34,1.6,.64,1)", fill:"both"});
+          else st.animate([{filter:"brightness(1)"},{filter:"brightness(1.7)"},{filter:"brightness(1)"}], {duration:300});
+        }
+      } else if (btn.dataset.act === "dec") {
+        if (h.cups > 0) {
+          const wasDone = h.done;
+          h.cups--; if (h.cups === 0) h.done = false;
+          refreshRow(h);
+          if (wasDone && !h.done) renderTrail(h);   /* 减回 0：今天格擦除 */
+        }
+      } else if (btn.dataset.act === "measure") {
+        document.getElementById("sheetmask").classList.add("show");
+        window._measureTarget = h;
+        setTimeout(()=>document.getElementById("weightInput").focus(), 50);
+      }
+    };
+  });
+}
+
+function saveWeight() {
+  const h = window._measureTarget;
+  const v = parseFloat(document.getElementById("weightInput").value);
+  if (!isNaN(v) && v >= 0) {
+    h.done = true;
+    h.base = `今天 <b>${v} kg</b>`;
+    const row = rowEl(h.name);
+    renderTrail(h);
+    const st = row.querySelector(".slot.today .st");
+    if (st) st.animate(STITCH_IN, {duration:260, easing:"cubic-bezier(.34,1.6,.64,1)", fill:"both"});
+    row.querySelector("[data-sub]").innerHTML = subHTML(h);
+    lastAction = null;
+    updateCountLine();
+  }
+  document.getElementById("sheetmask").classList.remove("show");
+}
+document.getElementById("sheetmask").addEventListener("click", e=>{
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove("show");
+});
+
+render();
+
+/* 演示辅助：#light 直接以浅色打开 */
+if (location.hash.includes("light")) document.getElementById("phone").classList.add("light");
+
+/* 自动化验证钩子：#autotest 加载后自动打卡 23:30 前上床，验证结果写进页面 */
+if (location.hash.includes("autotest")) {
+  setTimeout(async () => {
+    try {
+      const bed = rowOf("23:30 前上床");
+      await animCheckIn(bed);
+      const line = document.getElementById("countLine");
+      line.textContent = bed.done ? "AUTOTEST-PASS 打卡后 done=true" : "AUTOTEST-FAIL";
+      line.style.color = bed.done ? "#4c6" : "#f66";
+      await new Promise(r=>setTimeout(r,600));
+      await animUndo(bed);
+      line.textContent += " → 撤销 done=" + bed.done;
+      await new Promise(r=>setTimeout(r,600));
+      await animCheckIn(bed);
+      line.textContent += " → 再打卡 done=" + bed.done;
+      line.style.background = bed.done ? "#1f4d1f" : "#5d1f1f";
+    } catch (err) {
+      const line = document.getElementById("countLine");
+      line.textContent = "AUTOTEST-ERROR " + err.message;
+      line.style.color = "#f66";
+    }
+  }, 900);
+}
+</script>
+</body>
+</html>

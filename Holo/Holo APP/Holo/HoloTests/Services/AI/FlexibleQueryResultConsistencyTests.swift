@@ -110,6 +110,25 @@ final class FlexibleQueryResultConsistencyTests: XCTestCase {
         XCTAssertTrue(answer.contains("麦当劳"))
     }
 
+    // MARK: - projectNames（2026-10-04 目录驱动字段：后端 planner 已输出项目槽位，
+    // iOS FiltersDTO 此前缺键导致解码静默丢弃；两用例分别钉死接收端与执行端）
+
+    @MainActor
+    func testPlannerDecodesProjectNamesIntoPlanFilters() async throws {
+        let provider = MockFlexibleQueryPlanProvider()
+        provider.plannerResponse = #"{"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"sumAmount","filters":{"type":"expense","amountGreaterThan":null,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":[],"excludedKeywords":[],"categoryNames":[],"startDate":null,"endDate":null,"accountNames":[],"projectNames":["东京旅行"],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"none","sort":null,"limit":20,"explanationHints":[]}}"#
+
+        let planner = FlexibleQueryPlanner(provider: provider)
+        let result = try await planner.plan(
+            userQuestion: "东京旅行花了多少钱",
+            extractedData: nil,
+            userContext: .empty
+        )
+
+        XCTAssertEqual(result.status, .ready)
+        XCTAssertEqual(result.plan?.filters.projectNames, ["东京旅行"])
+    }
+
     private static func makePlan() -> FlexibleQueryPlan {
         FlexibleQueryPlan(
             domain: .finance,
@@ -155,5 +174,32 @@ final class FlexibleQueryResultConsistencyTests: XCTestCase {
             accountId: nil,
             projectName: nil
         )
+    }
+}
+
+// MARK: - Mock Planner Provider
+
+@MainActor
+private final class MockFlexibleQueryPlanProvider: AIProvider {
+    var lastCallLog: LLMCallLog? = nil
+    var plannerResponse: String = "{}"
+
+    func parseUserInput(_ input: String, context: UserContext) async throws -> ParsedResult {
+        throw APIError.serverError("not implemented")
+    }
+
+    func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {
+        plannerResponse
+    }
+
+    func chatStreaming(
+        messages: [ChatMessageDTO],
+        userContext: UserContext,
+        systemContextOverride: String?,
+        promptType: PromptManager.PromptType
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish(throwing: APIError.serverError("not implemented"))
+        }
     }
 }

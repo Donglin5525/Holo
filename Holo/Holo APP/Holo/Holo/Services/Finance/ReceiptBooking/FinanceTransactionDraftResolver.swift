@@ -88,7 +88,7 @@ final class FinanceTransactionDraftResolver {
         }
     }
 
-    // MARK: 项目解析（方案 §21.3 优先级与安全规则）
+    // MARK: 项目解析（方案 §21.3 优先级；2026-10-04 起收支同权，收入挂项目不再是冲突）
 
     /// - Parameters:
     ///   - imageCandidateTexts: 理解单里的项目候选原文（merchant/summary/items，方案 §21.3 首版口径）
@@ -99,26 +99,23 @@ final class FinanceTransactionDraftResolver {
         choice: ReceiptProjectChoice,
         caption: String?,
         imageCandidateTexts: [String?],
-        transactionDate: Date,
-        typeIsIncome: Bool
-    ) -> (resolution: ReceiptProjectResolution, dateOutsideRange: Bool, incomeConflict: Bool) {
+        transactionDate: Date
+    ) -> (resolution: ReceiptProjectResolution, dateOutsideRange: Bool) {
         let repo = FinanceProjectRepository.shared
         let activeProjects = repo.activeProjects()
 
-        func attached(_ project: FinanceProject) -> (ReceiptProjectResolution, Bool, Bool) {
+        func attached(_ project: FinanceProject) -> (ReceiptProjectResolution, Bool) {
             let outside = Self.isDate(transactionDate, outsideRangeOf: project)
-            // 收入/退款不允许挂项目：显式配置不能被静默忽略（方案 §21.3）
-            let incomeConflict = typeIsIncome
-            return (.resolved(id: project.id, name: project.name), outside, incomeConflict)
+            return (.resolved(id: project.id, name: project.name), outside)
         }
 
         switch choice {
         case .noProject:
-            return (.none, false, false)
+            return (.none, false)
 
         case .fixed(let projectID):
             guard let project = activeProjects.first(where: { $0.id == projectID }) else {
-                return (.fixedUnavailable(id: projectID), false, false)
+                return (.fixedUnavailable(id: projectID), false)
             }
             return attached(project)
 
@@ -128,17 +125,17 @@ final class FinanceTransactionDraftResolver {
                !caption.isEmpty {
                 let exact = activeProjects.filter { $0.name == caption }
                 if exact.count == 1 { return attached(exact[0]) }
-                if exact.count > 1 { return (.ambiguous, false, false) }
+                if exact.count > 1 { return (.ambiguous, false) }
             }
             // 2. 图片候选（merchant/summary/items）经现有保守匹配，唯一命中才挂
             for candidate in imageCandidateTexts.compactMap({ $0 })
             where !candidate.trimmingCharacters(in: .whitespaces).isEmpty {
                 let (matched, ambiguous) = FinanceProjectRepository.matchProjectCandidate(candidate, in: activeProjects)
                 if let matched { return attached(matched) }
-                if ambiguous { return (.ambiguous, false, false) }
+                if ambiguous { return (.ambiguous, false) }
             }
             // 3. 零命中：正常不挂项目
-            return (.none, false, false)
+            return (.none, false)
         }
     }
 
@@ -151,7 +148,7 @@ final class FinanceTransactionDraftResolver {
 
     // MARK: 分类解析（自 IntentRouter.matchCategory 整体搬迁，2026-09-15）
     // 链路：用户纠正学习 → AI 标准科目 → 本地自定义 + catalog 别名 → 语义兜底 → note/原始候选精确 → 待分类
-    // 函数体逐行保持搬迁时原样；语义变更必须同时过聊天识图回归与本目录单测。
+    // 语义变更必须同时过聊天识图回归与本目录单测。
 
     func matchCategory(
         primaryCategory: String?,
@@ -162,9 +159,32 @@ final class FinanceTransactionDraftResolver {
         note: String,
         type: TransactionType
     ) async throws -> Category? {
-        let categoryRepo = FinanceRepository.shared
-        let categories = try await categoryRepo.getCategories(by: type)
+        let categories = try await FinanceRepository.shared.getCategories(by: type)
+        return await matchCategory(
+            primaryCategory: primaryCategory,
+            subCategory: subCategory,
+            categoryCandidate: categoryCandidate,
+            normalizedCategoryCandidate: normalizedCategoryCandidate,
+            semanticCategoryHint: semanticCategoryHint,
+            note: note,
+            type: type,
+            categories: categories
+        )
+    }
 
+    /// 分类解析主体（categories 注入版）。独立出来供单测构造孤儿/一级重复等
+    /// 异常库形态（2026-09-25 酸汤肥牛落待分类治理：真实库的父子挂接断裂
+    /// 曾让全部按 parentId 的子类查找失配，静默掉进「待分类」）。
+    func matchCategory(
+        primaryCategory: String?,
+        subCategory: String?,
+        categoryCandidate: String?,
+        normalizedCategoryCandidate: String?,
+        semanticCategoryHint: String?,
+        note: String,
+        type: TransactionType,
+        categories: [Category]
+    ) async -> Category? {
         let candidates = CategoryCandidateResolver.orderedCandidates(
             categoryCandidate: categoryCandidate,
             normalizedCategoryCandidate: normalizedCategoryCandidate,
@@ -190,7 +210,7 @@ final class FinanceTransactionDraftResolver {
                         $0.isTopLevel && $0.name == learned.primary && $0.type == type.rawValue
                     })
                     if let parent = parent,
-                       let sub = categories.first(where: { $0.parentId == parent.id && $0.name == mealSub }) {
+                       let sub = Self.subCategory(named: mealSub, under: parent, in: categories) {
                         return sub
                     }
                 }
@@ -261,16 +281,14 @@ final class FinanceTransactionDraftResolver {
                     // 餐饮类：按时间选餐段
                     let hour = Calendar.current.component(.hour, from: Date())
                     let mealSub = CategoryCandidateResolver.mealSubCategoryForHour(hour)
-                    if let sub = categories.first(where: { $0.parentId == parent.id && $0.name == mealSub }) {
+                    if let sub = Self.subCategory(named: mealSub, under: parent, in: categories) {
                         return sub
                     }
                 } else {
                     // 非餐饮类：用 normalizedCategoryCandidate 在该一级分类下找子类
                     if let normalized = normalizedCategoryCandidate?.trimmingCharacters(in: .whitespaces),
                        !normalized.isEmpty {
-                        if let sub = categories.first(where: {
-                            $0.parentId == parent.id && $0.name.lowercased() == normalized.lowercased()
-                        }) {
+                        if let sub = Self.subCategory(namedLower: normalized, under: parent, in: categories) {
                             return sub
                         }
                     }
@@ -302,5 +320,27 @@ final class FinanceTransactionDraftResolver {
 
         // 无法可靠匹配，返回 nil，由调用方使用「待分类」兜底
         return nil
+    }
+
+    /// 子类查找：优先按 parentId 挂接关系；挂接断裂（孤儿子类/一级分类重复导致
+    /// first 拿到的 parent 不是子类实际挂靠的那条）时退化为同名子类——
+    /// 「实体在、名字对」的库仍能落位，不静默掉进「待分类」
+    static func subCategory(named name: String, under parent: Category, in categories: [Category]) -> Category? {
+        if let sub = categories.first(where: { $0.parentId == parent.id && $0.name == name }) {
+            return sub
+        }
+        return categories.first(where: { $0.isSubCategory && $0.name == name })
+    }
+
+    /// 同上（忽略大小写变体，供 normalizedCategoryCandidate 路径）
+    private static func subCategory(namedLower name: String, under parent: Category, in categories: [Category]) -> Category? {
+        if let sub = categories.first(where: {
+            $0.parentId == parent.id && $0.name.lowercased() == name.lowercased()
+        }) {
+            return sub
+        }
+        return categories.first(where: {
+            $0.isSubCategory && $0.name.lowercased() == name.lowercased()
+        })
     }
 }

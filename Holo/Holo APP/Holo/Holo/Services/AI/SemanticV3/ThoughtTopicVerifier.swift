@@ -10,12 +10,13 @@
 //
 
 import CoreData
+import CryptoKit
 import Foundation
 import OSLog
 
 // MARK: - 传输 DTO（与后端 §16.2 契约对齐）
 
-struct ThoughtSemanticRelateRequestDTO: Codable {
+nonisolated struct ThoughtSemanticRelateRequestDTO: Codable {
     struct Target: Codable { let ref: String; let text: String }
     struct Representative: Codable { let ref: String; let text: String }
     struct Candidate: Codable {
@@ -32,187 +33,189 @@ struct ThoughtSemanticRelateRequestDTO: Codable {
     let candidates: [Candidate]
 }
 
-struct ThoughtSemanticRelateResponseDTO: Codable {
+nonisolated struct ThoughtSemanticRelateResponseDTO: Codable {
     struct Decision: Codable {
         let candidateRef: String
         let relation: String
         let quote: String?
         let rangeUTF16: [Int]?
+        var representativeRef: String? = nil
+        var representativeQuote: String? = nil
+        var sharedSubject: String? = nil
     }
     let schemaVersion: Int
     let operationId: String
     let textRevision: String
     let decisions: [Decision]
+    var outcome: String? = nil
+    var reasonCode: String? = nil
 }
 
 // MARK: - 决策结果
 
-struct ThoughtRelationDecision: Codable, Equatable {
+nonisolated struct ThoughtRelationDecision: Codable, Equatable {
     var topicID: UUID
     var relation: String          // same_thread / related / none / insufficient
     var tier: String              // high / medium / low
     var verifierQuote: String?
+    var verifierRangeUTF16: [Int]?   // 证据区间（正式提交时随 basisTextHash 落库）
     var scoreFeaturesJSON: String
 }
 
-enum ThoughtTopicVerifierError: Error {
+nonisolated enum ThoughtTopicVerifierError: Error {
     case candidateBuildFailed
     case responseContractViolation(reason: String)
 }
 
-enum ThoughtTopicVerifier {
+nonisolated enum ThoughtTopicVerifier {
+    static let engineVersion = "thought_semantic_v3.1"
 
-    static let engineVersion = "thought_semantic_v3.0"
-    private static let logger = Logger(subsystem: "com.holo.Holo", category: "ThoughtTopicVerifier")
-
-    /// 影子执行一次完整判断：召回 → 构造最小请求 → 云端验证 → 客户端二次校验 → 分层。
-    /// 返回逐候选决策（含 low）；失败返回 nil（shadow 静默，不打扰主流程）。
-    static func shadowEvaluate(thoughtID: UUID,
-                               redactedText: String,
-                               contentHash: String,
-                               targetVector: [Float],
-                               store: ThoughtSemanticStore,
-                               index: (any LocalSemanticIndex)?,
-                               context: NSManagedObjectContext,
-                               provider: HoloBackendAIProvider,
-                               calibration: ThoughtSemanticCalibration) async -> [ThoughtRelationDecision]? {
-
-        // 1. 召回
-        let recallOutcome = await ThoughtTopicCandidateEngine.recall(
-            targetVector: targetVector, thoughtID: thoughtID,
-            store: store, index: index, context: context, calibration: calibration)
-        guard !recallOutcome.candidates.isEmpty else {
-            try? await store.recordRelationCandidate(
-                thoughtID: thoughtID, topicID: UUID(), contentHash: contentHash,
-                scoreFeatures: "{}", verifierResult: "no_recall:\(recallOutcome.reason ?? "none")",
-                state: "expired", engineVersion: engineVersion,
-                expiryDays: calibration.candidateExpiryDays)
-            return []
+    /// 目录版本不包含 AI 成员数，避免自动写关系又触发自身重评。
+    static func evaluationVersion(context: NSManagedObjectContext) async -> String {
+        let catalog = await context.perform {
+            let request = Topic.fetchRequest()
+            request.predicate = NSPredicate(format: "deletedAt == nil")
+            return ((try? context.fetch(request)) ?? []).filter(\.isVisibleTopic)
+                .map { "\($0.id.uuidString)|\($0.title)|\($0.status)|\($0.summary ?? "")" }.sorted().joined(separator: "\n")
         }
-        let candidates = recallOutcome.candidates
-
-        // 2. 候选上下文：每主题 ≤3 条代表片段（成员想法正文脱敏后截断 240 UTF-16）
-        var requestCandidates: [ThoughtSemanticRelateRequestDTO.Candidate] = []
-        for (i, candidate) in candidates.enumerated() {
-            let reps = await representativeTexts(topicID: candidate.topicID, context: context)
-            guard !reps.isEmpty else { continue }
-            requestCandidates.append(.init(
-                ref: "P\(i)",
-                title: String(candidate.topicTitle.prefix(32)),
-                summary: nil,
-                representatives: reps.enumerated().map { .init(ref: "R\($0.offset)", text: $0.element) }))
-        }
-        guard !requestCandidates.isEmpty else { return nil }
-
-        // 3. 云端验证
-        let request = ThoughtSemanticRelateRequestDTO(
-            schemaVersion: 1,
-            operationId: UUID().uuidString,
-            textRevision: contentHash,
-            engineVersion: engineVersion,
-            target: .init(ref: "T0", text: String(redactedText.prefix(4_000))),
-            candidates: requestCandidates)
-        let response: ThoughtSemanticRelateResponseDTO
-        do {
-            response = try await provider.semanticRelate(request)
-        } catch {
-            logger.debug("relate 调用失败（shadow 静默）：\(error.localizedDescription)")
-            return nil
-        }
-
-        // 4. 客户端二次校验（§9.2 步骤 7）：quote 逐字存在 + range 对齐 + ref 白名单
-        let allowedRefs = Set(requestCandidates.map(\.ref))
-        var verified: [ThoughtSemanticRelateResponseDTO.Decision] = []
-        for decision in response.decisions {
-            guard allowedRefs.contains(decision.candidateRef) else { continue }
-            if decision.quote != nil {
-                guard let quote = decision.quote,
-                      let range = decision.rangeUTF16, range.count == 2,
-                      (redactedText as NSString).substring(with: NSRange(location: range[0], length: range[1] - range[0])) == quote
-                else { continue } // 证据不逐字=整条丢弃
-            }
-            verified.append(decision)
-        }
-
-        // 5. 决策分层（§10.2）：verifier 离散结论 × 独立信号，不使用任何自报置信度
-        let sorted = candidates.sorted { $0.recallScore > $1.recallScore }
-        let topScore = sorted.first?.recallScore ?? 0
-        let secondScore = sorted.dropFirst().first?.recallScore ?? 0
-        let margin = topScore - secondScore
-
-        var decisions: [ThoughtRelationDecision] = []
-        for decision in verified {
-            guard let index = Int(decision.candidateRef.dropFirst()), index < candidates.count else { continue }
-            let candidate = candidates[index]
-            let features: [String: Float] = [
-                "centroid": candidate.centroidCosine ?? -1,
-                "votes": Float(candidate.neighborVotes),
-                "neighborMean": candidate.neighborMeanCosine,
-                "margin": margin,
-            ]
-            let tier = decideTier(relation: decision.relation,
-                                  hasQuote: decision.quote != nil,
-                                  topScore: topScore,
-                                  margin: margin,
-                                  isTopCandidate: candidate.topicID == sorted.first?.topicID,
-                                  calibration: calibration)
-            let result = ThoughtRelationDecision(
-                topicID: candidate.topicID,
-                relation: decision.relation,
-                tier: tier,
-                verifierQuote: decision.quote,
-                scoreFeaturesJSON: (try? JSONEncoder().encode(features)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}")
-            decisions.append(result)
-
-            // shadow 记录（无正文：features 数字 + verifier 离散结论）
-            try? await store.recordRelationCandidate(
-                thoughtID: thoughtID, topicID: candidate.topicID, contentHash: contentHash,
-                scoreFeatures: result.scoreFeaturesJSON,
-                verifierResult: decision.relation,
-                state: "shadow_\(tier)",
-                engineVersion: engineVersion,
-                expiryDays: calibration.candidateExpiryDays)
-        }
-        return decisions
+        let digest = SHA256.hash(data: Data(catalog.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+        return engineVersion + ":" + digest + (ThoughtSemanticFeatureFlags.relation == .on ? ":live" : ":shadow")
     }
 
-    /// §10.2 分层规则（数值全部来自校准配置）。
-    private static func decideTier(relation: String,
-                                   hasQuote: Bool,
-                                   topScore: Float,
-                                   margin: Float,
-                                   isTopCandidate: Bool,
-                                   calibration: ThoughtSemanticCalibration) -> String {
-        switch relation {
-        case "same_thread":
-            if hasQuote, topScore >= calibration.recallMinCosine,
-               margin >= calibration.marginMinDelta, isTopCandidate {
-                return "high"
-            }
-            return "medium"
-        case "related":
-            return "medium"
-        default:
-            return "low"
-        }
+    static func shadowEvaluate(thoughtID: UUID, redactedText: String, contentHash: String,
+        targetVector: [Float], store: ThoughtSemanticStore, index: (any LocalSemanticIndex)?,
+        context: NSManagedObjectContext, provider: HoloBackendAIProvider,
+        calibration: ThoughtSemanticCalibration, consentGeneration: Int64) async throws -> [ThoughtRelationDecision]? {
+        try await evaluate(thoughtID: thoughtID, redactedText: redactedText, contentHash: contentHash,
+            targetVector: targetVector, store: store, index: index, context: context, provider: provider,
+            calibration: calibration, commit: false, consentGeneration: consentGeneration)
     }
-
-    /// 主题代表片段：成员想法按时间分布取 ≤3 条（最早/最新/中间），脱敏后截断 240 UTF-16。
-    private static func representativeTexts(topicID: UUID, context: NSManagedObjectContext) async -> [String] {
-        await context.perform {
-            let request = Thought.fetchRequest()
-            request.predicate = NSPredicate(format: "deletedAt == nil AND ANY topicLinks.topic.id == %@ AND ANY topicLinks.state == %@",
-                                             topicID as CVarArg, "active")
-            request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
-            let thoughts = (try? context.fetch(request)) ?? []
-            guard !thoughts.isEmpty else { return [] }
-            let picks: [Thought]
-            switch thoughts.count {
-            case 1, 2, 3: picks = Array(thoughts)
-            default: picks = [thoughts[0], thoughts[thoughts.count / 2], thoughts[thoughts.count - 1]]
+    static func evaluateAndCommit(thoughtID: UUID, redactedText: String, contentHash: String,
+        targetVector: [Float], store: ThoughtSemanticStore, index: (any LocalSemanticIndex)?,
+        context: NSManagedObjectContext, provider: HoloBackendAIProvider,
+        calibration: ThoughtSemanticCalibration, consentGeneration: Int64) async throws -> [ThoughtRelationDecision]? {
+        try await evaluate(thoughtID: thoughtID, redactedText: redactedText, contentHash: contentHash,
+            targetVector: targetVector, store: store, index: index, context: context, provider: provider,
+            calibration: calibration, commit: true, consentGeneration: consentGeneration)
+    }
+    private static func evaluate(thoughtID: UUID, redactedText: String, contentHash: String,
+        targetVector: [Float], store: ThoughtSemanticStore, index: (any LocalSemanticIndex)?,
+        context: NSManagedObjectContext, provider: HoloBackendAIProvider,
+        calibration: ThoughtSemanticCalibration, commit: Bool, consentGeneration: Int64) async throws -> [ThoughtRelationDecision]? {
+        let version = await evaluationVersion(context: context)
+        let recall = try await ThoughtTopicCandidateEngine.recall(targetVector: targetVector, thoughtID: thoughtID,
+            store: store, index: index, context: context, calibration: calibration, provider: provider)
+        var candidates: [ThoughtSemanticRelateRequestDTO.Candidate] = []
+        var topicByRef: [String: UUID] = [:]
+        for candidate in recall.candidates {
+            let ref = "P" + String(candidates.count)
+            let payload = await context.perform { () -> ThoughtSemanticRelateRequestDTO.Candidate? in
+                let request = Topic.fetchRequest()
+                request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", candidate.topicID as CVarArg)
+                guard let topic = (try? context.fetch(request))?.first, topic.isVisibleTopic else { return nil }
+                let thoughtRequest = Thought.fetchRequest()
+                thoughtRequest.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO AND id != %@ AND ANY topicLinks.topic.id == %@", thoughtID as CVarArg, topic.id as CVarArg)
+                let members = ((try? context.fetch(thoughtRequest)) ?? []).filter { ThoughtTopicLinkProjection.isEffectiveMember($0, of: topic) }
+                    .sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+                let representatives = members.prefix(3).map {
+                    ThoughtSemanticRelateRequestDTO.Representative(ref: $0.id.uuidString,
+                        text: ThoughtSemanticText.prefix(ThoughtIndexV2Policy.redactedText(forUpload: $0.content), maxUTF16: 240))
+                }.filter { !$0.text.isEmpty }
+                return .init(ref: ref, title: ThoughtSemanticText.prefix(topic.title, maxUTF16: 32),
+                    summary: topic.summary.map { ThoughtSemanticText.prefix($0, maxUTF16: 240) }, representatives: representatives)
             }
-            return picks.map { String(ThoughtIndexV2Policy.redactedText(forUpload: $0.content).prefix(240)) }
-                .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            if let payload { candidates.append(payload); topicByRef[ref] = candidate.topicID }
         }
+        var resultsByTopic: [UUID: ThoughtRelationDecision] = [:]
+        if !candidates.isEmpty {
+            for chunk in ThoughtSemanticText.chunks(redactedText, maxUTF16: 4_000) {
+                guard ThoughtSemanticFeatureFlags.consentGeneration == consentGeneration else { throw CancellationError() }
+                let request = ThoughtSemanticRelateRequestDTO(schemaVersion: 2, operationId: UUID().uuidString,
+                    textRevision: contentHash, engineVersion: engineVersion,
+                    target: .init(ref: "T0", text: chunk.text), candidates: candidates)
+                let response = try await provider.semanticRelate(request)
+                guard response.schemaVersion == 2, response.operationId == request.operationId,
+                      response.textRevision == contentHash else { throw ThoughtTopicVerifierError.responseContractViolation(reason: "envelope") }
+                if response.outcome == "deferred" { throw APIError.httpError(statusCode: 400, message: "内容暂不适合 AI 处理") }
+                guard response.decisions.count == candidates.count else {
+                    throw ThoughtTopicVerifierError.responseContractViolation(reason: "decisions_missing")
+                }
+                var seen = Set<String>()
+                for decision in response.decisions {
+                    guard let topicID = topicByRef[decision.candidateRef], seen.insert(decision.candidateRef).inserted,
+                          let candidate = candidates.first(where: { $0.ref == decision.candidateRef }),
+                          ["same_thread", "related", "none", "insufficient"].contains(decision.relation) else {
+                        throw ThoughtTopicVerifierError.responseContractViolation(reason: "candidate")
+                    }
+                    guard decision.relation == "same_thread", let quote = decision.quote,
+                          isQuoteVerbatim(quote, in: chunk.text, rangeUTF16: decision.rangeUTF16),
+                          let repRef = decision.representativeRef, let repQuote = decision.representativeQuote,
+                          !repQuote.isEmpty, let subject = decision.sharedSubject, !subject.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+                    let basis = repRef == "definition" ? (candidate.summary ?? candidate.title)
+                        : candidate.representatives.first(where: { $0.ref == repRef })?.text
+                    guard let basis, basis.contains(repQuote) else { throw ThoughtTopicVerifierError.responseContractViolation(reason: "representative_quote") }
+                    if resultsByTopic[topicID] == nil {
+                        let range = decision.rangeUTF16?.map { $0 + chunk.offsetUTF16 }
+                        resultsByTopic[topicID] = .init(topicID: topicID, relation: "same_thread", tier: "high",
+                            verifierQuote: quote, verifierRangeUTF16: range, scoreFeaturesJSON: "{\"evidenceProtocol\":2}")
+                    }
+                }
+            }
+        }
+        let results = Array(resultsByTopic.values.sorted { $0.topicID.uuidString < $1.topicID.uuidString }.prefix(2))
+        // 全部网络判断结束后才提交，任何一段失败都不把半篇结果标为完成。
+        if commit {
+            let allowed = await MainActor.run { HoloAIDataProcessingConsent.shared.isGranted }
+            guard allowed, ThoughtSemanticFeatureFlags.relation == .on,
+                  ThoughtSemanticFeatureFlags.consentGeneration == consentGeneration else { throw CancellationError() }
+            let committed = try await context.perform { () -> Bool in
+                context.refreshAllObjects()
+                let request = Thought.fetchRequest()
+                request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil AND isArchived == NO", thoughtID as CVarArg)
+                guard let thought = try context.fetch(request).first,
+                      ThoughtSemanticText.contentHash( thought.content) == contentHash,
+                      ThoughtSemanticFeatureFlags.consentGeneration == consentGeneration else { return false }
+                let links = thought.topicLinks as? Set<ThoughtTopicLink> ?? []
+                let selected = Set(results.map(\.topicID))
+                for link in links where link.sourceEnum == .aiV3 && link.stateEnum == .active {
+                    if let topic = link.topic, !selected.contains(topic.id) { link.stateEnum = .superseded; link.updatedAt = Date() }
+                }
+                var receipts: [String] = []
+                for result in results {
+                    let topicRequest = Topic.fetchRequest()
+                    topicRequest.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", result.topicID as CVarArg)
+                    guard let topic = try context.fetch(topicRequest).first, topic.isVisibleTopic else { continue }
+                    if ThoughtTopicLinkProjection.recordAIV3Decision(thought: thought, topic: topic,
+                        basisTextHash: contentHash, decisionTier: "high", engineVersion: engineVersion,
+                        consentGeneration: consentGeneration, evidenceRange: result.verifierRangeUTF16) {
+                        receipts.append(topic.title)
+                    }
+                }
+                // 错误向上传递，队列会保留重试；不回滚其他编辑器的未保存内容。
+                do { if context.hasChanges { try context.save() } }
+                catch { context.rollback(); throw error }
+                for title in receipts {
+                    NotificationCenter.default.post(name: .thoughtTopicLinkDidCommit,
+                        object: ["thoughtId": thoughtID, "topicTitle": title], userInfo: ["source": "ai"])
+                }
+                NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                return true
+            }
+            guard committed else { throw CancellationError() }
+        }
+        for result in results {
+            try await store.recordRelationCandidate(thoughtID: thoughtID, topicID: result.topicID,
+                contentHash: contentHash, scoreFeatures: result.scoreFeaturesJSON, verifierResult: "same_thread",
+                state: commit ? "committed_high" : "shadow_high", engineVersion: version,
+                expiryDays: calibration.candidateExpiryDays, verifierQuote: result.verifierQuote)
+        }
+        // 固定哨兵只记录本次目录下的空结果；主题目录变化或模式升级时自然重评。
+        try await store.recordRelationCandidate(thoughtID: thoughtID, topicID: thoughtID, contentHash: contentHash,
+            scoreFeatures: "{}", verifierResult: results.isEmpty ? "no_match" : "evaluated",
+            state: commit ? "evaluated" : "shadow", engineVersion: version, expiryDays: calibration.candidateExpiryDays)
+        return results
+    }
+    static func isQuoteVerbatim(_ quote: String, in text: String, rangeUTF16: [Int]?) -> Bool {
+        ThoughtSemanticText.quoteMatches(quote, text: text, range: rangeUTF16)
     }
 }

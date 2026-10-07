@@ -17,6 +17,7 @@ struct FinanceProjectDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var totalExpense: Decimal = 0
+    @State private var totalIncome: Decimal = 0
     @State private var expenseCount: Int = 0
     @State private var categoryAggregations: [CategoryAggregation] = []
     @State private var transactions: [Transaction] = []
@@ -196,17 +197,25 @@ struct FinanceProjectDetailView: View {
                 Spacer()
             }
 
-            Text("¥\(AccountCardFormat.amount(totalExpense))")
-                .font(.system(size: 30, weight: .heavy, design: .rounded))
-                .foregroundColor(.holoTextPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(netAmount >= 0 ? "净投入（支出−收入）" : "净收益（收入−支出）")
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoTextSecondary)
+                Text("¥\(AccountCardFormat.amount(abs(netAmount)))")
+                    .font(.system(size: 30, weight: .heavy, design: .rounded))
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Text("\(expenseCount) 笔支出 · 日均 ¥\(AccountCardFormat.amount(dailyAverage))")
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoTextSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 0) {
-                metricItem("交易笔数", "\(expenseCount)")
+                metricItem("总支出", "¥\(AccountCardFormat.amount(totalExpense))")
                 Divider().frame(height: 30)
-                metricItem("日均", "¥\(AccountCardFormat.amount(dailyAverage))")
+                metricItem("总收入", "¥\(AccountCardFormat.amount(totalIncome))")
                 Divider().frame(height: 30)
                 metricItem("预算", project.budgetDecimal.map { "¥\(AccountCardFormat.amount($0))" } ?? "未设置")
             }
@@ -312,7 +321,7 @@ struct FinanceProjectDetailView: View {
     private func categoryRow(_ aggregation: CategoryAggregation) -> some View {
         let isSelected = categoryFilter?.id == aggregation.category.id
         return Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(HoloAnimation.quick) {
                 categoryFilter = isSelected ? nil : aggregation.category
             }
         } label: {
@@ -377,7 +386,7 @@ struct FinanceProjectDetailView: View {
                     .foregroundColor(.holoTextSecondary)
                 if categoryFilter != nil {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.15)) { categoryFilter = nil }
+                        withAnimation(HoloAnimation.quick) { categoryFilter = nil }
                     } label: {
                         HStack(spacing: 3) {
                             Text(categoryFilter?.name ?? "")
@@ -447,6 +456,7 @@ struct FinanceProjectDetailView: View {
 
     private func loadData() {
         totalExpense = projectRepo.totalExpense(forProject: project.id)
+        totalIncome = projectRepo.totalIncome(forProject: project.id)
         expenseCount = projectRepo.fetchExpenseTransactions(forProject: project.id).count
         categoryAggregations = projectRepo.categoryAggregations(forProject: project.id)
         transactions = projectRepo.fetchTransactions(forProject: project.id)
@@ -464,6 +474,11 @@ struct FinanceProjectDetailView: View {
         let lastDay = calendar.startOfDay(for: project.endDate ?? Date())
         let days = max(1, (calendar.dateComponents([.day], from: firstDay, to: lastDay).day ?? 0) + 1)
         return totalExpense / Decimal(days)
+    }
+
+    /// 净投入 = 总支出 − 总收入（负值即项目回血超过投入）
+    private var netAmount: Decimal {
+        totalExpense - totalIncome
     }
 
     private func groupByDate(_ source: [Transaction]) -> [Date: [Transaction]] {

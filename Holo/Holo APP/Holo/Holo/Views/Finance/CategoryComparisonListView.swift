@@ -193,7 +193,7 @@ struct CategoryComparisonListView: View {
     private func topLevelRow(_ item: CategoryComparisonItem) -> some View {
         Button {
             guard !item.subItems.isEmpty else { return }
-            withAnimation(.easeInOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.standard) {
                 if expandedIDs.contains(item.id) {
                     expandedIDs.remove(item.id)
                 } else {

@@ -35,6 +35,9 @@ struct ConversationProcessResult {
     /// 云端异步规划已启动（§5.3）：非 nil 时 ChatViewModel 接管轮询/领取/ack，
     /// 流式会话立即收尾，不锁全局输入。
     var contextPlanCloudStart: HoloContextChatPlanner.CloudPlanStart? = nil
+    /// 「今天减负」候选（只读，§12）：非 nil 时 ChatViewModel 落 .todayRelief 候选卡消息；
+    /// 采用走同一 PlanService，不在此写任何业务。
+    var todayReliefCandidate: HoloTodayReliefCandidate? = nil
 }
 
 /// 个人情境规划已路由但执行失败的类型化降级（实施方案 §5.4 unavailable 语义）：
@@ -371,6 +374,96 @@ final class ConversationCoordinator {
             }
         }
 
+        // 「今天减负」分流（只读，2026-10-03 实施方案 §12）：单 today_relief 进入
+        // 同一 ReliefCoordinator 候选/校验链（与 Today 弹层同一服务，不重复生成第二份计划）；
+        // 混合「记账 + 整理」先问处理哪个，此分支未选前零业务写入。
+        if parseBatch.items.contains(where: { $0.intent == .todayRelief }) {
+            let hasOtherAction = parseBatch.items.contains {
+                $0.intent != .todayRelief && $0.intent != .unknown && $0.intent != .query
+            }
+            if hasOtherAction {
+                return ConversationProcessResult(
+                    finalText: String(localized: "这句话里既有要办的事，又有整理今天的安排。先处理哪一个？回我「整理」或把要办的事再说一遍。"),
+                    parsedBatch: parseBatch,
+                    executionBatch: nil,
+                    firstIntent: .todayRelief,
+                    firstExtractedData: nil,
+                    shouldStreamChat: false,
+                    analysisContext: nil,
+                    flexibleQueryResult: nil,
+                    intentCallLog: intentLog,
+                    actionParserCallLog: nil
+                )
+            }
+            do {
+                let sessionContext = await HoloTodayReliefSessionFactory.makeContext(situation: text)
+                let coordinator = HoloTodayReliefCoordinator.makeDefault()
+                let outcome = try await coordinator.generate(
+                    situation: text,
+                    clarificationAnswer: nil,
+                    context: sessionContext
+                )
+                switch outcome {
+                case .proposal(let candidate):
+                    var result = ConversationProcessResult(
+                        finalText: "",
+                        parsedBatch: parseBatch,
+                        executionBatch: nil,
+                        firstIntent: .todayRelief,
+                        firstExtractedData: nil,
+                        shouldStreamChat: false,
+                        analysisContext: nil,
+                        flexibleQueryResult: nil,
+                        intentCallLog: intentLog,
+                        actionParserCallLog: nil
+                    )
+                    result.todayReliefCandidate = candidate
+                    return result
+                case .clarification(let question, let answers):
+                    let suggestion = answers.prefix(2).joined(separator: " / ")
+                    return ConversationProcessResult(
+                        finalText: suggestion.isEmpty ? question : question + "\n（" + suggestion + "）",
+                        parsedBatch: parseBatch,
+                        executionBatch: nil,
+                        firstIntent: .todayRelief,
+                        firstExtractedData: nil,
+                        shouldStreamChat: false,
+                        analysisContext: nil,
+                        flexibleQueryResult: nil,
+                        intentCallLog: intentLog,
+                        actionParserCallLog: nil
+                    )
+                case .cannotHelp(let message):
+                    return ConversationProcessResult(
+                        finalText: message,
+                        parsedBatch: parseBatch,
+                        executionBatch: nil,
+                        firstIntent: .todayRelief,
+                        firstExtractedData: nil,
+                        shouldStreamChat: false,
+                        analysisContext: nil,
+                        flexibleQueryResult: nil,
+                        intentCallLog: intentLog,
+                        actionParserCallLog: nil
+                    )
+                }
+            } catch {
+                logger.error("今天减负生成失败，显式降级手动：\(error.localizedDescription)")
+                return ConversationProcessResult(
+                    finalText: String(localized: "这次没能自动整理今天的安排（网络或服务暂不可用）。你可以打开「今天」页点「帮我理一理」手动挑，稍后再试。"),
+                    parsedBatch: parseBatch,
+                    executionBatch: nil,
+                    firstIntent: .todayRelief,
+                    firstExtractedData: nil,
+                    shouldStreamChat: false,
+                    analysisContext: nil,
+                    flexibleQueryResult: nil,
+                    intentCallLog: intentLog,
+                    actionParserCallLog: nil
+                )
+            }
+        }
+
         // 纯查询
         if parseBatch.mode == .query, parseBatch.items.count == 1 {
             return ConversationProcessResult(
@@ -615,10 +708,31 @@ final class ConversationCoordinator {
                     }
                 }
 
+                // 退款识别（iOS 侧识别，零后端依赖）：收入话术带退款语义时匹配候选原支出，
+                // 命中则卡片携带关联候选；用户确认后由 IntentRouter 落成退款笔（统计冲减原分类）
+                if item.intent == .recordIncome,
+                   let amountStr = item.extractedData?["amount"],
+                   let refundAmount = Decimal(string: amountStr),
+                   Self.looksLikeRefund(text: text, data: item.extractedData),
+                   let candidate = try? await FinanceRepository.shared.findRefundCandidates(
+                       amount: refundAmount,
+                       keyword: item.extractedData?["categoryCandidate"] ?? item.extractedData?["note"]
+                   ).first {
+                    renderData["refundCandidateTransactionId"] = candidate.id.uuidString
+                    let candidateTitle = candidate.note?.isEmpty == false
+                        ? candidate.note!
+                        : (candidate.category?.name ?? "")
+                    renderData["refundCandidateTitle"] = candidateTitle
+                    renderData["refundCandidateAmount"] = candidate.formattedAmount
+                    renderData["refundCandidateDate"] = Self.refundCandidateDateText(candidate.date)
+                }
+
                 renderData["confirmationStatus"] = "pending"
                 renderData["pendingKind"] = "transaction"
                 let summary: String
-                if renderData["installmentEnabled"] == "true" {
+                if renderData["refundCandidateTransactionId"] != nil {
+                    summary = "我识别到一笔退款，确认后关联原支出并自动冲减"
+                } else if renderData["installmentEnabled"] == "true" {
                     let periods = renderData["installmentPeriods"] ?? "?"
                     summary = "我识别到一笔分期支出，分 \(periods) 期，请确认后记录"
                 } else {
@@ -843,6 +957,27 @@ final class ConversationCoordinator {
         if let data = data, data["repeatEnabled"] == "true" { return true }
         let patterns = ["每隔", "每天", "每周[一二三四五六日天]", "每月\\d+号", "每周[一二三四五六日天]和"]
         return patterns.contains { text.range(of: $0, options: .regularExpression) != nil }
+    }
+
+    // MARK: 退款语义识别（iOS 侧，零后端依赖）
+
+    /// 退款词表：不含「返还」（运营商充值返还等营销语义会误触发）
+    private static let refundKeywords = ["退款", "退货", "退费", "退了款", "退回"]
+
+    /// 收入话术是否带退款语义（原话/分类候选/名称 任一命中即算）
+    static func looksLikeRefund(text: String, data: [String: String]?) -> Bool {
+        let haystacks = [text, data?["categoryCandidate"] ?? "", data?["note"] ?? ""]
+        return haystacks.contains { hay in
+            refundKeywords.contains { hay.localizedCaseInsensitiveContains($0) }
+        }
+    }
+
+    /// 候选原交易的日期短文案（如「9月23日」），确认卡展示用
+    static func refundCandidateDateText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("Mdd")
+        return formatter.string(from: date)
     }
 
     private func callActionParser(

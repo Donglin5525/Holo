@@ -16,6 +16,7 @@
 
 import CoreData
 import Foundation
+import CryptoKit
 
 enum ThoughtTopicLinkProjection {
 
@@ -28,11 +29,11 @@ enum ThoughtTopicLinkProjection {
     static func upsertLink(thought: Thought, topic: Topic) -> ThoughtTopicLink {
         let request = ThoughtTopicLink.fetchRequest()
         request.predicate = NSPredicate(format: "thought == %@ AND topic == %@", thought, topic)
-        request.fetchLimit = 3
+        request.fetchLimit = 0
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
         if let rows = try? ManagedObjectContextCompat.fetch(request, in: thought.managedObjectContext),
-           let first = rows.first {
-            for extra in rows.dropFirst() where extra.stateEnum == .active {
+           let first = rows.sorted(by: { $0.projectionRank < $1.projectionRank }).first {
+            for extra in rows where extra !== first && extra.stateEnum == .active {
                 extra.stateEnum = .superseded
                 extra.updatedAt = Date()
             }
@@ -111,11 +112,41 @@ enum ThoughtTopicLinkProjection {
         link.updatedAt = Date()
     }
 
+    /// V3 语义引擎正式写入（relation=on，2026-09-24 方案 §3 P0：
+    /// 「开启 relation 也没有正式自动关联写入路径」的修复）：
+    /// pair → ai/v3 + active + weakVisible，带 basisTextHash / decisionTier /
+    /// engineVersion / consentGeneration。调用方负责在同一 context save。
+    /// 用户拒绝墓碑不复活、用户 active 不降级（isUserDecision 让位，§7.1）。
+    /// 返回是否实际写入（false = 用户决定优先被让位）。
+    @discardableResult
+    static func recordAIV3Decision(thought: Thought, topic: Topic,
+                                   basisTextHash: String,
+                                   decisionTier: String,
+                                   engineVersion: String,
+                                   consentGeneration: Int64,
+                                   evidenceRange: [Int]? = nil) -> Bool {
+        if isUserRejectedPair(thought: thought, topic: topic) { return false }
+        let link = upsertLink(thought: thought, topic: topic)
+        if isUserDecision(link) { return false }
+        link.sourceEnum = .aiV3
+        link.stateEnum = .active
+        link.visibilityEnum = .weakVisible
+        link.basisTextHash = basisTextHash
+        link.decisionTier = decisionTier
+        link.engineVersion = engineVersion
+        link.consentGeneration = consentGeneration
+        if let range = evidenceRange, range.count == 2 {
+            link.evidenceRange = "\(range[0]),\(range[1])"
+        }
+        link.updatedAt = Date()
+        return true
+    }
+
     /// 该 pair 当前是否处于用户拒绝墓碑（AI 分类旧关系层守卫用）。
     static func isUserRejectedPair(thought: Thought, topic: Topic) -> Bool {
         let request = ThoughtTopicLink.fetchRequest()
         request.predicate = NSPredicate(format: "thought == %@ AND topic == %@", thought, topic)
-        request.fetchLimit = 3
+        request.fetchLimit = 0
         let rows = (try? ManagedObjectContextCompat.fetch(request, in: thought.managedObjectContext)) ?? []
         return rows.contains { $0.stateEnum == .rejected }
     }
@@ -149,6 +180,14 @@ enum ThoughtTopicLinkProjection {
         }
     }
 
+    /// AI 关系只对生成它的正文版本有效；用户决定持续有效。
+    private static func isCurrentActive(_ link: ThoughtTopicLink, thought: Thought) -> Bool {
+        guard link.stateEnum == .active else { return false }
+        guard link.sourceEnum == .aiV3 else { return true }
+        let hash = SHA256.hash(data: Data(thought.content.trimmingCharacters(in: .whitespacesAndNewlines).utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+        return link.basisTextHash == hash
+    }
+
     // MARK: - 读投影（Phase 1 shadow 口径；Phase 4 起为新读路径）
 
     /// 一条想法的有效 Topic：同 pair 取投影优先级行，仅 active 计入。
@@ -168,8 +207,60 @@ enum ThoughtTopicLinkProjection {
             }
         }
         return bestByPair.values
-            .filter { $0.stateEnum == .active }
+            .filter { isCurrentActive($0, thought: thought) }
             .compactMap { $0.topic }
+            .filter { $0.isVisibleTopic && ($0.value(forKey: "deletedAt") as? Date) == nil }
+    }
+
+    /// 单 pair 有效成员判定（2026-09-27 P0-A 读源统一）：与 effectiveTopics 同一
+    /// 裁决规则，供仓库层精筛与旁路读点复用，不各自实现口径。
+    static func isEffectiveMember(_ thought: Thought, of topic: Topic) -> Bool {
+        guard let links = thought.topicLinks as? Set<ThoughtTopicLink> else { return false }
+        var best: ThoughtTopicLink?
+        for link in links where link.topic?.id == topic.id {
+            if best == nil || link.projectionRank < best!.projectionRank { best = link }
+        }
+        return best.map { isCurrentActive($0, thought: thought) } ?? false
+    }
+
+    /// 有效成员的来源（P1 来源感知）：user=用户手动/接受建议，ai=Holo 高可信
+    /// 自动归入，legacy=历史归集（来源不明）；非有效成员返回 nil。
+    enum MembershipSource { case user, ai, legacy }
+
+    static func membershipSource(of thought: Thought, in topic: Topic) -> MembershipSource? {
+        guard let links = thought.topicLinks as? Set<ThoughtTopicLink> else { return nil }
+        var best: ThoughtTopicLink?
+        for link in links where link.topic?.id == topic.id {
+            if best == nil || link.projectionRank < best!.projectionRank { best = link }
+        }
+        guard let winner = best, isCurrentActive(winner, thought: thought) else { return nil }
+        switch winner.sourceEnum {
+        case .userManual, .userAcceptedSuggestion:
+            return .user
+        case .aiV3:
+            return .ai
+        case .legacyAI, .legacyUnknown:
+            return .legacy
+        }
+    }
+
+    /// 主题的有效成员计数（P0-A 口径）：per-pair 裁决 + 排除已删/已归档想法
+    /// （与 fetchThoughts(byTopic:) 默认口径一致）。deletedAt 走 KVC——
+    /// 声明在 SoftDeletable 扩展，standalone 直编环境不带该文件。
+    static func effectiveActiveThoughtCount(of topic: Topic, includeArchived: Bool = false) -> Int {
+        guard let links = topic.topicLinks as? Set<ThoughtTopicLink>, !links.isEmpty else { return 0 }
+        var bestByThought: [ObjectIdentifier: (Thought, ThoughtTopicLink)] = [:]
+        for link in links {
+            guard let thought = link.thought else { continue }
+            let key = ObjectIdentifier(thought)
+            if let (_, best) = bestByThought[key], link.projectionRank >= best.projectionRank { continue }
+            bestByThought[key] = (thought, link)
+        }
+        return bestByThought.values.filter { pair in
+            isCurrentActive(pair.1, thought: pair.0)
+                && (pair.0.value(forKey: "deletedAt") as? Date) == nil
+                && (includeArchived || pair.0.isArchived == false)
+        }.count
     }
 
     // MARK: - 存量迁移（幂等、逐批、可中断；方案 §18.2）

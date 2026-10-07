@@ -85,7 +85,7 @@ struct TopicConfirmationQueueView: View {
 
     /// 处理完一条：移出队列；清空后通知调用方
     private func settle(_ thoughtId: UUID, confirmed: Bool) {
-        withAnimation(.easeInOut(duration: 0.25)) {
+        withAnimation(HoloAnimation.smooth) {
             thoughts.removeAll { $0.id == thoughtId }
         }
         if confirmed {

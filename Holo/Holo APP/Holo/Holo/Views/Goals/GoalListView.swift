@@ -69,7 +69,7 @@ struct GoalListView: View {
                 .holoContentColumn(maxWidth: HoloAdaptiveLayout.galleryColumnMaxWidth, paintsBackground: false)
             }
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .navigationTitle("我的目标")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -120,8 +120,8 @@ struct GoalListView: View {
                 )
             } else {
                 Text("目标不存在或已被删除")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolTextSecondary)
             }
         }
         .onAppear {
@@ -179,16 +179,16 @@ struct GoalListView: View {
                     .foregroundColor(.holoPrimary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("有一个想到一半的目标")
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolText)
                     Text(session.originalText.isEmpty ? "（未命名的心愿）" : session.originalText)
                         .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(1)
                 }
                 Spacer()
                 Text("继续")
-                    .font(.holoLabel)
+                    .holoText(.metadata)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoPrimary)
                 Image(systemName: "chevron.right")
@@ -198,7 +198,7 @@ struct GoalListView: View {
             .padding(HoloSpacing.md)
             .background(Color.holoPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: HoloRadius.md))
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(HoloPressStyle())
         .holoHover()
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.top, HoloSpacing.md)
@@ -219,7 +219,7 @@ struct GoalListView: View {
                 } label: {
                     goalRow(goal)
                 }
-                .buttonStyle(PlainButtonStyle())
+                .buttonStyle(HoloPressStyle())
                 .holoHover()
             }
         }
@@ -231,18 +231,18 @@ struct GoalListView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.holoPrimary)
             Text("还没有目标")
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.pageTitle)
+                .foregroundColor(.holoToolText)
             Text("把模糊的想法变成能走的目标")
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.body)
+                .foregroundColor(.holoToolTextSecondary)
                 .multilineTextAlignment(.center)
             if workshopEnabled {
                 Button {
                     goalWorkshopLaunch = .new(seedText: nil)
                 } label: {
                     Text("和 Holo 一起想清楚第一个目标")
-                        .font(.holoBody)
+                        .holoText(.body)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
                         .padding(.horizontal, 20)
@@ -254,8 +254,8 @@ struct GoalListView: View {
                     onPlanGoal()
                 } label: {
                     Text("或让 HoloAI 直接规划")
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                         .underline()
                 }
             } else {
@@ -263,7 +263,7 @@ struct GoalListView: View {
                     onPlanGoal()
                 } label: {
                     Text("让 HoloAI 规划目标")
-                        .font(.holoBody)
+                        .holoText(.body)
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
                         .padding(.horizontal, 20)
@@ -276,8 +276,8 @@ struct GoalListView: View {
                 showManualCreate = true
             } label: {
                 Text("或手动创建")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
                     .underline()
             }
         }
@@ -296,9 +296,9 @@ struct GoalListView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(goal.title)
-                    .font(.holoBody)
+                    .holoText(.body)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                 if goal.isQuantitative, let metric = GoalMetricEvaluator.evaluate(goal: goal) {
                     // 量化目标行：数字进度替代六档状态文案
                     Text(metricRowText(goal: goal, metric: metric))
@@ -308,17 +308,17 @@ struct GoalListView: View {
                 } else {
                     Text("\(progress.state.displayName) · \(progress.taskSummary) · \(progress.habitSummary)")
                         .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(1)
                 }
             }
             Spacer()
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 
     /// 「128/300 km」；达标型显示「已减 2.5/5 kg」基线视角
@@ -384,7 +384,7 @@ struct GoalManualCreateSheet: View {
                 .padding(.top, HoloSpacing.md)
                 .padding(.bottom, 100)
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle("创建目标")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -422,8 +422,8 @@ struct GoalManualCreateSheet: View {
                     .foregroundColor(.holoPrimary)
                     .frame(width: 24, height: 24)
                 Text("AI 上下文")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
                 Spacer()
             }
 
@@ -432,21 +432,21 @@ struct GoalManualCreateSheet: View {
             Toggle(isOn: $allowAIContext) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("允许 HoloAI 参考此目标")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolText)
                     Text("HoloAI 会基于此目标给出更精准的建议")
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
             .tint(.holoPrimary)
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoToolBorder, lineWidth: 1)
         )
         .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
     }
@@ -458,15 +458,15 @@ struct GoalManualCreateSheet: View {
                 dismiss()
             } label: {
                 Text("取消")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                     .overlay(
                         RoundedRectangle(cornerRadius: HoloRadius.md)
-                            .stroke(Color.holoBorder, lineWidth: 1)
+                            .stroke(Color.holoToolBorder, lineWidth: 1)
                     )
             }
 
@@ -480,7 +480,7 @@ struct GoalManualCreateSheet: View {
                             .tint(.white)
                     }
                     Text(isSaving ? String(localized: "保存中") : String(localized: "创建目标"))
-                        .font(.holoBody)
+                        .holoText(.body)
                         .foregroundColor(.white)
                 }
                 .frame(maxWidth: .infinity)
@@ -492,7 +492,7 @@ struct GoalManualCreateSheet: View {
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: -2)
     }
 

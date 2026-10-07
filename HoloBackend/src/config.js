@@ -1,6 +1,12 @@
 const DEFAULT_CONFIG = {
   auth: {
     enforceAppAttest: process.env.HOLO_ENFORCE_APP_ATTEST === "true",
+    // 设备会话强制（2026-10-04 体检 S01）：true 时设备路由必须携带与设备号同主体的
+    // 设备会话 JWT（客户端持 Ed25519 私钥挑战签名换取）。默认 false——
+    // 必须等携带会话的客户端版本完成铺量后才能打开，否则旧版本全体 401。
+    enforceDeviceSession: process.env.HOLO_ENFORCE_DEVICE_SESSION === "true",
+    deviceSessionTtlSeconds: Number(process.env.HOLO_DEVICE_SESSION_TTL_SECONDS ?? 86_400),
+    deviceSessionChallengeTtlSeconds: Number(process.env.HOLO_DEVICE_SESSION_CHALLENGE_TTL_SECONDS ?? 300),
     appleClientIds: csv(
       process.env.HOLO_APPLE_CLIENT_IDS ?? "com.tangyuxuan.holo-app,com.holo.Holo",
     ),
@@ -16,6 +22,9 @@ const DEFAULT_CONFIG = {
       keyId: process.env.APPLE_KEY_ID ?? "",
       clientId: process.env.APPLE_REVOKE_CLIENT_ID ?? "com.tangyuxuan.holo-app",
       privateKeyPem: process.env.APPLE_PRIVATE_KEY_PEM ?? "",
+      // P02：refresh token 落库加密密钥（base64 32 字节或任意字符串派生）。
+      // 未配置时 token 不入库，撤销退化为 REFRESH_TOKEN_UNAVAILABLE 引导路径。
+      tokenEncryptionKey: process.env.HOLO_APPLE_TOKEN_ENCRYPTION_KEY ?? "",
     },
     // APNs 推送（云端分析完成通知）：密钥内容必须显式配置（APNS_KEY_CONTENT），
     // 不回落 APPLE_PRIVATE_KEY_PEM——那把 key 未必勾了 APNs，误用只会得到隐晦的 403。
@@ -330,6 +339,31 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_MATTER_REQUESTS_PER_DAY ?? 120),
       },
     },
+    // 「今天减负」当日安排整理（2026-10-03 实施方案 §11）：单轮 JSON 契约，
+    // 默认跟任务分步模型路由；temperature 0.2 / maxTokens 2500 / reasoning none。
+    today_relief_plan: {
+      provider: process.env.HOLO_TODAY_RELIEF_PROVIDER ?? process.env.HOLO_TASK_EXECUTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_TODAY_RELIEF_MODEL ?? process.env.HOLO_TASK_EXECUTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_TODAY_RELIEF_TEMPERATURE ?? 0.2),
+      maxTokens: Number(process.env.HOLO_TODAY_RELIEF_MAX_TOKENS ?? 2500),
+      reasoningEffort: process.env.HOLO_TODAY_RELIEF_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_TODAY_RELIEF_REQUESTS_PER_MINUTE ?? 10),
+        perDay: Number(process.env.HOLO_TODAY_RELIEF_REQUESTS_PER_DAY ?? 80),
+      },
+    },
+    // 任务分步推进提案（2026-09-25 实施规格 §6.4）：单轮 JSON 契约，与对账同模型档位、独立 purpose/计费。
+    matter_execution_plan: {
+      provider: process.env.HOLO_TASK_EXECUTION_PROVIDER ?? process.env.HOLO_MATTER_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_TASK_EXECUTION_MODEL ?? process.env.HOLO_MATTER_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_TASK_EXECUTION_TEMPERATURE ?? 0.2),
+      maxTokens: Number(process.env.HOLO_TASK_EXECUTION_MAX_TOKENS ?? 2000),
+      reasoningEffort: process.env.HOLO_TASK_EXECUTION_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_TASK_EXECUTION_REQUESTS_PER_MINUTE ?? 10),
+        perDay: Number(process.env.HOLO_TASK_EXECUTION_REQUESTS_PER_DAY ?? 80),
+      },
+    },
     // 情境向量：独立 purpose，不沿用 thought_embedding 的「正文已审核」假设（§7.2）；
     // 端点对 personal_context_embedding 强制先过 moderation。
     personal_context_embedding: {
@@ -384,7 +418,7 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_THOUGHT_SEMANTIC_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_SEMANTIC_TEMPERATURE ?? 0),
       reasoningEffort: process.env.HOLO_THOUGHT_SEMANTIC_REASONING_EFFORT ?? "none",
-      maxTokens: Number(process.env.HOLO_THOUGHT_SEMANTIC_MAX_TOKENS ?? 512),
+      maxTokens: Number(process.env.HOLO_THOUGHT_SEMANTIC_MAX_TOKENS ?? 1400),
     },
     // 主题命名/摘要 V3（§4.4/§4.5）：命名是轻量归纳（短输出），摘要是带反复观点的结构化 JSON。
     thought_topic_name_v1: {
@@ -392,7 +426,7 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_NAME_TEMPERATURE ?? 0.3),
       reasoningEffort: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REASONING_EFFORT ?? "none",
-      maxTokens: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_NAME_MAX_TOKENS ?? 256),
+      maxTokens: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_NAME_MAX_TOKENS ?? 1600),
     },
     thought_topic_summary_v1: {
       provider: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -400,6 +434,15 @@ const DEFAULT_CONFIG = {
       temperature: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_SUMMARY_TEMPERATURE ?? 0),
       reasoningEffort: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REASONING_EFFORT ?? "none",
       maxTokens: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_SUMMARY_MAX_TOKENS ?? 800),
+    },
+    // 想法按需洞察（2026-09-24 方案 §5.1「帮我想想」）：单条笔记原文 →
+    // 具体问题/另一种思路/下一步探索建议，回答区分「你写过的」与「AI 推测」。
+    thought_insight_v1: {
+      provider: process.env.HOLO_THOUGHT_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_INSIGHT_TEMPERATURE ?? 0.4),
+      reasoningEffort: process.env.HOLO_THOUGHT_INSIGHT_REASONING_EFFORT ?? "low",
+      maxTokens: Number(process.env.HOLO_THOUGHT_INSIGHT_MAX_TOKENS ?? 900),
     },
     category_pattern_induction: {
       provider: process.env.HOLO_CATEGORY_INDUCTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -429,19 +472,20 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_BILL_CATEGORIZATION_REQUESTS_PER_DAY ?? 300),
       },
     },
-    // 截图识别记账（2026-09-09 方案 §5）：视觉抽取单次调用。模型默认 qwen3-vl-plus
-    //（M0 五轮评测选型，docs/holoai-audit/vision-eval/README.md），env 可换模型不动代码；
-    // qwen 通道复用 DashScope key（生产 QWEN_API_KEY 缺省时回退 DASHSCOPE_API_KEY）。
+    // 截图识别记账（2026-09-09 方案 §5）：视觉抽取单次调用。模型 deepseek-v4-flash-vision-exp
+    //（2026-09-09 东林拍板定版 DeepSeek 不换模型，2026-09-23 代码默认值与生产 env 对齐，
+    // 删掉误导性的 qwen3-vl-plus 默认）。钥匙独立于主 DEEPSEEK_API_KEY，避免视觉实验
+    // 模型与主聊天通道互相牵连。
     vision_extraction: {
-      provider: process.env.HOLO_VISION_EXTRACTION_PROVIDER ?? "qwen",
-      model: process.env.HOLO_VISION_EXTRACTION_MODEL ?? "qwen3-vl-plus",
+      provider: process.env.HOLO_VISION_EXTRACTION_PROVIDER ?? "deepseek-vision",
+      model: process.env.HOLO_VISION_EXTRACTION_MODEL ?? "deepseek-v4-flash-vision-exp",
       temperature: Number(process.env.HOLO_VISION_EXTRACTION_TEMPERATURE ?? 0),
       // 4000：deepseek-v4-flash-vision-exp 是推理模型（评测实测会先思考再出 JSON），
       // 1500 时推理偶发吃满上限导致 content 空回复（f01 空回复实锤），放宽保输出。
       maxTokens: Number(process.env.HOLO_VISION_EXTRACTION_MAX_TOKENS ?? 4000),
-      // 思考档位默认不发（模型默认）；生产配 none——单步感知任务不需要多步推理
-      // （同 intent §reasoning-off 先例，实测关思考快 2-3 倍质量不掉）。env 可调档。
-      reasoningEffort: process.env.HOLO_VISION_EXTRACTION_REASONING_EFFORT,
+      // 思考档位 none：单步感知任务不需要多步推理（同 intent §reasoning-off 先例，
+      // 实测关思考快 2-3 倍质量不掉）。与生产 env 对齐，env 仍可调档。
+      reasoningEffort: process.env.HOLO_VISION_EXTRACTION_REASONING_EFFORT ?? "none",
       requestLimits: {
         perMinute: Number(process.env.HOLO_VISION_REQUESTS_PER_MINUTE ?? 5),
         perDay: Number(process.env.HOLO_VISION_REQUESTS_PER_DAY ?? 20),
@@ -482,7 +526,7 @@ const DEFAULT_CONFIG = {
       type: "openai-compatible",
       baseURL: process.env.QWEN_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1",
       // QWEN_BASE_URL 默认就是 DashScope 兼容模式，生产只配了 DASHSCOPE_API_KEY（ASR 在用），
-      // 缺 QWEN_API_KEY 时回退同一把钥匙，视觉模型无需新增密钥配置。
+      // 缺 QWEN_API_KEY 时回退同一把钥匙。（截图识别已定版 DeepSeek，不走 qwen 通道。）
       apiKey: process.env.QWEN_API_KEY ?? process.env.DASHSCOPE_API_KEY,
     },
     moonshot: {
@@ -602,6 +646,24 @@ const DEFAULT_CONFIG = {
       perDay: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REQUESTS_PER_DAY ?? 100),
     },
   },
+  // 想法按需洞察（2026-09-24 方案 §5.1）：用户主动点击才发生，独立小额预算
+  thoughtInsight: {
+    enabled: process.env.HOLO_THOUGHT_INSIGHT_ENABLED !== "false",
+    privacyVerified: process.env.HOLO_THOUGHT_INSIGHT_PRIVACY_VERIFIED === "true",
+    deadlineMs: Number(process.env.HOLO_THOUGHT_INSIGHT_DEADLINE_MS ?? 45_000),
+    budgets: {
+      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_INSIGHT_DAILY_MAX_CNY ?? 0.15),
+      moderationPerCallCNY: Number(process.env.HOLO_THOUGHT_INSIGHT_MODERATION_CNY ?? 0.0005),
+    },
+    pricing: {
+      inputPerMillionCNY: Number(process.env.HOLO_THOUGHT_INSIGHT_INPUT_PRICE ?? 3),
+      outputPerMillionCNY: Number(process.env.HOLO_THOUGHT_INSIGHT_OUTPUT_PRICE ?? 9),
+    },
+    requestLimits: {
+      perMinute: Number(process.env.HOLO_THOUGHT_INSIGHT_REQUESTS_PER_MINUTE ?? 10),
+      perDay: Number(process.env.HOLO_THOUGHT_INSIGHT_REQUESTS_PER_DAY ?? 50),
+    },
+  },
 };
 
 function csv(value) {
@@ -693,6 +755,22 @@ export function loadConfig(overrides = {}) {
         ...(overrides.thoughtTopicInsight?.requestLimits ?? {}),
       },
     },
+    thoughtInsight: {
+      ...DEFAULT_CONFIG.thoughtInsight,
+      ...overrides.thoughtInsight,
+      budgets: {
+        ...DEFAULT_CONFIG.thoughtInsight.budgets,
+        ...(overrides.thoughtInsight?.budgets ?? {}),
+      },
+      pricing: {
+        ...DEFAULT_CONFIG.thoughtInsight.pricing,
+        ...(overrides.thoughtInsight?.pricing ?? {}),
+      },
+      requestLimits: {
+        ...DEFAULT_CONFIG.thoughtInsight.requestLimits,
+        ...(overrides.thoughtInsight?.requestLimits ?? {}),
+      },
+    },
     thoughtOrganize: {
       ...DEFAULT_CONFIG.thoughtOrganize,
       ...overrides.thoughtOrganize,
@@ -715,7 +793,10 @@ export function loadConfig(overrides = {}) {
     },
     asrProvider: overrides.asrProvider,
     appleIdentityVerifier: overrides.appleIdentityVerifier,
+    appleRevokeService: overrides.appleRevokeService,
+    appleTokenStore: overrides.appleTokenStore,
     holoSessionService: overrides.holoSessionService,
+    deviceSessionService: overrides.deviceSessionService,
     adminLogStore: overrides.adminLogStore,
     usageStore: overrides.usageStore,
     quotaActionLedgerStore: overrides.quotaActionLedgerStore,

@@ -21,17 +21,21 @@ actor ThoughtSemanticPipeline {
     private(set) var store: ThoughtSemanticStore?
     private(set) var index: (any LocalSemanticIndex)?
     private var bootstrapped = false
+    private var heartbeatTask: Task<Void, Never>?
 
     /// 冷启动装配。App 启动后台调用一次（幂等）。
     func bootstrap(root: URL? = nil) async {
         guard !bootstrapped else { return }
         bootstrapped = true
+        await CoreDataStack.shared.waitUntilReady()
+        guard !Task.isCancelled else { bootstrapped = false; return }
 
         let semanticStore = await ThoughtSemanticStore(root: root)
         do {
             try await semanticStore.open()
         } catch {
-            logger.error("语义库打开失败，本会话禁用语义索引：\(error.localizedDescription)")
+            bootstrapped = false
+            logger.error("语义库打开失败：\(error.localizedDescription)")
             return
         }
         store = semanticStore
@@ -63,19 +67,60 @@ actor ThoughtSemanticPipeline {
         }
         logger.info("语义管线就绪")
 
+        // 历史回填对账（2026-09-24 方案 §3 P0：此前首启从未回填，历史想法永远进不了索引；
+        // 去重入队幂等，仅 index flag 开启时执行）。
+        // P0-C（2026-09-27）：relation 开启也触发一次对账——reconcile 对已有向量的
+        // 想法补入 relate 队列（存量补跑），解决「开 relation 后历史不动」。
+        let indexOn = await MainActor.run { ThoughtSemanticFeatureFlags.index != .off }
+        let relationOn = await MainActor.run { ThoughtSemanticFeatureFlags.relation != .off }
+        if indexOn || relationOn {
+            await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts()
+        }
+
         // 队列节拍（§13.3）：flag off 时空转长睡眠；shadow/on 时每 30s 处理一小批
         startQueueHeartbeat()
     }
 
-    private func startQueueHeartbeat() {
+    /// 停节拍并释放索引/库引用（「删除设备智能索引」用）。销毁后可重新 bootstrap 重建。
+    func shutdown() async {
+        heartbeatTask?.cancel()
+        heartbeatTask = nil
+        if let idx = index {
+            try? await idx.destroy()
+        }
+        index = nil
+        store = nil
+        bootstrapped = false
+        logger.notice("语义管线已停机（索引销毁或重建前调用）")
+    }
+
+    /// 立即处理一小批（设置页「继续/重试失败」后加速响应，不等 30s 节拍）。
+    func kickQueue() async {
         guard let store, let index else { return }
-        Task {
-            while true {
+        if heartbeatTask == nil {
+            startQueueHeartbeat()
+        }
+        await ThoughtSemanticEmbeddingExecutor.shared.processBatch(store: store, index: index)
+        await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
+        await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
+    }
+
+    private func startQueueHeartbeat() {
+        guard let store, let index, heartbeatTask == nil else { return }
+        heartbeatTask = Task {
+            while !Task.isCancelled {
                 let flag = await MainActor.run { ThoughtSemanticFeatureFlags.index }
                 if flag != .off {
                     await ThoughtSemanticEmbeddingExecutor.shared.processBatch(store: store, index: index)
                 }
-                let interval: UInt64 = flag == .off ? 300 : 30
+                // relate 队列（P0-C）：独立 flag，与 embed 并列消费
+                let relationFlag = await MainActor.run { ThoughtSemanticFeatureFlags.relation }
+                if relationFlag != .off {
+                    await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
+                }
+                await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
+                let anyActive = flag != .off || relationFlag != .off
+                let interval: UInt64 = anyActive ? 30 : 300
                 try? await Task.sleep(nanoseconds: interval * 1_000_000_000)
             }
         }
@@ -135,7 +180,7 @@ actor ThoughtSemanticPipeline {
                 let request = Thought.fetchRequest()
                 request.predicate = NSPredicate(format: "deletedAt == nil")
                 let thoughts = (try? context.fetch(request)) ?? []
-                for t in thoughts { currentHashes[t.id] = ThoughtEmbeddingStore.contentHash(of: t.content) }
+                for t in thoughts { currentHashes[t.id] = ThoughtSemanticText.contentHash( t.content) }
             }
         }
 

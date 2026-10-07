@@ -45,7 +45,7 @@ struct WeeklyGridView: View {
     /// 一屏显示的天数：v2 宽屏自适应——手机/窄屏 3 天，expanded 档 5 天，
     /// 让 12.9 寸横屏真正「多看几天」而不是把 3 列拉宽。窗口策略（周首贴左/周尾贴右）
     /// 按可见天数通用计算，天数变化无需其他改动。
-    @Environment(\.holoWindowWidth) private var weekWindowWidth
+    @Environment(\.holoContentWidth) private var weekWindowWidth
     private var dayCount: Int {
         HoloAdaptiveLayout.isExpandedWidth(weekWindowWidth) ? 5 : 3
     }
@@ -71,7 +71,7 @@ struct WeeklyGridView: View {
     }
 
     private func resetHourScale() {
-        withAnimation(.easeInOut(duration: 0.2)) {
+        withAnimation(HoloAnimation.standard) {
             hourScale = 1
         }
         pinchStartScale = 1
@@ -142,11 +142,11 @@ struct WeeklyGridView: View {
                 // 时间轴和事件网格共用同一个纵向 ScrollView，滚动后仍保持刻度对齐。
                 gridScroll(profile: profile)
             }
-            .background(Color.holoCardBackground.opacity(0.72))
+            .background(Color.holoToolSurface.opacity(0.72))
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
-                    .stroke(Color.holoBorder.opacity(0.48), lineWidth: 1)
+                    .stroke(Color.holoToolBorder.opacity(0.48), lineWidth: 1)
             )
 
             legend
@@ -161,7 +161,7 @@ struct WeeklyGridView: View {
     /// 泳道分隔线：内部边界 1pt（最外侧边界由卡片描边承担，避免叠成双线）
     private var laneSeparator: some View {
         Rectangle()
-            .fill(Color.holoBorder.opacity(0.48))
+            .fill(Color.holoToolBorder.opacity(0.48))
             .frame(width: 1)
     }
 
@@ -172,7 +172,7 @@ struct WeeklyGridView: View {
             HStack(spacing: 0) {
                 morningToggleCell
                     .frame(width: timeAxisWidth, height: dayHeaderHeight)
-                    .background(Color.holoNestedCardBackground.opacity(0.52))
+                    .background(Color.holoToolInset.opacity(0.52))
                     .overlay(alignment: .trailing) { laneSeparator }
 
                 HStack(spacing: 0) {
@@ -189,23 +189,23 @@ struct WeeklyGridView: View {
                 }
                 .frame(width: columnWidth * CGFloat(weekDays.count), alignment: .leading)
                 .offset(x: stripOffset(columnWidth: columnWidth))
-                .animation(.easeOut(duration: 0.22), value: windowStartIndex)
+                .animation(HoloAnimation.enter, value: windowStartIndex)
                 .frame(width: viewportWidth, height: dayHeaderHeight, alignment: .leading)
                 .clipped()
             }
         }
         .frame(height: dayHeaderHeight)
-        .background(Color.holoNestedCardBackground.opacity(0.52))
+        .background(Color.holoToolInset.opacity(0.52))
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.holoBorder.opacity(0.45))
+                .fill(Color.holoToolBorder.opacity(0.45))
                 .frame(height: 0.5)
         }
     }
 
     private var morningToggleCell: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.22)) {
+            withAnimation(HoloAnimation.standard) {
                 collapseMorning.toggle()
             }
         } label: {
@@ -215,7 +215,7 @@ struct WeeklyGridView: View {
                 Text("0–7")
                     .font(.system(size: 8, weight: .semibold, design: .rounded))
             }
-            .foregroundColor(collapseMorning ? .holoPrimary : .holoTextSecondary)
+            .foregroundColor(collapseMorning ? .holoPrimary : .holoToolTextSecondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
         }
@@ -296,18 +296,18 @@ struct WeeklyGridView: View {
 
     private func headerWeekdayColor(isToday: Bool, isFuture: Bool) -> Color {
         if isToday { return .holoPrimary }
-        return isFuture ? .holoTextPlaceholder : .holoTextSecondary
+        return isFuture ? .holoTextPlaceholder : .holoToolTextSecondary
     }
 
     private func headerDayColor(isToday: Bool, isFocused: Bool, isFuture: Bool) -> Color {
         if isToday { return .holoPrimary }
-        if isFocused { return .holoTextPrimary }
-        return isFuture ? .holoTextPlaceholder : .holoTextPrimary
+        if isFocused { return .holoToolText }
+        return isFuture ? .holoTextPlaceholder : .holoToolText
     }
 
     private func headerDayBackground(isToday: Bool, isFocused: Bool) -> Color {
         if isToday { return .holoPrimary.opacity(0.11) }
-        if isFocused { return .holoNestedCardBackground }
+        if isFocused { return .holoToolInset }
         return .clear
     }
 
@@ -324,9 +324,9 @@ struct WeeklyGridView: View {
                     Text("凌晨")
                         .font(.system(size: 8, weight: .semibold))
                 }
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .frame(width: timeAxisWidth, height: morningSummaryHeight)
-                .background(Color.holoNestedCardBackground.opacity(0.52))
+                .background(Color.holoToolInset.opacity(0.52))
                 .overlay(alignment: .trailing) { laneSeparator }
 
                 HStack(spacing: 0) {
@@ -341,7 +341,7 @@ struct WeeklyGridView: View {
                 }
                 .frame(width: columnWidth * CGFloat(weekDays.count), alignment: .leading)
                 .offset(x: stripOffset(columnWidth: columnWidth))
-                .animation(.easeOut(duration: 0.22), value: windowStartIndex)
+                .animation(HoloAnimation.enter, value: windowStartIndex)
                 .frame(width: viewportWidth, height: morningSummaryHeight, alignment: .leading)
                 .clipped()
             }
@@ -349,7 +349,7 @@ struct WeeklyGridView: View {
         .frame(height: morningSummaryHeight)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.holoBorder.opacity(0.5))
+                .fill(Color.holoToolBorder.opacity(0.5))
                 .frame(height: 0.5)
         }
     }
@@ -361,16 +361,16 @@ struct WeeklyGridView: View {
             ForEach(profile.segments) { segment in
                 Text(shouldShowHourLabel(segment.hour) ? "\(segment.hour)" : "")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(width: timeAxisWidth, height: segment.height, alignment: .topTrailing)
             }
             Text("24")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .frame(width: timeAxisWidth, height: 1, alignment: .bottomTrailing)
         }
         .frame(maxWidth: .infinity)
-        .background(Color.holoNestedCardBackground.opacity(0.52))
+        .background(Color.holoToolInset.opacity(0.52))
         .overlay(alignment: .trailing) { laneSeparator }
     }
 
@@ -408,12 +408,12 @@ struct WeeklyGridView: View {
                     let moduleColor = earlyEvents[0].module.color
                     Text("\(earlyEvents.count)")
                         .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .frame(minWidth: 20, minHeight: 20)
                         .background(Capsule().fill(moduleColor.opacity(0.18)))
                     Image(systemName: "chevron.right")
                         .font(.system(size: 7, weight: .bold))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -529,7 +529,7 @@ struct WeeklyGridView: View {
         }
         .frame(width: columnWidth * CGFloat(weekDays.count), alignment: .leading)
         .offset(x: stripOffset(columnWidth: columnWidth))
-        .animation(.easeOut(duration: 0.22), value: windowStartIndex)
+        .animation(HoloAnimation.enter, value: windowStartIndex)
         .frame(width: viewportWidth, height: profile.totalHeight, alignment: .topLeading)
         .clipped()
     }
@@ -576,7 +576,7 @@ struct WeeklyGridView: View {
               weekDays.indices.contains(windowPolicy.focusIndex(forWindowStart: nextStart)) else { return }
 
         let nextDay = weekDays[windowPolicy.focusIndex(forWindowStart: nextStart)]
-        withAnimation(.easeOut(duration: 0.22)) {
+        withAnimation(HoloAnimation.enter) {
             focusedDate = nextDay
         }
         onEnsureData(nextDay)
@@ -591,7 +591,7 @@ struct WeeklyGridView: View {
     // MARK: - 事件块
 
     private func gridDisplayBlock(_ item: WeeklyGridEventLayout.DisplayItem, columnWidth: CGFloat) -> some View {
-        let accentColor = item.isOverflow ? Color.holoTextSecondary : item.module.color
+        let accentColor = item.isOverflow ? Color.holoToolTextSecondary : item.module.color
         return Button {
             if item.isOverflow {
                 onSelectGroup(item.events)
@@ -602,7 +602,7 @@ struct WeeklyGridView: View {
             HStack(spacing: 3) {
                 Text(item.displayTitle)
                     .font(.system(size: item.isOverflow ? 8.5 : 10, weight: .bold))
-                    .foregroundColor(item.isOverflow ? .holoTextSecondary : .holoTextPrimary)
+                    .foregroundColor(item.isOverflow ? .holoToolTextSecondary : .holoToolText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.68)
                 Spacer(minLength: 0)
@@ -679,9 +679,9 @@ struct WeeklyGridView: View {
             }
         }
         .font(.system(size: 10, weight: .medium))
-        .foregroundColor(.holoTextSecondary)
+        .foregroundColor(.holoToolTextSecondary)
         .padding(.top, HoloSpacing.xs)
-        .animation(.easeInOut(duration: 0.2), value: abs(clampedHourScale - 1) > 0.001)
+        .animation(HoloAnimation.standard, value: abs(clampedHourScale - 1) > 0.001)
     }
 
     // MARK: - 格式化

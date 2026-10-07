@@ -35,6 +35,14 @@ struct CategoryTabView: View {
                 // 切换收入/支出
                 typeSwitcher
 
+                // 项目筛选（无项目时这行没有意义，不占位）
+                if !state.availableFinanceProjects.isEmpty {
+                    HStack {
+                        projectFilterBar
+                        Spacer()
+                    }
+                }
+
                 // 下钻导航栏
                 if state.isDrillingDown {
                     drillDownHeader
@@ -50,7 +58,7 @@ struct CategoryTabView: View {
                     }
                 )
                 .padding(HoloSpacing.md)
-                .holoCard()
+                .holoSurface()
 
                 // 分类列表
                 CategoryLegendList(
@@ -60,7 +68,7 @@ struct CategoryTabView: View {
                 ) { category in
                     handleCategoryTap(category)
                 }
-                .holoCard()
+                .holoSurface()
 
                 // 选中分类的详情
                 if let category = selectedCategory,
@@ -70,7 +78,7 @@ struct CategoryTabView: View {
             }
             .padding(HoloSpacing.lg)
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .onChange(of: showIncomeView) { _, _ in
             // 切换类型时清除选中状态和下钻
             selectedCategory = nil
@@ -88,10 +96,71 @@ struct CategoryTabView: View {
     // MARK: - 当前聚合数据
 
     private var currentAggregations: [CategoryAggregation] {
+        // 项目筛选态读本页签独立聚合（不污染共享聚合，总览页签不受影响）；
+        // 下钻态仍走 drillDownAggregations（已在取数时带上项目范围）
+        if state.categoryProjectFilter != nil {
+            if state.isDrillingDown {
+                return state.drillDownAggregations
+            }
+            return showIncomeView ? state.categoryTabIncomeAggregations : state.categoryTabExpenseAggregations
+        }
         if showIncomeView {
             return state.incomeCategoryAggregations
         }
         return state.currentCategoryAggregations
+    }
+
+    // MARK: - 项目筛选器
+
+    /// 类别页签的项目筛选（2026-10-04 东林需求：选「东京旅游」后整个分类分布只算该项目的账）
+    private var projectFilterBar: some View {
+        let isFiltered = state.categoryProjectFilter != nil
+        return Menu {
+            Button {
+                state.setCategoryProjectFilter(nil)
+            } label: {
+                if isFiltered {
+                    Label(String(localized: "全部项目"), systemImage: "checkmark")
+                } else {
+                    Text(String(localized: "全部项目"))
+                }
+            }
+
+            ForEach(state.availableFinanceProjects, id: \.id) { project in
+                Button {
+                    state.setCategoryProjectFilter(project)
+                } label: {
+                    if state.categoryProjectFilter?.id == project.id {
+                        Label("\(project.icon) \(project.name)", systemImage: "checkmark")
+                    } else {
+                        Text("\(project.icon) \(project.name)")
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "flag")
+                    .font(.system(size: 10))
+                Text(state.categoryProjectFilter.map { String(localized: "项目：\($0.name)") }
+                     ?? String(localized: "项目：全部"))
+                    .font(.system(size: 11.5, weight: isFiltered ? .semibold : .medium))
+                    .lineLimit(1)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8, weight: .semibold))
+            }
+            .foregroundColor(isFiltered ? .holoPrimary : .holoToolTextSecondary)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(isFiltered ? Color.holoPrimary.opacity(0.08) : Color.holoToolSurface)
+                    .overlay(
+                        Capsule().strokeBorder(
+                            isFiltered ? Color.holoPrimary.opacity(0.4) : Color.holoDivider.opacity(0.6)
+                        )
+                    )
+            )
+        }
     }
 
     // MARK: - 类型切换器
@@ -107,7 +176,7 @@ struct CategoryTabView: View {
             }
         }
         .padding(4)
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -118,13 +187,13 @@ struct CategoryTabView: View {
     private func typeButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.holoCaption)
-                .foregroundColor(isSelected ? .white : .holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(isSelected ? .white : .holoToolTextSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, HoloSpacing.sm)
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .fill(isSelected ? Color.holoPrimary : Color.holoCardBackground)
+                        .fill(isSelected ? Color.holoPrimary : Color.holoToolSurface)
                 )
         }
         .buttonStyle(.plain)
@@ -142,7 +211,7 @@ struct CategoryTabView: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .medium))
                     Text("返回")
-                        .font(.holoBody)
+                        .holoText(.body)
                 }
                 .foregroundColor(.holoPrimary)
             }
@@ -153,8 +222,8 @@ struct CategoryTabView: View {
                 HStack(spacing: HoloSpacing.xs) {
                     transactionCategoryIcon(topCategory, size: 16)
                     Text(topCategory.name)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolText)
                 }
             }
         }
@@ -164,7 +233,7 @@ struct CategoryTabView: View {
 
     private func handleCategoryTap(_ category: Category?) {
         guard let category = category else {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(HoloAnimation.smooth) {
                 selectedCategory = nil
             }
             return
@@ -172,7 +241,7 @@ struct CategoryTabView: View {
 
         // 如果已在下钻模式，展示该二级分类的交易明细
         if state.isDrillingDown {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(HoloAnimation.smooth) {
                 selectedCategory = category
             }
             showTransactionDetail(for: category)
@@ -184,7 +253,7 @@ struct CategoryTabView: View {
             selectedCategory = nil
             state.drillDown(category: category)
         } else {
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(HoloAnimation.smooth) {
                 selectedCategory = category
             }
         }
@@ -193,14 +262,18 @@ struct CategoryTabView: View {
     // MARK: - 交易明细弹窗
 
     private func showTransactionDetail(for category: Category) {
+        // 项目筛选态：明细弹窗同范围（只算选中项目的交易）
+        let projectId = state.categoryProjectFilter?.id
         let txns: [Transaction]
         if category.isTopLevel {
             txns = state.transactions.filter {
-                $0.category?.id == category.id || $0.category?.parentId == category.id
+                (projectId == nil || $0.financeProjectId == projectId)
+                    && ($0.category?.id == category.id || $0.category?.parentId == category.id)
             }
         } else {
             txns = state.transactions.filter {
-                $0.category?.id == category.id
+                (projectId == nil || $0.financeProjectId == projectId)
+                    && $0.category?.id == category.id
             }
         }
         transactionSheetData = TransactionSheetData(
@@ -214,44 +287,44 @@ struct CategoryTabView: View {
     private func selectedCategoryDetail(_ aggregation: CategoryAggregation) -> some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             Text("分类详情")
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.sectionTitle)
+                .foregroundColor(.holoToolText)
 
             HStack {
                 VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                     HStack {
                         Text("金额")
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.supporting)
+                            .foregroundColor(.holoToolTextSecondary)
                         Spacer()
                         Text(aggregation.formattedAmount)
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
                     }
 
                     HStack {
                         Text("占比")
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.supporting)
+                            .foregroundColor(.holoToolTextSecondary)
                         Spacer()
                         Text(aggregation.formattedPercentage)
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
                     }
 
                     HStack {
                         Text("交易笔数")
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.supporting)
+                            .foregroundColor(.holoToolTextSecondary)
                         Spacer()
                         Text("\(aggregation.transactionCount) 笔")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
                     }
                 }
             }
             .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground.opacity(0.5))
+            .background(Color.holoToolSurface.opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
         }
     }

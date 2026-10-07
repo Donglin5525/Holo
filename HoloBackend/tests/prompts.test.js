@@ -130,7 +130,7 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   const prompt = await response.json();
 
   // 版本号（v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图；v29: 日期/时间后置——缓存前缀治理）
-  assert.equal(prompt.version, 31);
+  assert.equal(prompt.version, 32);
 
   // 缓存前缀治理（v29）：时间语境必须落在提示词最末尾，不允许回到开头/中部
   const timeIdx = prompt.content.indexOf("当前时间：");
@@ -145,7 +145,11 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   // 语境段后为 ~5729（红线 5710→5750），结构变更允许重划红线并升版本。
   // 1cc30301b 财务项目一期补项目路由后为 ~6141（红线 5950→6200，当时漏调、发版闸门补记）。
   // 红线 6750（v31 多提醒槽位+绝对日期规则扩容 ~6630 后上调；v30 时为 6200）：功能扩容允许重划红线并升版本。
-  assert.ok(prompt.content.length < 6750, `prompt 长度 ${prompt.content.length} 超过 6750`);
+  // 红线 8000（2026-09-25 AI 直选科目：记账意图必填 primary/subCategory + 标准收支科目表 ~7841 后上调）：
+  // 科目表静态前置、前缀缓存友好，直选失败率（菜名类）远低于原「候选词+hint」两段式。
+  // 红线 8100（2026-10-03 今天减负：新增 today_relief 只读意图后 ~8008，按先例随功能扩容重划）：
+  // 条目已裁剪至 1 例；不再裁会伤路由质量。
+  assert.ok(prompt.content.length < 8100, `prompt 长度 ${prompt.content.length} 超过 8100`);
 
   // 注册表一致性（v25 起「防漏新」）：渲染产物必须包含 intents.json 全部意图与摘要，
   // 且不含任何未注册意图名——新增意图忘了登记 intents.json 会在这里红
@@ -715,8 +719,10 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  // v22：任务优先与环境中性重写（2026-09-19 深度分析提示词与证据链落地方案）
-  assert.equal(prompt.version, 22);
+  // v23: 财务深析五层深挖法 + claimTitle 点破式标题（2026-09-21 财务深析改造）
+  // v25: 目录驱动字段原则（字段能力标记随目录上云，新字段零提示词教学）
+  assert.equal(prompt.version, 25);
+  assert.match(prompt.content, /HOLO_AGENT_CATALOG_DRIVEN_FIELDS_V25/);
   assert.match(prompt.content, /need_tools/);
   assert.match(prompt.content, /need_more_analysis/);
   assert.match(prompt.content, /final_claims/);
@@ -725,7 +731,7 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /evidenceIDs/);
   // v17: 新增 title/narrativeSummary 顶层字段，让 LLM 产出有人味儿的标题和摘要
   assert.match(prompt.content, /narrativeSummary/);
-  assert.match(prompt.content, /一句话总结这次的发现/);
+  assert.match(prompt.content, /点破式提炼/);
   // v21: 分析方法论 + keyInsight/interpretation 输出字段
   assert.match(prompt.content, /HOLO_AGENT_ANALYSIS_MASTERY_V21/);
   assert.match(prompt.content, /keyInsight/);
@@ -747,6 +753,15 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /workout_summary/);
   assert.match(prompt.content, /dynamic_query/);
   assert.match(prompt.content, /禁止生成 SQL/);
+  // v23: 财务深析五层深挖 + 管家记忆 + 展开豁免 + claimTitle
+  assert.match(prompt.content, /HOLO_AGENT_FINANCE_DEPTH_V23/);
+  assert.match(prompt.content, /五层深挖/);
+  assert.match(prompt.content, /私人资产管家/);
+  assert.match(prompt.content, /生活状态交叉/);
+  assert.match(prompt.content, /管家记忆/);
+  assert.match(prompt.content, /claimTitle/);
+  assert.match(prompt.content, /禁止复述正文第一句/);
+  assert.match(prompt.content, /00:00 整点/);
   // v18: 新增 expression 派生操作（分档换算自由组合）
   assert.match(prompt.content, /expression/);
   assert.match(prompt.content, /分档换算/);
@@ -796,7 +811,7 @@ test("memory insight prompt 强制输出稳定主题键和四字段候选", asyn
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 10);
+  assert.equal(prompt.version, 11);
   assert.match(prompt.content, /HOLO_MEMORY_SEMANTIC_V2/);
   assert.match(prompt.content, /subjectKey/);
   assert.match(prompt.content, /跨日报、周报、月报稳定不变/);

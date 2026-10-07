@@ -1,0 +1,8 @@
+{
+  "snapshot": "2026-10-04 09:56 +0800",
+  "build_succeeded": true,
+  "build_failed": false,
+  "compiler_errors": [],
+  "emitted_unique_warnings": 332,
+  "note": "Incremental Release Simulator rebuild; not a complete warning inventory."
+}

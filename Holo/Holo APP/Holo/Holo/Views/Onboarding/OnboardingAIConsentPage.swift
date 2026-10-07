@@ -27,15 +27,15 @@ struct OnboardingAIConsentPage: View {
                         .font(.holoTitle)
                         .foregroundColor(.holoTextPrimary)
 
-                    Text("当你使用 HoloAI、AI 洞察、语音转文字，或另行开启“自动形成记忆”时，完成该功能所需的信息，以及财务、习惯、待办、想法、健康摘要或语音片段，会经 Holo 后端发送给第三方 AI 或语音服务处理。")
+                    Text("当你使用 HoloAI、AI 洞察、语音转文字，或在保存想法后（想法自动整理默认开启），完成该功能所需的信息，以及财务、习惯、待办、想法、健康摘要或语音片段，会经 Holo 后端发送给第三方 AI 或语音服务处理。")
                         .font(.holoBody)
                         .foregroundColor(.holoTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                        consentBullet(String(localized: "只在你使用相关 AI 功能，或主动开启自动形成记忆后处理必要数据。"))
+                        consentBullet(String(localized: "只在你使用相关 AI 功能，或由想法自动整理（自动形成记忆，默认开启）处理必要数据。"))
                         consentBullet(String(localized: "不授权也可以继续使用本地记账、待办、习惯和想法功能。"))
-                        consentBullet(String(localized: "之后可以在 HoloAI 数据授权中随时开启或撤回。"))
+                        consentBullet(String(localized: "之后可以在 HoloAI 数据授权中随时开启或撤回，也可以单独关闭想法自动整理。"))
                     }
                     .padding(HoloSpacing.lg)
                     .background(

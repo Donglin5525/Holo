@@ -20,7 +20,7 @@ struct DailySenseStatusCard: View {
             collapsedView
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.25)) {
+                    withAnimation(HoloAnimation.smooth) {
                         isExpanded.toggle()
                     }
                 }

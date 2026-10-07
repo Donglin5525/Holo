@@ -682,3 +682,178 @@ final class HoloAgentResultRendererTests: XCTestCase {
         )
     }
 }
+
+// MARK: - 2026-09-24 报告可读性改造（指标断言透传 / 趋势回查口径）测试
+
+/// 新增结构化字段的向后兼容：存量报告 JSON（无 metricAssertions/metricValue/datasetName）
+/// 必须继续解码，新字段落 nil 且 UI 据此静默降级。
+final class HoloRenderedReportChartsCompatibilityTests: XCTestCase {
+
+    func test旧格式sections与evidence解码兼容_新字段为nil() throws {
+        let legacyJSON = """
+        {
+          "title": "旧报告",
+          "summary": "摘要",
+          "sections": [
+            {"title": "观察一", "body": "正文", "confidence": 0.8, "kind": "observation", "interpretation": "解读"}
+          ],
+          "evidenceReferences": [
+            {"id": "e1", "summary": "口径句"}
+          ]
+        }
+        """
+        let data = Data(legacyJSON.utf8)
+        let decoded = try JSONDecoder().decode(HoloRenderedAgentResult.self, from: data)
+        XCTAssertEqual(decoded.sections.first?.metricAssertions, nil, "旧 JSON 无断言字段应为 nil")
+        XCTAssertEqual(decoded.evidenceReferences.first?.metricValue, nil)
+        XCTAssertEqual(decoded.evidenceReferences.first?.datasetName, nil)
+    }
+
+    func test新格式断言与数值字段RoundTrip等值() throws {
+        let result = HoloRenderedAgentResult(
+            title: "标题",
+            summary: "摘要",
+            sections: [
+                HoloRenderedAgentSection(
+                    title: "夜宵撑起餐饮超支",
+                    body: "正文",
+                    confidence: 0.9,
+                    kind: "observation",
+                    interpretation: "解读",
+                    metricAssertions: [
+                        HoloRenderedMetricAssertion(
+                            metricKey: "dynamic.finance.x.sum",
+                            value: 1850,
+                            baselineValue: 1438,
+                            unit: "元",
+                            comparison: "up",
+                            evidenceIDs: ["e1"]
+                        )
+                    ]
+                )
+            ],
+            evidenceReferences: [
+                HoloRenderedEvidenceReference(
+                    id: "e1",
+                    summary: "本月支出合计",
+                    financeDrilldown: nil,
+                    formula: nil,
+                    baselineText: nil,
+                    metricValue: 1850,
+                    metricUnit: "元",
+                    datasetName: "finance.transactions"
+                )
+            ]
+        )
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        let decoded = try decoder.decode(HoloRenderedAgentResult.self, from: encoder.encode(result))
+        XCTAssertEqual(decoded, result, "新字段应完整 roundtrip")
+        XCTAssertEqual(decoded.evidenceReferences.first?.datasetName, "finance.transactions")
+    }
+
+    func test趋势数据集支持判定() {
+        XCTAssertTrue(HoloReportTrendDataResolver.isSupported(dataset: "health.sleep"))
+        XCTAssertTrue(HoloReportTrendDataResolver.isSupported(dataset: "finance.transactions"))
+        XCTAssertFalse(HoloReportTrendDataResolver.isSupported(dataset: "health.workout"), "会话级数据集不画逐日折线")
+        XCTAssertFalse(HoloReportTrendDataResolver.isSupported(dataset: nil))
+        XCTAssertFalse(HoloReportTrendDataResolver.isSupported(dataset: "unknown.dataset"))
+    }
+
+    func test周聚合_超62点聚成周均值_首点对齐周起始() {
+        let calendar = Calendar.current
+        let base = calendar.dateInterval(of: .weekOfYear, for: Date(timeIntervalSince1970: 1_800_000_000))?.start
+            ?? Date(timeIntervalSince1970: 1_800_000_000)
+        // 70 天逐日点（每天值 10）
+        let points = (0..<70).compactMap { offset -> HoloReportTrendSeries.Point? in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: base) else { return nil }
+            return HoloReportTrendSeries.Point(date: day, value: 10)
+        }
+        let aggregated = HoloReportTrendDataResolver.weeklyAggregatedIfDense(points)
+        XCTAssertLessThan(aggregated.count, 12, "70 天应聚成 ≤11 个周点")
+        XCTAssertEqual(aggregated.first?.value ?? 0, 10, accuracy: 0.001, "恒定序列周均应等于原值")
+        // 聚合后每个点都应落在某周的起始日
+        for point in aggregated {
+            XCTAssertNotNil(calendar.dateInterval(of: .weekOfYear, for: point.date)?.start == point.date ? true : nil,
+                            "周点应锚定周起始")
+        }
+    }
+
+    func test周聚合_不足62点原样返回() {
+        let points = (0..<30).compactMap { offset -> HoloReportTrendSeries.Point? in
+            guard let day = Calendar.current.date(byAdding: .day, value: offset, to: Date()) else { return nil }
+            return HoloReportTrendSeries.Point(date: day, value: Double(offset))
+        }
+        let aggregated = HoloReportTrendDataResolver.weeklyAggregatedIfDense(points)
+        XCTAssertEqual(aggregated.count, points.count, "30 天逐日不该被聚合")
+    }
+
+    func test变化徽章计算() {
+        XCTAssertEqual(ReportMetricNumberFormatting.changeBadge(value: 118, baseline: 100)?.text, "↑ 18%")
+        XCTAssertEqual(ReportMetricNumberFormatting.changeBadge(value: 82, baseline: 100)?.isDown, true)
+        XCTAssertEqual(ReportMetricNumberFormatting.changeBadge(value: 82, baseline: 100)?.text, "↓ 18%")
+        XCTAssertEqual(ReportMetricNumberFormatting.changeBadge(value: 100.4, baseline: 100)?.text, "基本持平")
+        XCTAssertNil(ReportMetricNumberFormatting.changeBadge(value: 50, baseline: nil), "无基线无徽章")
+        XCTAssertEqual(ReportMetricNumberFormatting.changeBadge(value: 50, baseline: 0)?.text, "新增", "基线为 0 有值视为新增")
+    }
+
+    func test数值缩写格式() {
+        XCTAssertEqual(ReportMetricNumberFormatting.compact(12_400), "1.24万")
+        XCTAssertEqual(ReportMetricNumberFormatting.compact(238), "238")
+        XCTAssertEqual(ReportMetricNumberFormatting.compact(7), "7")
+        // 6.85 双精度为 6.849999…，%.1f 舍入到 6.8 是格式化器的正确行为
+        XCTAssertEqual(ReportMetricNumberFormatting.compact(6.85), "6.8")
+        XCTAssertEqual(ReportMetricNumberFormatting.compact(6.9), "6.9")
+    }
+}
+
+/// 健康洞察上下文富字段：旧素材 JSON（只有 6 个基础字段）解码兼容。
+final class HealthInsightContextRichFieldsCodableTests: XCTestCase {
+
+    func test旧格式健康上下文解码兼容_富字段为nil() throws {
+        let legacyJSON = """
+        {
+          "sleepDurationHours": 7.2,
+          "stepCount": 6991,
+          "standHours": null,
+          "workoutMinutes": null,
+          "dataAvailability": {"kind": "fullyAvailable"},
+          "signals": []
+        }
+        """
+        let decoded = try JSONDecoder().decode(HealthInsightContext.self, from: Data(legacyJSON.utf8))
+        XCTAssertEqual(decoded.sleepDurationHours, 7.2)
+        XCTAssertEqual(decoded.stepCount, 6991)
+        XCTAssertNil(decoded.deepSleepHoursPerDay, "旧素材无分期字段应为 nil（不得当 0 解读）")
+        XCTAssertNil(decoded.previousPeriodSleepHours)
+        XCTAssertNil(decoded.topWorkoutTypes)
+        XCTAssertNil(decoded.recordedDayCount)
+    }
+
+    func test富字段RoundTrip() throws {
+        let context = HealthInsightContext(
+            sleepDurationHours: 6.4,
+            stepCount: 5_200,
+            standHours: 9,
+            workoutMinutes: 25,
+            dataAvailability: .fullyAvailable,
+            signals: [],
+            previousPeriodSleepHours: 7.1,
+            previousPeriodStepCount: 6_800,
+            activeMinutesPerDay: 42,
+            activeEnergyKcalPerDay: 380,
+            distanceKmPerDay: 3.8,
+            workoutSessionCount: 3,
+            topWorkoutTypes: ["跑步", "力量训练"],
+            sleepEfficiencyPercent: 88,
+            deepSleepHoursPerDay: 1.2,
+            remSleepHoursPerDay: 1.6,
+            bedtimeMinuteOfDay: 1_470,
+            wakeMinuteOfDay: 420,
+            recordedDayCount: 13
+        )
+        let decoded = try JSONDecoder().decode(HealthInsightContext.self, from: JSONEncoder().encode(context))
+        XCTAssertEqual(decoded, context)
+        XCTAssertEqual(decoded.bedtimeMinuteOfDay, 1_470, "凌晨 0:30 折算编码应为 1470")
+    }
+}

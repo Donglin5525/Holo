@@ -178,19 +178,25 @@ struct AnniversaryListView: View {
 
             if !upcomingOnceItems.isEmpty {
                 section(title: String(localized: "即将到来")) {
-                    ForEach(upcomingOnceItems, id: \.id) { row($0) }
+                    ForEach(Array(upcomingOnceItems.enumerated()), id: \.element) { index, item in
+                        row(item).holoStaggeredAppear(index: index)
+                    }
                 }
             }
 
             if !yearlyItems.isEmpty {
                 section(title: String(localized: "每年循环")) {
-                    ForEach(yearlyItems, id: \.id) { row($0) }
+                    ForEach(Array(yearlyItems.enumerated()), id: \.element) { index, item in
+                        row(item).holoStaggeredAppear(index: upcomingOnceItems.count + index)
+                    }
                 }
             }
 
             if !elapsedItems.isEmpty {
                 section(title: String(localized: "时光已过")) {
-                    ForEach(elapsedItems, id: \.id) { row($0) }
+                    ForEach(Array(elapsedItems.enumerated()), id: \.element) { index, item in
+                        row(item).holoStaggeredAppear(index: upcomingOnceItems.count + yearlyItems.count + index)
+                    }
                 }
             }
         }

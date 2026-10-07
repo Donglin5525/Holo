@@ -115,6 +115,69 @@ nonisolated struct BillingCycleCalculator {
         return (prevStart, current.start)
     }
 
+    // MARK: - 记账年（年度统计口径）
+
+    /// 记账年区间 [start, end)：以「包含 reference 的账期起点所在年份」为记账年 Y，
+    /// 区间 = Y 年 1 月有效起始日 → 平移 12 个账期。
+    /// startDay = 1 时与自然年等价。
+    /// 例（startDay=25）：reference=2026/9/26 → 2026/1/25 – 2027/1/24；
+    /// reference=2026/1/10（所在账期 2025/12/25–2026/1/24）→ 2025 记账年 2025/1/25 – 2026/1/24。
+    static func billingYearRange(startDay: Int, reference: Date = Date(), calendar: Calendar = .current) -> (start: Date, end: Date) {
+        let startDay = clampedDay(startDay)
+        let cycle = currentCycleRange(startDay: startDay, reference: reference, calendar: calendar)
+        let year = calendar.component(.year, from: cycle.start)
+        guard let januaryStart = makeDate(year: year, month: 1, day: startDay, calendar: calendar) else {
+            return (cycle.start, cycle.end)
+        }
+        let end = shiftedCycleStart(januaryStart, startDay: startDay, offset: 12, calendar: calendar)
+        return (januaryStart, end)
+    }
+
+    /// 年度区间按口径平移 offset 个年（同比上一年取 offset = -1，左右翻年取 ±1）：
+    /// 自然年 = 起止各平移 offset 年；记账年 = 起止各平移 offset×12 个账期（含月底 cap）。
+    static func shiftedYearRange(
+        start: Date,
+        end: Date,
+        offset: Int,
+        basis: FinanceYearBasis,
+        startDay: Int,
+        calendar: Calendar = .current
+    ) -> (start: Date, end: Date) {
+        switch basis {
+        case .calendar:
+            guard let newStart = calendar.date(byAdding: .year, value: offset, to: start),
+                  let newEnd = calendar.date(byAdding: .year, value: offset, to: end) else {
+                return (start, end)
+            }
+            return (newStart, newEnd)
+        case .billing:
+            let monthOffset = offset * 12
+            let newStart = shiftedCycleStart(start, startDay: startDay, offset: monthOffset, calendar: calendar)
+            let newEnd = shiftedCycleStart(end, startDay: startDay, offset: monthOffset, calendar: calendar)
+            return (newStart, newEnd)
+        }
+    }
+
+    /// 已过周期数（年视图月均口径）：从 start 按月推进到 min(now, end) 的桶数，
+    /// 进行中的一期也计入（「今年至今 5.2 万 ÷ 9 个月」的用户心智），封顶 12。
+    /// 自然年与记账年同构（账期按月推进），无需区分口径。
+    static func elapsedPeriodCount(
+        from start: Date,
+        to end: Date,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        let limit = min(now, end)
+        guard limit > start else { return 0 }
+        var count = 1
+        while count < 12,
+              let nextStart = calendar.date(byAdding: .month, value: count, to: start),
+              nextStart < limit {
+            count += 1
+        }
+        return count
+    }
+
     // MARK: - 信用卡还款日
 
     /// 给定账单日和还款日，算出某个周期对应的还款日。

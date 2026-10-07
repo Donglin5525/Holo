@@ -2,7 +2,7 @@
 //  FinanceSettingsView.swift
 //  Holo
 //
-//  财务设置视图
+//  财务设置视图（2026-09-19 重设计：全区块收敛到 HoloSettingsSection 统一卡片语言）
 //
 
 import SwiftUI
@@ -15,6 +15,8 @@ struct FinanceSettingsView: View {
     @State private var showClearFinanceSheet = false
     /// 图片自动记账待复核数量（§11 角标）
     @State private var receiptDraftCount = 0
+    /// 严格预算模式首次开启说明弹层（2026-09-27 方案一期：规则透明化）
+    @State private var showStrictModeIntro = false
 
     var body: some View {
         NavigationStack {
@@ -26,9 +28,9 @@ struct FinanceSettingsView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .frame(width: 36, height: 36)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(Circle())
                         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                 }
@@ -36,8 +38,8 @@ struct FinanceSettingsView: View {
                 Spacer()
 
                 Text("设置")
-                    .font(.holoTitle)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.pageTitle)
+                    .foregroundColor(.holoToolText)
 
                 Spacer()
 
@@ -49,231 +51,68 @@ struct FinanceSettingsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.xl) {
-                    // 记账周期模块
-                    billingCycleSection
+                    // 排序原则：干活的入口在上（分类管理/图片记账为最高频）、
+                    // 设一次不太动的开关居中、危险区永远垫底（2026-10-06 东林反馈重排）
 
-                    // 图片自动记账（快捷指令入口，2026-09-14 方案 §11）
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("自动化")
-                                .font(.holoLabel)
-                                .foregroundColor(.holoTextSecondary)
-                            Spacer()
-                        }
-                        .padding(.horizontal, HoloSpacing.lg)
-                        .padding(.bottom, HoloSpacing.sm)
+                    // 分类管理（最高频，置顶）
+                    categorySection
 
-                        NavigationLink {
-                            ReceiptBookingSettingsView()
-                        } label: {
-                            HStack {
-                                Image(systemName: "photo.badge.checkmark")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.holoPrimary)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.holoPrimary.opacity(0.1))
-                                    .clipShape(Circle())
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("图片自动记账")
-                                        .font(.holoBody)
-                                        .foregroundColor(.holoTextPrimary)
-                                    Text("操作按钮一按，自动识别账户与项目")
-                                        .font(.caption)
-                                        .foregroundColor(.holoTextSecondary)
-                                }
-
-                                Spacer()
-
-                                // 待复核角标（§11）：存在待复核项时显示数量
-                                if receiptDraftCount > 0 {
-                                    Text("\(receiptDraftCount)")
-                                        .font(.caption.bold())
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 3)
-                                        .background(Capsule().fill(Color.orange.opacity(0.18)))
-                                        .foregroundStyle(Color.orange)
-                                }
-
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.holoTextSecondary)
-                            }
-                            .padding(HoloSpacing.md)
-                            .background(Color.holoCardBackground)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .onAppear {
-                        receiptDraftCount = ReceiptBookingResultStore.shared.loadDrafts().count
-                    }
+                    // 图片自动记账（高频入口，账本页顶栏另有直达）
+                    automationSection
 
                     // 预算模块
                     strictBudgetSection
 
+                    // 记账周期模块
+                    billingCycleSection
+
                     // 显示设置模块
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("显示设置")
-                                .font(.holoLabel)
-                                .foregroundColor(.holoTextSecondary)
-                            Spacer()
-                        }
-                        .padding(.horizontal, HoloSpacing.lg)
-                        .padding(.bottom, HoloSpacing.sm)
-
-                        VStack(spacing: 0) {
-                            FinanceDisplayToggleRow(
-                                title: String(localized: "本月支出"),
-                                icon: "arrow.down.right",
-                                iconColor: .holoError,
-                                isOn: $displaySettings.showMonthlyExpense
-                            )
-
-                            Divider().padding(.leading, 60)
-
-                            FinanceDisplayToggleRow(
-                                title: String(localized: "本月收入"),
-                                icon: "arrow.up.right",
-                                iconColor: .holoSuccess,
-                                isOn: $displaySettings.showMonthlyIncome
-                            )
-
-                            if displaySettings.showMonthlyExpense && displaySettings.showMonthlyIncome {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "info.circle")
-                                        .font(.system(size: 11))
-                                    Text("双卡并排时隐藏「今日」金额，仅单独展示时显示")
-                                        .font(.system(size: 11))
-                                }
-                                .foregroundColor(.holoTextPlaceholder)
-                                .padding(.horizontal, HoloSpacing.lg)
-                                .padding(.top, HoloSpacing.xs)
-                                .padding(.bottom, HoloSpacing.xs)
-                            }
-                        }
-                        .padding(HoloSpacing.md)
-                        .background(Color.holoCardBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
-                        .padding(.horizontal, HoloSpacing.lg)
-                    }
+                    displaySection
 
                     // 数据导入导出模块
                     ImportExportView()
 
                     // 危险区：清空财务数据（进 30 天回收站，设置-数据管理-最近删除可恢复）
-                    Button {
-                        showClearFinanceSheet = true
-                    } label: {
-                        HStack(spacing: HoloSpacing.md) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: HoloRadius.sm)
-                                    .fill(Color.holoError.opacity(0.1))
-                                    .frame(width: 40, height: 40)
-                                Image(systemName: "trash.circle")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(.holoError)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("清空财务数据")
-                                    .font(.holoBody)
-                                    .foregroundColor(.holoError)
-                                Text("可选仅清交易或全部清空；30 天内可在最近删除恢复")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.holoTextSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Spacer()
-                        }
-                        .padding(HoloSpacing.md)
-                        .background(Color.holoCardBackground)
-                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                        .padding(.horizontal, HoloSpacing.lg)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .sheet(isPresented: $showClearFinanceSheet) {
-                        ModuleClearSheet(module: .finance)
-                    }
-
-                    // 分类管理模块
-                    VStack(spacing: 0) {
-                        HStack {
-                            Text("分类管理")
-                                .font(.holoLabel)
-                                .foregroundColor(.holoTextSecondary)
-                            Spacer()
-                        }
-                        .padding(.horizontal, HoloSpacing.lg)
-                        .padding(.bottom, HoloSpacing.sm)
-
-                        NavigationLink {
-                            CategoryManagementView()
-                        } label: {
-                            HStack {
-                                Image(systemName: "folder.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.holoPrimary)
-                                    .frame(width: 44, height: 44)
-                                    .background(Color.holoPrimary.opacity(0.1))
-                                    .clipShape(Circle())
-
-                                Text("分类")
-                                    .font(.holoBody)
-                                    .foregroundColor(.holoTextPrimary)
-
-                                Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(.holoTextSecondary)
-                            }
-                            .padding(HoloSpacing.md)
-                            .background(Color.holoCardBackground)
-                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, HoloSpacing.lg)
-                    }
+                    clearDataSection
                 }
                 .padding(.top, HoloSpacing.md)
                 .padding(.bottom, 100)
             }
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         }
+        .sheet(isPresented: $showStrictModeIntro) { strictModeIntroSheet }
     }
-}
 
-// MARK: - 显示设置 Toggle 行
+    // MARK: - 严格预算模式首次开启说明
 
-struct FinanceDisplayToggleRow: View {
-    let title: String
-    let icon: String
-    let iconColor: Color
-    @Binding var isOn: Bool
+    /// 首次开启（App 生命周期内第一次从全关到开）弹一次，讲清宽限期与总预算口径
+    private var strictModeIntroSheet: some View {
+        VStack(spacing: HoloSpacing.lg) {
+            Text("严格预算模式已开启")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.holoToolText)
+                .padding(.top, 24)
 
-    var body: some View {
-        HStack {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundColor(iconColor)
-                .frame(width: 36, height: 36)
-                .background(iconColor.opacity(0.1))
-                .clipShape(Circle())
+            BudgetStrictModeRulesContent()
+                .padding(.horizontal, 20)
 
-            Text(title)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-
-            Spacer()
-
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .tint(.holoPrimary)
+            Button {
+                showStrictModeIntro = false
+            } label: {
+                Text("我知道了")
+                    .font(.system(size: 15, weight: .medium))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(Color.holoPrimary)
+                    .foregroundColor(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
         }
-        .padding(.vertical, HoloSpacing.sm)
+        .holoSheetShell()
     }
 }
 
@@ -282,75 +121,155 @@ struct FinanceDisplayToggleRow: View {
 private extension FinanceSettingsView {
 
     var billingCycleSection: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("记账周期")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
-                Spacer()
-            }
-            .padding(.horizontal, HoloSpacing.lg)
-            .padding(.bottom, HoloSpacing.sm)
-
-            VStack(spacing: HoloSpacing.sm) {
-                HStack {
-                    Image(systemName: "calendar.badge.clock")
-                        .font(.system(size: 16))
-                        .foregroundColor(.holoPrimary)
-                        .frame(width: 36, height: 36)
-                        .background(Color.holoPrimary.opacity(0.1))
-                        .clipShape(Circle())
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("每月起始日")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-                        Text(cycleDescription)
-                            .font(.system(size: 11))
-                            .foregroundColor(.holoTextPlaceholder)
-                    }
-
-                    Spacer()
-
-                    // 周期账单为 Plus 权益：非 Plus 只读展示当前生效值，点击升级
-                    if HoloEntitlementState.shared.isPlusActive {
-                        Stepper(
-                            "\(periodSettings.billingCycleStartDay) 号",
-                            value: $periodSettings.billingCycleStartDay,
-                            in: 1...31
-                        )
-                        .labelsHidden()
-                    } else {
-                        Button {
-                            HoloPlusActionCoordinator.shared.requirePlus(context: .billingCycle)
-                        } label: {
-                            HStack(spacing: 4) {
-                                Text("\(periodSettings.billingCycleStartDay) 号")
-                                    .font(.system(size: 15))
-                                Image(systemName: "lock.fill")
-                                    .font(.system(size: 11))
-                            }
-                            .foregroundColor(.holoTextSecondary.opacity(0.6))
+        HoloSettingsSection(title: "记账周期") {
+            HoloSettingsRow(
+                icon: "calendar.badge.clock",
+                title: "每月起始日",
+                subtitle: cycleDescription
+            ) {
+                // 周期账单为 Plus 权益：非 Plus 只读展示当前生效值，点击升级
+                if HoloEntitlementState.shared.isPlusActive {
+                    Stepper(
+                        "\(periodSettings.billingCycleStartDay) 号",
+                        value: $periodSettings.billingCycleStartDay,
+                        in: 1...31
+                    )
+                    .labelsHidden()
+                } else {
+                    Button {
+                        HoloPlusActionCoordinator.shared.requirePlus(context: .billingCycle)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("\(periodSettings.billingCycleStartDay) 号")
+                                .font(.system(size: 15))
+                            Image(systemName: "lock.fill")
+                                .font(.system(size: 11))
                         }
-                        .buttonStyle(.plain)
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.6))
                     }
+                    .buttonStyle(.plain)
                 }
-                .padding(HoloSpacing.md)
             }
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
-            .padding(.horizontal, HoloSpacing.lg)
         }
     }
 
     /// 起始日的文字说明
-    private var cycleDescription: String {
+    var cycleDescription: String {
         if periodSettings.isNaturalMonth {
             return String(localized: "当前按自然月（1 号到月底）统计")
         }
         let day = periodSettings.billingCycleStartDay
         return String(localized: "统计按 \(day) 号 → 次月 \(day - 1) 号计算，与信用卡账单对齐")
+    }
+}
+
+// MARK: - 图片自动记账入口
+
+private extension FinanceSettingsView {
+
+    var automationSection: some View {
+        // 直呼功能名不包「自动化」抽象分组：设置页里它是高频入口而非低频概念
+        HoloSettingsSection(title: "图片自动记账") {
+            NavigationLink {
+                ReceiptBookingSettingsView()
+            } label: {
+                HoloSettingsRow(
+                    icon: "photo.badge.checkmark",
+                    title: "图片自动记账",
+                    subtitle: "操作按钮一按，自动识别账户与项目"
+                ) {
+                    HStack(spacing: HoloSpacing.sm) {
+                        // 待复核角标（§11）：存在待复核项时显示数量
+                        if receiptDraftCount > 0 {
+                            HoloSettingsBadge(count: receiptDraftCount)
+                        }
+                        HoloSettingsChevron()
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .onAppear {
+            receiptDraftCount = ReceiptBookingResultStore.shared.loadDrafts().count
+        }
+    }
+}
+
+// MARK: - 显示设置
+
+private extension FinanceSettingsView {
+
+    var displaySection: some View {
+        HoloSettingsSection(title: "显示设置") {
+            HoloSettingsRow(
+                icon: "arrow.down.right",
+                iconColor: .holoError,
+                title: String(localized: "本月支出")
+            ) {
+                Toggle("", isOn: $displaySettings.showMonthlyExpense)
+                    .labelsHidden()
+                    .tint(.holoPrimary)
+            }
+
+            HoloSettingsDivider()
+
+            HoloSettingsRow(
+                icon: "arrow.up.right",
+                iconColor: .holoSuccess,
+                title: String(localized: "本月收入")
+            ) {
+                Toggle("", isOn: $displaySettings.showMonthlyIncome)
+                    .labelsHidden()
+                    .tint(.holoPrimary)
+            }
+
+            if displaySettings.showMonthlyExpense && displaySettings.showMonthlyIncome {
+                HoloSettingsFootnote(text: String(localized: "双卡并排时隐藏「今日」金额，仅单独展示时显示"))
+            }
+        }
+    }
+}
+
+// MARK: - 危险区（清空财务数据）
+
+private extension FinanceSettingsView {
+
+    var clearDataSection: some View {
+        HoloSettingsSection {
+            Button {
+                showClearFinanceSheet = true
+            } label: {
+                HoloSettingsRow(
+                    icon: "trash.circle",
+                    iconColor: .holoError,
+                    title: "清空财务数据",
+                    titleColor: .holoError,
+                    subtitle: "可选仅清交易或全部清空；30 天内可在最近删除恢复"
+                )
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .sheet(isPresented: $showClearFinanceSheet) {
+            ModuleClearSheet(module: .finance)
+        }
+    }
+}
+
+// MARK: - 分类管理入口
+
+private extension FinanceSettingsView {
+
+    var categorySection: some View {
+        HoloSettingsSection(title: "分类管理") {
+            NavigationLink {
+                CategoryManagementView()
+            } label: {
+                HoloSettingsRow(icon: "folder.fill", title: "分类") {
+                    HoloSettingsChevron()
+                }
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 
@@ -362,69 +281,41 @@ private extension FinanceSettingsView {
         let accounts = FinanceRepository.shared.getAccounts(includeArchived: false)
         guard !accounts.isEmpty else { return AnyView(EmptyView()) }
 
-        return AnyView(VStack(spacing: 0) {
-            HStack {
-                Text("严格预算模式")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
-                Spacer()
-            }
-            .padding(.horizontal, HoloSpacing.lg)
-            .padding(.bottom, HoloSpacing.sm)
-
-            VStack(spacing: 0) {
-                ForEach(accounts, id: \.id) { account in
-                    strictModeToggleRow(account)
-                    if account.id != accounts.last?.id {
-                        Divider().padding(.leading, 60)
-                    }
+        return AnyView(HoloSettingsSection(title: "严格预算模式") {
+            ForEach(accounts, id: \.id) { account in
+                strictModeToggleRow(account)
+                if account.id != accounts.last?.id {
+                    HoloSettingsDivider()
                 }
-
-                Text("超支多少，下个月的预算额度就扣多少（最低扣到 0）；省下的钱不累积，下月不超支就自动恢复原额度。")
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoTextPlaceholder)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, HoloSpacing.lg)
-                    .padding(.top, HoloSpacing.xs)
-                    .padding(.bottom, HoloSpacing.xs)
             }
-            .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
-            .padding(.horizontal, HoloSpacing.lg)
+
+            HoloSettingsFootnote(text: String(localized: "超支多少，下个月的预算额度就扣多少（最低扣到 0）；省下的钱不累积，下月不超支就自动恢复原额度。仅作用于账户总预算，分类预算不结转。"))
         })
     }
 
     private func strictModeToggleRow(_ account: Account) -> some View {
-        HStack {
-            ZStack {
-                Circle()
-                    .fill(account.swiftUIColor.opacity(0.1))
-                    .frame(width: 36, height: 36)
-                Image(systemName: account.icon)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(account.swiftUIColor)
-            }
-
-            Text(account.name)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-
-            Spacer()
-
+        HoloSettingsRow(
+            icon: account.icon,
+            iconColor: account.swiftUIColor,
+            title: account.name
+        ) {
             Toggle("", isOn: strictModeBinding(for: account))
                 .labelsHidden()
                 .tint(.holoPrimary)
         }
-        .padding(.vertical, HoloSpacing.sm)
     }
 
     private func strictModeBinding(for account: Account) -> Binding<Bool> {
         Binding(
             get: { budgetSettings.isEnabled(for: account.id) },
-            set: { $0 ? budgetSettings.enable(for: account.id) : budgetSettings.disable(for: account.id) }
+            set: { enabled in
+                if enabled { budgetSettings.enable(for: account.id) } else { budgetSettings.disable(for: account.id) }
+                // 首次开启弹一次说明：宽限期 / 总预算口径 / 结转规则，规则不透明的惩罚系统会被当成 bug
+                if enabled && !UserDefaults.standard.bool(forKey: "financeBudget.strictMode.introShown") {
+                    UserDefaults.standard.set(true, forKey: "financeBudget.strictMode.introShown")
+                    showStrictModeIntro = true
+                }
+            }
         )
     }
 }

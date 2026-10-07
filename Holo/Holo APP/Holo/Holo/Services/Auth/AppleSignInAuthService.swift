@@ -159,6 +159,22 @@ final class AppleSignInAuthService: ObservableObject {
                     )
                 }
                 #endif
+                // P02（2026-10-04 体检）：把授权码报给后端换 refresh token 加密留存——
+                // Apple 撤销接口只认 refresh token，删除账号时的真正撤销依赖它。
+                // best-effort：失败只记日志，不影响登录。
+                if let identityToken = credential.identityToken,
+                   let authorizationCode = credential.authorizationCode {
+                    let identityTokenString = Self.identityTokenString(from: identityToken)
+                    let codeString = Self.authorizationCodeString(from: authorizationCode)
+                    if let identityTokenString, let codeString {
+                        Task {
+                            await registerRevocationToken(
+                                identityToken: identityTokenString,
+                                authorizationCode: codeString
+                            )
+                        }
+                    }
+                }
             } catch {
                 errorMessage = String(localized: "保存登录状态失败：\(error.localizedDescription)")
                 authLogger.error("保存 Apple 登录态失败：\(error.localizedDescription)")
@@ -238,7 +254,9 @@ final class AppleSignInAuthService: ObservableObject {
         errorMessage = nil
     }
 
-    /// 调后端 /v1/auth/apple/revoke 撤销当前 identity token 对应的 Apple 凭证。
+    /// 调后端 /v1/auth/apple/revoke 撤销 Apple 凭证（P02）。
+    /// 后端凭登录时留存的 refresh token 调 Apple 撤销（identity token 不是有效撤销凭证）；
+    /// 无留存 token 时返回 ok=false（历史账号），调用方继续删除流程。
     /// best-effort：网络/后端失败只记录警告，不抛错，由调用方继续清理本地数据。
     private func revokeAppleCredential() async {
         guard let identityToken = session?.identityToken, !identityToken.isEmpty else {
@@ -261,6 +279,29 @@ final class AppleSignInAuthService: ObservableObject {
             }
         } catch {
             authLogger.warning("Apple 凭证撤销失败（不阻断删除）：\(error.localizedDescription)")
+        }
+    }
+
+    /// 登录时把授权码上报后端换取 refresh token 留存（P02 撤销链路的凭证来源）。
+    /// best-effort：网络/后端失败只记录警告；历史账号无留存 token 时删除流程
+    /// 会收到 REFRESH_TOKEN_UNAVAILABLE 并给出官方指引，不在登录期重试。
+    private func registerRevocationToken(identityToken: String, authorizationCode: String) async {
+        let request = APIRequest(
+            baseURL: baseURL,
+            path: "/v1/auth/apple/register-revocation-token",
+            method: .post,
+            headers: [:],
+            body: RegisterRevocationTokenRequest(identityToken: identityToken, authorizationCode: authorizationCode)
+        )
+        do {
+            let response: RevokeResponse = try await apiClient.send(request)
+            if response.ok {
+                authLogger.info("Apple 撤销凭证已登记")
+            } else {
+                authLogger.warning("Apple 撤销凭证登记返回未确认 ok")
+            }
+        } catch {
+            authLogger.warning("Apple 撤销凭证登记失败（不影响登录）：\(error.localizedDescription)")
         }
     }
 
@@ -311,12 +352,25 @@ final class AppleSignInAuthService: ObservableObject {
               !token.isEmpty else { return nil }
         return token
     }
+
+    /// Apple authorizationCode 是一次性的 JWT 字符串（UTF-8），从登录返回的 Data 解出，
+    /// 供后端换取撤销用 refresh token（P02）。
+    private static func authorizationCodeString(from data: Data?) -> String? {
+        guard let data, let code = String(data: data, encoding: .utf8),
+              !code.isEmpty else { return nil }
+        return code
+    }
 }
 
 // MARK: - 撤销 Apple 凭证 DTO
 
 private struct RevokeRequest: Encodable {
     let identityToken: String
+}
+
+private struct RegisterRevocationTokenRequest: Encodable {
+    let identityToken: String
+    let authorizationCode: String
 }
 
 private struct RevokeResponse: Decodable {

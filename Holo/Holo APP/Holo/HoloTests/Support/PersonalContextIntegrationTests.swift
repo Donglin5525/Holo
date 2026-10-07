@@ -46,4 +46,16 @@ final class PersonalContextIntegrationTests: XCTestCase {
         // 来源：Services/AI/PersonalContext/ContextPlanStandaloneTests.swift
         try await ContextPlanStandaloneTests.main()
     }
+    func test_009_HoloLifeUnderstandingRedTests() async throws {
+        // 来源：Services/AI/PersonalContext/HoloLifeUnderstandingRedTests.swift（R0 冻结红测，R3 修复后转绿挂桥）
+        try await HoloLifeUnderstandingRedTests.main()
+    }
+    func test_010_HoloLifeUnderstandingRelationTests() async throws {
+        // 来源：Services/AI/PersonalContext/HoloLifeUnderstandingRelationTests.swift（R2 门禁）
+        try await HoloLifeUnderstandingRelationTests.main()
+    }
+    func test_011_HoloLifeUnderstandingContinuationTests() async throws {
+        // 来源：Services/AI/PersonalContext/HoloLifeUnderstandingContinuationTests.swift（R4 门禁）
+        try await HoloLifeUnderstandingContinuationTests.main()
+    }
 }

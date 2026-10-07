@@ -30,6 +30,12 @@ nonisolated enum HoloMatterMutationPolicy {
             return .needsConfirmation
         }
 
+        // addTask（2026-09-23 计划修订）恒需用户确认——往用户计划里加东西
+        // 是显式动作，模型只能提议，不能落库。
+        if proposal.mutations.contains(where: { if case .addTask = $0 { return true }; return false }) {
+            return .needsConfirmation
+        }
+
         // 走到这里，剩余 mutation 全部属于可自动执行类别：
         // addSuggestedOpenLoop / setOpenLoopState(resolved|waiting) / refreshProjection。
         // （空 mutations 的 proposal 只带 summary 建议，同样归为自动应用。）

@@ -106,6 +106,7 @@ struct CategoryDeletionImpactView: View {
             }
             .navigationTitle(String(localized: "删除「\(sourceName)」"))
             .navigationBarTitleDisplayMode(.inline)
+            .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "取消")) { dismiss() }

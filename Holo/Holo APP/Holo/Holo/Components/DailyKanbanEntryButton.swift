@@ -9,10 +9,19 @@
 //  球体正下方显示「今天」标题与状态摘要（偏浅灰小字，位置由东林拍板 2026-09-14），
 //  不把摘要压进球体中央。
 //
+//  持续动画由 TimelineView 以绝对时间为相位驱动（东林 2026-10-06 拍板：光球永转、
+//  不受系统减少动态效果约束）——角度只由时间戳决定，暂停恢复/页面遮挡/门控翻转
+//  都从当前时刻继续，不存在「转一半跳回起点」的相位重置。
+//
 
 import SwiftUI
 
 struct DailyKanbanEntryButton: View {
+
+    @AppStorage(HoloMotionRollout.interactionKey) private var motionEnabled = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.holoMotionSurfaceIsActive) private var surfaceActive
 
     let action: () -> Void
     /// 新版统一 ViewModel（HomeView 持有唯一实例；注入后才显示下方标题+摘要）。
@@ -22,15 +31,9 @@ struct DailyKanbanEntryButton: View {
     @ObservedObject private var habitRepo = HabitRepository.shared
     @ObservedObject private var displaySettings = HabitStatsDisplaySettings.shared
 
-    @State private var isAnimating = false
-    @State private var breathScale: CGFloat = 1.0
     @State private var animatedOverall: Double = 0
     @State private var animatedHabit: Double = 0
     @State private var animatedTask: Double = 0
-    @State private var ringRotation1: Double = 0
-    @State private var ringRotation2: Double = 0
-    @State private var ringRotation3: Double = 0
-    @State private var centerPulse: Double = 0.6
 
     // MARK: - 进度缓存
 
@@ -41,11 +44,17 @@ struct DailyKanbanEntryButton: View {
 
     /// 统一刷新三环进度（仅在数据变更时调用，而非每次 body 求值）
     private func refreshProgress() {
-        let visibleIds = displaySettings.dashboardVisibleHabitIds
         let t = todoRepo.getDailyKanbanProgress()
-        let h = habitRepo.getTodayCheckInProgress(
-            visibleHabitIds: visibleIds.isEmpty ? nil : visibleIds
-        )
+        // 显式全部关闭（configured 标记）→ 看板进度归零，不回退成「显示全部」
+        let h: (completed: Int, total: Int)
+        if let visibleIds = displaySettings.effectiveDashboardVisibleIds(), visibleIds.isEmpty {
+            h = (0, 0)
+        } else {
+            let visibleIds = displaySettings.dashboardVisibleHabitIds
+            h = habitRepo.getTodayCheckInProgress(
+                visibleHabitIds: visibleIds.isEmpty ? nil : visibleIds
+            )
+        }
         cachedTaskPercent = t.total > 0 ? Double(t.completed) / Double(t.total) : 0
         cachedHabitPercent = h.total > 0 ? Double(h.completed) / Double(h.total) : 0
         let overall = Double(t.total + h.total)
@@ -57,31 +66,21 @@ struct DailyKanbanEntryButton: View {
         HoloTodayRolloutPolicy.isEnabled && todayViewModel != nil
     }
 
+    /// 持续运转的门：动效开关开启、首页可见、App 前台。减少动态效果不停转（2026-10-06 拍板）。
+    private var ambientMotionActive: Bool {
+        motionEnabled && surfaceActive && scenePhase == .active
+    }
+
     // MARK: - Body
 
     var body: some View {
         sphere
+        .buttonStyle(HoloPressStyle())
         .onAppear {
-            isAnimating = true
             refreshProgress()
             animatedOverall = cachedOverallPercent
             animatedHabit = cachedHabitPercent
             animatedTask = cachedTaskPercent
-            withAnimation(.linear(duration: 90).repeatForever(autoreverses: false)) {
-                ringRotation1 = 360
-            }
-            withAnimation(.linear(duration: 60).repeatForever(autoreverses: false)) {
-                ringRotation2 = -360
-            }
-            withAnimation(.linear(duration: 45).repeatForever(autoreverses: false)) {
-                ringRotation3 = 360
-            }
-            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                centerPulse = 1.0
-            }
-            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                breathScale = 1.03
-            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
             refreshProgress()
@@ -98,17 +97,17 @@ struct DailyKanbanEntryButton: View {
             refreshProgress()
         }
         .onChange(of: cachedOverallPercent) { _, newValue in
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
+            withAnimation(reduceMotion || !motionEnabled ? nil : .spring(response: 0.8, dampingFraction: 0.7)) {
                 animatedOverall = newValue
             }
         }
         .onChange(of: cachedHabitPercent) { _, newValue in
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
+            withAnimation(reduceMotion || !motionEnabled ? nil : .spring(response: 0.8, dampingFraction: 0.7)) {
                 animatedHabit = newValue
             }
         }
         .onChange(of: cachedTaskPercent) { _, newValue in
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
+            withAnimation(reduceMotion || !motionEnabled ? nil : .spring(response: 0.8, dampingFraction: 0.7)) {
                 animatedTask = newValue
             }
         }
@@ -117,34 +116,48 @@ struct DailyKanbanEntryButton: View {
     // MARK: - 球体（原版布局：三环轨道 + 中心呼吸光点）
 
     private var sphere: some View {
-        ZStack {
-            // 外环（320pt）— 缓慢旋转
-            Circle()
-                .stroke(
-                    Color.holoPrimary.opacity(0.08),
-                    style: StrokeStyle(lineWidth: 0.5, dash: [4, 8])
-                )
-                .frame(width: 320, height: 320)
-                .rotationEffect(.degrees(ringRotation1 * 0.3))
-                .allowsHitTesting(false)
+        TimelineView(.animation(minimumInterval: 0.05, paused: !ambientMotionActive)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            ZStack {
+                // 外环（320pt）— 缓慢旋转
+                Circle()
+                    .stroke(
+                        Color.holoPrimary.opacity(0.08),
+                        style: StrokeStyle(lineWidth: 0.5, dash: [4, 8])
+                    )
+                    .frame(width: 320, height: 320)
+                    .rotationEffect(.degrees(Self.orbitAngle(t, period: 90) * 0.3))
+                    .allowsHitTesting(false)
 
-            // 外环（256pt）— 较快旋转
-            Circle()
-                .stroke(
-                    Color.holoPrimary.opacity(0.15),
-                    style: StrokeStyle(lineWidth: 1, dash: [4, 8])
-                )
-                .frame(width: 256, height: 256)
-                .rotationEffect(.degrees(ringRotation1 * 0.5))
-                .allowsHitTesting(false)
+                // 外环（256pt）— 较快旋转
+                Circle()
+                    .stroke(
+                        Color.holoPrimary.opacity(0.15),
+                        style: StrokeStyle(lineWidth: 1, dash: [4, 8])
+                    )
+                    .frame(width: 256, height: 256)
+                    .rotationEffect(.degrees(Self.orbitAngle(t, period: 90) * 0.5))
+                    .allowsHitTesting(false)
 
-            mainButton
+                mainButton(at: t)
+            }
+            .frame(width: 192, height: 192)
         }
-        .frame(width: 192, height: 192)
     }
 
-    private var mainButton: some View {
-        Button(action: action) {
+    /// 环绕角度只由绝对时间决定：每 period 秒一圈，相位跨任何中断连续。
+    private static func orbitAngle(_ t: Double, period: Double) -> Double {
+        (t / period).truncatingRemainder(dividingBy: 1) * 360
+    }
+
+    private func mainButton(at t: Double) -> some View {
+        let ring1 = Self.orbitAngle(t, period: 90)
+        let ring2 = -Self.orbitAngle(t, period: 60)
+        let ring3 = Self.orbitAngle(t, period: 45)
+        // 呼吸沿用原参数：中心光点 0.6↔1.0、整体 1↔1.03，周期 4s 正弦往返
+        let centerPulse = 0.8 + 0.2 * sin(2 * .pi * t / 4)
+        let breathScale = 1.015 + 0.015 * sin(2 * .pi * t / 4)
+        return Button(action: action) {
             ZStack {
                 // 渐变填充
                 Circle()
@@ -157,13 +170,13 @@ struct DailyKanbanEntryButton: View {
                     )
 
                 // 外环（104pt，原 80 放大 30%）— 总体进度（素四终稿：细金丝降调）
-                progressOrbit(size: 104, progress: animatedOverall, opacity: 0.55, lineWidth: 3.5, rotation: ringRotation1)
+                progressOrbit(size: 104, progress: animatedOverall, opacity: 0.55, lineWidth: 3.5, rotation: ring1)
 
                 // 中环（75pt，原 58 放大 30%）— 习惯进度
-                progressOrbit(size: 75, progress: animatedHabit, opacity: 0.38, lineWidth: 2.8, rotation: ringRotation2)
+                progressOrbit(size: 75, progress: animatedHabit, opacity: 0.38, lineWidth: 2.8, rotation: ring2)
 
                 // 内环（49pt，原 38 放大 30%）— 任务进度
-                progressOrbit(size: 49, progress: animatedTask, opacity: 0.26, lineWidth: 2.2, rotation: ringRotation3)
+                progressOrbit(size: 49, progress: animatedTask, opacity: 0.26, lineWidth: 2.2, rotation: ring3)
 
                 // 中心呼吸光点
                 Circle()

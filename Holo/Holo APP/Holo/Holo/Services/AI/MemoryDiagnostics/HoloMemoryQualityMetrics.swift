@@ -18,6 +18,22 @@ nonisolated struct HoloMemoryQualitySnapshot: Codable, Equatable, Sendable {
     var rejectedByUserCount: Int
     var maximumSerialNetworkRoundTripsOnChatPath: Int
     var maximumConcurrentMemoryAIJobs: Int
+    /// 五路决策分布（route 原始值 → 次数），仅聚合数字（低确认成本方案 §15.3）。
+    var decisionRouteCounts: [String: Int]
+    /// shadow 对照：v3 与 v4 结论一致的次数 / 不一致的 v3→v4 迁移对计数。
+    var shadowAgreeCount: Int
+    var shadowDisagreeCounts: [String: Int]
+    // MARK: 体检 G0 分域漏斗（§12.4 每层保留分母与来源域；全部聚合数字，不含正文）
+    /// 分域输入：每域本轮进入观察/萃取的信号或来源条数。
+    var domainInputCounts: [String: Int]
+    /// 分域批次结果：key 形如 "finance:succeeded"/"thought:failed:Type"（仅类型名）。
+    var domainBatchOutcomeCounts: [String: Int]
+    /// 校验拒绝原因分布（rejection rawValue → 次数）。
+    var validatorRejectionReasonCounts: [String: Int]
+    /// 落库记录用途分布（useLevel rawValue → 次数；无版本元数据记 "unversioned"）。
+    var useLevelCounts: [String: Int]
+    /// 实际生效：真正写入仓库的新增/更新条数（区别于生成数与通过数）。
+    var committedMutationCount: Int
 
     static let empty = HoloMemoryQualitySnapshot(
         queryCount: 0,
@@ -29,7 +45,15 @@ nonisolated struct HoloMemoryQualitySnapshot: Codable, Equatable, Sendable {
         correctedCount: 0,
         rejectedByUserCount: 0,
         maximumSerialNetworkRoundTripsOnChatPath: 0,
-        maximumConcurrentMemoryAIJobs: 0
+        maximumConcurrentMemoryAIJobs: 0,
+        decisionRouteCounts: [:],
+        shadowAgreeCount: 0,
+        shadowDisagreeCounts: [:],
+        domainInputCounts: [:],
+        domainBatchOutcomeCounts: [:],
+        validatorRejectionReasonCounts: [:],
+        useLevelCounts: [:],
+        committedMutationCount: 0
     )
 
     var queryHitRate: Double {
@@ -108,6 +132,56 @@ actor HoloMemoryQualityMetrics {
             state.maximumConcurrentMemoryAIJobs,
             max(0, count)
         )
+    }
+
+    func recordDecision(route: String) {
+        state.decisionRouteCounts[route, default: 0] += 1
+    }
+
+    func recordShadowDecision(legacyRoute: String, v4Route: HoloMemoryFiveWayRoute, agrees: Bool) {
+        if agrees {
+            state.shadowAgreeCount += 1
+        } else {
+            let key = "\(legacyRoute)->\(routeName(v4Route))"
+            state.shadowDisagreeCounts[key, default: 0] += 1
+        }
+    }
+
+    private func routeName(_ route: HoloMemoryFiveWayRoute) -> String {
+        switch route {
+        case .factEligible: return "fact"
+        case .qualifiedAdvice: return "qualified"
+        case .observeOnly: return "observe"
+        case .askWhenRelevant: return "ask"
+        case .discard: return "discard"
+        }
+    }
+
+    // MARK: G0 分域漏斗记录
+
+    func recordDomainInput(domain: String, count: Int) {
+        guard count > 0 else { return }
+        state.domainInputCounts[domain, default: 0] += count
+    }
+
+    func recordDomainBatch(domain: String, outcome: String) {
+        state.domainBatchOutcomeCounts["\(domain):\(outcome)", default: 0] += 1
+    }
+
+    func recordValidatorRejections(_ reasons: [String]) {
+        for reason in reasons {
+            state.validatorRejectionReasonCounts[reason, default: 0] += 1
+        }
+    }
+
+    func recordUseLevels(_ levels: [String]) {
+        for level in levels {
+            state.useLevelCounts[level, default: 0] += 1
+        }
+    }
+
+    func recordCommittedMutations(_ count: Int) {
+        state.committedMutationCount += max(0, count)
     }
 
     func snapshot() -> HoloMemoryQualitySnapshot { state }

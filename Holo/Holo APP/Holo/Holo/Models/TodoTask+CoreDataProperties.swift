@@ -18,6 +18,8 @@ extension TodoTask {
         desc: String? = nil,
         list: TodoList? = nil,
         priority: TaskPriority = .medium,
+        importance: TaskImportance = .unknown,
+        urgencyMode: TaskUrgencyMode = .auto,
         dueDate: Date? = nil,
         isAllDay: Bool = false,
         reminders: Set<TaskReminder>? = nil,
@@ -31,6 +33,8 @@ extension TodoTask {
         task.desc = desc
         task.list = list
         task.priority = priority.rawValue
+        task.importanceRaw = importance.rawValue
+        task.urgencyModeRaw = urgencyMode.rawValue
         task.dueDate = dueDate
         task.isAllDay = isAllDay
         task.isDailyRitual = isDailyRitual
@@ -108,6 +112,14 @@ extension TodoTask {
         guard let start = plannedStart, let end = plannedEnd else { return nil }
         return max(0, Int(end.timeIntervalSince(start) / 60))
     }
+
+    // MARK: - Execution（分步推进便捷访问，字段声明在 TodoTask+CoreDataClass.swift）
+
+    /// 是否由分步执行模型接管（executionSchemaVersion >= 1）
+    var isExecutionManaged: Bool { executionSchemaVersion >= 1 }
+
+    /// 清单全勾是否允许隐式级联完成根任务（分步任务禁止，规格 §8.4-2）
+    var allowsChecklistAutoCompletion: Bool { !isExecutionManaged }
 
     /// 检查清单完成进度
     var checkItemProgress: String {

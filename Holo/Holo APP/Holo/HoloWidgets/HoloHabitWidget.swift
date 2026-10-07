@@ -54,16 +54,16 @@ private struct HoloHabitWidgetView: View {
     var body: some View {
         Group {
             if entry.entitlement.isPlusActive {
-                Link(destination: URL(string: "holo://habits")!) {
-                    if value.totalToday == 0 {
-                        emptyState
-                    } else if family == .systemSmall {
-                        habitSmall
-                    } else if family == .systemLarge {
-                        habitLarge
-                    } else {
-                        habitMedium
-                    }
+                // 打卡圆圈是独立交互按钮，不能与 Link 嵌套（外层 Link 会接管整卡命中，
+                // 点圆圈也变成拉起 App）。非按钮区域各自挂 Link 平级铺开。
+                if value.totalToday == 0 {
+                    Link(destination: habitsURL) { emptyState }
+                } else if family == .systemSmall {
+                    Link(destination: habitsURL) { habitSmall }
+                } else if family == .systemLarge {
+                    habitLarge
+                } else {
+                    habitMedium
                 }
             } else {
                 HoloLockedWidgetView()
@@ -71,6 +71,8 @@ private struct HoloHabitWidgetView: View {
         }
         .holoWidgetBackground(colorScheme: colorScheme)
     }
+
+    private var habitsURL: URL { URL(string: "holo://habits")! }
 
     // MARK: Small · 完成环 + emoji 点
 
@@ -119,35 +121,37 @@ private struct HoloHabitWidgetView: View {
 
     private var habitMedium: some View {
         HStack(spacing: 14) {
-            VStack(spacing: 9) {
-                ZStack {
-                    HoloWidgetRingGauge(
-                        progress: totalToday > 0 ? Double(completedToday) / Double(totalToday) : 0,
-                        lineWidth: 8.5,
-                        trackColor: trackTint,
-                        progressColor: primaryTint
-                    )
-                    VStack(spacing: 1) {
-                        Text("\(completedToday)/\(totalToday)")
-                            .font(.system(size: 17, weight: .heavy))
-                            .foregroundStyle(textPrimary)
-                            .minimumScaleFactor(0.6)
-                        Text("今日完成")
-                            .font(.system(size: 8.5, weight: .medium))
-                            .foregroundStyle(textSecondary)
+            Link(destination: habitsURL) {
+                VStack(spacing: 9) {
+                    ZStack {
+                        HoloWidgetRingGauge(
+                            progress: totalToday > 0 ? Double(completedToday) / Double(totalToday) : 0,
+                            lineWidth: 8.5,
+                            trackColor: trackTint,
+                            progressColor: primaryTint
+                        )
+                        VStack(spacing: 1) {
+                            Text("\(completedToday)/\(totalToday)")
+                                .font(.system(size: 17, weight: .heavy))
+                                .foregroundStyle(textPrimary)
+                                .minimumScaleFactor(0.6)
+                            Text("今日完成")
+                                .font(.system(size: 8.5, weight: .medium))
+                                .foregroundStyle(textSecondary)
+                        }
                     }
-                }
-                .frame(width: 82, height: 82)
+                    .frame(width: 82, height: 82)
 
-                Text(remainingText)
-                    .font(.system(size: 10.5, weight: .bold))
-                    .foregroundStyle(primaryTint)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(primarySubtle)
-                    .clipShape(Capsule())
+                    Text(remainingText)
+                        .font(.system(size: 10.5, weight: .bold))
+                        .foregroundStyle(primaryTint)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4)
+                        .background(primarySubtle)
+                        .clipShape(Capsule())
+                }
             }
-            .frame(width: 108)
+            .frame(width: 100)
 
             VStack(spacing: 8) {
                 ForEach(value.habits.prefix(3)) { habit in
@@ -162,23 +166,25 @@ private struct HoloHabitWidgetView: View {
 
     private var habitLarge: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("今日习惯 · ")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(textPrimary)
-                +
-                Text("\(completedToday)/\(totalToday)")
-                    .font(.system(size: 15, weight: .heavy))
-                    .foregroundStyle(primaryTint)
-                Spacer()
-                if !value.longestStreakText.isEmpty {
-                    Text("🔥 最长连续 \(value.longestStreakText)")
-                        .font(.system(size: 10.5, weight: .semibold))
+            Link(destination: habitsURL) {
+                HStack {
+                    Text("今日习惯 · ")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(textPrimary)
+                    +
+                    Text("\(completedToday)/\(totalToday)")
+                        .font(.system(size: 15, weight: .heavy))
                         .foregroundStyle(primaryTint)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 4)
-                        .background(primarySubtle)
-                        .clipShape(Capsule())
+                    Spacer()
+                    if !value.longestStreakText.isEmpty {
+                        Text("🔥 最长连续 \(value.longestStreakText)")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(primaryTint)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(primarySubtle)
+                            .clipShape(Capsule())
+                    }
                 }
             }
 
@@ -198,46 +204,52 @@ private struct HoloHabitWidgetView: View {
 
     private func habitRow(_ habit: HoloWidgetHabitItem, showsWeekPattern: Bool) -> some View {
         HStack(spacing: 9) {
-            HoloWidgetIconText.icon(habit.icon, size: 13)
-                .frame(width: 25, height: 25)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(cardTint))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(hairlineTint, lineWidth: 0.8)
-                )
+            // 行内容单独挂 Link：与打卡按钮平级，互不接管
+            Link(destination: habitsURL) {
+                HStack(spacing: 9) {
+                    HoloWidgetIconText.icon(habit.icon, size: 13)
+                        .frame(width: 25, height: 25)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(cardTint))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(hairlineTint, lineWidth: 0.8)
+                        )
 
-            Text(habit.name)
-                .font(.system(size: 12.5, weight: .bold))
-                .foregroundStyle(textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+                    Text(habit.name)
+                        .font(.system(size: 12.5, weight: .bold))
+                        .foregroundStyle(textPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
 
-            if showsWeekPattern {
-                Spacer(minLength: 6)
-                HStack(spacing: 4) {
-                    ForEach(Array(habit.weekPattern.enumerated()), id: \.offset) { offset, done in
-                        let isLast = offset == habit.weekPattern.count - 1
-                        Circle()
-                            .fill(done ? primaryTint : trackTint)
-                            .frame(width: 6.5, height: 6.5)
-                            .overlay(
-                                Circle().strokeBorder(
-                                    isLast ? primaryTint.opacity(0.85) : .clear,
-                                    lineWidth: 1.2
-                                )
-                                .padding(-2.4)
-                            )
+                    if showsWeekPattern {
+                        Spacer(minLength: 6)
+                        HStack(spacing: 4) {
+                            ForEach(Array(habit.weekPattern.enumerated()), id: \.offset) { offset, done in
+                                let isLast = offset == habit.weekPattern.count - 1
+                                Circle()
+                                    .fill(done ? primaryTint : trackTint)
+                                    .frame(width: 6.5, height: 6.5)
+                                    .overlay(
+                                        Circle().strokeBorder(
+                                            isLast ? primaryTint.opacity(0.85) : .clear,
+                                            lineWidth: 1.2
+                                        )
+                                        .padding(-2.4)
+                                    )
+                            }
+                        }
+                    } else {
+                        Spacer(minLength: 6)
+                    }
+
+                    // medium 空间窄，连续天数让位给习惯名完整性；large 保留
+                    if showsWeekPattern && !habit.streakText.isEmpty {
+                        Text("🔥 \(habit.streakText)")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(textSecondary)
+                            .lineLimit(1)
                     }
                 }
-            } else {
-                Spacer(minLength: 6)
-            }
-
-            if !habit.streakText.isEmpty {
-                Text("🔥 \(habit.streakText)")
-                    .font(.system(size: 9.5, weight: .semibold))
-                    .foregroundStyle(textSecondary)
-                    .lineLimit(1)
             }
 
             Button(intent: HoloHabitToggleIntent(habitID: habit.id.uuidString)) {

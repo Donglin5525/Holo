@@ -1,0 +1,13 @@
+{
+  "note": "对比部署commit对应Git默认模板；不等于线上managed/数据库的实际生效Prompt。",
+  "memoryDefaultTemplatesUnchanged": {
+    "memory_domain_extraction": true,
+    "memory_cross_domain_fusion": true,
+    "personal_context_extraction": true,
+    "personal_context_verification": true,
+    "personal_context_planning": true
+  },
+  "allChangedKeys": [
+    "_agent_loop_v25_contract"
+  ]
+}

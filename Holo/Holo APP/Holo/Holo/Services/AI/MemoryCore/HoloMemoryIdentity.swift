@@ -8,10 +8,15 @@
 import Foundation
 
 nonisolated enum HoloMemoryIdentity {
+    /// 锚点规范化（R04，2026-10-04 体检）：输出按 stableKey 去重且顺序确定。
+    /// 折叠规则：完全重复折叠为一条；同 stableKey 仅 displayLabel 不同的冲突重复，
+    /// 按 (stableKey, displayLabel) 字典序保留最小一条——确定性规则，禁止随数组顺序
+    /// 随机保留。融合构建器以此为唯一键构造字典，历史脏数据（解码绕过 init 规范化）
+    /// 也必须走此出口获得键唯一性。
     static func canonicalAnchors(_ anchors: [HoloMemoryAnchorRef]) -> [HoloMemoryAnchorRef] {
         var seen = Set<String>()
         return anchors
-            .sorted { $0.stableKey < $1.stableKey }
+            .sorted { ($0.stableKey, $0.displayLabel ?? "") < ($1.stableKey, $1.displayLabel ?? "") }
             .filter { seen.insert($0.stableKey).inserted }
     }
 

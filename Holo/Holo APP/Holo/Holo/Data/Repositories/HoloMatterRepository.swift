@@ -318,10 +318,477 @@ final class HoloMatterRepository: ObservableObject {
         }
     }
 
+    // MARK: - 计划启动（V2 主路径，2026-09-21 方案 §5）
+
+    /// 测试注入口：每次新建任务后回调（createdCount 为本次已建数）；抛错触发整体回滚。生产恒 nil。
+    var launchTaskCreationHook: (@Sendable (_ createdCount: Int) throws -> Void)?
+
+    /// 「开始推进」唯一写入入口：Matter + TodoList + TodoTasks + Open Loops + Links + Projection
+    /// 在同一事务一次建立（§5.5：单次 save）；任一步失败整体 rollback——不留空 Matter、
+    /// 孤儿清单或部分任务。用户点一次 = 确认整份计划，不携带 selectedItemIDs。
+    ///
+    /// 幂等（§5.7）：同一 contextPlanMessageID 重复调用进入修复模式——按条目来源键
+    /// 补齐缺失任务与 links、恢复 planOrder，实体数不增加。
+    func launchPlan(request: HoloMatterPlanLaunchRequest) async throws -> HoloMatterPlanLaunchReceipt {
+        let now = clock()
+        let hook = launchTaskCreationHook
+        return try await perform { ctx in
+            try Self.launchPlanTransaction(request: request, hook: hook, now: now, in: ctx)
+        }
+    }
+
+    nonisolated private static func launchPlanTransaction(
+        request: HoloMatterPlanLaunchRequest,
+        hook: (@Sendable (Int) throws -> Void)?,
+        now: Date,
+        in ctx: NSManagedObjectContext
+    ) throws -> HoloMatterPlanLaunchReceipt {
+        let actionable = request.actionableItems
+        guard (1...7).contains(actionable.count) else {
+            throw HoloMatterPlanLaunchError.invalidActionableCount(actionable.count)
+        }
+
+        // 幂等闸门：同一来源消息已启动过 → 修复补齐，不新建。
+        if let existing = try findMatterByOriginLink(
+            contextPlanMessageID: request.contextPlanMessageID,
+            in: ctx
+        ) {
+            return try repairPlanLaunch(
+                matter: existing,
+                request: request,
+                actionable: actionable,
+                hook: hook,
+                now: now,
+                in: ctx
+            )
+        }
+
+        let listName = TodoListNameResolver.clean(request.confirmedTitle)
+        guard !listName.isEmpty else { throw HoloMatterPlanLaunchError.emptyTitle }
+
+        // Matter：同名歧义用户已选「继续已有」→ 只挂链不新建；否则新建。
+        let matter: HoloMatter
+        let createdMatter: Bool
+        if let existingID = request.existingMatterID {
+            guard let existing = try fetchMatter(id: existingID, in: ctx) else {
+                throw HoloMatterPlanLaunchError.existingMatterNotFound
+            }
+            matter = existing
+            createdMatter = false
+        } else {
+            matter = HoloMatter(entity: NSEntityDescription.entity(forEntityName: "HoloMatter", in: ctx)!, insertInto: ctx)
+            matter.id = UUID()
+            matter.schemaVersion = 1
+            matter.title = sanitizedTitle(request.confirmedTitle)
+            matter.lifecycle = .active
+            matter.phase = .planning
+            matter.startDate = nil
+            matter.targetDate = request.targetDate
+            matter.origin = .contextPlan
+            matter.originEntityID = request.contextPlanMessageID.uuidString
+            matter.revision = 1
+            matter.createdAt = now
+            matter.updatedAt = now
+            createdMatter = true
+        }
+
+        let list = try resolveOrCreatePlanList(named: listName, in: ctx)
+        _ = try addLinkInternal(
+            matter: matter,
+            entityType: .todoList,
+            entityID: list.id.uuidString,
+            role: .action,
+            origin: .system,
+            confidence: 1,
+            status: .linked,
+            sourceRevision: "\(request.draft.draftRevision)",
+            at: now,
+            in: ctx
+        )
+
+        return try materializePlan(
+            matter: matter,
+            list: list,
+            request: request,
+            actionable: actionable,
+            createdMatter: createdMatter,
+            hook: hook,
+            now: now,
+            in: ctx
+        )
+    }
+
+    /// 修复模式（§5.7）：Matter 已存在，按来源键补齐缺失任务/links、恢复 planOrder。
+    /// 老数据没有 todoList link 时从 linked task 的 list 反查并补链（§5.2）。
+    nonisolated private static func repairPlanLaunch(
+        matter: HoloMatter,
+        request: HoloMatterPlanLaunchRequest,
+        actionable: [HoloContextPlanItem],
+        hook: (@Sendable (Int) throws -> Void)?,
+        now: Date,
+        in ctx: NSManagedObjectContext
+    ) throws -> HoloMatterPlanLaunchReceipt {
+        let list: TodoList
+        if let linked = try fetchPlanList(matterID: matter.id, in: ctx) {
+            list = linked
+        } else if let inferred = try fetchPlanListFromLinkedTasks(matterID: matter.id, in: ctx) {
+            list = inferred
+            _ = try addLinkInternal(
+                matter: matter,
+                entityType: .todoList,
+                entityID: list.id.uuidString,
+                role: .action,
+                origin: .system,
+                confidence: 1,
+                status: .linked,
+                sourceRevision: "\(request.draft.draftRevision)",
+                at: now,
+                in: ctx
+            )
+        } else {
+            let listName = TodoListNameResolver.clean(request.confirmedTitle)
+            guard !listName.isEmpty else { throw HoloMatterPlanLaunchError.emptyTitle }
+            list = try resolveOrCreatePlanList(named: listName, in: ctx)
+            _ = try addLinkInternal(
+                matter: matter,
+                entityType: .todoList,
+                entityID: list.id.uuidString,
+                role: .action,
+                origin: .system,
+                confidence: 1,
+                status: .linked,
+                sourceRevision: "\(request.draft.draftRevision)",
+                at: now,
+                in: ctx
+            )
+        }
+
+        return try materializePlan(
+            matter: matter,
+            list: list,
+            request: request,
+            actionable: actionable,
+            createdMatter: false,
+            hook: hook,
+            now: now,
+            in: ctx
+        )
+    }
+
+    /// 任务/Open Loop/Links/Projection/Event 的公共落地段（新建与修复共用）。
+    /// 任务幂等键 = aiSourceMessageId(contextPlanMessageID) + aiSourceItemId；
+    /// links 折叠复用并回写 planOrder；nextAction 取 planOrder 最小的未完成任务。
+    nonisolated private static func materializePlan(
+        matter: HoloMatter,
+        list: TodoList,
+        request: HoloMatterPlanLaunchRequest,
+        actionable: [HoloContextPlanItem],
+        createdMatter: Bool,
+        hook: (@Sendable (Int) throws -> Void)?,
+        now: Date,
+        in ctx: NSManagedObjectContext
+    ) throws -> HoloMatterPlanLaunchReceipt {
+        _ = try addLinkInternal(
+            matter: matter,
+            entityType: .contextPlan,
+            entityID: request.contextPlanMessageID.uuidString,
+            role: .origin,
+            origin: .system,
+            confidence: 1,
+            status: .linked,
+            sourceRevision: "\(request.draft.draftRevision)",
+            at: now,
+            in: ctx
+        )
+        if let userMessageID = request.userMessageID {
+            _ = try addLinkInternal(
+                matter: matter,
+                entityType: .chatMessage,
+                entityID: userMessageID.uuidString,
+                role: .conversation,
+                origin: .system,
+                confidence: 1,
+                status: .linked,
+                sourceRevision: nil,
+                at: now,
+                in: ctx
+            )
+        }
+
+        // 任务：同来源键命中复用（修复模式）；缺失才创建，创建即挂主题清单。
+        // 只落用户明确确认的 confirmedDate；relativeTiming 不转日期、不默认今天。
+        let sourceMessageID = request.contextPlanMessageID.uuidString
+        var tasks: [TodoTask] = []
+        var createdCount = 0
+        for item in actionable {
+            if let existing = try fetchTaskByAISource(messageId: sourceMessageID, itemId: item.itemID, in: ctx),
+               existing.deletedAt == nil {
+                tasks.append(existing)
+            } else {
+                let task = TodoTask.create(in: ctx, title: item.title, desc: nil, list: list)
+                task.aiSourceMessageId = sourceMessageID
+                task.aiSourceItemId = item.itemID
+                task.dueDate = item.confirmedDate
+                tasks.append(task)
+                createdCount += 1
+                try hook?(createdCount)
+            }
+        }
+
+        // task links：顺序 = actionable 顺序 = planOrder 0...N-1（折叠命中回写恢复）。
+        for (index, task) in tasks.enumerated() {
+            _ = try addLinkInternal(
+                matter: matter,
+                entityType: .todoTask,
+                entityID: task.id.uuidString,
+                role: .action,
+                origin: .system,
+                confidence: 1,
+                status: .linked,
+                sourceRevision: "\(request.draft.draftRevision)",
+                planOrder: Int16(index),
+                at: now,
+                in: ctx
+            )
+        }
+
+        // unknown → suggested Open Loop（同 logicalKey 幂等）。
+        var loopIDs: [UUID] = []
+        for unknown in request.draft.unknowns {
+            let loop = try addOpenLoopInternal(
+                matter: matter,
+                logicalKey: normalizeLogicalKey(unknown.question),
+                title: unknown.question,
+                epistemic: .suggested,
+                state: .open,
+                priority: .normal,
+                targetDate: nil,
+                sourceType: HoloMatterLinkEntityType.contextPlan.rawValue,
+                sourceEntityID: request.contextPlanMessageID.uuidString,
+                sourceRevision: Int64(request.draft.draftRevision),
+                at: now,
+                in: ctx
+            )
+            loopIDs.append(loop.id)
+        }
+
+        // 确定性 projection：下一步 = planOrder 最小的未完成任务（真实 taskID，非标题匹配）。
+        let next = tasks.first { !$0.completed }
+        let nextAction = next.map { task in
+            HoloMatterNextAction(
+                kind: .linkedTask,
+                entityID: task.id.uuidString,
+                title: task.title,
+                reason: ""
+            )
+        }
+        matter.projection = HoloMatterProjectionV1(
+            matterID: matter.id,
+            sourceMatterRevision: matter.revision,
+            summary: "已建立 \(tasks.count) 个准备步骤。",
+            attention: .onTrack,
+            nextAction: nextAction,
+            generatedAt: now
+        )
+        matter.updatedAt = now
+
+        // activated event：payload 只记数量与 ID，不重复存用户文本（§5.5 第 9 步）。
+        _ = try appendEvent(
+            matter: matter,
+            idempotencyKey: HoloMatterIdempotencyKey.launchPlan(contextPlanMessageID: request.contextPlanMessageID),
+            kind: .activated,
+            actor: .user,
+            payload: [
+                "taskCount": "\(tasks.count)",
+                "listID": list.id.uuidString
+            ],
+            sourceType: HoloMatterLinkEntityType.contextPlan.rawValue,
+            sourceEntityID: request.contextPlanMessageID.uuidString,
+            at: now,
+            in: ctx
+        )
+
+        return HoloMatterPlanLaunchReceipt(
+            matterID: matter.id,
+            listID: list.id,
+            taskIDs: tasks.map(\.id),
+            createdTaskCount: createdCount,
+            reusedTaskCount: tasks.count - createdCount,
+            openLoopIDs: loopIDs,
+            nextActionTaskID: next?.id,
+            createdMatter: createdMatter
+        )
+    }
+
+    /// 主题清单解析：精确同名未删除 → 复用；未命中 → 新建。
+    nonisolated private static func resolveOrCreatePlanList(named name: String, in ctx: NSManagedObjectContext) throws -> TodoList {
+        let request = TodoList.fetchRequest()
+        request.predicate = NSPredicate(format: "name == %@ AND deletedAt == nil", name)
+        request.fetchLimit = 1
+        if let existing = (try? ctx.fetch(request))?.first {
+            return existing
+        }
+        return TodoList.create(in: ctx, name: name)
+    }
+
+    /// Matter 的主题清单（todoList link 解析；老数据无此 link 返回 nil）。
+    nonisolated private static func fetchPlanList(matterID: UUID, in ctx: NSManagedObjectContext) throws -> TodoList? {
+        let request = NSFetchRequest<HoloMatterLink>(entityName: "HoloMatterLink")
+        request.predicate = NSPredicate(
+            format: "matterID == %@ AND entityTypeRaw == %@ AND deletedAt == nil AND statusRaw == %@",
+            matterID as CVarArg,
+            HoloMatterLinkEntityType.todoList.rawValue,
+            HoloMatterLinkStatus.linked.rawValue
+        )
+        request.fetchLimit = 1
+        guard let link = try ctx.fetch(request).first,
+              let listID = UUID(uuidString: link.entityID) else { return nil }
+        let listRequest = TodoList.fetchRequest()
+        listRequest.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", listID as CVarArg)
+        listRequest.fetchLimit = 1
+        return (try? ctx.fetch(listRequest))?.first
+    }
+
+    /// 老数据兜底：从任一 linked task 反查所属清单（§5.2 补链来源）。
+    nonisolated private static func fetchPlanListFromLinkedTasks(matterID: UUID, in ctx: NSManagedObjectContext) throws -> TodoList? {
+        let request = NSFetchRequest<HoloMatterLink>(entityName: "HoloMatterLink")
+        request.predicate = NSPredicate(
+            format: "matterID == %@ AND entityTypeRaw == %@ AND deletedAt == nil AND statusRaw == %@",
+            matterID as CVarArg,
+            HoloMatterLinkEntityType.todoTask.rawValue,
+            HoloMatterLinkStatus.linked.rawValue
+        )
+        for link in try ctx.fetch(request) {
+            guard let taskID = UUID(uuidString: link.entityID) else { continue }
+            let taskRequest = TodoTask.fetchRequest()
+            taskRequest.predicate = NSPredicate(
+                format: "id == %@ AND deletedAt == nil",
+                taskID as CVarArg
+            )
+            taskRequest.fetchLimit = 1
+            if let task = (try? ctx.fetch(taskRequest))?.first, let list = task.list {
+                return list
+            }
+        }
+        return nil
+    }
+
+    nonisolated private static func fetchTaskByAISource(
+        messageId: String,
+        itemId: String,
+        in ctx: NSManagedObjectContext
+    ) throws -> TodoTask? {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "aiSourceMessageId == %@ AND aiSourceItemId == %@",
+            messageId, itemId
+        )
+        request.fetchLimit = 1
+        return (try? ctx.fetch(request))?.first
+    }
+
+    /// 计划修订（2026-09-23）：用户确认后把新任务接在计划末尾。
+    /// 单事务：找主题清单（todoList link → linked task 反查兜底）→ planOrder = max+1
+    /// → 建 TodoTask 挂清单 → 建 action link → bump revision → taskAdded 事件（可撤销）。
+    /// sourceProposalID 作幂等键：同一提案确认两次只落一次。
+    func appendTaskToPlan(
+        matterID: UUID,
+        title: String,
+        note: String?,
+        sourceProposalID: String
+    ) async throws -> (taskID: UUID, planOrder: Int16, eventID: UUID) {
+        let now = clock()
+        return try await perform { ctx in
+            guard let matter = try Self.fetchMatter(id: matterID, in: ctx) else {
+                throw HoloMatterRepositoryError.notFound("HoloMatter \(matterID)")
+            }
+            // 幂等：同一提案已落过 → 返回既有结果，不重复建任务。
+            let idempotencyKey = "taskAdd:\(matterID.uuidString):\(sourceProposalID)"
+            let eventRequest = NSFetchRequest<HoloMatterEvent>(entityName: "HoloMatterEvent")
+            eventRequest.predicate = NSPredicate(
+                format: "matterID == %@ AND idempotencyKey == %@ AND deletedAt == nil",
+                matterID as CVarArg, idempotencyKey
+            )
+            eventRequest.fetchLimit = 1
+            if let existing = (try ctx.fetch(eventRequest)).first,
+               let taskIDString = existing.payload["taskID"],
+               let taskID = UUID(uuidString: taskIDString),
+               let orderString = existing.payload["planOrder"],
+               let order = Int16(orderString) {
+                return (taskID, order, existing.id)
+            }
+
+            // 主题清单：todoList link → linked task 反查兜底 → 无清单报错（V2 事项必有清单）。
+            let linkedPlanList = try Self.fetchPlanList(matterID: matterID, in: ctx)
+            guard let planList = try linkedPlanList ?? Self.fetchPlanListFromLinkedTasks(matterID: matterID, in: ctx) else {
+                throw HoloMatterRepositoryError.notFound("planList for matter \(matterID)")
+            }
+
+            // planOrder 接尾：现有 action links 的最大值 + 1。
+            let linkRequest = NSFetchRequest<HoloMatterLink>(entityName: "HoloMatterLink")
+            linkRequest.predicate = NSPredicate(
+                format: "matterID == %@ AND entityTypeRaw == %@ AND roleRaw == %@ AND deletedAt == nil AND statusRaw == %@",
+                matterID as CVarArg,
+                HoloMatterLinkEntityType.todoTask.rawValue,
+                HoloMatterLinkRole.action.rawValue,
+                HoloMatterLinkStatus.linked.rawValue
+            )
+            let maxOrder = ((try ctx.fetch(linkRequest)).map(\.planOrder).max()) ?? -1
+            let newOrder = maxOrder + 1
+
+            let task = TodoTask.create(in: ctx, title: title, desc: note, list: planList)
+            let (link, _) = try Self.addLinkInternal(
+                matter: matter,
+                entityType: .todoTask,
+                entityID: task.id.uuidString,
+                role: .action,
+                origin: .system,
+                confidence: 1,
+                status: .linked,
+                sourceRevision: nil,
+                planOrder: newOrder,
+                at: now,
+                in: ctx
+            )
+            Self.bumpRevision(of: matter, at: now)
+            let event = try Self.appendEvent(
+                matter: matter,
+                idempotencyKey: idempotencyKey,
+                kind: .linkAdded,
+                actor: .user,
+                payload: [
+                    "kind": "addTask",
+                    "entityType": HoloMatterLinkEntityType.todoTask.rawValue,
+                    "entityID": task.id.uuidString,
+                    "taskID": task.id.uuidString,
+                    "linkID": link.id.uuidString,
+                    "planOrder": "\(newOrder)",
+                    "title": task.title
+                ],
+                sourceType: HoloMatterLinkEntityType.todoTask.rawValue,
+                sourceEntityID: task.id.uuidString,
+                at: now,
+                in: ctx
+            )
+            return (task.id, newOrder, event.id)
+        }
+    }
+
     /// 去重预检（方案 §11.3）：命中同一来源消息的既有 Matter，供 UI 在确认前提示。
     func findMatterActivated(from contextPlanMessageID: UUID) -> HoloMatter? {
         let found: HoloMatter?? = performAndWait { ctx in
             try? Self.findMatterByOriginLink(contextPlanMessageID: contextPlanMessageID, in: ctx)
+        }
+        return found ?? nil
+    }
+
+    /// 按 ID 查任务（V2 计划查询跨域只读；软删除排除）。
+    func todoTask(id: UUID) -> TodoTask? {
+        let found: TodoTask?? = performAndWait { ctx in
+            let request = TodoTask.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
+            request.fetchLimit = 1
+            return (try? ctx.fetch(request))?.first
         }
         return found ?? nil
     }
@@ -679,6 +1146,30 @@ final class HoloMatterRepository: ObservableObject {
                 loop.resolvedAt = nil
                 loop.revision += 1
                 loop.updatedAt = now
+            case .linkAdded where event.payload["kind"] == "addTask":
+                // 计划修订撤销（2026-09-23）：任务软删进回收站 + 解除计划关联；
+                // 恢复任务走回收站（原 link 保留 unlinked 状态与 planOrder）。
+                guard let taskIDString = event.payload["taskID"], let taskID = UUID(uuidString: taskIDString) else {
+                    throw HoloMatterRepositoryError.notFound("task from event \(eventID)")
+                }
+                let taskRequest = TodoTask.fetchRequest()
+                taskRequest.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", taskID as CVarArg)
+                taskRequest.fetchLimit = 1
+                guard let task = (try ctx.fetch(taskRequest)).first else {
+                    throw HoloMatterRepositoryError.notFound("TodoTask \(taskID)")
+                }
+                task.deletedFlag = true
+                task.deletedAt = now
+                task.updatedAt = now
+                if let linkIDString = event.payload["linkID"], let linkID = UUID(uuidString: linkIDString) {
+                    let linkRequest = NSFetchRequest<HoloMatterLink>(entityName: "HoloMatterLink")
+                    linkRequest.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", linkID as CVarArg)
+                    linkRequest.fetchLimit = 1
+                    if let link = (try ctx.fetch(linkRequest)).first {
+                        link.status = .unlinked
+                        link.updatedAt = now
+                    }
+                }
             default:
                 throw HoloMatterRepositoryError.assistantActionNotAllowed("事件 \(event.kind.rawValue) 暂不支持撤销")
             }
@@ -757,6 +1248,7 @@ final class HoloMatterRepository: ObservableObject {
     }
 
     /// 返回 (link, changed)：changed = 新建链接或状态升级为 linked（此时才 bump revision/落事件）。
+    /// planOrder 仅 todoTask+action 传入 0...N-1；折叠复用命中时若传入有效顺序则回写（修复补链场景）。
     nonisolated private static func addLinkInternal(
         matter: HoloMatter,
         entityType: HoloMatterLinkEntityType,
@@ -766,6 +1258,7 @@ final class HoloMatterRepository: ObservableObject {
         confidence: Double,
         status: HoloMatterLinkStatus,
         sourceRevision: String?,
+        planOrder: Int16 = -1,
         at now: Date,
         in ctx: NSManagedObjectContext
     ) throws -> (HoloMatterLink, Bool) {
@@ -783,7 +1276,12 @@ final class HoloMatterRepository: ObservableObject {
             if status == .linked && existing.status != .linked {
                 existing.status = .linked
                 existing.updatedAt = now
+                if planOrder >= 0 { existing.planOrder = planOrder }
                 return (existing, true)
+            }
+            if planOrder >= 0 && existing.planOrder != planOrder {
+                existing.planOrder = planOrder
+                existing.updatedAt = now
             }
             return (existing, false)
         }
@@ -798,6 +1296,7 @@ final class HoloMatterRepository: ObservableObject {
         link.confidence = confidence
         link.status = status
         link.sourceRevision = sourceRevision
+        link.planOrder = planOrder
         link.createdAt = now
         link.updatedAt = now
         return (link, status == .linked)
@@ -926,14 +1425,20 @@ final class HoloMatterRepository: ObservableObject {
     // MARK: - 事务包装
 
     /// 在注入的 context 上原子执行并保存；保存成功才算成功（方案 §10.1 第 8 步）。
+    /// block 抛错即 rollback：不留半成品，下次事务不会把脏对象误存（方案 §5.5 原子性）。
     private func perform<T>(_ block: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
         let ctx = context
         let result = try await ctx.perform {
-            let value = try block(ctx)
-            if ctx.hasChanges {
-                try ctx.save()
+            do {
+                let value = try block(ctx)
+                if ctx.hasChanges {
+                    try ctx.save()
+                }
+                return value
+            } catch {
+                ctx.rollback()
+                throw error
             }
-            return value
         }
         // async perform 返回后回到 MainActor，通知 UI 刷新。
         changeToken += 1

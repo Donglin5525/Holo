@@ -237,6 +237,9 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
         let codingTag = try XCTUnwrap(try ctx.fetch(tagRequest).first)
         topic.addAssociatedTags(codingTag)
         try ctx.save()
+        // P0-A 读源统一后 isAbsorbed 走 ThoughtTopicLink 投影，裸旧关系不可见——
+        // 与生产 ThoughtTopicLinkBackfillBootstrap 同路径补迁（见 TopicRepositoryTests 同款）
+        _ = try ThoughtTopicLinkProjection.backfillLegacyLinks(in: ctx)
 
         // 不排除：coding 在池里
         XCTAssertEqual(try repo.fetchAITagBuckets(excludeAbsorbed: false).count, 1)

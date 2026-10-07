@@ -168,6 +168,10 @@ nonisolated struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable 
     /// 通用个人情境载荷（信封）。可选型：旧记录没有该 key；未知 schemaVersion 由
     /// 信封内部原样保留，不降为 nil 覆盖。原始字段（displaySummary 等）继续是兼容摘要。
     var personalContext: HoloPersonalContextPayloadEnvelope?
+    /// 五路决策结果（低确认成本方案 §10.2，policy v4）。可选信封：旧记录/未评估为 nil；
+    /// 未知枚举与未知版本原样保留并整体保守降级。旧客户端回写剥掉本字段时，
+    /// 新端按缺元数据保守重算，不得放宽用途。
+    var decisionMetadata: HoloMemoryDecisionMetadataEnvelope?
 
     init(
         id: String,
@@ -207,14 +211,18 @@ nonisolated struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable 
         schemaVersion: Int = 1,
         usageCount: Int? = nil,
         lastUsedAt: Date? = nil,
-        personalContext: HoloPersonalContextPayloadEnvelope? = nil
+        personalContext: HoloPersonalContextPayloadEnvelope? = nil,
+        decisionMetadata: HoloMemoryDecisionMetadataEnvelope? = nil
     ) {
         self.id = id
         self.scope = scope
         self.primaryDomain = primaryDomain
         self.sourceDomains = sourceDomains
         self.subjectKey = subjectKey
-        self.anchorRefs = anchorRefs
+        // R04（2026-10-04 体检）：构造即规范化——所有程序化创建（含落库前）都在唯一入口
+        // 折叠重复锚点。stableID 只由 stableKey 集合决定，折叠不影响身份。
+        // 注意：Codable 解码绕过本 init，历史脏数据由读取方（builder 等）再走 canonicalAnchors。
+        self.anchorRefs = HoloMemoryIdentity.canonicalAnchors(anchorRefs)
         self.claimKind = claimKind
         self.persistenceClass = persistenceClass
         self.displaySummary = displaySummary
@@ -247,6 +255,7 @@ nonisolated struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable 
         self.usageCount = usageCount
         self.lastUsedAt = lastUsedAt
         self.personalContext = personalContext
+        self.decisionMetadata = decisionMetadata
     }
 
     func validate() throws {

@@ -1,0 +1,59 @@
+{
+  "fixtureID": "tpl-recurring-bills-02",
+  "domainTags": [
+    "出行",
+    "财务"
+  ],
+  "sources": [
+    {
+      "sourceID": "finance:tx-mortgage",
+      "sourceDomain": "finance",
+      "sourceKind": "transaction",
+      "plainText": "房贷月供",
+      "recordedAt": "2026-08-15T09:00:00+08:00",
+      "eventTime": "2026-08-15T09:00:00+08:00",
+      "revisionDigest": "rev-1"
+    },
+    {
+      "sourceID": "thought:note-trip",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "订好了 12 月初的机票，回去参加表弟婚礼。",
+      "recordedAt": "2026-09-22T21:00:00+08:00",
+      "eventTime": "2026-09-22T21:00:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "我 12 月 5 日到 9 日回老家参加婚礼，出发前有什么要处理的？",
+    "referenceTime": "2026-09-23T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户每月 15 日前后有房贷扣款",
+      "basisSourceIDs": [
+        "finance:tx-mortgage"
+      ],
+      "epistemicStatus": "observed"
+    }
+  ],
+  "unknowns": [
+    "扣款账户余额是否充足"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldExclude",
+      "description": "12 月 5—9 日出行与 15 日扣款无重叠，不纳入本次影响"
+    }
+  ],
+  "forbiddenClaims": [
+    "把 12 月 15 日扣款说成本次出行期间的负担"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "行程改为 12 月 13 日到 16 日",
+      "expectedEffect": "扣款落入区间，应提示余额确认"
+    }
+  ]
+}

@@ -104,11 +104,11 @@ final class ThoughtRepositoryCalendarTests: XCTestCase {
 
     // MARK: - 手动验证造数（记忆长廊·册页风）
 
-    /// 往 app 真实沙盒库（CoreDataStack.shared）写入两条带图想法（3 图 + 1 图），
+    /// 往 app 真实沙盒库（CoreDataStack.shared）写入两条带图想法（5 图 + 1 图），
     /// 供模拟器上人工验收记忆长廊册页风卡片。仅手动触发，UserDefaults 防重复。
     /// 图片为代码生成的渐变照片（带序号），不依赖相册。
     func test_seedPolaroidFixtures_ManualVerification() throws {
-        let seedFlag = "holo.test.polaroidFixturesSeeded"
+        let seedFlag = "holo.test.polaroidFixturesSeeded.v5photos"
         guard !UserDefaults.standard.bool(forKey: seedFlag) else {
             print("[seed] 册页风造数已存在，跳过")
             return
@@ -168,7 +168,7 @@ final class ThoughtRepositoryCalendarTests: XCTestCase {
         let three = try seed(
             content: "周末的城市行走，在江边看到了很美的落日，风把云吹开了一道缝。沿江步道走了大概五公里，在长椅上坐了很久，把最近想不通的几件事慢慢想明白了。",
             minutesAgo: 95,
-            labels: ["1", "2", "3"]
+            labels: ["1", "2", "3", "4", "5"]
         )
         let single = try seed(
             content: "晨间咖啡馆的读书时间，翻开新书第三章做点笔记。",
@@ -189,7 +189,7 @@ final class ThoughtRepositoryCalendarTests: XCTestCase {
         )
         try ctx.save()
 
-        XCTAssertEqual(three.sortedAttachments.count, 3)
+        XCTAssertEqual(three.sortedAttachments.count, 5)
         XCTAssertEqual(single.sortedAttachments.count, 1)
         XCTAssertTrue(longText.sortedAttachments.isEmpty)
         XCTAssertTrue(yesterdaySolo.sortedAttachments.isEmpty)

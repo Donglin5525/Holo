@@ -21,6 +21,8 @@ import OSLog
 extension ThoughtRepository {
     /// 情境萃取分页查询：(updatedAt, id) 稳定排序的 updatedAt 游标。
     /// 与 fetchAll 同一可见性口径（未删除未归档）。
+    /// G1 修复：游标时间下推 predicate + 同秒 count 自适应放大窗口（同秒批量导入
+    /// 不被固定 2x 余量截断）；同秒内按 id 精确推进。
     func fetchContextCandidates(
         afterUpdatedAt: Date?,
         afterID: UUID?,
@@ -36,8 +38,17 @@ extension ThoughtRepository {
             NSSortDescriptor(key: "updatedAt", ascending: true),
             NSSortDescriptor(key: "id", ascending: true)
         ]
-        // 多取一页余量用于游标过滤；上限翻倍防极端同秒批量。
-        request.fetchLimit = afterID == nil ? limit : limit * 2
+        if let afterUpdatedAt {
+            let sameSecond = NSFetchRequest<NSNumber>(entityName: "Thought")
+            sameSecond.predicate = NSPredicate(
+                format: "deletedAt == nil AND isArchived == NO AND updatedAt == %@",
+                afterUpdatedAt as NSDate
+            )
+            let sameSecondCount = (try? context.count(for: sameSecond)) ?? 0
+            request.fetchLimit = limit + sameSecondCount
+        } else {
+            request.fetchLimit = limit
+        }
         let results = try context.fetch(request)
         guard let afterID, let afterUpdatedAt else { return Array(results.prefix(limit)) }
         // 跳过游标位置及之前的记录（同 updatedAt 时按 id 比较）。
@@ -118,8 +129,14 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
 
     private static let cursorKey = "holo_personal_context_extraction_cursor_v1"
 
+    /// 按域游标键：thought 沿用旧键（存量零迁移）；其余域独立键（R1）。
+    nonisolated static func cursorKey(domain: String) -> String {
+        domain == "thought" ? cursorKey : "\(cursorKey)_\(domain)"
+    }
+
     func existingContextRecords() async throws -> [HoloMemoryRecord] {
-        try await repository.query(.domain(.thought)).filter { $0.personalContext != nil }
+        // R1 四域归并：跨域候选参与同一归并池（多源聚合责任命题的基础）。
+        try await repository.query(.all).filter { $0.personalContext != nil }
     }
 
     func write(records: [HoloMemoryRecord], batchKey: String) async throws {
@@ -129,20 +146,45 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
                 [],
                 observationKey: batchKey,
                 domain: .thought,
-                extractorVersion: 1,
-                promptVersion: 1,
+                extractorVersion: HoloMemoryPipelineVersions.personalExtractorVersion,
+                promptVersion: HoloMemoryPipelineVersions.personalPromptVersion,
                 completedAt: Date()
             )
             return
         }
-        _ = try await repository.applyObservationBatch(
-            records,
-            observationKey: batchKey,
-            domain: .thought,
-            extractorVersion: 1,
-            promptVersion: 1,
-            completedAt: Date()
-        )
+        // R1 四域：一包候选可跨域（记录 primaryDomain 取首源域；跨域聚合/未知域回落
+        // thought）。仓库按批校验 primaryDomain==domain，故按域分组、非 thought 组用
+        // 「batchKey#域」组键落库；thought 组沿用父键（落成即标记父批成功）。全部组
+        // 成功后对无 thought 组的批次补父键空 receipt——hasSuccessfulBatch(父键) 与重跑
+        // 幂等都只看父键，部分组成功时重跑仅补缺失组（组键各自幂等）。
+        let groups = Dictionary(grouping: records) { $0.primaryDomain ?? .thought }
+        for (domain, group) in groups {
+            let upserts = try await repository.applyObservationBatch(
+                group,
+                observationKey: domain == .thought ? batchKey : "\(batchKey)#\(domain.rawValue)",
+                domain: domain,
+                extractorVersion: HoloMemoryPipelineVersions.personalExtractorVersion,
+                promptVersion: HoloMemoryPipelineVersions.personalPromptVersion,
+                completedAt: Date()
+            )
+            // G0：用途分布与实际生效分开计数（区别于生成数）。
+            await HoloMemoryQualityMetrics.shared.recordUseLevels(
+                group.map { $0.decisionMetadata?.v2?.useLevel.rawValue ?? "unversioned" }
+            )
+            await HoloMemoryQualityMetrics.shared.recordCommittedMutations(
+                upserts.filter { $0 == .inserted || $0 == .updated }.count
+            )
+        }
+        if !groups.keys.contains(.thought) {
+            _ = try await repository.applyObservationBatch(
+                [],
+                observationKey: batchKey,
+                domain: .thought,
+                extractorVersion: HoloMemoryPipelineVersions.personalExtractorVersion,
+                promptVersion: HoloMemoryPipelineVersions.personalPromptVersion,
+                completedAt: Date()
+            )
+        }
     }
 
     func hasSuccessfulBatch(batchKey: String) async throws -> Bool {
@@ -163,6 +205,16 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
         defaults.set(data, forKey: Self.cursorKey)
     }
 
+    func loadCursor(domain: String) async throws -> HoloContextExtractionCursorState? {
+        guard let data = defaults.data(forKey: Self.cursorKey(domain: domain)) else { return nil }
+        return try? JSONDecoder().decode(HoloContextExtractionCursorState.self, from: data)
+    }
+
+    func saveCursor(_ cursor: HoloContextExtractionCursorState, domain: String) async throws {
+        let data = try JSONEncoder().encode(cursor)
+        defaults.set(data, forKey: Self.cursorKey(domain: domain))
+    }
+
     func currentGeneration() async throws -> HoloContextExtractionGeneration {
         let control = try await repository.loadControlState()
         return HoloContextExtractionGeneration(
@@ -172,18 +224,10 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
     }
 
     /// 修订目录：按源 ID 回查当前修订（读取后修改检测）。
+    /// R1 四域：sourceKey 带域前缀分派到对应仓储；thought 存量为裸 UUID。
+    @MainActor
     func currentSourceRevisions(sourceIDs: [String]) async throws -> [String: String] {
-        var revisions: [String: String] = [:]
-        for sourceID in sourceIDs {
-            guard let uuid = UUID(uuidString: sourceID),
-                  let thought = try thoughtRepository.fetchById(uuid) else {
-                // 来源已删除：返回哨兵修订，触发过期批次拒绝（删除路径走失效传播）。
-                revisions[sourceID] = "deleted"
-                continue
-            }
-            revisions[sourceID] = HoloThoughtContextSourcePaging.revisionDigest(thought)
-        }
-        return revisions
+        HoloLifeSourceObservation.currentRevisionDigests(sourceKeys: sourceIDs, thoughtRepository: thoughtRepository)
     }
 }
 
@@ -221,9 +265,17 @@ enum HoloPersonalContextExtractionJob {
         var ranBatches = 0
         var progress = HoloContextExtractionProgress()
         var skippedReason: String?
+        /// R1 四域：各域本轮流经情况（诊断/按域隔离用）。
+        var domainNotes: [String: String] = [:]
+        /// G0 处理水位：各域游标累计进度（扫描/已处理/生成等），供诊断快照留存。
+        var domainProgress: [String: HoloContextExtractionProgress] = [:]
     }
 
+    /// 四域轮转指针键：保证游标公平推进（不总从同一域开始）。
+    private static let roundRobinKey = "holo_personal_context_extraction_domain_pointer_v1"
+
     /// 一轮萃取通过调用（appLaunch/回前台触发；前台每轮最多 2 包）。
+    /// R1 四域：thought/finance/task/habit 轮转，每域独立游标；单域失败不拖垮其他域（§3.11）。
     /// - Parameters:
     ///   - packageLimit: 本轮最多处理的包数（默认 2，方案 §6 前台补偿预算）。
     ///   - now: 注入时钟。
@@ -242,37 +294,69 @@ enum HoloPersonalContextExtractionJob {
         guard controls.allowsExtraction else {
             return PassOutcome(skippedReason: "extraction-gate-closed")
         }
+        // G0 身份快照：每次实际开跑前记录开关/闸门/管线版本（仅元数据）。
+        logger.info("\(HoloMemoryDiagnosticsIdentity.current().logLine, privacy: .public)")
 
         guard let repository = try? await HoloMemoryRuntime.shared.repository() else {
             return PassOutcome(skippedReason: "repository-unavailable")
         }
-        let extractor = HoloPersonalContextExtractor(
-            paging: HoloThoughtContextSourcePaging(repository: ThoughtRepository()),
-            llm: HoloPersonalContextProviderLLM(provider: provider ?? HoloBackendAIProvider()),
-            writer: HoloPersonalContextRuntimeWriter(repository: repository)
-        )
+        let llm = HoloPersonalContextProviderLLM(provider: provider ?? HoloBackendAIProvider())
+        let writer = HoloPersonalContextRuntimeWriter(repository: repository)
 
         var outcome = PassOutcome()
-        do {
-            for _ in 0..<max(packageLimit, 1) {
+        let domains = HoloLifeSourceObservation.domains
+        let budget = max(packageLimit, 1)
+        let defaults = UserDefaults.standard
+        let pointer = max(0, defaults.integer(forKey: roundRobinKey))
+        var usedBatches = 0
+        var nextPointer = pointer
+        // 调度语义：只有干了活的批（处理了记录或还有下一页）才消耗 LLM 预算；
+        // caught-up/失败不占名额，指针最多回绕两圈防死循环。否则追平域（finance/task
+        // 每轮空拉一页）会花光预算，把 more 域（如 thought 有存货）系统性饿死
+        //（2026-09-23 实测：thought=more 连续两次启动零消化）。
+        var offset = 0
+        while usedBatches < budget, offset < domains.count * 2 {
+            let domain = domains[(pointer + offset) % domains.count]
+            offset += 1
+            guard let paging = HoloLifeSourceObservation.makePaging(domain: domain) else {
+                outcome.domainNotes[domain] = "paging-unavailable"
+                continue
+            }
+            let extractor = HoloPersonalContextExtractor(
+                paging: paging,
+                llm: llm,
+                writer: writer,
+                domain: domain
+            )
+            do {
                 let batch = try await extractor.runOneBatch(now: now)
                 outcome.ranBatches += 1
-                if let cursor = try? await HoloPersonalContextRuntimeWriter(repository: repository)
-                    .loadCursor() {
-                    outcome.progress = cursor.progress
+                let consumedBudget = batch.hasMore
+                    || batch.createdRecords + batch.mergedRecords + batch.suppressed + batch.discarded > 0
+                if consumedBudget { usedBatches += 1 }
+                if let cursor = try? await writer.loadCursor(domain: domain) {
+                    outcome.progress = outcome.progress.byAdding(cursor.progress)
+                    outcome.domainProgress[domain] = cursor.progress
                 }
-                if !batch.hasMore { break }
+                outcome.domainNotes[domain] = batch.hasMore ? "more" : "caught-up"
+                // G0 分域漏斗：批次结果计数（追平/还有存货都算成功跑完的批）。
+                await HoloMemoryQualityMetrics.shared.recordDomainBatch(
+                    domain: domain,
+                    outcome: batch.hasMore ? "more" : "caughtUp"
+                )
+                nextPointer = (pointer + offset) % domains.count
+            } catch {
+                // 按域隔离：失败只影响本域本批，游标本域不推进，下轮重试；继续其他域。
+                outcome.progress.failedBatches += 1
+                outcome.domainNotes[domain] = "failed:\(String(describing: type(of: error)))"
+                await HoloMemoryQualityMetrics.shared.recordDomainBatch(
+                    domain: domain,
+                    outcome: "failed:\(String(describing: type(of: error)))"
+                )
             }
-        } catch {
-            // 失败不推进游标（runOneBatch 内部保证）；如实记录，下次续跑。
-            logger.info("萃取批次失败，游标未推进：\(String(describing: error), privacy: .public)")
-            if let cursor = try? await HoloPersonalContextRuntimeWriter(repository: repository)
-                .loadCursor() {
-                outcome.progress = cursor.progress
-            }
-            outcome.progress.failedBatches += 1
         }
-        logger.error("EXTRACT-DIAG ran=\(outcome.ranBatches) created=\(outcome.progress.createdRecords) suppressed=\(outcome.progress.suppressedCandidates) failed=\(outcome.progress.failedBatches) skip=\(outcome.skippedReason ?? "none")")
+        defaults.set(nextPointer, forKey: roundRobinKey)
+        logger.error("EXTRACT-DIAG ran=\(outcome.ranBatches) created=\(outcome.progress.createdRecords) suppressed=\(outcome.progress.suppressedCandidates) failed=\(outcome.progress.failedBatches) domains=\(outcome.domainNotes.map { "\($0.key)=\($0.value)" }.sorted().joined(separator: ","), privacy: .public)")
         HoloPersonalContextDiagnostics.recordExtraction(outcome)
         return outcome
     }
@@ -295,6 +379,8 @@ nonisolated struct HoloPersonalContextDiagnosticsSnapshot: Codable, Equatable, S
     var lastPlanningCoverage: String?
     var lastPlanningRawFallbackUsed: Bool?
     var lastPlanningGateClosed: Bool?
+    /// G0 处理水位：各域游标累计进度（Optional 保证旧快照 JSON 可继续解码）。
+    var lastExtractionDomainProgress: [String: HoloContextExtractionProgress]?
 }
 
 nonisolated enum HoloPersonalContextDiagnostics {
@@ -324,6 +410,7 @@ nonisolated enum HoloPersonalContextDiagnostics {
             snapshot.lastExtractionRanBatches = outcome.ranBatches
             snapshot.lastExtractionCreatedTotal = outcome.progress.createdRecords
             snapshot.lastExtractionSkipReason = outcome.skippedReason
+            snapshot.lastExtractionDomainProgress = outcome.domainProgress
         }, defaults: defaults)
     }
 

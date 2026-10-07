@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新建任务改版 · 方案C「极简语义卡」</title>
+<style>
+  :root{
+    --bg:#FDFCF8; --card:#FFFFFF; --inset:#F2EEE6; --text:#2E2E30; --text2:#726D64;
+    --border:#EAE5DB; --brand:#F46D38; --brand-dark:#E0581B; --err:#C0392B;
+    --ring:#C2BCAE; --placeholder:#B9B2A6; --divider:#F0EBE1;
+    --tint:rgba(244,109,56,.06);
+    --card-shadow:0 1px 2px rgba(46,40,32,.04),0 6px 16px rgba(46,40,32,.05);
+    --q1:#A74532; --q1bg:#F8E9E3; --q2:#426553; --q2bg:#EAF0E8;
+    --q3:#876321; --q3bg:#F7EFDD; --q4:#646876; --q4bg:#EEEDF2; --qu:#726D64;
+  }
+  .dark{
+    --bg:#191A1B; --card:#262628; --inset:#3A3A3D; --text:#F5F4F0; --text2:#B4AFA7;
+    --border:#38383B; --err:#F28B82; --ring:#5C5C61; --placeholder:#6E6A63; --divider:#333336;
+    --tint:rgba(244,109,56,.10);
+    --card-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.28);
+    --q1:#F0A48E; --q1bg:#3C2927; --q2:#ADD1B3; --q2bg:#28352D;
+    --q3:#DDC07E; --q3bg:#383222; --q4:#C4C3D4; --q4bg:#30303D; --qu:#B4AFA7;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  html{background:linear-gradient(180deg,#f2f0ea,#e9e7e0)}
+  .dark body, body.dark{background:linear-gradient(180deg,#141415,#1d1d1f)}
+  html.dark{background:linear-gradient(180deg,#141415,#1d1d1f)}
+  body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;color:var(--text);padding:34px 18px 80px;line-height:1.5;display:flex;flex-direction:column;align-items:center;transition:background .35s}
+  .doctitle{font-size:21px;font-weight:700;letter-spacing:.3px}
+  .docsub{font-size:13px;color:var(--text2);margin-top:5px;text-align:center;max-width:560px}
+  .toolbar{display:flex;gap:9px;margin:18px 0 24px;flex-wrap:wrap;justify-content:center}
+  .toolbar a,.toolbar button{border:1px solid #d8d4ca;background:#fff;border-radius:99px;padding:7px 17px;font-size:13px;cursor:pointer;color:#33312c;text-decoration:none;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .toolbar .on{background:#26261f;color:#fff;border-color:#26261f}
+
+  .phone{width:400px;border-radius:56px;background:#0d0d0f;padding:11px;box-shadow:0 30px 70px rgba(30,25,15,.35),inset 0 0 0 2px #2a2a2e}
+  .screen{border-radius:46px;overflow:hidden;background:var(--bg);height:844px;position:relative;transition:background .35s}
+  .island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:118px;height:33px;border-radius:20px;background:#0d0d0f;z-index:40}
+  .homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:130px;height:5px;border-radius:99px;background:var(--text);opacity:.28;z-index:31}
+
+  .status{display:flex;justify-content:space-between;align-items:center;padding:16px 30px 4px;color:var(--text)}
+  .stime{font-size:15px;font-weight:600}
+  .sicons{display:flex;gap:6px;align-items:center}
+  .navbar{display:flex;align-items:center;height:44px;padding:0 10px;position:relative}
+  .nav-cancel{font-size:16px;color:var(--brand);padding:6px 10px;cursor:pointer}
+  .nav-title{position:absolute;left:50%;transform:translateX(-50%);font-size:16px;font-weight:600;color:var(--text)}
+
+  .scrollarea{height:742px;overflow-y:auto;scrollbar-width:none;padding:4px 20px 130px}
+  .scrollarea::-webkit-scrollbar{display:none}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:20px;box-shadow:var(--card-shadow);padding:16px;margin-top:14px;transition:background .35s,border-color .35s}
+  .t-title{width:100%;border:0;outline:0;background:transparent;font-size:22px;font-weight:700;color:var(--text);font-family:inherit}
+  .t-desc{width:100%;border:0;outline:0;background:transparent;font-size:15px;color:var(--text);opacity:.72;resize:none;line-height:1.55;font-family:inherit;margin-top:2px}
+  .hr{height:1px;background:var(--divider);margin:12px 0}
+
+  .ck-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px}
+  .ck-title{font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--text2)}
+  .ck-count{font-size:11px;color:var(--text2)}
+  .ck-item{display:flex;align-items:center;gap:10px;padding:9px 0}
+  .ck-dot{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--ring);flex:none}
+  .ck-text{flex:1;font-size:15px;color:var(--text)}
+  .ck-del{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--ring);cursor:pointer;font-size:15px;transition:.2s}
+  .ck-del:hover{color:var(--err)}
+  .ck-add{display:flex;align-items:center;gap:10px;padding-top:9px;cursor:text}
+  .ck-add .plus{color:var(--brand);font-weight:700;font-size:14px}
+  .ck-add input{flex:1;border:0;outline:0;background:transparent;font-size:15px;color:var(--text);font-family:inherit}
+  .ck-add .okbtn{border:0;background:transparent;color:var(--brand);font-size:13px;font-weight:700;cursor:pointer;visibility:hidden}
+  .ck-add .okbtn.show{visibility:visible}
+
+  /* ===== 方案C：极简语义卡（默认收起，点开再判断） ===== */
+  .fold-head{display:flex;align-items:center;width:100%;background:transparent;border:0;cursor:pointer;padding:2px 0;font-family:inherit}
+  .fold-head .sec-label{margin:0}
+  .fold-badge{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:13px;color:var(--text2);background:var(--inset);padding:6px 12px;border-radius:99px;transition:.25s}
+  .fold-badge b{font-weight:700;color:var(--text)}
+  .fold-badge .chev{color:var(--ring);font-size:12px;transition:transform .3s}
+  .fold.open .fold-badge .chev{transform:rotate(90deg)}
+  .fold-body{max-height:0;overflow:hidden;transition:max-height .45s cubic-bezier(.3,1,.4,1)}
+  .fold.open .fold-body{max-height:300px}
+  .fold-inner{padding-top:14px}
+  .mini-label{font-size:11.5px;font-weight:700;letter-spacing:1px;color:var(--text2);margin:2px 0 8px}
+  .semcards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .sem{background:var(--inset);border:1.5px solid transparent;border-radius:14px;padding:11px 6px 10px;cursor:pointer;text-align:center;transition:.25s;font-family:inherit;min-width:0}
+  .sem:active{transform:scale(.95)}
+  .sem b{display:block;font-size:14px;color:var(--text2);transition:.25s}
+  .sem span{display:block;font-size:10.5px;color:var(--text2);opacity:.72;margin-top:3px}
+  .sem[data-v="imp"].sel{background:var(--tint);border-color:var(--brand)}
+  .sem[data-v="imp"].sel b{color:var(--brand)}
+  .sem[data-v="nimp"].sel{background:var(--inset);border-color:var(--ring)}
+  .sem[data-v="nimp"].sel b{color:var(--text)}
+  .sem[data-v="unknown"].sel{background:transparent;border-style:dashed;border-color:var(--brand)}
+  .sem[data-v="unknown"].sel b{color:var(--brand)}
+  .sem[data-v="unknown"]{background:transparent;border-style:dashed;border-color:var(--ring)}
+  .uchips{display:flex;gap:8px}
+  .uchip{flex:1 1 0;min-width:0;border:1px solid var(--border);background:transparent;border-radius:11px;padding:8px 4px;font-size:12.5px;color:var(--text2);cursor:pointer;transition:.25s;font-family:inherit}
+  .uchip.sel{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:700}
+  .auto-note{font-size:11px;color:var(--text2);opacity:.85;margin-top:9px}
+
+  .dest{display:flex;align-items:center;gap:6px;margin-top:14px;padding:10px 13px;border-radius:12px;background:var(--inset);font-size:12.5px;color:var(--text2);transition:background .3s}
+  .dest b{font-weight:700}
+
+  .prop{display:flex;align-items:center;gap:10px;padding:13px 2px;cursor:pointer}
+  .prop .pl{font-size:15px;font-weight:600;color:var(--text)}
+  .prop .pv{margin-left:auto;font-size:13px;color:var(--text2)}
+  .prop .chev{color:var(--ring);font-size:12px;margin-left:2px}
+  .miniadd{width:34px;height:34px;border:1.2px dashed var(--ring);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--text2);margin-left:auto;font-size:15px}
+
+  .bottombar{position:absolute;left:0;right:0;bottom:0;padding:10px 20px 24px;background:color-mix(in srgb,var(--bg) 84%,transparent);backdrop-filter:blur(14px);border-top:1px solid var(--divider);z-index:30}
+  .save{width:100%;padding:15px;border:0;border-radius:16px;background:linear-gradient(180deg,var(--brand),var(--brand-dark));color:#fff;font-size:16px;font-weight:700;font-family:inherit;box-shadow:0 6px 14px rgba(230,90,30,.30),inset 0 1px 0 rgba(255,255,255,.25);cursor:pointer;transition:transform .15s}
+  .save:active{transform:scale(.97)}
+
+  .notes{width:400px;margin-top:22px;font-size:12.5px;color:var(--text2);line-height:1.8}
+  .notes b{color:var(--text)}
+</style>
+</head>
+<body>
+  <div class="doctitle">新建任务改版 · 方案C「极简语义卡」</div>
+  <div class="docsub">新建零负担：轻重缓急默认收成一枚小徽章，想判断时再展开语义卡——判断可以以后补</div>
+  <div class="toolbar">
+    <a href="2026-10-07-新建任务改版-方案A-结构罗盘.html">方案A 结构罗盘</a>
+    <a href="2026-10-07-新建任务改版-方案B-手感拨杆.html">方案B 手感拨杆</a>
+    <a class="on" href="#">方案C 极简语义卡</a>
+    <button id="themeBtn">深色模式</button>
+  </div>
+
+  <div class="phone"><div class="screen" id="screen">
+    <div class="island"></div>
+    <div class="status"><span class="stime">9:41</span><span class="sicons">
+      <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0.5" y="3" width="2.5" height="7" rx="1" fill="currentColor"/><rect x="4.5" y="1.5" width="2.5" height="8.5" rx="1" fill="currentColor" opacity=".65"/><rect x="8.5" y="0" width="2.5" height="10" rx="1" fill="currentColor" opacity=".4"/><rect x="12.5" y="2" width="3.5" height="7" rx="1.8" fill="currentColor"/><rect x="16.6" y="4" width="1.4" height="3" rx="0.7" fill="currentColor"/></svg>
+    </span></div>
+    <div class="navbar"><div class="nav-cancel">取消</div><div class="nav-title">添加任务</div></div>
+
+    <div class="scrollarea">
+      <!-- 内容卡：标题 + 描述 + 检查清单（前移并入） -->
+      <div class="card">
+        <input class="t-title" value="整理旅行相册">
+        <div class="hr"></div>
+        <textarea class="t-desc" rows="2">敦煌回来攒了 800 多张照片，趁着假期整理出来。</textarea>
+        <div class="hr"></div>
+        <div class="ck-head"><span class="ck-title">检查清单</span><span class="ck-count" id="ckCount">3 项</span></div>
+        <div id="ckList">
+          <div class="ck-item"><span class="ck-dot"></span><span class="ck-text">初筛删掉废片</span><span class="ck-del">－</span></div>
+          <div class="ck-item"><span class="ck-dot"></span><span class="ck-text">按景点和日期分册</span><span class="ck-del">－</span></div>
+          <div class="ck-item"><span class="ck-dot"></span><span class="ck-text">拼一版九宫格发朋友圈</span><span class="ck-del">－</span></div>
+        </div>
+        <div class="ck-add" id="ckAdd"><span class="plus">＋</span><input id="ckInput" placeholder="添加一项，回车收入"><button class="okbtn" id="ckOk">添加</button></div>
+      </div>
+
+      <!-- 轻重缓急：极简语义卡（默认收起） -->
+      <div class="card">
+        <div class="fold" id="fold">
+          <button class="fold-head" id="foldHead">
+            <span class="sec-label" style="font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--text2)">轻重缓急</span>
+            <span class="fold-badge"><b id="badgeImp">未判断</b>·<span id="badgeUrg">按日期</span><span class="chev">›</span></span>
+          </button>
+          <div class="fold-body"><div class="fold-inner">
+            <div class="mini-label">这件事重要吗</div>
+            <div class="semcards" id="semcards">
+              <button class="sem" data-v="imp"><b>重要</b><span>值得花时间</span></button>
+              <button class="sem" data-v="nimp"><b>不重要</b><span>能省则省</span></button>
+              <button class="sem sel" data-v="unknown"><b>先不判断</b><span>收进待整理</span></button>
+            </div>
+            <div class="mini-label" style="margin-top:14px">有多急</div>
+            <div class="uchips" id="uchips">
+              <button class="uchip sel" data-v="auto">按日期自动</button>
+              <button class="uchip" data-v="urgent">紧急</button>
+              <button class="uchip" data-v="nurg">不紧急</button>
+            </div>
+            <div class="auto-note" id="autoNote">明天到期 · 按日期建议紧急</div>
+          </div></div>
+        </div>
+        <div class="dest" id="dest">将进入「<b id="destName">待整理</b>」· <span id="destGuide">判断这件事是否重要</span></div>
+      </div>
+
+      <!-- 安排：时间 / 清单 / 附件 合一 -->
+      <div class="card">
+        <div class="prop"><span class="pl">时间</span><span class="pv">明天 · 全天</span><span class="chev">›</span></div>
+        <div class="hr"></div>
+        <div class="prop"><span class="pl">清单</span><span class="pv">收件箱</span><span class="chev">›</span></div>
+        <div class="hr"></div>
+        <div class="prop"><span class="pl">附件</span><span class="miniadd">＋</span></div>
+      </div>
+    </div>
+
+    <div class="bottombar"><button class="save">添加任务</button></div>
+    <div class="homebar"></div>
+  </div></div>
+
+  <div class="notes">
+    <b>本案看点</b><br>
+    ① 默认只有一枚「未判断 · 按日期」小徽章——新建 5 秒完事，判断这件事可以以后再补（首页待整理会兜住）；<br>
+    ② 点开才展开：重要性三张语义卡（重要=橙 / 不重要=灰 / 先不判断=虚线），紧急度三枚小字档，全部映射真实数据模型无损失；<br>
+    ③ 三案里整页最短，「太繁琐」的体感最轻，代价是判断入口多一次点开。
+  </div>
+
+<script>
+(function(){
+  var state={imp:'unknown',urg:'auto'};
+  var IMPN={unknown:'未判断',nimp:'不重要',imp:'重要'};
+  var URGN={auto:'按日期',nurg:'不紧急',urgent:'紧急'};
+  var QUADS={
+    doFirst:{name:'优先处理',guide:'先推进这些事',v:'q1',bg:'q1bg'},
+    scheduleTime:{name:'留出时间',guide:'安排具体执行时段',v:'q2',bg:'q2bg'},
+    batchHandle:{name:'集中处理',guide:'合并处理零碎事项',v:'q3',bg:'q3bg'},
+    reviewLater:{name:'稍后再看',guide:'按需要保留或归档',v:'q4',bg:'q4bg'},
+    unclassified:{name:'待整理',guide:'判断这件事是否重要',v:'qu',bg:'inset'}
+  };
+  var fold=document.getElementById('fold');
+  var badgeImp=document.getElementById('badgeImp'),badgeUrg=document.getElementById('badgeUrg');
+  var dest=document.getElementById('dest'),destName=document.getElementById('destName'),destGuide=document.getElementById('destGuide');
+  var autoNote=document.getElementById('autoNote');
+  var sems=[].slice.call(document.querySelectorAll('.sem'));
+  var uchips=[].slice.call(document.querySelectorAll('.uchip'));
+
+  function resolve(){
+    if(state.imp==='unknown')return'unclassified';
+    var urgent=state.urg==='urgent'?true:state.urg==='nurg'?false:true;
+    return state.imp==='imp'?(urgent?'doFirst':'scheduleTime'):(urgent?'batchHandle':'reviewLater');
+  }
+  function render(){
+    var q=QUADS[resolve()];
+    sems.forEach(function(s){s.classList.toggle('sel',s.dataset.v===state.imp);});
+    uchips.forEach(function(u){u.classList.toggle('sel',u.dataset.v===state.urg);});
+    badgeImp.textContent=IMPN[state.imp];badgeUrg.textContent=URGN[state.urg];
+    autoNote.textContent=state.urg==='auto'
+      ?'明天到期 · 按日期建议紧急'
+      :'紧急程度已手动指定';
+    destName.textContent=q.name;destGuide.textContent=q.guide;
+    dest.style.background='var(--'+q.bg+')';
+    destName.style.color='var(--'+q.v+')';
+  }
+  document.getElementById('foldHead').addEventListener('click',function(){fold.classList.toggle('open');});
+  sems.forEach(function(s){s.addEventListener('click',function(){state.imp=s.dataset.v;render();});});
+  uchips.forEach(function(u){u.addEventListener('click',function(){state.urg=u.dataset.v;render();});});
+
+  var ckList=document.getElementById('ckList'),ckInput=document.getElementById('ckInput'),
+      ckOk=document.getElementById('ckOk'),ckCount=document.getElementById('ckCount');
+  function refreshCount(){ckCount.textContent=ckList.children.length+' 项';}
+  function addItem(){
+    var t=ckInput.value.trim();if(!t)return;
+    var row=document.createElement('div');row.className='ck-item';
+    row.innerHTML='<span class="ck-dot"></span><span class="ck-text"></span><span class="ck-del">－</span>';
+    row.querySelector('.ck-text').textContent=t;
+    row.querySelector('.ck-del').addEventListener('click',function(){row.remove();refreshCount();});
+    ckList.appendChild(row);ckInput.value='';ckOk.classList.remove('show');refreshCount();
+  }
+  ckInput.addEventListener('input',function(){ckOk.classList.toggle('show',!!ckInput.value.trim());});
+  ckInput.addEventListener('keydown',function(e){if(e.key==='Enter')addItem();});
+  ckOk.addEventListener('click',addItem);
+  [].slice.call(ckList.children).forEach(function(row){
+    row.querySelector('.ck-del').addEventListener('click',function(){row.remove();refreshCount();});
+  });
+  refreshCount();
+
+  document.getElementById('themeBtn').addEventListener('click',function(){
+    document.documentElement.classList.toggle('dark');document.body.classList.toggle('dark');render();
+  });
+  if(/[?&]dark/.test(location.search)){document.documentElement.classList.add('dark');document.body.classList.add('dark');}
+  if(/[?&]expand/.test(location.search)){fold.classList.add('open');}
+  render();
+})();
+</script>
+</body>
+</html>

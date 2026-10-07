@@ -18,6 +18,9 @@ struct ThoughtFilterSheetView: View {
     @Environment(\.dismiss) var dismiss
     let onApplyFilters: (ThoughtFilters) -> Void
 
+    /// 打开面板时带入的当前条件（flomo 改版批3：面板要能看到并修改已选条件，而不是每次从空白开始）
+    var initialFilters: ThoughtFilters? = nil
+
     /// 当前筛选条件
     @State private var startDate: Date? = nil
     @State private var endDate: Date? = nil
@@ -26,6 +29,15 @@ struct ThoughtFilterSheetView: View {
 
     /// 展开状态
     @State private var expandedSection: FilterSection? = .dateRange
+
+    init(initialFilters: ThoughtFilters? = nil,
+         onApplyFilters: @escaping (ThoughtFilters) -> Void) {
+        self.initialFilters = initialFilters
+        self.onApplyFilters = onApplyFilters
+        _startDate = State(initialValue: initialFilters?.startDate)
+        _endDate = State(initialValue: initialFilters?.endDate)
+        _organizationState = State(initialValue: initialFilters?.organizationState)
+    }
 
     // MARK: - Body
 
@@ -86,7 +98,7 @@ struct ThoughtFilterSheetView: View {
                 }
 
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.standard) {
                         expandedSection = expandedSection == .dateRange ? nil : .dateRange
                     }
                 } label: {

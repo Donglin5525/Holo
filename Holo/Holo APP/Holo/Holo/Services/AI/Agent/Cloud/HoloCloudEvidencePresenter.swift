@@ -134,7 +134,10 @@ nonisolated enum HoloCloudEvidencePresenter {
                     ),
                     sourceModule: nil,
                     formula: nil,
-                    baselineText: nil
+                    baselineText: nil,
+                    metricValue: nil,
+                    metricUnit: nil,
+                    datasetName: item.dataset
                 ))
             } else {
                 guard let summary = metricEvidenceSummary(item) else { continue }
@@ -145,7 +148,10 @@ nonisolated enum HoloCloudEvidencePresenter {
                     financeDrilldown: financeDrilldown(dataset: item.dataset, group: item.group, evidenceID: id),
                     sourceModule: nil,
                     formula: item.formula,
-                    baselineText: nil
+                    baselineText: nil,
+                    metricValue: item.value,
+                    metricUnit: item.unit,
+                    datasetName: item.dataset
                 ))
             }
             if references.count >= 8 { break }

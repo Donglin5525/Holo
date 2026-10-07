@@ -67,6 +67,38 @@ final class InlineTagDetectorTests: XCTestCase {
         XCTAssertEqual(InlineTagDetector.extractTags(from: "#123"), [])
     }
 
+    // MARK: - 摘要剥除（小组件等纯文本摘要场景）
+
+    func testRemovingStripsLineLeadingTag() {
+        // 真机案例：正文末尾换行后跟标签，剥后调用方负责 trim
+        XCTAssertEqual(
+            InlineTagDetector.removingInlineTags(from: "改了好几个月。\n#Holo"),
+            "改了好几个月。\n"
+        )
+    }
+
+    func testRemovingEatsSinglePrecedingSpace() {
+        XCTAssertEqual(InlineTagDetector.removingInlineTags(from: "看看 #Holo 这个"), "看看 这个")
+    }
+
+    func testRemovingStripsMultipleTags() {
+        XCTAssertEqual(InlineTagDetector.removingInlineTags(from: "#工作 和 #灵感"), " 和")
+    }
+
+    func testRemovingStripsCJKPrefixedTag() {
+        XCTAssertEqual(InlineTagDetector.removingInlineTags(from: "今晚#工作"), "今晚")
+    }
+
+    func testRemovingKeepsNonTriggerHash() {
+        // URL / 字母前置的 # 不是内联标签，原样保留
+        XCTAssertEqual(InlineTagDetector.removingInlineTags(from: "https://example.com/#page"), "https://example.com/#page")
+        XCTAssertEqual(InlineTagDetector.removingInlineTags(from: "abc#产品"), "abc#产品")
+    }
+
+    func testRemovingReturnsOriginalWhenNoTag() {
+        XCTAssertEqual(InlineTagDetector.removingInlineTags(from: "普通文本，没有标签。"), "普通文本，没有标签。")
+    }
+
     // MARK: - 光标检测
 
     func testCursorInsidePathTagReturnsPartialPath() {

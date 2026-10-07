@@ -14,7 +14,24 @@ private struct HoloStandaloneLauncher {
 struct HoloCrossDomainFusionStandaloneTests {
     private static var assertionCount = 0
 
+    /// 本套件断言 v3 回滚矩阵：钉住 v4 开关（回滚位）不受默认值影响。
+    /// v4 行为由 HoloMemoryDecisionPolicyStandaloneTests 覆盖。
+    private static func pinLegacyPolicyFlag() -> (() -> Void)? {
+        let key = HoloMemoryDecisionPolicy.enabledKey
+        let original = UserDefaults.standard.object(forKey: key)
+        UserDefaults.standard.set(false, forKey: key)
+        return {
+            if let original {
+                UserDefaults.standard.set(original, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+    }
+
     static func main() throws {
+        let restoreLegacyPolicyFlag = pinLegacyPolicyFlag()
+        defer { restoreLegacyPolicyFlag?() }
         let now = Date(timeIntervalSince1970: 1_752_422_400)
         let anchor = try HoloMemoryAnchorRef(type: .userTheme, value: "恢复状态")
         let otherAnchor = try HoloMemoryAnchorRef(type: .userTheme, value: "阅读")

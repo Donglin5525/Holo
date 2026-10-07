@@ -29,7 +29,7 @@ final class HoloWidgetSnapshotService {
                 queue: .main
             ) { [weak self] _ in
                 Task { @MainActor in
-                    await self?.refreshFinanceSnapshot()
+                    self?.scheduleRefresh(.finance)
                 }
             }
         )
@@ -40,8 +40,8 @@ final class HoloWidgetSnapshotService {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.refreshThoughtMemorySnapshot()
+                Task { @MainActor in
+                    self?.scheduleRefresh(.thought)
                 }
             }
         )
@@ -52,7 +52,9 @@ final class HoloWidgetSnapshotService {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.refreshHabitSnapshot()
+                Task { @MainActor in
+                    self?.scheduleRefresh(.habit)
+                }
             }
         )
 
@@ -62,7 +64,9 @@ final class HoloWidgetSnapshotService {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.refreshTodoSnapshot()
+                Task { @MainActor in
+                    self?.scheduleRefresh(.todo)
+                }
             }
         )
 
@@ -72,7 +76,9 @@ final class HoloWidgetSnapshotService {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.refreshGoalSnapshot()
+                Task { @MainActor in
+                    self?.scheduleRefresh(.goal)
+                }
             }
         )
 
@@ -82,9 +88,57 @@ final class HoloWidgetSnapshotService {
                 object: nil,
                 queue: .main
             ) { [weak self] _ in
-                self?.refreshAnniversarySnapshot()
+                Task { @MainActor in
+                    self?.scheduleRefresh(.anniversary)
+                }
             }
         )
+    }
+
+    // MARK: - 密集刷新合并（R12，2026-10-04 体检）
+    //
+    // 单一监听下短时间多条记录/一批同步会逐次重做全部快照查询与 reload。这里把同 kind
+    // 的密集请求合并进一个短窗任务：窗口内新到的变更并入下一轮；正在跑的轮次结束后
+    // 若又有脏标记则再跑一轮——最后一次变更永远会被执行，不丢更新。
+    // refreshAllSnapshots（启动/手动全量刷新）不走合并，保持即时。
+
+    private enum RefreshKind {
+        case finance, thought, habit, todo, goal, anniversary
+    }
+
+    private var pendingKinds: Set<RefreshKind> = []
+    private var isFlushScheduled = false
+    /// 财务刷新代数：异步轮次结束时若已有更新的请求，过期轮次不得覆盖新结果
+    private var financeGeneration = 0
+
+    /// 合并窗口：密集变更在此时间内只安排一轮刷新
+    private static let coalesceWindow: TimeInterval = 0.3
+
+    private func scheduleRefresh(_ kind: RefreshKind) {
+        pendingKinds.insert(kind)
+        guard !isFlushScheduled else { return }
+        isFlushScheduled = true
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(Self.coalesceWindow))
+            guard let self else { return }
+            self.isFlushScheduled = false
+            self.flushPendingRefreshes()
+        }
+    }
+
+    private func flushPendingRefreshes() {
+        let kinds = pendingKinds
+        pendingKinds.removeAll()
+        if kinds.contains(.thought) { refreshThoughtMemorySnapshot() }
+        if kinds.contains(.habit) { refreshHabitSnapshot() }
+        if kinds.contains(.todo) { refreshTodoSnapshot() }
+        if kinds.contains(.goal) { refreshGoalSnapshot() }
+        if kinds.contains(.anniversary) { refreshAnniversarySnapshot() }
+        if kinds.contains(.finance) {
+            Task { @MainActor in
+                await self.refreshFinanceSnapshot()
+            }
+        }
     }
 
     func refreshAllSnapshots() async {
@@ -120,6 +174,10 @@ final class HoloWidgetSnapshotService {
     }
 
     func refreshFinanceSnapshot(date: Date = Date()) async {
+        // R12：代数守卫——期间来了新请求时，过期轮次直接作废，由新一轮负责写入
+        financeGeneration += 1
+        let myGeneration = financeGeneration
+
         FinanceRepository.shared.setup()
 
         let calendar = Calendar.current
@@ -147,6 +205,7 @@ final class HoloWidgetSnapshotService {
             updatedAt: date
         )
 
+        guard myGeneration == financeGeneration else { return }
         try? store.writeFinance(snapshot)
         WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.finance.rawValue)
     }
@@ -170,7 +229,7 @@ final class HoloWidgetSnapshotService {
         }
 
         let expenses = transactions.filter {
-            $0.transactionType == .expense && $0.date >= weekStart && $0.date < tomorrow
+            $0.statisticsType == .expense && $0.date >= weekStart && $0.date < tomorrow
         }
 
         return (0..<7).map { offset -> HoloWidgetDailyExpense in
@@ -180,7 +239,7 @@ final class HoloWidgetSnapshotService {
             }
             let sum = expenses
                 .filter { $0.date >= day && $0.date < dayEnd }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
             let isToday = offset == 6
             let weekdayName = isToday ? "今" : Self.weekdayShortNames[calendar.component(.weekday, from: day) - 1]
             return HoloWidgetDailyExpense(weekdayText: weekdayName, amount: sum.doubleValue, isToday: isToday)
@@ -196,11 +255,11 @@ final class HoloWidgetSnapshotService {
         }
 
         var buckets: [String: Bucket] = [:]
-        for transaction in monthTransactions where transaction.transactionType == .expense {
+        for transaction in monthTransactions where transaction.statisticsType == .expense {
             let name = transaction.category?.name ?? "未分类"
             let colorHex = transaction.category?.color ?? "#F46D38"
             buckets[name, default: Bucket(name: name, colorHex: colorHex, sum: 0)]
-                .sum += transaction.amount.decimalValue
+                .sum += transaction.statisticsAmount
         }
 
         return buckets.values
@@ -210,12 +269,14 @@ final class HoloWidgetSnapshotService {
     }
 
     func refreshThoughtMemorySnapshot(date: Date = Date()) {
-        guard let snapshot = buildThoughtMemorySnapshot(date: date) else { return }
-        try? store.writeThoughtMemory(snapshot)
+        guard let pool = buildThoughtWalkPool(date: date) else { return }
+        try? store.writeThoughtWalkPool(pool)
         WidgetCenter.shared.reloadTimelines(ofKind: HoloWidgetKind.thoughtMemory.rawValue)
     }
 
-    private func buildThoughtMemorySnapshot(date: Date) -> HoloWidgetThoughtMemorySnapshot? {
+    /// 候选池：合格想法全部入池（摘要/标签/来源逐条解析好），小组件「换一条」只在此池内轮换；
+    /// featuredIndex 延续旧版按日期轮换口径，未手选时桌面显示与旧版完全一致。
+    private func buildThoughtWalkPool(date: Date) -> HoloWidgetThoughtWalkSnapshot? {
         let repository = ThoughtRepository()
         let thoughts = (try? repository.fetchAll(limit: 120, sortBy: .createdAtDescending)) ?? []
         let candidates = thoughts
@@ -234,9 +295,22 @@ final class HoloWidgetSnapshotService {
         }
 
         let dayOfYear = Calendar.current.ordinality(of: .day, in: .year, for: date) ?? 1
-        let selected = sorted[(dayOfYear - 1) % sorted.count]
+        let items = sorted.map { makeThoughtWalkItem(for: $0) }
+        return HoloWidgetThoughtWalkSnapshot(
+            items: items,
+            featuredIndex: (dayOfYear - 1) % items.count,
+            updatedAt: date
+        )
+    }
+
+    private func makeThoughtWalkItem(for selected: Thought) -> HoloWidgetThoughtMemorySnapshot {
         let tags = Array(selected.tagArray.map(\.name).prefix(2))
-        let excerpt = selected.plainContent.truncatedForWidget(maxLength: 72)
+        // 摘要剥掉内联标签：纯文本正文剥 # 后只剩裸标签词，与底部标签行重复；
+        // 标签一律由快照 tags 字段（标签行胶囊）统一展示
+        let excerpt = InlineTagDetector.removingInlineTags(from: selected.plainContent)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            // 上限需覆盖 iOS 26 拉大后的大尺寸卡片：正文区可容纳 100+ 字
+            .truncatedForWidget(maxLength: 220)
 
         return HoloWidgetThoughtMemorySnapshot(
             thoughtId: selected.id,

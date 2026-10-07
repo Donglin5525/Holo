@@ -38,6 +38,9 @@ enum HoloAIUserErrorMapper {
             return "相同请求正在处理中，请稍后重试"
         case .stepIdConflict:
             return "请求处理冲突，请稍后重试"
+        case .deviceSessionRejected:
+            // 设备会话 401 已在 APIClient 自动刷新重试；走到这里说明刷新后仍被拒
+            return "安全校验未通过，请稍后重试"
         }
     }
 }

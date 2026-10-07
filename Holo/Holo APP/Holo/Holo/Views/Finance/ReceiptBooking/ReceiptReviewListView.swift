@@ -21,6 +21,7 @@ struct ReceiptReviewListView: View {
         NavigationStack(path: $path) {
             listContent
         }
+        .holoSheetShell()
         .onAppear(perform: refresh)
     }
 
@@ -36,7 +37,10 @@ struct ReceiptReviewListView: View {
                 List {
                 Section {
                     ForEach(drafts) { draft in
-                        NavigationLink(value: draft.id) {
+                        // 以草案本体作为导航值：推入页自带数据，不回头查 drafts——
+                        // 确认/删除后 refresh() 会把该草案移出列表，若目的地仍依赖
+                        // drafts 解析，值还在路径上而内容消失，iOS 26 导航栈会断言闪退
+                        NavigationLink(value: draft) {
                             VStack(alignment: .leading, spacing: 4) {
                                 HStack {
                                     // 2026-09-19 一图多笔：行摘要展示首笔金额 + 笔数徽标
@@ -60,11 +64,26 @@ struct ReceiptReviewListView: View {
                                 if let merchant = draft.merchant, !merchant.isEmpty {
                                     Text(merchant).font(.subheadline).foregroundStyle(.secondary)
                                 }
-                                Text(reviewReasonText(draft.reasons))
-                                    .font(.footnote)
-                                    .foregroundStyle(.orange)
+                                HStack {
+                                    Text(reviewReasonText(draft.reasons))
+                                        .font(.footnote)
+                                        .foregroundStyle(.orange)
+                                    Spacer()
+                                    // 识别时间必显（2026-09-23）：历史草案一眼可辨，不冒充本次结果
+                                    Text("识别于 \(ReceiptRecognizedTimeText.text(for: draft.createdAt))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
                             }
                             .padding(.vertical, 2)
+                        }
+                        // 左滑直接删（2026-10-02 东林拍板：免确认——草稿未入账无资金损失，7 天本就自动清理）
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                deleteDraft(draft)
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
                         }
                     }
                 } footer: {
@@ -84,25 +103,37 @@ struct ReceiptReviewListView: View {
                 }
             }
         }
-        .navigationDestination(for: UUID.self) { draftID in
-            if let draft = drafts.first(where: { $0.id == draftID }) {
-                ReceiptReviewDetailView(draft: draft) {
-                    refresh()
-                }
+        .navigationDestination(for: ReceiptBookingResultStore.StoredDraft.self) { draft in
+            ReceiptReviewDetailView(draft: draft) {
+                refresh()
             }
         }
         .onAppear {
             if !didRouteInitialDraft,
                let initialDraftID,
-               drafts.contains(where: { $0.id == initialDraftID }) {
+               let draft = drafts.first(where: { $0.id == initialDraftID }) {
                 didRouteInitialDraft = true
-                path.append(initialDraftID)
+                path.append(draft)
             }
         }
     }
 
     private func refresh() {
         drafts = ReceiptBookingResultStore.shared.loadDrafts()
+    }
+
+    /// 左滑删除：与详情页删除同一链路（清草稿文件+证据图+提醒通知，结果流留痕）
+    private func deleteDraft(_ draft: ReceiptBookingResultStore.StoredDraft) {
+        ReceiptBookingCoordinator.discardDraftFiles(draftID: draft.id)
+        Task {
+            await ReceiptBookingResultStore.shared.append(result: .init(
+                id: UUID(), createdAt: Date(), kind: .rejected, reasonCode: nil,
+                summaryText: String(localized: "已删除一条待复核记录"), transactionID: nil,
+                additionalTransactionIDs: nil, draftID: nil, undoToken: nil,
+                usedDefaultAccount: false, undoneAt: nil
+            ))
+        }
+        refresh()
     }
 
     private func reviewReasonText(_ reasons: [String]) -> String {

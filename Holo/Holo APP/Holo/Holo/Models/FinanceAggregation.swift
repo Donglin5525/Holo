@@ -9,6 +9,53 @@
 import Foundation
 import SwiftUI
 
+// MARK: - 年度口径
+
+/// 年档统计口径：自然年（1/1–12/31）或记账年（跟随全局记账起始日）。
+/// 记账起始日为 1 号时两者等价，统计页不提供切换（低频选项收在区间弹层内）。
+enum FinanceYearBasis: String, CaseIterable, Identifiable {
+    case calendar   // 自然年
+    case billing    // 记账年
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .calendar: return String(localized: "自然年")
+        case .billing: return String(localized: "记账年")
+        }
+    }
+
+    /// 同比基准的称呼（汇总卡 badge / 对照卡标题用）
+    var previousYearLabel: String {
+        switch self {
+        case .calendar: return String(localized: "去年同期")
+        case .billing: return String(localized: "上一个记账年")
+        }
+    }
+
+    /// 弹层选项的说明小字
+    var subtitle: String {
+        switch self {
+        case .calendar: return String(localized: "1月1日 – 12月31日 · 对外总结常用")
+        case .billing: return String(localized: "跟随记账起始日 · 与月档同一把尺，月加总 = 年")
+        }
+    }
+
+    // MARK: 持久化（口径选择记忆到下次进入）
+
+    private static let storageKey = "financeYearBasis"
+
+    static func loadDefault() -> FinanceYearBasis {
+        let raw = UserDefaults.standard.string(forKey: storageKey)
+        return FinanceYearBasis(rawValue: raw ?? "") ?? .billing
+    }
+
+    func persist() {
+        UserDefaults.standard.set(rawValue, forKey: Self.storageKey)
+    }
+}
+
 // MARK: - 时间范围枚举
 
 /// 时间范围选择
@@ -97,6 +144,44 @@ enum TimeRange: String, CaseIterable, Identifiable {
             return (now.startOfMonth, now)
         }
     }
+
+    /// 年档区间按口径计算：自然年 = 1/1–12/31；记账年 = 跟随全局记账起始日
+    ///（起始日为 1 时两种口径等价）。dateRange() 的 .year 始终是自然年，
+    /// AI/分析上下文等既有链路行为不变；口径切换只作用于统计页年档。
+    func yearDateRange(basis: FinanceYearBasis) -> (start: Date, end: Date) {
+        switch basis {
+        case .calendar:
+            return dateRange()
+        case .billing:
+            return BillingCycleCalculator.billingYearRange(
+                startDay: FinancePeriodSettings.storedBillingCycleStartDay
+            )
+        }
+    }
+
+    // MARK: 胶囊短文案
+
+    /// 统计页顶部胶囊短文案（最小信息原则：年/季只标档位语义，其余标日期区间；end 为开区间）。
+    /// 年档中文环境模板 "y" 自带「年」字（输出 2026年），不可再手拼后缀。
+    static func pillLabel(timeRange: TimeRange, start: Date, end: Date) -> String {
+        let df = DateFormatter()
+        switch timeRange {
+        case .year:
+            df.setLocalizedDateFormatFromTemplate("y")
+            return df.string(from: start)
+        case .quarter:
+            let calendar = Calendar.current
+            // 年份先转 String：LocalizationValue 直接插 Int 会被数字本地化格式化成「2,025」
+            let year = String(calendar.component(.year, from: start))
+            let quarter = (calendar.component(.month, from: start) - 1) / 3 + 1
+            return String(localized: "\(year)年第\(quarter)季度")
+        default:
+            df.setLocalizedDateFormatFromTemplate("MMMd")
+            let startStr = df.string(from: start)
+            let endStr = df.string(from: end.addingDays(-1)) // end 是开区间，显示前一天
+            return "\(startStr) - \(endStr)"
+        }
+    }
 }
 
 // MARK: - X 轴粒度
@@ -163,6 +248,41 @@ struct ChartDataPoint: Identifiable {
 
     /// 是否有交易
     var hasTransactions: Bool { transactionCount > 0 }
+}
+
+// MARK: - 柱对几何
+
+/// 收支柱+收入柱成对排布的几何参数。
+/// 既有画法是按槽宽比例（0.18/0.20）偏移——那是月视图 30 桶窄槽（≈10pt）下调出来的；
+/// 周粒度 12 桶在宽画布上槽宽可达 ≈80pt，比例偏移把支出柱推离槽位中心 14pt、
+/// 组内缝拉到 22pt（比柱宽还宽），一对柱读成两根独立柱，且收入为 0 时柱子看着
+/// 不在它的刻度上。偏移按「柱宽+组内缝」的 pt 封顶，窄槽小图自动退化为原比例。
+enum ChartBarPairLayout {
+    /// 组内目标缝（pt）：与月视图窄槽下比例偏移的实际缝同量级
+    static let targetInnerGapPt: CGFloat = 1.5
+    /// 轴带估算（pt）：左轴金额标签 + 右轴余额标签 + plot 两侧 padding。
+    /// 只用于把 pt 换算成槽位单位，误差 10% 内偏移无感
+    static let estimatedAxisGutterPt: CGFloat = 56
+
+    static func barWidth(pointCount: Int) -> CGFloat {
+        pointCount > 14 ? 3.2 : 6
+    }
+
+    /// 双柱偏移（槽位单位）＝ min(槽宽比例, 封顶 pt ÷ 槽宽)
+    static func barOffsetUnits(pointCount: Int, slotWidthPt: CGFloat, barWidth overrideBarWidth: CGFloat? = nil) -> Double {
+        let ratio: Double = pointCount > 14 ? 0.20 : 0.18
+        guard slotWidthPt > 0 else { return ratio }
+        let barWidth = overrideBarWidth ?? barWidth(pointCount: pointCount)
+        let capPt = Double((barWidth + targetInnerGapPt) / 2)
+        let offsetPt = min(ratio * Double(slotWidthPt), capPt)
+        return offsetPt / Double(slotWidthPt)
+    }
+
+    /// 槽宽估算（pt）：容器宽减轴带
+    static func estimatedSlotWidthPt(containerWidthPt: CGFloat, pointCount: Int) -> CGFloat {
+        guard pointCount > 0 else { return 0 }
+        return max((containerWidthPt - estimatedAxisGutterPt) / CGFloat(pointCount), 1)
+    }
 }
 
 // MARK: - 图表触摸命中
@@ -321,6 +441,56 @@ struct CategoryAggregation: Identifiable {
     }
 }
 
+// MARK: - 账户聚合
+
+/// 账户维度聚合数据（统计页「本期账户排行」卡）
+struct AccountAggregation: Identifiable {
+    let id = UUID()
+    let account: Account
+    let expense: Decimal
+    let income: Decimal
+    let percentage: Double      // 支出占总支出比 (0-100)
+    let transactionCount: Int
+
+    var formattedExpense: String {
+        NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "¥0.00"
+    }
+
+    var formattedCompactExpense: String {
+        NumberFormatter.compactCurrency(expense)
+    }
+}
+
+// MARK: - 财务项目聚合
+
+/// 项目维度聚合数据（统计页「项目」页签列表；项目=一件事的资金全景，收支同权）
+struct FinanceProjectAggregation: Identifiable {
+    let id = UUID()
+    let project: FinanceProject
+    /// 支出侧合计（statisticsAmount 口径：退款负冲在内）
+    let expense: Decimal
+    /// 收入侧合计（非退款收入）
+    let income: Decimal
+    let percentage: Double      // 支出占总支出比 (0-100)
+    let transactionCount: Int
+
+    /// 净投入 = 支出 − 收入（负值即项目回血超过投入）
+    var netAmount: Decimal { expense - income }
+
+    /// 项目预算（未设置为 nil，UI 不显示进度）
+    var budget: Decimal? { project.budgetDecimal }
+
+    /// 预算使用进度 (0-1，可超 1)；预算只约束支出
+    var budgetProgress: Double? {
+        guard let budget, budget > 0 else { return nil }
+        return Double(truncating: (expense / budget) as NSDecimalNumber)
+    }
+
+    var formattedCompactExpense: String {
+        NumberFormatter.compactCurrency(expense)
+    }
+}
+
 // MARK: - 周期汇总
 
 /// 周期汇总数据（用于概览统计）
@@ -331,9 +501,21 @@ struct PeriodSummary {
     let averageDailyExpense: Decimal
     let averageDailyIncome: Decimal
     let dayCount: Int
+    /// 已过周期数（月/账期桶，年视图月均口径用；0 = 未提供，UI 回退日均）
+    var elapsedPeriodCount: Int = 0
 
     /// 净收入
     var netIncome: Decimal { totalIncome - totalExpense }
+
+    /// 月均支出（年视图口径：总额 ÷ 已过周期数，进行中的一期也计入）
+    var averageMonthlyExpense: Decimal {
+        totalExpense / Decimal(max(elapsedPeriodCount, 1))
+    }
+
+    /// 月均收入
+    var averageMonthlyIncome: Decimal {
+        totalIncome / Decimal(max(elapsedPeriodCount, 1))
+    }
 
     /// 格式化支出
     var formattedExpense: String {
@@ -361,5 +543,26 @@ struct PeriodSummary {
             averageDailyIncome: 0,
             dayCount: dayCount
         )
+    }
+}
+
+// MARK: - 年度同比对照点
+
+/// 年档同比图表数据：今年与上一个同口径年按月/账期逐桶配对（支出侧）
+struct YearComparisonPoint: Identifiable {
+    let id = UUID()
+    let label: String          // X 轴短标签（"1月"）
+    let rangeText: String?     // 记账年口径的完整桶区间（"1/25–2/24"）；自然年为 nil
+    let current: Decimal       // 今年该期支出
+    let previous: Decimal      // 上一个同口径年该期支出
+    let isFuture: Bool         // 桶起点晚于今天（空位，不画对照百分比）
+    let isOngoing: Bool        // 今天落在桶内（进行中）
+
+    /// 同比涨跌（0…100 百分数；上期为 0 时无意义返回 nil）
+    var changePercentage: Double? {
+        guard previous > 0 else { return nil }
+        let diff = Double(truncating: (current - previous) as NSDecimalNumber)
+        let base = Double(truncating: previous as NSDecimalNumber)
+        return diff / base * 100
     }
 }

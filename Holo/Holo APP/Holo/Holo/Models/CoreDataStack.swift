@@ -10,6 +10,8 @@
 
 import CoreData
 import CloudKit
+import SQLite3
+import os.log
 
 /// Core Data 数据栈单例
 /// 提供统一的 Core Data 访问入口，确保数据一致性
@@ -37,6 +39,11 @@ nonisolated class CoreDataStack {
 
     /// 等待 store 加载完毕的 continuation 列表
     nonisolated(unsafe) private var _storeLoadContinuations: [CheckedContinuation<Void, Never>] = []
+
+    /// R01（2026-10-04 体检）：加载终态。true = 成功或失败已定，后续等待方立即返回。
+    /// 失败不再终止进程；失败原因存 _storeLoadError 供恢复门如实展示。
+    nonisolated(unsafe) private var _storeLoadSettled = false
+    nonisolated(unsafe) private var _storeLoadError: Error?
 
     /// 持久化容器（线程安全延迟初始化）
     /// 首次访问时创建容器并异步加载 store，不阻塞调用线程。
@@ -106,20 +113,33 @@ nonisolated class CoreDataStack {
             }
         }
 
-        container.loadPersistentStores { [weak self] _, error in
-            if let error = error {
-                let nsError = error as NSError
-                fatalError("Core Data 存储加载失败：\(error.localizedDescription)\n\(nsError)\nuserInfo: \(nsError.userInfo)")
+        Self.loadStoreAllowingRecovery(container, logger: Self.recoveryLogger) { [weak self] error in
+            guard let self else { return }
+            self.lock.lock()
+            let continuations: [CheckedContinuation<Void, Never>]
+            if let error {
+                // R01（2026-10-04 体检）：加载失败是可恢复状态，不再终止进程——
+                // 记录失败原因、置终态并唤醒所有等待方；恢复门（StoreConflictRecoveryGate）
+                // 在等待返回后如实说明并保留原库等待救援。破坏性重建必须有完整数据保护前提。
+                Self.recoveryLogger.fault("Core Data 存储加载失败（自动恢复后仍不可用），进入可恢复失败状态：\(error.localizedDescription, privacy: .public)\n\((error as NSError).userInfo)")
+                self._storeLoadError = error
+                self._storeLoadSettled = true
+                continuations = self._storeLoadContinuations
+                self._storeLoadContinuations = []
+                self.lock.unlock()
+                for continuation in continuations {
+                    continuation.resume()
+                }
+                return
             }
             // store 装载完成后再配置主上下文：此时无进行中的装载，
             // setter 不会同步等待 CoreData 内部队列（构建线程也不持任何锁）
             container.viewContext.automaticallyMergesChangesFromParent = true
             container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
 
-            guard let self else { return }
-            self.lock.lock()
             self._storeLoaded = true
-            let continuations = self._storeLoadContinuations
+            self._storeLoadSettled = true
+            continuations = self._storeLoadContinuations
             self._storeLoadContinuations = []
             self.lock.unlock()
             for continuation in continuations {
@@ -130,9 +150,346 @@ nonisolated class CoreDataStack {
         return container
     }
 
-    /// 通过代码创建 Core Data 数据模型
-    /// - Returns: NSManagedObjectModel
+    // MARK: - 存储装载与冲突恢复
+
+    private nonisolated static let recoveryLogger = Logger(subsystem: "com.holo.app", category: "CoreDataRecovery")
+
+    /// 装载 store；遇到模型指纹冲突（App 与小组件等扩展进程各自编译的模型分叉、
+    /// 或跨版本迁移映射缺失）时，把打不开的库文件整体改名备份后重建空库再试一次。
+    /// 背景：共享库位于 App Group，多进程都可写；指纹不一致会随进程先后随机出现，
+    /// 直接 fatalError 即「随机启动闪退」（2026-09-27 模拟器实锤）。
+    /// 备份保留在原目录可人工救援；云端有 CloudKit 副本，空库重建后可回同步。
+    nonisolated static func loadStoreAllowingRecovery(
+        _ container: NSPersistentContainer,
+        logger: Logger,
+        onFinish: @escaping (Error?) -> Void
+    ) {
+        container.loadPersistentStores { _, error in
+            guard let error, isModelMismatch(error) else {
+                onFinish(error)
+                return
+            }
+
+            let nsError = error as NSError
+            let storeURL = container.persistentStoreDescriptions.first?.url
+            // 迁移门禁（任务分类字段升级）：库是本次升级的已知旧版时，
+            // 迁移失败必须终止装载进入可恢复失败状态、原库原地保留，
+            // 不允许备份重建空库后把失败伪装成「迁移成功 + 云端回同步」。
+            if let storeURL, storeIsKnownPreTaskClassification(at: storeURL) {
+                logger.fault("任务分类字段迁移失败（code \(nsError.code)）：原库原地保留，不走空库重建（迁移门禁）userInfo: \(nsError.userInfo)")
+                onFinish(error)
+                return
+            }
+            // R02（2026-10-04 体检）：备份完整性是重建的硬前提——三件套没挪干净
+            // （目录权限/空间异常/未合并 WAL/扩展并发访问）就重建空库，会永久丢失
+            // 未合并事务。此时放弃自动重建，走可恢复失败状态，原库原地保留待救援。
+            let backup = storeURL.map { backupIncompatibleStoreFiles(at: $0, logger: logger) }
+                ?? ConflictBackupResult()
+            guard backup.isComplete else {
+                logger.fault("冲突库备份不完整（main=\(backup.hasMainFile, privacy: .public)，failed=\(backup.failedFiles.joined(separator: ","), privacy: .public)），放弃自动重建以保护原数据")
+                onFinish(error)
+                return
+            }
+            logger.fault("存储与当前模型不匹配(code \(nsError.code))，已完整备份冲突库，重建空库重试。userInfo: \(nsError.userInfo)")
+
+            container.loadPersistentStores { _, retryError in
+                if let retryError {
+                    logger.fault("重建空库后仍装载失败：\(retryError.localizedDescription, privacy: .public)")
+                    onFinish(retryError)
+                    return
+                }
+                logger.notice("存储冲突恢复完成，已重建空库（旧库保留为备份）")
+                // D03（2026-10-04 体检）：恢复事件落标记，主 App 启动时据此向用户
+                // 说明「发生了什么 + 旧数据在哪」——空库静默当正常成功是信任事故
+                recordConflictRecoveryMarker(storeURL: storeURL, backup: backup, logger: logger)
+                onFinish(nil)
+            }
+        }
+    }
+
+    /// 是否属于「模型指纹/迁移映射」失败族（134100 不兼容哈希、134130 找不到源模型、映射不匹配等）
+    nonisolated static func isModelMismatch(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == NSCocoaErrorDomain else { return false }
+        return (134100...134199).contains(nsError.code)
+    }
+
+    // MARK: - 任务分类字段升级的迁移门禁（2026-10-06 任务重构方案 §8.4-5）
+
+    /// 已知升级源参考模型：全量模型副本剔除 TodoTask 的 importanceRaw/urgencyModeRaw
+    /// 两个字段，即本次升级前的模型形态。仅用于迁移测试建库；
+    /// 绝不用于装载真实 store（副本实例不注册 NSManagedObject 子类映射，避开 134020 族）。
+    /// 注意：实体版本哈希在「共享模型 → copy → 改属性」路径上实测不稳定（内容相同、
+    /// 哈希因缓存时序不同而不同），门禁识别不依赖哈希，走下面的 SQLite 列级识别。
+    nonisolated static func makePreTaskClassificationModel() -> NSManagedObjectModel? {
+        guard let legacy = sharedDataModel.copy() as? NSManagedObjectModel,
+              let todoEntity = legacy.entitiesByName["TodoTask"] else { return nil }
+        todoEntity.properties = todoEntity.properties.filter {
+            $0.name != "importanceRaw" && $0.name != "urgencyModeRaw"
+        }
+        return legacy
+    }
+
+    /// store 是否为「本次任务分类字段升级前的已知旧库」（内容级识别）：
+    /// ZTODOTASK 表存在、有基础列、且尚无两个新分类列。
+    /// 迁移失败时命中本判定 → 原地保留并如实上报，不走备份重建空库分支
+    /// （方案 §8.4-5 只针对此迁移收口；其余形态的指纹冲突仍走既有自动恢复策略）。
+    nonisolated static func storeIsKnownPreTaskClassification(at url: URL) -> Bool {
+        // 普通只读打开失败（WAL/SHM 缺失等）时退回 immutable 快照读：只读 schema 足够
+        let attempts: [(path: String, flags: Int32)] = [
+            (url.path, SQLITE_OPEN_READONLY),
+            ("file:\(url.path)?immutable=1", SQLITE_OPEN_READONLY | SQLITE_OPEN_URI)
+        ]
+        for attempt in attempts {
+            var db: OpaquePointer?
+            guard sqlite3_open_v2(attempt.path, &db, attempt.flags, nil) == SQLITE_OK, let db else {
+                sqlite3_close(db)
+                continue
+            }
+            defer { sqlite3_close(db) }
+            let baseExists = scalarInt(db, sql: "SELECT COUNT(*) FROM pragma_table_info('ZTODOTASK') WHERE name = 'ZTITLE'") ?? 0
+            guard baseExists > 0 else { return false }
+            let newColumns = scalarInt(db, sql: "SELECT COUNT(*) FROM pragma_table_info('ZTODOTASK') WHERE name IN ('ZIMPORTANCERAW','ZURGENCYMODERAW')") ?? 2
+            return newColumns == 0
+        }
+        return false
+    }
+
+    /// 只读单值查询（门禁内部用；失败返回 nil 不抛错——识别失败走既有恢复分支）
+    nonisolated private static func scalarInt(_ db: OpaquePointer, sql: String) -> Int32? {
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            sqlite3_finalize(statement)
+            return nil
+        }
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW else { return nil }
+        return sqlite3_column_int(statement, 0)
+    }
+
+    /// 冲突库备份结果（R02，2026-10-04 体检）：三件套各自的搬运结果必须完整上报。
+    /// 主文件挪走而 WAL/SHM 落下时，未合并事务随旧文件丢失——只有全部成功才算
+    /// 完整备份，才允许重建空库。
+    struct ConflictBackupResult: Equatable {
+        var movedFileURLs: [URL] = []
+        var failedFiles: [String] = []
+        var hasMainFile = false
+
+        var isComplete: Bool { hasMainFile && failedFiles.isEmpty }
+    }
+
+    /// 把打不开的库三件套（sqlite/-wal/-shm）改名备份，返回逐文件结果。
+    /// 备份名带时间戳，多次冲突各自留底互不覆盖。
+    nonisolated static func backupIncompatibleStoreFiles(at url: URL, logger: Logger) -> ConflictBackupResult {
+        moveStoreFiles(at: url, suffix: ".conflict-backup-", logger: logger)
+    }
+
+    /// 三件套改名备份的通用实现（冲突恢复与 Cloud 重拉共用）：
+    /// 备份名 = 原名 + suffix + 时间戳，可由 stripBackupSuffix 逆转。
+    nonisolated static func moveStoreFiles(at url: URL, suffix: String, logger: Logger) -> ConflictBackupResult {
+        let fm = FileManager.default
+        let stamp = Self.backupTimestampFormatter.string(from: Date())
+        var result = ConflictBackupResult()
+        for fileSuffix in ["", "-wal", "-shm"] {
+            let source = URL(fileURLWithPath: url.path + fileSuffix)
+            guard fm.fileExists(atPath: source.path) else { continue }
+            let name = source.lastPathComponent
+            let backup = source.deletingLastPathComponent()
+                .appendingPathComponent(name + suffix + stamp)
+            do {
+                try fm.moveItem(at: source, to: backup)
+                result.movedFileURLs.append(backup)
+                if fileSuffix.isEmpty { result.hasMainFile = true }
+            } catch {
+                result.failedFiles.append(source.lastPathComponent)
+                logger.error("备份 \(source.lastPathComponent, privacy: .public) 失败：\(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return result
+    }
+
+    private nonisolated static let backupTimestampFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter
+    }()
+
+    // MARK: - Cloud 重拉（P2：从 iCloud 重新拉取全部数据，2026-10-06）
+
+    nonisolated static let cloudRepullBackupSuffix = ".cloudrepull-backup-"
+
+    /// P2·从 iCloud 重新拉取：卸载当前库 → 三件套备份（只保留最近一份）→ 重建空库。
+    /// 空库的 CloudKit mirroring 没有服务端游标，会自动从云端全量导入——等同新设备首连。
+    /// 备份完整性是硬前提：三件套没挪干净就把已挪走的挪回原位再抛错，绝不在中间态上重建空库。
+    func backupAndRebuildStoreForCloudRepull() async throws -> [URL] {
+        await waitUntilReady()
+        guard let container = lock.withLock({ _persistentContainer }),
+              let storeURL = container.persistentStoreDescriptions.first?.url else {
+            throw CloudRepullError.storeUnavailable
+        }
+
+        // 卸载 store：同步关闭三件套文件句柄并停掉活跃 mirroring 会话；
+        // 进程内其他读取都动态走 persistentContainer computed，清缓存后自动落到新容器
+        try unloadStores(of: container)
+
+        Self.removeCloudRepullBackups(around: storeURL)
+        let backup = Self.moveStoreFiles(at: storeURL, suffix: Self.cloudRepullBackupSuffix, logger: Self.recoveryLogger)
+        guard backup.isComplete else {
+            // 已挪走的尽力挪回原位；回滚本身失败时仍如实报告备份不完整（原数据以备份文件形态留存）
+            try? Self.revertBackupFiles(backup.movedFileURLs, logger: Self.recoveryLogger)
+            throw CloudRepullError.backupIncomplete(failed: backup.failedFiles)
+        }
+        Self.recoveryLogger.notice("Cloud 重拉：已完整备份本机库（\(backup.movedFileURLs.count) 个文件），重建空库等待云端全量导入")
+
+        try await rebuildContainerAfterStoreSwap()
+        return backup.movedFileURLs
+    }
+
+    /// P2·回滚：丢弃重拉产生的新库，把备份三件套放回原位并重建。
+    func restoreStoreFromCloudRepullBackup(_ backupFiles: [URL]) async throws {
+        await waitUntilReady()
+        guard let container = lock.withLock({ _persistentContainer }),
+              let storeURL = container.persistentStoreDescriptions.first?.url else {
+            throw CloudRepullError.storeUnavailable
+        }
+
+        try unloadStores(of: container)
+
+        // 丢弃当前库三件套（重拉产生的新库）；删不掉时后续挪回会失败并如实抛错
+        for fileSuffix in ["", "-wal", "-shm"] {
+            let url = URL(fileURLWithPath: storeURL.path + fileSuffix)
+            if FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        try Self.revertBackupFiles(backupFiles, logger: Self.recoveryLogger)
+        Self.recoveryLogger.notice("Cloud 重拉：已恢复重拉前的本机库备份")
+
+        try await rebuildContainerAfterStoreSwap()
+    }
+
+    /// 卸载容器的全部 store：同步关闭文件句柄（之后文件改名/删除才干净），
+    /// 同时清空 viewContext 待处理更改。
+    private func unloadStores(of container: NSPersistentContainer) throws {
+        container.viewContext.reset()
+        let coordinator = container.persistentStoreCoordinator
+        for store in coordinator.persistentStores {
+            try coordinator.remove(store)
+        }
+    }
+
+    /// 清空容器缓存并触发懒重建（新库装载 + CloudKit mirroring 启动），等待新库 settle
+    private func rebuildContainerAfterStoreSwap() async throws {
+        lock.withLock {
+            _persistentContainer = nil
+            _storeLoaded = false
+            _storeLoadSettled = false
+            _storeLoadError = nil
+        }
+        _ = persistentContainer
+        await waitUntilReady()
+        if let error = storeLoadError() {
+            throw CloudRepullError.rebuildFailed(error)
+        }
+    }
+
+    /// 把备份三件套按命名规则逆转回原名（原名 = 备份名去掉「suffix + 时间戳」尾段）
+    nonisolated static func revertBackupFiles(_ backupURLs: [URL], logger: Logger) throws {
+        for backup in backupURLs {
+            let name = backup.lastPathComponent
+            guard let range = name.range(of: cloudRepullBackupSuffix) else { continue }
+            let originalName = String(name[..<range.lowerBound])
+            let destination = backup.deletingLastPathComponent().appendingPathComponent(originalName)
+            do {
+                try FileManager.default.moveItem(at: backup, to: destination)
+            } catch {
+                logger.fault("Cloud 重拉备份恢复失败：\(name) → \(originalName)：\(error.localizedDescription, privacy: .public)")
+                throw CloudRepullError.restoreFailed(name)
+            }
+        }
+    }
+
+    /// 只保留最近一份重拉备份：开始新备份前清掉历史重拉备份（含三件套各文件）
+    nonisolated static func removeCloudRepullBackups(around storeURL: URL) {
+        let directory = storeURL.deletingLastPathComponent()
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: directory.path) else { return }
+        for file in files where file.contains(cloudRepullBackupSuffix) {
+            try? FileManager.default.removeItem(at: directory.appendingPathComponent(file))
+        }
+    }
+
+    // MARK: - 冲突恢复用户可见状态（D03，2026-10-04 体检）
+
+    /// 冲突恢复事件：发生时间 + 备份文件路径。落库目录内的标记文件（App Group 共享，
+    /// 主 App / 扩展进程谁触发恢复都能记录）；用户确认后删除标记。
+    struct ConflictRecoveryEvent: Equatable {
+        let occurredAt: Date
+        let backupFileURLs: [URL]
+    }
+
+    private nonisolated static var conflictRecoveryMarkerURL: URL? {
+        guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
+            return nil
+        }
+        return container.appendingPathComponent("store-conflict-recovery.json", isDirectory: false)
+    }
+
+    nonisolated static func pendingConflictRecoveryEvent() -> ConflictRecoveryEvent? {
+        guard let url = conflictRecoveryMarkerURL,
+              let data = try? Data(contentsOf: url),
+              let decoded = try? JSONDecoder().decode(MarkerPayload.self, from: data) else { return nil }
+        let fm = FileManager.default
+        let backups = decoded.backupFileNames
+            .map { url.deletingLastPathComponent().appendingPathComponent($0) }
+            .filter { fm.fileExists(atPath: $0.path) }
+        return ConflictRecoveryEvent(occurredAt: decoded.occurredAt, backupFileURLs: backups)
+    }
+
+    /// 用户已知晓恢复事件（看过说明/导出过备份）后清除标记
+    nonisolated static func acknowledgeConflictRecovery() {
+        guard let url = conflictRecoveryMarkerURL else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    /// 落恢复标记：备份清单直接来自本次备份结果——R02 修复旧实现的目录前缀扫描
+    /// （`store.sqlite.conflict-backup-` 前缀匹配不到 `-wal`/`-shm` 备份，
+    /// 导出清单会漏掉 WAL 中尚未合并的内容）。
+    private nonisolated static func recordConflictRecoveryMarker(storeURL: URL?, backup: ConflictBackupResult, logger: Logger) {
+        guard let storeURL, let markerURL = conflictRecoveryMarkerURL else {
+            logger.error("冲突恢复标记写入失败：无法定位标记路径")
+            return
+        }
+        let payload = MarkerPayload(
+            occurredAt: Date(),
+            backupFileNames: backup.movedFileURLs.map(\.lastPathComponent)
+        )
+        do {
+            let data = try JSONEncoder().encode(payload)
+            try data.write(to: markerURL, options: .atomic)
+        } catch {
+            logger.error("冲突恢复标记写入失败：\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private struct MarkerPayload: Codable {
+        let occurredAt: Date
+        let backupFileNames: [String]
+    }
+
+    /// 全进程唯一数据模型实例：真栈与测试栈必须共享同一份 NSManagedObjectModel。
+    /// 多份实例（即使内容完全相同）会让 NSManagedObject 子类→实体映射出现全局歧义，
+    /// 装载次数一多即触发系统层「模型不兼容 134020」——fetch 失败被 try? 吞成 nil 的假失败
+    /// （2026-09-16/17 测试域三轮复发，R4-1 B 政策完全体；生产仅 buildContainer 调一次，行为不变）。
+    private static let sharedDataModel: NSManagedObjectModel = CoreDataStack.shared.makeDataModel()
+
     nonisolated func createDataModel() -> NSManagedObjectModel {
+        Self.sharedDataModel
+    }
+
+    /// 通过代码创建 Core Data 数据模型（仅由 sharedDataModel 惰性初始化调用一次）
+    /// - Returns: NSManagedObjectModel
+    private nonisolated func makeDataModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
         var entities: [NSEntityDescription] = []
         let goalEntity = createGoalEntity()
@@ -165,6 +522,12 @@ nonisolated class CoreDataStack {
         entities.append(contentsOf: createRecycleBinEntities())
         // Matter「进行中的事」四实体（ID 逻辑外键、无跨域关系）
         entities.append(contentsOf: createMatterEntities())
+        // 任务「分步推进」三实体（ID 逻辑外键、无跨域关系；2026-09-25 实施规格 §7.2）
+        entities.append(contentsOf: createTaskExecutionEntities())
+        // 目标共创会话与决策版本（ID 逻辑外键；payload 版本化信封）
+        entities.append(contentsOf: createGoalWorkshopEntities())
+        // 「今天减负」当日计划版本（ID 逻辑外键；ADR-02 不可变完整版本）
+        entities.append(contentsOf: createTodayPlanEntities())
         model.entities = entities
         return model
     }
@@ -243,7 +606,9 @@ nonisolated class CoreDataStack {
     }
 
     /// 等待 store 加载完毕（在 HomeView.task 中 await 调用）
-    /// 若 store 已加载则立即返回；否则挂起当前协程直到 loadPersistentStores 完成
+    /// 若 store 已加载则立即返回；否则挂起当前协程直到 loadPersistentStores 完成。
+    /// R01（2026-10-04 体检）：失败也是终态——等待方会被唤醒而不是永久挂起；
+    /// 失败原因经 storeLoadError() 查询，由恢复门如实展示。
     func waitUntilReady() async {
         prepareIfNeeded()
 
@@ -253,10 +618,17 @@ nonisolated class CoreDataStack {
         if didLoad {
             return
         }
+        // 失败终态：不再挂起，让调用方尽快继续（随后各自暴露失败状态）
+        let settled = lock.withLock {
+            _storeLoadSettled
+        }
+        if settled {
+            return
+        }
 
         await withCheckedContinuation { continuation in
             let shouldResume = lock.withLock {
-                if _storeLoaded {
+                if _storeLoaded || _storeLoadSettled {
                     return true
                 }
                 _storeLoadContinuations.append(continuation)
@@ -267,6 +639,11 @@ nonisolated class CoreDataStack {
                 continuation.resume()
             }
         }
+    }
+
+    /// 存储加载失败原因（R01）；nil = 成功或尚未到终态。恢复门据此向用户说明。
+    nonisolated func storeLoadError() -> Error? {
+        lock.withLock { _storeLoadError }
     }
 
     // MARK: - Context Management
@@ -414,6 +791,32 @@ extension NSManagedObjectContext {
         // 保存剩余数据
         if !hasChanges {
             try save()
+        }
+    }
+}
+
+/// Cloud 重拉（P2）的失败形态：每一条都如实对应一个可诊断的断点，
+/// 不用笼统的 unknown error 掩盖具体环节。
+enum CloudRepullError: LocalizedError {
+    /// 容器/库地址不可得（理论上仅出现在启动未完成的极短窗口）
+    case storeUnavailable
+    /// 三件套没备份完整：绝不允许在此状态重建空库（原文件已尝试挪回）
+    case backupIncomplete(failed: [String])
+    /// 备份文件恢复失败（文件名）：当前库已被丢弃，这是最严重的状态，需要人工救援
+    case restoreFailed(String)
+    /// 重建后的新库装载失败（底层错误）
+    case rebuildFailed(Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .storeUnavailable:
+            return String(localized: "本机数据库尚未就绪，请稍后重试")
+        case .backupIncomplete(let failed):
+            return String(localized: "备份本机数据未完成（") + failed.joined(separator: ", ") + String(localized: "），已保持原样，未做任何改动")
+        case .restoreFailed(let file):
+            return String(localized: "恢复备份失败（") + file + String(localized: "），请勿退出本页并联系支持")
+        case .rebuildFailed(let error):
+            return String(localized: "重建本机数据库失败：") + error.localizedDescription
         }
     }
 }

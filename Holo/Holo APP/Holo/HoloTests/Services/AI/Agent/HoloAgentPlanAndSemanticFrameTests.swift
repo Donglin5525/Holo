@@ -7,7 +7,17 @@
 
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        HoloAgentPlanAndSemanticFrameTests.main()
+    }
+}
+#endif
 struct HoloAgentPlanAndSemanticFrameTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {

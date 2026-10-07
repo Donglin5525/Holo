@@ -34,7 +34,7 @@ struct HabitStatsExpandableCardView: View {
         .holoCard()
         .contentShape(Rectangle())
         .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.24)) {
+            withAnimation(HoloAnimation.standard) {
                 onTap()
             }
         }

@@ -45,6 +45,8 @@ enum LocalSemanticIndexError: Error {
     case dimensionMismatch(expected: Int, got: Int)
     case corruptIndex(detail: String)
     case notNormalized            // 向量必须 L2 归一化
+    /// R15（2026-10-04 体检）：索引 checkpoint 文件发布失败（不再伪装成功）
+    case checkpointFailed(detail: String)
 }
 
 /// 本地向量索引协议（方案 §8.1）。默认实现 USearchSemanticIndex（HNSW），

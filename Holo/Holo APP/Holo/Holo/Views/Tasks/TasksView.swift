@@ -59,11 +59,13 @@ struct TasksView: View {
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: TodoTab = .tasks
+    /// 顶部切换条选中胶囊的滑动命名空间
+    @Namespace private var todoTabNamespace
     /// 当前窗口宽度（v2 断点判断用）
-    @Environment(\.holoWindowWidth) private var holoWindowWidth
+    @Environment(\.holoContentWidth) private var holoContentWidth
     /// expanded 宽度（≥1024pt）：内部 Tab 上移顶部，底部导航栏退役
     private var isExpandedWidth: Bool {
-        HoloAdaptiveLayout.isExpandedWidth(holoWindowWidth)
+        HoloAdaptiveLayout.isExpandedWidth(holoContentWidth)
     }
     @State private var showAddTask: Bool = false
     @State private var showNotificationSettings: Bool = false
@@ -77,6 +79,13 @@ struct TasksView: View {
     /// 直接使用单例，避免 @StateObject 创建新实例
     private var repository: TodoRepository { TodoRepository.shared }
 
+    /// 任务模块 V2 开关（2026-10-06 任务重构方案 §15.1）：关闭只切回旧首页与旧统计入口，
+    /// 不删字段、不降模型、不清分类；验收包默认开启。
+    @AppStorage("taskExperienceV2Enabled") private var taskExperienceV2Enabled: Bool = true
+
+    /// V2 范围上下文（首页把当前范围/象限传给新增入口预填）
+    @State private var v2CreationContext: TaskCreationContext = TaskCreationContext()
+
     // MARK: - Body
 
     var body: some View {
@@ -86,14 +95,27 @@ struct TasksView: View {
             Group {
                 switch selectedTab {
                 case .stats:
-                    TaskStatsView(repository: repository, onBack: { close() })
+                    if taskExperienceV2Enabled {
+                        TaskExperienceStatsView(repository: repository, onBack: { close() })
+                    } else {
+                        TaskStatsView(repository: repository, onBack: { close() })
+                    }
                 case .tasks:
-                    TaskListView(
-                        repository: repository,
-                        onBack: { close() },
-                        onFilterChanged: { selectedTaskFilter = $0 },
-                        searchTrigger: searchTrigger
-                    )
+                    if taskExperienceV2Enabled {
+                        TaskExperienceView(
+                            repository: repository,
+                            onBack: { close() },
+                            searchTrigger: searchTrigger
+                        )
+                    } else {
+                        TaskListView(
+                            repository: repository,
+                            onBack: { close() },
+                            onFilterChanged: { selectedTaskFilter = $0 },
+                            searchTrigger: searchTrigger,
+                            onAddRequested: { showAddTask = true }
+                        )
+                    }
                 case .anniversary:
                     AnniversaryListView(onBack: { close() })
                 case .add:
@@ -107,7 +129,13 @@ struct TasksView: View {
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             handleDeepLink()
         }
-        // Cmd+F：切到任务 Tab（TaskListView 是 switch 销毁式，须先建活）再转发触发
+        // 统一创建回执：任何入口新建成功后切回任务页（统计页新增后定位，§4.5）
+        .onReceive(NotificationCenter.default.publisher(for: .taskExperienceCreated)) { _ in
+            if taskExperienceV2Enabled, selectedTab != .tasks {
+                selectedTab = .tasks
+            }
+        }
+        // Cmd+F：切到任务 Tab（任务首页是 switch 销毁式，须先建活）再转发触发
         .onReceive(HoloShortcutBus.shared.$lastEvent) { event in
             guard event?.action == .searchInCurrentModule else { return }
             selectedTab = .tasks
@@ -125,11 +153,16 @@ struct TasksView: View {
             }
         }
         .sheet(isPresented: $showAddTask) {
-            TaskDetailView(
-                repository: repository,
-                list: selectedListForNewTask,
-                defaultDueDate: defaultDueDateForNewTask
-            )
+            if taskExperienceV2Enabled {
+                // 普通新增走完整单页（V2）：保存成功经 .taskExperienceCreated 切回任务页并定位
+                TaskCreationSheet(repository: repository, context: v2CreationContext)
+            } else {
+                TaskDetailView(
+                    repository: repository,
+                    list: selectedListForNewTask,
+                    defaultDueDate: defaultDueDateForNewTask
+                )
+            }
         }
     }
 
@@ -186,6 +219,7 @@ struct TasksView: View {
     }
 
     /// v2 expanded 顶部切换条：胶囊式；「新增」呈橙色胶囊（替代吸底栏中的 + 圆钮）
+    /// 选中胶囊用 matchedGeometryEffect 在段间平滑滑动
     private var todoTopTabBar: some View {
         HStack(spacing: 8) {
             ForEach(TodoTab.allCases, id: \.self) { tab in
@@ -197,7 +231,7 @@ struct TasksView: View {
                             showAddTask = true
                         }
                     } else {
-                        withAnimation(.easeInOut(duration: 0.15)) {
+                        withAnimation(HoloAnimation.quick) {
                             selectedTab = tab
                         }
                     }
@@ -210,19 +244,23 @@ struct TasksView: View {
                         } else {
                             Image(systemName: tab.icon)
                                 .font(.system(size: 12, weight: .medium))
+                                .symbolEffect(.bounce, value: selectedTab == tab)
                             Text(tab.displayName)
                                 .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
                         }
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
-                    .background(
-                        Capsule().fill(
-                            tab.isAddButton
-                                ? Color.holoPrimary
-                                : (selectedTab == tab ? Color.holoPrimary.opacity(0.15) : Color.holoCardBackground)
-                        )
-                    )
+                    .background {
+                        if tab.isAddButton {
+                            Capsule().fill(Color.holoPrimary)
+                        } else if selectedTab == tab {
+                            Capsule().fill(Color.holoPrimary.opacity(0.15))
+                                .matchedGeometryEffect(id: "todoTopTabCapsule", in: todoTabNamespace)
+                        } else {
+                            Capsule().fill(Color.holoCardBackground)
+                        }
+                    }
                     .foregroundColor(
                         tab.isAddButton
                             ? .white
@@ -251,7 +289,7 @@ struct TasksView: View {
                     showAddTask = true
                 }
             } else {
-                withAnimation(.easeInOut(duration: 0.15)) {
+                withAnimation(HoloAnimation.quick) {
                     selectedTab = tab
                 }
             }

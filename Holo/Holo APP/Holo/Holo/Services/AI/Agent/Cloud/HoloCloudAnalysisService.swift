@@ -51,6 +51,9 @@ final class HoloCloudAnalysisService {
         let question: String
         let taskType: String
         var snapshotHash: String? = nil
+        /// 显式场景 rawValue（P1 冻结任务；恢复轮询期仅用于展示，
+        /// 范围已随快照在服务端冻结，恢复不需要重传）
+        var scenarioID: String? = nil
     }
 
     /// 进行中的云端任务。回前台恢复轮询用；同步持久化（杀 App 后冷启动恢复领取
@@ -115,6 +118,9 @@ final class HoloCloudAnalysisService {
             if let snapshotHash = context.snapshotHash {
                 dict["snapshotHash"] = snapshotHash
             }
+            if let scenarioID = context.scenarioID {
+                dict["scenarioID"] = scenarioID
+            }
             return dict
         }
         UserDefaults.standard.set(payload, forKey: Self.activeTasksDefaultsKey)
@@ -136,7 +142,8 @@ final class HoloCloudAnalysisService {
                 messageID: messageID,
                 question: question,
                 taskType: taskType,
-                snapshotHash: dict["snapshotHash"]
+                snapshotHash: dict["snapshotHash"],
+                scenarioID: dict["scenarioID"]
             )
         }
         activeTasks = restored
@@ -149,9 +156,14 @@ final class HoloCloudAnalysisService {
     }
 
     /// 云端轨道入口（ChatViewModel 在本地 runAnalysis 之前调用）。
+    /// scenario：显式场景（随快照冻结为 AnswerTaskV1 上云）；nil = 常规深度分析。
     /// - Returns: handled = 云端轨道已终局（成功落卡或失败落诚实失败卡，不再回落本地）；
     ///   userCancelled = 用户点停止；unavailable = 云端不可用，调用方落不可用说明。
-    func attempt(question: String, sourceMessageID: UUID) async -> HoloCloudAttemptOutcome {
+    func attempt(
+        question: String,
+        sourceMessageID: UUID,
+        scenario: AnalysisScenario? = nil
+    ) async -> HoloCloudAttemptOutcome {
         guard HoloAIFeatureFlags.cloudDeepAnalysisEnabled else { return .unavailable(.featureDisabled) }
         guard Self.privacyConsented else { return .unavailable(.needsConsent) }
         guard activeTasks.isEmpty else {
@@ -167,10 +179,18 @@ final class HoloCloudAnalysisService {
         ))
 
         do {
-            let snapshot = try await HoloCloudAnalysisSnapshotBuilder.buildJSON()
+            let snapshot = try await HoloCloudAnalysisSnapshotBuilder.buildJSON(
+                scenario: scenario,
+                userQuestion: question
+            )
             let started = try await client.start(question: question)
             try Task.checkCancellation()
-            let context = TaskContext(messageID: sourceMessageID, question: question, taskType: "deep_analysis")
+            let context = TaskContext(
+                messageID: sourceMessageID,
+                question: question,
+                taskType: "deep_analysis",
+                scenarioID: scenario?.rawValue
+            )
             // start 成功即登记（提前于快照上传）：上传中途被杀，冷启动也能恢复轮询
             // 领取，对账兜底也能据此识别「云端在途」、不按「无 job 超 90s」误判中断
             activeTasks[started.taskId] = context
@@ -275,9 +295,15 @@ final class HoloCloudAnalysisService {
                         } else {
                             finalizeCloudResult(result, question: context.question, taskId: taskId, sourceMessageID: context.messageID)
                         }
-                        // R1 确认制：结果已落地本地，回执服务端销毁密文副本。
-                        // ack 失败无妨——结果留存 ≤7 天，属可接受的隐私延迟。
-                        try? await client.ackResult(taskId: taskId)
+                        // R1 确认制（D02 收紧，2026-10-04 体检）：ack 即焚不可逆，
+                        // 必须确认结果已编码并持久化（agentResultJSON 可回读）才回执
+                        // 销毁云端副本。落库校验失败时保留副本（云端留存 ≤7 天），
+                        // 下次启动 recoverIfNeeded 重领补写——不因本地保存失败丢结果。
+                        if repository.agentResultJSON(context.messageID) != nil {
+                            try? await client.ackResult(taskId: taskId)
+                        } else {
+                            logger.error("云端结果落库校验失败，保留云端副本待重领 taskId=\(taskId, privacy: .public) messageId=\(context.messageID, privacy: .public)")
+                        }
                         return
                     }
                     // completed 但无结果（结果已失效或被领取）：如实落败，不再挂到超时
@@ -382,6 +408,15 @@ final class HoloCloudAnalysisService {
         }
     }
 
+    /// 点完成推送时按云端任务号定位结果消息：在途任务查登记表；
+    /// 已领取（任务位已清）按血统编号 "cloud-<任务ID>" 反查落库的报告卡。
+    /// 两者都查不到返回 nil（冷启动恢复未完成/旧版本报告无血统），调用方兜底进 AI 页。
+    func messageID(forCloudTaskId taskId: String?) -> UUID? {
+        guard let taskId, !taskId.isEmpty else { return nil }
+        if let context = activeTasks[taskId] { return context.messageID }
+        return repository.messageIdForAgentJobID("cloud-\(taskId)")
+    }
+
     private func cancelActiveIfNeeded() async {
         for (taskId, _) in activeTasks {
             try? await client.cancel(taskId: taskId)
@@ -393,7 +428,11 @@ final class HoloCloudAnalysisService {
 
     /// 云端结果 → 结构化卡片落消息（复用 Agent 消息管道）。
     /// 渲染规则与本地轨道对齐（2026-08-31 验收修复）：
-    /// - summary 用 claims 人话拼接，不再把模型内部 reasoning（含工具名/协议术语）直接上屏；
+    /// - summary 优先用云端生成的自然摘要（narrativeSummary），缺失或未过防线时回退
+    ///   claims 人话拼接，不再把模型内部 reasoning（含工具名/协议术语）直接上屏；
+    /// - section 标题走与本地同源的语义短标题（Renderer.cloudSectionTitle），
+    ///   不再固定「发现 N」（2026-09-15 温暖陪伴 P0 契约止损）；
+    /// - claim 的 type/confidence/interpretation 随卡透传，UI 分层消费；
     /// - scope 标注快照时间窗（卡片展示「近N天」口径）；
     /// - 证据引用由云端回传的 evidence 原料翻译成中文口径（metric）与行样本（rows）；
     /// - claim 文本走与本地同一条内部 token 防线（含 metricKey/工具名的整条丢弃）。
@@ -403,35 +442,21 @@ final class HoloCloudAnalysisService {
         taskId: String,
         sourceMessageID: UUID
     ) {
-        let claims = (result.claims ?? []).compactMap { claim -> String? in
-            let text = (claim.displayText ?? claim.summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty, !HoloAnswerCoverageVerifier.containsInternalToken(text) else { return nil }
-            return text
-        }
-        let sections = claims.enumerated().map { index, text in
-            HoloRenderedAgentSection(title: "发现 \(index + 1)", body: text, confidence: nil, kind: nil, interpretation: nil)
-        }
-        let summary = claims.isEmpty
-            ? "本期暂无显著观察"
-            : claims.joined(separator: "；")
+        let composed = Self.composedCloudNarrative(from: result)
         // 证据收敛：云端证据池是「查过什么就有什么」，按结论引用（claims.evidenceIDs）
         // 过滤后上屏，探索阶段带出的无关分类（问电费带出房租/红包）不再混进核对列表
         let evidencePool = result.evidence ?? []
         let citedEvidence = HoloCloudEvidencePresenter.citedEvidence(from: evidencePool, claims: result.claims ?? [])
         var rendered = HoloRenderedAgentResult(
-            title: result.title ?? "深度分析",
-            summary: summary,
-            sections: sections,
+            title: composed.title,
+            summary: composed.summary,
+            sections: composed.sections,
             evidenceReferences: HoloCloudEvidencePresenter.evidenceReferences(from: citedEvidence),
             failure: nil,
             question: question,
-            scope: HoloRenderedAnswerScope(
-                label: "近\(HoloCloudAnalysisSnapshotBuilder.defaultHistoryDays)天",
-                start: nil,
-                end: nil,
-                snapshotCutoffAt: nil,
-                attribution: nil
-            ),
+            scope: Self.answerScope(for: result),
+            narrativeSummary: composed.narrativeSummary,
+            keyInsight: composed.keyInsight,
             dataSamplePreview: HoloCloudEvidencePresenter.dataSamplePreview(from: citedEvidence)
         )
         // 追问血统身份（方案B）：云端结果不落本地 Job/Result 档案，用「cloud-任务ID」作本地等价编号——
@@ -440,8 +465,136 @@ final class HoloCloudAnalysisService {
         rendered.agentJobID = cloudIdentity
         rendered.agentResultID = cloudIdentity
         rendered.rootUserQuestion = question
+        // 空态诚实化（2026-09-24 17:24 实锤：云端交付 7 条结论、手机渲染「没有
+        // 可信结论」）：claims 非空但 usableClaims 全被显示防线滤掉时标记
+        // unverifiable（副标题如实说「已查到数据但未过核验」）并打日志留取证线索，
+        // 不再与「确实没数据」混为一谈。
+        if composed.sections.isEmpty, let rawClaimCount = result.claims?.count, rawClaimCount > 0 {
+            rendered.emptyReason = .unverifiable
+            logger.error("云端结论全被显示防线滤除 rawClaims=\(rawClaimCount, privacy: .public) taskId=\(taskId, privacy: .public) —— 取证:检查各 claim 正文是否含 metricKey/下划线/等号")
+        }
+        // S03 截断如实标注（2026-10-04 体检）：任一数据集发生 2000 行截断时，
+        // 范围行带上说明——明细被截断不冒充全量，金额统计的覆盖边界用户可见
+        let truncatedCount = (result.snapshotCoverage ?? [:]).values
+            .filter { $0.truncated == true }
+            .count
+        if truncatedCount > 0, rendered.scope != nil {
+            rendered.scope?.truncatedNote = "部分数据已按上限截断"
+        }
+        // AI02 交付核验标注（2026-10-04 体检）：后端 warnings 此前解码后全 App
+        // 无消费——核验撤回/降级对用户不可见。现在翻译成一句人话随范围行展示；
+        // 哪条结论被撤由后端负责（单一真相源），客户端不做第二套核验器。
+        if let note = Self.verificationNote(for: result.warnings ?? []), rendered.scope != nil {
+            rendered.scope?.verificationNote = note
+        }
         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
-        logger.info("云端结果已落地 claims=\(claims.count, privacy: .public) evidence=\(citedEvidence.count, privacy: .public)/池\(evidencePool.count, privacy: .public)")
+        logger.info("云端结果已落地 claims=\(composed.sections.count, privacy: .public) narrative=\(composed.narrativeSummary != nil, privacy: .public) keyInsight=\(composed.keyInsight != nil, privacy: .public) evidence=\(citedEvidence.count, privacy: .public)/池\(evidencePool.count, privacy: .public)")
+    }
+
+    /// AI02 交付核验警告 → 用户可读标注（2026-10-04 体检）：撤回类优先
+    /// （编数/无证据结论已被服务端撤回，幸存结论正常交付）；仅降级类时说明
+    /// 结论为定性观察。操作提示类警告不上屏。纯函数，供契约测试共用。
+    nonisolated static func verificationNote(for warnings: [String]) -> String? {
+        let withdrawnPrefixes = [
+            "METRIC_MISMATCH", "METRIC_UNKNOWN",
+            "CLAIM_NUMBERS_UNVERIFIED", "NUMERIC_CLAIM_UNVERIFIED",
+            "QUALITATIVE_CLAIM_NO_EVIDENCE",
+        ]
+        if warnings.contains(where: { warning in withdrawnPrefixes.contains { warning.hasPrefix($0) } }) {
+            return "部分结论未通过核验，已撤回处理"
+        }
+        if warnings.contains(where: { $0.hasPrefix("NO_TOOL_EVIDENCE") }) {
+            return "本轮未查到量化数据，结论为定性观察"
+        }
+        return nil
+    }
+
+    /// 诚实范围标注：冻结任务回显优先（场景默认窗/用户改写后仍由服务端冻结），
+    /// 否则退回快照窗全量口径——「近180天」不再覆盖用户实际问的范围。
+    private nonisolated static func answerScope(
+        for result: HoloCloudAnalysisClient.StatusResponse.CloudResult
+    ) -> HoloRenderedAnswerScope {
+        if let range = result.taskRange {
+            let cutoff = result.snapshotCutoffAt.flatMap {
+                ISO8601DateFormatter().date(from: $0)
+            }
+            return HoloRenderedAnswerScope(
+                label: range.label,
+                start: Date(timeIntervalSince1970: range.start),
+                end: Date(timeIntervalSince1970: range.end),
+                snapshotCutoffAt: cutoff,
+                attribution: nil
+            )
+        }
+        return HoloRenderedAnswerScope(
+            label: "近\(HoloCloudAnalysisSnapshotBuilder.defaultHistoryDays)天",
+            start: nil,
+            end: nil,
+            snapshotCutoffAt: nil,
+            attribution: nil
+        )
+    }
+
+    /// 云端叙事编排（温暖陪伴 P0）：纯函数，供 finalize 与契约测试共用。
+    /// 叙事字段全部走与 claims 同一条内部 token 防线；缺失/坏字段/旧结果
+    /// 一律回退既有拼接口径（分号摘要 + 兜底标题），不因叙事缺失丢事实。
+    nonisolated static func composedCloudNarrative(
+        from result: HoloCloudAnalysisClient.StatusResponse.CloudResult
+    ) -> (title: String, summary: String, sections: [HoloRenderedAgentSection], narrativeSummary: String?, keyInsight: String?) {
+        func sanitized(_ text: String?) -> String? {
+            guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !trimmed.isEmpty,
+                  !HoloAnswerCoverageVerifier.containsInternalToken(trimmed) else { return nil }
+            return trimmed
+        }
+
+        let usableClaims = (result.claims ?? []).compactMap { claim -> (body: String, kind: String?, confidence: Double?, interpretation: String?, claimTitle: String?, assertions: [HoloRenderedMetricAssertion]?)? in
+            let body = (claim.displayText ?? claim.summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let usable = sanitized(body) else { return nil }
+            let assertions = (claim.metricAssertions ?? []).compactMap { assertion -> HoloRenderedMetricAssertion? in
+                guard assertion.value != nil || assertion.baselineValue != nil else { return nil }
+                return HoloRenderedMetricAssertion(
+                    metricKey: assertion.metricKey,
+                    value: assertion.value,
+                    baselineValue: assertion.baselineValue,
+                    unit: assertion.unit,
+                    comparison: assertion.comparison,
+                    evidenceIDs: assertion.evidenceIDs
+                )
+            }
+            return (usable, claim.type, claim.confidence, sanitized(claim.interpretation), sanitized(claim.claimTitle), assertions.isEmpty ? nil : assertions)
+        }
+        var usedTitles = Set<String>()
+        let sections = usableClaims.map { claim in
+            // v23：云端点破式标题（资产管家式提炼）优先；旧结果无此字段或模型
+            // 偷懒复述正文时，回退正文首句短标题（既有口径，零回归）。
+            let modelTitle = HoloAgentResultRenderer.validatedClaimTitle(claim.claimTitle, body: claim.body)
+            let title: String
+            if let modelTitle, !usedTitles.contains(modelTitle) {
+                usedTitles.insert(modelTitle)
+                title = modelTitle
+            } else {
+                title = HoloAgentResultRenderer.cloudSectionTitle(for: claim.body, usedTitles: &usedTitles)
+            }
+            return HoloRenderedAgentSection(
+                title: title,
+                body: claim.body,
+                confidence: claim.confidence,
+                kind: claim.kind,
+                interpretation: claim.interpretation,
+                metricAssertions: claim.assertions
+            )
+        }
+        let narrativeSummary = sanitized(result.narrativeSummary)
+        let summary = narrativeSummary
+            ?? (usableClaims.isEmpty ? "本期暂无显著观察" : usableClaims.map(\.body).joined(separator: "；"))
+        return (
+            title: sanitized(result.title) ?? "深度分析",
+            summary: summary,
+            sections: sections,
+            narrativeSummary: narrativeSummary,
+            keyInsight: sanitized(result.keyInsight)
+        )
     }
 
     /// 云端独占语义的诚实终局：把深度分析消息落为可辨识的失败卡（与本地

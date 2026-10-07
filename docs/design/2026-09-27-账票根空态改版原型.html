@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>账票根 · 空态改版三方案</title>
+<style>
+  :root {
+    --holo-primary: #F46D38;
+    --holo-bg: #F7F4EF;
+    --page-bg: #EFEAE2;
+    --card: #FFFFFF;
+    --ink: #26241F;
+    --ink-2: #8A857C;
+    --ink-3: #B5AFA3;
+    --dash: #CFC8BC;
+    --trough: #EFE9DF;      /* 凹槽暖色 */
+    --trough-edge: #E2DACC;
+    --notch: #4A453D;       /* 出票缝：深暖灰（替代纯黑） */
+    --radius: 16px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: var(--page-bg);
+    color: var(--ink);
+    padding: 36px 28px 80px;
+  }
+  header { max-width: 1320px; margin: 0 auto 30px; }
+  header h1 { font-size: 24px; font-weight: 700; letter-spacing: .5px; }
+  header p.sub { margin-top: 8px; font-size: 13.5px; color: var(--ink-2); line-height: 1.7; }
+  header p.hint {
+    margin-top: 12px; display: inline-block; font-size: 12.5px; color: var(--ink-2);
+    background: #FFF; border: 1px solid #E7E1D6; border-radius: 999px; padding: 7px 14px;
+  }
+  header p.hint b { color: var(--holo-primary); font-weight: 600; }
+
+  .boards {
+    max-width: 1320px; margin: 0 auto;
+    display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start;
+  }
+  .board { flex: 1 1 380px; max-width: 430px; min-width: 360px; }
+  .board-head { padding: 0 6px 12px; display: flex; align-items: baseline; gap: 10px; position: relative; }
+  .board-head .tag {
+    flex: none; font-size: 12px; font-weight: 700; color: #fff; background: var(--ink);
+    border-radius: 6px; padding: 3px 8px; letter-spacing: .5px;
+  }
+  .board-head .tag.rec { background: var(--holo-primary); }
+  .board-head h2 { font-size: 17px; font-weight: 700; }
+  .board-head .rec-mark {
+    font-size: 11px; font-weight: 600; color: var(--holo-primary);
+    border: 1px solid var(--holo-primary); border-radius: 999px; padding: 2px 8px;
+  }
+  .board-desc { padding: 0 6px 14px; font-size: 12.5px; color: var(--ink-2); line-height: 1.65; }
+
+  /* ===== 记一笔页局部 ===== */
+  .phone {
+    background: var(--holo-bg);
+    border: 1px solid #E7E1D6;
+    border-radius: 26px;
+    padding: 14px 16px 20px;
+    box-shadow: 0 10px 34px rgba(70, 60, 40, .08);
+  }
+  .navrow { display: flex; align-items: center; justify-content: center; position: relative; padding: 6px 0 12px; }
+  .navrow .dot { width: 30px; height: 30px; border-radius: 50%; background: #ECE7DE; display: flex; align-items: center; justify-content: center; color: var(--ink-2); font-size: 14px; }
+  .navrow .dot.save { position: absolute; right: 0; }
+  .navrow .dot.close { position: absolute; left: 0; }
+  .navrow .title { font-size: 16px; font-weight: 700; }
+
+  .cat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px 6px; padding: 14px 8px 16px; background: var(--card); border-radius: var(--radius); }
+  .cat { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .cat .ico { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 19px; }
+  .cat span { font-size: 11px; color: var(--ink-2); }
+
+  .info-card { background: var(--card); border-radius: var(--radius); padding: 2px 16px; }
+  .info-row { display: flex; align-items: center; gap: 8px; padding: 13px 0; font-size: 14px; }
+  .info-row + .info-row { border-top: 1px solid #F1EDE5; }
+  .info-row .lab { color: var(--ink-2); }
+  .info-row .val { margin-left: auto; color: var(--ink); font-weight: 500; }
+  .info-row .chev { color: var(--ink-3); font-size: 12px; }
+  .info-row.receipt-row .val { color: var(--holo-primary); font-weight: 600; }
+  .info-row.receipt-row .val.full { color: var(--ink-3); font-weight: 400; }
+
+  /* ===== 通用票根 ===== */
+  .stub {
+    width: 132px; background: #fff; position: absolute; left: 50%; top: 50%;
+    box-shadow: 0 3px 9px rgba(40, 32, 20, .14);
+    border-radius: 6px 6px 0 0;
+    cursor: pointer;
+    transition: transform .45s cubic-bezier(.5,1.6,.4,1), opacity .4s ease;
+  }
+  .stub .ph { height: 96px; border-radius: 5px 5px 0 0; background-size: cover; position: relative; }
+  .stub .cap { height: 22px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #73737A; background: #fff; }
+  .stub .rip {
+    position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%;
+    background: rgba(38,36,31,.72); color: #fff; font-size: 11px; line-height: 20px; text-align: center;
+    opacity: 0; transition: opacity .18s ease;
+  }
+  .stub:hover .rip { opacity: 1; }
+  .stub.tearing { transform: translate(90px, 34px) rotate(26deg) !important; opacity: 0 !important; }
+
+  .stack { position: relative; height: 150px; overflow: hidden; }
+
+  .add-capsule {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500; color: var(--ink-2);
+    background: transparent; border: 1.2px dashed var(--dash); border-radius: 999px;
+    padding: 8px 16px; cursor: pointer; transition: all .18s ease;
+  }
+  .add-capsule:hover { border-color: var(--holo-primary); color: var(--holo-primary); }
+  .add-capsule.disabled { opacity: .45; pointer-events: none; }
+  .add-capsule .plus { font-size: 14px; }
+
+  .footer-link { display: block; text-align: center; margin-top: 6px; }
+  .footer-link button {
+    background: none; border: none; font-size: 12px; color: var(--holo-primary); cursor: pointer; padding: 4px 8px;
+  }
+  .footer-link button.full { color: var(--ink-3); pointer-events: none; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%);
+    background: rgba(38,36,31,.92); color: #fff; font-size: 13px;
+    padding: 10px 20px; border-radius: 999px; opacity: 0; transition: opacity .25s ease; pointer-events: none; z-index: 99;
+  }
+  .toast.show { opacity: 1; }
+
+  /* ===== 方案 A：票根空位卡 ===== */
+  .zoneA-empty {
+    background: var(--card); border-radius: var(--radius);
+    padding: 18px; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .ghost-frame {
+    width: 100%; border: 1.5px dashed var(--dash); border-radius: 12px;
+    padding: 18px 0 16px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+    transition: opacity .3s ease;
+  }
+  .ghost-stub {
+    width: 74px; height: 92px; border: 1.5px dashed #D8D1C4; border-radius: 6px;
+    transform: rotate(-8deg); position: relative; background: transparent;
+  }
+  .ghost-stub::before {
+    content: ""; position: absolute; inset: 8px 8px 30px; border-radius: 3px;
+    background: repeating-linear-gradient(135deg, #EFEAE0 0 5px, #F6F2EA 5px 10px);
+  }
+  .ghost-stub::after {
+    content: ""; position: absolute; left: 10px; right: 10px; bottom: 12px; height: 5px;
+    background: repeating-linear-gradient(90deg, #E4DDCF 0 5px, transparent 5px 9px);
+  }
+  .zoneA { background: var(--card); border-radius: var(--radius); padding: 12px 14px 10px; }
+  .notch { width: 64px; height: 5px; border-radius: 3px; background: var(--notch); margin: 0 auto 2px; }
+
+  /* ===== 方案 B：入口收进信息卡 ===== */
+  .zoneB-stack { position: relative; height: 150px; margin-bottom: 12px; }
+
+  /* ===== 方案 C：暖色凹槽 ===== */
+  .zoneC {
+    background: var(--trough);
+    border: 1.2px dashed var(--trough-edge);
+    border-radius: var(--radius);
+    box-shadow: inset 0 2px 6px rgba(120, 100, 70, .10);
+    padding: 20px 14px 14px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .zoneC .notch { margin-bottom: 8px; }
+  .add-capsule.on-trough { background: #fff; border-style: solid; border-color: transparent; box-shadow: 0 1px 4px rgba(90,74,50,.10); }
+  .add-capsule.on-trough:hover { color: var(--holo-primary); }
+
+  /* ===== 模拟相册 ===== */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(30,26,20,.42); z-index: 50;
+    display: flex; align-items: flex-end; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .22s ease;
+  }
+  .overlay.show { opacity: 1; pointer-events: auto; }
+  .album {
+    background: #fff; width: 100%; max-width: 1320px; border-radius: 20px 20px 0 0;
+    padding: 18px 22px 30px; transform: translateY(30px); transition: transform .26s cubic-bezier(.3,1.2,.4,1);
+  }
+  .overlay.show .album { transform: translateY(0); }
+  .album h3 { font-size: 15px; margin-bottom: 12px; text-align: center; }
+  .album .grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .album .pic { aspect-ratio: 4/3; border-radius: 10px; cursor: pointer; background-size: cover; transition: transform .15s ease; border: none; }
+  .album .pic:hover { transform: scale(1.04); }
+
+  /* ===== 右键菜单 ===== */
+  .ctxmenu {
+    position: fixed; z-index: 60; background: rgba(250,249,246,.98); border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(30,24,14,.22); padding: 6px; display: none; min-width: 132px;
+  }
+  .ctxmenu.show { display: block; }
+  .ctxmenu button {
+    display: block; width: 100%; text-align: left; background: none; border: none;
+    font-size: 13.5px; padding: 9px 12px; border-radius: 8px; cursor: pointer;
+  }
+  .ctxmenu button:hover { background: #F0EBE2; }
+  .ctxmenu button.danger { color: #E5484D; }
+
+  .dispensing { animation: dispense .62s cubic-bezier(.34,1.45,.5,1) both; }
+  @keyframes dispense {
+    0%   { transform: translate(-50%, -170%) rotate(var(--r, 0deg)); opacity: 0; }
+    55%  { opacity: 1; }
+    78%  { transform: translate(-50%, 4%) rotate(var(--r, 0deg)); }
+    100% { transform: translate(-50%, -50%) rotate(var(--r, 0deg)); opacity: 1; }
+  }
+  .stub.idle { transform: translate(-50%, -50%) rotate(var(--r, 0deg)); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>账票根 · 空态改版三方案</h1>
+  <p class="sub">改版背景：现版本空态 = 一条深色出票横条 + 一枚虚线胶囊，黑条孤立在暖白背景上、区域信息量过低。以下三方案删除黑条、重排空态；
+  有票后的堆叠、吐出动画、撕掉交互三案一致保留（方案 A / C 的出票口改为深暖灰细缝而非黑条）。</p>
+  <p class="hint">玩法：点入口/添加按钮 贴一张票根（可连点到 3 张） · <b>鼠标悬停票根点 ✕ 或右键票根</b> = 长按撕掉 · 贴满 3 张入口变禁用提示</p>
+</header>
+
+<div class="boards">
+
+  <!-- 方案 A -->
+  <section class="board">
+    <div class="board-head">
+      <span class="tag rec">方案 A</span>
+      <h2>票根空位卡</h2>
+      <span class="rec-mark">推荐</span>
+    </div>
+    <p class="board-desc">空态 = 一张预留好的「相框空位」：虚线框内幽灵票根剪影 + 添加按钮，一眼看懂这里能贴照片；贴票后幽灵退场，票从卡片顶边细缝吐出。隐喻从「收银机」转为「相册空位」，与 Holo 卡片语言同构。</p>
+    <div class="phone">
+      <div class="navrow"><div class="dot close">✕</div><div class="title">记一笔</div><div class="dot save">✓</div></div>
+      <div class="cat-grid" data-cats></div>
+      <div id="zoneA" style="margin:12px 0;"></div>
+      <div class="info-card">
+        <div class="info-row"><span>💵</span><span class="lab">账户</span><span class="val">现金</span><span class="chev">›</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 方案 B -->
+  <section class="board">
+    <div class="board-head">
+      <span class="tag">方案 B</span>
+      <h2>入口收进信息卡</h2>
+    </div>
+    <p class="board-desc">空态时票根区完全消失，「添加票根」变成账户所在信息卡里的一行；贴了票后，信息卡上方才浮出堆叠区。最克制、页面最干净，但出票仪式感基本放弃。</p>
+    <div class="phone">
+      <div class="navrow"><div class="dot close">✕</div><div class="title">记一笔</div><div class="dot save">✓</div></div>
+      <div class="cat-grid" data-cats></div>
+      <div id="zoneBStack" class="zoneB-stack" style="display:none;"></div>
+      <div class="info-card">
+        <div class="info-row"><span>💵</span><span class="lab">账户</span><span class="val">现金</span><span class="chev">›</span></div>
+        <div class="info-row receipt-row" id="receiptRowB">
+          <span>📷</span><span class="lab">票根</span>
+          <span class="val" id="receiptRowBVal">添加</span><span class="chev">›</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 方案 C -->
+  <section class="board">
+    <div class="board-head">
+      <span class="tag">方案 C</span>
+      <h2>暖色凹槽</h2>
+    </div>
+    <p class="board-desc">布局不动，只换皮：黑条改成比背景深一档的暖色内嵌凹槽（虚线边 + 内阴影），入口按钮移进凹槽中央合成一个完整空位区；贴票后凹槽即堆叠容器，票从槽顶细缝吐出。保留收银机口，改动最小。</p>
+    <div class="phone">
+      <div class="navrow"><div class="dot close">✕</div><div class="title">记一笔</div><div class="dot save">✓</div></div>
+      <div class="cat-grid" data-cats></div>
+      <div id="zoneC" style="margin:12px 0;"></div>
+      <div class="info-card">
+        <div class="info-row"><span>💵</span><span class="lab">账户</span><span class="val">现金</span><span class="chev">›</span></div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<!-- 模拟相册 -->
+<div class="overlay" id="albumOverlay">
+  <div class="album">
+    <h3>选择照片（演示相册）</h3>
+    <div class="grid" id="albumGrid"></div>
+  </div>
+</div>
+
+<!-- 右键菜单 -->
+<div class="ctxmenu" id="ctxmenu">
+  <button class="danger" id="menuTear">✂️ 撕掉票根</button>
+  <button id="menuCancel">取消</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  var GRADS = [
+    "linear-gradient(135deg,#FF9A62,#E5484D)",  // 西瓜
+    "linear-gradient(135deg,#D9A066,#8C5A2B)",  // 奶茶
+    "linear-gradient(135deg,#B06AB3,#4568DC)",  // 蓝紫
+    "linear-gradient(135deg,#56CCF2,#2F80ED)",  // 天蓝
+    "linear-gradient(135deg,#7BC894,#2E7D5B)",  // 抹茶
+    "linear-gradient(135deg,#E5989B,#6D2E46)"   // 红丝绒
+  ];
+  var CATS = [
+    ["🍜","#FDEEE4"],["🚌","#E8F3FD"],["🛍️","#FDF0E6"],["🎮","#F3ECFD"],["🏠","#EAF7EE"],
+    ["🧳","#FDEEE4"],["📚","#E8F3FD"],["🎁","#FDF6E0"],["⋯","#EFECE6"],["＋","#FDEEE4"]
+  ];
+  var MAX = 3;
+
+  // 分类九宫格
+  document.querySelectorAll("[data-cats]").forEach(function (grid) {
+    CATS.forEach(function (c) {
+      var d = document.createElement("div");
+      d.className = "cat";
+      d.innerHTML = '<div class="ico" style="background:' + c[1] + '">' + c[0] + "</div><span>" +
+        (c[0] === "＋" ? "新增" : "") + "</span>";
+      grid.appendChild(d);
+    });
+  });
+
+  // 锯齿底边
+  function serrated(w, h) {
+    var tooth = 7, depth = 4;
+    var n = Math.max(2, Math.round(w / tooth));
+    var tw = w / n;
+    var base = ((h - depth) / h * 100).toFixed(2);
+    var pts = ["0% 0%", "100% 0%", "100% " + base + "%"];
+    for (var i = 0; i < n; i++) {
+      var xMid = 100 - ((i + 0.5) * tw * 100) / w;
+      var xLeft = 100 - ((i + 1) * tw * 100) / w;
+      pts.push(xMid.toFixed(2) + "% 100%", xLeft.toFixed(2) + "% " + base + "%");
+    }
+    return "polygon(" + pts.join(",") + ")";
+  }
+
+  // 布局参数（对齐真机实现）
+  function layoutFor(count, index) {
+    if (count === 1) return { r: -3, dx: 0 };
+    if (count === 2) return index === 0 ? { r: -5, dx: -24 } : { r: 4, dx: 20 };
+    if (index === 0) return { r: -9, dx: -32 };
+    if (index === 1) return { r: 3, dx: 26 };
+    return { r: -4, dx: 0 };
+  }
+
+  var toastEl = document.getElementById("toast"), toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove("show"); }, 1800);
+  }
+
+  // ===== 模拟相册 =====
+  var overlay = document.getElementById("albumOverlay");
+  var albumGrid = document.getElementById("albumGrid");
+  GRADS.forEach(function (g, i) {
+    var b = document.createElement("button");
+    b.className = "pic";
+    b.style.background = g;
+    b.addEventListener("click", function () {
+      overlay.classList.remove("show");
+      if (albumCallback) albumCallback(i);
+    });
+    albumGrid.appendChild(b);
+  });
+  var albumCallback = null;
+  function openAlbum(cb) { albumCallback = cb; overlay.classList.add("show"); }
+  overlay.addEventListener("click", function (e) { if (e.target === overlay) overlay.classList.remove("show"); });
+
+  // ===== 右键菜单 =====
+  var ctxmenu = document.getElementById("ctxmenu");
+  var tearTarget = null;
+  document.addEventListener("click", function () { ctxmenu.classList.remove("show"); });
+  document.getElementById("menuCancel").addEventListener("click", function () { ctxmenu.classList.remove("show"); });
+  document.getElementById("menuTear").addEventListener("click", function () {
+    ctxmenu.classList.remove("show");
+    if (tearTarget) { tearTarget(); tearTarget = null; }
+  });
+
+  function makeStubEl(gradIdx, layout, onTear, animateIn) {
+    var el = document.createElement("div");
+    el.className = "stub" + (animateIn ? " dispensing" : " idle");
+    el.style.setProperty("--r", layout.r + "deg");
+    el.style.marginLeft = layout.dx + "px";
+    el.style.zIndex = String(10 + layout.z);
+    el.innerHTML =
+      '<div class="ph" style="background:' + GRADS[gradIdx] + '"><div class="rip">✕</div></div>' +
+      '<div class="cap">相册 · 21:3' + (gradIdx % 10) + "</div>";
+    el.style.clipPath = serrated(132, 118);
+    if (animateIn) {
+      el.addEventListener("animationend", function () {
+        el.classList.remove("dispensing");
+        el.classList.add("idle");
+      }, { once: true });
+    }
+    el.addEventListener("mouseenter", function () { el.style.transform = "translate(-50%,-50%) rotate(" + layout.r + "deg) scale(1.05)"; });
+    el.addEventListener("mouseleave", function () { el.style.transform = "translate(-50%,-50%) rotate(" + layout.r + "deg)"; });
+    el.querySelector(".rip").addEventListener("click", function (e) { e.stopPropagation(); onTear(); });
+    el.addEventListener("contextmenu", function (e) {
+      e.preventDefault();
+      tearTarget = onTear;
+      ctxmenu.style.left = e.clientX + "px";
+      ctxmenu.style.top = e.clientY + "px";
+      ctxmenu.classList.add("show");
+    });
+    return el;
+  }
+
+  function makeStack(stubs, onTear, zoneId) {
+    var stack = document.createElement("div");
+    stack.className = "stack";
+    stack.dataset.zone = zoneId;
+    // stubs: [{gradIdx}] 旧→新
+    stubs.forEach(function (s, i) {
+      var l = layoutFor(stubs.length, i);
+      l.z = i;
+      var el = makeStubEl(s.gradIdx, l, function () { onTear(i); }, s.fresh);
+      el.dataset.idx = String(i);
+      s.fresh = false;
+      stack.appendChild(el);
+    });
+    return stack;
+  }
+
+  function footerLink(count, onAdd) {
+    var wrap = document.createElement("div");
+    wrap.className = "footer-link";
+    var btn = document.createElement("button");
+    if (count >= MAX) {
+      btn.textContent = "已贴 3 张 · 悬停票根点 ✕ 撕掉";
+      btn.className = "full";
+    } else {
+      btn.textContent = "再贴一张";
+      btn.addEventListener("click", onAdd);
+    }
+    wrap.appendChild(btn);
+    return wrap;
+  }
+
+  // ===== 方案 A =====
+  var stateA = [];
+  function renderA() {
+    var zone = document.getElementById("zoneA");
+    zone.innerHTML = "";
+    if (stateA.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "zoneA-empty";
+      empty.innerHTML =
+        '<div class="ghost-frame">' +
+        '  <div class="ghost-stub"></div>' +
+        '  <button class="add-capsule"><span class="plus">⊕</span>添加票根</button>' +
+        "</div>";
+      empty.querySelector(".add-capsule").addEventListener("click", function () {
+        openAlbum(function (i) { stateA.push({ gradIdx: i, fresh: true }); renderA(); });
+      });
+      zone.appendChild(empty);
+    } else {
+      var card = document.createElement("div");
+      card.className = "zoneA";
+      card.appendChild(Object.assign(document.createElement("div"), { className: "notch" }));
+      card.appendChild(makeStack(stateA, function (idx) { tearFrom("A", stateA, idx, renderA); }, "A"));
+      if (stateA.length < MAX) card.appendChild(footerLink(stateA.length, function () {
+        openAlbum(function (i) { stateA.push({ gradIdx: i, fresh: true }); renderA(); });
+      }));
+      zone.appendChild(card);
+    }
+  }
+
+  // ===== 方案 B =====
+  var stateB = [];
+  function renderB() {
+    var stackZone = document.getElementById("zoneBStack");
+    var rowVal = document.getElementById("receiptRowBVal");
+    stackZone.innerHTML = "";
+    if (stateB.length === 0) {
+      stackZone.style.display = "none";
+      rowVal.textContent = "添加";
+      rowVal.className = "val";
+    } else {
+      stackZone.style.display = "block";
+      stackZone.appendChild(makeStack(stateB, function (idx) { tearFrom("B", stateB, idx, renderB); }, "B"));
+      rowVal.textContent = stateB.length >= MAX ? "已贴满 3 张" : stateB.length + " 张 · 再贴";
+      rowVal.className = "val" + (stateB.length >= MAX ? " full" : "");
+    }
+  }
+  document.getElementById("receiptRowB").addEventListener("click", function () {
+    if (stateB.length >= MAX) { toast("已贴满 3 张，悬停票根点 ✕ 撕掉"); return; }
+    openAlbum(function (i) { stateB.push({ gradIdx: i, fresh: true }); renderB(); });
+  });
+
+  // ===== 方案 C =====
+  var stateC = [];
+  function renderC() {
+    var zone = document.getElementById("zoneC");
+    zone.innerHTML = "";
+    zone.className = "zoneC";
+    if (stateC.length === 0) {
+      zone.style.padding = "22px 14px";
+      var btn = document.createElement("button");
+      btn.className = "add-capsule on-trough";
+      btn.innerHTML = '<span class="plus">⊕</span>添加票根';
+      btn.addEventListener("click", function () {
+        openAlbum(function (i) { stateC.push({ gradIdx: i, fresh: true }); renderC(); });
+      });
+      zone.appendChild(btn);
+    } else {
+      zone.style.padding = "12px 14px 10px";
+      zone.appendChild(Object.assign(document.createElement("div"), { className: "notch" }));
+      zone.appendChild(makeStack(stateC, function (idx) { tearFrom("C", stateC, idx, renderC); }, "C"));
+      if (stateC.length < MAX) zone.appendChild(footerLink(stateC.length, function () {
+        openAlbum(function (i) { stateC.push({ gradIdx: i, fresh: true }); renderC(); });
+      }));
+    }
+  }
+
+  function tearFrom(zoneId, state, idx, rerender) {
+    var stack = document.querySelector('.stack[data-zone="' + zoneId + '"]');
+    var stub = stack && stack.querySelector('.stub[data-idx="' + idx + '"]');
+    if (stub) stub.classList.add("tearing");
+    setTimeout(function () {
+      state.splice(idx, 1);
+      rerender();
+      toast("已撕掉票根");
+    }, 420);
+  }
+
+  renderA(); renderB(); renderC();
+})();
+</script>
+</body>
+</html>

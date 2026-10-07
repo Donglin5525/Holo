@@ -55,18 +55,18 @@ struct AddProjectSheet: View {
                 }
                 .padding(HoloSpacing.lg)
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle(isEditMode ? "编辑项目" : "新建项目")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") { dismiss() }
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("保存") { save() }
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(canSave ? .holoPrimary : .holoTextSecondary)
+                        .foregroundColor(canSave ? .holoPrimary : .holoToolTextSecondary)
                         .disabled(!canSave)
                         .accessibilityIdentifier("projectSheet.save")
                 }
@@ -88,7 +88,7 @@ struct AddProjectSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("项目名称")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             HStack(spacing: HoloSpacing.md) {
                 Button {
@@ -97,11 +97,11 @@ struct AddProjectSheet: View {
                     Text(icon)
                         .font(.system(size: 26))
                         .frame(width: 52, height: 52)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                         .overlay(
                             RoundedRectangle(cornerRadius: HoloRadius.md)
-                                .stroke(Color.holoBorder, lineWidth: 1)
+                                .stroke(Color.holoToolBorder, lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)
@@ -111,7 +111,7 @@ struct AddProjectSheet: View {
                     .accessibilityIdentifier("projectSheet.nameField")
                     .font(.holoBody)
                     .padding(HoloSpacing.md)
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             }
         }
@@ -123,7 +123,7 @@ struct AddProjectSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("颜色")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: HoloSpacing.sm), count: 6), spacing: HoloSpacing.sm) {
                 ForEach(colorPresets, id: \.self) { hex in
@@ -154,7 +154,7 @@ struct AddProjectSheet: View {
             Toggle(isOn: $hasDateRange) {
                 Text("时间范围（可选）")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .tint(.holoPrimary)
 
@@ -163,7 +163,7 @@ struct AddProjectSheet: View {
                     HStack {
                         Text("开始")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                         Spacer()
                         DatePicker("", selection: $startDate, displayedComponents: .date)
                             .labelsHidden()
@@ -175,7 +175,7 @@ struct AddProjectSheet: View {
                     HStack {
                         Text("结束")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                         Spacer()
                         DatePicker("", selection: $endDate, in: startDate..., displayedComponents: .date)
                             .labelsHidden()
@@ -183,7 +183,7 @@ struct AddProjectSheet: View {
                     .padding(.vertical, HoloSpacing.sm)
                 }
                 .padding(.horizontal, HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
                 Text("时间范围只用于展示，不影响记账——旅行结束后仍可补挂行前买的机票")
@@ -199,12 +199,12 @@ struct AddProjectSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("预算（选填）")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             HStack(spacing: HoloSpacing.sm) {
                 Text("¥")
                     .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 TextField("0.00", text: $budgetText)
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
@@ -212,7 +212,7 @@ struct AddProjectSheet: View {
                     .accessibilityIdentifier("projectSheet.budgetField")
             }
             .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
             Text("填了预算就能在项目里看花超没有；不填就纯记录")
@@ -227,12 +227,12 @@ struct AddProjectSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("备注")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             TextField("可选", text: $note)
                 .font(.holoBody)
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
     }

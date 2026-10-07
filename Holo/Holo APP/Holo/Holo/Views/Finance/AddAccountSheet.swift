@@ -85,18 +85,18 @@ struct AddAccountSheet: View {
                 }
                 .padding(HoloSpacing.lg)
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle(isEditMode ? "编辑账户" : "新建账户")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") { dismiss() }
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("保存") { save() }
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(canSave ? .holoPrimary : .holoTextSecondary)
+                        .foregroundColor(canSave ? .holoPrimary : .holoToolTextSecondary)
                         .disabled(!canSave)
                 }
             }
@@ -144,12 +144,12 @@ struct AddAccountSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("账户名称")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             TextField("例如：招商银行储蓄卡", text: $name)
                 .font(.holoBody)
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
     }
@@ -160,7 +160,7 @@ struct AddAccountSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("账户类型")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: HoloSpacing.sm) {
@@ -189,11 +189,11 @@ struct AddAccountSheet: View {
                         .frame(width: 44, height: 44)
                     Image(systemName: type.icon)
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(isSelected ? tintColor : .holoTextSecondary)
+                        .foregroundColor(isSelected ? tintColor : .holoToolTextSecondary)
                 }
                 Text(type.displayName)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
+                    .foregroundColor(isSelected ? .holoToolText : .holoToolTextSecondary)
             }
             .padding(HoloSpacing.sm)
             .background(
@@ -202,7 +202,7 @@ struct AddAccountSheet: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .stroke(isSelected ? tintColor.opacity(0.3) : Color.holoBorder, lineWidth: 1)
+                    .stroke(isSelected ? tintColor.opacity(0.3) : Color.holoToolBorder, lineWidth: 1)
             )
         }
         .buttonStyle(PlainButtonStyle())
@@ -214,7 +214,7 @@ struct AddAccountSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("颜色")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: HoloSpacing.sm), count: 6), spacing: HoloSpacing.sm) {
                 ForEach(colorPresets, id: \.self) { hex in
@@ -253,19 +253,19 @@ struct AddAccountSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text(isEditMode ? "期初余额" : "初始余额")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             HStack(spacing: HoloSpacing.sm) {
                 Text("¥")
                     .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 TextField("0.00", text: $initialBalance)
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .keyboardType(.decimalPad)
             }
             .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
             if isEditMode {
@@ -274,7 +274,7 @@ struct AddAccountSheet: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("当前余额 \(AccountCardFormat.prefixed(currentBalance))，保存后将变为 \(AccountCardFormat.prefixed(currentBalance - originalInitialBalance + newInitialBalance))")
                             .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                         if hasReconciliationAnchor {
                             Text("此账户已对过账：修改期初会使对账基准失效，建议保存后再对一次账")
                                 .font(.system(size: 12))
@@ -284,12 +284,12 @@ struct AddAccountSheet: View {
                 } else {
                     Text("期初余额是「账从某时刻开始记」时的余额；日常对账请在账户的「对账」中进行")
                         .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             } else {
                 Text("创建后可在「对账」中修改")
                     .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
         }
     }
@@ -300,12 +300,12 @@ struct AddAccountSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("备注")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             TextField("可选", text: $notes)
                 .font(.holoBody)
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
     }
@@ -316,14 +316,14 @@ struct AddAccountSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("账单信息")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             VStack(spacing: 0) {
                 // 账单日
                 HStack {
                     Text("账单日")
                         .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     Spacer()
                     dayStepperControl(value: $billingDay)
                 }
@@ -335,7 +335,7 @@ struct AddAccountSheet: View {
                 HStack {
                     Text("还款日")
                         .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     Spacer()
                     dayStepperControl(value: $dueDay)
                 }
@@ -347,11 +347,11 @@ struct AddAccountSheet: View {
                 HStack {
                     Text("额度（选填）")
                         .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     Spacer()
                     Text("¥")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     TextField("如 30000", text: $creditLimit)
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
                         .keyboardType(.decimalPad)
@@ -382,7 +382,7 @@ struct AddAccountSheet: View {
                 } label: {
                     Image(systemName: "lock.fill")
                         .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary.opacity(0.6))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.6))
                 }
                 .buttonStyle(.plain)
                 .frame(width: 92, height: 36)
@@ -390,7 +390,7 @@ struct AddAccountSheet: View {
 
             Text("每月 \(value.wrappedValue) 号")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .monospacedDigit()
                 .frame(width: 84, alignment: .trailing)
         }
@@ -417,37 +417,44 @@ struct AddAccountSheet: View {
 
         let limitDecimal: Decimal? = creditLimit.isEmpty ? nil : Decimal(string: creditLimit)
 
-        switch mode {
-        case .create:
-            let balance = Decimal(string: initialBalance) ?? 0
-            let account = FinanceRepository.shared.addAccount(
-                name: trimmedName,
-                type: selectedType,
-                color: selectedColor,
-                initialBalance: balance,
-                notes: notes.isEmpty ? nil : notes,
-                billingDay: selectedType.isCreditCard ? billingDay : nil,
-                dueDay: selectedType.isCreditCard ? dueDay : nil,
-                creditLimit: selectedType.isCreditCard ? limitDecimal : nil
-            )
-            onComplete(account)
-            dismiss()
+        // D01（2026-10-04 体检）：持久化成功才算保存成功——失败保留输入、
+        // 弹错不关页，不让用户以为存好了重启却找不到
+        do {
+            switch mode {
+            case .create:
+                let balance = Decimal(string: initialBalance) ?? 0
+                let account = try FinanceRepository.shared.addAccount(
+                    name: trimmedName,
+                    type: selectedType,
+                    color: selectedColor,
+                    initialBalance: balance,
+                    notes: notes.isEmpty ? nil : notes,
+                    billingDay: selectedType.isCreditCard ? billingDay : nil,
+                    dueDay: selectedType.isCreditCard ? dueDay : nil,
+                    creditLimit: selectedType.isCreditCard ? limitDecimal : nil
+                )
+                onComplete(account)
+                dismiss()
 
-        case .edit(let account):
-            FinanceRepository.shared.updateAccount(
-                account,
-                name: trimmedName,
-                color: selectedColor,
-                notes: notes.isEmpty ? nil : notes,
-                billingDay: selectedType.isCreditCard ? billingDay : nil,
-                dueDay: selectedType.isCreditCard ? dueDay : nil,
-                creditLimit: selectedType.isCreditCard ? limitDecimal : nil,
-                initialBalance: initialBalanceChanged
-                    ? .some(.some(newInitialBalance))
-                    : nil
-            )
-            onComplete(account)
-            dismiss()
+            case .edit(let account):
+                try FinanceRepository.shared.updateAccount(
+                    account,
+                    name: trimmedName,
+                    color: selectedColor,
+                    notes: notes.isEmpty ? nil : notes,
+                    billingDay: selectedType.isCreditCard ? billingDay : nil,
+                    dueDay: selectedType.isCreditCard ? dueDay : nil,
+                    creditLimit: selectedType.isCreditCard ? limitDecimal : nil,
+                    initialBalance: initialBalanceChanged
+                        ? .some(.some(newInitialBalance))
+                        : nil
+                )
+                onComplete(account)
+                dismiss()
+            }
+        } catch {
+            errorMessage = String(localized: "保存失败：\(error.localizedDescription)")
+            showError = true
         }
     }
 }

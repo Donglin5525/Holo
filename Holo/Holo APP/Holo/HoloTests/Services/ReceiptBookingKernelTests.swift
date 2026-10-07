@@ -12,6 +12,7 @@
 import XCTest
 import CoreData
 import UserNotifications
+import UIKit
 @testable import Holo
 
 @MainActor
@@ -62,7 +63,6 @@ final class ReceiptBookingKernelTests: XCTestCase {
         fixedAccountUnavailable: Bool = false,
         projectChoiceUnavailable: Bool = false,
         projectAmbiguous: Bool = false,
-        incomeWithAttachedProject: Bool = false,
         transactionDateOutsideProjectRange: Bool = false,
         hasHighCertaintyDuplicate: Bool = false,
         hasAmbiguousDuplicate: Bool = false,
@@ -79,7 +79,6 @@ final class ReceiptBookingKernelTests: XCTestCase {
             fixedAccountUnavailable: fixedAccountUnavailable,
             projectChoiceUnavailable: projectChoiceUnavailable,
             projectAmbiguous: projectAmbiguous,
-            incomeWithAttachedProject: incomeWithAttachedProject,
             transactionDateOutsideProjectRange: transactionDateOutsideProjectRange,
             hasHighCertaintyDuplicate: hasHighCertaintyDuplicate,
             hasAmbiguousDuplicate: hasAmbiguousDuplicate,
@@ -183,14 +182,14 @@ final class ReceiptBookingKernelTests: XCTestCase {
         XCTAssertTrue(reasons.contains(.reviewAccountChoiceUnavailable))
     }
 
-    func testIncomeWithAttachedProjectRequiresReview() {
+    func testIncomeWithAttachedProjectCanAutoCommit() {
+        // 2026-10-04 项目收支同权：收入挂项目不再触发复核，高置信直接自动写
         let tx = ReceiptBookingPolicyTransaction(amount: 39.9, typeIsIncome: true, confidenceAmount: 0.99, confidenceDirection: 0.99, confidencePaymentStatus: 0.99)
         let decision = ReceiptBookingPolicy.evaluate(
-            input: makeInput(paymentStatus: "refunded", transactions: [tx], incomeWithAttachedProject: true),
+            input: makeInput(paymentStatus: "refunded", transactions: [tx]),
             mode: .autoWhenSafe
         )
-        guard case .needsReview(let reasons) = decision else { return XCTFail("收入挂项目必须复核") }
-        XCTAssertTrue(reasons.contains(.reviewProjectNotSupportedForIncome))
+        XCTAssertEqual(decision, .autoCommit)
     }
 
     func testRefundWithEvidenceCanAutoCommit() {
@@ -279,7 +278,7 @@ final class ReceiptBookingKernelTests: XCTestCase {
 
     /// 组一个可入账的最小草案；账户为栈内即建对象，分类用 setUp 种好的一对
     private func makeDraft(sourceKey: String) throws -> ResolvedTransactionDraft {
-        let account = repo.addAccount(name: "测试原子写\(UUID().uuidString.prefix(6))", type: .cash)
+        let account = try repo.addAccount(name: "测试原子写\(UUID().uuidString.prefix(6))", type: .cash)
         createdAccount = account
         return ResolvedTransactionDraft(
             itemKey: ReceiptBookingIdempotency.itemKey(index: 0),
@@ -375,6 +374,27 @@ final class ReceiptBookingKernelTests: XCTestCase {
             merchant: nil, paymentStatusOriginalText: nil,
             sourceKey: "k", createdAt: Date())))
         XCTAssertTrue(review.contains("未入账"), "复核文案不得说「成功」")
+    }
+
+    func testRecognizedTimeTextFormatting() {
+        // 识别时间必显（2026-09-23）：今天/昨天相对表述，更早给绝对日期，旧草案一眼可辨
+        let calendar = Calendar.current
+        let now = Date()
+        let morning = calendar.date(bySettingHour: 9, minute: 27, second: 0, of: now)!
+
+        XCTAssertTrue(
+            ReceiptRecognizedTimeText.text(for: morning, now: now).contains("今天"),
+            "当天的草案用「今天 HH:mm」"
+        )
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: morning)!
+        XCTAssertTrue(
+            ReceiptRecognizedTimeText.text(for: yesterday, now: now).contains("昨天"),
+            "昨天的草案用「昨天 HH:mm」"
+        )
+        let lastMonth = calendar.date(byAdding: .month, value: -1, to: now)!
+        let older = ReceiptRecognizedTimeText.text(for: lastMonth, now: now)
+        XCTAssertFalse(older.contains("今天"), "更早的草案给绝对日期")
+        XCTAssertFalse(older.isEmpty)
     }
 
     func testMultipleTransactionSnapshotTextMentionsCount() {
@@ -580,10 +600,20 @@ final class ReceiptBookingKernelTests: XCTestCase {
         XCTAssertNil(request?.trigger, "已记账通知不得押后")
     }
 
-    func testRejectedOutcomeSkipsNotification() {
-        XCTAssertNil(
-            ReceiptBookingNotificationService.makeRequest(for: .rejected(.rejectTransfer), deferredReviewReminder: false),
-            "拒识不打扰通知栏"
+    func testRejectedOutcomeNotifiesWithReason() {
+        // 2026-09-23 拒识反馈必达（东林拍板）：后台/自动化运行时快捷指令的结果文字
+        // 用户看不到，拒识静默会让用户以为记上了或以为功能坏了——拒绝类一律通知
+        // 说清原因；仅用户主动取消保持静默。
+        let request = ReceiptBookingNotificationService.makeRequest(
+            for: .rejected(.rejectTransfer), deferredReviewReminder: false
+        )
+        XCTAssertNotNil(request, "拒识必须发通知，不允许静默")
+        XCTAssertEqual(request?.content.title, String(localized: "这笔没有入账"))
+        XCTAssertEqual(request?.content.body, ReceiptBookingReason.rejectTransfer.rejectionUserText)
+        XCTAssertEqual(
+            request?.content.body,
+            RecognizeAndBookReceiptIntent.text(for: .rejected(.rejectTransfer)),
+            "通知与快捷指令结果文字必须同一份口径"
         )
         XCTAssertNil(
             ReceiptBookingNotificationService.makeRequest(
@@ -594,6 +624,14 @@ final class ReceiptBookingKernelTests: XCTestCase {
         )
     }
 
+    func testRejectionUserTextCoversAllRejectReasons() {
+        for reason in ReceiptBookingReason.allCases where reason.isReject {
+            let text = reason.rejectionUserText
+            XCTAssertFalse(text.isEmpty, "\(reason.rawValue) 必须有用户文案")
+            XCTAssertFalse(text.contains("reject."), "用户文案不得泄漏机器码")
+        }
+    }
+
     func testReviewReminderIdentifierMatchesCancelKey() {
         let draftID = UUID()
         XCTAssertEqual(
@@ -602,5 +640,43 @@ final class ReceiptBookingKernelTests: XCTestCase {
         )
         // 撤回入口可直接调用不崩（removePending/removeDelivered 为空列表时无副作用）
         ReceiptBookingNotificationService.cancelReviewReminders(for: draftID)
+    }
+
+    // MARK: - ImageDownsampler（识图确认页原图降采样，防全尺寸解码内存尖峰）
+
+    func testDownsamplerCapsLargeImagePixelSize() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("downsampler-test-\(UUID().uuidString).jpg")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        try writeJPEG(size: CGSize(width: 5000, height: 4000), color: .systemRed, to: url)
+
+        let image = await ImageDownsampler.image(at: url)
+        let pixels = [image?.size.width, image?.size.height].compactMap { $0 }
+        XCTAssertEqual(pixels.count, 2)
+        XCTAssertEqual(pixels.max() ?? 0, 2048, accuracy: 2)
+    }
+
+    func testDownsamplerNeverUpsamplesSmallImage() async throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("downsampler-small-\(UUID().uuidString).jpg")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        try writeJPEG(size: CGSize(width: 800, height: 600), color: .systemBlue, to: url)
+
+        let image = await ImageDownsampler.image(at: url)
+        XCTAssertEqual(image?.size.width ?? 0, 800, accuracy: 2)
+        XCTAssertEqual(image?.size.height ?? 0, 600, accuracy: 2)
+    }
+
+    private func writeJPEG(size: CGSize, color: UIColor, to url: URL) throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: size, format: format)
+        let data = renderer.image { ctx in
+            color.setFill()
+            ctx.fill(CGRect(origin: .zero, size: size))
+        }.jpegData(compressionQuality: 0.9)
+        try XCTUnwrap(data).write(to: url, options: .atomic)
     }
 }

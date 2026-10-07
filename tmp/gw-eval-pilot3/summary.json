@@ -1,0 +1,18 @@
+{
+  "ranAt": "2026-09-18T03:31:03.790Z",
+  "baseUrl": "https://api.holoapp.cn",
+  "total": 3,
+  "contractOK": 0,
+  "gate_P0_minParseable": "0/3（门槛 ≥36/40 可解析且可供确认）",
+  "structuralRedLines": {
+    "modelClaimedUserFact": 0,
+    "modelClaimedSaved": 0
+  },
+  "needsHumanReview": [
+    "问题是否抓关键缺口",
+    "路径是否有实质取舍",
+    "成功标准是否可观察",
+    "第一步是否可做",
+    "路径建议合理性 ≥32/40"
+  ]
+}

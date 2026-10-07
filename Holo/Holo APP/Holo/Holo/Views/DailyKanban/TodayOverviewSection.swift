@@ -33,6 +33,8 @@ struct TodayOverviewSection: View {
                         Text(spentText)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(overview.budgetAtRisk ? Color.holoError : Color.primary)
+                            .contentTransition(.numericText())
+                            .animation(HoloAnimation.smooth, value: overview.spentToday)
                     }
                     .frame(maxWidth: .infinity)
                     .contentShape(Rectangle())
@@ -49,17 +51,18 @@ struct TodayOverviewSection: View {
 
                 divider
 
-                // 今日记录快速入口（默认折叠为一行入口）
+                // 「对 Holo 说」快速记录（原「记录今天」误指想法编辑器；激活方案 §3.2 改指向 AI + 预填）
                 Button {
                     onAddRecord?()
                 } label: {
-                    Label(String(localized: "记录今天"), systemImage: "plus.circle")
+                    Label(String(localized: "对 Holo 说"), systemImage: "sparkles")
                         .font(.subheadline)
                         .foregroundStyle(Color.holoPrimary)
                         .frame(maxWidth: .infinity)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("todayQuickRecordButton")
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
@@ -81,7 +84,12 @@ struct TodayOverviewSection: View {
         if overview.budgetAtRisk {
             return String(localized: "预算超支")
         }
-        return String(localized: "预算正常")
+        // 没设预算/读取不可用时不给「正常」的安心感（2026-10-04 体检 U04）
+        switch overview.budgetConfigured {
+        case .some(false): return String(localized: "尚未设置预算")
+        case .some(true): return String(localized: "预算正常")
+        case nil: return "--"
+        }
     }
 
     private var divider: some View {

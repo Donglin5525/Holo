@@ -17,6 +17,7 @@
 
 import AppIntents
 import Foundation
+import UIKit
 import UniformTypeIdentifiers
 
 /// 处理方式参数（AppEnum 一致性挂在这里；领域定义在 ReceiptBookingModels）
@@ -123,11 +124,18 @@ struct RecognizeAndBookReceiptIntent: AppIntent {
         let outcome = await ReceiptBookingCoordinator.shared.book(request)
 
         if case .needsReview(let snapshot) = outcome {
+            // 前台直弹（2026-09-22 确认页必达）：本 Intent 跑在主 App 进程，App 恰在
+            // 前台（截完图直接回到 Holo 等）时当场弹出复核页。后台拉起通道
+            // （opensIntent）受系统自动化运行策略限制不可依赖，确认页到达需多通道兜底。
+            let appInForeground = UIApplication.shared.applicationState == .active
+            if appInForeground {
+                ReceiptBookingForegroundPresenter.present(draftID: snapshot.draftID)
+            }
             // 「始终先确认」会打开 Holo 复核页：提醒押后 5 分钟，当场确认即撤回（2026-09-16）；
-            // 其余模式不打开 App，通知是唯一反馈渠道，仍立即投递。
+            // 前台直弹同理押后。其余模式不打开 App，通知是唯一反馈渠道，仍立即投递。
             await ReceiptBookingNotificationService.shared.notifyIfNeeded(
                 for: outcome,
-                deferredReviewReminder: mode == .alwaysReview
+                deferredReviewReminder: mode == .alwaysReview || appInForeground
             )
             if mode == .alwaysReview {
                 return .result(
@@ -218,24 +226,8 @@ struct RecognizeAndBookReceiptIntent: AppIntent {
     }
 
     private static func rejectText(for reason: ReceiptBookingReason) -> String {
-        switch reason {
-        case .rejectTransfer:
-            return String(localized: "这是转账/还款，属于资金流转，不计入收支。")
-        case .rejectWealth:
-            return String(localized: "这是理财/余额页面，没有需要记的账。")
-        case .rejectPending:
-            return String(localized: "订单还没支付。支付完成后再试一次。")
-        case .rejectFailedPayment:
-            return String(localized: "支付没有完成或已取消，不记账。")
-        case .rejectForeignCurrency:
-            return String(localized: "这是外币消费，目前只支持人民币记账。")
-        case .rejectUnrelated:
-            return String(localized: "这张图里没有能记账的内容。")
-        case .rejectInvalidImage:
-            return String(localized: "没认出可靠的金额，没有入账。截图仍在照片里，可以拍清楚些再试。")
-        default:
-            return String(localized: "这张图不适合记账，未入账。")
-        }
+        // 文案本体在 ReceiptBookingReason.rejectionUserText（2026-09-23 与结果通知共用）
+        reason.rejectionUserText
     }
 
     private static func failureText(for failure: ReceiptBookingFailure) -> String {

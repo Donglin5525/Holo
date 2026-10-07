@@ -83,6 +83,12 @@ enum HoloContextChatPlanner {
                     learningBaselineAt: control.learningBaselineAt,
                     controls: controls
                 )
+            },
+            sourceRevisionsProvider: { sourceKeys in
+                // R6：真实修订目录（四域分派回查；软删/缺失 → deleted 哨兵触发 stale）。
+                await MainActor.run {
+                    HoloLifeSourceObservation.currentRevisionDigests(sourceKeys: sourceKeys)
+                }
             }
         )
     }
@@ -264,7 +270,7 @@ enum HoloContextChatPlanner {
             aiDataProcessingConsentGranted: HoloAIDataProcessingConsent.shared.isGranted
         )
         guard controls.allowsPlanningInjection else {
-            logger.error("PLAN-DIAG cloud gate closed")
+            logger.error("PLAN-DIAG cloud gate closed inputs killInjection=\(controls.planningInjectionKillEnabled) internal=\(controls.isInternalAccount) assisted=\(controls.memoryAssistedAnsweringEnabled) consent=\(controls.aiDataProcessingConsentGranted)")
             HoloPersonalContextDiagnostics.recordPlanningGateClosed()
             throw PlannerError.gateClosed
         }

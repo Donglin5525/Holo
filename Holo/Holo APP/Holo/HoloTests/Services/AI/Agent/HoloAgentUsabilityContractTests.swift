@@ -7,8 +7,18 @@
 
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
-private struct HoloAgentUsabilityContractTests {
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        HoloAgentUsabilityContractTests.main()
+    }
+}
+#endif
+struct HoloAgentUsabilityContractTests {
 
     private struct Case {
         var question: String

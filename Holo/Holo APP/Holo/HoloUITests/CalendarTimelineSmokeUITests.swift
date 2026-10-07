@@ -869,3 +869,335 @@ final class HoloIPadOvernightUITests: XCTestCase {
         }
     }
 }
+
+// MARK: - 临时 QA（验证完删除）：轴档任务块整体拖动 + 独占撑满宽度
+final class AxisDragMoveQATests: XCTestCase {
+
+    var app: XCUIApplication!
+    static let dir = "/tmp/holo_axis_qa"
+
+    override func setUpWithError() throws {
+        continueAfterFailure = true
+        app = XCUIApplication()
+        app.launch()
+        try? FileManager.default.createDirectory(atPath: Self.dir, withIntermediateDirectories: true)
+    }
+
+    @discardableResult
+    func shoot(_ name: String, settle: UInt32 = 1) -> Bool {
+        if settle > 0 { sleep(settle) }
+        let png = XCUIScreen.main.screenshot().pngRepresentation
+        let ok = (try? png.write(to: URL(fileURLWithPath: "\(Self.dir)/\(name).png"))) != nil
+        print("[SHOT] \(name).png ok=\(ok)")
+        return ok
+    }
+
+    func coord(_ x: CGFloat, _ y: CGFloat) -> XCUICoordinate {
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0))
+            .withOffset(CGVector(dx: x, dy: y))
+    }
+
+    /// 关闭新人引导 / 首页导览浮层（AX 查询优先，坐标兜底）
+    func skipAllGuides() {
+        for _ in 0..<6 {
+            let btn = app.buttons["跳过"].firstMatch
+            if btn.exists && btn.isHittable { btn.tap(); sleep(1); continue }
+            let txt = app.staticTexts["跳过"].firstMatch
+            if txt.exists && txt.isHittable {
+                txt.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+                sleep(1); continue
+            }
+            break
+        }
+        for _ in 0..<3 {
+            guard app.staticTexts["生活的五个入口"].firstMatch.exists else { break }
+            coord(app.frame.width * 0.876, app.frame.height * 0.07).tap()
+            sleep(1)
+        }
+    }
+
+    /// 长廊欢迎横幅的 × 在标题右侧；存在则关掉
+    func dismissGalleryBannerIfNeeded() {
+        let title = app.staticTexts["欢迎来到记忆长廊"].firstMatch
+        guard title.exists else { return }
+        coord(app.frame.width * 0.876, title.frame.midY + 13).tap()
+        sleep(1)
+    }
+
+    /// 首页 → 长廊 → 轴档 → 指定日期（明天）
+    func openAxis(onDay day: Int) {
+        sleep(2)
+        skipAllGuides()
+        var entry: XCUIElement = app.buttons["记忆长廊"].firstMatch
+        if !entry.exists { entry = app.staticTexts["记忆长廊"].firstMatch }
+        XCTAssertTrue(entry.waitForExistence(timeout: 8), "找不到底部「记忆长廊」入口")
+        entry.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        sleep(3)
+        dismissGalleryBannerIfNeeded()
+
+        // 切「轴」档：iOS 26 AX 热区缩水常见 not hittable，按元素 frame 中心落点，
+        // 查不到再按月档布局的坐标兜底（轴 ≈ 0.668 归一化 x）
+        var axisTapped = false
+        let axisPred = NSPredicate(format: "label == %@", "轴")
+        let axisEls = (app.buttons.matching(axisPred).allElementsBoundByIndex
+            + app.staticTexts.matching(axisPred).allElementsBoundByIndex)
+            .filter { $0.frame.minY < 200 && $0.frame.width < 120 }
+        if let el = axisEls.first {
+            el.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            axisTapped = true
+        } else {
+            coord(app.frame.width * 0.668, app.frame.height * 0.1555).tap()
+            axisTapped = true
+        }
+        XCTAssertTrue(axisTapped)
+        // 轴档有小时刻度（月/周/日档没有带前导零的两位刻度），以「07」在场为到位凭证
+        let hour07 = app.staticTexts["07"].firstMatch
+        if !hour07.waitForExistence(timeout: 5) {
+            print("[NAV] 切轴后未见 07 刻度，按坐标再补一刀")
+            coord(app.frame.width * 0.668, app.frame.height * 0.1555).tap()
+            _ = hour07.waitForExistence(timeout: 5)
+        }
+        sleep(2)
+        shoot("N1_axis_today")
+
+        // 导航行日历图标 → 前往一天（弹层标题「前往一天」为出现凭证，没出就重试）
+        let sheetTitle = app.staticTexts["前往一天"].firstMatch
+        var opened = sheetTitle.waitForExistence(timeout: 3)
+        var tryIdx = 0
+        while !opened && tryIdx < 3 {
+            coord(app.frame.width * 0.923, app.frame.height * 0.1556).tap()
+            opened = sheetTitle.waitForExistence(timeout: 3)
+            tryIdx += 1
+        }
+        sleep(1)
+        shoot("N2_date_sheet")
+
+        var dayEl: XCUIElement?
+        for q in [app.staticTexts, app.buttons] {
+            let hits = q.matching(NSPredicate(format: "label == %@", "\(day)")).allElementsBoundByIndex.filter {
+                $0.isHittable && $0.frame.minY > 480 && $0.frame.minY < 900
+            }
+            if let el = hits.first { dayEl = el; break }
+        }
+        if let el = dayEl {
+            el.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            sleep(1)
+        } else {
+            print("[NAV] 日格 \(day) 未找到")
+            shoot("N2b_day_missing")
+        }
+        shoot("N3_day_selected")
+
+        let go = app.buttons["前往"].firstMatch
+        if go.exists && go.isHittable {
+            go.tap()
+        } else {
+            coord(app.frame.width * 0.862, 453).tap()
+        }
+        sleep(2)
+        shoot("N4_axis_tomorrow")
+    }
+
+    /// 小时行顶部（=整点线）的屏幕 y：标签视觉中心比行顶低 23pt（行内居中再上偏 5）
+    func hourRowTop(_ hour: Int) -> CGFloat {
+        let label = app.staticTexts[String(format: "%02d", hour)].firstMatch
+        XCTAssertTrue(label.waitForExistence(timeout: 6), "找不到小时刻度 \(hour)")
+        let midY = label.frame.midY
+        print("[CAL] label \(hour) midY=\(midY) frame=\(label.frame)")
+        return midY - 23
+    }
+
+    func blockText(_ range: String) -> XCUIElement {
+        app.staticTexts[range].firstMatch
+    }
+
+    /// 轴上所有带时间段文字的元素（含屏外，AX 树可见）
+    func dumpTimeBlocks(_ tag: String) -> [String] {
+        let pred = NSPredicate(format: "label MATCHES %@", "\\d{1,2}:\\d{2}-\\d{1,2}:\\d{2}")
+        let els = app.staticTexts.matching(pred).allElementsBoundByIndex
+        let lines = els.map { "[BLOCKS:\(tag)] \($0.label) frame=\($0.frame)" }
+        for l in lines { print(l) }
+        return els.map { $0.label }
+    }
+
+    func snap15(_ m: Int) -> Int {
+        let v = Int((Double(m) / 15.0).rounded()) * 15
+        return (v % 1440 + 1440) % 1440
+    }
+    func fmt(_ m: Int) -> String { String(format: "%02d:%02d", m / 60, m % 60) }
+    func parseRange(_ s: String) -> (Int, Int)? {
+        let parts = s.split(separator: "-")
+        guard parts.count == 2 else { return nil }
+        func mins(_ t: String.SubSequence) -> Int? {
+            let hm = t.split(separator: ":")
+            guard hm.count == 2, let h = Int(hm[0]), let m = Int(hm[1]) else { return nil }
+            return h * 60 + m
+        }
+        guard let a = mins(parts[0]), let b = mins(parts[1]) else { return nil }
+        return (a, b)
+    }
+
+    func test_axisDragMove_fullQA() throws {
+        let cal = Calendar.current
+        let tomorrow = cal.date(byAdding: .day, value: 1, to: Date())!
+        let day = cal.component(.day, from: tomorrow)
+        print("[QA] 今天=\(cal.component(.day, from: Date())) 走查日=明天 \(day) 号")
+
+        // ===== 导航：长廊 → 轴 → 明天 =====
+        openAxis(onDay: day)
+        let preExisting = dumpTimeBlocks("pre")
+
+        // ===== 造数据：长按空白拖出 ~17:00–18:00（避开上一轮 14:15 残留，互不重叠） =====
+        let w = app.frame.width
+        let cx: CGFloat = 220
+        let y17 = hourRowTop(17)
+        print("[CAL] rowTop17=\(y17) screenW=\(w) screenH=\(app.frame.height)")
+        let pressStart = coord(cx, y17 + 4)
+        let pressEnd = coord(cx, y17 + 64 + 4)
+        pressStart.press(forDuration: 0.7, thenDragTo: pressEnd, withVelocity: .slow, thenHoldForDuration: 0)
+        sleep(1)
+        shoot("C1_create_sheet")
+
+        // 填标题，下滑保存
+        var tf = app.textFields["输入任务名称"].firstMatch
+        if !tf.exists { tf = app.textFields.firstMatch }
+        XCTAssertTrue(tf.waitForExistence(timeout: 6), "建任务弹层没有出现标题输入框")
+        tf.tap()
+        tf.typeText("QA拖拽任务")
+        sleep(1)
+        shoot("C2_typed")
+        app.swipeDown()
+        sleep(1)
+        if app.textFields["输入任务名称"].firstMatch.exists {
+            print("[QA] 第一次下滑未关闭弹层，从弹层顶部抓握区再试一次")
+            coord(w * 0.5, app.frame.height * 0.30).press(forDuration: 0.05, thenDragTo: coord(w * 0.5, app.frame.height * 0.92), withVelocity: .slow, thenHoldForDuration: 0)
+            sleep(1)
+        }
+        sleep(2)
+        shoot("C3_created")
+        sleep(2)
+        shoot("C3b_created_settled")
+
+        // ===== 场景 1：宽度修复（动态识别新建块） =====
+        let afterCreate = dumpTimeBlocks("post")
+        let newBlocks = afterCreate.filter { !preExisting.contains($0) }
+        print("[W] 新建块=\(newBlocks) 既有块=\(preExisting)")
+        guard let createdRange = newBlocks.first, let created = parseRange(createdRange) else {
+            XCTFail("创建后找不到新的时间段块")
+            return
+        }
+        let createdEl = blockText(createdRange)
+        XCTAssertTrue(createdEl.waitForExistence(timeout: 6), "创建块 AX 不在场")
+        print("[W] createdRange=\(createdRange) AX frame=\(createdEl.frame)")
+        shoot("S1_width_single_task")
+
+        // ===== 场景 2：长按块本体 0.65s → 上移 110pt（≈-2h） =====
+        // 期望候选：位移 110pt=117.9min，或 DragGesture 最小位移吃掉 8pt=109.3min
+        let s0 = created.0, e0 = created.1
+        func rangeStr(_ a: Int, _ b: Int) -> String { "\(fmt(a))-\(fmt(b))" }
+        let moveExp = Set([rangeStr(snap15(s0 - 118), snap15(e0 - 118)), rangeStr(snap15(s0 - 109), snap15(e0 - 109))])
+        print("[MOVE] 期望候选=\(moveExp.sorted())")
+        let blockCenterY = y17 + 28
+        shoot("S2_before_move", settle: 0)
+        coord(cx, blockCenterY).press(forDuration: 0.65, thenDragTo: coord(cx, blockCenterY - 110), withVelocity: .slow, thenHoldForDuration: 0)
+        sleep(2)
+        shoot("S2_after_move")
+        let afterMove = dumpTimeBlocks("move")
+        let movedBlock = afterMove.first { moveExp.contains($0) }
+        print("[MOVE] 移动后命中=\(movedBlock ?? "无")")
+        XCTAssertFalse(afterMove.contains(createdRange), "移动后原区间仍在，块没有移动")
+        XCTAssertNotNil(movedBlock, "移动后未找到预期新区间")
+
+        // ===== 场景 3：杀掉重启验证落库 =====
+        let movedRange = movedBlock ?? (afterMove.first { $0 != createdRange && parseRange($0) != nil } ?? createdRange)
+        app.terminate()
+        sleep(2)
+        app.launch()
+        sleep(4)
+        openAxis(onDay: day)
+        let persistedBlocks = dumpTimeBlocks("persist")
+        let persisted = persistedBlocks.contains(movedRange) ? movedRange : nil
+        shoot("S3_after_restart")
+        print("[PERSIST] 重启后块时间=\(persisted ?? "无") 期望=\(movedRange)")
+        XCTAssertNotNil(persisted, "重启后任务块没有出现在移动后的位置（未落库或回弹）")
+
+        // ===== 场景 4：轻点块 → 详情页（不是移动） =====
+        let cur = blockText(movedRange)
+        cur.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        sleep(2)
+        shoot("S4_detail")
+        let titleShown = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "QA拖拽任务")).firstMatch.exists
+            || app.textFields.matching(NSPredicate(format: "value CONTAINS %@", "QA拖拽任务")).firstMatch.exists
+        print("[TAP] 详情页出现任务标题=\(titleShown)")
+        XCTAssertTrue(titleShown, "轻点块没有打开任务详情")
+        app.swipeDown()
+        sleep(1)
+        if !blockText(movedRange).exists {
+            coord(w * 0.5, app.frame.height * 0.30).press(forDuration: 0.05, thenDragTo: coord(w * 0.5, app.frame.height * 0.92), withVelocity: .slow, thenHoldForDuration: 0)
+            sleep(1)
+        }
+        sleep(1)
+        shoot("S4_back_axis")
+
+        // ===== 场景 5：长按块顶部边缘 0.5s → 上移 55pt（调时长，非移动） =====
+        let curFrame = blockText(movedRange).frame
+        let blockTopY = curFrame.minY - 5 + 6   // 块 minY ≈ 文字 minY - 5(纵向内边距)，压在顶部 14pt 把手内
+        let edgeStart = coord(cx, blockTopY)
+        let edgeEnd = coord(cx, blockTopY - 55)
+        print("[EDGE] 文字frame=\(curFrame) 顶部按压y=\(blockTopY)")
+        shoot("S5_before_edge", settle: 0)
+        edgeStart.press(forDuration: 0.5, thenDragTo: edgeEnd, withVelocity: .slow, thenHoldForDuration: 0)
+        sleep(2)
+        shoot("S5_after_edge")
+        let afterEdge = dumpTimeBlocks("edge")
+        let pm = parseRange(movedRange)!
+        let edgeExp = Set([rangeStr(snap15(pm.0 - 59), pm.1), rangeStr(snap15(pm.0 - 51), pm.1)])
+        let edgeBlock = afterEdge.first { edgeExp.contains($0) }
+        print("[EDGE] 调边后命中=\(edgeBlock ?? "无") 期望候选=\(edgeExp.sorted())（底缘应保持 \(fmt(pm.1)) 不变）")
+
+        // ===== 场景 6：从块正中起始滚动（慢/快各 3 次） =====
+        let finalRange = edgeBlock ?? movedRange
+        let blk = blockText(finalRange)
+        let blockMidY = blk.exists ? blk.frame.midY : hourRowTop(11) + 28
+        func refMidY() -> CGFloat {
+            let l = app.staticTexts["17"].firstMatch
+            return l.exists ? l.frame.midY : -999
+        }
+        var scrollResults: [String] = []
+        let plan: [(String, CGFloat, XCUIGestureVelocity)] = [
+            ("慢1上", -100, .slow), ("慢2上", -100, .slow), ("慢3下", 100, .slow),
+            ("快1上", -100, .fast), ("快2上", -100, .fast), ("快3下", 100, .fast),
+        ]
+        for (name, dy, v) in plan {
+            let before = refMidY()
+            coord(cx, blockMidY).press(forDuration: 0.05, thenDragTo: coord(cx, blockMidY + dy), withVelocity: v, thenHoldForDuration: 0)
+            sleep(1)
+            let delta = refMidY() - before
+            let still = blockText(finalRange).exists
+            scrollResults.append("\(name): 17刻度位移=\(Int(delta))pt 块文字仍在=\(still)")
+            print("[SCROLL] \(name) delta=\(delta) 块文字仍在=\(still)")
+            shoot("S6_\(name)", settle: 0)
+        }
+        for r in scrollResults { print("[SCROLL-SUM] \(r)") }
+
+        // ===== 场景 7：空白区滚动对照 =====
+        let beforeBlank = refMidY()
+        coord(cx, hourRowTop(20) + 28).press(forDuration: 0.05, thenDragTo: coord(cx, hourRowTop(20) + 28 - 100), withVelocity: .slow, thenHoldForDuration: 0)
+        sleep(1)
+        print("[SCROLL] 空白对照: 17刻度位移=\(Int(refMidY() - beforeBlank))pt")
+        shoot("S7_blank_scroll", settle: 0)
+
+        // ===== 场景 2 补充证据：长按悬停高亮（松手无位移=不移动） =====
+        let shotDone = UnsafeMutablePointer<Bool>.allocate(capacity: 1)
+        shotDone.pointee = false
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.4) {
+            let png = XCUIScreen.main.screenshot().pngRepresentation
+            shotDone.pointee = (try? png.write(to: URL(fileURLWithPath: "\(Self.dir)/S2b_hold_highlight.png"))) != nil
+        }
+        coord(cx, blockMidY).press(forDuration: 0.7)
+        sleep(1)
+        print("[HOLD] 悬停高亮截图 ok=\(shotDone.pointee)")
+        shotDone.deallocate()
+        shoot("S8_final")
+    }
+}

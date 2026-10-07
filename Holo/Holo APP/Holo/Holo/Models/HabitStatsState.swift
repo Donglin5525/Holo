@@ -197,6 +197,8 @@ struct HabitStatsDayCell: Identifiable, Equatable {
     let hasRecord: Bool
     /// 坏习惯超标标记
     let isOverLimit: Bool
+    /// 冻结日（暂停窗口内）：浅灰「休」样式，不红不绿
+    var isPausedDay: Bool = false
     var id: Date { date }
 }
 
@@ -324,19 +326,29 @@ class HabitStatsState: ObservableObject {
 
     func reload() async {
         hasAnyHabits = !repository.activeHabits.isEmpty
+        // 显式全部关闭（configured 标记）→ 统计直接置空，不走旧「空=显示全部」口径；
+        // nil = 未配置，维持旧语义显示全部（方案 §12.4，旧统计 API 原样兼容）
+        let effectiveVisible = displaySettings.effectiveStatsVisibleIds()
+        if let closed = effectiveVisible, closed.isEmpty {
+            summaryStats = .empty()
+            displayItems = []
+            monthlyTrend = Array(repeating: 0.0, count: 6)
+            previousRate = 0
+            return
+        }
         summaryStats = repository.getOverviewStats(
             forMonth: selectedMonth,
-            visibleHabitIds: displaySettings.visibleHabitIds
+            visibleHabitIds: effectiveVisible
         )
         displayItems = repository.getHabitStatsDisplayItems(
             month: selectedMonth,
-            visibleHabitIds: displaySettings.visibleHabitIds,
+            visibleHabitIds: effectiveVisible ?? [],
             orderedHabitIds: displaySettings.orderedHabitIds
         )
 
         // 近 6 个月完成率趋势（含当月），用轻量方法避免重复算连续天数
         let calendar = Calendar.current
-        let visibleIds = displaySettings.visibleHabitIds
+        let visibleIds = effectiveVisible ?? []
         monthlyTrend = (0..<6).reversed().map { offset in
             guard let month = calendar.date(byAdding: .month, value: -offset, to: selectedMonth) else {
                 return 0.0

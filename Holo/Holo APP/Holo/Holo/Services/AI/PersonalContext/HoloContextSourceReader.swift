@@ -12,6 +12,7 @@
 //    HoloContextSourcePaging 协议注入。
 //
 
+import CoreData
 import Foundation
 
 // 同一来源只有完全相同的快照可以折叠；冲突不能靠数组顺序选出事实。
@@ -176,6 +177,68 @@ nonisolated enum HoloContextPlainTextNormalizer {
     }
 }
 
+// MARK: - (updatedAt, id) 游标的 Core Data 下推分页（体检 G1 修 A11）
+
+/// 修复「先限量后内存过滤」缺陷：游标时间与学习基线先进数据库查询，再排序限量；
+/// 同秒批次用 count 自适应放大窗口（固定 2x 余量会被同秒批量导入截断）；
+/// 同秒内按 sourceKey 精确推进，不重不漏。空页返回 nil 游标仅表示全库追平。
+/// 纯 Core Data 逻辑，不依赖业务仓库；各域适配器以闭包注入实体键与快照构造。
+nonisolated enum HoloContextCursorPagination {
+    static func page<T: NSManagedObject>(
+        context: NSManagedObjectContext,
+        entityName: String,
+        alivePredicate: NSPredicate,
+        cursor: HoloContextSourceCursor?,
+        baseline: Date?,
+        limit: Int,
+        timeKey: String = "updatedAt",
+        time: (T) -> Date,
+        cursorKey: (T) -> String,
+        makeSnapshot: (T) -> HoloContextSourceSnapshot
+    ) throws -> (sources: [HoloContextSourceSnapshot], nextCursor: HoloContextSourceCursor?) {
+        let request = NSFetchRequest<T>(entityName: entityName)
+        var predicates = [alivePredicate]
+        if let cursor {
+            // 时间轴下推：只取游标位置及之后的记录，最早 N 条截断不再可能。
+            predicates.append(NSPredicate(format: "%K >= %@", timeKey, cursor.updatedAt as NSDate))
+        }
+        if let baseline {
+            // 学习基线下推：基线之前的来源不进窗口（清空后不得偷偷读回）。
+            predicates.append(NSPredicate(format: "%K >= %@", timeKey, baseline as NSDate))
+        }
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        request.sortDescriptors = [
+            NSSortDescriptor(key: timeKey, ascending: true),
+            NSSortDescriptor(key: "id", ascending: true)
+        ]
+        if let cursor {
+            // 同秒自适应：游标秒上的存量全部纳入窗口，同秒批量导入不被固定余量截断。
+            let sameSecond = NSFetchRequest<NSNumber>(entityName: entityName)
+            sameSecond.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                alivePredicate,
+                NSPredicate(format: "%K == %@", timeKey, cursor.updatedAt as NSDate)
+            ])
+            let sameSecondCount = try context.count(for: sameSecond)
+            request.fetchLimit = limit + sameSecondCount
+        } else {
+            request.fetchLimit = limit
+        }
+        let results = try context.fetch(request)
+        // 同秒内按 (updatedAt, sourceKey) 精确推进：游标位置及之前的同秒记录跳过。
+        let filtered = results.drop { item in
+            guard let cursor else { return false }
+            let itemTime = time(item)
+            if itemTime < cursor.updatedAt { return true }
+            if itemTime == cursor.updatedAt { return cursorKey(item) <= cursor.sourceID }
+            return false
+        }
+        let page = Array(filtered.prefix(limit))
+        let snapshots = page.map(makeSnapshot)
+        guard let last = page.last else { return ([], nil) }
+        return (snapshots, HoloContextSourceCursor(updatedAt: time(last), sourceID: cursorKey(last)))
+    }
+}
+
 // MARK: - 分页协议（接线由调用方实现）
 
 /// 来源分页：以 (updatedAt, sourceID) 稳定排序的游标分页。
@@ -229,10 +292,11 @@ nonisolated struct HoloContextInMemorySourcePaging: HoloContextSourcePaging {
         }
         let endIndex = min(startIndex + limit, eligible.count)
         let page = startIndex < endIndex ? Array(eligible[startIndex..<endIndex]) : []
+        // G1 语义统一：页非空必须返回页尾游标，「是否还有更多」由下一轮查询决定——
+        // nextCursor=nil 只表示全库追平（页空）。否则「页满但无更多」会把萃取水位清空。
         let next = page.last.map {
             HoloContextSourceCursor(updatedAt: $0.sourceUpdatedAt, sourceID: $0.sourceID)
         }
-        let hasMore = endIndex < eligible.count
-        return (page, hasMore ? next : nil)
+        return (page, next)
     }
 }

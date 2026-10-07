@@ -29,6 +29,11 @@ struct DailyReplayView: View {
     @State private var pickerDate: Date
     @State private var portalDate: Date?
     @State private var scrollDrivenDate: Date?
+    @StateObject private var revealSession = HoloReplayRevealSession()
+    @State private var revealRequestID: UUID? = UUID()
+    @State private var revealRequestedAt = Date()
+    @State private var revealDay: Date
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let pageSize = 12
     /// 最早章节（列表底端）进入视口下方这段距离内即向过去再铺一页；追加在底部不动视口。
@@ -59,6 +64,7 @@ struct DailyReplayView: View {
         self._rangeStart = State(initialValue: start)
         self._rangeEnd = State(initialValue: anchorDay)
         self._pickerDate = State(initialValue: anchorDay)
+        self._revealDay = State(initialValue: anchorDay)
     }
 
     var body: some View {
@@ -103,13 +109,17 @@ struct DailyReplayView: View {
                                 withAnimation(HoloAnimation.quick) { portalDate = nil }
                             }
                         )
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.96)))
                         .zIndex(30)
                     }
                 }
                 .sensoryFeedback(.selection, trigger: portalDate)
                 .onAppear {
                     onEnsureData(focusedDate)
+                }
+                .onChange(of: moduleFilter) { _, _ in
+                    if let revealRequestID { revealSession.cancel(revealRequestID) }
+                    revealRequestID = nil
                 }
                 .onChange(of: focusedDate) { _, newDate in
                     let target = calendar.startOfDay(for: min(newDate, today))
@@ -172,6 +182,9 @@ struct DailyReplayView: View {
                 onSelect: onSelect,
                 onSelectGroup: onSelectGroup,
                 minimumHeight: minimumDayContentHeight,
+                revealRequestID: calendar.isDate(dayStart, inSameDayAs: revealDay) ? revealRequestID : nil,
+                revealRequestedAt: revealRequestedAt,
+                revealSession: revealSession,
                 onEmptySwipe: { direction in
                     navigateEmptyDay(from: dayStart, direction: direction, proxy: proxy)
                 }
@@ -249,6 +262,11 @@ struct DailyReplayView: View {
 
     private func jump(to rawDate: Date, proxy: ScrollViewProxy) {
         let target = calendar.startOfDay(for: min(rawDate, today))
+        if !calendar.isDate(target, inSameDayAs: revealDay) {
+            revealDay = target
+            revealRequestID = UUID()
+            revealRequestedAt = Date()
+        }
         rangeEnd = target
         rangeStart = calendar.date(byAdding: .day, value: -pageSize, to: target) ?? target
         onEnsureData(target)
@@ -256,7 +274,7 @@ struct DailyReplayView: View {
             focusedDate = target
         }
         DispatchQueue.main.async {
-            withAnimation(HoloAnimation.standard) {
+            withAnimation(reduceMotion ? nil : HoloAnimation.standard) {
                 proxy.scrollTo(target, anchor: .top)
             }
         }
@@ -298,24 +316,24 @@ struct DailyReplayView: View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack(alignment: .center, spacing: HoloSpacing.md) {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.holoNestedCardBackground)
+                    .fill(Color.holoToolInset)
                     .frame(width: 66, height: 54)
                 VStack(alignment: .leading, spacing: 7) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.holoNestedCardBackground)
+                        .fill(Color.holoToolInset)
                         .frame(width: 108, height: 14)
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.holoNestedCardBackground)
+                        .fill(Color.holoToolInset)
                         .frame(width: 150, height: 9)
                 }
             }
             ForEach(0..<3, id: \.self) { _ in
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(Color.holoCardBackground)
+                    .fill(Color.holoToolSurface)
                     .frame(height: 94)
                     .overlay(
                         RoundedRectangle(cornerRadius: HoloRadius.lg)
-                            .stroke(Color.holoBorder.opacity(0.4), lineWidth: 1)
+                            .stroke(Color.holoToolBorder.opacity(0.4), lineWidth: 1)
                     )
             }
         }
@@ -338,7 +356,7 @@ private struct DailyReplayChapterHeader: View {
     private var calendar: Calendar { Calendar.current }
 
     /// 宽屏档日号放大（与章节头排印同口径）
-    @Environment(\.holoWindowWidth) private var dayHeaderWindowWidth
+    @Environment(\.holoContentWidth) private var dayHeaderWindowWidth
     private var typeScale: CGFloat { HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: dayHeaderWindowWidth) }
 
     var body: some View {
@@ -355,7 +373,7 @@ private struct DailyReplayChapterHeader: View {
     private var dateControl: some View {
         Text("\(calendar.component(.day, from: day))")
             .font(.system(size: 48 * typeScale, weight: .medium, design: .serif))
-            .foregroundColor(.holoTextPrimary)
+            .foregroundColor(.holoToolText)
             .tracking(-2)
             .frame(width: 66 * typeScale, alignment: .leading)
             .contentShape(Rectangle())
@@ -430,10 +448,13 @@ private struct DailyReplayDayContent: View {
     let onSelect: (CalendarEvent) -> Void
     let onSelectGroup: ([CalendarEvent]) -> Void
     let minimumHeight: CGFloat
+    let revealRequestID: UUID?
+    let revealRequestedAt: Date
+    let revealSession: HoloReplayRevealSession
     let onEmptySwipe: (DailyReplayEmptyDaySwipeDirection) -> Void
 
     /// 宽屏档时段注脚与空态文案放大（与章节头排印同口径）
-    @Environment(\.holoWindowWidth) private var dayContentWindowWidth
+    @Environment(\.holoContentWidth) private var dayContentWindowWidth
     private var typeScale: CGFloat { HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: dayContentWindowWidth) }
 
     private var periodBlocks: [DailyReplayPresentation.PeriodBlock] {
@@ -450,18 +471,19 @@ private struct DailyReplayDayContent: View {
                     dayNarrative(narrative)
                 }
 
-                ForEach(periodBlocks) { block in
+                ForEach(Array(periodBlocks.enumerated()), id: \.element.id) { index, block in
                     periodBlock(block.period, moments: block.moments)
+                        .holoReplayReveal(requestID: revealRequestID, requestedAt: revealRequestedAt, item: block.period.rawValue, order: index, session: revealSession)
                 }
             }
 
             HStack(spacing: 9) {
-                Rectangle().fill(Color.holoBorder.opacity(0.35)).frame(height: 1)
+                Rectangle().fill(Color.holoToolBorder.opacity(0.35)).frame(height: 1)
                 Text(footerText)
                     .font(.system(size: 9 * typeScale, weight: .medium, design: .serif))
                     .foregroundColor(.holoTextPlaceholder)
                     .fixedSize()
-                Rectangle().fill(Color.holoBorder.opacity(0.35)).frame(height: 1)
+                Rectangle().fill(Color.holoToolBorder.opacity(0.35)).frame(height: 1)
             }
             .padding(.horizontal, HoloSpacing.md)
             .padding(.top, 14)
@@ -496,12 +518,12 @@ private struct DailyReplayDayContent: View {
             HStack(spacing: 9) {
                 Text(period.displayName)
                     .font(.system(size: 11 * typeScale, weight: .semibold, design: .serif))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .tracking(1.5)
                 Rectangle()
                     .fill(
                         LinearGradient(
-                            colors: [Color.holoBorder.opacity(0.55), Color.holoBorder.opacity(0)],
+                            colors: [Color.holoToolBorder.opacity(0.55), Color.holoToolBorder.opacity(0)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
@@ -524,7 +546,7 @@ private struct DailyReplayDayContent: View {
                     HStack(alignment: .top, spacing: 10) {
                         Text(moment.timeText)
                             .font(.system(size: 11 * typeScale, weight: .medium, design: .rounded))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .monospacedDigit()
                             .frame(width: 46 * typeScale, alignment: .trailing)
                             .padding(.top, 14)
@@ -550,7 +572,7 @@ private struct DailyReplayDayContent: View {
                 .padding(.top, 2)
             Text(text)
                 .font(.system(size: 12 * typeScale, weight: .medium, design: .serif))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineSpacing(4)
             Spacer(minLength: 0)
         }
@@ -558,7 +580,7 @@ private struct DailyReplayDayContent: View {
         .padding(.vertical, 13)
         .background(
             LinearGradient(
-                colors: [Color.holoPrimary.opacity(0.085), Color.holoCardBackground.opacity(0.45)],
+                colors: [Color.holoPrimary.opacity(0.085), Color.holoToolSurface.opacity(0.45)],
                 startPoint: .leading,
                 endPoint: .trailing
             )
@@ -578,10 +600,10 @@ private struct DailyReplayDayContent: View {
             .foregroundColor(.holoTextPlaceholder)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 18)
-            .background(Color.holoCardBackground.opacity(0.32))
+            .background(Color.holoToolSurface.opacity(0.32))
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .stroke(Color.holoBorder.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .stroke(Color.holoToolBorder.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
             )
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             .padding(.horizontal, HoloSpacing.md)
@@ -610,7 +632,7 @@ private struct DailyReplayTodayEndView: View {
 
     private var dividerLine: some View {
         LinearGradient(
-            colors: [Color.holoBorder.opacity(0), Color.holoBorder.opacity(0.9), Color.holoBorder.opacity(0)],
+            colors: [Color.holoToolBorder.opacity(0), Color.holoToolBorder.opacity(0.9), Color.holoToolBorder.opacity(0)],
             startPoint: .leading,
             endPoint: .trailing
         )

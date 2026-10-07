@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>想法 #标签 × 主题 · 来源区分原型 v1 — Holo</title>
+<style>
+  :root {
+    --bg: #141416;
+    --phone-bg: #1C1C1E;
+    --card: #2A2A2E;
+    --card-2: #232327;
+    --divider: #3A3A3F;
+    --text: #F5F5F7;
+    --text-2: #98989F;
+    --text-3: #6E6E76;
+    --primary: #F46D38;
+    --primary-light: #FED7AA;
+    --green: #34C77B;
+    --green-dim: rgba(52,199,123,.14);
+    --red: #E5484D;
+    --phone-w: 390px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    padding: 40px 32px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== 页头 ===== */
+  .page-header { max-width: 1780px; margin: 0 auto 30px; }
+  .page-header h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
+  .page-header h1 .ver {
+    font-size: 12px; font-weight: 600; color: var(--primary);
+    background: rgba(244,109,56,.12); border-radius: 6px; padding: 3px 8px;
+    vertical-align: 4px; margin-left: 8px;
+  }
+  .page-header .sub { color: var(--text-2); font-size: 13px; margin-top: 8px; line-height: 1.7; max-width: 900px; }
+  .page-header .sub b { color: var(--primary-light); font-weight: 600; }
+
+  /* ===== 画板布局 ===== */
+  .boards {
+    max-width: 1780px; margin: 0 auto;
+    display: flex; flex-wrap: wrap; gap: 36px; align-items: flex-start;
+  }
+  .board { width: var(--phone-w); }
+  .board-head { margin-bottom: 14px; }
+  .board-head .no {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 7px;
+    background: var(--primary); color: #fff; font-size: 12px; font-weight: 700;
+    margin-right: 8px; vertical-align: -4px;
+  }
+  .board-head h2 { display: inline; font-size: 16px; font-weight: 700; }
+  .board-head .desc { color: var(--text-2); font-size: 12px; margin-top: 6px; line-height: 1.6; padding-left: 30px; }
+
+  /* ===== 手机框 ===== */
+  .phone {
+    width: var(--phone-w); background: var(--phone-bg);
+    border: 1px solid var(--divider); border-radius: 44px;
+    padding: 10px; box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+  .phone-screen {
+    position: relative;
+    background: var(--phone-bg); border-radius: 36px; overflow: hidden;
+    min-height: 700px; display: flex; flex-direction: column;
+  }
+  .statusbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 26px 6px; font-size: 13px; font-weight: 600;
+  }
+  .statusbar .icons { font-size: 11px; letter-spacing: 2px; color: var(--text-2); }
+  .notch { width: 110px; height: 26px; background: #000; border-radius: 14px; margin: -32px auto 4px; position: relative; z-index: 2; }
+  .app-pad { padding: 6px 16px 24px; flex: 1; }
+  .nav-title { display: flex; justify-content: space-between; align-items: center; padding: 8px 4px 2px; }
+  .nav-title .t { font-size: 20px; font-weight: 700; }
+  .nav-title .back { font-size: 17px; color: var(--primary); }
+  .nav-title .ico { font-size: 15px; color: var(--text-2); }
+
+  /* ===== 拍板点橙标 ===== */
+  .dot {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 17px; height: 17px; border-radius: 50%;
+    background: var(--primary); color: #fff; font-size: 10px; font-weight: 800;
+    vertical-align: 3px; margin-left: 6px; box-shadow: 0 0 0 3px rgba(244,109,56,.22);
+    cursor: default;
+  }
+  .callout {
+    border-left: 3px solid var(--primary);
+    background: rgba(244,109,56,.07);
+    padding: 8px 12px; border-radius: 0 10px 10px 0;
+    font-size: 11px; color: var(--text-2); line-height: 1.7; margin: 10px 0 0;
+  }
+  .callout b { color: var(--primary-light); }
+
+  /* ===== 画板0 对比图 ===== */
+  .compare-wrap { max-width: 1780px; margin: 0 auto 40px; }
+  .compare {
+    display: grid; grid-template-columns: 1fr 64px 1fr; gap: 0;
+    background: var(--card-2); border: 1px solid var(--divider); border-radius: 20px;
+    padding: 28px 32px; align-items: center;
+  }
+  .compare h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .compare .tag-line { font-size: 11px; color: var(--text-3); margin-bottom: 18px; }
+  .compare .arrow-col { text-align: center; font-size: 26px; color: var(--primary); }
+  .compare .arrow-col .lab { font-size: 11px; color: var(--text-2); margin-top: 6px; }
+
+  /* 混合树（现状） */
+  .tree { font-size: 13px; line-height: 2.15; color: var(--text); }
+  .tree .node { display: flex; align-items: center; gap: 7px; }
+  .tree .node .nm { color: var(--text); }
+  .tree .node .who {
+    font-size: 10px; padding: 1px 7px; border-radius: 99px;
+    background: var(--card); border: 1px solid var(--divider); color: var(--text-3);
+  }
+  .tree .node.bad .who { background: rgba(229,72,77,.12); border-color: rgba(229,72,77,.35); color: #FF8A8D; }
+  .tree .branch { color: var(--text-3); }
+  .tree .gap-line { color: var(--text-3); font-size: 11px; margin: 6px 0; }
+  .pain { margin-top: 14px; font-size: 12px; color: #FF9C9F; line-height: 1.8; }
+  .pain::before { content: "✕ "; font-weight: 700; }
+
+  /* 新模型（方案） */
+  .model { display: flex; flex-direction: column; gap: 14px; }
+  .model .obj {
+    border-radius: 14px; padding: 13px 16px; border: 1px solid var(--divider);
+    background: var(--card);
+  }
+  .model .obj .t { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .model .obj .s { font-size: 11px; color: var(--text-2); margin-top: 5px; line-height: 1.6; }
+  .model .obj.tags { border-color: rgba(244,109,56,.4); }
+  .model .obj.tags .t .mark { color: var(--primary); }
+  .model .obj.topics { border-color: rgba(52,199,123,.4); }
+  .model .obj.topics .t .mark { color: var(--green); }
+  .model .bridge {
+    align-self: center; font-size: 11px; color: var(--primary-light);
+    background: rgba(244,109,56,.1); border: 1px dashed rgba(244,109,56,.45);
+    padding: 6px 14px; border-radius: 99px;
+  }
+  .gain { margin-top: 4px; font-size: 12px; color: #7FE0A9; line-height: 1.8; }
+  .gain::before { content: "✓ "; font-weight: 700; }
+
+  /* ===== 侧栏 ===== */
+  .side-search {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card-2); border-radius: 12px; padding: 9px 12px;
+    font-size: 13px; color: var(--text-3); margin: 10px 0 4px;
+  }
+  .seg {
+    display: flex; background: var(--card-2); border-radius: 11px; padding: 3px; margin: 12px 0;
+  }
+  .seg .s {
+    flex: 1; text-align: center; font-size: 13px; font-weight: 600;
+    padding: 7px 0; border-radius: 9px; color: var(--text-2); cursor: pointer;
+    transition: all .2s;
+  }
+  .seg .s.on { background: var(--card); color: var(--text); }
+  .seg .s.on .k { color: var(--primary); }
+  .side-group { margin-bottom: 4px; }
+  .side-group .gt {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 10px 4px 6px; font-size: 12px; font-weight: 700; color: var(--text-2);
+  }
+  .side-group .gt .why { font-size: 10px; font-weight: 400; color: var(--text-3); }
+  .side-row {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 6px; border-radius: 11px; font-size: 14px; cursor: pointer;
+  }
+  .side-row:active { background: var(--card-2); }
+  .side-row .ic { font-size: 13px; width: 20px; text-align: center; }
+  .side-row .nm { flex: 1; }
+  .side-row .ct { font-size: 11px; color: var(--text-3); }
+  .side-row.topic .nm { font-weight: 600; }
+  .side-row.topic .leaf { color: var(--green); font-size: 12px; }
+  .side-row .meta { font-size: 10px; color: var(--text-3); font-weight: 400; }
+  .sub-row { padding-left: 30px; }
+  .suggest-card {
+    margin: 8px 2px 4px; border-radius: 13px; padding: 11px 13px;
+    background: var(--card-2); border: 1px dashed rgba(244,109,56,.45); cursor: pointer;
+  }
+  .suggest-card .st { font-size: 12.5px; font-weight: 600; }
+  .suggest-card .st .plus { color: var(--primary); font-weight: 800; }
+  .suggest-card .sd { font-size: 11px; color: var(--text-2); margin-top: 3px; }
+  .suggest-card .btns { display: flex; gap: 8px; margin-top: 9px; }
+  .btn-mini {
+    font-size: 11.5px; font-weight: 600; padding: 5px 13px; border-radius: 99px;
+    border: 1px solid var(--divider); color: var(--text-2); cursor: pointer;
+  }
+  .btn-mini.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .side-foot {
+    margin-top: 14px; padding: 11px 6px; font-size: 12.5px; color: var(--text-2);
+    border-top: 1px solid var(--divider); display: flex; gap: 8px; align-items: center;
+  }
+
+  /* ===== 想法卡片 ===== */
+  .feed { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+  .tcard {
+    background: var(--card); border-radius: 16px; padding: 14px 16px;
+    border: 1px solid rgba(255,255,255,.04); position: relative;
+  }
+  .tcard .when { font-size: 10.5px; color: var(--text-3); margin-bottom: 7px; display: flex; justify-content: space-between; }
+  .tcard .body { font-size: 14px; line-height: 1.62; color: var(--text); }
+  .tcard .body .hl { color: var(--primary); }
+  .tcard .rows { margin-top: 11px; display: flex; flex-direction: column; gap: 7px; }
+  .tag-row { display: flex; gap: 7px; flex-wrap: wrap; }
+  .tagchip {
+    font-size: 11.5px; font-weight: 600; color: var(--primary-light);
+    background: rgba(244,109,56,.1); border: 1px solid rgba(244,109,56,.28);
+    padding: 3px 10px; border-radius: 99px;
+  }
+  .topic-row {
+    display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;
+    color: var(--text-2);
+  }
+  .topic-row .leaf { color: var(--green); font-size: 12px; }
+  .topic-row .src { color: var(--green); font-weight: 600; }
+  .topic-row .tname { color: var(--text); font-weight: 600; }
+  .topic-row .arrow { color: var(--text-3); font-size: 11px; margin-left: auto; }
+  .topic-row.manual .src { color: var(--text-2); }
+  .topic-row.manual .leaf { color: var(--text-2); }
+  .receipt {
+    position: absolute; left: 50%; top: 42%; transform: translateX(-50%);
+    background: rgba(18,18,20,.94); border: 1px solid var(--divider);
+    padding: 9px 16px; border-radius: 99px; font-size: 12px; font-weight: 600;
+    color: #7FE0A9; box-shadow: 0 8px 30px rgba(0,0,0,.5); white-space: nowrap;
+  }
+  .menu-pop {
+    position: absolute; right: 12px; top: 34px; z-index: 5;
+    background: #2E2E33; border-radius: 13px; padding: 5px;
+    box-shadow: 0 14px 40px rgba(0,0,0,.6); border: 1px solid var(--divider); min-width: 168px;
+  }
+  .menu-pop .mi {
+    font-size: 12.5px; padding: 9px 12px; border-radius: 9px; color: var(--text); white-space: nowrap;
+  }
+  .menu-pop .mi.sub { color: var(--text-2); font-size: 11.5px; }
+  .menu-pop .mi.danger { color: #FF9C9F; }
+  .menu-pop .mi:active { background: var(--card-2); }
+
+  /* ===== 主题详情 ===== */
+  .topic-head { padding: 6px 4px 2px; }
+  .topic-head .big { display: flex; align-items: center; gap: 9px; font-size: 21px; font-weight: 800; }
+  .topic-head .big .leaf { color: var(--green); font-size: 19px; }
+  .topic-head .sub2 { font-size: 12px; color: var(--text-2); margin-top: 6px; }
+  .src-split {
+    display: flex; gap: 8px; margin-top: 10px;
+  }
+  .src-pill {
+    flex: 1; border-radius: 11px; padding: 8px 11px; font-size: 11px; line-height: 1.5;
+    background: var(--card-2); border: 1px solid var(--divider); color: var(--text-2);
+  }
+  .src-pill b { display: block; font-size: 13px; color: var(--text); margin-bottom: 1px; }
+  .src-pill.ai b .n { color: #7FE0A9; }
+  .firstlast { margin-top: 12px; background: var(--card-2); border-radius: 13px; padding: 11px 13px; }
+  .firstlast .fl-t { font-size: 11px; color: var(--text-3); margin-bottom: 8px; }
+  .fl-row { display: flex; gap: 9px; align-items: flex-start; padding: 5px 0; }
+  .fl-row .b { width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-top: 5px; flex-shrink: 0; }
+  .fl-row.first .b { background: var(--primary); }
+  .fl-row .d { font-size: 10px; color: var(--text-3); white-space: nowrap; margin-top: 2px; width: 40px; }
+  .fl-row .q { font-size: 12px; color: var(--text-2); line-height: 1.5; }
+  .fl-row .q em { font-style: normal; color: var(--text); }
+  .ai-recap {
+    margin-top: 12px; border-radius: 13px; padding: 12px 14px;
+    background: linear-gradient(135deg, rgba(52,199,123,.09), rgba(52,199,123,.03));
+    border: 1px solid rgba(52,199,123,.22);
+  }
+  .ai-recap .rt { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px; }
+  .ai-recap .rt .l { color: #7FE0A9; font-weight: 700; }
+  .ai-recap .rt .r { color: var(--text-3); }
+  .ai-recap .rb { font-size: 12.5px; line-height: 1.7; color: var(--text); }
+  .meet-tags { margin-top: 12px; }
+  .meet-tags .mt-t { font-size: 11px; color: var(--text-3); margin-bottom: 7px; }
+  .mt-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .mt-chip {
+    font-size: 11.5px; padding: 5px 12px; border-radius: 99px;
+    background: rgba(244,109,56,.1); border: 1px solid rgba(244,109,56,.28);
+    color: var(--primary-light); cursor: pointer;
+  }
+  .mt-chip .n { color: var(--text-3); font-size: 10px; margin-left: 3px; }
+  .tstream { margin-top: 16px; }
+  .tstream .ts-t { font-size: 12px; font-weight: 700; color: var(--text-2); padding: 2px 4px 8px; }
+  .ts-item {
+    display: flex; gap: 10px; padding: 9px 4px; border-bottom: 1px solid rgba(255,255,255,.045);
+  }
+  .ts-item .dot2 { width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+  .ts-item .dot2.ai { background: var(--green); }
+  .ts-item .dot2.me { background: var(--primary); }
+  .ts-item .mid { flex: 1; }
+  .ts-item .qq { font-size: 12.5px; color: var(--text); line-height: 1.55; }
+  .ts-item .ww { font-size: 10px; color: var(--text-3); margin-top: 3px; }
+  .ts-item .src-badge {
+    font-size: 9.5px; padding: 2px 8px; border-radius: 99px; margin-top: 5px;
+    display: inline-block;
+  }
+  .src-badge.holo { background: var(--green-dim); color: #7FE0A9; }
+  .src-badge.me { background: rgba(244,109,56,.12); color: var(--primary-light); }
+  .src-badge.hist { background: var(--card-2); color: var(--text-3); }
+
+  /* ===== 标签页 ===== */
+  .tagpage-head { padding: 4px 4px 0; }
+  .tagpage-head .h { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 800; }
+  .tagpage-head .h .hsh { color: var(--primary); }
+  .tagpage-head .s { font-size: 11px; color: var(--text-3); margin-top: 5px; }
+  .bridge-card {
+    margin-top: 13px; border-radius: 13px; padding: 12px 14px; cursor: pointer;
+    background: linear-gradient(135deg, rgba(52,199,123,.1), rgba(52,199,123,.03));
+    border: 1px solid rgba(52,199,123,.28);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .bridge-card .bi { font-size: 17px; }
+  .bridge-card .bt { font-size: 12.5px; line-height: 1.55; }
+  .bridge-card .bt b { color: #7FE0A9; }
+  .bridge-card .ba { color: var(--text-3); font-size: 15px; margin-left: auto; }
+  .list-note { font-size: 11px; color: var(--text-3); margin: 14px 4px 6px; }
+
+  /* ===== 状态页 ===== */
+  .state-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border-radius: 13px; padding: 12px 14px; margin-bottom: 10px;
+    font-size: 12.5px; color: var(--text-2);
+  }
+  .state-row .si { font-size: 16px; width: 22px; text-align: center; }
+  .state-row .st { flex: 1; line-height: 1.5; }
+  .state-row .st b { color: var(--text); font-size: 12.5px; display: block; margin-bottom: 1px; }
+  .suggest-detail {
+    background: var(--card); border-radius: 16px; padding: 15px 16px; margin-bottom: 14px;
+    border: 1px dashed rgba(244,109,56,.4);
+  }
+  .suggest-detail .sdt { font-size: 15px; font-weight: 700; }
+  .suggest-detail .sdt .plus { color: var(--primary); }
+  .suggest-detail .sdd { font-size: 11px; color: var(--text-3); margin-top: 3px; }
+  .evi {
+    background: var(--card-2); border-radius: 10px; padding: 9px 11px; margin-top: 8px;
+    font-size: 12px; color: var(--text-2); line-height: 1.55;
+  }
+  .evi .ed { font-size: 9.5px; color: var(--text-3); margin-bottom: 2px; }
+  .suggest-detail .btns { display: flex; gap: 10px; margin-top: 12px; }
+  .btn-lg {
+    flex: 1; text-align: center; font-size: 13px; font-weight: 700;
+    padding: 10px 0; border-radius: 12px; cursor: pointer;
+    border: 1px solid var(--divider); color: var(--text-2);
+  }
+  .btn-lg.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+  /* ===== 拍板点清单 ===== */
+  .decisions { max-width: 1780px; margin: 52px auto 0; }
+  .decisions h2 { font-size: 18px; font-weight: 700; margin-bottom: 14px; }
+  .dec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+  .dec-card {
+    background: var(--card-2); border: 1px solid var(--divider); border-radius: 15px;
+    padding: 15px 17px; font-size: 12.5px; color: var(--text-2); line-height: 1.75;
+  }
+  .dec-card .dh { font-size: 13.5px; font-weight: 700; color: var(--text); margin-bottom: 5px; display: flex; align-items: center; gap: 8px; }
+  .dec-card .dh .dot { margin-left: 0; vertical-align: 0; }
+  .dec-card .opt { margin-top: 6px; }
+  .dec-card .opt span {
+    display: inline-block; font-size: 11px; padding: 3px 10px; border-radius: 99px;
+    background: var(--card); border: 1px solid var(--divider); margin: 2px 4px 2px 0;
+  }
+  .dec-card .opt span.rec { border-color: rgba(244,109,56,.5); color: var(--primary-light); }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>想法 · #标签 × 主题 <span class="ver">来源区分原型 v1</span></h1>
+  <div class="sub">
+    回应的问题：<b>用户对「标签和主题的层级关系」没有感知</b>。本方案不给用户讲层级，而是换成三个可感知的东西——
+    <b>① 来源字样</b>（标签=你写的，主题=Holo 归的或你加的）、<b>② 分开的入口</b>（侧栏两组）、<b>③ 交集桥</b>（两个页互相给真实交集入口，而不是从属关系）。
+    画板 1–5 对应方案 §3.1–§3.4；橙点 A–F 是你可以调整的拍板点，清单在页面底部。
+  </div>
+</div>
+
+<!-- ================= 画板 0：模型对比 ================= -->
+<div class="compare-wrap">
+  <div class="board-head" style="max-width:1780px">
+    <span class="no">0</span><h2>核心改变：不建层级，改用「来源 + 交集」</h2>
+    <div class="desc">左边是用户今天实际看到的（两棵并列的列表 + 混在标签树里的 AI 分类路径，谁是谁说不清）；右边是本方案的模型。</div>
+  </div>
+  <div class="compare">
+    <div>
+      <h3>现状 · 两棵列表，关系不明</h3>
+      <div class="tag-line">AI 分类主题会以「主题/子标签」路径写进标签树；主题改名还会连带改用户标签</div>
+      <div class="tree">
+        <div class="node"><span class="branch">▾</span><span class="nm">#标签树</span></div>
+        <div class="node sub-row"><span class="branch">├</span><span class="nm">#工作/Holo</span><span class="who">你写的</span></div>
+        <div class="node sub-row bad"><span class="branch">├</span><span class="nm">#日本旅行/…</span><span class="who">AI 塞的</span></div>
+        <div class="node sub-row"><span class="branch">└</span><span class="nm">#生活</span><span class="who">你写的</span></div>
+        <div class="gap-line">——— 另一棵列表 ———</div>
+        <div class="node"><span class="branch">▾</span><span class="nm">主题</span></div>
+        <div class="node sub-row"><span class="branch">├</span><span class="nm">日本旅行</span><span class="who">谁建的？</span></div>
+        <div class="node sub-row"><span class="branch">└</span><span class="nm">Holo 产品</span><span class="who">谁归的？</span></div>
+      </div>
+      <div class="pain">卡片上的主题小徽章分不清是 AI 归的还是自己加的，点击只有纠错菜单、进不了主题</div>
+      <div class="pain">卡片说「已归入」，点进主题列表却没有这条（两处数据源不一致）</div>
+      <div class="pain">归类链路实际默认关闭，历史想法不会补跑——用户感觉「AI 没干活」</div>
+    </div>
+    <div class="arrow-col">→<div class="lab">改为</div></div>
+    <div>
+      <h3>本方案 · 两个平行对象 + 一座桥</h3>
+      <div class="tag-line">身份由「来源」决定，不由层级决定；同名也不联动，AI 永远不碰你的 #标签</div>
+      <div class="model">
+        <div class="obj tags">
+          <div class="t"><span class="mark">#</span>我的 #标签</div>
+          <div class="s">你自己写下 / 确认的找回词。点它只找回「你亲手打了这个标签」的想法。</div>
+        </div>
+        <div class="bridge">交集桥：其中 2 条也在主题「日本旅行」↔ 成员用过 #旅行/日本 ×2</div>
+        <div class="obj topics">
+          <div class="t"><span class="mark">🍃</span>主题</div>
+          <div class="s">Holo 把同一方向的多条想法串成的脉络（含你手动放入的）。不打标签也能跨时间找回原文。每处都写明来源：<b style="color:#7FE0A9">Holo 已归入</b> / <b>已加入</b>。</div>
+        </div>
+      </div>
+      <div class="gain">用户不需要学层级；「谁干的」写在每一处界面上</div>
+      <div class="gain">两者的关系 = 真实交集条数，可点、可核对，没有交集就不显示</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 画板 0.5：手势三段分区 ================= -->
+<div class="compare-wrap">
+  <div class="board-head" style="max-width:1780px">
+    <span class="no">0.5</span><h2>交互手势 · 三段分区<span class="dot" style="vertical-align:2px">✓</span> 东林 9-26 已拍板</h2>
+    <div class="desc">标签树的全部交互只占「中部右滑」这一段，不触碰任何现有手势；左缘右滑任何时候都一步直达首页——包括标签树全开的时候。</div>
+  </div>
+  <div class="compare" style="grid-template-columns: 300px 1fr 1fr; padding: 24px 32px;">
+    <!-- 左：分区示意 -->
+    <div style="display:flex; gap:18px; align-items:center;">
+      <div style="width:64px; border:1px solid var(--divider); border-radius:14px; background:var(--phone-bg); overflow:hidden; position:relative;">
+        <div style="position:absolute; left:0; top:0; bottom:0; width:12px; background:rgba(244,109,56,.25); border-right:1px dashed rgba(244,109,56,.6);"></div>
+        <div style="padding:14px 8px 14px 22px; font-size:10px; line-height:2.4; color:var(--text-2);">
+          想法卡片<br>想法卡片<br>想法卡片<br>想法卡片<br>想法卡片<br>想法卡片
+        </div>
+      </div>
+      <div style="font-size:12px; line-height:2; color:var(--text-2);">
+        <div><b style="color:var(--primary)">▎左缘窄带</b><br>右滑 = 返回首页<br><span style="font-size:10px;color:var(--text-3)">任何时候可用（含标签树全开）</span></div>
+        <div style="margin-top:8px"><b style="color:var(--green)">▎中部内容区</b><br>右滑 = 拉出标签树<br><span style="font-size:10px;color:var(--text-3)">跟手拖出，松手停靠/弹回</span></div>
+        <div style="margin-top:8px"><b style="color:#8FB8E8">▎标签树拉出后</b><br>左滑 = 收起<br><span style="font-size:10px;color:var(--text-3)">点露出的内容区也收起</span></div>
+      </div>
+    </div>
+    <!-- 中：纵深链路 -->
+    <div>
+      <h3 style="font-size:14px; margin-bottom:12px;">一条「退」的纵深链</h3>
+      <div style="display:flex; flex-direction:column; gap:10px; font-size:12.5px;">
+        <div style="background:var(--card); border-radius:11px; padding:10px 14px; border:1px solid rgba(52,199,123,.35);">
+          🍃 <b>标签树（全开）</b>　<span style="color:var(--text-3)">中部右滑拉到这里</span><br>
+          <span style="color:var(--primary)">左缘右滑 → 一步直达首页</span>（侧栏随模块整体退场，再进入是干净的想法流）
+        </div>
+        <div style="text-align:center; color:var(--text-3); font-size:10px;">▲ 左滑收起 ▼ 中部右滑拉出</div>
+        <div style="background:var(--card); border-radius:11px; padding:10px 14px; border:1px solid var(--divider);">
+          💭 <b>想法流</b>　<span style="color:var(--text-3)">默认状态</span><br>
+          <span style="color:var(--primary)">左缘右滑 → 回首页</span>　<span style="color:var(--green)">中部右滑 → 拉出标签树</span>
+        </div>
+        <div style="text-align:center; color:var(--text-3); font-size:10px;">▲ 左缘右滑 ▼</div>
+        <div style="background:var(--card-2); border-radius:11px; padding:10px 14px;">
+          🏠 <b>首页</b>
+        </div>
+      </div>
+    </div>
+    <!-- 右：让位规则 -->
+    <div>
+      <h3 style="font-size:14px; margin-bottom:12px;">三条让位规则（不碰现有手势）</h3>
+      <div style="font-size:12px; line-height:1.9; color:var(--text-2);">
+        <div style="background:var(--card-2); border-radius:10px; padding:9px 13px; margin-bottom:8px;">
+          <b style="color:var(--text)">① 筛选胶囊等横向滚动区</b><br>在这些行上右滑 = 胶囊自己滚，标签树不响应（纵向列表不受影响，右滑照常拉出）
+        </div>
+        <div style="background:var(--card-2); border-radius:10px; padding:9px 13px; margin-bottom:8px;">
+          <b style="color:var(--text)">② 卡片操作按钮展开时</b><br>右滑 = 只收按钮，不同时拉侧栏（防双动）
+        </div>
+        <div style="background:var(--card-2); border-radius:10px; padding:9px 13px;">
+          <b style="color:var(--text)">③ 编辑器/弹层打开时</b><br>三段手势全部静默——绝不重演「编辑中被右滑连模块一起退掉」的事故
+        </div>
+        <div style="margin-top:10px; font-size:11px; color:var(--text-3);">另有门禁测试 G9–G13 常驻锁死这五条行为；宽屏（iPad）保持按钮打开，不启用拖出。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 画板们 ================= -->
+<div class="boards">
+
+  <!-- 画板 1：侧栏 -->
+  <div class="board">
+    <div class="board-head">
+      <span class="no">1</span><h2>侧栏 · 两个入口各带身份说明<span class="dot">A</span></h2>
+      <div class="desc">沿用现有侧栏分段；每组标题右侧给一句「这是什么」。主题条数只数有效成员；建议行与正式主题视觉分开。<b style="color:var(--primary-light)">打开方式：屏幕中部右滑拉出（见画板 0.5），或点左上按钮；左滑收起。</b></div>
+    </div>
+    <div class="phone"><div class="phone-screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">●●● ●● 🛜 🔋</span></div>
+      <div class="notch"></div>
+      <div class="app-pad">
+        <div class="side-search">🔍 搜索想法、#标签、主题…</div>
+        <div class="seg">
+          <div class="s on" id="seg-tag" onclick="segTo('tag')"><span class="k">#</span> 标签</div>
+          <div class="s" id="seg-topic" onclick="segTo('topic')">主题</div>
+        </div>
+
+        <div id="pane-tag">
+          <div class="side-group">
+            <div class="gt"><span>我的 #标签</span><span class="why">自己标记的找回词</span></div>
+            <div class="side-row"><span class="ic" style="color:var(--primary)">#</span><span class="nm">旅行/日本</span><span class="ct">5</span></div>
+            <div class="side-row"><span class="ic" style="color:var(--primary)">#</span><span class="nm">工作/Holo</span><span class="ct">12</span></div>
+            <div class="side-row"><span class="ic" style="color:var(--primary)">#</span><span class="nm">生活</span><span class="ct">8</span></div>
+          </div>
+        </div>
+
+        <div id="pane-topic" style="display:none">
+          <div class="side-group">
+            <div class="gt"><span>主题</span><span class="why">Holo 串起的长期方向</span></div>
+            <div class="side-row topic"><span class="leaf">🍃</span><span class="nm">日本旅行<br><span class="meta">4 条 · 9月2日–9月24日</span></span><span class="ct">›</span></div>
+            <div class="side-row topic"><span class="leaf">🍃</span><span class="nm">Holo 产品<br><span class="meta">8 条 · 你加入 2 · Holo 找到 6</span></span><span class="ct">›</span></div>
+          </div>
+          <div class="suggest-card">
+            <div class="st"><span class="plus">＋</span> 建议建立「跑步训练」</div>
+            <div class="sd">4 条原文指向同一方向 · 最早 9月10日</div>
+            <div class="btns">
+              <div class="btn-mini primary" onclick="this.parentElement.parentElement.style.opacity=.35">建立</div>
+              <div class="btn-mini" onclick="this.parentElement.parentElement.style.display='none'">忽略</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="side-group">
+          <div class="gt"><span>置顶</span></div>
+          <div class="side-row"><span class="leaf" style="color:var(--green)">🍃</span><span class="nm">日本旅行</span><span class="meta">主题</span></div>
+          <div class="side-row"><span class="ic" style="color:var(--primary)">#</span><span class="nm">工作/Holo</span><span class="meta">标签</span></div>
+        </div>
+
+        <div class="side-foot">🗂 管理主题 · 已归档</div>
+      </div>
+    </div></div>
+    <div class="callout"><b>拍板点 A</b>：说明文案的措辞（「自己标记的找回词」「Holo 串起的长期方向」）可换；置顶区主题行带 🍃 与「主题」字样、标签行带 # 与「标签」字样，两种对象永不混外观。</div>
+  </div>
+
+  <!-- 画板 2：想法卡片 -->
+  <div class="board">
+    <div class="board-head">
+      <span class="no">2</span><h2>想法卡片 · 标签行与主题行分开，写明来源<span class="dot">B</span></h2>
+      <div class="desc">上：你写的 #标签（只显示你输入/确认的）。下：主题行——AI 归的写「Holo 已归入」，你放的写「已加入」。轻点主题行直接进主题详情（不再只弹菜单）。</div>
+    </div>
+    <div class="phone"><div class="phone-screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">●●● ●● 🛜 🔋</span></div>
+      <div class="notch"></div>
+      <div class="app-pad">
+        <div class="nav-title"><span class="t">想法</span><span class="ico">⎋</span></div>
+
+        <div class="feed">
+          <!-- 卡1：有标签 + AI归入 + 回执 -->
+          <div class="tcard">
+            <div class="when"><span>今天 21:14</span><span>⋯</span></div>
+            <div class="body">查了一下东京住宿，新宿性价比最高，<span class="hl">#旅行/日本</span> 先记着</div>
+            <div class="rows">
+              <div class="tag-row"><span class="tagchip">#旅行/日本</span></div>
+              <div class="topic-row"><span class="leaf">🍃</span><span class="src">Holo 已归入</span><span class="tname">日本旅行</span><span class="arrow">›</span></div>
+            </div>
+            <div class="receipt" id="rc1" style="display:none">🍃 已归入「日本旅行」</div>
+          </div>
+
+          <!-- 卡2：无标签也有主题（核心价值） -->
+          <div class="tcard" style="border-color:rgba(52,199,123,.25)">
+            <div class="when"><span>今天 20:02</span><span>⋯</span></div>
+            <div class="body">想带妈妈去日本，她一直想看樱花</div>
+            <div class="rows">
+              <div class="topic-row"><span class="leaf">🍃</span><span class="src">Holo 已归入</span><span class="tname">日本旅行</span><span class="arrow">›</span></div>
+            </div>
+            <div class="receipt" id="rc2">🍃 已归入「日本旅行」<div style="font-size:9px;color:var(--text-3);font-weight:400;margin-top:2px">保存后自动出现 · 短暂展示一次</div></div>
+          </div>
+
+          <!-- 卡3：手动加入的来源字样 -->
+          <div class="tcard">
+            <div class="when"><span>昨天 15:40</span><span>⋯</span></div>
+            <div class="body">语音输入的断句还得再调，长句识别率下来了</div>
+            <div class="rows">
+              <div class="tag-row"><span class="tagchip">#工作/Holo</span></div>
+              <div class="topic-row manual"><span class="leaf">🍃</span><span class="src">已加入</span><span class="tname">Holo 产品</span><span class="arrow">›</span></div>
+            </div>
+          </div>
+
+          <!-- 卡4：无主题就是无主题，不放假 -->
+          <div class="tcard">
+            <div class="when"><span>昨天 09:12</span><span>⋯</span></div>
+            <div class="body">楼下咖啡店换豆子了，中烘有点酸</div>
+            <div class="rows">
+              <div class="topic-row" style="color:var(--text-3);cursor:default"><span style="font-size:11px">·</span><span>暂无匹配主题</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 纠错菜单展开态（示意挂在卡1上） -->
+        <div style="position:relative;height:132px;margin-top:2px">
+          <div style="font-size:10.5px;color:var(--text-3);padding:2px 4px 8px">▾ 主题行长按 / 更多菜单（纠错入口收在这里，轻点让给「进主题」）：</div>
+          <div class="menu-pop" style="position:static;margin:0 4px">
+            <div class="mi">🍃 为什么归在「日本旅行」<span style="color:var(--text-3);font-size:10.5px">　证据可回原文</span></div>
+            <div class="mi">↔ 更改主题</div>
+            <div class="mi danger">✕ 从这条移除</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="callout"><b>拍板点 B</b>：轻点主题行=进主题详情（现状是弹菜单，纠错菜单挪到长按/更多）。这是行为变化，也是「主题是脉络、可逛」的关键。<br><b>文案两选</b>：「Holo 已归入 / 已加入」或「AI 归入 / 我加入的」。</div>
+  </div>
+
+  <!-- 画板 3：主题详情 -->
+  <div class="board">
+    <div class="board-head">
+      <span class="no">3</span><h2>主题详情 · 比 #标签筛选多给的东西<span class="dot">E</span></h2>
+      <div class="desc">首屏顺序：名称与规模 → 你加入/Holo 找到的构成 → 最早到最近 → AI 回顾 → 完整时间流。底部把成员用过的 #标签交回给标签入口。</div>
+    </div>
+    <div class="phone"><div class="phone-screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">●●● ●● 🛜 🔋</span></div>
+      <div class="notch"></div>
+      <div class="app-pad">
+        <div class="nav-title"><span class="back">‹ 想法</span><span class="ico">⎋</span></div>
+
+        <div class="topic-head">
+          <div class="big"><span class="leaf">🍃</span>日本旅行</div>
+          <div class="sub2">4 条想法 · 9月2日 – 9月24日 · 持续 23 天</div>
+          <div class="src-split">
+            <div class="src-pill"><b>你加入 <span style="color:var(--primary)">1</span> 条</span>手动放入或接受建议</div>
+            <div class="src-pill ai"><b>Holo 找到 <span style="color:#7FE0A9">3</span> 条</span>高可信自动归入</div>
+          </div>
+        </div>
+
+        <div class="firstlast">
+          <div class="fl-t">从最初到现在</div>
+          <div class="fl-row first"><div class="b"></div><div class="d">9月2日</div><div class="q"><em>「想带妈妈去日本，她一直想看樱花」</em></div></div>
+          <div class="fl-row"><div class="b"></div><div class="d">9月24日</div><div class="q"><em>「假期可能只有五天，得取舍行程」</em></div></div>
+        </div>
+
+        <div class="ai-recap">
+          <div class="rt"><span class="l">🍃 Holo 回顾</span><span class="r">9月26日生成</span></div>
+          <div class="rb">这组想法围绕「带妈妈去日本」：从最初的念头，到住宿调研（新宿性价比），再到假期只有五天的取舍。方向在收窄，尚未定日期。</div>
+        </div>
+
+        <div class="meet-tags">
+          <div class="mt-t">成员里你用过的 #标签</div>
+          <div class="mt-chips">
+            <div class="mt-chip">#旅行/日本<span class="n">×2</span></div>
+          </div>
+        </div>
+
+        <div class="tstream">
+          <div class="ts-t">4 条原文 · 时间流</div>
+          <div class="ts-item"><div class="dot2 me"></div><div class="mid"><div class="qq">想带妈妈去日本，她一直想看樱花</div><div class="ww">9月2日</div><span class="src-badge me">你加入</span></div></div>
+          <div class="ts-item"><div class="dot2 ai"></div><div class="mid"><div class="qq">查了一下东京住宿，新宿性价比最高…</div><div class="ww">9月18日</div><span class="src-badge holo">Holo 归入</span></div></div>
+          <div class="ts-item"><div class="dot2 ai"></div><div class="mid"><div class="qq">假期可能只有五天，得取舍行程</div><div class="ww">9月24日</div><span class="src-badge holo">Holo 归入</span></div></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="callout"><b>拍板点 E</b>：①「你加入 N · Holo 找到 M」这行要不要放这么靠前（它是最直接的「AI 干了活」证据）；② AI 回顾默认展开还是收起（失败时整卡隐藏，主题页不空壳）。</div>
+  </div>
+
+  <!-- 画板 4：标签页 + 交集桥 -->
+  <div class="board">
+    <div class="board-head">
+      <span class="no">4</span><h2>#标签页 · 找回你写的，桥到主题<span class="dot">C</span></h2>
+      <div class="desc">标签页只做「按你写下的 #标签找回」。列表上方给真实交集入口（最多 3 个）；没有交集就不显示，不讲概念课。</div>
+    </div>
+    <div class="phone"><div class="phone-screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">●●● ●● 🛜 🔋</span></div>
+      <div class="notch"></div>
+      <div class="app-pad">
+        <div class="nav-title"><span class="back">‹ 想法</span><span class="ico">⎋</span></div>
+
+        <div class="tagpage-head">
+          <div class="h"><span class="hsh">#</span>旅行/日本</div>
+          <div class="s">按你写下的 #标签找回 · 5 条 · 只含你亲手打了这个标签的想法</div>
+        </div>
+
+        <div class="bridge-card">
+          <div class="bi">🍃</div>
+          <div class="bt">其中 <b>2 条</b>也在主题「日本旅行」<br><span style="font-size:10px;color:var(--text-3)">那 3 条没打标签的相关想法，从主题里看</span></div>
+          <div class="ba">›</div>
+        </div>
+
+        <div class="list-note">匹配的想法（5）</div>
+        <div class="feed" style="margin-top:0">
+          <div class="tcard">
+            <div class="when"><span>9月18日</span><span>⋯</span></div>
+            <div class="body">查了一下东京住宿，新宿性价比最高</div>
+            <div class="rows"><div class="topic-row"><span class="leaf">🍃</span><span class="tname" style="font-weight:600">日本旅行</span><span style="font-size:10px;color:var(--text-3)">· Holo 归入</span></div></div>
+          </div>
+          <div class="tcard">
+            <div class="when"><span>9月24日</span><span>⋯</span></div>
+            <div class="body">假期可能只有五天，得取舍行程</div>
+            <div class="rows"><div class="topic-row"><span class="leaf">🍃</span><span class="tname" style="font-weight:600">日本旅行</span><span style="font-size:10px;color:var(--text-3)">· Holo 归入</span></div></div>
+          </div>
+          <div class="tcard">
+            <div class="when"><span>9月10日</span><span>⋯</span></div>
+            <div class="body">签证材料清单，先存着</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+    <div class="callout"><b>拍板点 C</b>：交集入口的位置（列表顶部一张卡）与上限（方案定 3 个）；文案「其中 N 条也在」是核对得出来的真实条数。<br><b>同名不混</b>：同名标签上纯 AI 的关联不会出现在这个列表里——「我的 #标签」只认逐条认可来源。</div>
+  </div>
+
+  <!-- 画板 5：新主题建议 + 状态 -->
+  <div class="board">
+    <div class="board-head">
+      <span class="no">5</span><h2>新主题建议 · 用户确认才成立<span class="dot">D</span></h2>
+      <div class="desc">达到门槛（≥3 条独立想法、含跨日）才出现一条建议：名字 + 代表原文可点 + 建立/忽略。忽略有冷却，不反复骚扰。下半是各真实状态的文案样例。</div>
+    </div>
+    <div class="phone"><div class="phone-screen">
+      <div class="statusbar"><span>9:41</span><span class="icons">●●● ●● 🛜 🔋</span></div>
+      <div class="notch"></div>
+      <div class="app-pad">
+        <div class="nav-title"><span class="t">主题</span><span class="ico">⎋</span></div>
+
+        <div class="suggest-detail">
+          <div class="sdt"><span class="plus">＋</span> 建议建立「跑步训练」</div>
+          <div class="sdd">4 条原文指向同一方向 · 9月10日起 · 只出现这一次</div>
+          <div class="evi"><div class="ed">9月10日</div>「连续跑三天了，膝盖有点反应，得换鞋」</div>
+          <div class="evi"><div class="ed">9月21日</div>「配速提到 5'40''，心率压在 160 以内了」</div>
+          <div class="btns">
+            <div class="btn-lg" onclick="this.parentElement.parentElement.style.opacity=.35">忽略</div>
+            <div class="btn-lg primary" onclick="this.parentElement.parentElement.style.opacity=.35">建立主题</div>
+          </div>
+        </div>
+
+        <div class="list-note">想法详情里的真实状态（不进首页、不放永久进度条）</div>
+        <div class="state-row"><div class="si">·</div><div class="st"><b>暂无匹配主题</b>内容不足或没有相关方向——这是合法结果，不是故障</div></div>
+        <div class="state-row"><div class="si">📡</div><div class="st"><b>网络不可用</b>保存不受影响，后台归类稍后自动重试</div></div>
+        <div class="state-row"><div class="si">🔒</div><div class="st"><b>你已关闭「想法语义理解」授权</b>开启后新想法才会被归入主题；已归入的不受影响</div></div>
+        <div class="state-row"><div class="si">⏸</div><div class="st"><b>本月 AI 预算已用完</b>记录、#标签、手动主题、搜索照常可用</div></div>
+      </div>
+    </div></div>
+    <div class="callout"><b>拍板点 D</b>：门槛「≥3 条且跨日」是否合适（太高则冷启动慢、太低则空主题多）；建议出现的位置=主题分组顶部，是否还要在浏览相关原文时再出现一次（方案允许，可砍）。</div>
+  </div>
+
+</div>
+
+<!-- ================= 拍板点清单 ================= -->
+<div class="decisions">
+  <h2>可调整的拍板点（画板上的橙点）</h2>
+  <div class="dec-grid">
+    <div class="dec-card">
+      <div class="dh"><span class="dot">A</span>侧栏身份说明文案</div>
+      「自己标记的找回词」「Holo 串起的长期方向」两句是用户建立心智的第一触点。
+      <div class="opt"><span class="rec">找回词 / 长期方向（方案稿）</span><span>我打的标签 / Holo 的整理</span><span>不放说明，仅图标区分</span></div>
+    </div>
+    <div class="dec-card">
+      <div class="dh"><span class="dot">B</span>卡片主题行的轻点行为与文案</div>
+      现状：点击弹纠错菜单。方案：轻点进主题详情，纠错收进长按/更多。文案「Holo 已归入 / 已加入」两选一措辞。
+      <div class="opt"><span class="rec">轻点进详情（方案稿）</span><span>维持弹菜单</span><span>文案改「AI 归入 / 我加入的」</span></div>
+    </div>
+    <div class="dec-card">
+      <div class="dh"><span class="dot">C</span>交集桥的位置与上限</div>
+      标签页顶部一张卡、主题页底部 #标签 chips、双向最多 3 个、无交集不显示。
+      <div class="opt"><span class="rec">顶部卡 + 上限3（方案稿）</span><span>放到列表底部弱化</span><span>只做主题→标签单向</span></div>
+    </div>
+    <div class="dec-card">
+      <div class="dh"><span class="dot">D</span>新主题建议门槛</div>
+      ≥3 条独立想法且跨日才建议；确认后原子建立。决定冷启动速度 vs 空主题噪音。
+      <div class="opt"><span class="rec">3条+跨日（方案稿）</span><span>2条即建议（更快）</span><span>5条更保守</span></div>
+    </div>
+    <div class="dec-card">
+      <div class="dh"><span class="dot">E</span>主题页「你加入 N · Holo 找到 M」与 AI 回顾</div>
+      构成行是最直接的「AI 干了活」证据；AI 回顾是主题页相对标签页的核心增量，失败时隐藏不空壳。
+      <div class="opt"><span class="rec">构成行放头部 + 回顾默认展开（方案稿）</span><span>回顾默认收起</span><span>一期不上回顾</span></div>
+    </div>
+    <div class="dec-card">
+      <div class="dh"><span class="dot">F</span>存量迁移口径（工程红线，需知情）</div>
+      旧「主题/子标签」AI 路径保留为内部历史兼容，先出迁移报告再动；主题改名/合并从此不再连带改写用户 #标签；已上线数据不清空、不批量改名。
+      <div class="opt"><span class="rec">保守迁移 + 对账报告为零差异（方案稿）</span><span>其余口径需单独评审</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 侧栏分段切换
+  function segTo(which) {
+    document.getElementById('seg-tag').classList.toggle('on', which === 'tag');
+    document.getElementById('seg-topic').classList.toggle('on', which === 'topic');
+    document.getElementById('pane-tag').style.display = which === 'tag' ? '' : 'none';
+    document.getElementById('pane-topic').style.display = which === 'topic' ? '' : 'none';
+  }
+  // 卡1的归入回执：模拟保存后短暂出现
+  setTimeout(function () {
+    var rc = document.getElementById('rc1');
+    if (rc) { rc.style.display = ''; setTimeout(function () { rc.style.display = 'none'; }, 2600); }
+  }, 1200);
+</script>
+</body>
+</html>

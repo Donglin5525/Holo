@@ -113,7 +113,9 @@ final class ChatMessageRepository: ObservableObject {
                         "agentResultJSON",
                         "insightResultJSON",
                         "messageType",
-                        "rawLogJSON"
+                        "rawLogJSON",
+                        "contextPlanJSON",
+                        "contextPlanRunJSON"
                     ]
                     request.predicate = NSPredicate(format: "deletedAt == nil")
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
@@ -164,6 +166,10 @@ final class ChatMessageRepository: ObservableObject {
                         "messageType",
                         "executionBatchJSON",
                         "rawLogJSON",
+                        // 方案 JSON 必须随轻量装载带回（2026-09-20 真机事故根因）：
+                        // 此前只带信封不带方案，重进后已完成的方案卡退化为
+                        // 「已就绪」纯状态卡——方案明明在库里却永远渲染不出来。
+                        "contextPlanJSON",
                         "contextPlanRunJSON"
                     ]
                     request.predicate = NSPredicate(format: "deletedAt == nil")
@@ -184,8 +190,38 @@ final class ChatMessageRepository: ObservableObject {
         }
 
         liveMessageCache.removeAll()
-        messages = snapshots
+        messages = repairContextPlanDrafts(snapshots)
         prefillDeletionStates()
+    }
+
+    /// 「就绪但方案缺」的兜底回填（2026-09-20）：轻量装载漏取 contextPlanJSON 曾致
+    /// 「已就绪无方案」死卡（真机事故根因，字段已补齐）。本回填为第二道防线：仅对
+    /// draftReady 终态信封（此态方案必然存在过）按托管对象直读补齐，与字典取数
+    /// 通道互为校验，保证「方案在库 ⇒ 方案进视图」恒成立。失败/取消态无方案属正常，不回填。
+    private func repairContextPlanDrafts(_ snapshots: [ChatMessageViewData]) -> [ChatMessageViewData] {
+        func isDraftReadyEnvelope(_ json: String?) -> Bool {
+            json?.contains("\"stage\":\"draftReady\"") == true
+        }
+        let needsRepair = snapshots.contains {
+            $0.messageType == .contextPlan
+                && $0.contextPlanJSON == nil
+                && isDraftReadyEnvelope($0.contextPlanRunJSON)
+        }
+        guard needsRepair else { return snapshots }
+        var repaired = snapshots
+        for index in repaired.indices where
+            repaired[index].messageType == .contextPlan
+                && repaired[index].contextPlanJSON == nil
+                && isDraftReadyEnvelope(repaired[index].contextPlanRunJSON) {
+            if let draft = contextPlanDraftJSON(repaired[index].id), !draft.isEmpty {
+                repaired[index].contextPlanJSON = draft
+                logger.error("PLAN-DIAG 规划方案兜底回填命中：message=\(repaired[index].id)")
+            } else {
+                // 方案确实不在库（历史死状态）：留给对账收治转诚实失败，这里只记录
+                logger.error("PLAN-DIAG 规划方案库内缺失：message=\(repaired[index].id)")
+            }
+        }
+        return repaired
     }
 
     /// 加载当前会话的轻量消息：从最新消息向前扫描，遇到 4 小时间隔则截断
@@ -205,6 +241,9 @@ final class ChatMessageRepository: ObservableObject {
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
                         "messageType", "analysisContextJSON", "agentResultJSON",
                         "insightResultJSON", "executionBatchJSON", "rawLogJSON",
+                        // 同上：方案 JSON 必须随轻量装载带回，否则重进后方案卡
+                        // 退化为「已就绪」状态卡（2026-09-20 真机事故根因）。
+                        "contextPlanJSON",
                         "contextPlanRunJSON"
                     ]
                     request.predicate = NSPredicate(format: "deletedAt == nil")
@@ -245,7 +284,7 @@ final class ChatMessageRepository: ObservableObject {
             }
 
             liveMessageCache.removeAll()
-            messages = sessionSnapshots
+            messages = repairContextPlanDrafts(sessionSnapshots)
             oldestLoadedTimestamp = sessionSnapshots.first?.timestamp
             hasEarlierSessions = hasEarlier
             prefillDeletionStates()
@@ -303,6 +342,7 @@ final class ChatMessageRepository: ObservableObject {
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
                         "messageType", "analysisContextJSON", "agentResultJSON",
                         "insightResultJSON", "executionBatchJSON", "rawLogJSON",
+                        "contextPlanJSON",
                         "contextPlanRunJSON"
                     ]
                     request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
@@ -416,6 +456,7 @@ final class ChatMessageRepository: ObservableObject {
         intent: String? = nil,
         extractedDataJSON: String? = nil,
         parentMessageId: UUID? = nil,
+        todayReliefJSON: String? = nil,
         messageType: ChatMessageType = .normal
     ) -> UUID {
         let message = ChatMessage(context: context)
@@ -427,6 +468,7 @@ final class ChatMessageRepository: ObservableObject {
         message.extractedDataJSON = extractedDataJSON
         message.isStreaming = false
         message.parentMessageId = parentMessageId
+        message.todayReliefJSON = todayReliefJSON
         message.messageType = messageType.rawValue
 
         save()
@@ -554,6 +596,22 @@ final class ChatMessageRepository: ObservableObject {
         return ChatMessageType(rawValue: message.messageType)
     }
 
+    /// 按云端报告血统编号（agentJobID = "cloud-<任务ID>"）反查消息。
+    /// 完成推送点开时任务位已清（结果早被领取），只能从已落库的报告卡回溯消息。
+    func messageIdForAgentJobID(_ agentJobID: String) -> UUID? {
+        let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+        request.predicate = NSPredicate(
+            format: "deletedAt == nil AND agentResultJSON CONTAINS %@",
+            "\"agentJobID\":\"\(agentJobID)\"" as NSString
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+        request.fetchLimit = 1
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["id"]
+        let rows = (try? context.fetch(request)) ?? []
+        return rows.first?["id"] as? UUID
+    }
+
     /// 仍在 streaming 的 Agent 分析加载态消息（intent=query_analysis 且无 analysisContext）。
     /// 这正是聊天页「深度分析中」转圈卡的渲染条件；供页面驻留对账识别悬挂候选。
     func streamingAnalysisLoadingMessages() -> [(id: UUID, timestamp: Date)] {
@@ -613,6 +671,7 @@ final class ChatMessageRepository: ObservableObject {
         insightResultJSON: String? = nil,
         contextPlanJSON: String? = nil,
         contextPlanRunJSON: String? = nil,
+        todayReliefJSON: String? = nil,
         messageType: ChatMessageType? = nil
     ) {
         guard let message = messageForUpdate(messageId) else { return }
@@ -631,6 +690,7 @@ final class ChatMessageRepository: ObservableObject {
         message.insightResultJSON = insightResultJSON
         message.contextPlanJSON = contextPlanJSON
         message.contextPlanRunJSON = contextPlanRunJSON
+        message.todayReliefJSON = todayReliefJSON
         if let messageType {
             message.messageType = messageType.rawValue
         }
@@ -706,6 +766,19 @@ final class ChatMessageRepository: ObservableObject {
         messageType: ChatMessageType? = nil
     ) {
         guard let message = messageForUpdate(messageId) else { return }
+        // 终态保护（2026-09-20）：终态信封（draftReady/failed/cancelled）只允许被
+        // 同终态且 revision 不回退的写覆盖；排队中的旧阶段写（VM messages 查不到
+        // 消息时上层守卫失效）不得把终态改回进行中，否则运行卡永久停摆或产生
+        // 「已就绪无方案」死状态。清空写（nil）同样不得覆盖终态。
+        if let existingEnvelopeData = message.contextPlanRunJSON,
+           let existing = HoloContextPlanRunController.decode(existingEnvelopeData),
+           existing.stage.isTerminal {
+            if runJSON == nil { return }
+            if let incoming = HoloContextPlanRunController.decode(runJSON),
+               !(incoming.stage.isTerminal && incoming.stageRevision >= existing.stageRevision) {
+                return
+            }
+        }
         message.contextPlanRunJSON = runJSON
         if let messageType {
             message.messageType = messageType.rawValue
@@ -718,6 +791,19 @@ final class ChatMessageRepository: ObservableObject {
                 snapshot.messageType = messageType
             }
         }
+    }
+
+    /// 规划方案 JSON 回读（2026-09-20：云端领取后 ack 前的落库校验——
+    /// ack 即焚不可逆，必须确认方案真的写到消息上才允许销毁云端副本）。
+    func contextPlanDraftJSON(_ messageId: UUID) -> String? {
+        messageForUpdate(messageId)?.contextPlanJSON
+    }
+
+    /// Agent 结果 JSON 回读（D02，2026-10-04 体检：普通云分析 ack 前的落库校验，
+    /// 与规划草案同规则——回执发出后云端密文副本销毁，未确认持久化就销毁 = 唯一
+    /// 可恢复结果可能丢失。返回 nil 表示未落库/消息不存在，调用方不得回执销毁）。
+    func agentResultJSON(_ messageId: UUID) -> String? {
+        messageForUpdate(messageId)?.agentResultJSON
     }
 
     /// Agent 恢复回填：按 message id 结束原 streaming 消息，并写入结构化 Agent 结果。

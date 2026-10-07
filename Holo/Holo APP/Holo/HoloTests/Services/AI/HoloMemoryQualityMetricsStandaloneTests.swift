@@ -19,6 +19,8 @@ struct HoloMemoryQualityMetricsStandaloneTests {
         testRolloutAndKillSwitches()
         try testCompactionAndEncodedCapacity()
         testCriticalPathBudgets()
+        try await testFunnelMetrics()
+        await testDiagnosticsIdentity()
         print("HoloMemoryQualityMetricsStandaloneTests: \(assertions) assertions passed")
     }
 
@@ -169,6 +171,65 @@ struct HoloMemoryQualityMetricsStandaloneTests {
         expect(HoloMemoryQueryBudgetPolicy.defaultTokenBudget == 2_000, "默认上下文预算应为 2000 tokens")
         expect(HoloMemoryQueryBudgetPolicy.serialNetworkRoundTripsOnCriticalPath == 0,
                "普通聊天关键路径不得新增串行网络往返")
+    }
+
+    /// 体检 G0：分域漏斗计数契约——输入/批次结果/拒绝原因/用途/生效相互分开。
+    private static func testFunnelMetrics() async throws {
+        let metrics = HoloMemoryQualityMetrics(maximumLatencySamples: 10)
+        await metrics.recordDomainInput(domain: "finance", count: 12)
+        await metrics.recordDomainInput(domain: "thought", count: 3)
+        await metrics.recordDomainInput(domain: "habit", count: 0)
+        await metrics.recordDomainBatch(domain: "finance", outcome: "succeeded")
+        await metrics.recordDomainBatch(domain: "thought", outcome: "failed:SampleError")
+        await metrics.recordValidatorRejections(["forgedEvidence", "forgedEvidence", "invalidSummary"])
+        await metrics.recordUseLevels(["factEligible", "qualifiedAdvice", "unversioned"])
+        await metrics.recordCommittedMutations(3)
+        await metrics.recordCommittedMutations(-1)
+        let snapshot = await metrics.snapshot()
+
+        expect(snapshot.domainInputCounts == ["finance": 12, "thought": 3],
+               "分域输入应按域计数，零输入不记")
+        expect(snapshot.domainBatchOutcomeCounts["finance:succeeded"] == 1,
+               "分域批次成功应计数")
+        expect(snapshot.domainBatchOutcomeCounts["thought:failed:SampleError"] == 1,
+               "分域批次失败应带错误类型名计数")
+        expect(snapshot.validatorRejectionReasonCounts["forgedEvidence"] == 2,
+               "拒绝原因应按类别分布计数")
+        expect(snapshot.validatorRejectionReasonCounts["invalidSummary"] == 1,
+               "不同拒绝原因不得合并")
+        expect(snapshot.useLevelCounts["factEligible"] == 1
+               && snapshot.useLevelCounts["qualifiedAdvice"] == 1
+               && snapshot.useLevelCounts["unversioned"] == 1,
+               "落库用途分布应含无版本元数据的记录")
+        expect(snapshot.committedMutationCount == 3, "负数生效数不得计数")
+
+        let data = try JSONEncoder().encode(snapshot)
+        let json = String(decoding: data, as: UTF8.self)
+        expect(!json.contains("summary"), "漏斗指标不得包含摘要字段")
+        expect(!json.contains("evidence"), "漏斗指标不得包含 evidence 正文或元数据")
+        expect(!json.contains("question"), "漏斗指标不得包含问题正文")
+    }
+
+    /// 体检 G0：身份快照只含配置元数据。版本号两种合法形态：
+    /// standalone（swiftc 直编无 App 包）如实回落 unknown；
+    /// XCTest 桥（Bundle.main=测试 Runner 包）读到 Runner 的真实版本——
+    /// 两者都算「不编造」，唯独不允许出现与宿主包无关的假值。
+    @MainActor
+    private static func testDiagnosticsIdentity() {
+        let identity = HoloMemoryDiagnosticsIdentity.current()
+        expect(!identity.logLine.isEmpty, "身份日志行应可构造")
+        let hostVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let hostBuild = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+        let versionOK = (identity.appVersion == "unknown" && identity.buildNumber == "unknown")
+            || (hostVersion != nil && identity.appVersion == hostVersion
+                && hostBuild != nil && identity.buildNumber == hostBuild)
+        expect(versionOK, "版本号应如实回落 unknown 或与宿主包一致，不得编造")
+        expect(identity.domainExtractorVersion == HoloMemoryPipelineVersions.domainExtractorVersion,
+               "身份快照的管线版本应来自统一常量")
+        expect(identity.personalPromptVersion == HoloMemoryPipelineVersions.personalPromptVersion,
+               "个人情境管线版本应与领域链路分开登记")
+        expect(!identity.logLine.contains("喜欢") && !identity.logLine.contains("摘要"),
+               "身份日志不得携带任何命题或摘要内容")
     }
 
     private static func makeDomainRecord(

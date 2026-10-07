@@ -26,6 +26,9 @@ class FinanceAnalysisState: ObservableObject {
     /// 原始时间范围类型（用于导航时保持类型）
     @Published var originalTimeRange: TimeRange = .month
 
+    /// 年档口径（自然年/记账年），选择记忆到下次进入；仅年档生效
+    @Published var yearBasis: FinanceYearBasis = FinanceYearBasis.loadDefault()
+
     /// 自定义时间范围（仅当 timeRange == .custom 时使用）
     @Published var customDateRange: (start: Date, end: Date)?
 
@@ -34,6 +37,12 @@ class FinanceAnalysisState: ObservableObject {
 
     /// 图表数据点（按粒度聚合）
     @Published var chartDataPoints: [ChartDataPoint] = []
+
+    /// 上一个同口径年的汇总（年档同比对照；非年档为空汇总）
+    @Published var previousPeriodSummary: PeriodSummary = .empty()
+
+    /// 年档同比对照点（今年 vs 上一个同口径年，按月/账期逐桶；非年档为空）
+    @Published var yearComparisonPoints: [YearComparisonPoint] = []
 
     /// 支出分类聚合
     @Published var expenseCategoryAggregations: [CategoryAggregation] = []
@@ -59,6 +68,30 @@ class FinanceAnalysisState: ObservableObject {
     /// 明细 Tab 当前分类筛选（从 TOP3 等入口跳转时使用）
     @Published var selectedDetailCategory: Category?
 
+    // MARK: - 维度页签数据（项目/账户 Tab）
+
+    /// 账户页签列表（活账户在前、归档在后，loadData 刷新）
+    @Published private(set) var availableAccounts: [Account] = []
+
+    /// 项目页签列表（本期有支出的按支出降序在前，其余按创建时间倒序在后）
+    @Published private(set) var availableFinanceProjects: [FinanceProject] = []
+
+    /// 本期各账户收支聚合（账户页签列表；支出口径含退款负冲）
+    @Published private(set) var accountAggregations: [AccountAggregation] = []
+
+    /// 本期各项目支出聚合（项目页签列表）
+    @Published private(set) var financeProjectAggregations: [FinanceProjectAggregation] = []
+
+    // MARK: - 类别页签项目筛选（2026-10-04 东林需求：项目×分类交叉查看）
+
+    /// 类别页签的项目筛选（nil = 全部项目）。只驱动本页签的独立取数，
+    /// 不污染共享的 expense/incomeCategoryAggregations（总览页签也在用）
+    @Published var categoryProjectFilter: FinanceProject?
+
+    /// 类别页签筛选态聚合（categoryProjectFilter 非 nil 时有效；nil 时视图直接读共享聚合）
+    @Published private(set) var categoryTabExpenseAggregations: [CategoryAggregation] = []
+    @Published private(set) var categoryTabIncomeAggregations: [CategoryAggregation] = []
+
     // MARK: - 私有属性
 
     private let repository = FinanceRepository.shared
@@ -72,7 +105,37 @@ class FinanceAnalysisState: ObservableObject {
         if let custom = customDateRange {
             return custom
         }
+        // 年档按口径取区间（自然年/记账年）
+        if timeRange == .year {
+            return timeRange.yearDateRange(basis: yearBasis)
+        }
         return timeRange.dateRange()
+    }
+
+    /// 是否处于年档（同比卡/月均口径/年预算卡的启用条件）
+    var isYearView: Bool { timeRange == .year }
+
+    /// 是否允许右翻到下一个周期：窗口末端已越过「现在」即视为当前/未来周期，禁用
+    var canNavigateToNext: Bool {
+        FinanceAnalysisNextGate.canNavigateNext(rangeEnd: currentDateRange.end, now: Date())
+    }
+
+    /// 年档同比标签：看当前周期（含今天）沿用「今年/上一个记账年」既有文案；
+    /// 直选或翻到历史年改用年份数字——看 2025 年不应再自称「今年」。
+    /// 记账年命名跟随「起始年」规则，上一年即起始年 - 1（12 个账期前）。
+    var yearComparisonLabels: (current: String, previous: String) {
+        let (start, end) = currentDateRange
+        let now = Date()
+        if start <= now && now < end {
+            return (String(localized: "今年"), yearBasis.previousYearLabel)
+        }
+        let year = Calendar.current.component(.year, from: start)
+        return ("\(year)年", "\(year - 1)年")
+    }
+
+    /// 年口径切换是否可用：记账起始日为 1 号时两种口径等价，不提供切换
+    var yearBasisSwitchAvailable: Bool {
+        !FinancePeriodSettings.shared.isNaturalMonth
     }
 
     /// 当前时间范围的天数
@@ -121,6 +184,17 @@ class FinanceAnalysisState: ObservableObject {
         scheduleLoad()
     }
 
+    /// 切换年档口径：持久化选择；年档在位时回到新口径的「当前年」并重算
+    ///（口径变更后「今年」的定义变了，回跳当前年比平移历史年更符合预期）
+    func setYearBasis(_ basis: FinanceYearBasis) {
+        guard yearBasis != basis else { return }
+        yearBasis = basis
+        basis.persist()
+        guard isYearView else { return }
+        customDateRange = nil
+        scheduleLoad()
+    }
+
     /// 设置自定义时间范围
     func setCustomDateRange(start: Date, end: Date) {
         timeRange = .custom
@@ -153,7 +227,8 @@ class FinanceAnalysisState: ObservableObject {
             start: range.start,
             end: range.end,
             timeRange: timeRange,
-            direction: direction
+            direction: direction,
+            yearBasis: yearBasis
         ) else { return }
 
         navigateToRange(start: shifted.start, end: shifted.end)
@@ -185,8 +260,31 @@ class FinanceAnalysisState: ObservableObject {
 
     private func loadData(generation: Int, start: Date, end: Date) async {
         do {
-            // 加载交易数据
+            // 加载交易数据（全局口径，明细语义；项目/账户页签子视图另走 loadScopeInsight 局部取数）
             let txns = try await repository.getTransactions(from: start, to: end)
+
+            // 年档同比：拉上一个同口径年（本地库查询，两次串行取数毫秒级）
+            var previousSummary = PeriodSummary.empty()
+            var comparisonPoints: [YearComparisonPoint] = []
+            if isYearView {
+                let previousRange = BillingCycleCalculator.shiftedYearRange(
+                    start: start,
+                    end: end,
+                    offset: -1,
+                    basis: yearBasis,
+                    startDay: FinancePeriodSettings.shared.billingCycleStartDay
+                )
+                if let prevTxns = try? await repository.getTransactions(from: previousRange.start, to: previousRange.end) {
+                    previousSummary = computePeriodSummary(from: prevTxns, range: previousRange)
+                    comparisonPoints = buildYearComparisonPoints(
+                        currentTxns: txns,
+                        previousTxns: prevTxns,
+                        currentStart: start,
+                        previousStart: previousRange.start,
+                        end: end
+                    )
+                }
+            }
 
             // 计算截止到时间范围起点的累计余额
             let balanceAtStart = repository.getCumulativeBalance(before: start)
@@ -207,20 +305,46 @@ class FinanceAnalysisState: ObservableObject {
                 from: start, to: end, type: .income
             )
 
-            // 计算周期汇总
-            let summary = computePeriodSummary(from: txns)
+            // 项目/账户页签列表数据（本期聚合，列表随时间档变化）
+            let accountRankings = try await repository.getAccountAggregations(
+                from: start, to: end
+            )
+            let projectRankings = try await repository.getFinanceProjectAggregations(
+                from: start, to: end
+            )
+
+            // 页签列表：账户活在前归档在后；项目本期有支出的按支出降序在前
+            let accounts = repository.getAccounts(includeArchived: true)
+            let allProjects = FinanceProjectRepository.shared.allProjects()
+            let rankedProjectIds = Set(projectRankings.map { $0.project.id })
+            let sortedProjects = projectRankings.map { $0.project }
+                + allProjects.filter { !rankedProjectIds.contains($0.id) }
+
+            // 计算周期汇总（年档带已过周期数，供月均口径）
+            let summary = computePeriodSummary(from: txns, range: (start, end))
 
             // 用户可能在等待期间继续切换月份；只允许最后一次选择更新界面。
             guard loadGate.accepts(generation) else { return }
             transactions = txns
             chartDataPoints = points
+            previousPeriodSummary = previousSummary
+            yearComparisonPoints = comparisonPoints
             expenseCategoryAggregations = expenseAggregations
             incomeCategoryAggregations = incomeAggregations
             periodSummary = summary
+            accountAggregations = accountRankings
+            financeProjectAggregations = projectRankings
+            availableAccounts = accounts
+            availableFinanceProjects = sortedProjects
 
             // 清除下钻状态
             selectedTopCategory = nil
             drillDownAggregations = []
+
+            // 类别页签项目筛选随时间档联动重算（独立聚合，不影响共享数据）
+            if categoryProjectFilter != nil {
+                await loadCategoryTabAggregations(start: start, end: end)
+            }
 
         } catch {
             if loadGate.accepts(generation) {
@@ -238,20 +362,100 @@ class FinanceAnalysisState: ObservableObject {
         scheduleLoad(showsLoading: false)
     }
 
+    // MARK: - 维度页签子视图取数（项目/账户 Tab 下钻）
+
+    /// 单个维度（某项目/某账户）在当前时间范围内的完整取数包
+    struct ScopeInsight {
+        var transactions: [Transaction] = []
+        var chartPoints: [ChartDataPoint] = []
+        var expenseAggregations: [CategoryAggregation] = []
+        var summary: PeriodSummary = .empty()
+    }
+
+    /// 装载某维度的本期数据（跟随顶部时间档变化；「看项目/账户全程」由子视图
+    /// 把自定义时间一键设为对应期间实现，走既有自定义时间机制，不另做口径）
+    func loadScopeInsight(scope: StatisticsScope) async -> ScopeInsight {
+        let (start, end) = currentDateRange
+        let txns = (try? await repository.getTransactions(from: start, to: end, scope: scope)) ?? []
+        // 账户维度：余额线起点 = 该账户累计余额；项目维度无余额语义（子视图隐藏余额线，起点 0）
+        let balanceAtStart: Decimal = scope.accountId.map {
+            repository.getAccountCumulativeBalance(accountId: $0, before: start)
+        } ?? 0
+        let points = computeChartDataPoints(from: txns, start: start, end: end, initialBalance: balanceAtStart)
+        let aggs = (try? await repository.getTopLevelCategoryAggregations(
+            from: start, to: end, type: .expense, scope: scope
+        )) ?? []
+        let summary = computePeriodSummary(from: txns, range: (start, end))
+        return ScopeInsight(
+            transactions: txns,
+            chartPoints: points,
+            expenseAggregations: aggs,
+            summary: summary
+        )
+    }
+
+    /// 「看项目全程」：把自定义时间一键设为项目全程区间（startDate/endDate 缺失时
+    /// 由仓储按首末笔支出日期补齐）；无任何交易且无期间信息的项目无全程可言，不动作
+    func applyProjectSpan(_ project: FinanceProject) {
+        guard let span = FinanceProjectRepository.shared.projectSpan(of: project) else { return }
+        setCustomDateRange(start: span.start, end: span.end)
+    }
+
+    // MARK: - 类别页签项目筛选
+
+    /// 类别页签切换项目筛选：清下钻（二级数据是旧口径）并重取本页签聚合
+    func setCategoryProjectFilter(_ project: FinanceProject?) {
+        guard categoryProjectFilter?.id != project?.id else { return }
+        categoryProjectFilter = project
+        selectedTopCategory = nil
+        drillDownAggregations = []
+        if project != nil {
+            let (start, end) = currentDateRange
+            Task {
+                await loadCategoryTabAggregations(start: start, end: end)
+            }
+        } else {
+            categoryTabExpenseAggregations = []
+            categoryTabIncomeAggregations = []
+        }
+    }
+
+    /// 类别页签筛选态聚合取数（fetch 后再校验筛选未变，防旧请求覆盖新选择）
+    private func loadCategoryTabAggregations(start: Date, end: Date) async {
+        guard let project = categoryProjectFilter else { return }
+        let scope = StatisticsScope(accountId: nil, financeProjectId: project.id)
+        let expense = (try? await repository.getTopLevelCategoryAggregations(
+            from: start, to: end, type: .expense, scope: scope
+        )) ?? []
+        let income = (try? await repository.getTopLevelCategoryAggregations(
+            from: start, to: end, type: .income, scope: scope
+        )) ?? []
+        guard categoryProjectFilter?.id == project.id else { return }
+        categoryTabExpenseAggregations = expense
+        categoryTabIncomeAggregations = income
+    }
+
+    /// 类别页签下钻/弹窗取数应带的项目范围
+    private var categoryScope: StatisticsScope {
+        categoryProjectFilter.map { StatisticsScope(accountId: nil, financeProjectId: $0.id) } ?? .all
+    }
+
     // MARK: - 下钻操作
 
-    /// 进入下钻模式（查看一级分类下的二级分类）
+    /// 进入下钻模式（查看一级分类下的二级分类；选了项目时下钻数据同范围）
     func drillDown(category: Category) {
         guard category.isTopLevel else { return }
         selectedTopCategory = category
 
         let (start, end) = currentDateRange
+        let scope = categoryScope
         Task {
             do {
                 drillDownAggregations = try await repository.getSubCategoryAggregations(
                     parentId: category.id,
                     from: start,
-                    to: end
+                    to: end,
+                    scope: scope
                 )
             } catch {
                     logger.error("下钻加载失败: \(error)")
@@ -266,13 +470,14 @@ class FinanceAnalysisState: ObservableObject {
         drillDownAggregations = []
     }
 
-    /// 加载子科目聚合数据（不修改下钻状态，用于弹窗展示）
+    /// 加载子科目聚合数据（不修改下钻状态，用于弹窗展示；选了项目时同范围）
     func loadSubCategoryAggregations(for category: Category) async -> [CategoryAggregation] {
         let (start, end) = currentDateRange
         return (try? await repository.getSubCategoryAggregations(
             parentId: category.id,
             from: start,
-            to: end
+            to: end,
+            scope: categoryScope
         )) ?? []
     }
 
@@ -352,14 +557,15 @@ class FinanceAnalysisState: ObservableObject {
             }
 
             // 收支轴：统计口径，排除对账调整流水（它不是真实消费）
+            // 退款笔按负支出并入支出侧：余额轴 net 同步少减，等价于钱退回来了，口径自洽
             let statisticsTxns = periodTxns.filter { !$0.isReconciliationAdjustment }
             let expense = statisticsTxns
-                .filter { $0.transactionType == .expense }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+                .filter { $0.statisticsType == .expense }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
             let income = statisticsTxns
-                .filter { $0.transactionType == .income }
-                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+                .filter { $0.statisticsType == .income }
+                .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
             // 余额轴：含对账调整流水（补差是真实余额变化，漏掉会导致余额曲线与真实余额断裂）
             var net = income - expense
@@ -385,18 +591,25 @@ class FinanceAnalysisState: ObservableObject {
         return points
     }
 
-    /// 计算周期汇总（收支统计口径，排除对账调整流水）
-    private func computePeriodSummary(from transactions: [Transaction]) -> PeriodSummary {
+    /// 计算周期汇总（收支统计口径，排除对账调整流水；退款笔按负支出冲减）。
+    /// range 非空时附带已过周期数（年视图月均口径；非年档传 nil 走日均）。
+    private func computePeriodSummary(
+        from transactions: [Transaction],
+        range: (start: Date, end: Date)? = nil
+    ) -> PeriodSummary {
         let statisticsTxns = transactions.filter { !$0.isReconciliationAdjustment }
         let totalExpense = statisticsTxns
-            .filter { $0.transactionType == .expense }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .expense }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
         let totalIncome = statisticsTxns
-            .filter { $0.transactionType == .income }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            .filter { $0.statisticsType == .income }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
 
         let days = max(dayCount, 1)
+        let elapsedPeriods = range.map {
+            BillingCycleCalculator.elapsedPeriodCount(from: $0.start, to: $0.end)
+        } ?? 0
 
         return PeriodSummary(
             totalExpense: totalExpense,
@@ -404,7 +617,63 @@ class FinanceAnalysisState: ObservableObject {
             transactionCount: statisticsTxns.count,
             averageDailyExpense: totalExpense / Decimal(days),
             averageDailyIncome: totalIncome / Decimal(days),
-            dayCount: days
+            dayCount: days,
+            elapsedPeriodCount: elapsedPeriods
         )
+    }
+
+    /// 年档同比双柱数据：今年与上一个同口径年逐桶（月/账期）配对，支出侧口径
+    ///（排除对账调整；退款按负支出冲减，与汇总卡同口径）。
+    private func buildYearComparisonPoints(
+        currentTxns: [Transaction],
+        previousTxns: [Transaction],
+        currentStart: Date,
+        previousStart: Date,
+        end: Date
+    ) -> [YearComparisonPoint] {
+        let calendar = Calendar.current
+        let now = Date()
+        let startDay = FinancePeriodSettings.shared.billingCycleStartDay
+        let isBilling = yearBasis == .billing
+
+        let labelFormatter = DateFormatter()
+        labelFormatter.dateFormat = "M月"
+
+        let rangeFormatter = DateFormatter()
+        rangeFormatter.dateFormat = "M/d"
+
+        func bucketExpense(_ txns: [Transaction], from: Date, to: Date) -> Decimal {
+            txns.filter {
+                !$0.isReconciliationAdjustment && $0.date >= from && $0.date < to
+                    && $0.statisticsType == .expense
+            }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
+        }
+
+        var points: [YearComparisonPoint] = []
+        var cCursor = currentStart
+        var pCursor = previousStart
+
+        while cCursor < end, points.count < 12 {
+            let cNext = BillingCycleCalculator.shiftedCycleStart(cCursor, startDay: startDay, offset: 1, calendar: calendar)
+            let pNext = BillingCycleCalculator.shiftedCycleStart(pCursor, startDay: startDay, offset: 1, calendar: calendar)
+
+            let rangeText: String? = isBilling
+                ? "\(rangeFormatter.string(from: cCursor))–\(rangeFormatter.string(from: cNext.addingTimeInterval(-1)))"
+                : nil
+
+            points.append(YearComparisonPoint(
+                label: labelFormatter.string(from: cCursor),
+                rangeText: rangeText,
+                current: bucketExpense(currentTxns, from: cCursor, to: cNext),
+                previous: bucketExpense(previousTxns, from: pCursor, to: pNext),
+                isFuture: calendar.startOfDay(for: cCursor) > now,
+                isOngoing: now >= cCursor && now < cNext
+            ))
+
+            cCursor = cNext
+            pCursor = pNext
+        }
+        return points
     }
 }

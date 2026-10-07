@@ -18,7 +18,7 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
     private let dateControl: DateControl
 
     /// 宽屏档章节排印放大（iPad 阅读距离更远），iPhone/medium 档不变
-    @Environment(\.holoWindowWidth) private var chapterWindowWidth
+    @Environment(\.holoContentWidth) private var chapterWindowWidth
     private var typeScale: CGFloat { HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: chapterWindowWidth) }
 
     init(

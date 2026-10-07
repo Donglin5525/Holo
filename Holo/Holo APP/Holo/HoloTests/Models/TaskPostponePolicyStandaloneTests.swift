@@ -10,8 +10,18 @@
 
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
-private struct TaskPostponePolicyStandaloneTests {
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        TaskPostponePolicyStandaloneTests.main()
+    }
+}
+#endif
+struct TaskPostponePolicyStandaloneTests {
 
     /// 固定日历：2026-08-25（周三）为「今天」，与设计原型同一时间基准
     private static let calendar: Calendar = {

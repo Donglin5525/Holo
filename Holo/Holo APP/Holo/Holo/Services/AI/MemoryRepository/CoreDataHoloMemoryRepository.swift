@@ -138,20 +138,23 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
                 let existing = try await fetchStored(id: record.id)
                 var recordToPersist = record
                 if let existing {
-                    let userControlIsNewer = existing.record.userDecision != .none &&
-                        existing.record.updatedAt > record.updatedAt
+                    // G2（E13）：用户决定保护不再依赖 updatedAt 竞速——双设备同步、
+                    // 离线恢复等场景下自动批次的时间戳可能更晚，按时间比会让用户
+                    // 决定被自动观察覆盖。只要既有记录带用户决定：无新证据整条拒绝，
+                    // 有新证据合并但用户控制字段原样保留。
+                    let hasUserControl = existing.record.userDecision != .none
                     let existingLineages = Set(existing.record.evidenceRefs.map(\.lineageKey))
                     let containsNewEvidence = record.evidenceRefs.contains {
                         !existingLineages.contains($0.lineageKey)
                     }
-                    if userControlIsNewer && !containsNewEvidence {
+                    if hasUserControl && !containsNewEvidence {
                         results.append(.rejectedByNewerUserControl)
                         continue
                     }
                     recordToPersist = merge(
                         existing: existing.record,
                         incoming: record,
-                        preserveUserControlledFields: userControlIsNewer
+                        preserveUserControlledFields: hasUserControl
                     )
                 }
                 recordToPersist.lastObservationKey = observationKey

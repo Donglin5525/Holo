@@ -1,12 +1,271 @@
 # Holo App Store Review Notes 与 ASO 元数据草稿
 
-更新时间：2026-09-11（1.0.3 提审版）
+更新时间：2026-10-07（1.1.0 草稿版，待东林定稿）
 
 ## 使用方式
 
 这份文档用于 App Store Connect 的版本信息、审核备注和截图文案准备。
 
-## 1.0.3 提审材料包（2026-09-11 定稿，本次发版贴这个）
+## 1.1.0 提审材料包（2026-10-07 起草，桌面已落 txt 四份待东林砍定：更新说明-简体/更新說明-繁體/What's New-English/推广文本）
+
+> 版本口径：1.1.0 / 构建 32（待归档）。更新说明覆盖 1.0.9/31 上架（2026-09-28）之后的全部用户可感变化。
+> 本版重点：今天减负、任务轻重缓急、习惯体验焕新、全局视觉升级 V2、小票图片导出。**注意：视觉 V2 全 App 换色，商店截图需按新视觉重制。**
+
+### 更新说明草稿（What's New，三语）
+
+**简体中文（草稿，待东林砍定）：**
+
+Holo 1.1 上线，这是一次大版本焕新。
+【今天减负】对 Holo 说一句「今天有点忙」，它会结合你的任务和日程，帮你挑出今天真正值得做的事；先放下的不丢，截止和提醒都在。
+【任务轻重缓急】任务可以标重要程度，紧急程度按截止日期自动算，首页四象限一目了然——「重要但不急」永远排在「不重要但很急」前面。
+【任务统计】新增按时完成率与逐日趋势明细，做得怎么样，一天天看得清。
+【习惯焕新】习惯支持长按拖动排序，进度缝线按自然月累积，这个月走到哪一眼看清。
+【全新视觉】全 App 换上暖色纸感新装，层次更清楚，深色模式同步适配。
+【小票跟着账走】导出账目时可以连小票图片一起打包，账和凭证一起带走。
+【更稳定】修复了很多问题，iPhone、iPad 和 Mac 体验都提升了。
+感谢每一位用户的支持，有问题随时在设置里反馈给我们。
+
+**繁體中文（草稿）：**
+
+Holo 1.1 上線，這是一次大版本煥新。
+【今天減負】對 Holo 說一句「今天有點忙」，它會結合你的任務和日程，幫你挑出今天真正值得做的事；先放下的不丟，截止和提醒都在。
+【任務輕重緩急】任務可以標重要程度，緊急程度按截止日期自動算，首頁四象限一目了然——「重要但不急」永遠排在「不重要但很急」前面。
+【任務統計】新增按時完成率與逐日趨勢明細，做得怎麼樣，一天天看得清。
+【習慣煥新】習慣支援長按拖動排序，進度縫線按自然月累積，這個月走到哪一眼看清。
+【全新視覺】全 App 換上暖色紙感新裝，層次更清楚，深色模式同步適配。
+【小票跟著帳走】匯出帳目時可以連小票圖片一起打包，帳和憑證一起帶走。
+【更穩定】修復了很多問題，iPhone、iPad 和 Mac 體驗都提升了。
+感謝每一位用戶的支持，有問題隨時在設定裡回饋給我們。
+
+**English（draft）：**
+
+Holo 1.1 is here — a major refresh.
+[Today, Lighter] Tell Holo "I'm busy today" and it sorts through your tasks and schedule to surface what truly matters. What you set aside keeps its deadline and reminders.
+[Task Priorities] Mark how important a task is; urgency is worked out from its due date automatically, and your home screen organizes it all into four quadrants.
+[Task Stats] New on-time completion rate and day-by-day trend details.
+[Habit Refresh] Drag to reorder habits, and the monthly progress trail fills up day by day.
+[A New Look] A warm, paper-feel redesign across the whole app, dark mode included.
+[Export with Receipts] Bundle receipt photos right into your ledger export.
+[More Reliable] Plenty of fixes across iPhone, iPad, and Mac.
+Thanks for your support — feedback is always welcome in Settings.
+
+### 推广文本草稿（Promotional Text，简中）
+
+> 今天太满？对 Holo 说一句话，让它帮你把今天理清楚。1.1 大版本焕新：任务轻重缓急、习惯焕新、全新视觉。
+
+### Review Notes
+
+沿用 1.0.9 版审核备注结构（AI 数据处理授权说明、订阅项说明、通知权限说明），版本号替换为 1.1.0；新增说明：今天减负为只读整理功能（不修改任务原始数据），需要 AI 数据处理授权后使用。
+
+## 1.0.9 提审材料包（2026-09-28 定稿，历史存档——最新草稿见上方 1.1.0 材料包）
+
+> 归档：`~/Library/Developer/Xcode/Archives/2026-09-28/`（版本 1.0.9 / 构建 31，归档后补具体文件名）。
+> 贴入位置：ASC → 版本 1.0.9 → 「此版本的新增内容」「推广文本」。
+> **实际贴入版：下方「国庆版更新说明」（2026-09-28 东林定稿）**——国庆主题开场、不提 Plus、每条独立一行；繁中同规则。英文仍用下方 English 版（国庆主题不出英文）。
+> 范围口径：更新说明覆盖 1.0.8/30 归档（2026-09-24）之后的全部用户可感变化；若 1.0.8 尚未上架（还在审核或未提交），请把下方 1.0.8 材料包的条目并入本包一起贴。
+> 描述（Description）无需整段更新，可在功能清单补三行（繁英见下）：「习惯暂停：暂停一段时间，连续天数不清零」「票根：小票挂在交易上，随时集中复核」「统计按年看：同比对照、月均口径、双口径年度视角」。
+
+### 国庆版更新说明（2026-09-28 东林定稿，贴这个）
+
+> 结构为东林亲定 8 行版（国庆开场/5 个功能点/更稳定收尾）；简体笔误「提到了提升」已修为「提升了」；桌面存有同内容 txt 三份（简/繁/英）供直接复制。
+
+**简体中文：**
+
+国庆节来了！预祝大家国庆节快乐，假期愉快！
+Holo 1.0.9 上线。
+【习惯暂停】假期、出差、生病，按下暂停即可封存习惯，连续天数冻结不清零，恢复后接着算。
+【小票变票根】记一笔时拍下小票，票根挂在对应交易上，复核列表集中翻查，账目有据可查。
+【分享卡多模板】想法分享卡片新增多款纸饰模板，即点即换。
+【退款可以改了】关联退款的交易支持双向联动编辑，金额护栏防误改。
+【更稳定】修复了很多 BUG，产品体验也提升了。
+感谢每一位用户的支持，长假快乐，有问题随时在设置里反馈给我们。
+
+**繁體中文：**
+
+國慶節來了！預祝大家國慶節快樂，假期愉快！
+Holo 1.0.9 上線。
+【習慣暫停】假期、出差、生病，按下暫停即可封存習慣，連續天數凍結不清零，恢復後接著算。
+【小票變票根】記一筆時拍下小票，票根掛在對應交易上，覆核清單集中翻查，帳目有據可查。
+【分享卡多範本】想法分享卡片新增多款紙飾範本，即點即換。
+【退款可以改了】關聯退款的交易支援雙向聯動編輯，金額護欄防誤改。
+【更穩定】修復了很多 BUG，產品體驗也提升了。
+感謝每一位使用者的支持，長假快樂，有問題隨時在設定裡回饋給我們。
+
+**English:**
+
+National Day is here! Wishing everyone a happy National Day and a wonderful holiday!
+Holo 1.0.9 is now live.
+【Habit Pause】Traveling, working away, or feeling under the weather? Just press pause to shelve a habit — your streak freezes instead of resetting, and picks up where it left off.
+【Receipt Stubs】Snap a receipt while recording; it stays attached to the transaction, with a review list for checking everything in one place.
+【Share Card Templates】Thought share cards now come with new paper-ornament templates — switch instantly.
+【Editable Refunds】Linked refunds can now be edited in both directions, with amount guards against mistakes.
+【More Stable】Fixed many bugs and improved the overall experience.
+Thank you for your support — happy holidays, and reach us anytime via Settings.
+
+### 版本更新说明（What's New，随版本审核）
+
+**简体中文：**
+
+Holo 1.0.9 来了：习惯能暂停了，预算更透明，小票变成票根。
+【习惯暂停（Plus 专属）】出差、生病、旅行时按下暂停，连续天数冻结不清零，恢复后接着算。
+【预算结转看得见】上月超支怎么扣的，预算详情页算得清清楚楚；月初还有结转回执通知和看板提示，额度变化不再莫名其妙。
+【小票变票根】记一笔时拍下小票，票根挂在对应交易上，复核列表集中翻查，账目有据可查。
+【统计支持按年看】年视角同比对照、月均口径、自然年/记账年双口径随心切；时间筛选焕新，页面上即点即生效。
+【AI 归类更透明】想法归属的主题来源看得见：你手动加的还是 Holo 帮你归的，一眼可辨，长按就能纠正；标签树侧栏向所有用户开放。
+【分享卡多模板】想法分享卡片新增多款纸饰模板，即点即换。
+【退款可以改了】关联退款的交易支持双向联动编辑，金额护栏防误改。
+【动效升级】翻页、切天、扫开等一批场景动效落地，操作反馈更跟手。
+【更稳定】根治随机启动闪退与识图大图闪退；修复深度分析时间范围、饼图数据混层等一批问题；全 App 弹层视觉统一为 Holo 品牌暖底。
+感谢每一位用户的支持，有问题随时在设置里反馈给我们。
+
+**繁體中文：**
+
+Holo 1.0.9 來了：習慣能暫停了，預算更透明，小票變成票根。
+【習慣暫停（Plus 專屬）】出差、生病、旅行時按下暫停，連續天數凍結不清零，恢復後接著算。
+【預算結轉看得見】上月超支怎麼扣的，預算詳情頁算得清清楚楚；月初還有結轉回執通知和看板提示，額度變化不再莫名其妙。
+【小票變票根】記一筆時拍下小票，票根掛在對應交易上，覆核清單集中翻查，帳目有據可查。
+【統計支援按年看】年視角同比對照、月均口徑、自然年/記帳年雙口徑隨心切；時間篩選煥新，頁面上即點即生效。
+【AI 歸類更透明】想法歸屬的主題來源看得見：你手動加的還是 Holo 幫你歸的，一眼可辨，長按就能糾正；標籤樹側欄向所有用戶開放。
+【分享卡多範本】想法分享卡片新增多款紙飾範本，即點即換。
+【退款可以改了】關聯退款的交易支援雙向聯動編輯，金額護欄防誤改。
+【動效升級】翻頁、切天、掃開等一批場景動效落地，操作回饋更跟手。
+【更穩定】根治隨機啟動閃退與識圖大圖閃退；修復深度分析時間範圍、餅圖資料混層等一批問題；全 App 彈層視覺統一為 Holo 品牌暖底。
+感謝每一位使用者的支持，有問題隨時在設定裡回饋給我們。
+
+**English:**
+
+Holo 1.0.9 is here: habits can pause, budgets are more transparent, and receipts stay on file.
+- Habit pause (Plus): press pause for business trips, illness, or travel — your streak freezes instead of resetting, and resumes where it left off.
+- Budget carryover, visible: see exactly how last month's overspending affects this month on the budget detail page, with a monthly carryover notification and a dashboard banner — no more mysterious budget drops.
+- Receipt stubs: snap a receipt while recording; it stays attached to the transaction, with a review list for checking everything in one place.
+- Yearly statistics: year-over-year comparison, monthly averages, and calendar vs. billing year — plus a refreshed time filter that applies instantly on the page.
+- Transparent AI topics: see whether a topic was added by you or suggested by Holo, long-press to correct it; the tag-tree sidebar is now open to everyone.
+- Share card templates: new paper-ornament templates for sharing thoughts, switchable instantly.
+- Editable refunds: linked refunds can now be edited in both directions, with amount guards against mistakes.
+- Motion upgrade: a batch of scene transitions for smoother, more responsive feedback.
+- More stable: fixed random-launch crashes and oversized-image crashes; fixed deep-analysis time ranges, pie-chart data mixing, and more; all sheets unified to Holo's brand styling.
+Thank you for your support — reach us anytime via Settings.
+
+### 推广文本（Promotional Text，随时可改，不必随版本审核）
+
+**简体中文（49 字符）：**
+
+习惯能暂停了，连续天数不清零；预算结转看得见；小票变票根有据可查。你的人生数据库，越记越懂你。
+
+**繁體中文：**
+
+習慣能暫停了，連續天數不清零；預算結轉看得見；小票變票根有據可查。你的人生資料庫，越記越懂你。
+
+**English（158 字符）：**
+
+Habits can now pause without breaking your streak; budget carryover is finally visible; receipts stay attached for review. Your life database grows with you.
+
+### 描述（Description）补充三行（如需同步更新完整描述时使用）
+
+**简体中文：**
+
+- 习惯暂停（Plus）：出差、生病按下暂停，连续打卡天数冻结不清零，恢复后接着算。
+- 票根：记一笔时拍下小票，挂在交易上随时集中复核。
+- 统计按年看：同比对照、月均口径、自然年/记账年双口径。
+
+**繁體中文：**
+
+- 習慣暫停（Plus）：出差、生病按下暫停，連續打卡天數凍結不清零，恢復後接著算。
+- 票根：記一筆時拍下小票，掛在交易上隨時集中覆核。
+- 統計按年看：同比對照、月均口徑、自然年/記帳年雙口徑。
+
+**English:**
+
+- Habit pause (Plus): press pause for trips or illness — your streak freezes and resumes afterwards.
+- Receipt stubs: attach receipt photos to transactions and review them in one place.
+- Yearly statistics: year-over-year comparison, monthly averages, and calendar/billing year toggle.
+
+## 1.0.8 提审材料包（2026-09-24 定稿，历史存档——最新版见上方 1.0.9 材料包）
+
+> 归档：`~/Library/Developer/Xcode/Archives/2026-09-24/Holo 2026-09-24 1.0.8 (30).xcarchive`（版本 1.0.8 / 构建 30）。
+> 贴入位置：ASC → 版本 1.0.8 → 「此版本的新增内容」「推广文本」。
+> 范围口径：更新说明覆盖 1.0.6/27 归档之后的全部用户可感变化（即 1.0.7 + 1.0.8 两批）；若 1.0.7 已单独上架过，可酌情删去「分类删除」「健康日期跳转」两行。
+> 描述（Description）无需整段更新，可在功能清单补两行：「任务提醒随心调：快捷档位一点即加、点行即改」「截图记账支持一图多笔，逐笔核对一次入账」（繁英见下）。
+
+### 版本更新说明（What's New，随版本审核）
+
+**简体中文：**
+
+Holo 1.0.8 来了：任务提醒全面重做，记账更可信，AI 更懂你。
+【任务提醒重做】新增快捷档位（当天 9:00 / 18:00、前一天 20:00），点一下就加；已设的提醒点行即改，不用删了重来；全天任务的提醒改为锚定具体时刻。
+【AI 建任务更准】「9月20日」不再识成今天；一句话里的多个提醒全部保留；任务自动归入合适的清单。
+【截图记账更可信】识别失败会明确告诉你原因；每笔识别结果都标注「识别于 今天 14:30」，历史记录一眼可辨；外卖已付款订单也能正确识别。
+【一图多笔记账】一张截图里的多笔支付逐笔列出，逐笔核对、一次入账。
+【健康页日期自由跳转】点日期弹日历任意回看，左右滑动即可切换前后天。
+【分类可以删除了】自建分类支持删除，删除前引导处理名下记录，30 天回收站内可恢复。
+【习惯换类型不丢数据】数值型与打卡型互相转换，历史记录平滑过渡。
+【记忆长廊更流畅】点击浏览大幅提速；时间轴上的删除即刻生效，空档自动压缩，一屏看到更多。
+【启动页焕新】全新品牌视觉，覆盖安装立即生效。
+【更稳定】修复语音输入、打开 HoloAI、首次启动等多处闪退。
+感谢每一位用户的支持，有问题随时在设置里反馈给我们。
+
+**繁體中文：**
+
+Holo 1.0.8 來了：任務提醒全面重做，記帳更可信，AI 更懂你。
+【任務提醒重做】新增快捷檔位（當天 9:00 / 18:00、前一天 20:00），點一下就加；已設的提醒點行即改，不用刪了重來；全天任務的提醒改為錨定具體時刻。
+【AI 建任務更準】「9月20日」不再識成今天；一句話裡的多個提醒全部保留；任務自動歸入合適的清單。
+【截圖記帳更可信】辨識失敗會明確告訴你原因；每筆辨識結果都標註「辨識於 今天 14:30」，歷史記錄一眼可辨；外送已付款訂單也能正確辨識。
+【一圖多筆記帳】一張截圖裡的多筆支付逐筆列出，逐筆核對、一次入帳。
+【健康頁日期自由跳轉】點日期彈日曆任意回看，左右滑動即可切換前後天。
+【分類可以刪除了】自建分類支援刪除，刪除前引導處理名下記錄，30 天回收桶內可復原。
+【習慣換類型不丟資料】數值型與打卡型互相轉換，歷史記錄平滑過渡。
+【記憶長廊更流暢】點擊瀏覽大幅提速；時間軸上的刪除即刻生效，空檔自動壓縮，一屏看到更多。
+【啟動頁煥新】全新品牌視覺，覆蓋安裝立即生效。
+【更穩定】修復語音輸入、打開 HoloAI、首次啟動等多處閃退。
+感謝每一位使用者的支持，有問題隨時在設定裡回饋給我們。
+
+**English:**
+
+Holo 1.0.8 is here: task reminders redone, more trustworthy receipt scanning, and an AI that understands you better.
+- Task reminders, redone: quick presets (9:00 / 18:00 today, 8:00 PM the day before) — tap to add; tap any set reminder to edit it in place; all-day tasks now anchor to a concrete time.
+- Smarter task creation: "Sep 20" is no longer parsed as today; multiple reminders in one sentence are all kept; tasks are filed into the right list automatically.
+- Trustworthy receipt scanning: when a receipt can't be recorded, Holo tells you why; every result is stamped "scanned today at 14:30"; paid delivery orders are now recognized correctly.
+- Multiple receipts per image: every payment in one screenshot is listed separately — review each, record all at once.
+- Free date navigation in Health: tap the date for a calendar jump, swipe to move between days.
+- Categories can be deleted: delete your own categories with guided cleanup, restorable from the trash for 30 days.
+- Switch habit types safely: convert between counted and check-in habits with history carried over smoothly.
+- A smoother memory gallery: much faster browsing; timeline deletions apply instantly and empty rows compress to show more.
+- Fresh launch screen: new branded visuals that apply immediately after the update.
+- More stable: fixed crashes in voice input, opening HoloAI, and first launch.
+Thank you for your support — reach us anytime via Settings.
+
+### 推广文本（Promotional Text，随时可改，不必随版本审核）
+
+**简体中文（48 字符）：**
+
+任务提醒重做：快捷档位一点即加，点行即改。截图记账更可信，失败必说原因。你的人生数据库，越记越懂你。
+
+**繁體中文：**
+
+任務提醒重做：快捷檔位一點即加，點行即改。截圖記帳更可信，失敗必說原因。你的人生資料庫，越記越懂你。
+
+**English（143 字符）：**
+
+Task reminders, redone: quick presets, tap to edit. Receipt scanning you can trust — failures always tell you why. Your life database grows with you.
+
+### 描述（Description）补充两行（如需同步更新完整描述时使用）
+
+**简体中文：**
+
+- 任务提醒随心调：快捷档位一点即加，点行即改；全天任务锚定具体时刻。
+- 截图记账支持一图多笔：逐笔核对、一次入账，识别结果标注识别时间。
+
+**繁體中文：**
+
+- 任務提醒隨心調：快捷檔位一點即加，點行即改；全天任務錨定具體時刻。
+- 截圖記帳支援一圖多筆：逐筆核對、一次入帳，辨識結果標註辨識時間。
+
+**English:**
+
+- Task reminders at your fingertips: quick presets, tap any reminder to edit; all-day tasks anchor to a concrete time.
+- Multi-item receipt scanning: review each payment and record them all at once, with scan timestamps on every result.
+
+## 1.0.3 提审材料包（2026-09-11 定稿，历史存档——最新版见上方 1.0.8 材料包）
 
 > 归档：`~/Library/Developer/Xcode/Archives/2026-09-11/Holo 2026-09-11 1.0.3 (25).xcarchive`（版本 1.0.3 / 构建 25）。
 > 贴入位置：ASC → 版本 1.0.3 → 「推广文本」「描述」「此版本的新增内容」；截图在「App 预览和 App 截图」。

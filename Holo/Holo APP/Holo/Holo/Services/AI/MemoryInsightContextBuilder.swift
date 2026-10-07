@@ -213,14 +213,75 @@ struct MemoryInsightContextBuilder {
             )
         }
 
-        let startDate = Calendar.current.startOfDay(for: start)
-        let endDate = Calendar.current.startOfDay(for: end)
+        let calendar = Calendar.current
+        let startDate = calendar.startOfDay(for: start)
+        let endDate = calendar.startOfDay(for: end)
+        // 上期窗口 = 紧贴本期之前的等长区间（环比叙事；日数含首尾）
+        let dayCount = max(1, (calendar.dateComponents([.day], from: startDate, to: endDate).day ?? 0) + 1)
+        let prevEnd = calendar.date(byAdding: .day, value: -1, to: startDate) ?? startDate
+        let prevStart = calendar.date(byAdding: .day, value: -dayCount, to: startDate) ?? startDate
+
         async let stepsData = repo.fetchStepsRange(from: startDate, to: endDate)
         async let sleepData = repo.fetchSleepRange(from: startDate, to: endDate)
-        let (steps, sleep) = await (stepsData, sleepData)
+        async let standData = repo.fetchStandTimeRange(from: startDate, to: endDate)
+        async let activeData = repo.fetchActiveMinutesRange(from: startDate, to: endDate)
+        async let workoutData = repo.fetchWorkoutsRange(from: startDate, to: endDate)
+        async let sleepDetailData = repo.fetchSleepDetailRange(from: startDate, to: endDate)
+        async let energyOutcome = repo.fetchEnergyRangeStrict(from: startDate, to: endDate)
+        async let distanceOutcome = repo.fetchDistanceRangeStrict(from: startDate, to: endDate)
+        async let prevStepsData = repo.fetchStepsRange(from: prevStart, to: prevEnd)
+        async let prevSleepData = repo.fetchSleepRange(from: prevStart, to: prevEnd)
+        let (steps, sleep, stand, active, workouts, sleepDetails, energyOutcomeValue, distanceOutcomeValue, prevSteps, prevSleep) =
+            await (stepsData, sleepData, standData, activeData, workoutData, sleepDetailData, energyOutcome, distanceOutcome, prevStepsData, prevSleepData)
 
         let averageSteps = average(steps.map(\.value)).map { Int($0.rounded()) }
         let averageSleep = average(sleep.map(\.value))
+        let averageStand = average(stand.map(\.value)).map { Int($0.rounded()) }
+        let averageWorkoutMinutes = average(workouts.map(\.totalMinutes)).map { Int($0.rounded()) }
+        let averageActiveMinutes = average(active.map(\.value))
+        let workoutSessionCount = workouts.reduce(0) { $0 + $1.sessionCount }
+        var typeCounts: [String: Int] = [:]
+        for workout in workouts {
+            if let type = workout.topType { typeCounts[type, default: 0] += 1 }
+        }
+        let topWorkoutTypes = typeCounts.isEmpty
+            ? nil
+            : typeCounts.sorted { $0.value > $1.value }.prefix(3).map(\.key)
+
+        // 睡眠富字段：只有带分期/在床数据的晚上参与（无 Apple Watch 时整体保持 nil）
+        let detailNights = sleepDetails.filter { $0.totalHours > 0 }
+        let averageDeep = average(detailNights.compactMap(\.deepHours))
+        let averageREM = average(detailNights.compactMap(\.remHours))
+        let efficiencyValues = detailNights.compactMap { detail -> Double? in
+            guard let inBed = detail.inBedHours, inBed > 0 else { return nil }
+            return min(1.2, detail.totalHours / inBed) * 100
+        }
+        let averageEfficiency = average(efficiencyValues)
+        // 就寝时刻跨午夜（23:00 与 01:00 算术平均会得 12:00）：凌晨 0-6 点折算成
+        // 「前一天 24 点 + N」再平均，均值还原到一天内分钟；白天就寝样本（小睡）不参与
+        let bedtimeMinutes = detailNights.compactMap { detail -> Int? in
+            guard let bedtime = detail.bedtime else { return nil }
+            let components = calendar.dateComponents([.hour, .minute], from: bedtime)
+            let minuteOfDay = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+            guard minuteOfDay >= 6 * 60, minuteOfDay < 18 * 60 else {
+                return minuteOfDay < 6 * 60 ? minuteOfDay + 1440 : minuteOfDay
+            }
+            return nil
+        }
+        let averageBedtime = average(bedtimeMinutes.map(Double.init)).map { Int($0.rounded()) % 1440 }
+        let wakeMinutes = detailNights.compactMap { detail -> Int? in
+            guard let wakeTime = detail.wakeTime else { return nil }
+            let components = calendar.dateComponents([.hour, .minute], from: wakeTime)
+            return (components.hour ?? 0) * 60 + (components.minute ?? 0)
+        }
+        let averageWake = average(wakeMinutes.map(Double.init)).map { Int($0.rounded()) }
+
+        let recordedDays = Set(steps.map(\.date))
+            .union(sleep.map(\.date))
+            .union(stand.map(\.date))
+            .union(workouts.map(\.date))
+            .count
+
         var signals: [HealthSignal] = []
 
         if let averageSleep, averageSleep > 0, averageSleep < 6 {
@@ -241,13 +302,55 @@ struct MemoryInsightContextBuilder {
             ))
         }
 
+        if let averageStand, stand.isEmpty == false, averageStand < 8 {
+            signals.append(HealthSignal(
+                type: "standLow",
+                severity: "info",
+                title: "站立偏少",
+                evidence: ["周期日均站立 \(averageStand) 小时"]
+            ))
+        }
+
+        if dayCount >= 7, workoutSessionCount == 0, workouts.isEmpty {
+            signals.append(HealthSignal(
+                type: "workoutSparse",
+                severity: "info",
+                title: "周期内没有运动记录",
+                evidence: ["\(dayCount) 天内 0 次锻炼"]
+            ))
+        }
+
+        if let averageBedtime, averageBedtime > 1_500 {
+            signals.append(HealthSignal(
+                type: "lateBedtime",
+                severity: "info",
+                title: "就寝偏晚",
+                evidence: ["平均就寝约 \(averageBedtime / 60 % 24) 点\(averageBedtime % 60) 分"]
+            ))
+        }
+
+        if let averageEfficiency, efficiencyValues.count >= 3, averageEfficiency < 75 {
+            signals.append(HealthSignal(
+                type: "sleepEfficiencyLow",
+                severity: "info",
+                title: "睡眠效率偏低",
+                evidence: [String(format: "周期平均睡眠效率 %.0f%%", averageEfficiency)]
+            ))
+        }
+
+        // 可用性：任一高频指标（步数/睡眠）有值即可部分可用，多指标齐备算完整
+        var availableTypes: [String] = []
+        if averageSteps != nil { availableTypes.append("steps") }
+        if averageSleep != nil { availableTypes.append("sleep") }
+        if averageStand != nil { availableTypes.append("stand") }
+        if !workouts.isEmpty { availableTypes.append("workout") }
         let availability: HealthDataAvailability
         if averageSteps != nil && averageSleep != nil {
             availability = .fullyAvailable
-        } else if averageSteps != nil || averageSleep != nil {
+        } else if !availableTypes.isEmpty {
             availability = .partiallyAvailable(
-                availableTypes: averageSteps != nil ? ["steps"] : ["sleep"],
-                missingTypes: averageSteps == nil ? ["steps"] : ["sleep"]
+                availableTypes: availableTypes,
+                missingTypes: ["steps", "sleep", "stand", "workout"].filter { !availableTypes.contains($0) }
             )
         } else {
             availability = .notAvailable(reason: "暂无可用健康数据")
@@ -256,11 +359,29 @@ struct MemoryInsightContextBuilder {
         return HealthInsightContext(
             sleepDurationHours: averageSleep,
             stepCount: averageSteps,
-            standHours: nil,
-            workoutMinutes: nil,
+            standHours: averageStand,
+            workoutMinutes: averageWorkoutMinutes,
             dataAvailability: availability,
-            signals: signals
+            signals: signals,
+            previousPeriodSleepHours: average(prevSleep.map(\.value)),
+            previousPeriodStepCount: average(prevSteps.map(\.value)).map { Int($0.rounded()) },
+            activeMinutesPerDay: averageActiveMinutes,
+            activeEnergyKcalPerDay: dailyAverage(from: energyOutcomeValue),
+            distanceKmPerDay: dailyAverage(from: distanceOutcomeValue),
+            workoutSessionCount: workoutSessionCount,
+            topWorkoutTypes: topWorkoutTypes,
+            sleepEfficiencyPercent: averageEfficiency,
+            deepSleepHoursPerDay: averageDeep,
+            remSleepHoursPerDay: averageREM,
+            bedtimeMinuteOfDay: averageBedtime,
+            wakeMinuteOfDay: averageWake,
+            recordedDayCount: recordedDays > 0 ? recordedDays : nil
         )
+    }
+
+    private func dailyAverage(from outcome: HoloHealthQueryOutcome<[DailyHealthData]>) -> Double? {
+        guard case let .value(data) = outcome else { return nil }
+        return average(data.map(\.value))
     }
 
     private func average(_ values: [Double]) -> Double? {

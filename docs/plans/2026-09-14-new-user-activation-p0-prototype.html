@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>新用户激活一期 · 设计稿（2026-09-14）</title>
+<style>
+  :root{
+    --orange:#F46D38; --orange-lt:#FED7AA; --orange-dk:#EA580C;
+    --bg:#FDFCF8; --card:#FFFFFF; --nested:#F4F7F9;
+    --text:#333333; --text2:#939393;
+    --divider:rgba(51,51,51,.10); --success:#22C55E; --purple:#C084FC; --blue:#60A5FA;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#F2EFE9;font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;color:var(--text);padding:48px 24px 96px}
+  .wrap{max-width:1420px;margin:0 auto}
+  h1{font-size:28px;font-weight:700;letter-spacing:.5px}
+  .doc-sub{color:var(--text2);font-size:14px;margin:8px 0 40px;line-height:1.7}
+  h2{font-size:20px;font-weight:700;margin:72px 0 6px;padding-left:12px;border-left:4px solid var(--orange)}
+  .sec-desc{color:var(--text2);font-size:14px;line-height:1.8;margin:0 0 24px 16px}
+  .row{display:flex;gap:36px;flex-wrap:wrap;align-items:flex-start}
+  .opt{display:flex;flex-direction:column;gap:14px}
+  .opt-title{font-size:16px;font-weight:700}
+  .opt-title .tag{font-size:11px;font-weight:600;color:#fff;background:var(--orange);border-radius:99px;padding:2px 10px;margin-left:8px;vertical-align:2px}
+  .opt-title .tag.gray{background:#B9B4AC}
+  .pros{font-size:12.5px;line-height:1.9;color:#5c5c5c;background:#fff;border:1px solid var(--divider);border-radius:12px;padding:12px 16px;max-width:430px}
+  .pros b{color:var(--text)}
+  .pros .good{color:#16A34A;font-weight:600}
+  .pros .bad{color:#DC2626;font-weight:600}
+
+  /* ===== 手机壳 ===== */
+  .phone{width:390px;height:844px;border-radius:54px;border:11px solid #17171A;box-shadow:0 24px 60px rgba(0,0,0,.18);background:var(--bg);position:relative;overflow:hidden;flex:none}
+  .notch{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:118px;height:32px;background:#17171A;border-radius:20px;z-index:60}
+  .home-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:130px;height:5px;border-radius:3px;background:rgba(0,0,0,.25);z-index:60}
+
+  /* 背景光晕 */
+  .blob{position:absolute;border-radius:50%;filter:blur(70px);pointer-events:none}
+  .blob.o{width:500px;height:500px;background:radial-gradient(circle,rgba(244,109,56,.12),transparent 65%);top:24%;left:-55px;animation:fl1 3s ease-in-out infinite alternate}
+  .blob.p{width:420px;height:420px;background:radial-gradient(circle,rgba(192,132,252,.08),transparent 65%);top:8%;right:-90px;animation:fl2 3.4s ease-in-out infinite alternate}
+  .blob.b{width:380px;height:380px;background:radial-gradient(circle,rgba(96,165,250,.06),transparent 65%);bottom:14%;left:-70px;animation:fl1 3.8s ease-in-out infinite alternate-reverse}
+  @keyframes fl1{from{transform:translateY(-8px)}to{transform:translateY(8px)}}
+  @keyframes fl2{from{transform:translateY(8px)}to{transform:translateY(-8px)}}
+
+  /* Header */
+  .hd{position:relative;z-index:5;display:flex;justify-content:space-between;align-items:center;padding:64px 24px 8px}
+  .hd .brand{font-size:12px;color:var(--text2);letter-spacing:1.2px;margin-bottom:4px}
+  .hd .greet{font-size:20px;font-weight:600}
+  .hd .gear{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+
+  /* 五角形 + 球 */
+  .stage{position:relative;z-index:4;height:430px;margin-top:2px}
+  .dashring{position:absolute;border:1px dashed rgba(244,109,56,.15);border-radius:50%}
+  .orb{position:absolute;width:192px;height:192px;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;
+    background:linear-gradient(135deg,var(--orange-lt) 0%,var(--orange) 52%,var(--orange-dk) 100%);
+    box-shadow:0 12px 30px rgba(244,109,56,.30);animation:breath 2s ease-in-out infinite alternate}
+  @keyframes breath{from{transform:translate(-50%,-50%) scale(1)}to{transform:translate(-50%,-50%) scale(1.03)}}
+  .rings{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)}
+  .core-dot{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:20px;height:20px;border-radius:50%;
+    background:radial-gradient(circle,rgba(255,255,255,.75),rgba(255,255,255,0) 70%);animation:breath2 2s ease-in-out infinite alternate}
+  @keyframes breath2{from{transform:translate(-50%,-50%) scale(.85)}to{transform:translate(-50%,-50%) scale(1.1)}}
+  .fb{position:absolute;width:56px;text-align:center;z-index:6}
+  .fb .ico{width:56px;height:56px;border-radius:16px;background:rgba(255,255,255,.62);backdrop-filter:blur(8px);
+    border:1px solid rgba(255,255,255,.65);box-shadow:0 4px 12px rgba(0,0,0,.08);display:flex;align-items:center;justify-content:center;margin:0 auto}
+  .fb .lb{font-size:12px;font-weight:500;color:rgba(51,51,51,.70);margin-top:4px}
+
+  /* 底栏 */
+  .nav{position:absolute;left:24px;right:24px;bottom:26px;z-index:20;height:72px;border-radius:24px;
+    background:rgba(255,255,255,.55);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.6);
+    box-shadow:0 5px 15px rgba(0,0,0,.10);display:flex;align-items:center;justify-content:space-around}
+  .nav .item{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:500;color:var(--text2);width:70px}
+  .nav .ai{width:56px;height:56px;border-radius:50%;background:var(--orange);display:flex;align-items:center;justify-content:center;
+    transform:translateY(-26px);box-shadow:0 8px 20px rgba(244,109,56,.30)}
+  .ai-halo-wrap{position:absolute;left:50%;bottom:45px;transform:translateX(-50%);width:86px;height:86px;z-index:19;pointer-events:none}
+  .ai-halo{width:100%;height:100%;border:1.5px dashed rgba(244,109,56,.45);border-radius:50%;animation:spin 14s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ===== 方案 A：问候下横条 ===== */
+  .strip{position:relative;z-index:8;margin:12px 24px 0;display:flex;align-items:center;gap:12px;
+    background:rgba(255,255,255,.85);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.7);
+    border-radius:16px;padding:12px 14px;box-shadow:0 3px 8px rgba(0,0,0,.035);cursor:pointer}
+  .strip .ic{width:36px;height:36px;border-radius:50%;background:rgba(244,109,56,.10);display:flex;align-items:center;justify-content:center;flex:none}
+  .strip .tx{flex:1;min-width:0}
+  .strip .t1{font-size:15px;font-weight:600}
+  .strip .t2{font-size:12.5px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .strip .x{color:#C9C4BC;font-size:15px;padding:6px}
+
+  /* ===== 方案 B：五角形下行动卡 ===== */
+  .bigcard{position:absolute;z-index:8;left:24px;right:24px;bottom:112px;background:var(--card);border-radius:24px;
+    padding:18px;box-shadow:0 4px 12px rgba(0,0,0,.06)}
+  .bigcard .t1{font-size:17px;font-weight:700}
+  .bigcard .t2{font-size:13px;color:var(--text2);margin-top:3px;line-height:1.5}
+  .quote{margin-top:12px;background:var(--nested);border-radius:12px;padding:10px 14px;font-size:14px;color:var(--text);
+    display:flex;align-items:center;gap:8px}
+  .quote .qm{color:var(--orange);font-weight:700}
+  .bigcard .btn{margin-top:12px;background:var(--orange);color:#fff;font-size:15px;font-weight:600;text-align:center;
+    border-radius:12px;padding:11px 0}
+  .bigcard .x{position:absolute;top:12px;right:14px;color:#C9C4BC;font-size:15px;padding:4px}
+  .stage.shorter{height:352px}
+
+  /* ===== 方案 C：AI 按钮气泡 ===== */
+  .bubble{position:absolute;z-index:30;left:50%;bottom:150px;transform:translateX(-50%);background:#fff;border-radius:16px;
+    padding:11px 16px;font-size:14px;font-weight:600;box-shadow:0 6px 18px rgba(0,0,0,.12);white-space:nowrap;text-align:center}
+  .bubble .sub{display:block;font-size:11.5px;font-weight:400;color:var(--text2);margin-top:2px}
+  .bubble:after{content:"";position:absolute;left:50%;bottom:-7px;margin-left:-7px;width:14px;height:14px;background:#fff;transform:rotate(45deg);border-radius:2px}
+
+  /* ===== 庆祝浮层 ===== */
+  .dim{position:absolute;inset:0;z-index:40;background:rgba(20,16,12,.42)}
+  .cele{position:absolute;z-index:41;left:34px;right:34px;top:50%;transform:translateY(-58%);background:#fff;border-radius:24px;
+    padding:28px 24px 22px;text-align:center;box-shadow:0 18px 44px rgba(0,0,0,.22)}
+  .cele .medal{width:72px;height:72px;border-radius:50%;margin:0 auto 14px;
+    background:linear-gradient(135deg,var(--orange-lt),var(--orange) 60%,var(--orange-dk));
+    display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(244,109,56,.4)}
+  .cele .t1{font-size:19px;font-weight:700}
+  .cele .t2{font-size:13.5px;color:var(--text2);margin-top:6px;line-height:1.6}
+  .cele .btn{margin-top:16px;background:var(--orange);color:#fff;font-size:14.5px;font-weight:600;border-radius:12px;padding:11px 0}
+  .cele .later{margin-top:10px;font-size:12.5px;color:#B9B4AC}
+  .confetti{position:absolute;z-index:42;border-radius:2px;opacity:.9;animation:fall 2.6s ease-in infinite}
+  @keyframes fall{0%{transform:translateY(-10px) rotate(0);opacity:0}18%{opacity:.95}100%{transform:translateY(230px) rotate(200deg);opacity:0}}
+
+  /* ===== 空态对照（非整屏） ===== */
+  .es-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:28px}
+  .es{background:#fff;border:1px solid var(--divider);border-radius:20px;padding:22px}
+  .es h3{font-size:15px;margin-bottom:14px}
+  .es h3 .mod{color:var(--orange);margin-right:6px}
+  .es-box{border-radius:16px;background:var(--bg);padding:28px 18px;text-align:center;border:1px dashed var(--divider)}
+  .es-box .ic{font-size:44px;opacity:.32;line-height:1}
+  .es-box .t1{font-size:15.5px;font-weight:500;color:var(--text2);margin-top:10px}
+  .es-box .t2{font-size:13px;color:rgba(147,147,147,.7);margin-top:4px}
+  .es-box .cta{margin:16px auto 0;background:var(--orange);color:#fff;font-size:14px;font-weight:600;border-radius:12px;padding:10px 26px;display:inline-block}
+  .arrowline{text-align:center;color:#B9B4AC;font-size:20px;margin:10px 0}
+  .kanban-card{background:#fff;border-radius:20px;padding:18px;box-shadow:0 3px 9px rgba(0,0,0,.05)}
+  .kanban-card .t1{font-size:18px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .kanban-card .t2{font-size:14px;color:var(--text2);margin-top:6px}
+  .kanban-card .act{margin-top:14px;display:flex;align-items:center;gap:7px;color:var(--orange);font-size:14.5px;font-weight:600;
+    background:rgba(244,109,56,.08);border-radius:12px;padding:11px 14px}
+  .recfix{display:flex;gap:20px;flex-wrap:wrap;margin-top:4px}
+  .recfix .chip{background:#fff;border:1px solid var(--divider);border-radius:14px;padding:14px 18px;font-size:13.5px;max-width:420px;line-height:1.7}
+  .recfix .chip b{display:block;font-size:14px;margin-bottom:4px}
+  .recfix .rec{background:rgba(22,163,74,.08);border-color:rgba(22,163,74,.25)}
+
+  table.decide{width:100%;border-collapse:collapse;background:#fff;border-radius:16px;overflow:hidden;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+  table.decide th{background:#F7F4EE;text-align:left;padding:12px 16px;font-size:13px;color:#7a7468}
+  table.decide td{padding:13px 16px;border-top:1px solid var(--divider);line-height:1.6}
+  .pick{color:var(--orange);font-weight:700}
+  .footer-note{margin-top:56px;color:#a09a90;font-size:12.5px;text-align:center;line-height:1.8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>新用户激活一期 · 设计稿</h1>
+  <p class="doc-sub">2026-09-14 · 配套方案：docs/plans/2026-09-14-new-user-activation-p0-plan.md<br>
+  目标：新用户落地后，整个首页只保留<b>一个</b>行动指令——「对 Holo 说第一句话」；完成前一直在，完成后自动消失。<br>
+  手机画面为浅色模式还原（品牌橙 #F46D38 / 背景 #FDFCF8 / 球 192pt / 五角形半径 155pt），与真机观感对齐。</p>
+
+  <!-- ============ 现状对照 ============ -->
+  <h2>① 现状对照：新用户首屏「十个入口、零个动作」</h2>
+  <p class="sec-desc">这是用户反馈的问题现场：中央球、五个功能钮、底栏三个入口全部是「去某个地方」，没有一个指令告诉他「现在做这件事」。点进任何模块都是空的，空态只有一句陈述。</p>
+  <div class="row">
+    <div class="opt">
+      <div class="opt-title">现状 · 新用户首页</div>
+      <div class="phone" id="ph-now"></div>
+    </div>
+    <div class="pros" style="align-self:center;max-width:520px">
+      <b>问题清单</b><br>
+      <span class="bad">✗</span> 10 个可点目标全是导航，零个动作指令<br>
+      <span class="bad">✗</span> AI 一句话记录是核心能力，但只能靠导览一句话传达，跳过引导的人完全不知道<br>
+      <span class="bad">✗</span> 各模块空态是陈述句（「暂无交易记录」），没有「从这里开始」的按钮<br>
+      <span class="bad">✗</span> 第一次记录成功，系统毫无反馈
+    </div>
+  </div>
+
+  <!-- ============ 行动卡三方案 ============ -->
+  <h2>② 首页「第一步行动卡」——三个位置方案（拍板点 1）</h2>
+  <p class="sec-desc">约束：不能破坏已定稿的光球+三环视觉。三个方案都做到：点卡片 → 跳 AI 对话并预填「午饭花了 35 元」（只预填不自动发送）；出现第一笔记录后自动消失；可 × 手动关闭。</p>
+  <div class="row">
+
+    <div class="opt">
+      <div class="opt-title">方案 A · 问候下横条<span class="tag">推荐</span></div>
+      <div class="phone" id="ph-a"></div>
+      <div class="pros"><b>一条轻横条，挂在问候语正下方——视线落点第一站</b><br>
+        <span class="good">✓</span> 位置最高，新用户进来第一眼就看到，不遮挡球和五角形<br>
+        <span class="good">✓</span> 形态轻（像系统通知条），对定稿视觉侵入最小<br>
+        <span class="good">✓</span> 老用户升级后即使误现也易关闭<br>
+        <span class="bad">✗</span> 信息量少，只能放一句标题+一句示例，没有大按钮
+      </div>
+    </div>
+
+    <div class="opt">
+      <div class="opt-title">方案 B · 五角形下行动卡<span class="tag gray">备选</span></div>
+      <div class="phone" id="ph-b"></div>
+      <div class="pros"><b>一张完整任务卡，落在球区和底栏之间的留白里</b><br>
+        <span class="good">✓</span> 指令感最强：标题+示例句+橙色大按钮，最像「该做这件事」<br>
+        <span class="good">✓</span> 有空间放完整引导文案，转化路径最短<br>
+        <span class="bad">✗</span> 占用球下方空间，需把球区压矮一点，对定稿构图有扰动<br>
+        <span class="bad">✗</span> 视觉最重，新用户看完若不操作，卡片一直在首页压场
+      </div>
+    </div>
+
+    <div class="opt">
+      <div class="opt-title">方案 C · AI 按钮气泡<span class="tag gray">备选</span></div>
+      <div class="phone" id="ph-c"></div>
+      <div class="pros"><b>不加卡，在中央 AI 按钮上浮一个指向气泡+虚线光圈</b><br>
+        <span class="good">✓</span> 最轻，页面零改动，直接把人引到正确的入口上<br>
+        <span class="good">✓</span> 「入口」和「指令」合一，看到气泡就知道往哪按<br>
+        <span class="bad">✗</span> 信息量最少，讲不清「为什么/能干什么」<br>
+        <span class="bad">✗</span> 底部是视觉边角，容易被忽略；点空白处消失后就再无触达
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 空态升级 ============ -->
+  <h2>③ 空态升级：从「陈述句」到「起点」（拍板点 2）</h2>
+  <p class="sec-desc">原则：空态不再只是描述「这里是空的」，而是给出一个可以直接按的按钮，一键直达新建表单/编辑器。按钮样式统一用品牌橙实底、圆角 12，与看板主行动按钮同语言。</p>
+
+  <div class="es-grid">
+    <div class="es">
+      <h3><span class="mod">财务</span>账本空态 · 前后对照</h3>
+      <div class="es-box">
+        <div class="ic">💳</div>
+        <div class="t1">暂无交易记录</div>
+        <div class="t2">点击 + 按钮记录第一笔交易</div>
+      </div>
+      <div class="arrowline">↓</div>
+      <div class="es-box">
+        <div class="ic">💳</div>
+        <div class="t1">暂无交易记录</div>
+        <div class="t2">说一句话或手动记一笔，都可以开始</div>
+        <div class="cta">＋ 记一笔</div>
+      </div>
+    </div>
+
+    <div class="es">
+      <h3><span class="mod">任务</span>任务空态 · 前后对照</h3>
+      <div class="es-box">
+        <div class="ic">🗒️</div>
+        <div class="t1">暂无任务</div>
+        <div class="t2">点击右下角 + 创建第一个任务</div>
+      </div>
+      <div class="arrowline">↓</div>
+      <div class="es-box">
+        <div class="ic">🗒️</div>
+        <div class="t1">暂无任务</div>
+        <div class="t2">告诉 Holo 要做什么，或手动创建</div>
+        <div class="cta">＋ 创建第一个任务</div>
+      </div>
+    </div>
+
+    <div class="es">
+      <h3><span class="mod">想法</span>想法空态 · 前后对照</h3>
+      <div class="es-box">
+        <div class="ic">💡</div>
+        <div class="t1">暂无想法</div>
+        <div class="t2">点右下角 + 记录第一条想法</div>
+      </div>
+      <div class="arrowline">↓</div>
+      <div class="es-box">
+        <div class="ic">💡</div>
+        <div class="t1">暂无想法</div>
+        <div class="t2">一闪而过的念头，都值得留下来</div>
+        <div class="cta">＋ 记录第一条想法</div>
+      </div>
+    </div>
+
+    <div class="es">
+      <h3><span class="mod">看板</span>主卡 calm 态 · 前后对照</h3>
+      <div class="kanban-card">
+        <div class="t1"><span style="color:var(--success)">🍃</span>今天没有必须立刻处理的事</div>
+        <div class="t2">可以按自己的节奏推进安排。</div>
+      </div>
+      <div class="arrowline">↓</div>
+      <div class="kanban-card">
+        <div class="t1"><span style="color:var(--success)">🍃</span>今天没有必须立刻处理的事</div>
+        <div class="t2">可以按自己的节奏推进安排。</div>
+        <div class="act">✦&nbsp;试试对 Holo 说一句话&nbsp;→</div>
+      </div>
+    </div>
+  </div>
+
+  <h2 style="margin-top:56px">④ 「记录今天」语义修正（拍板点 3）</h2>
+  <p class="sec-desc">现状：看板底部「记录今天」按钮打开的是<b>想法编辑器</b>，字面像「记录今天的一切」，新手容易误解。两个改法二选一：</p>
+  <div class="recfix">
+    <div class="chip"><b>改法一 · 只改文案（改动最小）</b>按钮文案改为「记想法」，图标不变。语义准确，零行为变化。</div>
+    <div class="chip rec"><b>改法二 · 改指向（与本期方向一致）</b>按钮改为「对 Holo 说」→ 跳 AI 对话并预填。让看板的唯一行动出口与行动卡同方向；但看板底部与「＋开始一件事」功能重复，需接受。 <b style="display:inline;color:var(--orange)">推荐</b></div>
+  </div>
+
+  <!-- ============ 庆祝 ============ -->
+  <h2>⑤ 首次记录成功庆祝（拍板点 4）</h2>
+  <p class="sec-desc">触发条件：保存人生第一笔记录时（保存前全库计数为 0）。只在「记一笔」主路径触发（含 AI 记账落库），一次即落盘永不重现，老用户永远不触发。点「去长廊看看」→ 关浮层并跳记忆长廊。</p>
+  <div class="row">
+    <div class="opt">
+      <div class="opt-title">首次记账成功 · 庆祝浮层</div>
+      <div class="phone" id="ph-cele"></div>
+    </div>
+    <div class="pros" style="align-self:center;max-width:500px">
+      <b>设计说明</b><br>
+      ✓ 轻浮层而非全屏庆祝页——庆祝完仍留在原处，不打断<br>
+      ✓ 一句话点出产品叙事「人生数据库开始运转」<br>
+      ✓ 唯一按钮指向记忆长廊：让用户亲眼看到自己的记录长出了第一条<br>
+      ✓ 无按钮路径：点浮层外任意处关闭，「以后再说」<br>
+      ✓ 触发一次即落盘，重启/再次记账都不再出现
+    </div>
+  </div>
+
+  <!-- ============ 拍板汇总 ============ -->
+  <h2>⑥ 拍板点汇总</h2>
+  <table class="decide">
+    <tr><th style="width:60px">序号</th><th>拍板点</th><th>候选</th><th style="width:220px">东林拍板</th></tr>
+    <tr><td>1</td><td>行动卡位置形态</td><td>A 问候下横条 / B 五角形下行动卡 / C AI 按钮气泡</td><td class="pick">待拍板</td></tr>
+    <tr><td>2</td><td>空态按钮样式</td><td>品牌橙实底、圆角 12（如图）</td><td class="pick">待拍板</td></tr>
+    <tr><td>3</td><td>「记录今天」处理</td><td>改文案「记想法」 / 改指向「对 Holo 说」</td><td class="pick">待拍板</td></tr>
+    <tr><td>4</td><td>庆祝形态</td><td>轻浮层卡片 + 微动画（如图）</td><td class="pick">待拍板</td></tr>
+  </table>
+
+  <p class="footer-note">Holo · 新用户激活一期设计稿 · 2026-09-14 · 配色与布局数值取自代码实测（DesignSystem.swift / HomeView.swift / DailyKanbanEntryButton.swift）</p>
+</div>
+
+<script>
+/* ====== 简易图标 ====== */
+const IC = {
+  checklist:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="7" height="7" rx="1.5"/><path d="M5 7.5l1.5 1.5L9 6.5"/><path d="M13 6h8M13 9h6"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M5 17.5l1.5 1.5L9 16.5"/><path d="M13 16h8M13 19h6"/></svg>',
+  wallet:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 9h18" opacity=".0"/><path d="M16 13h5v4h-5a2 2 0 1 1 0-4z"/><path d="M6 6V5a2 2 0 0 1 2-2h9"/></svg>',
+  habit:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.6 2.6L16.5 9"/></svg>',
+  health:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.8" stroke-linejoin="round"><path d="M12 20.5S4 15 4 9.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5c0 5.5-8 11-8 11z"/></svg>',
+  bulb:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 1 4 10.5c-.8.7-1 1.5-1 2.5h-6c0-1-.2-1.8-1-2.5A6 6 0 0 1 12 3z"/></svg>',
+  gear:'<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v3M12 18.2v3M2.8 12h3M18.2 12h3M5.5 5.5l2.1 2.1M16.4 16.4l2.1 2.1M18.5 5.5l-2.1 2.1M7.6 16.4l-2.1 2.1"/></svg>',
+  person:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5a7.5 7.5 0 0 1 15 0"/></svg>',
+  book:'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 18.5A2.5 2.5 0 0 1 6.5 16H20"/></svg>',
+  spark:'<svg width="24" height="24" viewBox="0 0 24 24" fill="#fff"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/><circle cx="19" cy="4.5" r="1.4"/><circle cx="5" cy="19" r="1.1"/></svg>',
+  sparkO:'<svg width="18" height="18" viewBox="0 0 24 24" fill="#F46D38"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z"/></svg>',
+  chev:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C9C4BC" stroke-width="2.4" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>',
+  trophy:'<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 5H5a3 3 0 0 0 3 4M16 5h3a3 3 0 0 1-3 4"/><path d="M12 13v3M8.5 20h7M10 16.5h4l.8 3.5H9.2z"/></svg>'
+};
+
+/* ====== 五角形坐标：半径155，顶点-90°每72° ====== */
+const FB = [
+  {n:'任务', ic:IC.checklist, x:0,    y:-155},
+  {n:'财务', ic:IC.wallet,    x:147,  y:-48},
+  {n:'习惯', ic:IC.habit,     x:91,   y:125},
+  {n:'健康', ic:IC.health,    x:-91,  y:125},
+  {n:'想法', ic:IC.bulb,      x:-147, y:-48},
+];
+
+function ringsSVG(){
+  // 新用户进度 0%：只画三条淡白轨道
+  const ring = (d,o,w)=>`<circle cx="60" cy="60" r="${d/2}" fill="none" stroke="rgba(255,255,255,${o*0.15})" stroke-width="${w}" stroke-linecap="round"/>`;
+  return `<svg class="rings" width="120" height="120" viewBox="0 0 120 120">${ring(104,.55,3.5)}${ring(75,.38,2.8)}${ring(49,.26,2.2)}</svg>`;
+}
+function arcText(){
+  return `<svg style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)" width="192" height="192" viewBox="0 0 192 192">
+    <defs><path id="arc${Math.random().toString(36).slice(2,7)}" d="M 30 96 A 66 66 0 0 0 162 96" fill="none"/></defs></svg>`;
+}
+function arcTextFixed(){
+  const id = 'a'+Math.random().toString(36).slice(2,8);
+  return `<svg style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%)" width="192" height="192" viewBox="0 0 192 192">
+    <defs><path id="${id}" d="M 28 96 A 68 68 0 0 0 164 96" fill="none"/></defs>
+    <text font-size="10.5" font-weight="500" fill="rgba(255,255,255,.88)" letter-spacing="1.5">
+      <textPath href="#${id}" startOffset="50%" text-anchor="middle">今天暂无紧急事项</textPath>
+    </text></svg>`;
+}
+
+/* mode: none | strip | bigcard | bubble ; extra: {celebrate, shorter} */
+function buildHome(el, mode, extra={}){
+  const shorter = extra.shorter ? ' shorter' : '';
+  let stageCard = '';
+  if(mode==='bigcard'){
+    stageCard = `<div class="bigcard">
+      <span class="x">✕</span>
+      <div class="t1">先试试对 Holo 说一句话</div>
+      <div class="t2">不用找入口，像发消息一样告诉它发生了什么</div>
+      <div class="quote"><span class="qm">“</span>午饭花了 35 元<span class="qm">”</span></div>
+      <div class="btn">对 Holo 说</div>
+    </div>`;
+  }
+  let strip = '';
+  if(mode==='strip'){
+    strip = `<div class="strip">
+      <div class="ic">${IC.sparkO}</div>
+      <div class="tx">
+        <div class="t1">先试试对 Holo 说一句话</div>
+        <div class="t2">比如“午饭花了 35 元”，它会帮你记好</div>
+      </div>
+      ${IC.chev}
+      <span class="x">✕</span>
+    </div>`;
+  }
+  let bubble = '';
+  if(mode==='bubble'){
+    bubble = `<div class="ai-halo-wrap"><div class="ai-halo"></div></div>
+      <div class="bubble">对 Holo 说一句话试试<span class="sub">比如“午饭花了 35 元”</span></div>`;
+  }
+  el.innerHTML = `
+    <div class="notch"></div>
+    <div class="blob o"></div><div class="blob p"></div><div class="blob b"></div>
+    <div class="hd">
+      <div><div class="brand">HOLO</div><div class="greet">早上好</div></div>
+      <div class="gear">${IC.gear}</div>
+    </div>
+    ${strip}
+    <div class="stage${shorter}">
+      <div class="dashring" style="width:320px;height:320px;left:50%;top:50%;transform:translate(-50%,-50%);border-color:rgba(244,109,56,.08)"></div>
+      <div class="dashring" style="width:256px;height:256px;left:50%;top:50%;transform:translate(-50%,-50%)"></div>
+      <div class="orb"></div>
+      ${ringsSVG()}
+      ${arcTextFixed()}
+      <div class="core-dot"></div>
+      ${FB.map(f=>`<div class="fb" style="left:calc(50% + ${f.x-28}px);top:calc(50% + ${f.y-28-10}px)">
+        <div class="ico">${f.ic}</div><div class="lb">${f.n}</div></div>`).join('')}
+    </div>
+    ${stageCard}
+    <div class="nav">
+      <div class="item">${IC.person}<span>个人</span></div>
+      <div class="ai">${IC.spark}</div>
+      <div class="item">${IC.book}<span>长廊</span></div>
+    </div>
+    ${bubble}
+    <div class="home-ind"></div>`;
+}
+
+buildHome(document.getElementById('ph-now'), 'none');
+buildHome(document.getElementById('ph-a'), 'strip');
+buildHome(document.getElementById('ph-b'), 'bigcard', {shorter:true});
+buildHome(document.getElementById('ph-c'), 'bubble');
+
+/* ====== 庆祝手机 ====== */
+(function(){
+  const el = document.getElementById('ph-cele');
+  buildHome(el, 'none');
+  const colors = ['#F46D38','#FED7AA','#EAB308','#C084FC','#60A5FA','#22C55E'];
+  let confetti = '';
+  for(let i=0;i<20;i++){
+    const c = colors[i%colors.length];
+    confetti += `<div class="confetti" style="left:${5+Math.random()*90}%;top:${17+Math.random()*20}%;width:${5+Math.random()*4}px;height:${8+Math.random()*5}px;background:${c};animation-delay:${(Math.random()*2).toFixed(2)}s"></div>`;
+  }
+  el.insertAdjacentHTML('beforeend', `
+    <div class="dim"></div>
+    ${confetti}
+    <div class="cele">
+      <div class="medal">${IC.trophy}</div>
+      <div class="t1">第一条记录完成 🎉</div>
+      <div class="t2">你的人生数据库开始运转了。<br>去记忆长廊看看，它会随你的生活慢慢生长。</div>
+      <div class="btn">去长廊看看</div>
+      <div class="later">以后再说</div>
+    </div>`);
+})();
+</script>
+</body>
+</html>

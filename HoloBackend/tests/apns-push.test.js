@@ -176,3 +176,25 @@ test("端点：合法 token 上报落库；非法格式 400", async () => {
   });
   assert.equal(bad.status, 400);
 });
+
+test("apnsSender：category 写入 aps.category，custom 平铺到 payload 顶层（iOS 点通知路由依据）", async () => {
+  const connect = fakeConnect(() => ({ status: 200 }));
+  const sender = createApnsSender({
+    keyPem: TEST_KEY_PEM,
+    keyId: "TESTKEYID1",
+    teamId: "TESTTEAMID",
+    bundleId: "com.test.app",
+    connect,
+  });
+  const result = await sender.send({
+    token: TOKEN,
+    title: "深度分析完成",
+    body: "结果已就绪，点按查看",
+    category: "CLOUD_ANALYSIS_DONE",
+    custom: { taskId: "task-123", taskType: "deep_analysis" },
+  });
+  assert.equal(result.ok, true);
+  assert.equal(connect.calls[0].body.aps.category, "CLOUD_ANALYSIS_DONE");
+  assert.equal(connect.calls[0].body.taskId, "task-123");
+  assert.equal(connect.calls[0].body.taskType, "deep_analysis");
+});

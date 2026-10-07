@@ -48,6 +48,8 @@ test("vision_extraction：服务端 prompt 已注册且有版本，含货币红�
   assert.ok(prompt.content.includes("foreign_currency"), "prompt 必须定义外币图型");
   assert.ok(prompt.content.includes("amountOriginalText"), "prompt 必须要求逐字抄录金额原文");
   assert.ok(prompt.content.includes("【货币判定示例】"), "外币少样本示例是评测实证的精度关键，不得删除");
+  assert.ok(prompt.content.includes("【境外人民币结算示例】"), "境外人民币结算少样本（2026-10-01 微信境外消费误拒实证）不得删除");
+  assert.ok(prompt.content.includes("实付金额本身不是人民币"), "货币红线必须以实付金额为准，不得图中有外币就拒");
   assert.ok(prompt.content.includes("{{todayISODate}}"), "prompt 必须带日期锚点");
 });
 
@@ -144,6 +146,45 @@ test("understandingContract：currency 字段直接报外币也拦", () => {
   assert.equal(understanding.transactions.length, 0);
 });
 
+// 2026-10-01 境外人民币结算（微信支付境外消费账单实证：标价 6070 日元 +
+// 汇率明细 + 实付 ¥254.45）：实付的是人民币，逐笔金额原文干净时不得被
+// 顶层字段（抄到标价/汇率行）误杀。
+test("understandingContract：境外人民币结算——顶层字段沾外币但逐笔原文干净，放行并钳回 CNY", () => {
+  const { understanding, guards } = normalizeUnderstanding({
+    imageType: "payment_screenshot",
+    currency: "JPY",
+    amountOriginalText: "6070日元",
+    merchant: "ツルタンヤウドンソードブラッスリー",
+    transactions: [{
+      type: "expense",
+      amount: 254.45,
+      note: "ツルタンヤウドンソードブラッスリー",
+      amountOriginalText: "¥254.45",
+    }],
+  });
+  assert.equal(understanding.imageType, "payment_screenshot");
+  assert.equal(understanding.transactions.length, 1);
+  assert.equal(understanding.transactions[0].amount, 254.45);
+  assert.equal(understanding.currency, "CNY", "放行时输出层必须钳回 CNY（客户端以此双保险）");
+  assert.ok(guards.some((g) => g.reason === "foreign_settled_in_cny_allowed"), "放行必须可观测");
+  assert.equal(understanding.rejectReason, null);
+});
+
+test("understandingContract：任一笔逐笔金额原文命中外币仍强制拒识", () => {
+  const { understanding, guards } = normalizeUnderstanding({
+    imageType: "receipt",
+    currency: "CNY",
+    amountOriginalText: "¥98.60",
+    transactions: [
+      { type: "expense", amount: 98.6, amountOriginalText: "¥98.60" },
+      { type: "expense", amount: 14.47, amountOriginalText: "$14.47" },
+    ],
+  });
+  assert.equal(understanding.imageType, "foreign_currency");
+  assert.equal(understanding.transactions.length, 0);
+  assert.equal(guards[0].reason, "foreign_currency_forced_reject");
+});
+
 test("understandingContract：不可记账图型携带交易被兜底清空", () => {
   const { understanding, guards } = normalizeUnderstanding({
     imageType: "transfer_screenshot",
@@ -173,11 +214,12 @@ test("understandingContract：退款 income 保留；非法条目被钳制不抛
 });
 
 test("understandingContract：外币符号模式覆盖主流货币", () => {
-  for (const text of ["$14.47", "PAID €3.2", "£9", "Total: USD 12", "JPY 500", "NT$120"]) {
+  for (const text of ["$14.47", "PAID €3.2", "£9", "Total: USD 12", "JPY 500", "NT$120", "JP¥500", "6070日元", " paid 30 美元"]) {
     assert.ok(FOREIGN_MONEY_PATTERN.test(text), `${text} 应命中外币模式`);
   }
   assert.ok(!FOREIGN_MONEY_PATTERN.test("¥98.60"));
   assert.ok(!FOREIGN_MONEY_PATTERN.test("98.60 元"));
+  assert.ok(!FOREIGN_MONEY_PATTERN.test("254.45人民币"), "人民币字样不得误命中");
 });
 
 // ===== v2 契约（docs/finance/plans/2026-09-14-Holo图片账单快捷指令自动记账完整方案.md §7/§26）=====
@@ -400,4 +442,106 @@ test("v3：vision_extraction prompt 升 v3——逐笔渠道要求与示例字�
     "主示例 transactions 条目必须带逐笔渠道字段",
   );
   assert.ok(prompt.content.includes("【货币判定示例】"), "外币少样本示例不得删除");
+});
+
+// ===== 一致性收口（2026-09-23 生产实锤：美团外卖「商家已接单」已付款页被拒识）=====
+// 生产 11:27 实锤：deepseek-v4-flash-vision-exp 对已付款、配送中的美团订单页输出
+// paymentStatus=completed 却 imageType=pending_order 的自相矛盾结果，交易被图型红线
+// 清空，一笔已支付的账被当成未支付拒识。
+
+test("一致性护栏：completed+pending_order 自相矛盾时以支付状态为准，交易存活", () => {
+  const { understanding, guards } = normalizeUnderstanding({
+    imageType: "pending_order",
+    confidence: 0.9,
+    paymentStatus: "completed",
+    paymentStatusOriginalText: "商家已接单",
+    merchant: "蒙自源米线(福永星航店)",
+    currency: "CNY",
+    amountOriginalText: "合计¥20.9",
+    transactions: [{ type: "expense", amount: 20.9, note: "蒙自源米线", amountOriginalText: "合计¥20.9" }],
+  });
+  assert.equal(understanding.imageType, "payment_screenshot", "模型亲口判 completed 就不许再按未支付拒识");
+  assert.equal(understanding.transactions.length, 1, "伴随交易必须存活（不许被图型红线清掉）");
+  assert.equal(understanding.transactions[0].amount, 20.9);
+  assert.equal(understanding.rejectReason, null);
+  assert.ok(
+    guards.some((g) => g.reason === "completed_status_pending_type_coerced"),
+    "改写必须记录护栏供观测",
+  );
+});
+
+test("一致性护栏：completed+pending_order 无交易时改图型，拒识文案不再是「未支付」", () => {
+  // 2026-09-23 生产实锤形态：模型没给交易只给了顶层金额原文。改写后客户端文案
+  // 走「没认出金额」而非谎报「订单还没支付」。
+  const { understanding, guards } = normalizeUnderstanding({
+    imageType: "pending_order",
+    confidence: 0.9,
+    paymentStatus: "completed",
+    paymentStatusOriginalText: "商家已接单",
+    amountOriginalText: "合计¥20.9",
+    transactions: [],
+    rejectReason: null,
+  });
+  assert.equal(understanding.imageType, "payment_screenshot");
+  assert.equal(understanding.transactions.length, 0);
+  assert.equal(understanding.rejectReason, null);
+  assert.ok(guards.some((g) => g.reason === "completed_status_pending_type_coerced"));
+});
+
+test("一致性护栏：真未支付（pending 状态）不受影响，照常拒识", () => {
+  const { understanding, guards } = normalizeUnderstanding({
+    imageType: "pending_order",
+    paymentStatus: "pending",
+    paymentStatusOriginalText: "待付款",
+    transactions: [],
+  });
+  assert.equal(understanding.imageType, "pending_order");
+  assert.deepEqual(guards, []);
+  assert.equal(understanding.rejectReason, "订单尚未支付，支付完成后重试");
+});
+
+test("一致性护栏：unknown 状态不触发改写（只信模型明确的 completed）", () => {
+  const { understanding } = normalizeUnderstanding({
+    imageType: "pending_order",
+    paymentStatus: "unknown",
+    transactions: [],
+  });
+  assert.equal(understanding.imageType, "pending_order");
+});
+
+test("一致性：prompt 必须含外卖订单已付款规则与示例（2026-09-23 实锤场景）", () => {
+  const prompt = getPrompt("vision_extraction");
+  assert.ok(
+    prompt.content.includes("商家已接单"),
+    "prompt 必须点名「商家已接单」类外卖页为已支付",
+  );
+  assert.ok(prompt.content.includes("【外卖订单示例】"), "外卖订单少样本示例是本次实锤的修复主体");
+  assert.ok(
+    prompt.content.includes("绝不能判成 pending_order"),
+    "必须明令禁止把已付款配送中订单判成 pending_order",
+  );
+  assert.ok(
+    prompt.content.includes("仅限「待付款」"),
+    "pending_order 定义必须限定待付款状态",
+  );
+});
+
+test("一致性：代码默认 provider/model 与生产 DeepSeek 对齐，qwen 默认已删（2026-09-23 东林拍板）", () => {
+  const source = readFileSync(new URL("../src/config.js", import.meta.url), "utf8");
+  assert.ok(
+    source.includes('HOLO_VISION_EXTRACTION_PROVIDER ?? "deepseek-vision"'),
+    "vision_extraction 默认 provider 必须是 deepseek-vision",
+  );
+  assert.ok(
+    source.includes('HOLO_VISION_EXTRACTION_MODEL ?? "deepseek-v4-flash-vision-exp"'),
+    "vision_extraction 默认 model 必须是 deepseek-v4-flash-vision-exp",
+  );
+  assert.ok(
+    !source.includes('?? "qwen3-vl-plus"'),
+    "误导性的 qwen3-vl-plus 默认必须删除",
+  );
+  assert.ok(
+    source.includes('HOLO_VISION_EXTRACTION_REASONING_EFFORT ?? "none"'),
+    "思考档位默认 none（与生产 env 对齐）",
+  );
 });

@@ -22,7 +22,9 @@ import { createRequestLogger } from "./middleware/requestLogger.js";
 import { createDatabase } from "./db/database.js";
 import { createAppleIdentityVerifier } from "./auth/appleIdentityVerifier.js";
 import { createAppleRevokeService } from "./auth/appleRevokeService.js";
+import { createAppleTokenStore } from "./auth/appleTokenStore.js";
 import { createHoloSessionService } from "./auth/holoSession.js";
+import { createDeviceSessionService } from "./auth/deviceSession.js";
 import { requireInternalDiagnostics } from "./auth/internalDiagnosticsAuth.js";
 import { injectServerPrompt, buildVisionExtractionMessages } from "./prompts/serverPromptPolicy.js";
 import { buildDeterministicIntentCompletion } from "./intentResponseStabilizer.js";
@@ -46,6 +48,7 @@ import { createThoughtOrganizeBudgetStore } from "./thoughts/thoughtOrganizeBudg
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
 import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateService.js";
 import { createThoughtTopicInsightService } from "./thoughts/topicInsightService.js";
+import { createThoughtInsightService } from "./thoughts/thoughtInsightService.js";
 import { TOPIC_NAME_LIMITS, TOPIC_SUMMARY_LIMITS } from "./thoughts/topicInsightSchema.js";
 import { RELATE_LIMITS } from "./thoughts/semanticRelateSchema.js";
 import { ORGANIZE_LIMITS } from "./thoughts/organizeSchema.js";
@@ -56,6 +59,10 @@ const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "mode
 // 想法正文类 purpose（隐私方案 §2.5）：调用方只向日志组件传元数据摘要，
 // 不把 messages/正文传进去；adminLogStore 另有 purpose 级强制白名单双保险。
 const THOUGHT_CONTENT_PURPOSES = new Set([
+  // 任务分步推进（2026-09-25 实施规格 §11.4）：请求含任务正文快照与障碍描述，metadata-only
+  "matter_execution_plan",
+  // 「今天减负」当日安排整理（2026-10-03 方案 §11.6）：请求含任务/日程/用户表达，metadata-only
+  "today_relief_plan",
   "thought_organization",
   "thought_tag_convergence",
   "thought_task_extraction",
@@ -224,7 +231,7 @@ export function createApp(overrides = {}) {
   }
   const analysisPushNotifier = apnsSender?.configured
     ? {
-        async notifyTaskCompleted(deviceId, { title, body }) {
+        async notifyTaskCompleted(deviceId, { title, body, category, custom }) {
           const row = deviceTokenStore.get(deviceId);
           if (!row) return;
           const result = await apnsSender.send({
@@ -232,6 +239,8 @@ export function createApp(overrides = {}) {
             environment: row.environment ?? undefined,
             title,
             body,
+            category,
+            custom,
           });
           if (result.ok) {
             if (result.environment && result.environment !== row.environment) {
@@ -282,7 +291,23 @@ export function createApp(overrides = {}) {
     clientId: config.auth.appleRevoke?.clientId,
     privateKeyPem: config.auth.appleRevoke?.privateKeyPem,
   });
+  // P02：授权码换得的 refresh token 加密留存，账号删除时凭它真正撤销 SIWA 凭证
+  const appleTokenStore = config.appleTokenStore ?? createAppleTokenStore(database.db, {
+    encryptionKey: config.auth.appleRevoke?.tokenEncryptionKey,
+  });
   const holoSessionService = config.holoSessionService ?? createConfiguredSessionService(config.auth);
+  // 设备会话服务（S01）：与用户会话共用同一签名密钥、不同 audience（holo-device）；
+  // 密钥未配置或不足 32 字节时为 null（端点报 503、强制开关下 getDeviceId 报
+  // AUTH_UNAVAILABLE 失败关闭，与用户会话同语义）。
+  const deviceSessionService = config.deviceSessionService
+    ?? (Buffer.byteLength(String(config.auth.sessionSecret ?? ""), "utf8") >= 32
+      ? createDeviceSessionService({
+        secret: config.auth.sessionSecret,
+        issuer: config.auth.sessionIssuer,
+        ttlSeconds: config.auth.deviceSessionTtlSeconds,
+        challengeTtlSeconds: config.auth.deviceSessionChallengeTtlSeconds,
+      })
+      : null);
   const contentModeration =
     config.contentModeration ?? createContentModerationService(config.moderation);
 
@@ -309,6 +334,15 @@ export function createApp(overrides = {}) {
   });
 
   // 主题命名/摘要 V3（方案 §4.4/§4.5）：同预算记账类，两端点共享独立预算池
+  // 想法按需洞察（2026-09-24 方案 §5.1）：同预算记账类，独立预算池
+  const thoughtInsightService = createThoughtInsightService({
+    config,
+    providers,
+    adminLogStore,
+    budgetStore: thoughtOrganizeBudgetStore,
+    contentModeration,
+  });
+
   const thoughtTopicInsightService = createThoughtTopicInsightService({
     config,
     providers,
@@ -415,21 +449,79 @@ export function createApp(overrides = {}) {
     }
   });
 
-  // App Store Guideline 5.1.1v：账号删除时撤销 Sign in with Apple 凭证。
-  // 客户端在删除账号前把用户的 identity token 发到这里，后端用 .p8 私钥签 client_secret
-  // 后调 Apple /auth/revoke 撤销。先验证 identity token，防止用任意字符串滥用撤销端点。
+  // App Store Guideline 5.1.1v / TN3194：账号删除时撤销 Sign in with Apple 凭证。
+  // P02（2026-10-04 体检）：撤销接口只认 access/refresh token——此前误传 identity
+  // token（hint=id_token），撤销从未真正生效。现在：登录时客户端把授权码报到
+  // register-revocation-token，后端换 refresh token 加密留存；删除时凭留存 token
+  // 真正撤销并即焚。历史账号无留存 token 时返回 ok=false（200），删除流程照常
+  // 继续并由客户端给出官方撤销指引——不以撤销失败阻断账号删除。
+  app.post("/v1/auth/apple/register-revocation-token", async (context) => {
+    try {
+      const request = await readJson(context);
+      let identity;
+      try {
+        identity = await appleIdentityVerifier.verify(request.identityToken);
+      } catch {
+        throw new GatewayError("INVALID_APPLE_IDENTITY", "Apple identity token is invalid", 401);
+      }
+      if (!appleRevokeService.isConfigured() || !appleTokenStore.configured) {
+        throw new GatewayError("APPLE_REVOKE_NOT_CONFIGURED", "Apple credential revocation is not configured", 503);
+      }
+      try {
+        const { refreshToken } = await appleRevokeService.exchangeAuthorizationCode(request.authorizationCode);
+        appleTokenStore.save(identity.sub, refreshToken);
+      } catch (error) {
+        throw new GatewayError(
+          "APPLE_TOKEN_EXCHANGE_FAILED",
+          error.message || "Apple authorization code exchange failed",
+          502,
+        );
+      }
+      context.header("Cache-Control", "no-store");
+      return context.json({ ok: true });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
   app.post("/v1/auth/apple/revoke", async (context) => {
     try {
       const request = await readJson(context);
+      let identity;
       try {
-        await appleIdentityVerifier.verify(request.identityToken);
+        identity = await appleIdentityVerifier.verify(request.identityToken);
       } catch {
         throw new GatewayError("INVALID_APPLE_IDENTITY", "Apple identity token is invalid", 401);
       }
       if (!appleRevokeService.isConfigured()) {
         throw new GatewayError("APPLE_REVOKE_NOT_CONFIGURED", "Apple credential revocation is not configured", 503);
       }
-      await appleRevokeService.revoke(request.identityToken);
+      // 请求携带新鲜授权码时先换先存（覆盖旧 token），再走留存凭证撤销
+      if (typeof request.authorizationCode === "string" && request.authorizationCode.length > 0
+        && appleTokenStore.configured) {
+        try {
+          const { refreshToken } = await appleRevokeService.exchangeAuthorizationCode(request.authorizationCode);
+          appleTokenStore.save(identity.sub, refreshToken);
+        } catch {
+          // 换取失败不阻断撤销——继续用已留存的 token
+        }
+      }
+      const storedToken = appleTokenStore.lookup(identity.sub);
+      if (!storedToken) {
+        context.header("Cache-Control", "no-store");
+        return context.json({ ok: false, reason: "REFRESH_TOKEN_UNAVAILABLE" });
+      }
+      try {
+        await appleRevokeService.revoke(storedToken);
+      } catch (error) {
+        throw new GatewayError(
+          "APPLE_REVOKE_FAILED",
+          error.message || "Apple credential revocation failed",
+          502,
+        );
+      }
+      // 撤销成功即焚：SIWA 凭证已吊销，留存凭证完成使命
+      appleTokenStore.remove(identity.sub);
       context.header("Cache-Control", "no-store");
       return context.json({ ok: true });
     } catch (error) {
@@ -514,6 +606,48 @@ export function createApp(overrides = {}) {
     }
   });
 
+  // 设备会话（S01）：持钥证明换短效 JWT。挑战一次性防重放；同一签名密钥不同 audience。
+  app.post("/v1/auth/device/challenge", async (context) => {
+    try {
+      if (!deviceSessionService) {
+        throw new GatewayError("AUTH_UNAVAILABLE", "Device session secret is not configured", 503);
+      }
+      await readJson(context);
+      context.header("Cache-Control", "no-store");
+      return context.json(deviceSessionService.issueChallenge());
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  app.post("/v1/auth/device/session", async (context) => {
+    try {
+      if (!deviceSessionService) {
+        throw new GatewayError("AUTH_UNAVAILABLE", "Device session secret is not configured", 503);
+      }
+      const request = await readJson(context);
+      let token;
+      try {
+        token = await deviceSessionService.issueSession({
+          deviceId: request.deviceId,
+          publicKey: request.publicKey,
+          signature: request.signature,
+          challenge: request.challenge,
+        });
+      } catch (error) {
+        throw new GatewayError("INVALID_DEVICE_BINDING", error.message, 401);
+      }
+      const session = await deviceSessionService.verifySession(token);
+      context.header("Cache-Control", "no-store");
+      return context.json({
+        token,
+        expiresAt: session.expiresAt,
+      });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
   const subscriptionStatusFor = (deviceId) => {
     const entitlement = entitlementResolver.resolve(deviceId);
     const status = buildSubscriptionStatus(entitlement, quotaActionLedgerStore);
@@ -522,9 +656,9 @@ export function createApp(overrides = {}) {
     return status;
   };
 
-  app.get("/v1/subscription/status", (context) => {
+  app.get("/v1/subscription/status", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       context.header("Cache-Control", "no-store");
       return context.json(subscriptionStatusFor(deviceId));
     } catch (error) {
@@ -534,7 +668,7 @@ export function createApp(overrides = {}) {
 
   app.post("/v1/subscription/sync", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
       const verified = await appleReceiptVerifier.verify(request);
       entitlementStore.upsertVerified(deviceId, verified);
@@ -548,7 +682,7 @@ export function createApp(overrides = {}) {
   app.post("/v1/subscription/acceptance", async (context) => {
     try {
       await requireInternalDiagnostics(context, holoSessionService);
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
       if (request.mode === "followPurchase") {
         acceptanceStore.clear(deviceId);
@@ -567,7 +701,7 @@ export function createApp(overrides = {}) {
   app.post("/v1/subscription/acceptance/reset", async (context) => {
     try {
       await requireInternalDiagnostics(context, holoSessionService);
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const entitlement = entitlementResolver.resolve(deviceId);
       if (entitlement.source !== "acceptance") {
         throw new GatewayError(
@@ -597,7 +731,7 @@ export function createApp(overrides = {}) {
         throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const entitlement = entitlementResolver.resolve(deviceId);
       const quotaType = quotaTypeForPurpose(purpose);
       const quotaActionId = resolveQuotaActionId(request, purpose);
@@ -911,7 +1045,7 @@ export function createApp(overrides = {}) {
       if (!allowedEmbeddingPurposes.has(purpose)) {
         throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
       }
-      if (purpose === "personal_context_embedding") {
+      if (contentModeration.isEnabled()) {
         const moderationResult = await contentModeration.moderate(texts.join("\n"));
         if (!moderationResult.passed) {
           throw new GatewayError(
@@ -927,7 +1061,7 @@ export function createApp(overrides = {}) {
         throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const requestLimits = {
         perMinute: route.requestLimits?.perMinute ?? config.limits.chatRequestsPerMinute,
         perDay: route.requestLimits?.perDay ?? config.limits.chatRequestsPerDay,
@@ -993,7 +1127,7 @@ export function createApp(overrides = {}) {
         );
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const entitlement = entitlementResolver.resolve(deviceId);
       const usage = usageStore.consume({
         deviceId,
@@ -1044,7 +1178,7 @@ export function createApp(overrides = {}) {
         );
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const entitlement = entitlementResolver.resolve(deviceId);
       const usage = usageStore.consume({
         deviceId,
@@ -1112,7 +1246,7 @@ export function createApp(overrides = {}) {
           );
         }
 
-        const deviceId = getDeviceId(context, config);
+        const deviceId = await getDeviceId(context, config);
         const entitlement = entitlementResolver.resolve(deviceId);
         const usage = usageStore.consume({
           deviceId,
@@ -1139,10 +1273,62 @@ export function createApp(overrides = {}) {
     });
   }
 
+  // 想法按需洞察（2026-09-24 方案 §5.1「帮我想想」）：用户主动触发、
+  // 独立小额预算；隐私闸门与整理/relate 同口径（供应商留存未核实不发送真实数据）
+  const THOUGHT_INSIGHT_LIMITS = { requestBodyMaxBytes: 64 * 1024 };
+  app.post("/v1/thoughts/insight", async (context) => {
+    try {
+      if (!config.thoughtInsight?.enabled) {
+        throw new GatewayError("THOUGHT_INSIGHT_DISABLED", "Thought insight is disabled", 503);
+      }
+      const insightRoute = config.routes.thought_insight_v1;
+      const usesMockProvider = insightRoute?.provider === "mock";
+      if (!usesMockProvider && !config.thoughtInsight.privacyVerified) {
+        throw new GatewayError("PRIVACY_ROUTE_UNVERIFIED", "Privacy route is not verified", 503);
+      }
+      if (!insightRoute) {
+        throw new GatewayError("MODEL_UNAVAILABLE", "thought_insight_v1 route is not configured", 503);
+      }
+
+      const contentLength = Number(context.req.header("content-length") ?? 0);
+      if (contentLength > THOUGHT_INSIGHT_LIMITS.requestBodyMaxBytes) {
+        throw new GatewayError(
+          "INPUT_TOO_LARGE",
+          `Request body exceeds ${THOUGHT_INSIGHT_LIMITS.requestBodyMaxBytes} bytes`,
+          413,
+        );
+      }
+
+      const deviceId = await getDeviceId(context, config);
+      const entitlement = entitlementResolver.resolve(deviceId);
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "thought_insight",
+        minuteLimit: config.thoughtInsight.requestLimits.perMinute,
+        dailyLimit: config.thoughtInsight.requestLimits.perDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+      }
+
+      const body = await readJson(context);
+      const result = await thoughtInsightService.insight({
+        deviceId,
+        subjectId: entitlement.usageSubjectId,
+        body,
+        clientSignal: context.req.raw.signal,
+      });
+      context.header("Cache-Control", "no-store");
+      return context.json(result);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
   app.post("/v1/asr/transcriptions", async (context) => {
     let quotaReservation = null;
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const formData = await context.req.formData();
       const audio = formData.get("audio");
       if (!isUploadedFile(audio)) {
@@ -1240,7 +1426,7 @@ export function createApp(overrides = {}) {
   // 不复用 holoSession：该 session 仅用于内部诊断，且客户端在正式版不会携带。
   app.post("/v1/reports", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
 
       if (typeof request.messageId !== "string" || request.messageId.trim().length === 0) {
@@ -1314,7 +1500,7 @@ export function createApp(overrides = {}) {
         throw new GatewayError("MODEL_UNAVAILABLE", `Provider unavailable: ${route.provider}`, 503);
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
       const caption = typeof request.text === "string" ? request.text.trim().slice(0, 500) : "";
       if (typeof request.image !== "string" || request.image.length === 0) {
@@ -1355,7 +1541,7 @@ export function createApp(overrides = {}) {
         {
           type: "text",
           // 图片之后的收尾提醒放在最近位置：货币符号先看原文再输出（外币红线最近一次强提醒）
-          text: "提醒：先核对图中金额的货币符号原文，再输出理解单。非人民币一律 foreign_currency 且 transactions 为空。",
+          text: "提醒：先核对图中「合计/实付金额」行的货币符号原文，再输出理解单。实付金额本身是外币才 foreign_currency 且 transactions 为空；图中有外币标价但实付人民币的境外账单（如微信境外消费），按人民币实付正常记账。",
         },
         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${request.image}` } },
       ]);
@@ -1386,20 +1572,29 @@ export function createApp(overrides = {}) {
         context.header("X-Holo-Request-Id", logId);
       }
 
-      const result = await provider.complete({
-        purpose: "vision_extraction",
-        messages: serverPrompt.messages,
-        stream: false,
-        model: route.model,
-        temperature: route.temperature,
-        maxTokens: route.maxTokens,
-        // 2026-09-20 性能根治：此处此前漏传 reasoningEffort，env 配的
-        // HOLO_VISION_EXTRACTION_REASONING_EFFORT=none 从未到达供应商，
-        // 推理模型全速思考（生产实锤单次 reasoning 985-3177 token，耗时 15-26s；
-        // 上游 A/B 实测 none 生效：思考归零、答案正确）。
-        reasoningEffort: route.reasoningEffort,
-        clientSignal: context.req.raw.signal,
-      });
+      let result;
+      try {
+        result = await provider.complete({
+          purpose: "vision_extraction",
+          messages: serverPrompt.messages,
+          stream: false,
+          model: route.model,
+          temperature: route.temperature,
+          maxTokens: route.maxTokens,
+          // 2026-09-20 性能根治：此处此前漏传 reasoningEffort，env 配的
+          // HOLO_VISION_EXTRACTION_REASONING_EFFORT=none 从未到达供应商，
+          // 推理模型全速思考（生产实锤单次 reasoning 985-3177 token，耗时 15-26s；
+          // 上游 A/B 实测 none 生效：思考归零、答案正确）。
+          reasoningEffort: route.reasoningEffort,
+          clientSignal: context.req.raw.signal,
+        });
+      } catch (error) {
+        // 2026-09-23 一致性收口：上游瞬断（fetch 网络抖动等非 GatewayError）原样
+        // 变成 500，iOS 端只对 502/503/504 自动重试一次——生产实锤 11:31 一次上游
+        // 瞬断直接以失败告终且未触发重试。归一成 502 让既有重试接住。
+        if (error instanceof GatewayError) throw error;
+        throw new GatewayError("UPSTREAM_ERROR", error?.message ?? "vision upstream failed", 502);
+      }
       const content = result?.choices?.[0]?.message?.content ?? "";
 
       let understanding;
@@ -1445,7 +1640,7 @@ export function createApp(overrides = {}) {
 
   app.post("/v1/feedback", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
 
       if (!FEEDBACK_CATEGORIES.has(request.category)) {
@@ -1518,7 +1713,7 @@ export function createApp(overrides = {}) {
   app.post("/v1/ai/agent/cloud/start", async (context) => {
     try {
       const store = requireCloudAnalysisStore();
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
 
       const question = typeof request.question === "string" ? request.question.trim() : "";
@@ -1571,7 +1766,7 @@ export function createApp(overrides = {}) {
   app.put("/v1/ai/agent/cloud/:id/snapshot", async (context) => {
     try {
       const store = requireCloudAnalysisStore();
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const task = store.get(context.req.param("id"));
       if (!task || task.device_id !== deviceId) {
         throw new GatewayError("NOT_FOUND", "Task not found", 404);
@@ -1610,7 +1805,7 @@ export function createApp(overrides = {}) {
   app.get("/v1/ai/agent/cloud/:id", async (context) => {
     try {
       const store = requireCloudAnalysisStore();
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const task = store.getDecrypted(context.req.param("id"));
       if (!task || task.device_id !== deviceId) {
         throw new GatewayError("NOT_FOUND", "Task not found", 404);
@@ -1640,7 +1835,7 @@ export function createApp(overrides = {}) {
   app.post("/v1/ai/agent/cloud/:id/ack", async (context) => {
     try {
       const store = requireCloudAnalysisStore();
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const task = store.get(context.req.param("id"));
       if (!task || task.device_id !== deviceId) {
         throw new GatewayError("NOT_FOUND", "Task not found", 404);
@@ -1656,7 +1851,7 @@ export function createApp(overrides = {}) {
   // 低频上报（启动/令牌轮换），轻限流防刷。
   app.post("/v1/ai/agent/cloud/device-token", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
       const token = typeof request.token === "string" ? request.token.trim().toLowerCase() : "";
       if (!/^[0-9a-f]{64}$/.test(token)) {
@@ -1682,7 +1877,7 @@ export function createApp(overrides = {}) {
   app.delete("/v1/ai/agent/cloud/:id", async (context) => {
     try {
       const store = requireCloudAnalysisStore();
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const task = store.get(context.req.param("id"));
       if (!task || task.device_id !== deviceId) {
         throw new GatewayError("NOT_FOUND", "Task not found", 404);
@@ -1700,7 +1895,7 @@ export function createApp(overrides = {}) {
   // 仅收白名单技术字段，不收任何用户内容。
   app.post("/v1/ai/agent/telemetry", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
 
       const usage = usageStore.consume({
@@ -1940,14 +2135,40 @@ function rejectClientRouting(request) {
   }
 }
 
-function getDeviceId(context, config) {
+async function getDeviceId(context, config) {
   const deviceId = context.req.header("x-holo-device-id");
   if (deviceId) {
+    // S01（2026-10-04）：编号只是标识不是凭证。强制开启时必须出示与编号同主体的
+    // 设备会话（客户端持钥挑战签名换取），防止伪造/冒用编号创建云任务或在他人
+    // 编号边界内活动。单点收口——所有调用 getDeviceId 的设备路由自动复用同一规则。
+    if (config.auth.enforceDeviceSession) {
+      if (!config.deviceSessionService) {
+        throw new GatewayError("AUTH_UNAVAILABLE", "Device session secret is not configured", 503);
+      }
+      const bearer = context.req.header("authorization");
+      const token = bearer?.startsWith("Bearer ") ? bearer.slice("Bearer ".length) : null;
+      if (!token) {
+        throw new GatewayError("DEVICE_SESSION_REQUIRED", "Device session is required", 401);
+      }
+      let session;
+      try {
+        session = await config.deviceSessionService.verifySession(token);
+      } catch {
+        throw new GatewayError("INVALID_DEVICE_SESSION", "Device session is invalid or expired", 401);
+      }
+      if (session.sub !== deviceId) {
+        throw new GatewayError("DEVICE_SESSION_MISMATCH", "Device session does not match device id", 403);
+      }
+    }
     return deviceId;
   }
 
   if (config.auth.enforceAppAttest) {
     throw new GatewayError("APP_ATTEST_REQUIRED", "App Attest assertion is required", 401);
+  }
+
+  if (config.auth.enforceDeviceSession) {
+    throw new GatewayError("DEVICE_SESSION_REQUIRED", "Device session is required", 401);
   }
 
   return "debug-device";
@@ -2144,6 +2365,11 @@ function quotaTypeForPurpose(purpose) {
   if (purpose === "personal_context_request" || purpose === "personal_context_planning") return QUOTA_TYPES.chat;
   // Matter 对账：用户交互路径，归 chat 池（route 另有独立限流桶与 maxTokens，成本独立统计）。
   if (purpose === "matter_reconciliation") return QUOTA_TYPES.chat;
+  // 任务分步推进提案（2026-09-25 实施规格 §12.5）：用户主动触发，归 chat 额度池
+  if (purpose === "matter_execution_plan") return QUOTA_TYPES.chat;
+  // 「今天减负」当日安排整理（2026-10-03 方案 §11.4）：用户主动触发，归 chat 额度池；
+  // 采用/手动操作/继续步骤调用 AI 为 0（客户端只有整理生成走本 purpose）。
+  if (purpose === "today_relief_plan") return QUOTA_TYPES.chat;
   // 目标共创：产品决策（东林 2026-09-19 拍板）不占对话额度、免费用户全量开放。
   // 共创由用户主动创建、iOS 端每会话有模型请求预算保险丝，成本可控；
   // 返回 null = 不进额度预约/扣减，仅保留 route 独立限流桶兜量（同 personal_context_extraction 模式）。

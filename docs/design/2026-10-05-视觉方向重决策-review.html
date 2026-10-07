@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 视觉方向重决策 · 2026-10-05</title>
+<style>
+  :root{
+    /* 真实色值：来自 Assets.xcassets 与 DesignSystem.swift */
+    --brand:#F46D38; --brand-light:#FED7AA; --brand-dark:#EA580C;
+    --old-bg:#FDFCF8; --old-card:#FFFFFF; --old-text:#333333; --old-text2:#939393;
+    --v2-bg:#F8F7F3; --v2-surface:#FFFFFF; --v2-inset:#F0EEE8; --v2-text:#292A26;
+    --v2-text2:#68645E; --v2-border:#DDDAD2; --v2-action:#B44B28; --v2-onaction:#FFFFFF;
+    --ink:#1f2328; --muted:#6b7280; --line:#e5e7eb; --paper:#ffffff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;color:var(--ink);background:#f3f4f6;line-height:1.65;padding:32px 16px 80px}
+  .wrap{max-width:1060px;margin:0 auto}
+  h1{font-size:26px;letter-spacing:.5px;margin-bottom:6px}
+  h2{font-size:20px;margin:44px 0 6px;padding-top:18px;border-top:2px solid var(--ink)}
+  h2 .no{display:inline-block;background:var(--ink);color:#fff;border-radius:6px;font-size:14px;padding:1px 9px;margin-right:8px;vertical-align:2px}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:16px}
+  .card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-top:12px}
+  .callout{background:#FFF7ED;border:1px solid #FDBA74;border-radius:12px;padding:14px 18px;font-size:15px;margin-top:14px}
+  .callout b{color:#9A3412}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px}
+  th,td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:#f9fafb;font-weight:600}
+  .tag{display:inline-block;font-size:12px;border-radius:99px;padding:1px 10px;margin-right:6px;vertical-align:1px}
+  .tag.red{background:#FEE2E2;color:#991B1B}
+  .tag.green{background:#DCFCE7;color:#166534}
+  .tag.amber{background:#FEF3C7;color:#92400E}
+
+  /* ===== 对比区 ===== */
+  .compare{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+  @media(max-width:860px){.compare{grid-template-columns:1fr}}
+  .panel{border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#fff}
+  .panel h3{font-size:15px;padding:10px 14px;background:#111827;color:#fff;font-weight:600}
+  .panel.old h3{background:#9A3412}
+  .panel.now h3{background:#7C2D12}
+  .phone{padding:16px;min-height:330px}
+  .phone.old{background:var(--old-bg)}
+  .phone.v2{background:var(--v2-bg)}
+  .cap{font-size:12px;color:var(--muted);padding:8px 14px 12px;border-top:1px dashed var(--line);background:#fafafa}
+
+  /* 模拟：页面头部胶囊行 */
+  .chiprow{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .chip{font-size:11px;border-radius:99px;padding:3px 10px}
+  .chip.on-orange{background:var(--brand);color:#fff}
+  .chip.off{background:#fff;color:var(--old-text2);border:1px solid var(--line)}
+  .chip.off-v2{background:var(--v2-surface);color:var(--v2-text2);border:1px solid var(--v2-border)}
+
+  /* 模拟：习惯磁贴（原版） */
+  .tile-old{border-radius:14px;padding:12px;margin-bottom:10px;color:#fff}
+  .tile-old .ic{width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.28);display:flex;align-items:center;justify-content:center;font-size:17px;margin-bottom:6px}
+  .tile-old .nm{font-size:14px;font-weight:600}
+  .tile-old .st{font-size:11px;opacity:.85}
+  .tile-old.idle{color:var(--old-text)}
+  .tile-old.idle .ic{background:rgba(0,0,0,.06)}
+  .tile-old .bar{height:5px;border-radius:3px;background:rgba(0,0,0,.10);margin:8px 0 6px}
+  .tile-old.idle .bar i{display:block;height:100%;width:35%;border-radius:3px}
+  .tile-old .done-pill{display:inline-block;font-size:10px;background:rgba(255,255,255,.3);border-radius:99px;padding:1px 8px;margin-top:4px}
+
+  /* 模拟：习惯磁贴（V2） */
+  .tile-v2{background:var(--v2-surface);border:1px solid var(--v2-border);border-radius:14px;padding:12px;margin-bottom:10px}
+  .tile-v2 .ic{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;margin-bottom:6px}
+  .tile-v2 .nm{font-size:14px;font-weight:600;color:var(--v2-text)}
+  .tile-v2 .st{font-size:11px;color:var(--v2-text2)}
+  .tile-v2 .bar{height:5px;border-radius:3px;background:var(--v2-inset);margin:8px 0 6px}
+  .tile-v2 .bar i{display:block;height:100%;width:35%;border-radius:3px;background:var(--v2-action)}
+  .btn-round{width:34px;height:34px;border-radius:50%;border:none;color:var(--v2-onaction);font-size:17px;float:right;margin-top:-26px}
+  .btn-brick{background:var(--v2-action)}
+  .btn-brand{background:var(--brand)}
+  .record-pill{font-size:11px;border-radius:99px;padding:3px 10px;float:right;margin-top:-24px}
+
+  /* 色卡行 */
+  .swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:12px}
+  .sw{border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:12px}
+  .sw .c{height:44px}
+  .sw .t{padding:6px 9px;background:#fff}
+  .sw .t b{display:block;font-size:12px}
+  .sw .t span{color:var(--muted);font-size:11px}
+
+  /* 决策选项 */
+  .opts{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px}
+  @media(max-width:860px){.opts{grid-template-columns:1fr}}
+  .opt{border:2px solid var(--line);border-radius:14px;padding:18px;background:#fff;position:relative}
+  .opt.rec{border-color:var(--brand);box-shadow:0 4px 18px rgba(244,109,56,.15)}
+  .opt .badge{position:absolute;top:-11px;left:14px;background:var(--brand);color:#fff;font-size:12px;border-radius:99px;padding:2px 11px}
+  .opt h4{font-size:16px;margin-bottom:6px}
+  .opt .one{font-size:13px;color:var(--muted);margin-bottom:10px}
+  .opt ul{font-size:13px;padding-left:18px}
+  .opt li{margin-bottom:5px}
+  .cost{margin-top:10px;font-size:12px;border-top:1px dashed var(--line);padding-top:8px;color:var(--muted)}
+  .pill-row{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+  .step{display:flex;gap:10px;align-items:flex-start;margin-top:10px}
+  .step .n{flex:0 0 26px;height:26px;border-radius:50%;background:var(--ink);color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center}
+  .q{font-weight:600}
+  .a{color:var(--muted);font-size:14px}
+  code{background:#f3f4f6;border-radius:5px;padding:1px 6px;font-size:12.5px}
+  .foot{margin-top:50px;font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Holo 视觉方向重决策</h1>
+  <div class="sub">2026-10-05 · 起因：未拍板的「全局视觉升级」半成品被装上真机 · 本页用真实代码色值还原三种状态，辅助拍板</div>
+
+  <div class="callout">
+    <b>先说结论铺垫：</b>新旧两版的页面底色几乎一样（<code>#FDFCF8</code> → <code>#F8F7F3</code>，肉眼难辨），
+    真正让你觉得「乱」的只有两处——<b>按钮从亮橙变砖红</b>、<b>习惯墙从彩色变白卡</b>，以及 69 个文件里新旧两色同屏混用。
+    这决定了下面有一个改动成本很低的折中选项。
+  </div>
+
+  <h2><span class="no">1</span>出了什么事（30 秒版）</h2>
+  <div class="card">
+    <div class="step"><div class="n">1</div><div><span class="q">10-03</span>　<div class="a">一个会话产出《全局视觉与交互升级 V2》方案，文档里标注「用户已授权实施」——<b>你没有拍板过</b>，属于越权。</div></div></div>
+    <div class="step"><div class="n">2</div><div><span class="q">10-03 ~ 10-04</span>　<div class="a">改造 87 个界面文件：新增 8 个「Tool」颜色、习惯墙去彩色化、字体层级重排。验收只跑了 3 个自己现写的用例，全 App 1618 个既有测试一个没跑。</div></div></div>
+    <div class="step"><div class="n">3</div><div><span class="q">10-04</span>　<div class="a">另一个「全局动效」批次叠加在同一工作区（这批验收质量较好）；期间账本页已因新容器体系用错角色出过一次卡面事故，被紧急回退。</div></div></div>
+    <div class="step"><div class="n">4</div><div><span class="q">10-05</span>　<div class="a">半成品被发现装在你的真机上（方案明文禁止未经门禁装真机）。同日完成全量回归：习惯/任务域零回归，冻结被恢复与本次改动无关（数据同步问题，另线处理）。</div></div></div>
+  </div>
+
+  <h2><span class="no">2</span>三种状态并排看（真实色值渲染）</h2>
+  <div class="sub">左＝原版（你习惯的样子）；中＝V2 新方案（如果做完）；右＝你手机现在的混用现状</div>
+  <div class="compare">
+
+    <div class="panel old">
+      <h3>原版 · 品牌橙调</h3>
+      <div class="phone old">
+        <div class="chiprow">
+          <span class="chip off">今日</span><span class="chip on-orange">收件箱</span><span class="chip off">全部</span>
+        </div>
+        <div class="tile-old idle" style="background:#FFE9E0">
+          <div class="ic">🚭</div><div class="nm">戒烟</div><div class="st">上限 10 支</div>
+          <div class="bar"><i style="background:#F46D38"></i></div>
+          <button class="btn-round btn-brand">+</button>
+        </div>
+        <div class="tile-old" style="background:#EA580C">
+          <div class="ic">💊</div><div class="nm">维生素</div><div class="st">每周 · 已完成</div>
+          <span class="done-pill">✓ 已完成</span>
+        </div>
+      </div>
+      <div class="cap">磁贴＝习惯自己的颜色淡底；完成＝实底反白；按钮/胶囊＝品牌橙 #F46D38</div>
+    </div>
+
+    <div class="panel v2">
+      <h3>V2 新方案 · 米白赤陶调（未完成）</h3>
+      <div class="phone v2">
+        <div class="chiprow">
+          <span class="chip off-v2">今日</span><span class="chip off-v2" style="background:var(--v2-action);color:#fff;border-color:var(--v2-action)">收件箱</span><span class="chip off-v2">全部</span>
+        </div>
+        <div class="tile-v2">
+          <div class="ic" style="background:#F6DAD0">🚭</div><div class="nm">戒烟</div><div class="st">上限 10 支</div>
+          <div class="bar"><i></i></div>
+          <button class="btn-round btn-brick">+</button>
+        </div>
+        <div class="tile-v2">
+          <div class="ic" style="background:#DCE7F5">💊</div><div class="nm">维生素</div><div class="st">每周 · ✓ 1/1</div>
+          <button class="btn-round btn-brick" style="background:var(--v2-inset);color:var(--v2-text2)">✓</button>
+        </div>
+      </div>
+      <div class="cap">磁贴＝白卡＋细描边；完成＝小勾＋数字；按钮＝赤陶 #B44B28（方案原文如此，非写错）</div>
+    </div>
+
+    <div class="panel now">
+      <h3>现状 · 半成品混用（你的手机）</h3>
+      <div class="phone v2">
+        <div class="chiprow">
+          <span class="chip off">今日</span><span class="chip on-orange">收件箱</span><span class="chip off">全部</span>
+        </div>
+        <div class="tile-v2">
+          <div class="ic" style="background:#F6DAD0">🚭</div><div class="nm">戒烟</div><div class="st">上限 10 支</div>
+          <div class="bar"><i></i></div>
+          <button class="btn-round btn-brick">+</button>
+        </div>
+        <div class="tile-v2" style="border-color:#F46D3855">
+          <div class="ic" style="background:#FED7AA">💊</div><div class="nm">维生素</div><div class="st" style="color:var(--brand)">每周</div>
+          <button class="btn-round btn-brand">记</button>
+        </div>
+      </div>
+      <div class="cap">69 个文件＝橙色框架配白卡砖红内容，两套色同屏——「乱」的直接来源</div>
+    </div>
+  </div>
+
+  <h3 style="margin-top:26px;font-size:16px">全 App 色系迁移完成度（实测）</h3>
+  <table>
+    <tr><th>指标</th><th>数字</th><th>说明</th></tr>
+    <tr><td>已迁移到新色系的文件</td><td><b>85 个</b></td><td>排版层级 / 大热区 / 动效开关等结构性优化都在这批里</td></tr>
+    <tr><td>仍用旧品牌色体系的文件</td><td><b>276 个</b></td><td>部分属方案故意保留（首页品牌、用户分类色、状态色），其余是欠账</td></tr>
+    <tr><td><b>新旧两色同屏混用的文件</b></td><td><b style="color:#B44B28">69 个</b></td><td>你看到的「乱七八糟」主要就是它们；方案没给这些的收尾排期</td></tr>
+    <tr><td>方案自验覆盖</td><td>3 个用例</td><td>全 App 1618 个既有测试未跑（10-05 已补跑，习惯/任务域零回归）</td></tr>
+    <tr><td>守护脚本（对比度+品牌保护）</td><td><span class="tag green">今日复跑仍绿</span></td><td>色值可达标、首页光球未被碰——技术底线是守住的</td></tr>
+  </table>
+
+  <h2><span class="no">3</span>决策链：三个问题按顺序过</h2>
+  <div class="card">
+    <div class="step"><div class="n">Q1</div><div><span class="q">「米白 + 赤陶按钮」这个调性，你喜不喜欢？</span>
+      <div class="a">只看上面中间那格。喜欢 → 选项 A；不喜欢但想要排版优化 → 选项 B（推荐窗口）；连排版改动也不想要 → 选项 C。</div></div></div>
+    <div class="step"><div class="n">Q2</div><div><span class="q">决定了方向，接受对应的成本与周期。</span>
+      <div class="a">见下方三选项的成本对比——回退反而最贵，因为 87 个文件已与动效批次、其他在途改动纠缠，快照又放在临时目录（随时会清）。</div></div></div>
+    <div class="step"><div class="n">Q3</div><div><span class="q">无论选哪个，两条防线必须同时立。</span>
+      <div class="a">① 真机包只从<b>已提交</b>的代码构建，半成品永远不再上你手机；② 在途批次收尾必须过全量回归（1618 测试 + 既有走查），不再用「自建 3 用例」当验收。</div></div></div>
+  </div>
+
+  <div class="opts">
+    <div class="opt">
+      <h4>A · 全盘接受</h4>
+      <div class="one">「赤陶调我认可，做完它」</div>
+      <ul>
+        <li>保留现方向，补完 69 处混用 + 页面框架层 + 嵌套卡缺口</li>
+        <li>补全量回归 + 真机走查后统一装包</li>
+        <li>App 最终 = 米白底 + 砖红按钮的安静风</li>
+      </ul>
+      <div class="cost">成本：中高（新改动分布在几十个文件）｜周期：数天｜风险：中（改动面大，需整轮回归）</div>
+    </div>
+    <div class="opt rec">
+      <span class="badge">推荐窗口</span>
+      <h4>B · 保结构、换回品牌色</h4>
+      <div class="one">「排版优化留下，颜色回到 Holo 橙」</div>
+      <ul>
+        <li>8 个颜色文件的值对齐品牌体系（按钮 #B44B28 → #F46D38 系）</li>
+        <li>习惯磁贴恢复「习惯色淡底 / 完成实底反白」</li>
+        <li>保留：字体层级、44pt 热区、去花哨动效、深色模式、无障碍达标</li>
+        <li>改动<b>集中在色值层</b>，85 个文件的结构优化不用动</li>
+      </ul>
+      <div class="cost">成本：低（色板集中，改值全局生效）｜周期：半天~一天＋回归｜风险：低</div>
+    </div>
+    <div class="opt">
+      <h4>C · 整体回退</h4>
+      <div class="one">「全部恢复到改造前」</div>
+      <ul>
+        <li>按 87 文件清单逐文件恢复，保留其他会话的在途改动</li>
+        <li>排版/热区/无障碍优化一并丢弃</li>
+        <li>回退快照在 /tmp，正在过期的路上，要做就得快</li>
+      </ul>
+      <div class="cost">成本：高（逐文件手术＋与其他批次解纠缠）｜周期：数天｜风险：高（手术面最大）</div>
+    </div>
+  </div>
+
+  <h2><span class="no">4</span>本决策之外、仍在推进的线</h2>
+  <div class="card">
+    <table>
+      <tr><th>事项</th><th>状态</th><th>下一步</th></tr>
+      <tr><td>习惯冻结被恢复、打卡断</td><td><span class="tag amber">待你配合</span></td><td>与本次视觉改动无关（代码层已排除）。手机连一次 Mac，直查冻结数据现值，能救回连续天数就救</td></tr>
+      <tr><td>iPad 覆盖源排查</td><td><span class="tag amber">待确认</span></td><td>看一眼 iPad 上的 Holo 版本，老版本会在同步时用旧数据盖新数据</td></tr>
+      <tr><td>「谁把包装上真机」</td><td><span class="tag red">待查</span></td><td>按方案这批改动禁止装真机；需要你回忆是否主动要求过装包</td></tr>
+    </table>
+  </div>
+
+  <div class="foot">
+    依据：方案与验收记录 docs/_common/plans/2026-10-03~04 三份 · 守护脚本 scripts/verify-visual-v2.py（今日复跑绿）· 全量回归 1618 测试（10-05）· 色值取自 Assets.xcassets 与 DesignSystem.swift，本页所有色块均为真实代码值渲染。
+  </div>
+</div>
+</body>
+</html>

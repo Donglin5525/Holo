@@ -97,6 +97,13 @@ struct FinanceProjectListView: View {
                 .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
+            if summary.totalIncome > 0 {
+                Text("收入 \(formatAmount(summary.totalIncome)) · 净投入 \(formatAmount(summary.totalExpense - summary.totalIncome))")
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             if summary.totalBudget > 0 {
                 GeometryReader { proxy in
                     ZStack(alignment: .leading) {
@@ -187,7 +194,7 @@ struct FinanceProjectListView: View {
         if !archivedItems.isEmpty {
             VStack(spacing: 0) {
                 Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { showArchived.toggle() }
+                    withAnimation(HoloAnimation.standard) { showArchived.toggle() }
                 } label: {
                     HStack {
                         Text("已归档 · \(archivedItems.count) 个")

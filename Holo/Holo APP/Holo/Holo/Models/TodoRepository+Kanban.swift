@@ -130,8 +130,10 @@ extension TodoRepository {
 
     // MARK: - 看板操作
 
-    /// 将任务加入今日（设截止日为今天）
-    func planTask(_ task: TodoTask, for date: Date) throws {
+    /// 把任务截止日期改到指定日的当天开始（真正的 deadline 编辑语义）。
+    /// 注意：这不是「加入今日」——今日选择走 HoloTodayPlanService（2026-10-03 方案 §9.3，
+    /// 原 planTask 名字会诱导「加入今日」误改截止，已改名收口）。
+    func setTaskDueDateToStartOfDay(_ task: TodoTask, on date: Date) throws {
         task.dueDate = Calendar.current.startOfDay(for: date)
         task.updatedAt = Date()
         try context.save()

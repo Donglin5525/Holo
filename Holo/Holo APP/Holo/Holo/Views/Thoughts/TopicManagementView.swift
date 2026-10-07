@@ -2,7 +2,7 @@
 //  TopicManagementView.swift
 //  Holo
 //
-//  用户分类主题管理：启用、创建、改名、合并、删除和未归类重跑。
+//  主题管理：创建、改名、合并与删除。自动整理开关和补跑统一在想法设置。
 //
 
 import SwiftUI
@@ -21,6 +21,8 @@ struct TopicManagementView: View {
     @State private var mergeSource: Topic?
     @State private var mergePresented = false
     @State private var notice: String?
+    /// 点行进入的主题详情（fullScreenCover，与知识树/列表页同一弹出方式）
+    @State private var selectedTopicId: UUID?
 
     init(
         topicRepository: TopicRepository = TopicRepository(),
@@ -46,25 +48,13 @@ struct TopicManagementView: View {
                     newTitle = ""
                     addPresented = true
                 } label: {
-                    Label("新建分类主题", systemImage: "plus.circle")
+                    Label("新建主题", systemImage: "plus.circle")
                         .foregroundColor(.holoPrimary)
                 }
             } header: {
-                Text("分类主题")
+                Text("全部主题")
             } footer: {
-                Text("只有开启的主题会进入 HoloAI 的分类约束；历史主题默认关闭。")
-            }
-
-            Section {
-                Button {
-                    reorganizeUnclassified()
-                } label: {
-                    Label("重新整理未归类想法", systemImage: "sparkles")
-                        .foregroundColor(.holoPrimary)
-                }
-                .disabled(!topics.contains(where: \.isClassificationTopic))
-            } footer: {
-                Text("会消耗 AI 配额，并在后台重新选择已启用主题。")
+                Text("智能整理开启时，Holo 会核对笔记与这些主题的关系。自动整理开关、处理进度和补跑统一在想法设置中。")
             }
 
             if let notice {
@@ -77,12 +67,25 @@ struct TopicManagementView: View {
         }
         .navigationTitle("主题管理")
         .navigationBarTitleDisplayMode(.inline)
+        .holoSheetShell()
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("完成") { dismiss() }
             }
         }
         .task { loadTopics() }
+        .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
+            loadTopics()
+        }
+        .fullScreenCover(item: $selectedTopicId, onDismiss: { loadTopics() }) { topicId in
+            TopicDetailView(
+                topicId: topicId,
+                topicRepository: topicRepository,
+                thoughtRepository: thoughtRepository,
+                onTopicDeleted: { selectedTopicId = nil }
+            )
+            .holoContentColumn()
+        }
         .alert("新建主题", isPresented: $addPresented) {
             TextField("主题名称", text: $newTitle)
             Button("取消", role: .cancel) {}
@@ -98,7 +101,7 @@ struct TopicManagementView: View {
             Button("取消", role: .cancel) { renameTarget = nil }
             Button("保存") { renameTopic() }
         } message: {
-            Text("相关 AI 标签路径会同步更新。")
+            Text("主题名称会更新，笔记中的手动标签保留。")
         }
         .alert("删除主题", isPresented: Binding(
             get: { deleteTarget != nil },
@@ -122,7 +125,6 @@ struct TopicManagementView: View {
             Text(TopicIconProvider.icon(for: topic))
                 .font(.system(size: 17))
                 .frame(width: 28, height: 28)
-                .opacity(topic.isClassificationTopic ? 1 : 0.45)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(topic.title)
@@ -134,14 +136,12 @@ struct TopicManagementView: View {
 
             Spacer()
 
-            Toggle("", isOn: Binding(
-                get: { topic.isClassificationTopic },
-                set: { setEnabled(topic, $0) }
-            ))
-            .labelsHidden()
-            .tint(.holoPrimary)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13))
+                .foregroundColor(.holoTextSecondary.opacity(0.6))
         }
         .contentShape(Rectangle())
+        .onTapGesture { selectedTopicId = topic.id }
         .contextMenu {
             Button {
                 renameTarget = topic
@@ -167,19 +167,7 @@ struct TopicManagementView: View {
 
     private func loadTopics() {
         topics = ((try? topicRepository.fetchVisibleTopics()) ?? []).sorted {
-            if $0.isClassificationTopic != $1.isClassificationTopic { return $0.isClassificationTopic }
             return $0.title < $1.title
-        }
-    }
-
-    private func setEnabled(_ topic: Topic, _ isEnabled: Bool) {
-        do {
-            try topicRepository.setClassificationEnabled(topic, isEnabled: isEnabled)
-            notice = isEnabled ? String(localized: "已启用「\(topic.title)」") : String(localized: "已停用「\(topic.title)」")
-            loadTopics()
-            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
-        } catch {
-            notice = String(localized: "更新失败，请稍后重试")
         }
     }
 
@@ -187,8 +175,10 @@ struct TopicManagementView: View {
         let title = ThoughtTagNormalizer.displayName(newTitle)
         guard !title.isEmpty else { return }
         do {
-            _ = try topicRepository.createClassificationTopic(title: title)
-            notice = String(localized: "已创建并启用「\(title)」")
+            let topic = try topicRepository.getOrCreateTopic(title: title)
+            topic.titleSource = "user"
+            try topicRepository.activate(topic)
+            notice = String(localized: "已创建「\(title)」；Holo 会核对已有和新记录的笔记")
             loadTopics()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
@@ -201,7 +191,7 @@ struct TopicManagementView: View {
         defer { renameTarget = nil }
         do {
             try topicRepository.renameClassificationTopic(topic, to: renameTitle)
-            notice = String(localized: "主题和标签路径已同步更新")
+            notice = String(localized: "主题名称已更新")
             loadTopics()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
@@ -213,7 +203,7 @@ struct TopicManagementView: View {
         guard let source = mergeSource else { return }
         mergeSource = nil
         do {
-            try topicRepository.mergeClassificationTopics(into: target, from: source)
+            try topicRepository.merge(into: target, from: source)
             notice = String(localized: "已合并到「\(target.title)」")
             loadTopics()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
@@ -226,6 +216,7 @@ struct TopicManagementView: View {
         guard let topic = deleteTarget else { return }
         deleteTarget = nil
         do {
+            try ConvergenceRejectionRepository().reject(topicTitle: topic.title, sourceTerms: [])
             let result = try topicRepository.deleteClassificationTopic(topic)
             notice = String(localized: "已删除「\(result.title)」，\(result.removedThoughtCount) 条想法回到未归类")
             loadTopics()
@@ -235,19 +226,4 @@ struct TopicManagementView: View {
         }
     }
 
-    private func reorganizeUnclassified() {
-        do {
-            let ids = try thoughtRepository.fetchUnclassifiedThoughts().map(\.id)
-            guard !ids.isEmpty else {
-                notice = String(localized: "当前没有未归类想法")
-                return
-            }
-            try thoughtRepository.markBatchPending(thoughtIds: ids)
-            ThoughtOrganizationQueue.shared.enqueueBatch(thoughtIds: ids)
-            notice = String(localized: "已开始重新整理 \(ids.count) 条想法")
-        } catch {
-            notice = String(localized: "启动整理失败，请稍后重试")
-        }
-    }
 }
-

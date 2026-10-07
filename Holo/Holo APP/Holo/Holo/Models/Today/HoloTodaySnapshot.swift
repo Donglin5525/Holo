@@ -28,6 +28,10 @@ nonisolated struct HoloTodaySnapshot: Equatable, Sendable {
     let routine: HoloTodayRoutineSummary
     let overview: HoloTodayOverview
     let sectionStates: [HoloTodaySection: HoloTodaySectionState]
+    /// 「今天减负」日计划纯值投影（§9.1）；未启用时为 inheritBase。
+    let plan: HoloTodayPlanProjection
+    /// 本次构建使用的完整焦点输入（冻结；「稍后」重解析直接复用，不 agenda 反推）。
+    let focusInput: HoloTodayFocusInput
 }
 
 nonisolated enum HoloTodayFreshness: Equatable, Sendable {
@@ -155,6 +159,9 @@ nonisolated struct HoloTodayMatterItem: Equatable, Sendable, Identifiable {
     let isFocus: Bool
     /// 整卡点击动作（进详情）。
     let cardAction: HoloTodayAction
+    /// V2 计划进度（planOrder 口径，MatterPlanQuery 实时计算）；无计划任务时 total = 0。
+    var planDoneCount: Int = 0
+    var planTotalCount: Int = 0
 }
 
 // MARK: - 今天的安排区块
@@ -180,10 +187,73 @@ nonisolated enum HoloTodayAgendaKind: Equatable, Sendable {
     case taskRecent
 }
 
+// MARK: - 日计划投影（「今天减负」§9.1）
+
+/// Today 统一读取的日计划纯值投影：状态 + 派生行（Builder 批量取齐事实后算好，UI 直接渲染）。
+nonisolated struct HoloTodayPlanProjection: Equatable, Sendable {
+
+    nonisolated enum PlanState: Equatable, Sendable {
+        /// 无显式计划（从未采用或 inheritBase 版本）：继续基础 Today 行为。
+        case inheritBase
+        /// 显式选择生效（entries 允许为空 = 今天不主动推进）。
+        case explicit(payload: HoloTodayPlanPayload, headRevisionIDs: [UUID])
+        case conflict(candidates: [HoloTodayPlanConflictCandidate])
+        case syncing(reason: String)
+        case unavailable(reason: String)
+    }
+
+    let state: PlanState
+    /// 选择区行（按 entries 顺序；goalState 已按真实事实派生）。
+    let selectionRows: [HoloTodayPlanSelectionRow]
+    /// 固定安排与截止（当日日程/执行时段/到期逾期事实；不含已选任务重复行）。
+    let constraintRows: [HoloTodayPlanConstraintRow]
+    /// 今天先放下（可展开）。
+    let deferredRows: [HoloTodayPlanDeferredRow]
+}
+
+/// 选择区一行：真实任务 + 当日目标状态（§7.4 表格派生）。
+nonisolated struct HoloTodayPlanSelectionRow: Equatable, Sendable, Identifiable {
+    let taskID: UUID
+    let title: String
+    let goal: HoloTodayGoal
+    let goalState: HoloTodayReliefPolicy.GoalState
+    /// 真实截止标签（不改期限，只展示）。
+    let dueAt: Date?
+    let isAllDay: Bool
+    /// existingStep 的动作文本（展示「今天只推进：xxx」）。
+    let stepActionText: String?
+    let matterTitle: String?
+    var id: UUID { taskID }
+}
+
+/// 固定约束行：日程 / 计划执行时段 / 真实到期逾期事实。
+nonisolated struct HoloTodayPlanConstraintRow: Equatable, Sendable, Identifiable {
+    nonisolated enum Kind: Equatable, Sendable {
+        case schedule(start: Date, end: Date, isAllDay: Bool)
+        case plannedSegment(start: Date, end: Date)
+        case deadline(dueAt: Date, isAllDay: Bool, isOverdue: Bool)
+    }
+    let id: String
+    let title: String
+    let kind: Kind
+    /// 该约束指向的任务（日程/执行段为 nil）。
+    let taskID: UUID?
+}
+
+/// 放下区一行。
+nonisolated struct HoloTodayPlanDeferredRow: Equatable, Sendable, Identifiable {
+    let taskID: UUID
+    let title: String
+    let dueAt: Date?
+    let isAllDay: Bool
+    /// 风险确认是否仍然有效（期限被编辑后失效需重新确认）。
+    let acknowledgementValid: Bool
+    var id: UUID { taskID }
+}
+
 // MARK: - 保持状态区块
 
-nonisolated struct HoloTodayRoutineSummary: Equatable, Sendable {
-    let habitCompleted: Int
+nonisolated struct HoloTodayRoutineSummary: Equatable, Sendable {    let habitCompleted: Int
     let habitTotal: Int
     /// 可展开快速打卡的行（仅未完成习惯；负向习惯只报告不鼓励打卡）。
     let habitRows: [HoloTodayHabitRow]
@@ -221,6 +291,9 @@ nonisolated struct HoloTodayOverview: Equatable, Sendable {
     let spentToday: Decimal?
     /// 确定性超支/达风险阈值时为 true，提升为 attention signal。
     let budgetAtRisk: Bool
+    /// 是否设置了总预算；nil = 未知（旧快照/读取不可用）。
+    /// nil 不能当「已设置」——没设预算时不得显示「预算正常」（2026-10-04 体检 U04）。
+    let budgetConfigured: Bool?
 
-    static let unavailable = HoloTodayOverview(spentToday: nil, budgetAtRisk: false)
+    static let unavailable = HoloTodayOverview(spentToday: nil, budgetAtRisk: false, budgetConfigured: nil)
 }

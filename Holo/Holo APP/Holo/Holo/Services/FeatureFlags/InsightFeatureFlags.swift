@@ -24,7 +24,7 @@ struct InsightFeatureFlags {
 
     // MARK: - Defaults
 
-    /// Debug/TestFlight 默认全部开启，Release 默认全部关闭
+    /// Debug/TestFlight 默认开启，Release 默认关闭
     private static var defaultEnabled: Bool {
 #if DEBUG
         true
@@ -32,6 +32,11 @@ struct InsightFeatureFlags {
         false
 #endif
     }
+
+    /// 健康素材默认开启（2026-09-24 东林拍板）：隐私同意 v2 文案本就承诺
+    /// 「周期回放素材含健康与活动摘要」，Release 关闭导致文案与行为不符；
+    /// 健康摘要走快照密文 + 完成即焚通道，与深度分析侧健康域同一口径。
+    private static var healthContextDefaultEnabled: Bool { true }
 
     // MARK: - Flags
 
@@ -56,7 +61,7 @@ struct InsightFeatureFlags {
     }
 
     static var healthContextEnabled: Bool {
-        get { defaults.object(forKey: FlagKey.healthContextEnabled.rawValue) as? Bool ?? defaultEnabled }
+        get { defaults.object(forKey: FlagKey.healthContextEnabled.rawValue) as? Bool ?? healthContextDefaultEnabled }
         set { defaults.set(newValue, forKey: FlagKey.healthContextEnabled.rawValue) }
     }
 

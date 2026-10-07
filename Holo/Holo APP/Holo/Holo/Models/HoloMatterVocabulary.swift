@@ -22,11 +22,14 @@ nonisolated enum HoloMatterLifecycleStatus: String, Codable, CaseIterable, Senda
     case dismissed
 
     /// 合法迁移表（方案 §5.1）。非法迁移一律拒绝，由 Repository 抛错。
+    /// active→archived（2026-09-21 实锤补录）：详情菜单对 active 提供「归档=轻性收起」入口，
+    /// 此前表里缺失该路径导致确认后静默失败（UI try? 吞错）。
     func canTransition(to target: HoloMatterLifecycleStatus) -> Bool {
         switch (self, target) {
         case (.candidate, .active),
              (.candidate, .dismissed),
              (.active, .completed),
+             (.active, .archived),
              (.completed, .active),
              (.completed, .archived),
              (.archived, .active):
@@ -94,6 +97,7 @@ nonisolated enum HoloMatterLinkEntityType: String, Codable, CaseIterable, Sendab
     case contextPlan
     case chatMessage
     case todoTask
+    case todoList
     case thought
     // 预留不开启（方案 §9.1）：
     case transaction
@@ -105,7 +109,7 @@ nonisolated enum HoloMatterLinkEntityType: String, Codable, CaseIterable, Sendab
 
     /// 首版允许写入的白名单。
     static var writable: [HoloMatterLinkEntityType] {
-        [.contextPlan, .chatMessage, .todoTask, .thought]
+        [.contextPlan, .chatMessage, .todoTask, .todoList, .thought]
     }
 }
 
@@ -170,6 +174,11 @@ nonisolated enum HoloMatterOrigin: String, Codable, CaseIterable, Sendable {
 nonisolated enum HoloMatterIdempotencyKey {
     static func activate(contextPlanMessageID: UUID) -> String {
         "activate:\(contextPlanMessageID.uuidString)"
+    }
+
+    /// V2 计划启动（launchPlan）：同一来源消息只落一次 activated 事件。
+    static func launchPlan(contextPlanMessageID: UUID) -> String {
+        "launch:\(contextPlanMessageID.uuidString)"
     }
 
     static func link(matterID: UUID, entityType: HoloMatterLinkEntityType, entityID: String) -> String {

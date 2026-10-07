@@ -199,6 +199,13 @@ actor HoloMemoryLiveObservationCoordinator {
                 now: now
             )
             let signalsByDomain = await MemorySignalDataAdapter.buildDomainSignals(now: now)
+            // G0 分域漏斗：输入层（每域信号数）先落计数，供水位对账。
+            for (domain, signals) in signalsByDomain {
+                await HoloMemoryQualityMetrics.shared.recordDomainInput(
+                    domain: domain.rawValue,
+                    count: signals.count
+                )
+            }
             let previousDigests = loadStringDictionary(forKey: signalDigestKey)
             let changed = HoloMemoryLiveObservationPlan.changedDomainDigests(
                 signalsByDomain: signalsByDomain,
@@ -227,12 +234,14 @@ actor HoloMemoryLiveObservationCoordinator {
                 return false
             }
             guard completedDomainRun else {
+                await recordSchedulerEvents(domainEvents)
                 return summarize(events: domainEvents, changedDomainCount: changed.count)
             }
 
             let active = try await repository.query(.active).filter { $0.state == .active }
             let candidates = HoloCrossDomainCandidateBuilder.build(from: active)
             guard !candidates.isEmpty else {
+                await recordSchedulerEvents(domainEvents)
                 return summarize(events: domainEvents, changedDomainCount: changed.count)
             }
             await HoloMemoryObservationScheduler.shared.markDirty(
@@ -245,8 +254,10 @@ actor HoloMemoryLiveObservationCoordinator {
                 signalsByDomain: signalsByDomain,
                 now: now
             )
+            let allEvents = domainEvents + crossEvents
+            await recordSchedulerEvents(allEvents)
             return summarize(
-                events: domainEvents + crossEvents,
+                events: allEvents,
                 changedDomainCount: changed.count
             )
         } catch {
@@ -294,8 +305,8 @@ actor HoloMemoryLiveObservationCoordinator {
         return await HoloMemoryObservationScheduler.shared.runIfNeeded(
             now: now,
             resourceSnapshot: resource,
-            extractorVersion: 1,
-            promptVersion: 2,
+            extractorVersion: HoloMemoryPipelineVersions.domainExtractorVersion,
+            promptVersion: HoloMemoryPipelineVersions.domainPromptVersion,
             debounce: 0,
             materialChange: { entry in
                 switch entry.target {
@@ -385,6 +396,13 @@ actor HoloMemoryLiveObservationCoordinator {
                         generated: result.validRecords.count + result.rejections.count,
                         rejected: result.rejections.count
                     )
+                    // G0：拒绝原因分布与通过记录的用途分布分开计数。
+                    await HoloMemoryQualityMetrics.shared.recordValidatorRejections(
+                        result.rejections.map(\.rawValue)
+                    )
+                    await HoloMemoryQualityMetrics.shared.recordUseLevels(
+                        result.validRecords.map { useLevelName($0) }
+                    )
                     guard result.rejections.isEmpty else {
                         #if DEBUG
                         await HoloMemoryTraceStore.shared.appendDomainPipeline(
@@ -410,6 +428,10 @@ actor HoloMemoryLiveObservationCoordinator {
                             extractorVersion: job.extractorVersion,
                             promptVersion: job.promptVersion,
                             completedAt: now
+                        )
+                        // G0：实际生效（真正落库的新增/更新）独立于生成数计数。
+                        await HoloMemoryQualityMetrics.shared.recordCommittedMutations(
+                            upserts.filter { $0 == .inserted || $0 == .updated }.count
                         )
                         await self.recordWriteReceipts(
                             records: result.validRecords,
@@ -463,6 +485,41 @@ actor HoloMemoryLiveObservationCoordinator {
                 }
             }
         )
+    }
+
+    /// G0 分域漏斗：批次执行结果按「域:结果」计数；调度层未执行（deferred/开关关闭）
+    /// 不算批次结果，归入 summarize 的开发者消息语义。
+    private func recordSchedulerEvents(_ events: [HoloMemorySchedulerEvent]) async {
+        for event in events {
+            let target: HoloMemoryObservationTarget?
+            let outcome: String
+            switch event {
+            case .succeeded(let job):
+                target = job.target
+                outcome = "succeeded"
+            case .failed(let failedTarget, retryAt: _):
+                target = failedTarget
+                outcome = "failed"
+            case .deferredByResource, .deferredByFrequency, .deferredByBackoff,
+                 .belowMaterialThreshold, .cancelledByNewerControl, .automaticMemoryDisabled,
+                 .dataProcessingConsentMissing, .alreadyRunning:
+                continue
+            }
+            let domainName: String
+            switch target {
+            case .domain(let domain): domainName = domain.rawValue
+            case .crossDomain: domainName = "crossDomain"
+            case nil: continue
+            }
+            await HoloMemoryQualityMetrics.shared.recordDomainBatch(
+                domain: domainName,
+                outcome: outcome
+            )
+        }
+    }
+
+    private nonisolated func useLevelName(_ record: HoloMemoryRecord) -> String {
+        record.decisionMetadata?.v2?.useLevel.rawValue ?? "unversioned"
     }
 
     private func summarize(
@@ -520,15 +577,17 @@ actor HoloMemoryLiveObservationCoordinator {
             priorOccurrenceCounts: occurrences,
             now: now
         )
-        let rejectedCount = decisions.filter {
-            if case .rejected = $0 { return true }
-            return false
-        }.count
+        let rejected = decisions.compactMap { decision -> HoloCrossDomainFusionRejection? in
+            if case .rejected(let reason) = decision { return reason }
+            return nil
+        }
         await HoloMemoryQualityMetrics.shared.recordValidation(
             generated: decisions.count,
-            rejected: rejectedCount
+            rejected: rejected.count
         )
-        if !decisions.isEmpty && rejectedCount == decisions.count {
+        // G0：跨域拒绝原因同样按类别留存。
+        await HoloMemoryQualityMetrics.shared.recordValidatorRejections(rejected.map(\.rawValue))
+        if !decisions.isEmpty && rejected.count == decisions.count {
             throw HoloMemoryCommitValidationRefused()
         }
         for decision in decisions {
@@ -578,7 +637,9 @@ actor HoloMemoryLiveObservationCoordinator {
                 now: now
             )
         }
-        if !needsConfirmation.isEmpty {
+        if !needsConfirmation.isEmpty, !HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled {
+            // 收件箱下线后不再产生任务式确认回执（方案 §12.1：silent/observe 候选不写
+            // 每日 confirmation receipt）；P2 起按五路结果生成回执。
             HoloMemoryReceiptStore.record(
                 kind: .write,
                 channel: .insight,

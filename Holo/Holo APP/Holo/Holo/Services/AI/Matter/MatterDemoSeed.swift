@@ -15,15 +15,42 @@ enum MatterDemoSeed {
 
     static let launchArgument = "-MatterDemoSeed"
 
+    /// R4-2 诊断（临时）：种子静默失败无证据可查，追加写沙盒 tmp 文件供 Mac 侧读取
+    private static func diag(_ line: String) {
+        let path = NSTemporaryDirectory() + "matter-seed-diag.log"
+        let stamped = "\(Date()) \(line)\n"
+        if let handle = FileHandle(forWritingAtPath: path) {
+            handle.seekToEndOfFile()
+            handle.write(stamped.data(using: .utf8)!)
+            try? handle.close()
+        } else {
+            try? stamped.data(using: .utf8)!.write(to: URL(fileURLWithPath: path))
+        }
+    }
+
     static func seedIfNeeded() async {
+        diag("invoked args=\(ProcessInfo.processInfo.arguments.contains(launchArgument)) storage=\(HoloMatterRolloutPolicy.storageEnabled)")
         guard ProcessInfo.processInfo.arguments.contains(launchArgument) else { return }
         guard HoloMatterRolloutPolicy.storageEnabled else { return }
         let repo = HoloMatterRepository.shared
 
         // 清后种：保证每次带参启动都从确定的初始状态开始（UI 走查可重复）
-        try? await repo.deleteAllMattersForDemo()
+        do {
+            try await repo.deleteAllMattersForDemo()
+        } catch {
+            diag("deleteAllMattersForDemo FAILED: \(error)")
+            return
+        }
 
-        guard let matter = try? await repo.createManualMatter(title: "国庆日本旅行", targetDate: Calendar.current.date(byAdding: .day, value: 20, to: Date())) else { return }
+        let created: HoloMatter
+        do {
+            created = try await repo.createManualMatter(title: "国庆日本旅行", targetDate: Calendar.current.date(byAdding: .day, value: 20, to: Date()))
+        } catch {
+            diag("createManualMatter FAILED: \(error)")
+            return
+        }
+        let matter = created
+        diag("matter created id=\(matter.id.uuidString)")
 
         // 已确认的问题（confirmed）：猫咪照护、京都住宿
         let catLoop = try? await repo.addSuggestedOpenLoop(matterID: matter.id, draft: .init(logicalKey: "猫咪由谁照顾", title: "猫咪由谁照顾"))

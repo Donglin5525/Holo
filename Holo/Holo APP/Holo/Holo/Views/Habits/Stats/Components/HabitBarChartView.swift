@@ -16,20 +16,28 @@ struct HabitBarChartView: View {
     let data: [DailyHabitData]
     let unit: String
 
+    /// 图表动画触发值：数值序列指纹，切习惯/切月份时柱体平滑插值而非跳变
+    private var animatedSignature: [Double] {
+        data.map(\.value)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // 标题
             Text("每日\(unit)")
                 .font(.holoLabel)
                 .fontWeight(.semibold)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             if data.isEmpty {
                 emptyChartView
+                    .transition(.opacity)
             } else {
                 chartContent
+                    .transition(.opacity)
             }
         }
+        .animation(HoloAnimation.smooth, value: data.isEmpty)
         .frame(height: 120)
     }
 
@@ -50,11 +58,12 @@ struct HabitBarChartView: View {
                     if let date = value.as(Date.self) {
                         Text(formatDate(date))
                             .font(.system(size: 10))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
             }
         }
+        .animation(HoloAnimation.smooth, value: animatedSignature)
         .chartXScale(range: .plotDimension(startPadding: 12, endPadding: 12))
         .chartYAxis {
             AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
@@ -64,7 +73,7 @@ struct HabitBarChartView: View {
                     if let doubleValue = value.as(Double.self) {
                         Text(String(format: "%.0f", doubleValue))
                             .font(.system(size: 10))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                             .frame(width: 40, alignment: .trailing)
                     }
                 }
@@ -120,11 +129,11 @@ struct HabitBarChartView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "chart.bar.fill")
                 .font(.system(size: 40, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             Text("暂无数据，记一笔开始追踪吧！")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(maxWidth: .infinity)
     }

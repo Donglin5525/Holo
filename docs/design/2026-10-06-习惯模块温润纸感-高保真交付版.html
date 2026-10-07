@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 习惯模块 · 温润纸感 v3.3 · 高保真交付版</title>
+<style>
+  :root{
+    --bg:#FDFCF8; --card:#FFFFFF; --inset:#F2EEE6; --text:#2E2E30; --text2:#726D64;
+    --border:#EAE5DB; --brand:#F46D38; --brand-dark:#E0581B; --err:#C0392B;
+    --ring:#C2BCAE; --dotfuture:#CFC8B8;
+    --tint:rgba(244,109,56,.05);
+    --card-shadow:0 1px 2px rgba(46,40,32,.04),0 6px 16px rgba(46,40,32,.05);
+  }
+  .dark{
+    --bg:#191A1B; --card:#262628; --inset:#3A3A3D; --text:#F5F4F0; --text2:#B4AFA7;
+    --border:#38383B; --err:#F28B82; --ring:#5C5C61; --dotfuture:#56565C;
+    --tint:rgba(244,109,56,.10);
+    --card-shadow:0 1px 2px rgba(0,0,0,.4),0 8px 22px rgba(0,0,0,.28);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  html{background:linear-gradient(180deg,#f2f0ea,#e9e7e0)}
+  body{font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;color:#26261f;padding:34px 18px 80px;line-height:1.5;display:flex;flex-direction:column;align-items:center}
+  .doctitle{font-size:21px;font-weight:700;letter-spacing:.3px}
+  .docsub{font-size:13px;color:#7b776e;margin-top:4px;text-align:center}
+  .toolbar{display:flex;gap:9px;margin:18px 0 24px;flex-wrap:wrap;justify-content:center}
+  .toolbar button{border:1px solid #d8d4ca;background:#fff;border-radius:99px;padding:7px 17px;font-size:13px;cursor:pointer;color:#33312c;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+  .toolbar button.on{background:#26261f;color:#fff;border-color:#26261f}
+
+  .phone{width:400px;border-radius:56px;background:#0d0d0f;padding:11px;box-shadow:0 30px 70px rgba(30,25,15,.35),inset 0 0 0 2px #2a2a2e}
+  .screen{border-radius:46px;overflow:hidden;background:var(--bg);height:844px;position:relative;transition:background .35s}
+  .scrollarea{height:844px;overflow-y:auto;scrollbar-width:none;position:relative}
+  .scrollarea::-webkit-scrollbar{display:none}
+  .fadeproof{position:absolute;left:0;right:0;bottom:0;height:70px;background:linear-gradient(180deg,transparent,var(--bg));pointer-events:none;z-index:30;transition:background .35s}
+  .homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:130px;height:5px;border-radius:99px;background:var(--text);opacity:.28;z-index:31}
+
+  .status{display:flex;justify-content:space-between;align-items:center;padding:16px 30px 6px;color:var(--text)}
+  .stime{font-size:15px;font-weight:600}
+  .sicons{display:flex;gap:6px;align-items:center}
+  .sicons svg{display:block}
+
+  .head{padding:10px 22px 0}
+  .ops{display:flex;justify-content:space-between;align-items:center;height:44px}
+  .back{width:34px;height:34px;border-radius:12px;background:var(--inset);display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:17px;transition:.3s}
+  .addbtn{width:38px;height:38px;border-radius:50%;background:linear-gradient(180deg,var(--brand),var(--brand-dark));color:#fff;font-size:20px;font-weight:600;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(230,90,30,.35),inset 0 1px 0 rgba(255,255,255,.25);cursor:pointer;transition:transform .15s}
+  .addbtn:active{transform:scale(.92)}
+  .title{font-size:30px;font-weight:700;color:var(--text);letter-spacing:.2px;margin-top:8px}
+  .date{font-size:13px;color:var(--text2);margin-top:3px}
+
+  .summary{margin:18px 22px 0;padding:15px 18px 16px;background:linear-gradient(180deg,var(--tint),transparent 70%),var(--card);border-radius:22px;box-shadow:var(--card-shadow);transition:.35s;position:relative;overflow:hidden}
+  .summary.alldone{box-shadow:0 6px 20px rgba(230,90,30,.22)}
+  .sumrow{display:flex;align-items:flex-end;justify-content:space-between}
+  .sumleft{display:flex;align-items:baseline;gap:8px}
+  .sumlabel{font-size:14px;color:var(--text2)}
+  .sumnum{font-size:33px;font-weight:800;color:var(--brand);font-family:"SF Pro Rounded","Hiragino Maru Gothic ProN",-apple-system,sans-serif;line-height:1;display:inline-block}
+  .sumnum.pop{animation:numpop .35s cubic-bezier(.3,1.6,.5,1)}
+  @keyframes numpop{0%{transform:scale(1.28)}100%{transform:scale(1)}}
+  .sumden{font-size:15px;color:var(--text2)}
+  .sumstate{font-size:13px;color:var(--text2);padding-bottom:3px}
+  .sumstate.all{color:var(--brand);font-weight:700}
+  .segs{display:flex;gap:3px;margin-top:12px}
+  .seg{flex:1;height:9px;border-radius:99px;background:var(--inset);transition:background .4s ease,transform .4s cubic-bezier(.3,1.8,.5,1)}
+  .seg.lit{background:linear-gradient(90deg,var(--brand),var(--brand-dark))}
+  .seg.lit.spring{animation:segpop .45s cubic-bezier(.3,1.8,.5,1)}
+  @keyframes segpop{0%{transform:scaleY(1.7)}100%{transform:scaleY(1)}}
+
+  /* ===== 磁贴 ===== */
+  .wall{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:22px 22px 0}
+  .tile{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:14px;min-height:118px;display:flex;flex-direction:column;box-shadow:var(--card-shadow);position:relative;cursor:pointer;transition:background .4s ease,border-color .4s ease,box-shadow .4s ease,transform .15s ease;overflow:hidden}
+  .tile:active{transform:scale(.96)}
+  .tile.done{border-color:transparent;background:
+    linear-gradient(158deg,rgba(255,255,255,.17) 0%,rgba(255,255,255,0) 42%),
+    linear-gradient(0deg,rgba(0,0,0,.07) 0%,rgba(0,0,0,0) 26%),
+    var(--dc);
+    box-shadow:0 6px 14px var(--dcs)}
+
+  .trow1{display:flex;align-items:center;gap:8px;padding-right:24px;position:relative;min-height:32px}
+  .iconchip{flex:0 0 32px;width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;transition:background .4s;background:color-mix(in srgb,var(--tc) 13%,transparent)}
+  .tile.done .iconchip{background:rgba(255,255,255,.26);box-shadow:inset 0 0 0 1px rgba(255,255,255,.22)}
+  .tname{flex:1;min-width:0;font-size:16px;font-weight:600;color:var(--text);transition:color .4s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile.done .tname{color:#fff}
+
+  /* 副行：徽章 + 周/上限数据 + 右侧备注入口 */
+  .subline{display:flex;align-items:center;gap:6px;margin-top:8px;min-height:20px}
+  .badge{display:inline-flex;align-items:center;gap:2px;height:20px;padding:0 8px;border-radius:99px;font-size:11px;font-weight:700;flex:0 0 auto;transition:.4s;background:color-mix(in srgb,var(--brand) 11%,transparent);color:var(--brand)}
+  .badge .fl{font-size:9px}
+  .tile.done .badge{background:rgba(255,255,255,.22);color:#fff}
+  .badge.total{background:color-mix(in srgb,var(--tc) 12%,transparent);color:color-mix(in srgb,var(--tc) 82%,#000)}
+  .dark .badge.total{color:var(--tc)}
+  .tile.done .badge.total{background:rgba(255,255,255,.22);color:#fff}
+  .subtext{font-size:12px;color:var(--text2);transition:.4s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile.done .subtext{color:rgba(255,255,255,.82)}
+  .subtext b{color:var(--brand);font-weight:700}
+  .tile.done .subtext b{color:#fff}
+  .subtext .over{color:var(--err);font-weight:700}
+  .tile.done .subtext .over{color:#fff}
+  .notebtn{margin-left:auto;flex:0 0 auto;width:26px;height:24px;border-radius:8px;cursor:pointer;transition:.3s;border:1px solid color-mix(in srgb,var(--tc) 32%,transparent);color:var(--tc);display:inline-flex;align-items:center;justify-content:center}
+  .notebtn svg{width:13px;height:13px}
+  .tile.done .notebtn{border-color:rgba(255,255,255,.8);color:#fff}
+
+  .spacer{flex:1}
+
+  /* 状态位 */
+  .ring{position:absolute;top:1px;right:0;width:21px;height:21px;border-radius:50%;border:1.6px solid var(--ring);transition:.3s}
+  .stamp{position:absolute;top:-1px;right:-2px;width:25px;height:25px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px rgba(255,255,255,.4),0 2px 5px rgba(0,0,0,.18);transform:rotate(-7deg) scale(1);opacity:1;transition:transform .32s cubic-bezier(.3,1.9,.5,1),opacity .28s}
+  .stamp svg{width:11px;height:11px}
+  .tile:not(.done) .stamp{transform:rotate(-7deg) scale(1.5);opacity:0}
+
+  /* 点阵：独立底行 */
+  .dotsrow{display:flex;align-items:center;margin-top:10px}
+  .dots{display:flex;gap:5px;align-items:center}
+  .dot{border-radius:50%;position:relative;transition:.35s;flex:0 0 auto}
+  .dot.hit{width:8px;height:8px;background:var(--tc)}
+  .tile.done .dot.hit{background:rgba(255,255,255,.88)}
+  .dot.miss{width:10px;height:10px;background:color-mix(in srgb,var(--tc) 26%,transparent)}
+  .dot.miss::after{content:"+";position:absolute;left:50%;top:50%;transform:translate(-50%,-56%);font-size:10px;font-weight:800;color:var(--tc);line-height:1}
+  .tile.done .dot.miss{background:rgba(255,255,255,.3)}
+  .tile.done .dot.miss::after{color:#fff}
+  .dot.miss.justfilled{background:var(--tc);animation:dotspring .4s cubic-bezier(.3,1.8,.5,1)}
+  .tile.done .dot.miss.justfilled{background:rgba(255,255,255,.88)}
+  @keyframes dotspring{0%{transform:scale(.3)}70%{transform:scale(1.3)}100%{transform:scale(1)}}
+  .dot.today{width:9px;height:9px;background:transparent;border:2px solid var(--tc)}
+  .tile.done .dot.today{border-color:#fff;background:rgba(255,255,255,.16)}
+  .dot.future{width:8px;height:8px;background:transparent;border:1.5px solid var(--dotfuture)}
+  .tile.done .dot.future{border-color:rgba(255,255,255,.4)}
+
+  /* 计数型 */
+  .countrow{display:flex;align-items:center;gap:7px;margin-top:2px}
+  .bar{flex:1;min-width:0;height:6px;border-radius:99px;background:var(--inset);overflow:hidden}
+  .tile.done .bar{background:rgba(255,255,255,.26)}
+  .bar i{display:block;height:100%;border-radius:99px;background:var(--tc);transition:width .35s ease}
+  .tile.done .bar i{background:#fff}
+  .bar.over i{background:var(--err)}
+  .cnum{font-size:14.5px;font-weight:700;font-family:"SF Pro Rounded","Hiragino Maru Gothic ProN",-apple-system,sans-serif;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;flex:0 0 auto}
+  .cnum small{font-size:11px;color:var(--text2);font-weight:600}
+  .tile.done .cnum,.tile.done .cnum small{color:#fff}
+  .cnum .ov{color:var(--err)}
+  .tile.done .cnum .ov{color:#fff}
+  .btnrow{display:flex;justify-content:flex-end;align-items:center;gap:9px;margin-top:8px}
+  .cbtn{border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-weight:700;transition:transform .15s;user-select:none;flex:0 0 auto}
+  .cminus{width:30px;height:30px;border:1.4px solid var(--tc);color:var(--tc);font-size:13px;background:transparent}
+  .tile.done .cminus{border-color:rgba(255,255,255,.55);color:#fff}
+  .cplus{width:37px;height:37px;background:var(--tc);color:#fff;font-size:17px;box-shadow:0 3px 8px color-mix(in srgb,var(--tc) 35%,transparent)}
+  .cplus.over{background:var(--err);box-shadow:0 3px 8px rgba(214,69,69,.3)}
+  .tile.done .cplus{background:rgba(255,255,255,.28);box-shadow:none}
+  .cbtn:active{transform:scale(.9)}
+  .cnum.pop{animation:numpop .3s cubic-bezier(.3,1.6,.5,1)}
+
+  /* 测量型 */
+  .mrow{display:flex;align-items:center;justify-content:space-between;margin-top:4px}
+  .mvalwrap{display:flex;align-items:baseline;gap:3px}
+  .mval{font-size:15px;font-weight:700;font-family:"SF Pro Rounded","Hiragino Maru Gothic ProN",-apple-system,sans-serif;color:var(--tc)}
+  .tile.done .mval{color:#fff}
+  .munit{font-size:11px;color:var(--text2)}
+  .tile.done .munit{color:rgba(255,255,255,.75)}
+  .mtrend{font-size:11px;color:#2FA360;font-weight:700}
+  .mtrend.up{color:var(--err)}
+  .mundo{font-size:12.5px;color:var(--text2);cursor:pointer}
+  .tile.done .mundo{color:rgba(255,255,255,.75)}
+  .recc{margin-top:9px;height:32px;border-radius:99px;background:var(--tc);color:#fff;font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;transition:transform .15s,background .4s;box-shadow:0 3px 8px color-mix(in srgb,var(--tc) 28%,transparent)}
+  .recc:active{transform:scale(.95)}
+  .recc svg{width:12px;height:12px}
+  .tile.done .recc{background:rgba(255,255,255,.28);box-shadow:none}
+
+  /* 暂停区 */
+  .paused{margin:24px 22px 0;border:1.5px dashed var(--border);border-radius:18px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center}
+  .plabel{font-size:13px;color:var(--text2)}
+  .resume{height:28px;padding:0 14px;border-radius:99px;border:1.5px solid var(--brand);color:var(--brand);font-size:13px;font-weight:600;display:inline-flex;align-items:center;cursor:pointer}
+  .bottompad{height:110px}
+
+  body.rm *{animation:none!important;transition:none!important}
+
+  .specline{margin-top:26px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:560px}
+  .spec{font-size:11.5px;color:#7d7970;background:#ffffffcc;border:1px solid #ded9cf;border-radius:99px;padding:4px 12px}
+  .hint{margin-top:14px;font-size:12.5px;color:#8a867d;text-align:center}
+</style>
+</head>
+<body>
+  <div class="doctitle">Holo 习惯模块 · 温润纸感 v3.3</div>
+  <div class="docsub">高保真交付版 · 2026-10-06 · 点磁贴盖章打卡 / 点 +− 计数 / 点淡彩点补签 / 底部切深色与动效降级</div>
+
+  <div class="toolbar">
+    <button id="modeBtn" class="on" onclick="toggleMode()">☀️ 浅色</button>
+    <button id="rmBtn" class="on" onclick="toggleRM()">🎬 动效开</button>
+  </div>
+
+  <div class="phone">
+    <div class="screen" id="screen">
+      <div class="scrollarea" id="scroller">
+        <div class="status">
+          <span class="stime">9:41</span>
+          <span class="sicons">
+            <svg width="18" height="12" viewBox="0 0 18 12"><g fill="currentColor"><rect x="0" y="7" width="3" height="5" rx="1"/><rect x="4.5" y="5" width="3" height="7" rx="1"/><rect x="9" y="2.5" width="3" height="9.5" rx="1"/><rect x="13.5" y="0" width="3" height="12" rx="1"/></g></svg>
+            <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 10.8a1.4 1.4 0 100-2.8 1.4 1.4 0 000 2.8z" fill="currentColor"/><path d="M8 6.2c1.3 0 2.5.5 3.4 1.4l1.2-1.3A6.8 6.8 0 008 4.4a6.8 6.8 0 00-4.6 1.9l1.2 1.3A4.8 4.8 0 018 6.2z" fill="currentColor"/><path d="M8 1.6c2.4 0 4.6.9 6.2 2.5l1.2-1.3A9.7 9.7 0 008-.4 9.7 9.7 0 00.6 2.8L1.8 4.1 3 5.4A8.7 8.7 0 018 1.6z" fill="currentColor"/></svg>
+            <svg width="26" height="12" viewBox="0 0 26 12"><rect x="0.5" y="0.5" width="21" height="11" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="15" height="8" rx="2" fill="currentColor"/><path d="M23.5 4v4a2.2 2.2 0 000-4z" fill="currentColor" opacity=".4"/></svg>
+          </span>
+        </div>
+
+        <div class="head">
+          <div class="ops">
+            <div class="back">‹</div>
+            <div class="addbtn">＋</div>
+          </div>
+          <div class="title">习惯</div>
+          <div class="date">10月6日 · 周二</div>
+        </div>
+
+        <div class="summary" id="summary">
+          <div class="sumrow">
+            <div class="sumleft">
+              <span class="sumlabel">今日</span>
+              <span class="sumnum" id="sumNum">3</span>
+              <span class="sumden">/ 8</span>
+            </div>
+            <span class="sumstate" id="sumState">还有 5 项待点亮</span>
+          </div>
+          <div class="segs" id="segs"></div>
+        </div>
+
+        <div class="wall" id="wall"></div>
+
+        <div class="paused">
+          <span class="plabel">▸ 已暂停（2）· 连续进度冻结中</span>
+          <span class="resume">恢复</span>
+        </div>
+        <div class="bottompad"></div>
+
+        <div class="fadeproof"></div>
+        <div class="homebar"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="specline">
+    <span class="spec">圆角 20 · 描边 1pt</span>
+    <span class="spec">热区 44pt（隐形扩大）</span>
+    <span class="spec">盖章动效 · Reduce Motion 降级</span>
+    <span class="spec">完成色暖化钳制（白字≥3:1）</span>
+    <span class="spec">点阵：实点/淡彩补签/今日描边/未来空心</span>
+    <span class="spec">动态字体 ScaledMetric</span>
+  </div>
+  <div class="hint">待拍板：① 顶部大标题 · ② 完成色略暗于选色（保白字可读） · ③ 深色沿用现有底色</div>
+
+<script>
+const DONE_COLORS={
+ "#2FA360":{l:"#2FA360",d:"#48B478",s:"rgba(47,163,96,.30)"},
+ "#3B76C9":{l:"#3570C3",d:"#6C9BE0",s:"rgba(59,118,201,.30)"},
+ "#8063CE":{l:"#8063CE",d:"#9C86DC",s:"rgba(128,99,206,.30)"},
+ "#1F9E9E":{l:"#1F9E9E",d:"#42B4B4",s:"rgba(31,158,158,.30)"},
+ "#A87B0F":{l:"#A87B0F",d:"#C49A45",s:"rgba(168,123,15,.30)"},
+ "#CE4A6B":{l:"#CE4A6B",d:"#DE7490",s:"rgba(206,74,107,.30)"},
+ "#6E8F26":{l:"#6E8F26",d:"#93B154",s:"rgba(110,143,38,.30)"},
+ "#D64545":{l:"#D64545",d:"#E06D6D",s:"rgba(214,69,69,.30)"}
+};
+const HABITS=[
+ {type:"check", name:"维生素", icon:"💊", c:"#2FA360", streak:12, week:[1,1,1,1,1,0,0], done:false},
+ {type:"check", name:"晨跑",   icon:"🏃", c:"#3B76C9", week:[1,0,0,1,1,0,0], done:true},
+ {type:"count", name:"喝水",   icon:"💧", c:"#1F9E9E", val:5, target:8, unit:"杯", done:false},
+ {type:"measure",name:"体重",  icon:"⚖️", c:"#8063CE", val:"65.2", unit:"kg", trend:"-0.3", hasToday:true, done:false},
+ {type:"check", name:"阅读",   icon:"📖", c:"#A87B0F", week:[1,0,1,1,0,0,0], done:false},
+ {type:"count", name:"戒烟",   icon:"🚭", c:"#D64545", val:11, target:10, unit:"支", bad:true, done:false},
+ {type:"check", name:"冥想",   icon:"🧘", c:"#CE4A6B", total:"36次", week:[1,1,1,1,1,0,0], done:true},
+ {type:"check", name:"轻食",   icon:"🥗", c:"#6E8F26", week:[0,1,1,0,1,0,0], done:false},
+];
+const TODAY=5;
+let rm=false;
+const $=id=>document.getElementById(id);
+const wall=$('wall'), segsEl=$('segs');
+
+function isLit(h){return h.type==='count'? h.val>0 : h.done}
+
+/* 副行：徽章群 + 数据文本 + 备注入口 */
+function sublineHTML(h){
+  let badges='';
+  if(h.streak)badges=`<span class="badge"><span class="fl">🔥</span>${h.streak}</span>`;
+  if(h.total)badges=`<span class="badge total">∞${h.total}</span>`;
+  let text='';
+  if(h.type==='check'){
+    const hits=h.week.slice(0,TODAY).filter(v=>v).length;
+    text=badges?`<b>${hits}/${TODAY}</b>`:`本周 <b>${hits}/${TODAY}</b>`;
+  }else if(h.bad){
+    const over=h.val>h.target;
+    text=`上限 ${h.target}${h.unit}/日${over?` · <span class="over">已超 ${h.val-h.target}</span>`:''}`;
+  }else{
+    return badges?`<div class="subline">${badges}<span class="subtext"></span>${h.done?'<span class="notebtn" data-act="note"><svg viewBox="0 0 13 13" fill="none"><path d="M2 2h9M2 5.5h9M2 9h5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>':''}</div>`:'';
+  }
+  return `<div class="subline">${badges}<span class="subtext">${text}</span>${h.done?'<span class="notebtn" data-act="note"><svg viewBox="0 0 13 13" fill="none"><path d="M2 2h9M2 5.5h9M2 9h5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>':''}</div>`;
+}
+function dotsHTML(h){
+  let s='<div class="dotsrow"><div class="dots">';
+  for(let i=0;i<7;i++){
+    let cls='dot';
+    if(i===TODAY)cls+=' today';
+    else if(i<TODAY)cls+= h.week[i]?' hit':' miss';
+    else cls+=' future';
+    s+=`<div class="${cls}" ${i<TODAY&&!h.week[i]?`data-miss="${i}"`:''}></div>`;
+  }
+  return s+'</div></div>';
+}
+function countHTML(h){
+  const over=h.bad&&h.val>h.target, pct=Math.min(h.val/h.target*100,100);
+  return `<div class="countrow">
+    <div class="bar${over?' over':''}"><i style="width:${pct}%"></i></div>
+    <div class="cnum" data-cnum>${h.val}<small>/${h.target}${h.unit}</small>${over?'<span class="ov"> ⚠︎</span>':''}</div>
+  </div>
+  <div class="btnrow">
+    ${h.val>0?'<div class="cbtn cminus" data-act="minus">−</div>':''}
+    <div class="cbtn cplus${over?' over':''}" data-act="plus">＋</div>
+  </div>`;
+}
+function measureHTML(h){
+  return `<div class="mrow">
+    <span class="mvalwrap"><span class="mval">${h.val}</span><span class="munit">${h.unit}</span><span class="mtrend">▾${h.trend}</span></span>
+    ${h.hasToday?'<span class="mundo" data-act="undo">撤销</span>':''}
+  </div>
+  <div class="recc" data-act="rec"><svg viewBox="0 0 12 12" fill="none"><path d="M6 1v6M6 9.2v1.6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" transform="rotate(45 6 6)"/></svg>记录</div>`;
+}
+function footHTML(h){return h.type==='check'?dotsHTML(h):h.type==='count'?countHTML(h):measureHTML(h)}
+function build(){
+  wall.innerHTML='';
+  HABITS.forEach((h,idx)=>{
+    const t=document.createElement('div');
+    t.className='tile'+(h.done?' done':''); t.dataset.idx=idx;
+    t.style.setProperty('--tc',h.c);
+    const dc=DONE_COLORS[h.c];
+    t.dataset.dcl=dc.l; t.dataset.dcd=dc.d; t.dataset.dcs=dc.s;
+    applyDC(t,false);
+    t.innerHTML=`
+      <div class="trow1">
+        <div class="iconchip">${h.icon}</div>
+        <span class="tname">${h.name}</span>
+        <div class="ring"></div>
+        <div class="stamp"><svg viewBox="0 0 11 11"><path d="M2 6l2.3 2.3L9 3.4" stroke="${h.c}" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <div data-sub>${sublineHTML(h)}</div>
+      <div class="spacer"></div>
+      <div data-foot>${footHTML(h)}</div>`;
+    wall.appendChild(t);
+  });
+  segsEl.innerHTML=HABITS.map(()=>'<div class="seg"></div>').join('');
+  refresh();
+}
+function applyDC(el,dark){
+  el.style.setProperty('--dc',dark?el.dataset.dcd:el.dataset.dcl);
+  el.style.setProperty('--dcs',el.dataset.dcs);
+}
+function refresh(){
+  let lit=0;
+  wall.querySelectorAll('.tile').forEach((t,idx)=>{
+    const h=HABITS[idx];
+    t.classList.toggle('done',h.done);
+    t.querySelector('[data-sub]').innerHTML=sublineHTML(h);
+    if(isLit(h))lit++;
+    const seg=segsEl.children[idx];
+    if(seg)seg.classList.toggle('lit',isLit(h));
+  });
+  pop($('sumNum'),String(lit));
+  const all=lit>=HABITS.length;
+  const st=$('sumState');
+  st.textContent=all?'完美的一天 ✨':`还有 ${HABITS.length-lit} 项待点亮`;
+  st.classList.toggle('all',all);
+  $('summary').classList.toggle('alldone',all);
+}
+function pop(el,txt){
+  if(el.textContent!==txt){el.textContent=txt;el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop');}
+}
+function recount(t,idx){
+  const h=HABITS[idx];
+  t.querySelector('[data-foot]').innerHTML=countHTML(h);
+  t.querySelector('[data-sub]').innerHTML=sublineHTML(h);
+  const seg=segsEl.children[idx];
+  const was=seg.classList.contains('lit');
+  seg.classList.toggle('lit',isLit(h));
+  if(!was&&isLit(h)){seg.classList.add('spring');setTimeout(()=>seg.classList.remove('spring'),500);}
+  const n=t.querySelector('[data-cnum]'); n&&n.classList.add('pop');
+  let lit=0;wall.querySelectorAll('.tile').forEach((tt,i)=>{if(isLit(HABITS[i]))lit++});
+  pop($('sumNum'),String(lit));
+  const all=lit>=HABITS.length;
+  $('sumState').textContent=all?'完美的一天 ✨':`还有 ${HABITS.length-lit} 项待点亮`;
+  $('sumState').classList.toggle('all',all);
+  $('summary').classList.toggle('alldone',all);
+}
+wall.addEventListener('click',e=>{
+  const miss=e.target.closest('.dot.miss');
+  if(miss){e.stopPropagation();
+    const tile=miss.closest('.tile'), h=HABITS[+tile.dataset.idx];
+    h.week[+miss.dataset.miss]=1;
+    miss.classList.add('justfilled');
+    tile.querySelector('[data-sub]').innerHTML=sublineHTML(h);
+    return;
+  }
+  const act=e.target.closest('[data-act]');
+  if(act){e.stopPropagation();
+    const t=act.closest('.tile'),idx=+t.dataset.idx,h=HABITS[idx];
+    if(act.dataset.act==='plus'){h.val++;recount(t,idx);return}
+    if(act.dataset.act==='minus'){h.val=Math.max(0,h.val-1);recount(t,idx);return}
+    if(act.dataset.act==='undo'){act.remove();return}
+    if(act.dataset.act==='rec'){toggleDone(idx);return}
+  }
+  const tile=e.target.closest('.tile');
+  if(!tile)return;
+  const idx=+tile.dataset.idx;
+  if(HABITS[idx].type==='check'||HABITS[idx].type==='measure')toggleDone(idx);
+});
+function toggleDone(idx){
+  const h=HABITS[idx];h.done=!h.done;
+  const t=wall.children[idx];
+  t.querySelector('[data-foot]').innerHTML=footHTML(h);
+  refresh();
+  if(h.done&&!rm&&navigator.vibrate)navigator.vibrate(10);
+}
+function toggleMode(){
+  const sc=$('screen');sc.classList.toggle('dark');
+  const dark=sc.classList.contains('dark');
+  $('modeBtn').textContent=dark?'🌙 深色':'☀️ 浅色';
+  $('modeBtn').classList.toggle('on',!dark);
+  wall.querySelectorAll('.tile').forEach(t=>applyDC(t,dark));
+}
+function toggleRM(){
+  rm=!rm;document.body.classList.toggle('rm',rm);
+  $('rmBtn').textContent=rm?'🛑 动效关':'🎬 动效开';
+  $('rmBtn').classList.toggle('on',!rm);
+}
+build();
+if(location.hash.includes('dark'))toggleMode();
+if(location.hash.includes('rm'))toggleRM();
+</script>
+</body>
+</html>

@@ -16,17 +16,8 @@ import CoreData
 @MainActor
 final class FinanceProjectRepositoryTests: XCTestCase {
 
-    /// 进程级共享容器（与 FinanceReconciliationTests 同款理由：避免反复 load 模型触发不兼容错误）
-    private static let sharedContainer: NSPersistentContainer = {
-        let model = CoreDataTestSupport.sharedModel
-        let container = NSPersistentContainer(name: "FinanceProjectTests", managedObjectModel: model)
-        let description = NSPersistentStoreDescription()
-        description.type = NSInMemoryStoreType
-        container.persistentStoreDescriptions = [description]
-        try? container.loadPersistentStores { _, _ in }
-        return container
-    }()
-
+    /// 进程唯一测试容器（CoreDataTestSupport R4-1 政策，2026-09-16 迁入）：
+    /// 避免同模型反复 load 触发实体映射歧义（见 CoreDataTestSupport.sharedTestContainer 注释）
     private var context: NSManagedObjectContext!
     private var repo: FinanceRepository!
     private var projectRepo: FinanceProjectRepository!
@@ -34,20 +25,12 @@ final class FinanceProjectRepositoryTests: XCTestCase {
     private var lunchCategory: Holo.Category!
 
     override func setUp() async throws {
-        context = Self.sharedContainer.viewContext
-
-        // 清空上一用例数据（in-memory store 不支持 batch delete，逐实体 fetch+delete）
-        for entityName in ["Transaction", "Category", "Account", "Budget", "FinanceProject"] {
-            let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
-            for object in (try? context.fetch(request)) ?? [] {
-                context.delete(object)
-            }
-        }
-        try? context.save()
+        context = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(context, ["Transaction", "Category", "Account", "Budget", "FinanceProject"])
 
         repo = FinanceRepository(context: context)
         projectRepo = FinanceProjectRepository(finance: repo)
-        account = repo.addAccount(name: "现金", type: .cash, initialBalance: 0)
+        account = try repo.addAccount(name: "现金", type: .cash, initialBalance: 0)
 
         // 普通交易分类必须是二级（validateTransactionCategory 的规则）
         let parentCategory = Holo.Category.create(
@@ -295,6 +278,155 @@ final class FinanceProjectRepositoryTests: XCTestCase {
         XCTAssertEqual(project.budgetDecimal, 3000)
         XCTAssertEqual(project.startDate, newStart)
         XCTAssertNil(project.endDate)
+    }
+
+    // MARK: - 收支同权口径（2026-10-04 定稿）
+
+    func test_totalIncome_and_netAmount_semantics() async throws {
+        let project = try makeProject()
+        // 计入收入：挂项目的非退款收入
+        _ = try await repo.addTransaction(
+            amount: 300, type: .income, category: lunchCategory, account: account,
+            date: Date(), note: "卖旧料", financeProject: project
+        )
+        // 不计入收入：未来收入（未发生）
+        _ = try await repo.addTransaction(
+            amount: 999, type: .income, category: lunchCategory, account: account,
+            date: Date().addingTimeInterval(86400 * 3), note: "未来进账", financeProject: project
+        )
+        // 支出 100（过去）
+        _ = try await addExpense(100, date: Date().addingTimeInterval(-86400), project: project)
+
+        XCTAssertEqual(projectRepo.totalIncome(forProject: project.id), 300)
+        XCTAssertEqual(projectRepo.totalExpense(forProject: project.id), 100)
+        XCTAssertEqual(projectRepo.netAmount(forProject: project.id), -200, "收入超支出即净收益（负净投入）")
+    }
+
+    func test_refund_inheritsProject_and_negativelyImpactsExpense() async throws {
+        let project = try makeProject()
+        let original = try await addExpense(1000, project: project)
+        let refund = try await repo.addRefundTransaction(
+            original: original, amount: 200, date: Date(), account: account
+        )
+
+        // 退款挂靠自动继承原交易
+        XCTAssertEqual(refund.financeProjectId, project.id)
+        // 退款不进项目收入（在支出侧冲减），总支出=800 与全局统计同构
+        XCTAssertEqual(projectRepo.totalIncome(forProject: project.id), 0)
+        XCTAssertEqual(projectRepo.totalExpense(forProject: project.id), 800)
+        XCTAssertEqual(projectRepo.netAmount(forProject: project.id), 800)
+    }
+
+    func test_updateTransaction_projectChange_syncsRefunds() async throws {
+        let first = try makeProject(name: "A")
+        let second = try makeProject(name: "B")
+        let original = try await addExpense(500, project: first)
+        let refund = try await repo.addRefundTransaction(
+            original: original, amount: 100, date: Date(), account: account
+        )
+
+        // 原交易改挂 B：名下退款联动改挂（挂靠恒等于原交易）
+        try await repo.updateTransaction(original, updates: TransactionUpdates(note: nil, financeProjectId: .some(second.id)))
+        XCTAssertEqual(refund.financeProjectId, second.id)
+        XCTAssertEqual(projectRepo.totalExpense(forProject: first.id), 0)
+        XCTAssertEqual(projectRepo.totalExpense(forProject: second.id), 400)
+
+        // 原交易解除挂靠：退款联动解除
+        try await repo.updateTransaction(original, updates: TransactionUpdates(note: nil, financeProjectId: .some(nil)))
+        XCTAssertNil(refund.financeProjectId)
+    }
+
+    func test_backfillRefundProjectAttachments_legacyRefunds() async throws {
+        let project = try makeProject()
+        let original = try await addExpense(800, project: project)
+        let refund = try await repo.addRefundTransaction(
+            original: original, amount: 300, date: Date(), account: account
+        )
+        // 模拟存量：退款挂靠被抹掉（继承功能上线前的旧数据形态）
+        refund.financeProjectId = nil
+        try context.save()
+
+        let backfilled = try FinanceProjectRepository.backfillRefundProjectAttachments(in: context)
+        XCTAssertEqual(backfilled, 1)
+        XCTAssertEqual(refund.financeProjectId, project.id)
+        XCTAssertEqual(projectRepo.totalExpense(forProject: project.id), 500)
+
+        // 幂等：再跑一遍零回填
+        let again = try FinanceProjectRepository.backfillRefundProjectAttachments(in: context)
+        XCTAssertEqual(again, 0)
+    }
+
+    func test_projectSpan_includesIncomeDates() async throws {
+        let project = try makeProject()
+        _ = try await addExpense(100, date: Date().addingTimeInterval(-86400 * 10), project: project)
+        _ = try await repo.addTransaction(
+            amount: 50, type: .income, category: lunchCategory, account: account,
+            date: Date(), note: "末笔进账", financeProject: project
+        )
+
+        let span = projectRepo.projectSpan(of: project)
+        // 末笔收入把区间右端拉到今天（排他上界=明天零点）
+        XCTAssertNotNil(span)
+        let cal = Calendar.current
+        let endInclusive = span!.end.addingTimeInterval(-1)
+        XCTAssertEqual(cal.startOfDay(for: endInclusive), cal.startOfDay(for: Date()))
+    }
+
+    func test_fetchIncomeTransactions_excludesRefunds() async throws {
+        let project = try makeProject()
+        let original = try await addExpense(1000, project: project)
+        _ = try await repo.addRefundTransaction(original: original, amount: 200, date: Date(), account: account)
+        _ = try await repo.addTransaction(
+            amount: 150, type: .income, category: lunchCategory, account: account,
+            date: Date(), note: "进账", financeProject: project
+        )
+
+        let incomes = projectRepo.fetchIncomeTransactions(forProject: project.id)
+        XCTAssertEqual(incomes.count, 1, "退款笔不进收入侧（在支出侧负冲）")
+        XCTAssertEqual(incomes.first?.note, "进账")
+    }
+
+    // MARK: - 收入挂靠清洗（一次性迁移）
+
+    func test_detachProjectsFromIncomeTransactions_clearsIncomeKeepsExpense() async throws {
+        let project = try makeProject()
+        let dirtyIncome = try await repo.addTransaction(
+            amount: 5000, type: .income, category: lunchCategory, account: account,
+            date: Date(), note: "工资", financeProject: project
+        )
+        let expense = try await addExpense(60, project: project)
+
+        let detached = try FinanceProjectRepository.detachProjectsFromIncomeTransactions(in: context)
+
+        XCTAssertEqual(detached, 1)
+        XCTAssertNil(dirtyIncome.financeProjectId)
+        XCTAssertEqual(expense.financeProjectId, project.id)
+    }
+
+    func test_detachProjectsFromIncomeTransactions_idempotent() async throws {
+        let project = try makeProject()
+        _ = try await repo.addTransaction(
+            amount: 100, type: .income, category: lunchCategory, account: account,
+            date: Date(), note: "退款", financeProject: project
+        )
+        _ = try FinanceProjectRepository.detachProjectsFromIncomeTransactions(in: context)
+
+        let second = try FinanceProjectRepository.detachProjectsFromIncomeTransactions(in: context)
+        XCTAssertEqual(second, 0)
+    }
+
+    func test_detachProjectsFromIncomeTransactions_includesSoftDeleted() async throws {
+        let project = try makeProject()
+        let deletedIncome = try await repo.addTransaction(
+            amount: 100, type: .income, category: lunchCategory, account: account,
+            date: Date(), note: "脏收入", financeProject: project
+        )
+        deletedIncome.deletedAt = Date()
+        try context.save()
+
+        let detached = try FinanceProjectRepository.detachProjectsFromIncomeTransactions(in: context)
+        XCTAssertEqual(detached, 1)
+        XCTAssertNil(deletedIncome.financeProjectId)
     }
 
     // MARK: - Private

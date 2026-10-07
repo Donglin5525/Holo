@@ -286,9 +286,14 @@ nonisolated enum HoloPersonalContextValidator {
             case unknownSource
             case revisionMismatch
             case quoteNotFound
+            /// G2（A07）：明说/观察候选必须带逐字引用与来源修订，缺失即拒。
+            case missingQuote
+            case missingRevision
             case selfMerge
             case invalidEpistemicStatus
             case invalidFacet
+            /// R2：declared（本人明说）候选的证据全部是代购/引用他人来源。
+            case thirdPartyOnlyBasis
         }
 
         var code: Code
@@ -332,6 +337,26 @@ nonisolated enum HoloPersonalContextValidator {
                 continue
             }
 
+            // R2 authorship 门禁（方案 §3.7 想法域边界：引用/转述不能变成用户事实）：
+            // declared（本人明说）候选至少需要一个本人归属来源作证据；
+            // 纯代购/引用他人的候选只能走 inferred/observed（弱线索，不构成用户事实）。
+            // G2：置于证据完整性检查之前——「来源资格」是结构性问题，先于
+            // 「引用是否齐全」报出（2026-10-05 Q3 场景实锚）。
+            if candidate.epistemicStatus == "declared" {
+                let hasOwnBasis = candidate.basis.contains { basis in
+                    let authorship = sourcesByID[basis.sourceID]?.authorship
+                    return authorship == nil || authorship == "user"
+                }
+                if !hasOwnBasis {
+                    findings.append(Finding(
+                        code: .thirdPartyOnlyBasis,
+                        candidateRef: ref,
+                        detail: "本人明说候选的证据全部为代购/引用他人来源"
+                    ))
+                    continue
+                }
+            }
+
             var basisValid = true
             for basis in candidate.basis {
                 if sourceIndex.conflictingIDs.contains(basis.sourceID) {
@@ -344,13 +369,42 @@ nonisolated enum HoloPersonalContextValidator {
                     basisValid = false
                     break
                 }
-                if let revision = basis.revision, !revision.isEmpty, revision != source.revisionDigest {
-                    findings.append(Finding(code: .revisionMismatch, candidateRef: ref, detail: "修订不一致: \(basis.sourceID)"))
-                    basisValid = false
-                    break
-                }
-                if let quote = basis.quote, !quote.isEmpty {
+                // G2（A07）：declared/observed 候选必须带逐字引用与来源修订——
+                // 「证据存在」不等于「证据支持」；缺失即拒，不能靠「值非空才校验」放行。
+                // inferred 可无逐字引用（多源聚合推断），但给了就必须逐字命中、修订一致。
+                let requiresVerbatimBasis = candidate.epistemicStatus == "declared"
+                    || candidate.epistemicStatus == "observed"
+                    || candidate.epistemicStatus == nil
+                if requiresVerbatimBasis {
+                    let quote = basis.quote?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    guard !quote.isEmpty else {
+                        findings.append(Finding(code: .missingQuote, candidateRef: ref, detail: "明说/观察候选缺少逐字引用"))
+                        basisValid = false
+                        break
+                    }
+                    guard let revision = basis.revision, !revision.isEmpty else {
+                        findings.append(Finding(code: .missingRevision, candidateRef: ref, detail: "明说/观察候选缺少来源修订"))
+                        basisValid = false
+                        break
+                    }
+                    if revision != source.revisionDigest {
+                        findings.append(Finding(code: .revisionMismatch, candidateRef: ref, detail: "修订不一致: \(basis.sourceID)"))
+                        basisValid = false
+                        break
+                    }
                     if !source.plainText.contains(quote) {
+                        findings.append(Finding(code: .quoteNotFound, candidateRef: ref, detail: "引用未逐字命中: \(String(quote.prefix(20)))…"))
+                        basisValid = false
+                        break
+                    }
+                } else {
+                    if let revision = basis.revision, !revision.isEmpty, revision != source.revisionDigest {
+                        findings.append(Finding(code: .revisionMismatch, candidateRef: ref, detail: "修订不一致: \(basis.sourceID)"))
+                        basisValid = false
+                        break
+                    }
+                    if let quote = basis.quote, !quote.isEmpty,
+                       !source.plainText.contains(quote) {
                         findings.append(Finding(code: .quoteNotFound, candidateRef: ref, detail: "引用未逐字命中: \(String(quote.prefix(20)))…"))
                         basisValid = false
                         break

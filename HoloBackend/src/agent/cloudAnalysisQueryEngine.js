@@ -63,18 +63,47 @@ function isoWeekKey(date) {
   return `${String(year).padStart(4, "0")}-W${String(week).padStart(2, "0")}`;
 }
 
-/** 行 → 分组键（与 iOS HoloDataTool.buckets 同构）。 */
+/** 本地日期 "YYYY-MM-DD" → 周几（0=周日…6=周六）。用 UTC 构造承载日期数学，
+ * 结果与运行环境时区无关。 */
+function localWeekdayOf(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/** 本地日期 "YYYY-MM-DD" → ISO 周键。 */
+function isoWeekKeyOfDate(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return isoWeekKey(new Date(Date.UTC(y, m - 1, d)));
+}
+
+/** 行 → 分组键（与 iOS HoloDataTool.buckets 同构，按用户本地日历分桶）。
+ * 时间桶直接切时间值字符串的本地部分（带时区偏移的 ISO 前缀即本地日期，
+ * 如 2026-09-22T01:00:00+08:00 的本地日期是 09-22）——不经 Date→toISOString
+ * 的 UTC 往返，否则东八区凌晨交易会被切进前一天（既有错日缺陷，本次根治）。
+ * 纯日期值（旧快照无时刻成分）hour 桶落 "unknown"，模型按能力声明绕行时段分析。 */
 function bucketKeyFor(row, grouping) {
   if (!grouping || grouping.type !== "field") {
-    const time = rowTimeMs(row);
-    if (time == null) return "unknown";
-    const date = new Date(time);
-    const iso = date.toISOString().slice(0, 10);
     switch (grouping?.type) {
-      case "day": return iso;
-      case "week": return isoWeekKey(date);
-      case "month": return iso.slice(0, 7);
-      case "weekend": return (date.getUTCDay() === 0 || date.getUTCDay() === 6) ? "weekend" : "weekday";
+      case "day":
+      case "week":
+      case "month":
+      case "weekend":
+      case "hour": {
+        const raw = String(row?.occurredAt ?? row?.date ?? "");
+        if (!/^\d{4}-\d{2}-\d{2}/.test(raw)) return "unknown";
+        const localDate = raw.slice(0, 10);
+        if (grouping.type === "day") return localDate;
+        if (grouping.type === "month") return localDate.slice(0, 7);
+        if (grouping.type === "week") return isoWeekKeyOfDate(localDate);
+        if (grouping.type === "weekend") {
+          const wd = localWeekdayOf(localDate);
+          return (wd === 0 || wd === 6) ? "weekend" : "weekday";
+        }
+        const t = raw.indexOf("T");
+        if (t < 0) return "unknown"; // 纯日期旧快照：无时刻成分，时段不可判
+        const hh = raw.slice(t + 1, t + 3);
+        return /^\d{2}$/.test(hh) ? hh : "unknown";
+      }
       default: return "all";
     }
   }
@@ -291,6 +320,56 @@ export function createCloudAnalysisQueryEngine() {
     return Number.isFinite(parsed) ? parsed : null;
   }
 
+  /** 模型传入的原始时间窗值的安全序列化（错误消息回显用），截断防刷屏。 */
+  function describeRawRange(range) {
+    try {
+      const text = JSON.stringify(range) ?? String(range);
+      return text.length > 120 ? `${text.slice(0, 120)}…` : text;
+    } catch {
+      return String(range);
+    }
+  }
+
+  /**
+   * 时间窗口显式校验（2026-09-21 静默失效根治）：模型显式给了 timeRange/baseline
+   * 但 windowOf 解析失败（日期文本而非 Unix 秒/毫秒、start≥end）时，此前静默当作
+   * 「无窗口」返回全量——模型看到数字与未过滤完全一致，只能在报告里承认「时间
+   * 过滤没有生效」（2026-09-21 东林「最近一个季度」追问 538 笔全量作答实锤）。
+   * 与 _search/UNKNOWN_FIELD 同一教训：认不出必须显式报错让模型换格式重试，
+   * 不做静默降级。perDay 派生依赖 timeRange，缺窗口同样显式报错（此前派生
+   * 静默消失）。
+   */
+  function validateWindows(plan, snapshot) {
+    const cutoffMs = snapshotCutoffMs(snapshot);
+    const formatHint = cutoffMs != null
+      ? `start/end 必须是 Unix 秒（如 ${Math.floor(cutoffMs / 1000)}）或 Unix 毫秒数字，不能是日期文本，且 start 必须早于 end；快照截止 end=${Math.floor(cutoffMs / 1000)}（Unix 秒）可直接引用。`
+      : "start/end 必须是 Unix 秒或 Unix 毫秒数字，不能是日期文本，且 start 必须早于 end。";
+    if (plan.timeRange != null && !windowOf(plan.timeRange)) {
+      return {
+        code: "INVALID_TIMERANGE",
+        message: `timeRange 无法解析（收到 ${describeRawRange(plan.timeRange)}）。${formatHint}`,
+        recoverable: true,
+      };
+    }
+    if (plan.baseline != null && !windowOf(plan.baseline)) {
+      return {
+        code: "INVALID_TIMERANGE",
+        message: `baseline 对照窗口无法解析（收到 ${describeRawRange(plan.baseline)}）。${formatHint}`,
+        recoverable: true,
+      };
+    }
+    const needsPerDayWindow = (plan.derivations ?? []).some((d) => d?.operation === "perDay");
+    if (needsPerDayWindow && plan.timeRange == null) {
+      return {
+        code: "INVALID_TIMERANGE",
+        message: "perDay 派生需要显式 timeRange（按窗口天数折算日均），请补全后重试。",
+        recoverable: true,
+      };
+    }
+    return null;
+  }
+
+
   /** 窗口的可读描述（错误/警告文案用）。 */
   function describeWindow(window) {
     if (!window) return "无";
@@ -338,6 +417,11 @@ export function createCloudAnalysisQueryEngine() {
           recoverable: true,
         },
       });
+    }
+
+    const windowError = validateWindows(plan, snapshot);
+    if (windowError) {
+      return toolResultEnvelope(toolRequestID, tool, { status: "error", error: windowError });
     }
 
     const filterError = validateFilters(plan.filters, dataset, "filters")
@@ -520,9 +604,15 @@ export function createCloudAnalysisQueryEngine() {
     if (metrics.length === 0) {
       // 空结论必须可解释：说清时间窗内多少行、数据集总共多少行、快照截止在哪，
       // 模型才能区分「真没数据」与「时间窗不对」——这是 P0「缺口可解释」的引擎侧。
-      const totalRows = dataset.rows?.length ?? 0;
+      // 截断元数据（2026-10-04 体检 E19）：iOS 快照带 totalRows（截断前总量）时
+      // 如实反映，模型看到的规模不再被 2000 行上限低估；旧快照无元数据保持原样。
+      const providedRows = dataset.rows?.length ?? 0;
+      const totalRows = Number.isInteger(dataset?.totalRows) && dataset.totalRows > providedRows
+        ? dataset.totalRows
+        : providedRows;
+      const truncationNote = totalRows > providedRows ? `（快照仅提供 ${providedRows} 行）` : "";
       const windowNote = currentWindow
-        ? `；时间窗 ${describeWindow(currentWindow)} 内 0 行（数据集共 ${totalRows} 行，快照截止 ${cutoffMs != null ? new Date(cutoffMs).toISOString().slice(0, 10) : "未知"}）`
+        ? `；时间窗 ${describeWindow(currentWindow)} 内 0 行（数据集共 ${totalRows} 行${truncationNote}，快照截止 ${cutoffMs != null ? new Date(cutoffMs).toISOString().slice(0, 10) : "未知"}）`
         : "";
       return toolResultEnvelope(toolRequestID, tool, {
         status: "empty",
@@ -567,11 +657,32 @@ export function buildCloudToolCatalog(snapshot) {
   for (const [name, dataset] of Object.entries(datasets)) {
     // 字段说明必须进目录：模型不知道 text 是「备注、说明和标签合并文本」，
     // 就永远不会拿备注做归因（2026-08-31 验收：音乐 3316 的「TIMA音乐盛典」备注被漏）。
+    // 能力标记（{可筛·可组}）必须随字段上目录（2026-10-04 目录驱动 v25）：iOS 侧
+    // filterable/groupable 声明随快照序列化上云，此前拼目录时被丢弃，模型只能靠
+    // 提示词逐字段枚举教学——标记进目录后，新字段只改 iOS 声明即可被模型自动使用。
     const fields = (dataset.fields ?? [])
-      .map((f) => `${f.name}:${f.type}${f.unit ? `[${f.unit}]` : ""}${f.description ? `(${f.description})` : ""}`)
+      .map((f) => {
+        const tags = [f.filterable ? "可筛" : null, f.groupable ? "可组" : null]
+          .filter(Boolean)
+          .join("·");
+        return `${f.name}:${f.type}${f.unit ? `[${f.unit}]` : ""}${f.description ? `(${f.description})` : ""}${tags ? `{${tags}}` : ""}`;
+      })
       .join(" ");
-    const rows = dataset.rows?.length ?? 0;
-    lines.push(`【${name}】rows=${rows} fields: ${fields}`);
+    // 截断元数据（2026-10-04 体检 E19）：iOS 快照每数据集带 totalRows（截断前
+    // 总量）/coveredFrom（快照内最老一行）时在目录如实声明——此前 rows=N 是
+    // 截断后的 provided 数，模型把截断明细当全量，年度/高记录量总额被低估。
+    // 非截断数据集保持原格式，既有契约不变。
+    const providedRows = dataset.rows?.length ?? 0;
+    const truncatedTotal = Number.isInteger(dataset?.totalRows) && dataset.totalRows > providedRows
+      ? dataset.totalRows
+      : null;
+    const rowsNote = truncatedTotal != null
+      ? `rows=${providedRows}/${truncatedTotal}（快照截断，明细非全量；涉及总额/历史的结论须注明可能不完整）`
+      : `rows=${providedRows}`;
+    const coveredFromNote = typeof dataset?.coveredFrom === "string" && dataset.coveredFrom
+      ? ` coveredFrom=${dataset.coveredFrom}`
+      : "";
+    lines.push(`【${name}】${rowsNote}${coveredFromNote} fields: ${fields}`);
   }
   const statics = Object.keys(snapshot?.statics ?? {});
   if (statics.length > 0) {
@@ -591,7 +702,7 @@ export function buildCloudToolCatalog(snapshot) {
     );
   }
   lines.push(
-    "云端能力（已支持）：dynamicPlan 基础聚合 count/sum/average/min/max/distinctCount；字段过滤（含 _search 跨字段关键词）；分组 groupBy 单维 type=field/day/week/month/weekend；timeRange 时间过滤（先过滤再聚合，未来数据不进历史结论）；baseline 对照窗口与派生 difference/ratio/percentageChange/rate/perDay（需要对比而未填 baseline 时系统自动取同长度前移窗口）。",
+    "云端能力（已支持）：dynamicPlan 基础聚合 count/sum/average/min/max/distinctCount；字段过滤（含 _search 跨字段关键词）；分组 groupBy 单维 type=field/day/week/month/weekend/hour（hour=按用户本地时刻的 0-23 小时桶，付款时段/夜间消费分析用；若该桶大量返回 unknown 说明快照时间值仅到日、无时刻成分，时段分析不可做，改用其他维度）；timeRange 时间过滤（先过滤再聚合，未来数据不进历史结论）；baseline 对照窗口与派生 difference/ratio/percentageChange/rate/perDay（需要对比而未填 baseline 时系统自动取同长度前移窗口）。",
     "云端能力（未支持，请求即报错换路）：expression/linearTrend/coverage 派生；cross_domain.aligned_analysis；未预取的固定 query；快照窗口外的时间段。跨域问题请分别查询两个数据集的同期分组指标后并列对照，只能表述「同一段时间都变化/并发」，不得表述因果或已对齐的统计关联。",
     "行明细工具 snapshot_rows：聚合统计回答「有多少」，看不到记录原文；归因「这笔钱是什么/为什么大」时必须取样明细——",
     'tool="snapshot_rows", query="rows_sample", parameters={source, filters:[{field,operation,value}], sortBy, sortDirection:"descending"|"ascending", limit}（limit≤10）。',

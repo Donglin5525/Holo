@@ -45,6 +45,11 @@ struct MessageBubbleView: View {
     var onTaskCancel: ((ChatMessageViewData, TaskCardData) -> Void)? = nil
     /// 任务卡片「补充条目」：锚定该任务继续对话修改条目
     var onTaskFollowUp: ((ChatMessageViewData, TaskCardData) -> Void)? = nil
+    // 待确认任务卡设置行编辑入口（确认前就地改，写回 renderData）
+    var onTaskEditDueDate: ((ChatMessageViewData, TaskCardData) -> Void)? = nil
+    var onTaskEditReminders: ((ChatMessageViewData, TaskCardData) -> Void)? = nil
+    var onTaskEditList: ((ChatMessageViewData, TaskCardData) -> Void)? = nil
+    var onTaskEditContent: ((ChatMessageViewData, TaskCardData) -> Void)? = nil
     var onTransactionConfirm: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
     var onTransactionCancel: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
     var onTransactionModifyCategory: ((ChatMessageViewData, TransactionCardData) -> Void)? = nil
@@ -81,6 +86,29 @@ struct MessageBubbleView: View {
             && message.id == latestGoalPlanningAssistantMessageID
     }
 
+    /// 目标规划会话消息标识：这些气泡由规划流程消费/产出，须与普通聊天区分——
+    /// 此前规划回复伪装成普通聊天气泡，用户把规划追问误读成分析反问（2026-09-19）。
+    /// 草稿卡/已存卡本身形态已区分，不重复挂标。
+    private var showsPlanningBadge: Bool {
+        message.messageType == .goalPlanning
+            && !isGoalDraftReady
+            && message.savedGoalCard == nil
+    }
+
+    private var planningBadge: some View {
+        HStack(spacing: 3) {
+            Image(systemName: "target")
+                .font(.system(size: 8.5, weight: .bold))
+            Text("目标规划")
+                .font(.system(size: 9.5, weight: .bold))
+        }
+        .foregroundColor(.holoPrimary)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 2)
+        .background(Color.holoPrimary.opacity(0.08), in: Capsule())
+        .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2), lineWidth: 0.8))
+    }
+
     private var isUser: Bool {
         message.role == "user"
     }
@@ -98,6 +126,9 @@ struct MessageBubbleView: View {
                     // 截图识别消息：缩略图按确定性路径探测（拍板 5），
                     // 图 + 无附言时不再渲染「[图片]」占位气泡
                     VStack(alignment: .trailing, spacing: 8) {
+                        if showsPlanningBadge {
+                            planningBadge
+                        }
                         if let thumbURL = VisionImageStore.thumbnailURL(for: message.id) {
                             VisionChatThumbnail(url: thumbURL)
                             if !isImageOnlyCaption {
@@ -112,6 +143,9 @@ struct MessageBubbleView: View {
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     aiHeader
+                    if showsPlanningBadge {
+                        planningBadge
+                    }
                     messageContent
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -197,6 +231,14 @@ struct MessageBubbleView: View {
                 } else {
                     bubbleContent
                 }
+            } else if message.messageType == .todayRelief {
+                // 「今天减负」候选卡：同一候选/回执；过期只允许重新整理（R45）
+                if let json = message.todayReliefJSON,
+                   let envelope = TodayReliefCardEnvelope.decode(json) {
+                    TodayReliefChatCard(envelope: envelope)
+                } else {
+                    bubbleContent
+                }
             } else if message.messageType == .contextPlan {
                 if message.contextPlanJSON != nil {
                     ContextPlanChatCard(
@@ -263,6 +305,26 @@ struct MessageBubbleView: View {
                         },
                         onOpenTask: { taskID in
                             onOpenTask?(taskID)
+                        },
+                        onOpenMatter: { matterID in
+                            onOpenMatter?(matterID)
+                        }
+                    )
+                } else if let runEnvelope = message.contextPlanRunJSON.flatMap(HoloContextPlanRunController.decode(_:)),
+                        runEnvelope.stage == .draftReady,
+                        let launched = MatterPlanQuery.restoreLaunchSummary(
+                            contextPlanMessageID: message.id,
+                            repository: .shared
+                        ) {
+                    // V2 孤儿恢复（云异步已知病：信封已就绪、方案 JSON 未随落）：
+                    // Matter 已启动时按 origin link 恢复成功回执，不给没有出口的「已就绪」卡。
+                    MatterPlanLaunchedReceiptCard(
+                        matterID: launched.matterID,
+                        matterTitle: launched.matterTitle,
+                        stepCount: launched.stepCount,
+                        nextActionTitle: launched.nextAction?.title,
+                        onOpenMatter: { matterID in
+                            onOpenMatter?(matterID)
                         }
                     )
                 } else if let runEnvelope = message.contextPlanRunJSON.flatMap(HoloContextPlanRunController.decode(_:)) {
@@ -340,7 +402,7 @@ struct MessageBubbleView: View {
 
     /// 气泡最大宽度：用户气泡不设限（贴右）；AI 气泡手机保持原 .infinity 满行、
     /// 宽屏限 640pt 保护阅读行长
-    @Environment(\.holoWindowWidth) private var bubbleWindowWidth
+    @Environment(\.holoContentWidth) private var bubbleWindowWidth
     private var bubbleMaxWidth: CGFloat? {
         if isUser { return nil }
         return HoloAdaptiveLayout.isExpandedWidth(bubbleWindowWidth) ? 640 : .infinity
@@ -391,7 +453,7 @@ struct MessageBubbleView: View {
 
             Text("Holo")
                 .font(.subheadline.weight(.semibold))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             Text("AI")
                 .font(.system(size: 10, weight: .semibold))
@@ -453,7 +515,7 @@ struct MessageBubbleView: View {
                     .foregroundColor(pendingCount == cards.count ? .holoPrimary : .holoSuccess)
                 Text(summaryHeaderText(cardCount: cards.count, pendingCount: pendingCount))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
@@ -496,6 +558,14 @@ struct MessageBubbleView: View {
                 onTaskCancel?(message, taskData)
             } onFollowUp: {
                 onTaskFollowUp?(message, taskData)
+            } onEditDueDate: {
+                onTaskEditDueDate?(message, taskData)
+            } onEditReminders: {
+                onTaskEditReminders?(message, taskData)
+            } onEditList: {
+                onTaskEditList?(message, taskData)
+            } onEditContent: {
+                onTaskEditContent?(message, taskData)
             }
         case .budget(let budgetData):
             BudgetChatCard(data: budgetData) {
@@ -680,14 +750,14 @@ struct VisionChatThumbnail: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                Color.holoCardBackground
+                Color.holoToolSurface
             }
         }
         .frame(width: 128, height: 170)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.holoTextSecondary.opacity(0.12), lineWidth: 1)
+                .stroke(Color.holoToolTextSecondary.opacity(0.12), lineWidth: 1)
         )
         .task {
             // 压缩图长边 ≤2400，直接整图解码；列表滚动中只解码一次

@@ -16,7 +16,7 @@ mkdir -p "$OUT"
 
 BIN="$OUT/ThoughtTopicClusterStandaloneTests"
 
-swiftc -o "$BIN" \
+swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/Thoughts/ThoughtTopicClusterStandaloneTests.swift" \
   "$APP/Services/AI/SemanticV3/ThoughtTopicClusterEngine.swift" \
   "$APP/Services/AI/SemanticV3/ThoughtSemanticCalibration.swift" \

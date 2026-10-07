@@ -25,7 +25,7 @@ extension Notification.Name {
 @MainActor
 class HabitRepository: ObservableObject {
 
-    private let logger = Logger(subsystem: "com.holo.app", category: "HabitRepository")
+    let logger = Logger(subsystem: "com.holo.app", category: "HabitRepository")
 
     // MARK: - Singleton
 
@@ -35,30 +35,50 @@ class HabitRepository: ObservableObject {
     
     /// 当前活跃（未归档）的习惯列表
     @Published var activeHabits: [Habit] = []
+    /// 暂停中的习惯（未归档；供习惯墙折叠区展示）
+    @Published private(set) var pausedHabits: [Habit] = []
     @Published private(set) var isReady: Bool = false
     
     // MARK: - Properties
-    
+
     /// 主上下文（延迟初始化，避免进入模块前就阻塞主线程）
     lazy var context: NSManagedObjectContext = CoreDataStack.shared.viewContext
-    
+
+    /// 是否监听共享库远程变更（仅主 App 进程为 true）
+    private let observesRemoteChanges: Bool
+
+    /// 就绪门判定覆写（仅供单测注入；nil = 生产默认判定）
+    private let readinessGateOverride: (() -> Bool)?
+
     // MARK: - Initialization
-    
-    private init() { observesRemoteChanges = true }
+
+    private init() {
+        observesRemoteChanges = true
+        readinessGateOverride = nil
+    }
 
     /// 注入自定义 context（测试用 in-memory；生产仍走 shared 单例）
     /// 与 Finance/Todo/Thought 等其他 Repository 保持一致的注入入口，
     /// 用于在不污染单例的前提下跑隔离测试。
     /// observesRemoteChanges 传 false 供小组件扩展进程使用：远程变更判定需要
     /// 比对主 App 共享 viewContext，而触碰它会在扩展进程内把 App 容器建出来。
-    init(context: NSManagedObjectContext, observesRemoteChanges: Bool = true) {
+    /// readinessGateOverride 仅供就绪门单测注入；生产实例一律走默认判定。
+    init(context: NSManagedObjectContext, observesRemoteChanges: Bool = true,
+         readinessGateOverride: (() -> Bool)? = nil) {
         // lazy 属性须在全部存储属性初始化后再赋值，顺序不能颠倒
         self.observesRemoteChanges = observesRemoteChanges
+        self.readinessGateOverride = readinessGateOverride
         self.context = context
     }
 
-    /// 是否监听共享库远程变更（仅主 App 进程为 true）
-    private let observesRemoteChanges: Bool
+    /// 就绪门：共享 store 未装载完成期间，对 viewContext 的任何 fetch 都会同步
+    /// 等待装载队列、阻塞调用线程（2026-09-17 三方锁与 2026-10-06 模块黑屏同源）。
+    /// 生产语义下只有「用共享主上下文 + store 未就绪」的实例需要推迟；
+    /// 注入独立 context 的测试实例天然旁路，共享 store 装载完成后恒放行。
+    func shouldDeferSetup() -> Bool {
+        if let readinessGateOverride { return readinessGateOverride() }
+        return context === CoreDataStack.shared.viewContext && !CoreDataStack.shared.isReady
+    }
 
     /// Repository 的资源都由 ARC/Core Data 自行释放，无需切回主执行器做析构。
     /// 显式使用 nonisolated 可避开旧系统兼容析构 thunk 在 XCTest 宿主中的重复释放崩溃。
@@ -66,10 +86,40 @@ class HabitRepository: ObservableObject {
 
     func setup() {
         guard !isReady else { return }
+        // 就绪门：store 未装载完成时推迟（绝不在此阻塞调用线程），
+        // 排队等就绪后补跑并广播，拦截期间已上屏的空列表视图自动拿到数据。
+        // 18 处「用到才初始化」调用点全部经此漏斗，一处设卡全量受护。
+        if shouldDeferSetup() {
+            scheduleDeferredSetup()
+            return
+        }
+        performSetupNow()
+    }
+
+    /// 就绪门放行后的实际初始化（不走门，供排队补跑复用；
+    /// store 加载失败终态下照常执行——fetch 进 catch 落空列表，不构成循环）
+    private func performSetupNow() {
         _ = context
         registerRemoteChangeRefreshIfNeeded()
-        loadActiveHabits()
+        performLoadActiveHabits()
         isReady = true
+    }
+
+    /// 就绪门排队（幂等）：挂起协程等 store 装载终态（成功或失败均会返回），
+    /// 完成后补跑 setup 并广播一次。绝不阻塞任何线程。
+    private var deferredSetupInFlight = false
+
+    private func scheduleDeferredSetup() {
+        guard !deferredSetupInFlight else { return }
+        deferredSetupInFlight = true
+        Task { [weak self] in
+            await CoreDataStack.shared.waitUntilReady()
+            guard let self else { return }
+            self.deferredSetupInFlight = false
+            guard !self.isReady else { return }
+            self.performSetupNow()
+            NotificationCenter.default.post(name: .habitDataDidChange, object: nil)
+        }
     }
 
     // MARK: - iCloud 远程变更刷新
@@ -109,21 +159,65 @@ class HabitRepository: ObservableObject {
     }
 
     // MARK: - 数据加载
-    
-    /// 加载活跃习惯列表
+
+    /// 加载活跃习惯列表（暂停中的不进 activeHabits：看板/通知/小组件/AI 上下文都从这里取数，暂停即全链路安静）
+    /// 外部直呼入口（GoalRepository/看板/GoalWorkshop/AI 数据源）同样过就绪门：
+    /// store 未装载时排队随 deferred setup 补跑，绝不阻塞调用线程。
     func loadActiveHabits() {
-        if !isReady {
-            _ = context
+        if shouldDeferSetup() {
+            scheduleDeferredSetup()
+            return
         }
+        performLoadActiveHabits()
+    }
+
+    /// 就绪门放行后的实际加载（旧实现这里的 `if !isReady { _ = context }` 是
+    /// 「触碰 viewContext 阻塞等装载」的等待 hack，正是本门要消灭的阻塞点）
+    private func performLoadActiveHabits() {
+        autoResumeExpiredPausesIfNeeded()
+        HabitPauseWindowRepair.repairIfNeeded(context: context)
         let request = Habit.fetchRequest()
-        request.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil")
+        request.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil And isPaused == NO")
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
-        
+
         do {
             activeHabits = Self.deduplicatingCopies(try context.fetch(request))
+
+            let pausedRequest = Habit.fetchRequest()
+            pausedRequest.predicate = NSPredicate(format: "isArchived == NO And deletedAt == nil And isPaused == YES")
+            pausedRequest.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
+            pausedHabits = Self.deduplicatingCopies(try context.fetch(pausedRequest))
         } catch {
             logger.error("加载习惯失败: \(error)")
             activeHabits = []
+            pausedHabits = []
+        }
+    }
+
+    /// 到期的定时暂停自动恢复（打开 App / 数据刷新时懒检查，每天最多跑一次）。
+    /// 关窗统一记到昨天：用户没打开 App 的日子没见过习惯回来，不该算断。
+    private var lastAutoResumeCheckDay: Date?
+
+    private func autoResumeExpiredPausesIfNeeded() {
+        let calendar = HabitDayClock.calendar
+        let today = calendar.startOfDay(for: Date())
+        if let last = lastAutoResumeCheckDay, last == today { return }
+        lastAutoResumeCheckDay = today
+
+        let request = Habit.fetchRequest()
+        request.predicate = NSPredicate(format: "isPaused == YES And isArchived == NO And deletedAt == nil")
+        let paused = (try? context.fetch(request)) ?? []
+        for habit in paused {
+            guard let until = habit.pausedUntil else { continue }
+            if calendar.startOfDay(for: until) <= today {
+                do {
+                    // 恢复日当天也冻结：自动恢复是静默的，用户可能不知道习惯已回来
+                    // （出境深夜到点恢复实锤），恢复日漏卡不该断。手动恢复不冻结。
+                    try resumeHabit(habit, freezesResumeDay: true)
+                } catch {
+                    logger.error("自动恢复暂停习惯失败: \(error)")
+                }
+            }
         }
     }
 
@@ -165,6 +259,13 @@ class HabitRepository: ObservableObject {
 
     /// 根据 ID 查找习惯（目标数据源等跨模块引用用）
     func findHabit(by id: UUID) -> Habit? {
+        // 就绪门：深链/推送冷启动直达详情会在装载完成前走到这里，
+        // 宁可短暂返回 nil（弹层兜底文案，deferred setup 广播后视图刷新自愈）
+        // 也不在主线程同步等装载队列。
+        if shouldDeferSetup() {
+            scheduleDeferredSetup()
+            return nil
+        }
         let request = Habit.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
         request.fetchLimit = 1
@@ -233,6 +334,10 @@ class HabitRepository: ObservableObject {
     /// 更新习惯
     func updateHabit(_ habit: Habit, updates: HabitUpdates) throws {
         if !isReady { setup() }
+        if let type = updates.type, type.rawValue != habit.type {
+            habit.type = type.rawValue
+            bridgeRecordsForTypeChange(habit, to: type)
+        }
         if let name = updates.name { habit.name = name }
         if let icon = updates.icon { habit.icon = icon }
         if let color = updates.color { habit.color = color }
@@ -251,7 +356,28 @@ class HabitRepository: ObservableObject {
         loadActiveHabits()
         notifyDataChange(habitId: habit.id)
     }
-    
+
+    /// 类型切换架桥：把既有记录原地补齐新类型所需字段（幂等，可来回切）
+    /// - 数值→打卡：有数值的记录补 isCompleted = true（数值保留）
+    /// - 打卡→数值：已完成的记录补 value = 1（勾选语义保留为每次计 1）
+    /// - 两个方向都清理「未完成且无数值」的空记录（勾了又取消/同步残留，无任何数据）
+    /// 只改内存对象不落库，由调用方与类型写入同一事务一次 save
+    func bridgeRecordsForTypeChange(_ habit: Habit, to newType: HabitType) {
+        for record in getAllRecords(for: habit) {
+            let hasValue = record.value != nil
+            if !record.isCompleted && !hasValue {
+                context.delete(record)
+                continue
+            }
+            switch newType {
+            case .checkIn:
+                if hasValue { record.isCompleted = true }
+            case .numeric:
+                if record.isCompleted && !hasValue { record.value = NSNumber(value: 1) }
+            }
+        }
+    }
+
     /// 归档习惯（软删除）
     func archiveHabit(_ habit: Habit) throws {
         if !isReady { setup() }
@@ -268,12 +394,96 @@ class HabitRepository: ObservableObject {
         if !isReady { setup() }
         habit.isArchived = false
         habit.updatedAt = Date()
-        
+
         try context.save()
         loadActiveHabits()
         notifyDataChange(habitId: habit.id)
     }
-    
+
+    // MARK: - 暂停 / 恢复（连续天数冻结）
+
+    /// 暂停习惯：从今天起退出今日清单/看板/通知/小组件，连续进度冻结保留
+    /// - Parameter until: 计划恢复日（当天重新出现）；nil = 无限期，手动恢复
+    func pauseHabit(_ habit: Habit, until: Date? = nil) throws {
+        if !isReady { setup() }
+        guard !habit.isPaused else { return }
+
+        let calendar = HabitDayClock.calendar
+        habit.isPaused = true
+        habit.pausedUntil = until.map { calendar.startOfDay(for: $0) }
+        var windows = habit.pauseWindows
+        windows.append(HabitPauseWindow(
+            startDate: calendar.startOfDay(for: Date()),
+            endDate: nil
+        ))
+        habit.pauseWindows = windows
+        habit.updatedAt = Date()
+
+        try context.save()
+        loadActiveHabits()
+        notifyDataChange(habitId: habit.id)
+    }
+
+    /// 恢复暂停的习惯：窗口关到昨天（今天即回到今日清单），连续天数从冻结处接续
+    /// - Parameter freezesResumeDay: 静默的定时恢复传 true，恢复日当天一并冻结
+    ///   （用户可能不知道习惯已回来）；手动恢复传默认 false，当天照常站岗
+    func resumeHabit(_ habit: Habit, freezesResumeDay: Bool = false) throws {
+        if !isReady { setup() }
+        guard habit.isPaused else { return }
+
+        let calendar = HabitDayClock.calendar
+        let today = calendar.startOfDay(for: Date())
+
+        habit.isPaused = false
+        habit.pausedUntil = nil
+        var windows = habit.pauseWindows
+        if let index = windows.lastIndex(where: { $0.endDate == nil }) {
+            let startDay = calendar.startOfDay(for: windows[index].startDate)
+            if startDay >= today {
+                // 当天暂停当天恢复：没有冻结任何一天，窗口无效不落库
+                windows.remove(at: index)
+            } else {
+                windows[index].endDate = freezesResumeDay
+                    ? today
+                    : calendar.date(byAdding: .day, value: -1, to: today)
+            }
+        }
+        habit.pauseWindows = windows
+        habit.updatedAt = Date()
+
+        try context.save()
+        loadActiveHabits()
+        notifyDataChange(habitId: habit.id)
+    }
+
+    /// 通过 ID 恢复暂停的习惯（安全方法，用于习惯墙折叠区行内按钮）
+    func resumeHabitById(_ habitId: UUID) throws {
+        if !isReady { setup() }
+        let request = Habit.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", habitId as CVarArg)
+        request.fetchLimit = 1
+
+        guard let habit = try context.fetch(request).first else {
+            return  // 习惯不存在
+        }
+
+        try resumeHabit(habit)
+    }
+
+    /// 统计某日期区间内被冻结的天数（完成率等分母从这里挖掉暂停期）
+    func pausedDayCount(for habit: Habit, in range: ClosedRange<Date>) -> Int {
+        let calendar = Calendar.current
+        var count = 0
+        var day = calendar.startOfDay(for: range.lowerBound)
+        let lastDay = calendar.startOfDay(for: range.upperBound)
+        while day <= lastDay {
+            if habit.isDayPaused(day) { count += 1 }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return count
+    }
+
     /// 删除习惯（硬删除，会级联删除所有记录）
     func deleteHabit(_ habit: Habit) throws {
         if !isReady { setup() }
@@ -327,9 +537,11 @@ class HabitRepository: ObservableObject {
         for (index, habit) in habits.enumerated() {
             habit.sortOrder = Int16(index)
         }
-        
+
         try context.save()
         loadActiveHabits()
+        // 顺序是跨模块事实（看板/今天页/小组件同源），落库后广播刷新
+        notifyDataChange()
     }
     
     // MARK: - Record Operations
@@ -343,6 +555,8 @@ class HabitRepository: ObservableObject {
     func toggleCheckIn(for habit: Habit, note: String? = nil) throws -> Bool {
         if !isReady { setup() }
         guard habit.isCheckInType else { return false }
+        // 暂停期不打卡（详情页/磁贴/AI 工具/小组件共用此闸）；想打卡先恢复
+        guard !habit.isPaused else { return false }
 
         // 查找今日记录
         if let existingRecord = findTodayCheckInRecord(for: habit) {
@@ -371,6 +585,8 @@ class HabitRepository: ObservableObject {
     /// - Returns: 新建的记录
     @discardableResult
     func addNumericRecord(for habit: Habit, value: Double, note: String? = nil) throws -> HabitRecord {
+        // 暂停期不记数，与打卡型同一道闸
+        guard !habit.isPaused else { throw HabitError.habitIsPaused }
         let record = HabitRecord.createNumeric(in: context, habit: habit, value: value, note: note)
         
         try context.save()
@@ -473,6 +689,8 @@ class HabitRepository: ObservableObject {
         for offset in stride(from: -(HabitRetroactivePolicy.lookbackDays - 1), through: -1, by: 1) {
             guard let day = calendar.date(byAdding: .day, value: offset, to: today) else { continue }
             guard day >= createdDay else { continue }
+            // 冻结日不叫漏卡
+            if habit.isDayPaused(day, calendar: calendar) { continue }
             if habit.isCheckInType {
                 if !daysWithCompletion.contains(day) { eligible.append(day) }
             } else {
@@ -537,6 +755,22 @@ class HabitRepository: ObservableObject {
         let dayStart = calendar.startOfDay(for: day)
         guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return .invalidDate }
 
+        // 幂等识别前移（2026-10 重构）：已完成日在配额门禁之前识别，
+        // 给「这一天已经记录过了」，不展示无意义付费墙、不扣额度
+        if habit.isCheckInType {
+            let doneRequest = HabitRecord.fetchRequest()
+            doneRequest.predicate = NSPredicate(
+                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
+                habit.id as CVarArg,
+                dayStart as NSDate,
+                dayEnd as NSDate
+            )
+            doneRequest.fetchLimit = 1
+            if ((try? context.fetch(doneRequest))?.count ?? 0) > 0 {
+                return .alreadyCompleted
+            }
+        }
+
         // 额度：Plus 无限；免费用尽返回 requiresPlus，由 UI 层弹付费墙
         let isPlus = HoloEntitlementState.shared.isPlusActive
         if !isPlus, HabitRetroactiveQuota.remaining() <= 0 {
@@ -546,19 +780,6 @@ class HabitRepository: ObservableObject {
         let streakBefore = calculateStreakInfo(for: habit).value
 
         if habit.isCheckInType {
-            // 当天已有完成记录 → 幂等返回
-            let request = HabitRecord.fetchRequest()
-            request.predicate = NSPredicate(
-                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
-                habit.id as CVarArg,
-                dayStart as NSDate,
-                dayEnd as NSDate
-            )
-            request.fetchLimit = 1
-            if ((try? context.fetch(request))?.count ?? 0) > 0 {
-                return .alreadyCompleted
-            }
-
             // 当天存在「取消态」记录（曾打卡又取消）时复用它，保持一天一条的数据形态
             let existing = HabitRecord.fetchRequest()
             existing.predicate = NSPredicate(
@@ -879,10 +1100,15 @@ class HabitRepository: ObservableObject {
                 request.fetchLimit = 1
 
                 let hasBadRecord = ((try? context.fetch(request))?.count ?? 0) > 0
-                // 有打卡记录（做了坏事）→ 中断连续控制
-                guard !hasBadRecord else { break }
+                if hasBadRecord {
+                    // 有打卡记录（做了坏事）→ 中断连续控制
+                    break
+                } else if habit.isDayPaused(dayStart) {
+                    // 冻结日：不算克制、不计数，继续向前
+                } else {
+                    streak += 1
+                }
 
-                streak += 1
                 guard let previousDay = calendar.date(byAdding: .day, value: -1, to: checkDate) else { break }
                 checkDate = previousDay
             }
@@ -916,9 +1142,14 @@ class HabitRepository: ObservableObject {
             request.fetchLimit = 1
 
             let hasRecord = ((try? context.fetch(request))?.count ?? 0) > 0
-            guard hasRecord else { break }
+            if hasRecord {
+                streak += 1
+            } else if habit.isDayPaused(dayStart) {
+                // 冻结日：不算断、不计数，继续向前（暂停当天已打卡的场景在上方 hasRecord 分支正常计数）
+            } else {
+                break
+            }
 
-            streak += 1
             guard let previousDay = calendar.date(byAdding: .day, value: -1, to: checkDate) else { break }
             checkDate = previousDay
         }
@@ -1027,8 +1258,26 @@ class HabitRepository: ObservableObject {
         for _ in 0..<maxLookback {
             guard let periodEnd = calendar.date(byAdding: periodComponent, value: 1, to: checkPeriodStart) else { break }
             guard periodEnd > creationDay else { break }
+            // 整个周期都落在暂停窗口内 → 不参与判定（冻结：不断、不涨）
+            if isPeriodFullyPaused(habit, periodStart: checkPeriodStart, periodEnd: periodEnd, calendar: calendar) {
+                guard let prevPeriod = calendar.date(byAdding: periodComponent, value: -1, to: checkPeriodStart) else { break }
+                checkPeriodStart = prevPeriod
+                continue
+            }
+            // 部分冻结的周期：冻结日不承担打卡义务，目标按可打卡天数比例折算（向上取整）。
+            // 暂停横跨周格时（如周日为一周之始，9/28~10/4 盖住上礼拜 6/7 天），砍剩一两天的
+            // 周期仍按满额目标判负必然误伤——冻结语义必须同时作用于天数和目标。
+            let periodDays = calendar.dateComponents([.day], from: checkPeriodStart, to: periodEnd).day ?? 0
+            let lastDay = calendar.date(byAdding: .day, value: -1, to: periodEnd) ?? checkPeriodStart
+            let frozenDays = pausedDayCount(for: habit, in: checkPeriodStart...lastDay)
+            let effectiveTarget: Int
+            if frozenDays > 0, periodDays > 0 {
+                effectiveTarget = max(1, Int(ceil(Double(target) * Double(periodDays - frozenDays) / Double(periodDays))))
+            } else {
+                effectiveTarget = target
+            }
             let count = periodCount(habit, checkPeriodStart, periodEnd)
-            guard count >= target else { break }
+            guard count >= effectiveTarget else { break }
 
             streak += 1
             guard let prevPeriod = calendar.date(byAdding: periodComponent, value: -1, to: checkPeriodStart) else { break }
@@ -1036,6 +1285,18 @@ class HabitRepository: ObservableObject {
         }
 
         return streak
+    }
+
+    /// 周期内每一天是否都在暂停窗口内（整周期冻结判定）
+    private func isPeriodFullyPaused(_ habit: Habit, periodStart: Date, periodEnd: Date, calendar: Calendar) -> Bool {
+        var day = calendar.startOfDay(for: periodStart)
+        let end = calendar.startOfDay(for: periodEnd)
+        while day < end {
+            if !habit.isDayPaused(day, calendar: calendar) { return false }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { return false }
+            day = next
+        }
+        return true
     }
 
     /// 计算周期内完成次数（打卡型）
@@ -1156,7 +1417,13 @@ class HabitRepository: ObservableObject {
         guard let week = calendar.dateInterval(of: .weekOfYear, for: today) else { return [:] }
 
         let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(format: "date >= %@ AND date < %@ AND deletedAt == nil", week.start as NSDate, week.end as NSDate)
+        // 打卡型周点阵口径：只认完成记录。取消打卡保留记录行（isCompleted 翻回
+        // NO 以便恢复备注），漏掉这个过滤会让取消后点阵仍把当天画成已打。
+        request.predicate = NSPredicate(
+            format: "date >= %@ AND date < %@ AND deletedAt == nil AND isCompleted == YES",
+            week.start as NSDate,
+            week.end as NSDate
+        )
         let records = (try? context.fetch(request)) ?? []
         guard !records.isEmpty else { return [:] }
 
@@ -1243,10 +1510,11 @@ class HabitRepository: ObservableObject {
         }
     }
     
+
     // MARK: - Notifications
 
     /// 发送数据变更通知
-    private func notifyDataChange(habitId: UUID? = nil) {
+    func notifyDataChange(habitId: UUID? = nil) {
         // 触发 objectWillChange，让仅依赖 @ObservedObject（未监听 NotificationCenter）的视图
         // 如 KanbanProgressHero 在打卡后实时刷新；既有通过 .habitDataDidChange 监听的视图不受影响
         objectWillChange.send()
@@ -1259,6 +1527,7 @@ class HabitRepository: ObservableObject {
 
 /// 习惯更新参数
 struct HabitUpdates {
+    var type: HabitType?
     var name: String?
     var icon: String?
     var color: String?
@@ -1308,18 +1577,90 @@ struct DailyHabitData: Identifiable, Equatable {
     }
 }
 
+// MARK: - 习惯日历（时区钉定）
+
+/// 习惯「一天」的基准时区，钉在北京时间。
+/// 暂停窗口的起点/终点、定时恢复的到期比较都必须用同一套日界：2026-10 国庆出境期间
+/// 定时暂停在东九区到点自动恢复，窗口边界按当地零点写入，回国后天格判定整体位移，
+/// 冻结周破出半个洞导致断签。写入侧钉定后，窗口数据不再随时区漂移。
+enum HabitDayClock {
+    static var calendar: Calendar {
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? calendar.timeZone
+        return calendar
+    }
+
+    static func startOfDay(_ date: Date) -> Date {
+        calendar.startOfDay(for: date)
+    }
+}
+
+// MARK: - 暂停窗口边界自愈
+
+/// 把异时区写出的非整日窗口边界对齐回北京时间整日界（起点向下取整、终点向上进位，
+/// 只放宽不收紧）。幂等：已对齐的边界不动。随数据加载运行，写坏的窗口在回国后
+/// 首次加载即被修复，无需一次性迁移。
+enum HabitPauseWindowRepair {
+    private static var calendar: Calendar { HabitDayClock.calendar }
+
+    static func repairIfNeeded(context: NSManagedObjectContext) {
+        let request = Habit.fetchRequest()
+        let habits = (try? context.fetch(request)) ?? []
+
+        var didChange = false
+        for habit in habits {
+            let windows = habit.pauseWindows
+            guard !windows.isEmpty else { continue }
+
+            var repaired: [HabitPauseWindow] = []
+            var changed = false
+            for var window in windows {
+                guard let end = window.endDate else {
+                    repaired.append(window)
+                    continue
+                }
+                let snappedStart = calendar.startOfDay(for: window.startDate)
+                var snappedEnd = calendar.startOfDay(for: end)
+                if snappedEnd != end {
+                    snappedEnd = calendar.date(byAdding: .day, value: 1, to: snappedEnd) ?? end
+                }
+                if window.startDate != snappedStart {
+                    window.startDate = snappedStart
+                    changed = true
+                }
+                if end != snappedEnd {
+                    window.endDate = snappedEnd
+                    changed = true
+                }
+                repaired.append(window)
+            }
+
+            if changed {
+                habit.pauseWindows = repaired
+                didChange = true
+            }
+        }
+
+        if didChange {
+            try? context.save()
+        }
+    }
+}
+
 // MARK: - Errors
 
 enum HabitError: LocalizedError {
     case invalidData
     case notFound
     case saveFailed
-    
+    case habitIsPaused
+
     var errorDescription: String? {
         switch self {
         case .invalidData: return String(localized: "数据无效")
         case .notFound: return String(localized: "习惯不存在")
         case .saveFailed: return String(localized: "保存失败")
+        case .habitIsPaused: return String(localized: "习惯已暂停，恢复后即可继续记录")
         }
     }
 }

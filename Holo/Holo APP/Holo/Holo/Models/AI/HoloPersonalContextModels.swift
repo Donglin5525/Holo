@@ -85,6 +85,18 @@ nonisolated struct HoloContextSourceSnapshot: Codable, Equatable, Sendable {
     var role: String?
     /// 覆盖缺口说明（附件无法解析等）。
     var coverageGaps: [String]
+    // MARK: R1 四域观察扩展（方案 2026-09-23 §3.1 SourceObservation 合同；全部可选，旧数据无损）
+    /// 内容归属：user（本人）/ proxyPurchase（代购）/ quotedOther（引用他人）；
+    /// 缺省视为 user 由程序侧限制使用（不把他人经历当本人事实）。
+    var authorship: String?
+    /// 独立血缘根 ID：同一真实事件派生的多条记录共用同根（A07 只算一证）。
+    var lineageRootIDs: [String]?
+    /// 结构化业务状态（域特定键值；缺失保持未知，不得补成事实）。
+    var businessState: [String: String]?
+    /// 来源软删时间（删除后观察流可见，失效传播用）。
+    var sourceDeletedAt: Date?
+    /// 覆盖状态（authorized scanning complete unavailable；诊断用）。
+    var coverageState: String?
 
     init(
         sourceID: String,
@@ -100,7 +112,12 @@ nonisolated struct HoloContextSourceSnapshot: Codable, Equatable, Sendable {
         structuredStateDigest: String? = nil,
         linkedObjectID: String? = nil,
         role: String? = nil,
-        coverageGaps: [String] = []
+        coverageGaps: [String] = [],
+        authorship: String? = nil,
+        lineageRootIDs: [String]? = nil,
+        businessState: [String: String]? = nil,
+        sourceDeletedAt: Date? = nil,
+        coverageState: String? = nil
     ) {
         self.sourceID = sourceID
         self.sourceDomain = sourceDomain
@@ -116,6 +133,11 @@ nonisolated struct HoloContextSourceSnapshot: Codable, Equatable, Sendable {
         self.linkedObjectID = linkedObjectID
         self.role = role
         self.coverageGaps = coverageGaps
+        self.authorship = authorship
+        self.lineageRootIDs = lineageRootIDs
+        self.businessState = businessState
+        self.sourceDeletedAt = sourceDeletedAt
+        self.coverageState = coverageState
     }
 
     enum CodingKeys: String, CodingKey {
@@ -133,6 +155,11 @@ nonisolated struct HoloContextSourceSnapshot: Codable, Equatable, Sendable {
         case linkedObjectID
         case role
         case coverageGaps
+        case authorship
+        case lineageRootIDs
+        case businessState
+        case sourceDeletedAt
+        case coverageState
     }
 
     init(from decoder: Decoder) throws {
@@ -151,6 +178,11 @@ nonisolated struct HoloContextSourceSnapshot: Codable, Equatable, Sendable {
         linkedObjectID = try c.decodeIfPresent(String.self, forKey: .linkedObjectID)
         role = try c.decodeIfPresent(String.self, forKey: .role)
         coverageGaps = try c.decodeIfPresent([String].self, forKey: .coverageGaps) ?? []
+        authorship = try c.decodeIfPresent(String.self, forKey: .authorship)
+        lineageRootIDs = try c.decodeIfPresent([String].self, forKey: .lineageRootIDs)
+        businessState = try c.decodeIfPresent([String: String].self, forKey: .businessState)
+        sourceDeletedAt = try c.decodeIfPresent(Date.self, forKey: .sourceDeletedAt)
+        coverageState = try c.decodeIfPresent(String.self, forKey: .coverageState)
     }
 }
 
@@ -266,9 +298,26 @@ nonisolated struct HoloContextTemporalV1: Codable, Equatable, Sendable {
         precision = (try? c.decode(HoloContextTemporalPrecision.self, forKey: .precision)) ?? nil ?? .unknown
         validFrom = try c.decodeIfPresent(Date.self, forKey: .validFrom)
         validTo = try c.decodeIfPresent(Date.self, forKey: .validTo)
-        recurrence = try c.decodeIfPresent(HoloContextRecurrenceV1.self, forKey: .recurrence)
+        recurrence = Self.decodeRecurrence(from: c)
         triggerText = try c.decodeIfPresent(String.self, forKey: .triggerText)
         exceptions = (try? c.decodeIfPresent([String].self, forKey: .exceptions)) ?? nil ?? []
+    }
+
+    /// LLM 常把 recurrence 写成自由文本（「每天」「同日多次出现」）：对象按结构解；
+    /// 字符串按常见频率词映射成规则；映射不出的置 nil（原文已在 originalExpression 保留）。
+    /// 单字段越界降级，不抛错拖垮整条候选（否则该候选被单条隔离静默丢弃且空批 receipt 永久拦重试）。
+    private static func decodeRecurrence(from c: KeyedDecodingContainer<CodingKeys>) -> HoloContextRecurrenceV1? {
+        if let value = try? c.decode(HoloContextRecurrenceV1.self, forKey: .recurrence) {
+            return value
+        }
+        guard let text = try? c.decode(String.self, forKey: .recurrence) else { return nil }
+        if text.contains("每天") || text.contains("每日") || text.contains("日常") {
+            return HoloContextRecurrenceV1(frequency: .daily)
+        }
+        if text.contains("每周") { return HoloContextRecurrenceV1(frequency: .weekly) }
+        if text.contains("每月") { return HoloContextRecurrenceV1(frequency: .monthly) }
+        if text.contains("每年") || text.contains("年度") { return HoloContextRecurrenceV1(frequency: .yearly) }
+        return nil
     }
 }
 
@@ -468,17 +517,26 @@ nonisolated struct HoloContextAdmissionV1: Codable, Equatable, Sendable {
     var decidedAt: Date
     /// 简短可审计理由（refs/结论级，不含原文）。
     var reason: String?
+    /// G2（A09）：结构化核验结论（"supported"/"qualified"）——qualified 永远
+    /// 不能自动成为无条件事实；Optional 保证旧快照 JSON 无损解码。
+    var verificationVerdict: String?
+    /// 核验器给出的必要限定（与 reason 文本分开，供结构化使用）。
+    var verdictQualifiers: [String]?
 
     init(
         level: HoloContextAdmissionLevel,
         policyVersion: Int,
         decidedAt: Date,
-        reason: String? = nil
+        reason: String? = nil,
+        verificationVerdict: String? = nil,
+        verdictQualifiers: [String]? = nil
     ) {
         self.level = level
         self.policyVersion = policyVersion
         self.decidedAt = decidedAt
         self.reason = reason
+        self.verificationVerdict = verificationVerdict
+        self.verdictQualifiers = verdictQualifiers
     }
 }
 

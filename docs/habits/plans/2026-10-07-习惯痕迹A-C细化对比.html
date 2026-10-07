@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>习惯痕迹 V3.1 · A/C 细化对比（含生长动画）</title>
+<style>
+  :root {
+    --bg:#1C1C1E; --surface:#2C2C2E; --inset:#3A3A3C; --border:#48484A;
+    --text:#F5F5F5; --text2:#A8A8A8; --accent:#FF8A5C; --primary:#EA580C;
+  }
+  .light {
+    --bg:#FDFCF8; --surface:#FFFFFF; --inset:#F0E9E0; --border:#D9D2C5;
+    --text:#333333; --text2:#6E6E6E; --accent:#EA580C; --primary:#EA580C;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background:#000; font-family:-apple-system,"PingFang SC",sans-serif;
+    display:flex; gap:32px; justify-content:center; align-items:flex-start;
+    padding:28px 16px; min-height:100vh;
+  }
+  .panel { width:250px; padding:18px; background:#111; border:1px solid #333; border-radius:14px; position:sticky; top:28px; }
+  .panel h1 { font-size:15px; color:#fff; margin-bottom:4px; }
+  .panel p.desc { font-size:11px; color:#888; line-height:1.6; margin-bottom:14px; }
+  .panel .grp { margin-bottom:14px; }
+  .panel .grp label { display:block; font-size:11px; color:#aaa; margin-bottom:6px; }
+  .panel button {
+    display:block; width:100%; padding:9px 10px; margin-bottom:6px;
+    background:#1e1e1e; color:#ddd; border:1px solid #333; border-radius:8px;
+    font-size:12px; cursor:pointer; text-align:left; line-height:1.5;
+  }
+  .panel button:hover { border-color:#EA580C; }
+  .panel button.on { border-color:#EA580C; color:#FF8A5C; }
+  .panel button small { display:block; color:#888; font-size:10px; }
+  .panel button.on small { color:#c9714a; }
+  .panel .note { font-size:11px; color:#777; line-height:1.7; border-top:1px solid #333; padding-top:12px; }
+  .panel .note b { color:#FF8A5C; font-weight:600; }
+
+  .phone {
+    width:390px; height:844px; border-radius:44px; overflow:hidden;
+    border:6px solid #222; background:var(--bg); position:relative;
+    display:flex; flex-direction:column; color:var(--text); transition:background .25s;
+  }
+  .statusbar { height:44px; display:flex; align-items:center; justify-content:space-between; padding:0 26px; font-size:14px; font-weight:600; flex-shrink:0; }
+  .scroll { flex:1; overflow-y:auto; padding:0 20px 20px; }
+  .navrow { display:flex; align-items:center; justify-content:space-between; }
+  .navrow .back { font-size:18px; width:40px; height:40px; display:flex; align-items:center; }
+  .navrow .add { width:36px; height:36px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; font-size:18px; color:#fff; }
+  h1.title { font-size:24px; font-weight:800; margin-bottom:2px; }
+  .dateline { font-size:13px; color:var(--text2); margin-bottom:12px; }
+  .dateline b { color:var(--text); font-weight:600; }
+
+  .grouprow { display:flex; align-items:center; justify-content:space-between; margin:4px 0 2px; }
+  .grouprow .g { font-size:12px; font-weight:600; color:var(--text2); }
+  .seg { display:flex; background:var(--inset); border-radius:8px; padding:2px; }
+  .seg span { font-size:11px; padding:4px 10px; border-radius:6px; color:var(--text2); cursor:pointer; }
+  .seg span.on { background:var(--surface); color:var(--text); font-weight:600; }
+  .light .seg span.on { background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+
+  .row { padding:12px 0 14px; border-bottom:.5px solid var(--border); }
+  .row:last-child { border-bottom:none; }
+  .rowmain { display:flex; align-items:center; gap:12px; }
+  .hicon { width:34px; height:34px; border-radius:10px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:16px; }
+  .hmain { flex:1; min-width:0; }
+  .hname { font-size:16px; font-weight:600; margin-bottom:2px; }
+  .hsub { font-size:12px; color:var(--text2); }
+  .hsub b { color:var(--text); font-weight:500; }
+  .actions { display:flex; align-items:center; gap:9px; flex-shrink:0; }
+  .pill { border:none; cursor:pointer; border-radius:999px; padding:8px 15px; font-size:13px; font-weight:600; background:var(--inset); color:var(--text); }
+  .pill.done { background:var(--hc); color:#fff; }
+  .mini { width:30px; height:30px; border-radius:50%; border:none; display:flex; align-items:center; justify-content:center; font-size:14px; }
+  .mini.ghost { background:transparent; color:var(--text2); font-size:16px; }
+  .mini.filled { background:var(--hc); color:#fff; }
+
+  /* ══ 对比容器 ══ */
+  .cmp { margin-top:10px; display:flex; flex-direction:column; gap:9px; }
+  .cmp-label { font-size:9.5px; color:var(--text2); opacity:.75; letter-spacing:.4px; margin-bottom:3px; }
+  .cmp-label b { color:var(--text); opacity:.9; }
+
+  /* ══ 方案 A 刻度墨尺（竖刻度，可数单日）══ */
+  .tA { position:relative; height:22px; }
+  .tA .rail { position:absolute; left:0; right:0; top:13px; height:1px; background:var(--border); }
+  .tA .slot { position:absolute; width:3.33%; top:0; bottom:0; cursor:pointer; }
+  .tA .slot .tick { position:absolute; left:50%; transform:translateX(-50%); width:3px; border-radius:1.5px; background:var(--border); }
+  .tA .slot.hit .tick { height:13px; top:7px; background:var(--hc); opacity:.92; }
+  .tA .slot.miss .tick { height:5px; top:11px; opacity:.6; }
+  .tA .slot.retro .tick { width:6px; height:13px; top:7px; background:transparent; border:1.3px solid var(--hc); opacity:.9; }
+  .tA .slot.pause .tick { width:3px; height:3px; border-radius:50%; top:12px; opacity:.7; }
+  .tA .slot.today::after { content:""; position:absolute; left:50%; transform:translateX(-50%); top:1.5px; width:4px; height:4px; border-radius:50%; background:var(--hc); }
+  .tA .slot .tick.anim { animation:tickfall .22s ease both; }
+  @keyframes tickfall { from { opacity:0; transform:translateX(-50%) translateY(-5px); } to { transform:translateX(-50%); } }
+  .tA .slot.hit .tick.anim { animation-name:tickink; }
+  @keyframes tickink { from { opacity:0; transform:translateX(-50%) scaleY(.3); } to { opacity:.92; transform:translateX(-50%) scaleY(1); } }
+
+  /* ══ 方案 C 墨条生长（横墨带，长度=坚持）══ */
+  .tC { position:relative; height:14px; display:flex; align-items:center; }
+  .tC .rail { position:absolute; left:0; right:0; height:5px; border-radius:2.5px; background:var(--inset); }
+  .tC .slot { position:absolute; top:4.5px; height:5px; width:3.34%; cursor:pointer; background:transparent; }
+  .tC .slot.hit { background:var(--hc); opacity:.9; }
+  .tC .slot.retro { background:var(--hc); opacity:.42; }
+  .tC .slot.pause { background:transparent; }
+  .tC .slot.pause::after { content:""; position:absolute; left:50%; transform:translateX(-50%); top:-1.5px; width:3px; height:8px; background:var(--bg); border-radius:1px; z-index:1; }
+  .tC .slot.pause::before { content:""; position:absolute; left:50%; transform:translateX(-50%); top:2px; width:3px; height:1px; background:var(--border); z-index:2; }
+  .tC .slot.anim { transform-origin:left center; animation:inkgrow .2s ease both; }
+  @keyframes inkgrow { from { transform:scaleX(.1); opacity:.3; } }
+  .tC .pen { position:absolute; top:4px; width:6px; height:6px; border-radius:50%; background:var(--hc); box-shadow:0 0 0 1.8px var(--bg); z-index:3; }
+  .tC .pen.anim { animation:pendrop .4s cubic-bezier(.34,1.6,.64,1) both; }
+  @keyframes pendrop { from { transform:scale(0); } to { transform:scale(1); } }
+
+  /* 悬停连续段 tooltip */
+  .tooltip { position:absolute; bottom:20px; transform:translateX(-50%); background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:10px; padding:4px 9px; border-radius:7px; white-space:nowrap; pointer-events:none; z-index:9; box-shadow:0 3px 10px rgba(0,0,0,.25); }
+  .tooltip b { color:var(--hc); }
+
+  /* 悬停刻度 tooltip（A）*/
+  .tA .slot:hover .tick { opacity:1; box-shadow:0 0 0 3px var(--inset); }
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <h1>A vs C 细化对比</h1>
+  <p class="desc">同一个习惯，A 和 C <b>上下并排</b>渲染。注意看「晨间阅读」：连续 15 天在 A 里是 15 根竖刻度，在 C 里是<b>一整段墨条</b>——这就是本质区别。</p>
+  <div class="grp">
+    <label>显示模式</label>
+    <button id="mCmp" class="on" onclick="setMode('cmp')">A + C 上下对比（推荐）</button>
+    <button id="mC" onclick="setMode('C')">只看 C · 墨条生长</button>
+    <button id="mA" onclick="setMode('A')">只看 A · 刻度墨尺</button>
+  </div>
+  <div class="grp">
+    <label>生长动画</label>
+    <button onclick="replay()">▶ 重播「落墨生长」</button>
+    <button id="btnAnim" class="on" onclick="toggleAnim()">动画：开</button>
+  </div>
+  <div class="grp">
+    <label>外观</label>
+    <button id="btnDark" class="on" onclick="setTheme('dark')">深色</button>
+    <button id="btnLight" onclick="setTheme('light')">浅色</button>
+  </div>
+  <div class="note">
+    <b>看懂 C 的"生长"</b><br>
+    1. 墨条自动播放入场：从 30 天前一路"写"到今天，连续坚持的地方连成整段<br>
+    2. <b>悬停墨条</b>：显示"连续 N 天"——段落语义<br>
+    3. 打卡成功时：今天的墨从零写出来接上笔尖，笔尖跳到明天位<br><br>
+    <b>本质区别</b><br>
+    A：每天一根刻度，<b>可数单日</b>（"4 号、5 号没记"）<br>
+    C：坚持融成笔画，<b>长度读坚持</b>（"这段墨条 15 天"）
+  </div>
+</div>
+
+<div class="phone" id="phone">
+  <div class="statusbar"><span>09:30</span><span>🔋 56</span></div>
+  <div class="scroll">
+    <div class="navrow">
+      <div class="back">‹</div>
+      <div class="add">＋</div>
+    </div>
+    <h1 class="title">习惯</h1>
+    <div class="dateline">10月7日 星期三 · <b>已记录 0 项</b></div>
+    <div class="grouprow">
+      <span class="g">每日习惯</span>
+      <div class="seg"><span class="on">全部</span><span>未记录</span></div>
+    </div>
+    <div id="rows"></div>
+  </div>
+</div>
+
+<script>
+/* 状态: 1=已记录 0=未记录 2=补录 3=暂停。index 0 = 29 天前，index 29 = 今天 */
+const habits = [
+  { name:"晨间阅读", icon:"📖", color:"#D9662C",
+    sub:'<b>连续 15 天</b> · 已达标',
+    actions:'<button class="pill done">✓</button>',
+    /* 前 11 天零散（含补录2、暂停3），最近 16 天连续 → C 里一大段墨条 */
+    trail:[1,0,0,2,0,1,0,0,3,3,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1] },
+  { name:"30 分钟运动", icon:"🏃", color:"#2FA360",
+    sub:"连续 3 天",
+    actions:'<button class="pill">打卡</button>',
+    /* 中段一个 8 连段，最近断了一阵，昨天今天没记 → C 里中段一段墨、尾部留白 */
+    trail:[0,0,1,1,1,1,1,1,1,1,0,0,0,1,1,0,0,1,1,1,0,0,0,1,1,1,0,0,0,0] },
+  { name:"戒烟", icon:"🚭", color:"#D64545",
+    sub:"今天 1 / 10 支",
+    actions:'<button class="mini ghost">−</button><button class="mini filled">＋</button>',
+    /* 碎段：偶尔记录+两次补录 → C 里星星点点的短墨 */
+    trail:[0,1,0,2,0,0,1,0,1,0,0,1,0,0,2,0,0,1,0,1,0,0,1,0,1,0,2,0,0,1] },
+];
+
+let mode = "cmp";     // cmp | C | A
+let animOn = true;
+
+function slotDelay(i) { return animOn ? `animation-delay:${i*26}ms` : ""; }
+
+function htmlA(h) {
+  const n = h.trail.length;
+  const slots = h.trail.map((t,i)=>{
+    const cls = t===1?'hit':t===2?'retro':t===3?'pause':'miss';
+    const today = i===n-1 ? ' today' : '';
+    return `<div class="slot ${cls}${today}" data-i="${i}" data-h="${h.name}" style="left:${i*100/n}%"><div class="tick ${animOn?'anim':''}" style="${slotDelay(i)}"></div></div>`;
+  }).join("");
+  return `<div class="tA"><div class="rail"></div>${slots}</div>`;
+}
+
+function htmlC(h) {
+  const n = h.trail.length;
+  const slots = h.trail.map((t,i)=>{
+    const cls = t===1?'hit':t===2?'retro':t===3?'pause':'';
+    return `<div class="slot ${cls} ${animOn?'anim':''}" data-i="${i}" data-h="${h.name}" style="left:${i*100/n}%;${slotDelay(i)}"></div>`;
+  }).join("");
+  const penLeft = `calc(${(n-0.5)*100/n}% - 3px)`;
+  const penDelay = animOn ? `animation-delay:${n*26+120}ms` : "";
+  return `<div class="tC"><div class="rail"></div>${slots}<div class="pen ${animOn?'anim':''}" style="left:${penLeft};${penDelay}"></div></div>`;
+}
+
+/* 连续段计算（hit/retro 视为坚持） */
+function streakAt(h, idx) {
+  if (h.trail[idx] !== 1 && h.trail[idx] !== 2) return null;
+  let a = idx, b = idx;
+  while (a > 0 && (h.trail[a-1] === 1 || h.trail[a-1] === 2)) a--;
+  while (b < h.trail.length-1 && (h.trail[b+1] === 1 || h.trail[b+1] === 2)) b++;
+  return { start:a, end:b, len:b-a+1 };
+}
+function dateLabel(idx) {
+  const d = new Date(); d.setDate(d.getDate() - (29 - idx));
+  return `${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function showTooltip(slotEl, h, idx) {
+  hideTooltips();
+  const st = streakAt(h, idx);
+  const tip = document.createElement("div");
+  tip.className = "tooltip";
+  if (st && st.len > 1) {
+    tip.innerHTML = `连续 <b>${st.len} 天</b> · ${dateLabel(st.start)}–${dateLabel(st.end)}`;
+  } else {
+    tip.innerHTML = `${dateLabel(idx)} · <b>${h.trail[idx]===2?"补录":h.trail[idx]===3?"暂停日":h.trail[idx]===1?"已记录":"未记录"}</b>`;
+  }
+  slotEl.appendChild(tip);
+  /* 悬停高亮整段（C） */
+  if (st && st.len > 1 && slotEl.classList.contains("slot")) {
+    [...slotEl.parentElement.children].forEach(el=>{
+      const i = parseInt(el.dataset.i ?? -1);
+      if (i >= st.start && i <= st.end && (el.classList.contains("hit") || el.classList.contains("retro"))) {
+        el.style.filter = "brightness(1.25)";
+      }
+    });
+  }
+}
+function hideTooltips() {
+  document.querySelectorAll(".tooltip").forEach(t=>t.remove());
+  document.querySelectorAll(".slot").forEach(el=>el.style.filter="");
+}
+
+function render() {
+  const rows = document.getElementById("rows");
+  rows.innerHTML = "";
+  for (const h of habits) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.setProperty("--hc", h.color);
+    let trails = "";
+    if (mode === "cmp") {
+      trails = `<div class="cmp">
+        <div><div class="cmp-label"><b>A · 刻度墨尺</b> — 每天一根刻度，可数单日</div>${htmlA(h)}</div>
+        <div><div class="cmp-label"><b>C · 墨条生长</b> — 坚持融成笔画，长度读坚持（悬停看连续天数）</div>${htmlC(h)}</div>
+      </div>`;
+    } else if (mode === "A") {
+      trails = `<div class="cmp"><div><div class="cmp-label"><b>A · 刻度墨尺</b></div>${htmlA(h)}</div></div>`;
+    } else {
+      trails = `<div class="cmp"><div><div class="cmp-label"><b>C · 墨条生长</b> — 悬停墨条看连续天数</div>${htmlC(h)}</div></div>`;
+    }
+    row.innerHTML = `
+      <div class="rowmain">
+        <div class="hicon" style="background:${h.color}22;color:${h.color}">${h.icon}</div>
+        <div class="hmain">
+          <div class="hname">${h.name}</div>
+          <div class="hsub">${h.sub}</div>
+        </div>
+        <div class="actions">${h.actions}</div>
+      </div>
+      ${trails}`;
+    rows.appendChild(row);
+  }
+  bindHover();
+}
+
+function bindHover() {
+  document.querySelectorAll(".slot[data-h]").forEach(el=>{
+    el.addEventListener("mouseenter", ()=>{
+      const h = habits.find(x=>x.name===el.dataset.h);
+      showTooltip(el, h, parseInt(el.dataset.i));
+    });
+    el.addEventListener("mouseleave", hideTooltips);
+  });
+}
+
+function replay() {
+  animOn = true;
+  document.getElementById("btnAnim").classList.add("on");
+  document.getElementById("btnAnim").textContent = "动画：开";
+  render();
+}
+function toggleAnim() {
+  animOn = !animOn;
+  const b = document.getElementById("btnAnim");
+  b.classList.toggle("on", animOn);
+  b.textContent = animOn ? "动画：开" : "动画：关";
+  render();
+}
+function setMode(m) {
+  mode = m;
+  ["cmp","C","A"].forEach(k=>document.getElementById("m"+(k==="cmp"?"Cmp":k)).classList.toggle("on", k===m));
+  render();
+}
+function setTheme(t) {
+  document.getElementById("phone").classList.toggle("light", t==="light");
+  document.getElementById("btnDark").classList.toggle("on", t==="dark");
+  document.getElementById("btnLight").classList.toggle("on", t==="light");
+  render();
+}
+render();
+</script>
+</body>
+</html>

@@ -66,8 +66,17 @@ struct SwipeActionView<Content: View>: View {
     var body: some View {
         ZStack(alignment: .trailing) {
             actionButtons
+                // 操作层常驻在内容背后；任务完成时卡片会换形成更矮的记录行，
+                // 若闭合态仍参与绘制，换形中间帧会短暂露出最右侧的删除按钮。
+                // 只有用户真正开始左滑后才显示操作层，避免状态动画泄露危险操作。
+                .opacity(offset < -0.5 ? 1 : 0)
+                .allowsHitTesting(offset < -0.5)
+                // 闭合态必须同步从无障碍树摘除（2026-09-26 R1 实锤）：opacity(0) 不摘 AX，
+                // 7 张卡的归档/删除幽灵按钮常驻 AX 且 isHittable=true——VoiceOver 可聚焦
+                // 看不见的按钮，XCUITest 泄露断言也被幽灵误触；AX 可见性必须与视觉一致
+                .accessibilityHidden(offset >= -0.5)
 
-                content
+            content
                 .offset(x: offset)
                 .overlay(
                     SwipeGestureOverlay(
@@ -143,6 +152,10 @@ struct SwipeActionView<Content: View>: View {
                 .frame(maxHeight: .infinity)
                 .background(Color(.systemGray6))
             }
+            // 露出态标识随视觉露出翻转：闭合态幽灵按钮（opacity 0）在 iOS 26 的
+            // XCUITest automation 树里仍存在且 isHittable 不可靠，手势门禁以
+            // revealed 标识是否出现为准，不依赖 AX 遮挡判定
+            .accessibilityIdentifier(offset < -0.5 ? "swipe-archive-revealed" : "swipe-archive")
 
             Button {
                 showDeleteConfirmation = true
@@ -162,6 +175,7 @@ struct SwipeActionView<Content: View>: View {
                 .frame(maxHeight: .infinity)
                 .background(Color.red.opacity(0.08))
             }
+            .accessibilityIdentifier(offset < -0.5 ? "swipe-delete-revealed" : "swipe-delete")
         }
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
@@ -329,11 +343,30 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 
         /// 只在 overlay 区域内的触摸才响应
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
-            guard parent.isEnabled else { return false }
             guard let overlay = overlayView else { return false }
+            // 编辑器/弹窗盖着时不响应（window 手势摸得到弹层触摸，见 HoloWindowGestureGate）
+            if HoloWindowGestureGate.isOverlayPresented(overlay.window) { return false }
+            let locationInOverlay = touch.location(in: overlay)
+            guard parent.isEnabled else { return false }
             guard overlay.bounds.width > 0, overlay.bounds.height > 0 else { return false }
-            let location = touch.location(in: overlay)
-            return overlay.bounds.contains(location)
+            guard overlay.bounds.contains(locationInOverlay) else { return false }
+            // 照片、标签等内层横向列表先消费自己的滑动；window 上的卡片手势
+            // 若同时识别，会带动整张卡片露出归档/删除，甚至禁用外层滚动。
+            return !touchIsInsideHorizontalScrollView(touch)
+        }
+
+        private func touchIsInsideHorizontalScrollView(_ touch: UITouch) -> Bool {
+            var view: UIView? = touch.view
+            while let current = view, current !== overlayView?.window {
+                if let scrollView = current as? UIScrollView,
+                   scrollView.isScrollEnabled,
+                   (scrollView.alwaysBounceHorizontal ||
+                    scrollView.contentSize.width > scrollView.bounds.width + 1) {
+                    return true
+                }
+                view = current.superview
+            }
+            return false
         }
 
         /// 允许与 ScrollView 的手势同时识别

@@ -12,7 +12,6 @@ struct AnniversaryCardView: View {
     let anniversary: Anniversary
     let onTap: () -> Void
 
-    @State private var dotPulse = false
 
     var body: some View {
         Button(action: onTap) {
@@ -63,7 +62,7 @@ struct AnniversaryCardView: View {
                     Text(directionLabel)
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(isCountdown ? themeColor : .holoTextSecondary)
-                        .opacity(isCountdown && anniversary.isApproaching ? (dotPulse ? 1.0 : 0.4) : 1.0)
+                        .holoAmbientOpacity(dimmed: 0.4, duration: 1.6, enabled: isCountdown && anniversary.isApproaching)
                 }
                 .frame(alignment: .trailing)
             }
@@ -81,13 +80,7 @@ struct AnniversaryCardView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
-        .onAppear {
-            if isCountdown && anniversary.isApproaching {
-                withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
-                    dotPulse = true
-                }
-            }
-        }
+
     }
 
     // MARK: - 计算
@@ -239,6 +232,8 @@ struct AnniversaryHeroCard: View {
                 Text("\(anniversary.displayDays)")
                     .font(.system(size: 54, weight: .heavy, design: .rounded))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(HoloAnimation.smooth, value: anniversary.displayDays)
                     .foregroundColor(.white)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)

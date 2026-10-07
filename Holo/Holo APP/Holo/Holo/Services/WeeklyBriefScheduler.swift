@@ -132,7 +132,10 @@ final class WeeklyBriefScheduler: RollingNotificationScheduler {
         let completedTasks = (try? CoreDataStack.shared.viewContext.count(for: taskRequest)) ?? 0
 
         // 上周有打卡记录的不同天数
-        let records = HabitRepository.shared.getRecords(from: weekStart, to: dayStart)
+        // 口径与全 App 统一（连续天数/累计/组件快照同源）：只计 isCompleted 的有效记录——
+        // 取消打卡（isCompleted 翻 false 但行保留）不再被计入（2026-10-04 体检 U05）。
+        // 数值型习惯有值的记录在补录迁移时已置 isCompleted=true，不受误伤。
+        let records = HabitRepository.shared.getRecords(from: weekStart, to: dayStart).filter(\.isCompleted)
         let habitDays = Set(records.map { calendar.startOfDay(for: $0.date) }).count
 
         // 触发日所在周的计划重点（周日晚生成的下周计划此时已可查到）

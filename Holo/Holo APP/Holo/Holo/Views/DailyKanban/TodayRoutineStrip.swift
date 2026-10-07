@@ -48,7 +48,7 @@ struct TodayRoutineStrip: View {
     private var summaryLine: some View {
         Button {
             if !routine.habitRows.isEmpty {
-                withAnimation(.easeInOut(duration: 0.2)) { expanded.toggle() }
+                withAnimation(HoloAnimation.standard) { expanded.toggle() }
             }
         } label: {
             HStack(spacing: 8) {
@@ -74,7 +74,7 @@ struct TodayRoutineStrip: View {
             )
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HoloPressStyle())
         .accessibilityHint(routine.habitRows.isEmpty
             ? Text("")
             : Text("展开未完成的习惯"))
@@ -135,7 +135,7 @@ struct TodayRoutineStrip: View {
                         .foregroundStyle(Color.holoPrimary)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoloPressStyle())
                 .accessibilityLabel(Text("完成 \(row.name)"))
             } else {
                 Button {
@@ -149,13 +149,14 @@ struct TodayRoutineStrip: View {
                         .foregroundStyle(.secondary)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoloPressStyle())
                 .accessibilityLabel(Text("记录 \(row.name) 发生"))
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
         .frame(minHeight: 44)
+        .holoRecordArrival(row.id, domain: .habit)
     }
 
     private func sectionHeader(_ text: String) -> some View {

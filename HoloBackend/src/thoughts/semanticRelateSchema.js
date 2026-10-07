@@ -46,7 +46,7 @@ export function validateRelateRequest(body) {
   if (!body || typeof body !== "object") {
     throw new GatewayError("INVALID_REQUEST", "Request body must be an object", 400);
   }
-  if (body.schemaVersion !== 1) {
+  if (![1, 2].includes(body.schemaVersion)) {
     throw new GatewayError("INVALID_REQUEST", "schemaVersion must be 1", 400);
   }
   if (!isCleanShortString(body.operationId, RELATE_LIMITS.idMaxUTF16)) {
@@ -90,7 +90,7 @@ export function validateRelateRequest(body) {
         && !isBoundedText(candidate.summary, RELATE_LIMITS.summaryMaxUTF16)) {
       throw new GatewayError("INVALID_REQUEST", `candidates[${index}].summary exceeds ${RELATE_LIMITS.summaryMaxUTF16} UTF-16 units`, 400);
     }
-    if (!Array.isArray(candidate.representatives) || candidate.representatives.length === 0) {
+    if (!Array.isArray(candidate.representatives) || (candidate.representatives.length === 0 && body.schemaVersion === 1)) {
       throw new GatewayError("INVALID_REQUEST", `candidates[${index}].representatives must be non-empty`, 400);
     }
     if (candidate.representatives.length > RELATE_LIMITS.representativeMaxCount) {
@@ -114,7 +114,7 @@ export function validateRelateRequest(body) {
   });
 
   return {
-    schemaVersion: 1,
+    schemaVersion: body.schemaVersion,
     operationId: body.operationId,
     textRevision: body.textRevision,
     engineVersion: body.engineVersion,
@@ -138,10 +138,14 @@ export function validateRelateModelOutput(output, parsedRequest) {
   const allowedRefs = new Set(parsedRequest.candidates.map((c) => c.ref));
   const decisionsRaw = output.decisions;
   if (decisionsRaw === undefined || decisionsRaw === null) {
+    if (parsedRequest.schemaVersion === 2) return { malformed: true, reason: "decisions_missing" };
     return { decisions: [] };
   }
   if (!Array.isArray(decisionsRaw) || decisionsRaw.length > RELATE_LIMITS.decisionsMaxCount) {
     return { malformed: true, reason: "decisions_shape" };
+  }
+  if (parsedRequest.schemaVersion === 2 && decisionsRaw.length !== parsedRequest.candidates.length) {
+    return { malformed: true, reason: "decisions_missing" };
   }
   const seen = new Set();
   const decisions = [];
@@ -158,11 +162,12 @@ export function validateRelateModelOutput(output, parsedRequest) {
     if (item.confidence !== undefined && item.confidence !== null) {
       return { malformed: true, reason: "confidence_forbidden" };
     }
-    if (item.relation === "none" || item.relation === "insufficient") {
+    if (item.relation === "none" || item.relation === "insufficient"
+        || (parsedRequest.schemaVersion === 2 && item.relation === "related")) {
       decisions.push({ candidateRef: item.candidateRef, relation: item.relation, quote: null, rangeUTF16: null });
       continue;
     }
-    // same_thread / related 必须携带可核对证据
+    // 正式归属必须携带可核对证据；V1 的 related 保留原契约，V2 非归属结果不要求引用。
     if (typeof item.quote !== "string" || item.quote.length === 0
         || item.quote.length > RELATE_LIMITS.quoteMaxUTF16) {
       return { malformed: true, reason: "quote_shape" };
@@ -170,13 +175,26 @@ export function validateRelateModelOutput(output, parsedRequest) {
     const text = parsedRequest.target.text;
     const start = text.indexOf(item.quote);
     if (start < 0) return { malformed: true, reason: "quote_not_verbatim" };
-    const range = item.rangeUTF16;
+    const range = parsedRequest.schemaVersion === 2 ? [start, start + item.quote.length] : item.rangeUTF16;
     if (!Array.isArray(range) || range.length !== 2
         || !Number.isInteger(range[0]) || !Number.isInteger(range[1])
         || range[0] !== start || range[1] !== start + item.quote.length) {
       return { malformed: true, reason: "range_mismatch" };
     }
-    decisions.push({ candidateRef: item.candidateRef, relation: item.relation, quote: item.quote, rangeUTF16: [range[0], range[1]] });
+    let evidence = {};
+    if (parsedRequest.schemaVersion === 2 && item.relation === "same_thread") {
+      const candidate = parsedRequest.candidates.find(c => c.ref === item.candidateRef);
+      const basis = item.representativeRef === "definition"
+        ? (candidate.summary ?? candidate.title)
+        : candidate.representatives.find(r => r.ref === item.representativeRef)?.text;
+      if (typeof item.representativeQuote !== "string" || !item.representativeQuote.length
+          || item.representativeQuote.length > 120 || !basis?.includes(item.representativeQuote)) {
+        return { malformed: true, reason: "representative_quote_not_verbatim" };
+      }
+      if (!isCleanShortString(item.sharedSubject, 120)) return { malformed: true, reason: "shared_subject_missing" };
+      evidence = { representativeRef: item.representativeRef, representativeQuote: item.representativeQuote, sharedSubject: item.sharedSubject };
+    }
+    decisions.push({ candidateRef: item.candidateRef, relation: item.relation, quote: item.quote, rangeUTF16: [range[0], range[1]], ...evidence });
   }
   return { decisions };
 }

@@ -1,0 +1,417 @@
+{
+  "origin": "synthetic",
+  "scope": "已选候选的真实模型验证，不包含端到端召回或真实用户留出集",
+  "provider": "deepseek",
+  "model": "deepseek-v4-flash",
+  "total": 40,
+  "passed": 40,
+  "contractValid": 40,
+  "cases": [
+    {
+      "id": "S001",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "holo_design"
+      ]
+    },
+    {
+      "id": "S002",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "sleep_health"
+      ]
+    },
+    {
+      "id": "S003",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S004",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S005",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S006",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "running"
+      ]
+    },
+    {
+      "id": "S007",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "work_growth"
+      ]
+    },
+    {
+      "id": "S008",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "sleep_health"
+      ]
+    },
+    {
+      "id": "S009",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "money_mgmt"
+      ]
+    },
+    {
+      "id": "S010",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S011",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "reading_notes"
+      ]
+    },
+    {
+      "id": "S012",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S013",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "sleep_health",
+        "family_kids"
+      ]
+    },
+    {
+      "id": "S014",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "reading_notes",
+        "running"
+      ]
+    },
+    {
+      "id": "S015",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "money_mgmt"
+      ]
+    },
+    {
+      "id": "S016",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S017",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S018",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S019",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "reading_notes"
+      ]
+    },
+    {
+      "id": "S020",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S021",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "reading_notes"
+      ]
+    },
+    {
+      "id": "S022",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "reading_notes"
+      ]
+    },
+    {
+      "id": "S023",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "running"
+      ]
+    },
+    {
+      "id": "S024",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "running"
+      ]
+    },
+    {
+      "id": "S027",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "sleep_health"
+      ]
+    },
+    {
+      "id": "S028",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "money_mgmt"
+      ]
+    },
+    {
+      "id": "S029",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S030",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S031",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": [
+        "money_mgmt"
+      ]
+    },
+    {
+      "id": "S032",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S033",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S034",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S035",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [
+        "holo_design"
+      ],
+      "positive": [
+        "holo_design"
+      ]
+    },
+    {
+      "id": "S036",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S037",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S038",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [
+        "holo_design"
+      ],
+      "positive": [
+        "holo_design"
+      ]
+    },
+    {
+      "id": "S039",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S040",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S041",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    },
+    {
+      "id": "S042",
+      "contractValid": true,
+      "pass": true,
+      "missing": [],
+      "incorrect": [],
+      "unjudged": [],
+      "positive": []
+    }
+  ]
+}

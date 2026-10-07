@@ -7,8 +7,8 @@ import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
   system_prompt: 5,                 // v5: 放开竖线表格（对比场景、≤4 列、单元格短语），其余 Markdown 符号仍禁止
-  intent_recognition: 31,           // v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图（个人情境规划）
-  memory_insight_generation: 10,    // v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
+  intent_recognition: 32,           // v32: 新增 today_relief 只读意图（今天减负：当日安排的重新选择/减负）；v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图（个人情境规划）
+  memory_insight_generation: 11,    // v11: 健康域入回顾（health 卡片类型+健康语义口径：分期缺失不当 0 解读/就寝时刻分钟编码/环比差额表达/上期对比字段）；v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
   replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
   analysis_prompt: 6,               // v6: 阅读契约放开竖线表格（≤4 列）；v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
   annual_review: 2,
@@ -21,21 +21,25 @@ const PROMPT_VERSIONS = {
   thought_task_extraction: 2,        // v2: 注入今天日期，输出对象数组（title+dueDate/dueTime/priority 预填，向后兼容旧客户端只读 title）
   thought_tag_convergence: 2,
   // 想法自动整理 V2（2026-09-05 方案 §5）：A 提取概念 / R 目录筛选 / B 词表对齐
-  thought_topic_name_v1: 1,       // v1: 候选簇≤8片段→一个主题名（不复制代表片段）
+  thought_topic_name_v1: 2,       // v1: 候选簇≤8片段→一个主题名（不复制代表片段）
   thought_topic_summary_v1: 1,    // v1: 主题≤12片段→摘要+≤4逐字反复观点
-  thought_semantic_relate_v1: 1,   // v1: 目标想法×候选主题离散判断（same_thread/related/none/insufficient + 逐字证据，无置信度）
+  thought_semantic_relate_v1: 2,   // v1: 目标想法×候选主题离散判断（same_thread/related/none/insufficient + 逐字证据，无置信度）
+  thought_insight_v1: 1,           // v1: 单条笔记→观察(逐字)/推测/下一步（2026-09-24 方案 §5.1 帮我想想）
   thought_organize_a: 1,
   thought_organize_r: 1,
   thought_organize_b: 1,
-  agent_loop: 22,                  // v22: 任务优先与环境中性（先回答问题/工具目录为能力真相/数字与时间纪律/交付核验对齐）+ 条件化 v21 无条件命令；v21: 分析方法论（维度菜单+个人基线+推算口径）+ keyInsight/interpretation 输出字段
+  agent_loop: 25,                  // v25: 目录驱动字段原则（能力标记{可筛·可组}随快照目录上云，问句概念先对字段圈定再聚合、取值以行数据为准不猜原词、报错按字段清单自愈——此后新字段只改 iOS 目录声明即可被模型自动使用，零提示词教学）；v24: 报告可读性数字纪律（对比必须写差额/幅度不许并排原始值、单句≤1数字/段≤3、字段间数字分工不重复、量纲生活化、禁引用不存在的图表）；v23: 财务深析五层深挖法（备注/付款时刻/结构/生活状态交叉/串联点破）+管家记忆+claimTitle 点破式标题+深析展开豁免，财务维度菜单自 v21 迁入并修正 linearTrend 空头支票；v22: 任务优先与环境中性（先回答问题/工具目录为能力真相/数字与时间纪律/交付核验对齐）+ 条件化 v21 无条件命令；v21: 分析方法论（维度菜单+个人基线+推算口径）+ keyInsight/interpretation 输出字段
   memory_domain_extraction: 2,
   memory_cross_domain_fusion: 2,
   weekly_plan_generation: 1,       // v1: 优先结果+行动卡结构化生成（Life Agent 第一刀）
   // 通用个人情境（2026-09-06 完整实施方案 §11）：四 purpose 首版
-  personal_context_extraction: 1,
+  personal_context_extraction: 2,
   personal_context_verification: 1,
   personal_context_request: 1,
-  personal_context_planning: 1,
+  // v2（2026-09-21 Matter 战略收敛 §6.1）：生成收缩——资格线（跨天/多步/影响下一步，否则纯建议不拆步）、
+  // goalSummary 4–16 字事项名、answerText ≤80 字、可执行项 3–7 条、task/unknown 互斥、
+  // dependencyEdges 固定空数组、无锚点不造日期、未核验不称结论。
+  personal_context_planning: 2,
   // 截图识别记账（2026-09-09 方案 §5）：视觉抽取理解单。内容与
   // scripts/eval-vision-extraction.mjs 的 PROMPT 常量同源（M0 五轮评测 24/24 定稿），
   // 外币少样本示例是精度关键，改 prompt 前先跑评测。
@@ -43,11 +47,22 @@ const PROMPT_VERSIONS = {
   // paymentStatusOriginalText/逐笔 amountOriginalText/字段级 confidence/分类语义候选。
   // v3（2026-09-19 一图多笔）：逐笔 paymentChannel——微信支付服务通知流同图两笔
   // 渠道不同（信用卡/零钱）实证，账户需逐笔匹配；契约同步 bump UNDERSTANDING_SCHEMA_VERSION=3。
-  vision_extraction: 3,
+  // v4（2026-10-01 境外人民币结算）：货币红线从「图中出现外币一律拒」精确为
+  // 「实付金额本身是外币才拒」——微信境外消费账单（标价日元+实付 ¥）实证被误拒；
+  // 新增境外人民币结算少样本示例；护栏同步按逐笔金额原文分档（understandingContract.js）。
+  vision_extraction: 4,
   // Matter「进行中的事」对账（2026-09-11 完整实施方案 §12）：typed proposal 契约首版
-  matter_reconciliation: 1,
+  // v2（2026-09-23 Matter 计划修订）：新增 addTask 提案类型——用户表达计划外新步骤时
+  // 建议加入计划（title ≤20字动作短语，一次最多 2 条，planTaskTitles 去重），恒需用户确认。
+  // v3（2026-09-23）：明确动作动词（帮我订/帮我安排/帮我规划/加进计划）提出的新步骤，
+  // 即使执行时间靠后也输出 addTask 提案（title 带时间限定），决定权交用户确认卡。
+  matter_reconciliation: 3,
   // 目标共创（2026-09-17 完整开发计划 §2.2）：分阶段会话契约首版
   goal_workshop: 1,
+  // 任务分步推进提案（2026-09-25 实施规格 §6.4）：proposal/clarification/cannotHelp 契约首版
+  matter_execution_plan: 2,
+  // 「今天减负」当日安排整理（2026-10-03 实施方案 §11）：proposal/clarification/cannotHelp 契约首版
+  today_relief_plan: 1,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],
@@ -60,6 +75,9 @@ const PROMPT_CONTRACT_APPENDICES = {
     defaultPrompts._agent_loop_v16_contract,
     defaultPrompts._agent_loop_v21_contract,
     defaultPrompts._agent_loop_v22_contract,
+    defaultPrompts._agent_loop_v23_contract,
+    defaultPrompts._agent_loop_v24_contract,
+    defaultPrompts._agent_loop_v25_contract,
   ],
   memory_insight_generation: [defaultPrompts._memory_semantic_v2_contract],
   memory_domain_extraction: [defaultPrompts._memory_domain_quality_v2_contract],

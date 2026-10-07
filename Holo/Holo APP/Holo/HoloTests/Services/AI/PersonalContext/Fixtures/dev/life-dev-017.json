@@ -1,0 +1,74 @@
+{
+  "fixtureID": "tpl-counter-evidence-03",
+  "domainTags": [
+    "出行",
+    "宠物",
+    "反证"
+  ],
+  "sources": [
+    {
+      "sourceID": "finance:tx-proxy",
+      "sourceDomain": "finance",
+      "sourceKind": "transaction",
+      "plainText": "帮同事代购鱼食（备注：同事已转账）",
+      "recordedAt": "2026-08-22T19:00:00+08:00",
+      "eventTime": "2026-08-22T19:00:00+08:00",
+      "revisionDigest": "rev-1"
+    },
+    {
+      "sourceID": "task:task-coffee",
+      "sourceDomain": "task",
+      "sourceKind": "todoTask",
+      "plainText": "下单橘子咖啡豆",
+      "recordedAt": "2026-09-12T21:00:00+08:00",
+      "eventTime": "2026-09-12T21:00:00+08:00",
+      "revisionDigest": "rev-1",
+      "businessState": {
+        "completed": "true"
+      }
+    },
+    {
+      "sourceID": "thought:note-friend",
+      "sourceDomain": "thought",
+      "sourceKind": "userNote",
+      "plainText": "朋友说他上次出门找过人上门喂鱼。",
+      "recordedAt": "2026-05-02T22:00:00+08:00",
+      "eventTime": "2026-05-02T22:00:00+08:00",
+      "revisionDigest": "rev-1"
+    }
+  ],
+  "currentRequest": {
+    "utterance": "我 10 月 15 日到 20 日去外地，帮我安排出发前家里的事。",
+    "referenceTime": "2026-09-23T12:00:00+08:00"
+  },
+  "expectedSupportedRelations": [
+    {
+      "statement": "用户有代购鱼的记录（不构成本人饲养证据）",
+      "basisSourceIDs": [
+        "finance:tx-proxy"
+      ],
+      "epistemicStatus": "declared"
+    }
+  ],
+  "unknowns": [
+    "用户家中是否有需要照看的动物（当前证据互相矛盾或为他人经历）"
+  ],
+  "expectedPlanEffects": [
+    {
+      "effectKind": "shouldExclude",
+      "description": "不归属用户本人鱼照护责任"
+    }
+  ],
+  "forbiddenClaims": [
+    "断言用户养鱼",
+    "把代购或朋友经历当成用户事实",
+    "生成个性化照护任务"
+  ],
+  "counterfactualVariants": [
+    {
+      "variantID": "cf-1",
+      "change": "thought 删除（仅剩代购与咖啡）",
+      "expectedEffect": "仍不归属；最多作为弱观察不进建议"
+    }
+  ]
+}

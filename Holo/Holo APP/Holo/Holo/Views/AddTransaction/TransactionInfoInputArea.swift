@@ -20,12 +20,16 @@ extension AddTransactionSheet {
 
             Divider().padding(.leading, 44)
 
-            // 项目行（仅支出；点击弹窗选择挂靠的财务项目）
-            if transactionType == .expense {
-                financeProjectRow
+            // 票根行（空态=添加入口；有票=N 张 · 再贴；满 3 张=禁用提示。
+            // 贴上后信息卡上方出现出票舞台，此行转为再贴入口）
+            receiptRow
 
-                Divider().padding(.leading, 44)
-            }
+            Divider().padding(.leading, 44)
+
+            // 项目行（收支都可挂靠；点击弹窗选择挂靠的财务项目）
+            financeProjectRow
+
+            Divider().padding(.leading, 44)
 
             // 日期行（点击弹窗选择）
             dateRow
@@ -49,7 +53,7 @@ extension AddTransactionSheet {
     /// 账户选择行（点击弹窗）
     private var accountRow: some View {
         Button {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.enter) {
                 showAccountPicker = true
             }
         } label: {
@@ -81,12 +85,65 @@ extension AddTransactionSheet {
         .buttonStyle(.plain)
     }
 
+    // MARK: - 票根行
+
+    /// 票根行：唯一常驻入口（点击弹来源选择覆盖弹窗）。满 3 张时点击给 toast 提示撕掉通道
+    private var receiptRow: some View {
+        Button {
+            if receiptItems.count >= Transaction.maxReceiptCount {
+                HoloToastCenter.shared.show(
+                    String(localized: "已贴满 \(Transaction.maxReceiptCount) 张 · 长按票根可撕掉"),
+                    type: .info
+                )
+                return
+            }
+            withAnimation(HoloAnimation.enter) {
+                showReceiptSourcePicker = true
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+                    .frame(width: 24)
+
+                Text("票根")
+                    .font(.system(size: 15))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 36, alignment: .leading)
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Text(receiptRowValue)
+                        .font(.system(size: 15))
+                        .foregroundColor(
+                            receiptItems.isEmpty
+                                ? .holoPrimary
+                                : (receiptItems.count >= Transaction.maxReceiptCount
+                                   ? .holoTextSecondary.opacity(0.5)
+                                   : .holoPrimary)
+                        )
+                    if receiptItems.count < Transaction.maxReceiptCount {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary.opacity(0.5))
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("transactionSheet.receiptRow")
+    }
+
     // MARK: - 项目选择行
 
     /// 财务项目选择行（点击弹窗；仅支出类型显示）
     private var financeProjectRow: some View {
         Button {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.enter) {
                 showProjectPicker = true
             }
         } label: {
@@ -125,7 +182,7 @@ extension AddTransactionSheet {
     /// 日期选择行（点击弹窗）
     private var dateRow: some View {
         Button {
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.enter) {
                 showDatePicker = true
             }
         } label: {
@@ -169,7 +226,7 @@ extension AddTransactionSheet {
                 }
                 return
             }
-            withAnimation(.easeOut(duration: 0.2)) {
+            withAnimation(HoloAnimation.enter) {
                 showInstallmentSheet = true
             }
         } label: {
@@ -393,11 +450,20 @@ extension AddTransactionSheet {
         return formatter.string(from: amount as NSDecimalNumber) ?? "¥0.00"
     }
 
-    /// 格式化的日期显示文字
+    /// 格式化的日期显示文字。编辑模式在日期后追加发生时刻到秒（发生时间只在明细页可见，列表不带）；
+    /// 新建模式不显示——交易尚未发生，且避免暗示时分可改（日期弹层只暴露日期组件）
     private var formattedSelectedDate: String {
         let f = DateFormatter()
         f.setLocalizedDateFormatFromTemplate("MMMdEEEE")
         let text = f.string(from: selectedDate)
+        if isEditMode {
+            let t = DateFormatter()
+            t.locale = Locale(identifier: "zh_CN")
+            t.dateFormat = "HH:mm:ss"
+            let time = t.string(from: selectedDate)
+            if selectedDate.isToday { return String(localized: "\(text)（今天）") + " " + time }
+            return "\(text) \(time)"
+        }
         if selectedDate.isToday { return String(localized: "\(text)（今天）") }
         return text
     }
@@ -410,7 +476,7 @@ extension AddTransactionSheet {
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showAccountPicker = false
                     }
                 }
@@ -427,7 +493,7 @@ extension AddTransactionSheet {
                         Button {
                             selectedAccount = account
                             lastSelectedAccountId = account.id.uuidString
-                            withAnimation(.easeOut(duration: 0.2)) {
+                            withAnimation(HoloAnimation.enter) {
                                 showAccountPicker = false
                             }
                         } label: {
@@ -460,7 +526,7 @@ extension AddTransactionSheet {
                 Divider()
 
                 Button("取消") {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showAccountPicker = false
                     }
                 }
@@ -482,7 +548,7 @@ extension AddTransactionSheet {
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showProjectPicker = false
                     }
                 }
@@ -496,11 +562,13 @@ extension AddTransactionSheet {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
-                        // 不挂项目
+                        // 不挂项目（记忆只在支出域生效——收入挂项目低频，误挂比漏挂伤害大）
                         Button {
                             selectedProject = nil
-                            lastSelectedFinanceProjectId = nil
-                            withAnimation(.easeOut(duration: 0.2)) {
+                            if transactionType == .expense {
+                                lastSelectedFinanceProjectId = nil
+                            }
+                            withAnimation(HoloAnimation.enter) {
                                 showProjectPicker = false
                             }
                         } label: {
@@ -526,8 +594,10 @@ extension AddTransactionSheet {
 
                             Button {
                                 selectedProject = project
-                                lastSelectedFinanceProjectId = project.id.uuidString
-                                withAnimation(.easeOut(duration: 0.2)) {
+                                if transactionType == .expense {
+                                    lastSelectedFinanceProjectId = project.id.uuidString
+                                }
+                                withAnimation(HoloAnimation.enter) {
                                     showProjectPicker = false
                                 }
                             } label: {
@@ -562,7 +632,7 @@ extension AddTransactionSheet {
                 Divider()
 
                 Button("取消") {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showProjectPicker = false
                     }
                 }
@@ -584,7 +654,7 @@ extension AddTransactionSheet {
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showDatePicker = false
                     }
                 }
@@ -608,7 +678,7 @@ extension AddTransactionSheet {
                 Divider()
 
                 Button("完成") {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showDatePicker = false
                     }
                 }
@@ -630,7 +700,7 @@ extension AddTransactionSheet {
             Color.black.opacity(0.4)
                 .ignoresSafeArea()
                 .onTapGesture {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showInstallmentSheet = false
                     }
                 }
@@ -660,7 +730,7 @@ extension AddTransactionSheet {
                 Divider()
 
                 Button("完成") {
-                    withAnimation(.easeOut(duration: 0.2)) {
+                    withAnimation(HoloAnimation.enter) {
                         showInstallmentSheet = false
                     }
                 }

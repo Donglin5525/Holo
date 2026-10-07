@@ -36,6 +36,12 @@ struct AccountDetailView: View {
 
     /// 正在编辑的交易（点击交易行进入编辑）
     @State private var editingTransaction: Transaction?
+
+    /// 记退款的目标原交易
+    @State private var refundTarget: Transaction?
+
+    /// 正在编辑的退款笔
+    @State private var refundEditing: Transaction?
     /// 待删除的交易
     @State private var transactionToDelete: Transaction?
     /// 是否显示分期删除选项
@@ -225,6 +231,19 @@ struct AccountDetailView: View {
             AddTransactionSheet(editingTransaction: transaction) { _ in
                 loadData()
             }
+        }
+        // 记退款（从原支出发起）
+        .sheet(item: $refundTarget) { original in
+            RefundEntrySheet(original: original)
+                .onDisappear { loadData() }
+        }
+        // 编辑退款笔：按退款笔解析原交易后进入同一弹层
+        .sheet(item: $refundEditing) { refund in
+            RefundEntrySheet(
+                original: refund.refundOfTransactionId.flatMap { FinanceRepository.shared.findTransaction(by: $0) } ?? refund,
+                editingRefund: refund
+            )
+            .onDisappear { loadData() }
         }
         // 复制交易日期选择
         .sheet(item: $copyingTransaction) { tx in
@@ -428,6 +447,8 @@ struct AccountDetailView: View {
             Text(formatAmount(balance))
                 .font(.system(size: 36, weight: .bold, design: .rounded))
                 .foregroundColor(balance >= 0 ? .holoTextPrimary : .holoError)
+                .contentTransition(.numericText())
+                .animation(HoloAnimation.smooth, value: balance)
                 .padding(.top, HoloSpacing.sm)
                 .padding(.bottom, HoloSpacing.md)
 
@@ -925,11 +946,20 @@ struct AccountDetailView: View {
 
                             ForEach(dayTransactions, id: \.objectID) { tx in
                                 TransactionRowView(transaction: tx) {
-                                    editingTransaction = tx
+                                    // 退款笔不走通用编辑表单，直接进退款编辑层
+                                    if tx.isRefund {
+                                        refundEditing = tx
+                                    } else {
+                                        editingTransaction = tx
+                                    }
                                 }
                                 .contextMenu {
                                     Button {
-                                        editingTransaction = tx
+                                        if tx.isRefund {
+                                            refundEditing = tx
+                                        } else {
+                                            editingTransaction = tx
+                                        }
                                     } label: {
                                         Label("编辑", systemImage: "pencil")
                                     }
@@ -939,6 +969,14 @@ struct AccountDetailView: View {
                                         copyTargetDate = tx.date
                                     } label: {
                                         Label("复制", systemImage: "doc.on.doc")
+                                    }
+
+                                    if tx.transactionType == .expense && !tx.isInstallment && !tx.isRefund {
+                                        Button {
+                                            refundTarget = tx
+                                        } label: {
+                                            Label("记退款", systemImage: "arrow.uturn.backward")
+                                        }
                                     }
 
                                     Button(role: .destructive) {

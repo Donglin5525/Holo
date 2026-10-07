@@ -20,7 +20,7 @@ import OSLog
 enum ThoughtTopicClusterEngine {
 
     /// 与 verifier/摘要客户端同源版本串（复制而非引用，保持本文件 standalone 可编译）
-    static let engineVersion = "thought_semantic_v3.0"
+    static let engineVersion = "thought_semantic_v3.1"
     private static let logger = Logger(subsystem: "com.holo.Holo", category: "ThoughtTopicCluster")
 
     /// 簇最小成员数（攒够同类想法才建议；空态文案口径）
@@ -44,7 +44,7 @@ enum ThoughtTopicClusterEngine {
                                   minSize: Int,
                                   neighborLookup: (UUID) -> [(id: UUID, similarity: Float)]) -> [(members: [UUID], cohesion: Float)] {
         guard ids.count >= minSize else { return [] }
-        let indexByID = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
+        let indexByID = Dictionary(ids.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
         var parent = Array(0..<ids.count)
 
         func find(_ x: Int) -> Int {
@@ -128,14 +128,18 @@ enum ThoughtTopicClusterEngine {
         let modelVersion = try await store.manifest().activeModelVersion
 
         // 孤儿集合：全量想法中投影无 active 主题、且在本机语义库有向量的
-        let request = Thought.fetchRequest()
-        request.fetchBatchSize = 200
-        let all = try ManagedObjectContextCompat.fetch(request, in: context)
+        let snapshots: [(UUID, String)] = await context.perform {
+            let request = Thought.fetchRequest()
+            request.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
+            return ((try? context.fetch(request)) ?? []).filter {
+                ThoughtTopicLinkProjection.effectiveTopics(for: $0).filter(\.isVisibleTopic).isEmpty
+            }.map { ($0.id, SHA256.hash(data: Data($0.content.trimmingCharacters(in: .whitespacesAndNewlines).utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()) }
+        }
         var orphanIDs: [UUID] = []
-        for thought in all where !thought.isSoftDeleted {
-            if ThoughtTopicLinkProjection.effectiveTopics(for: thought).isEmpty {
-                orphanIDs.append(thought.id)
-            }
+        var seenHashes = Set<String>()
+        for (id, hash) in snapshots {
+            if let item = try await store.item(thoughtID: id), item.state == "active", item.contentHash == hash,
+               seenHashes.insert(hash).inserted { orphanIDs.append(id) }
         }
         guard orphanIDs.count >= minClusterSize else { return }
         let vectorRows = try await store.loadAllActiveVectors(modelVersion: modelVersion)
@@ -150,7 +154,7 @@ enum ThoughtTopicClusterEngine {
         var adjacency: [UUID: [(id: UUID, similarity: Float)]] = [:]
         for id in orphans {
             guard let vector = vectors[id] else { continue }
-            let neighbors = (try? await index.search(vector: vector, topK: neighborTopK + 1, filter: nil)) ?? []
+            let neighbors = (try? await index.search(vector: vector, topK: neighborTopK + 1, filter: SemanticIndexFilter(excludedIDs: Set(vectorByID.keys).subtracting(orphanSet)))) ?? []
             adjacency[id] = neighbors
                 .filter { orphanSet.contains($0.thoughtID) }
                 .map { (id: $0.thoughtID, similarity: $0.similarity) }
@@ -169,7 +173,15 @@ enum ThoughtTopicClusterEngine {
                                 store: ThoughtSemanticStore) async throws {
         let now = Date()
         var suggestedUsed = false
+        let suppressed = try await store.clusters(states: ["rejected", "snoozed"])
         for component in components {
+            let memberSet = Set(component.members)
+            if suppressed.contains(where: { row in
+                let previous = Set(row.memberIDs)
+                let overlap = previous.intersection(memberSet).count
+                guard overlap >= minClusterSize, Double(overlap) / Double(min(previous.count, memberSet.count)) >= 0.6 else { return false }
+                return row.state == "rejected" || ((row.dismissedUntil ?? .distantPast) > now && memberSet.subtracting(previous).count < snoozeEscapeNewMembers)
+            }) { continue }
             let fp = fingerprint(memberIDs: component.members)
             let existing = try await store.loadCluster(byFingerprint: fp)
             switch existing?.state {

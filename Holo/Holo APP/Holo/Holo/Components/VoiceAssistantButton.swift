@@ -106,10 +106,8 @@ struct VoiceAssistantButton: View {
         .contentShape(Circle())
         .shadow(color: .holoPrimary.opacity(0.3), radius: 30, x: 0, y: 0)
         .scaleEffect(isAnimating ? 1.05 : 1.0)
-        .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isAnimating)
-        .onAppear {
-            isAnimating = true
-        }
+        .holoRepeatingPhase($isAnimating, from: false, to: true,
+                            animation: .easeInOut(duration: 1.5).repeatForever(autoreverses: true))
     }
 }
 

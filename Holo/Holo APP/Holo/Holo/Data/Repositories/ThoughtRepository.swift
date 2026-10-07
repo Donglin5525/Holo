@@ -19,6 +19,8 @@ extension Notification.Name {
     static let thoughtRequestTagFilter = Notification.Name("thoughtRequestTagFilter")
     /// 请求关闭想法编辑器 fullScreenCover（详情页跳转 AI 后通知列表层关闭 cover）
     static let holoRequestCloseThoughtEditor = Notification.Name("holoRequestCloseThoughtEditor")
+    /// AI 主题归类落库回执（P1 §3.2 归入回执；object 为 [thoughtId: UUID, topicTitle: String]）
+    static let thoughtTopicLinkDidCommit = Notification.Name("thoughtTopicLinkDidCommit")
 }
 
 /// 观点数据仓储
@@ -115,8 +117,43 @@ class ThoughtRepository {
         )
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
         // 日历等调用方逐条读话题；不预取会触发每条一次的关系惰性加载。
+        // 注意：这里刻意不预取 attachments——附件行内联着原图大二进制（全 App 未开
+        // 外部存储），预取会把窗口内所有原图一起拉进内存；缩略图走下面的投影查询。
         request.relationshipKeyPathsForPrefetching = ["topics"]
         return Self.deduplicatingCopies(try context.fetch(request))
+    }
+
+    /// 附件缩略图投影（时间窗口与 fetchThoughts 同口径）：SQL 只取缩略图列，
+    /// 不触碰 imageData 原图列。直接读托管对象的 thumbnailData 会 fire 附件
+    /// 整行，把同行的原图大二进制一并拉进内存——5 图想法一次白读数 MB 且在
+    /// 主线程；长廊照片堆、列表缩略图统一改走本通道。
+    func fetchAttachmentThumbnails(from start: Date, to end: Date) throws -> [UUID: [Data]] {
+        let thoughtID = NSExpressionDescription()
+        thoughtID.name = "thoughtID"
+        thoughtID.expression = NSExpression(forKeyPath: "thought.id")
+        thoughtID.expressionResultType = .UUIDAttributeType
+
+        let request = NSFetchRequest<NSDictionary>(entityName: "ThoughtAttachment")
+        request.resultType = .dictionaryResultType
+        request.predicate = NSPredicate(
+            format: "thought.createdAt >= %@ AND thought.createdAt < %@ "
+                + "AND thought.deletedAt == nil AND thought.isArchived == NO "
+                + "AND thumbnailData != nil",
+            start as NSDate,
+            end as NSDate
+        )
+        request.propertiesToFetch = [thoughtID, "sortOrder", "thumbnailData"]
+
+        let rows = try context.fetch(request)
+        // iCloud 同步副本行与正主共享 thought.id、内容一致：投影拿不到物理行号，
+        // 无法复刻 deduplicatingCopies 的最小行号口径，按 (id, sortOrder) 去重。
+        var byThought: [UUID: [Int16: Data]] = [:]
+        for case let row as [String: Any] in rows {
+            guard let id = row["thoughtID"] as? UUID,
+                  let data = row["thumbnailData"] as? Data else { continue }
+            byThought[id, default: [:]][row["sortOrder"] as? Int16 ?? 0] = data
+        }
+        return byThought.mapValues { $0.sorted { $0.key < $1.key }.map(\.value) }
     }
 
     /// 根据 ID 获取想法
@@ -570,6 +607,32 @@ class ThoughtRepository {
             NSSortDescriptor(key: "id", ascending: true)
         ]
         return try context.fetch(request)
+    }
+
+    /// 侧栏「我的 #标签」范围查询（2026-09-24 方案 §6.5）：
+    /// 全路径口径——标签路径 == pathKey，或以「pathKey/」开头（选父含全部子路径）；
+    /// 不得沿用 fetchThoughtsByAITag 的叶段合并口径（`工作/想法` ≠ `生活/想法`），
+    /// 也不混入未接受的纯 AI 标签。标签实体量级小，先匹配标签再走反向关系。
+    func fetchThoughtsByUserTag(pathKey: String) throws -> [Thought] {
+        let request = ThoughtTag.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
+        let tags = try context.fetch(request)
+        let matched = tags.filter { tag in
+            let key = ThoughtTagNormalizer.key(ThoughtTagNormalizer.displayPath(tag.name))
+            return ThoughtTagNormalizer.matchesFullPath(tagKey: key, scopePathKey: pathKey)
+        }
+        var seen = Set<UUID>()
+        var result: [Thought] = []
+        for tag in matched {
+            guard let tagThoughts = tag.thoughts as? Set<Thought> else { continue }
+            for thought in tagThoughts.sorted(by: { $0.createdAt > $1.createdAt }) {
+                guard thought.deletedAt == nil, thought.isArchived == false,
+                      seen.insert(thought.id).inserted else { continue }
+                result.append(thought)
+            }
+        }
+        result.sort { $0.createdAt > $1.createdAt }
+        return result
     }
 
     /// 获取「用户认可的标签」名称（用于 AI 打标签时优先复用）
@@ -1409,8 +1472,9 @@ class ThoughtRepository {
         return NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
     }
 
-    /// 内部创建 ThoughtTagAssignment（不调用 context.save，由调用方统一 save）
-    private func createAssignmentInternal(
+    /// 内部创建 ThoughtTagAssignment（不调用 context.save，由调用方统一 save）。
+    /// internal：EditorCommit 扩展的标签差异同步复用同一套去重口径。
+    func createAssignmentInternal(
         thought: Thought,
         tag: ThoughtTag,
         source: ThoughtTagAssignment.Source,

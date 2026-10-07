@@ -168,7 +168,7 @@ private struct ToastOverlayView: View {
             }
         }
         .allowsHitTesting(false)
-        .animation(.easeInOut(duration: 0.22), value: center.current)
+        .animation(HoloAnimation.standard, value: center.current)
     }
 
     private func toastView(_ message: ToastMessage) -> some View {

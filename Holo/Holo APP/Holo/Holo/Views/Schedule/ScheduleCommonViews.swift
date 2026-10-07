@@ -332,13 +332,20 @@ struct ScheduleRowCard: View {
     @StateObject private var store = ScheduleStore.shared
     let item: ScheduleItem
     var onTap: (() -> Void)?
+    @State private var showSaveFailure = false
+    @State private var saveFailureMessage = ""
 
     var body: some View {
         HStack(spacing: HoloSpacing.sm) {
             // 勾完成（仅 Holo 本地状态）
             Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    store.setCompleted(item, !store.isCompleted(item))
+                let wasCompleted = store.isCompleted(item)
+                withAnimation(HoloAnimation.standard) {
+                    // D01：写盘失败不改变勾选态并如实提示，避免「勾上了重启弹回」
+                    if !store.setCompleted(item, !wasCompleted) {
+                        saveFailureMessage = String(localized: "日程完成状态保存失败，请稍后重试")
+                        showSaveFailure = true
+                    }
                 }
             } label: {
                 Image(systemName: store.isCompleted(item) ? "checkmark.circle.fill" : "circle")
@@ -383,6 +390,11 @@ struct ScheduleRowCard: View {
         .padding(.vertical, 10)
         .contentShape(Rectangle())
         .onTapGesture { onTap?() }
+        .alert("保存失败", isPresented: $showSaveFailure) {
+            Button("确定", role: .cancel) {}
+        } message: {
+            Text(saveFailureMessage)
+        }
     }
 
     private var timeRangeText: String {
@@ -401,6 +413,9 @@ struct ScheduleDetailSheet: View {
     @State private var showsOriginalEvent = false
     /// 日程转任务（跟进任务）
     @State private var showsFollowUpTask = false
+    /// D01：完成态保存失败提示
+    @State private var showSaveFailure = false
+    @State private var saveFailureMessage = ""
 
     var body: some View {
         NavigationStack {
@@ -436,7 +451,13 @@ struct ScheduleDetailSheet: View {
                     Divider().padding(.horizontal, HoloSpacing.md)
 
                     Button {
-                        withAnimation { store.setCompleted(item, !store.isCompleted(item)) }
+                        withAnimation {
+                            // D01：写盘失败回滚并如实提示
+                            if !store.setCompleted(item, !store.isCompleted(item)) {
+                                saveFailureMessage = String(localized: "日程完成状态保存失败，请稍后重试")
+                                showSaveFailure = true
+                            }
+                        }
                     } label: {
                         HStack {
                             Image(systemName: store.isCompleted(item) ? "checkmark.circle.fill" : "circle")
@@ -511,6 +532,11 @@ struct ScheduleDetailSheet: View {
                     prefilledDescription: String(localized: "来源日程：\(followUpSourceText)"),
                     prefilledPlannedRange: item.isAllDay ? nil : (start: item.startDate, end: item.endDate)
                 )
+            }
+            .alert("保存失败", isPresented: $showSaveFailure) {
+                Button("确定", role: .cancel) {}
+            } message: {
+                Text(saveFailureMessage)
             }
         }
         .presentationDetents([.medium])

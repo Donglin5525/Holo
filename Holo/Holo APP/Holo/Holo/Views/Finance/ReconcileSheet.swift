@@ -68,19 +68,19 @@ struct ReconcileSheet: View {
                     }
                 }
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle("对账")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("取消") { dismiss() }
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     if !reconciled {
                         Button(isFlat ? "确认对平" : "补齐差额") { reconcile() }
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(difference != nil ? .holoPrimary : .holoTextSecondary)
+                            .foregroundColor(difference != nil ? .holoPrimary : .holoToolTextSecondary)
                             .disabled(difference == nil)
                     }
                 }
@@ -102,14 +102,14 @@ struct ReconcileSheet: View {
         VStack(spacing: HoloSpacing.xs) {
             Text("账本余额")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Text(formatAmount(currentBalance))
                 .font(.system(size: 24, weight: .bold, design: .rounded))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
         }
         .padding(HoloSpacing.lg)
         .frame(maxWidth: .infinity)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
@@ -119,19 +119,19 @@ struct ReconcileSheet: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("银行 App 里的实际余额")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             HStack(spacing: HoloSpacing.sm) {
                 Text("¥")
                     .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                 TextField("0.00", text: $actualBalanceString)
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .keyboardType(.decimalPad)
                     .focused($isAmountFocused)
             }
             .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
             // 信用卡/欠款账户：银行 App 展示的「欠款」是正数，这里要输负数，必须提前讲清
@@ -149,7 +149,7 @@ struct ReconcileSheet: View {
                     .font(.holoBody)
                     .focused($isNoteFocused)
                     .padding(HoloSpacing.md)
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             }
         }
@@ -165,15 +165,15 @@ struct ReconcileSheet: View {
                     .foregroundColor(bookHigher ? .holoError : .holoSuccess)
                 Text("账本比实际\(bookHigher ? "多记了" : "少了") \(formatAmount(abs(difference)))")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
             Text("用调整流水补齐后，这笔差额不影响收支统计")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .padding(HoloSpacing.md)
         .frame(maxWidth: .infinity)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
@@ -184,15 +184,15 @@ struct ReconcileSheet: View {
                     .foregroundColor(.holoSuccess)
                 Text("账本与实际一致")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
             Text("确认后记录对账时间，余额可信度以此为准")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .padding(HoloSpacing.md)
         .frame(maxWidth: .infinity)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
@@ -203,14 +203,14 @@ struct ReconcileSheet: View {
                 .foregroundColor(.holoSuccess)
             Text("已对平")
                 .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
             Text("余额已与实际一致")
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .padding(HoloSpacing.lg)
         .frame(maxWidth: .infinity)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
@@ -224,10 +224,10 @@ struct ReconcileSheet: View {
             } label: {
                 Label("差额来自更早的历史？修改期初余额", systemImage: "calendar.badge.plus")
                     .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(HoloSpacing.md)
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             }
             .buttonStyle(PlainButtonStyle())
@@ -238,10 +238,10 @@ struct ReconcileSheet: View {
             } label: {
                 Label("我知道是哪笔记错了，去修改那笔账", systemImage: "pencil.line")
                     .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(HoloSpacing.md)
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             }
             .buttonStyle(PlainButtonStyle())

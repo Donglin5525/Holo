@@ -1,7 +1,17 @@
 import CoreData
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try FinanceDuplicateRepairStandaloneTests.main()
+    }
+}
+#endif
 struct FinanceDuplicateRepairStandaloneTests {
     static func check(_ condition: Bool) { precondition(condition) }
 

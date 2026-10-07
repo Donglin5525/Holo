@@ -362,6 +362,8 @@ struct ContextRetrievalStandaloneTests {
             candidate(recordID: "r-car", statement: "母亲晕车，不适应山路汽车出行",
                       subjects: [HoloContextPartyRef(label: "母亲", scope: .person)]),
             candidate(recordID: "r-else", statement: "公司季度考评加分项"),
+            // R3 bigram 修复后的真词面命中（与 frame「来昆明」字面重叠）。
+            candidate(recordID: "r-kunming", statement: "去年去昆明出差住过翠湖附近"),
         ]
         let offline = FakeSemantic(scores: [:])
         offline.shouldThrow = true
@@ -373,7 +375,16 @@ struct ContextRetrievalStandaloneTests {
             now: now
         )
         expect(result.semanticCoverage == .degraded, "语义不可用标记 degraded")
-        expect(result.entries.contains { $0.recordID == "r-car" }, "降级词法仍召回基础候选（母亲/晕车词命中）")
+        // R3 语义修正：「母亲/父母」靠单字「母」的旧召回属词面误命中（R1 同源缺陷）；
+        // 字面无 bigram 重叠的候选不再进入降级词法结果，交还语义向量层。
+        expect(
+            !result.entries.contains { $0.recordID == "r-car" },
+            "降级词法不再靠单字重叠召回（母亲≠父母）"
+        )
+        expect(
+            result.entries.contains { $0.recordID == "r-kunming" },
+            "降级词法仍召回真词面重叠候选（昆明）"
+        )
         // 无 provider 同样降级。
         let noProvider = HoloContextRetrievalService(semanticProvider: nil)
         let result2 = await noProvider.retrieve(
@@ -387,11 +398,11 @@ struct ContextRetrievalStandaloneTests {
         let catalog = [
             candidate(
                 recordID: "r-heating",
-                statement: "每年负责缴纳老家暖气费",
+                statement: "每月 8 号缴纳家中水电费",
                 temporal: HoloContextTemporalV1(
                     kind: .recurring,
-                    originalExpression: "一年一缴",
-                    recurrence: HoloContextRecurrenceV1(frequency: .yearly, dayOfMonth: 1, month: 9)
+                    originalExpression: "每月 8 号",
+                    recurrence: HoloContextRecurrenceV1(frequency: .monthly, dayOfMonth: 8)
                 )
             ),
         ]

@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>进行中的事（Matter）· 首版交互原型</title>
+<style>
+  :root {
+    --bg: #FDFCF8;
+    --card: #FFFFFF;
+    --primary: #F46D38;
+    --primary-soft: #FEF0E9;
+    --primary-softer: #FFF7F2;
+    --text: #333333;
+    --text2: #939393;
+    --text3: #B8B8B8;
+    --border: #F0F0F0;
+    --green: #3E9B5F;
+    --green-soft: #EDF7F0;
+    --amber: #D9902A;
+    --amber-soft: #FBF3E4;
+    --red: #E5484D;
+    --radius-card: 16px;
+    --radius-sheet: 24px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", "Microsoft YaHei", sans-serif;
+    background: #F4F2ED;
+    color: var(--text);
+    padding: 40px 32px 80px;
+  }
+  .hero { max-width: 1560px; margin: 0 auto 12px; }
+  .hero h1 { font-size: 30px; font-weight: 700; letter-spacing: 0.5px; }
+  .hero h1 .en { color: var(--primary); }
+  .hero .sub { margin-top: 8px; font-size: 14px; color: var(--text2); line-height: 1.7; }
+  .hero .sub b { color: var(--text); font-weight: 600; }
+  .principles {
+    margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px;
+  }
+  .chip {
+    font-size: 12px; padding: 6px 12px; border-radius: 999px;
+    background: var(--card); border: 1px solid var(--border); color: #666;
+  }
+  .chip.warn { background: var(--primary-soft); border-color: #F8D8C8; color: #B4522A; }
+  .legend { max-width: 1560px; margin: 14px auto 0; font-size: 12px; color: var(--text2); display: flex; gap: 18px; flex-wrap: wrap; }
+  .legend span b { color: var(--text); }
+
+  .journey { max-width: 1560px; margin: 44px auto 0; }
+  .journey > h2 {
+    font-size: 17px; font-weight: 700; padding-bottom: 12px; margin-bottom: 20px;
+    border-bottom: 2px solid #E8E4DC; display: flex; align-items: center; gap: 10px;
+  }
+  .journey > h2 .tag {
+    font-size: 11px; font-weight: 600; color: var(--primary);
+    background: var(--primary-soft); padding: 3px 10px; border-radius: 999px;
+  }
+  .screens { display: flex; flex-wrap: wrap; gap: 34px 28px; align-items: flex-start; }
+  .shot { width: 300px; }
+  .shot .cap { margin-bottom: 10px; }
+  .shot .cap .no {
+    display: inline-block; font-size: 10px; font-weight: 700; color: #fff;
+    background: var(--primary); border-radius: 6px; padding: 2px 7px; margin-bottom: 6px; letter-spacing: 0.5px;
+  }
+  .shot .cap .t { font-size: 14px; font-weight: 700; }
+  .shot .cap .d { font-size: 11.5px; color: var(--text2); margin-top: 4px; line-height: 1.6; }
+  .shot .note {
+    margin-top: 10px; font-size: 11.5px; color: #777; line-height: 1.7;
+    background: #EFEBE3; border-radius: 10px; padding: 10px 12px;
+  }
+  .shot .note b { color: #555; }
+
+  /* ============ 手机框 ============ */
+  .phone {
+    width: 300px; height: 640px; background: var(--bg);
+    border: 8px solid #1C1C1E; border-radius: 42px; overflow: hidden;
+    position: relative; display: flex; flex-direction: column;
+    box-shadow: 0 18px 40px rgba(0,0,0,0.12);
+  }
+  .statusbar {
+    height: 34px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 22px; font-size: 11px; font-weight: 600; position: relative;
+  }
+  .statusbar .island {
+    position: absolute; left: 50%; top: 8px; transform: translateX(-50%);
+    width: 74px; height: 20px; background: #1C1C1E; border-radius: 999px;
+  }
+  .screen-body { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .tabbar {
+    flex-shrink: 0; margin: 0 12px 10px; background: var(--card);
+    border: 1px solid var(--border); border-radius: 999px;
+    display: flex; align-items: center; padding: 6px 10px; position: relative;
+  }
+  .tabbar .tb { flex: 1; text-align: center; font-size: 9px; color: var(--text2); }
+  .tabbar .tb .ic { display: block; font-size: 14px; margin-bottom: 1px; }
+  .tabbar .tb.on { color: var(--primary); font-weight: 600; }
+  .tabbar .ai-btn {
+    width: 42px; height: 42px; border-radius: 999px; margin: -18px 6px 0;
+    background: linear-gradient(135deg, #FF8A50, var(--primary));
+    color: #fff; font-size: 16px; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 6px 14px rgba(244,109,56,0.35); flex-shrink: 0;
+  }
+
+  /* ============ 通用组件 ============ */
+  .navbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; flex-shrink: 0; }
+  .navbar .back { font-size: 15px; color: var(--primary); }
+  .navbar .ttl { font-size: 14px; font-weight: 700; }
+  .navbar .act { font-size: 13px; color: var(--primary); font-weight: 600; }
+  .btn-primary {
+    display: block; width: 100%; text-align: center; padding: 11px 0;
+    background: var(--primary); color: #fff; font-size: 13px; font-weight: 600;
+    border-radius: 12px; box-shadow: 0 6px 16px rgba(244,109,56,0.3);
+  }
+  .btn-ghost {
+    display: block; width: 100%; text-align: center; padding: 11px 0;
+    background: #F4F1EB; color: #666; font-size: 13px; font-weight: 500; border-radius: 12px;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 3px; font-size: 9.5px; font-weight: 600;
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .badge.evidence { background: var(--primary-soft); color: #B4522A; }
+  .badge.phase { background: #EEF3FA; color: #4A6FA5; }
+  .badge.att-warn { background: var(--amber-soft); color: #A66A12; }
+  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
+
+  /* 聊天气泡 */
+  .chat { flex: 1; padding: 10px 14px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+  .bubble-user {
+    align-self: flex-end; max-width: 78%;
+    background: var(--primary); color: #fff; font-size: 12px; line-height: 1.6;
+    padding: 9px 13px; border-radius: 16px 16px 4px 16px;
+  }
+  .bubble-sys {
+    align-self: center; font-size: 10px; color: var(--text3);
+    background: #F4F1EB; border-radius: 999px; padding: 3px 12px;
+  }
+  /* 方案卡 */
+  .plan-card {
+    align-self: flex-start; width: 92%; background: var(--card);
+    border: 1px solid var(--border); border-radius: var(--radius-card); overflow: hidden;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+  }
+  .plan-head { display: flex; align-items: center; justify-content: space-between; padding: 11px 13px 8px; }
+  .plan-head .t { font-size: 13px; font-weight: 700; }
+  .plan-item { display: flex; gap: 8px; padding: 5px 13px; font-size: 11px; line-height: 1.55; color: #555; }
+  .plan-item .n {
+    flex-shrink: 0; width: 15px; height: 15px; border-radius: 50%; margin-top: 1px;
+    background: var(--primary-soft); color: var(--primary); font-size: 9px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .plan-item .src { color: var(--text3); font-size: 10px; }
+  .plan-acts { display: flex; gap: 8px; padding: 9px 13px 11px; }
+  .plan-acts .pa {
+    flex: 1; text-align: center; font-size: 11px; font-weight: 600; padding: 8px 0;
+    border-radius: 10px; border: 1px solid var(--border); color: #555; background: #FAFAF8;
+  }
+  /* 激活区（新加的一块） */
+  .activate-strip {
+    margin: 0 8px 8px; background: linear-gradient(180deg, var(--primary-softer), var(--primary-soft));
+    border: 1px solid #F8DCCB; border-radius: 12px; padding: 10px 12px;
+  }
+  .activate-strip .t { font-size: 12px; font-weight: 700; color: #7A3A1D; display: flex; align-items: center; gap: 5px; }
+  .activate-strip .t .new { font-size: 8.5px; color: #fff; background: var(--primary); padding: 1px 5px; border-radius: 4px; font-weight: 700; }
+  .activate-strip .d { font-size: 10px; color: #9A6A4E; margin: 3px 0 8px; line-height: 1.5; }
+  .activate-done {
+    margin: 0 8px 8px; background: var(--green-soft); border: 1px solid #CBE5D3;
+    border-radius: 12px; padding: 9px 12px; display: flex; align-items: center; justify-content: space-between;
+  }
+  .activate-done .t { font-size: 11.5px; font-weight: 600; color: #2E6B45; }
+  .activate-done .v { font-size: 11px; color: var(--green); font-weight: 700; }
+
+  /* 底部弹层 */
+  .sheet-mask { position: absolute; inset: 0; background: rgba(40,35,30,0.35); z-index: 5; display: flex; flex-direction: column; justify-content: flex-end; }
+  .sheet {
+    background: var(--card); border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+    padding: 10px 18px 22px; animation: none;
+  }
+  .sheet .grab { width: 36px; height: 4px; background: #E2DED6; border-radius: 999px; margin: 0 auto 14px; }
+  .sheet h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .sheet .desc { font-size: 11px; color: var(--text2); line-height: 1.6; margin-bottom: 14px; }
+  .field { margin-bottom: 12px; }
+  .field label { font-size: 10.5px; color: var(--text2); display: block; margin-bottom: 6px; font-weight: 600; }
+  .field .input {
+    display: flex; align-items: center; justify-content: space-between;
+    border: 1.5px solid var(--primary); background: var(--primary-softer);
+    border-radius: 12px; padding: 11px 13px; font-size: 13px; font-weight: 600;
+  }
+  .field .input.plain { border-color: var(--border); background: #FAFAF8; font-weight: 500; }
+  .field .input .edit { font-size: 11px; color: var(--primary); }
+  .field .input .unk { font-size: 11px; color: var(--text3); }
+  .dup-warn {
+    background: var(--amber-soft); border: 1px solid #EBD5A8; border-radius: 12px;
+    padding: 10px 12px; margin-bottom: 14px;
+  }
+  .dup-warn .t { font-size: 11.5px; font-weight: 700; color: #8A5E10; }
+  .dup-warn .d { font-size: 10.5px; color: #A5823A; margin-top: 3px; line-height: 1.5; }
+
+  /* 首页 */
+  .home { flex: 1; padding: 4px 16px 0; overflow: hidden; }
+  .home .greet { font-size: 17px; font-weight: 700; }
+  .home .greet small { display: block; font-size: 10px; color: var(--text2); font-weight: 400; margin-top: 2px; }
+  .schedbar {
+    margin-top: 10px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 8px 12px; font-size: 10.5px; color: var(--text2);
+    display: flex; align-items: center; gap: 6px;
+  }
+  /* 首页中央：今日看板三环入口（还原真实首页主体） */
+  .kanban-hero { position: relative; display: flex; justify-content: center; margin-top: 16px; height: 178px; }
+  .kanban-hero .oring {
+    position: absolute; top: 0; border-radius: 50%;
+    border: 1.5px dashed rgba(244,109,56,0.30);
+  }
+  .kanban-btn {
+    position: absolute; top: 23px; width: 118px; height: 118px; border-radius: 50%;
+    background: radial-gradient(circle at 32% 26%, #FF9A66, var(--primary) 58%, #E05A28);
+    box-shadow: 0 12px 28px rgba(244,109,56,0.38);
+  }
+  .kanban-btn .orbit {
+    position: absolute; border-radius: 50%; border: 2.5px solid rgba(255,255,255,0.9);
+    border-left-color: transparent; border-bottom-color: transparent; transform: rotate(-45deg);
+  }
+  .kanban-btn .core {
+    position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.95), rgba(255,255,255,0));
+    transform: translate(-50%,-50%);
+  }
+  .kanban-cap {
+    position: absolute; top: 148px; width: 100%; text-align: center;
+    font-size: 9.5px; color: var(--text2);
+  }
+  .mini-feat {
+    position: absolute; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--card); border: 1px solid var(--border); box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+  /* 焦点卡（新增） */
+  .focuscard {
+    margin-top: 10px; background: var(--card); border: 1px solid #F6DFD2;
+    border-radius: var(--radius-card); padding: 12px 14px; position: relative;
+    box-shadow: 0 4px 14px rgba(244,109,56,0.07);
+  }
+  .focuscard .kicker { font-size: 9.5px; font-weight: 700; color: var(--primary); letter-spacing: 1px; }
+  .focuscard .all { position: absolute; right: 14px; top: 12px; font-size: 10px; color: var(--text2); }
+  .focuscard .ttl { font-size: 16px; font-weight: 700; margin-top: 5px; display: flex; align-items: center; gap: 6px; }
+  .focuscard .meta { font-size: 11px; color: var(--text2); margin-top: 4px; }
+  .focuscard .meta .warn { color: var(--amber); font-weight: 600; }
+  .focuscard .next {
+    margin-top: 9px; background: #FAFAF8; border: 1px solid var(--border);
+    border-radius: 10px; padding: 8px 11px; font-size: 11px; display: flex; align-items: center; gap: 7px;
+  }
+  .focuscard .next .lbl { color: var(--text2); flex-shrink: 0; }
+  .focuscard .next .v { font-weight: 600; }
+  .home .ghostzone { margin-top: 12px; opacity: 0.45; }
+
+  /* 列表页 */
+  .listbody { flex: 1; padding: 4px 16px 0; overflow: hidden; }
+  .bigtitle { font-size: 22px; font-weight: 800; padding: 4px 0 12px; }
+  .group-lbl { font-size: 11px; font-weight: 700; color: var(--text2); margin: 10px 0 8px; letter-spacing: 0.5px; }
+  .matter-row {
+    background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-card);
+    padding: 12px 14px; margin-bottom: 8px;
+  }
+  .matter-row.done { opacity: 0.62; }
+  .matter-row .r1 { display: flex; align-items: center; justify-content: space-between; }
+  .matter-row .ttl { font-size: 14px; font-weight: 700; }
+  .matter-row .ttl .dot { margin-right: 5px; }
+  .matter-row .meta { font-size: 10.5px; color: var(--text2); margin-top: 4px; }
+  .matter-row .nextln { font-size: 11px; margin-top: 6px; color: #555; display: flex; gap: 6px; align-items: center; }
+  .matter-row .nextln .k { color: var(--text2); flex-shrink: 0; }
+  .empty-arch { font-size: 11px; color: var(--text3); text-align: center; padding: 14px 0; background: #FAF9F6; border-radius: 12px; }
+  .fab {
+    position: absolute; right: 16px; bottom: 74px; width: 46px; height: 46px; border-radius: 999px;
+    background: var(--primary); color: #fff; font-size: 24px; font-weight: 300;
+    display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 18px rgba(244,109,56,0.4); z-index: 4;
+  }
+
+  /* 紧凑态焦点条 */
+  .focuscard.compact {
+    margin-top: 8px; padding: 9px 13px; display: flex; align-items: center; gap: 8px;
+    padding-top: 9px; padding-bottom: 9px;
+  }
+  .focuscard.compact .kicker { display: none; }
+  .focuscard.compact .ttl { margin-top: 0; font-size: 13px; flex-shrink: 0; }
+  .focuscard.compact .meta { margin-top: 0; flex: 1; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .focuscard.compact .next { display: none; }
+  .focuscard.compact .go { font-size: 10px; color: var(--primary); font-weight: 700; flex-shrink: 0; }
+
+  /* 今日看板页（备选方案演示用） */
+  .kanban-page { flex: 1; padding: 0 14px; overflow: hidden; }
+  .kb-week { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 9px 12px; font-size: 10.5px; color: var(--text2); display:flex; align-items:center; gap:6px; }
+  .kb-hero { display:flex; justify-content:center; padding: 12px 0 4px; position: relative; }
+  .kb-hero .oring { position:absolute; border-radius:50%; border:1.5px dashed rgba(244,109,56,0.28); }
+  .kb-hero .kbtn { width: 92px; height: 92px; border-radius:50%; position:relative;
+    background: radial-gradient(circle at 32% 26%, #FF9A66, var(--primary) 58%, #E05A28);
+    box-shadow: 0 10px 22px rgba(244,109,56,0.35); }
+  .kb-hero .kbtn .orbit { position:absolute; border-radius:50%; border:2px solid rgba(255,255,255,0.9); border-left-color:transparent; border-bottom-color:transparent; transform:rotate(-45deg); }
+  .kb-sec-lbl { font-size: 10px; font-weight: 700; color: var(--text2); margin: 10px 0 6px; letter-spacing: 0.5px; }
+  .kb-row { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 8px 11px; font-size: 11px; color: #666; margin-bottom: 5px; display:flex; align-items:center; gap:7px; }
+  .kb-row .ck { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid #D8D4CC; flex-shrink: 0; }
+  .kb-row.dim { opacity: 0.55; }
+
+
+  /* 详情页 */
+  .detail { flex: 1; padding: 0 14px; overflow: hidden; display: flex; flex-direction: column; }
+  .detail.dense .d-sec { margin-top: 7px; }
+  .detail.dense .loop-row { padding: 7px 11px; margin-bottom: 5px; }
+  .detail.dense .ai-card { padding: 9px 12px; }
+  .detail.dense .next-card { padding: 9px 12px; }
+  .detail.dense .event-row { padding: 3px 2px; }
+  .d-head { padding: 2px 2px 8px; border-bottom: 1px solid var(--border); }
+  .d-head .ttl { font-size: 19px; font-weight: 800; display: flex; align-items: center; gap: 7px; }
+  .d-head .meta { font-size: 10.5px; color: var(--text2); margin-top: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .d-sec { margin-top: 10px; }
+  .d-sec .lbl { font-size: 10px; font-weight: 700; color: var(--text2); letter-spacing: 1px; margin-bottom: 6px; display: flex; align-items: center; gap: 5px; }
+  .ai-card {
+    background: linear-gradient(180deg, var(--primary-softer), #FFFDFB);
+    border: 1px solid #F6DFD2; border-radius: var(--radius-card); padding: 11px 13px;
+  }
+  .ai-card .sum { font-size: 12px; line-height: 1.65; font-weight: 500; }
+  .ai-card .why { font-size: 10.5px; color: #9A6A4E; margin-top: 7px; line-height: 1.55; display: flex; gap: 5px; }
+  .ai-card .ev { margin-top: 8px; font-size: 10px; color: var(--primary); font-weight: 600; }
+  .next-card {
+    background: var(--card); border: 1.5px solid #F3C9B2; border-radius: var(--radius-card);
+    padding: 11px 13px; display: flex; align-items: center; gap: 10px;
+  }
+  .next-card .ic { width: 30px; height: 30px; border-radius: 10px; background: var(--primary-soft); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .next-card .t { font-size: 12.5px; font-weight: 700; }
+  .next-card .r { font-size: 10px; color: var(--text2); margin-top: 2px; line-height: 1.5; }
+  .loop-row {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 9px 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
+  }
+  .loop-row .st { flex-shrink: 0; }
+  .loop-row .st.open { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--primary); }
+  .loop-row .st.wait { width: 14px; height: 14px; border-radius: 50%; border: 2px dashed var(--amber); display:flex; align-items:center; justify-content:center; font-size:8px; color: var(--amber); }
+  .loop-row .t { font-size: 12px; font-weight: 600; flex: 1; }
+  .loop-row .sub { font-size: 9.5px; color: var(--text2); font-weight: 400; margin-top: 1px; }
+  .loop-row .taskln { font-size: 9.5px; color: var(--text2); }
+  .loop-row.suggested { border-style: dashed; background: #FCFBF8; }
+  .loop-row.suggested .t { font-weight: 500; color: #666; }
+  .loop-row.resolved { opacity: 0.6; }
+  .loop-row.resolved .st { width: 14px; height: 14px; border-radius: 50%; background: var(--green); color: #fff; font-size: 9px; display: flex; align-items: center; justify-content: center; }
+  .loop-row.resolved .t { text-decoration: line-through; text-decoration-color: #C9C9C9; font-weight: 500; }
+  .loop-row .menu { font-size: 13px; color: var(--text3); flex-shrink: 0; padding: 0 3px; }
+  .links-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+  .link-pill {
+    font-size: 10.5px; padding: 6px 11px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 999px; color: #555;
+  }
+  .link-pill b { font-weight: 700; }
+  .event-row { display: flex; gap: 9px; padding: 5px 2px; font-size: 11px; line-height: 1.55; }
+  .event-row .tm { color: var(--text3); flex-shrink: 0; width: 46px; font-size: 10px; padding-top: 1px; }
+  .event-row .tx { color: #555; }
+  .event-row .undo { color: var(--primary); font-weight: 600; font-size: 10px; }
+  .d-footer { flex-shrink: 0; padding: 8px 0 12px; }
+  .discuss-btn {
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    background: var(--primary); color: #fff; font-size: 13px; font-weight: 600;
+    border-radius: 14px; padding: 12px 0; box-shadow: 0 6px 16px rgba(244,109,56,0.32);
+  }
+
+  /* 详情页上的浮层菜单 */
+  .menu-pop {
+    position: absolute; z-index: 8; background: var(--card); border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.18); border: 1px solid var(--border); overflow: hidden; width: 170px;
+  }
+  .menu-pop .mi { font-size: 12px; padding: 11px 15px; display: flex; gap: 8px; align-items: center; }
+  .menu-pop .mi + .mi { border-top: 1px solid var(--border); }
+  .menu-pop .mi.primary { color: var(--primary); font-weight: 600; }
+  .menu-pop .mi.muted { color: var(--text2); }
+
+  /* 事情内对话 */
+  .ctx-pill {
+    align-self: center; display: flex; align-items: center; gap: 6px;
+    background: var(--primary-soft); color: #8A4526; font-size: 10.5px; font-weight: 600;
+    padding: 5px 12px; border-radius: 999px; margin-bottom: 2px;
+  }
+  .ctx-pill .x { font-size: 10px; opacity: 0.65; }
+  .holo-msg { align-self: flex-start; max-width: 88%; display: flex; flex-direction: column; gap: 6px; }
+  .holo-msg .bub {
+    background: var(--card); border: 1px solid var(--border);
+    font-size: 12px; line-height: 1.7; padding: 10px 13px;
+    border-radius: 4px 16px 16px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  }
+  .holo-msg .bub .q { font-weight: 700; }
+  .choice-row { display: flex; gap: 8px; }
+  .choice-btn {
+    flex: 1; text-align: center; font-size: 11.5px; font-weight: 600; color: var(--primary);
+    background: #fff; border: 1.5px solid var(--primary); border-radius: 999px; padding: 9px 0;
+  }
+  /* 自动更新回执条 */
+  .mut-toast {
+    align-self: flex-start; width: 92%; background: var(--green-soft);
+    border: 1px solid #CBE5D3; border-radius: 12px; padding: 9px 12px;
+    display: flex; align-items: flex-start; gap: 8px;
+  }
+  .mut-toast .ck { color: var(--green); font-size: 12px; font-weight: 700; margin-top: 1px; }
+  .mut-toast .tx { flex: 1; font-size: 10.5px; line-height: 1.55; color: #2E6B45; }
+  .mut-toast .tx b { font-weight: 700; }
+  .mut-toast .undo { flex-shrink: 0; font-size: 10.5px; color: var(--green); font-weight: 700; padding-top: 1px; }
+
+  /* 完成确认弹层 */
+  .confirm-sheet {
+    position: absolute; left: 26px; right: 26px; top: 200px; z-index: 8;
+    background: var(--card); border-radius: 20px; padding: 18px 18px 16px;
+    box-shadow: 0 18px 44px rgba(0,0,0,0.2); text-align: center;
+  }
+  .confirm-sheet .em { font-size: 30px; }
+  .confirm-sheet h3 { font-size: 15px; font-weight: 700; margin-top: 8px; }
+  .confirm-sheet .d { font-size: 11px; color: var(--text2); line-height: 1.65; margin: 7px 0 14px; }
+  .confirm-sheet .d b { color: var(--text); }
+
+  /* 标注箭头说明 */
+  .callout {
+    position: absolute; z-index: 9; font-size: 9.5px; color: #fff; background: rgba(28,28,30,0.85);
+    padding: 4px 9px; border-radius: 7px; pointer-events: none; line-height: 1.4;
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>进行中的事 <span class="en">· Matter</span></h1>
+  <p class="sub">
+    首版（M0–M3）交互原型 · 演示场景：<b>「国庆要去日本，要提前准备什么？」→ 一直推进到旅行结束</b><br>
+    阅读顺序 = 用户旅程顺序。每个屏下方的灰底框是该屏的设计要点。
+  </p>
+  <div class="principles">
+    <span class="chip warn">不新增底部 Tab —— 入口只有首页一张焦点卡 + 方案卡上的「开始整理」</span>
+    <span class="chip">建立、完成、归档，都必须由用户亲手确认</span>
+    <span class="chip">事情内「明确、唯一、低风险」的变化才自动更新，且每一条都能撤销</span>
+    <span class="chip">AI 猜的问题（虚线弱化）与已确认的问题永远分开展示</span>
+    <span class="chip">没有进度百分比 —— 生活的事不是工程报表</span>
+    <span class="chip">Holo 不能替你「完成」或「归档」一件事</span>
+  </div>
+  <div class="legend">
+    <span>🟠 <b>橙色实线</b> = 你确认过的事</span>
+    <span>◌ <b>虚线灰卡</b> = AI 猜测、待你确认</span>
+    <span>● <b>黄点</b> = 需要关注（由确定性规则算出，不是 AI 随口说）</span>
+    <span>✓ <b>绿色</b> = 已闭环 / 自动更新成功的回执</span>
+  </div>
+</header>
+
+<!-- ================= 旅程 A ================= -->
+<section class="journey">
+  <h2><span class="tag">旅程 A</span> 从一句规划，到建立「进行中的事」</h2>
+  <div class="screens">
+
+    <!-- A1 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">A1</span>
+        <div class="t">方案卡底部出现「开始整理」</div>
+        <div class="d">照常问 Holo，方案卡和现在完全一样；唯一的变化是卡片底部多了一块浅橙色的激活区。纯解答类（如「日本签证怎么办」单次查询）不会出现这块。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="navbar"><span class="back">‹ 返回</span><span class="ttl">Holo</span><span class="act"></span></div>
+          <div class="chat">
+            <div class="bubble-sys">晚上 9:12</div>
+            <div class="bubble-user">国庆要去日本，要提前准备什么？</div>
+            <div class="plan-card">
+              <div class="plan-head">
+                <span class="t">✈️ 国庆日本旅行 · 准备方案</span>
+                <span class="badge evidence">依据 6 条</span>
+              </div>
+              <div class="plan-item"><span class="n">1</span><span>签证需在出发前约 3 周递交，建议 9 月中旬前办 <span class="src">· 常规经验区间，待核对</span></span></div>
+              <div class="plan-item"><span class="n">2</span><span>东京 + 京都双城，国庆热门时段建议尽快订住宿</span></div>
+              <div class="plan-item"><span class="n">3</span><span>行前：猫咪照护安排、网络、现金、转换插头</span></div>
+              <div class="plan-acts">
+                <span class="pa">创建任务</span>
+                <span class="pa">查看依据</span>
+              </div>
+              <div class="activate-strip">
+                <div class="t">继续整理这件事 <span class="new">NEW</span></div>
+                <div class="d">Holo 会记住这件事的进展、没解决的问题和下一步，之后随时继续聊。</div>
+                <div class="btn-primary" style="padding:9px 0;">开始整理</div>
+              </div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tb"><span class="ic">👤</span>个人</div>
+            <div class="ai-btn">✦</div>
+            <div class="tb"><span class="ic">📖</span>记忆长廊</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>不弹窗打断、不跳页，就在方案卡原位多一个入口；点「创建任务」等旧有操作完全不受影响。</div>
+    </figure>
+
+    <!-- A2 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">A2</span>
+        <div class="t">点「开始整理」→ 只校对两件事</div>
+        <div class="d">不需要填项目管理表单：只确认标题对不对、目标日期知不知道。日期不知道就选「还不确定」，绝不默认今天。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="navbar"><span class="back">‹ 返回</span><span class="ttl">Holo</span><span class="act"></span></div>
+          <div class="chat" style="opacity:0.5;">
+            <div class="bubble-user">国庆要去日本，要提前准备什么？</div>
+            <div class="plan-card" style="height:200px;"><div class="plan-head"><span class="t">✈️ 国庆日本旅行 · 准备方案</span><span class="badge evidence">依据 6 条</span></div></div>
+          </div>
+          <div class="sheet-mask">
+            <div class="sheet">
+              <div class="grab"></div>
+              <h3>加入「进行中的事」</h3>
+              <div class="desc">Holo 会持续记住这件事的进展。你随时可以在里面继续讨论、更新状态。</div>
+              <div class="field">
+                <label>这件事叫什么</label>
+                <div class="input">国庆日本旅行 <span class="edit">✏️</span></div>
+              </div>
+              <div class="field">
+                <label>大概什么时候</label>
+                <div class="input plain">10月1日出发（从方案里读到） <span class="edit">改</span></div>
+                <div class="input plain" style="margin-top:6px; border-style:dashed; color:#939393;">还不确定，先不填</div>
+              </div>
+              <div class="btn-primary">确认开始整理</div>
+              <div class="btn-ghost" style="margin-top:8px;">先不整理</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>标题从方案里带过来，你只需扫一眼；「还不确定」是一等选项——方案规定未知日期禁止默认填今天。</div>
+    </figure>
+
+    <!-- A3 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">A3</span>
+        <div class="t">如果发现你已经有同一件事</div>
+        <div class="d">激活前 Holo 会比对最近的事情。看起来重复时，不擅自合并也不擅自新建——把选择权交给你。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="navbar"><span class="back">‹ 返回</span><span class="ttl">Holo</span><span class="act"></span></div>
+          <div class="chat" style="opacity:0.5;">
+            <div class="bubble-user">国庆要去日本，要提前准备什么？</div>
+          </div>
+          <div class="sheet-mask">
+            <div class="sheet">
+              <div class="grab"></div>
+              <h3>加入「进行中的事」</h3>
+              <div class="dup-warn">
+                <div class="t">⚠️ 这可能和你已有的「日本旅行」是同一件事</div>
+                <div class="d">那件事创建于 8 月 30 日，还没有完成。</div>
+              </div>
+              <div class="field">
+                <label>怎么处理</label>
+                <div class="input">更新到已有的「日本旅行」 <span class="edit">›</span></div>
+                <div class="input plain" style="margin-top:6px;">仍新建一件「国庆日本旅行」 <span class="edit">›</span></div>
+              </div>
+              <div class="btn-ghost" style="margin-top:2px;">取消</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>对应方案里「重复 Matter = 0」的门禁。同一张方案卡反复点「开始整理」也只会回到原来那件，不会建出第二件。</div>
+    </figure>
+
+    <!-- A4 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">A4</span>
+        <div class="t">建立成功 → 原位变成回执</div>
+        <div class="d">方案卡原位变成绿色回执条，点「查看」直接进这件事的详情页。方案本身还在，创建任务等操作照常可用。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="navbar"><span class="back">‹ 返回</span><span class="ttl">Holo</span><span class="act"></span></div>
+          <div class="chat">
+            <div class="bubble-user">国庆要去日本，要提前准备什么？</div>
+            <div class="plan-card">
+              <div class="plan-head">
+                <span class="t">✈️ 国庆日本旅行 · 准备方案</span>
+                <span class="badge evidence">依据 6 条</span>
+              </div>
+              <div class="plan-item"><span class="n">1</span><span>签证需在出发前约 3 周递交，建议 9 月中旬前办</span></div>
+              <div class="plan-item"><span class="n">2</span><span>东京 + 京都双城，建议尽快订住宿</span></div>
+              <div class="plan-item"><span class="n">3</span><span>行前：猫咪照护、网络、现金、转换插头</span></div>
+              <div class="plan-acts">
+                <span class="pa">创建任务</span>
+                <span class="pa">查看依据</span>
+              </div>
+              <div class="activate-done">
+                <span class="t">✓ 已加入「进行中的事」</span>
+                <span class="v">查看 ›</span>
+              </div>
+            </div>
+            <div class="bubble-sys">已记录：2 个待确认问题 · 下一步「确认签证材料」</div>
+          </div>
+          <div class="tabbar">
+            <div class="tb"><span class="ic">👤</span>个人</div>
+            <div class="ai-btn">✦</div>
+            <div class="tb"><span class="ic">📖</span>记忆长廊</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>只有真正「未知的、需要后续跟进的问题」才会变成待确认问题；方案里的普通建议清单不会被照抄成一堆问题。</div>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 旅程 B ================= -->
+<section class="journey">
+  <h2><span class="tag">旅程 B</span> 首页焦点卡 与 全部列表</h2>
+  <div class="screens">
+
+    <!-- B1 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">B1</span>
+        <div class="t">首页只出现一张焦点卡</div>
+        <div class="d">插在「今日日程条」和「今日看板入口大按钮」之间。多件进行中的事也只展示最值得关注的一件，其余收进「查看全部」。没有进行中的事时，整块消失、不留空壳。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="home">
+            <div class="greet">早上好，东林 👋<small>9月11日 星期五 · 距中秋还有 8 天</small></div>
+            <div class="schedbar">📅 今日：10:00 例会 · 19:30 健身</div>
+            <div class="focuscard">
+              <div class="kicker">正在进行</div>
+              <div class="all">查看全部</div>
+              <div class="ttl">国庆日本旅行 <span class="badge att-warn"><span class="dot" style="background:var(--amber);"></span>需要关注</span></div>
+              <div class="meta">还有 20 天 · <span class="warn">签证临近建议处理窗口</span></div>
+              <div class="next"><span class="lbl">下一步</span><span class="v">确认签证材料</span></div>
+            </div>
+            <div class="kanban-hero">
+              <div class="oring" style="width:178px; height:178px;"></div>
+              <div class="oring" style="width:148px; height:148px; top:15px; opacity:0.65;"></div>
+              <div class="kanban-btn">
+                <div class="orbit" style="inset:6px;"></div>
+                <div class="orbit" style="inset:20px; opacity:0.65;"></div>
+                <div class="orbit" style="inset:34px; opacity:0.4;"></div>
+                <div class="core"></div>
+              </div>
+              <div class="mini-feat" style="left:6px; top:20px;">💭</div>
+              <div class="mini-feat" style="right:6px; top:26px;">💰</div>
+              <div class="mini-feat" style="right:14px; bottom:26px;">🏃</div>
+              <div class="kanban-cap">👆 中央三环大按钮 = 今日看板入口（点击打开今日看板页）</div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tb"><span class="ic">👤</span>个人</div>
+            <div class="ai-btn">✦</div>
+            <div class="tb"><span class="ic">📖</span>记忆长廊</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>这就是首页：中央三环大按钮是「今日看板」入口（点开今日看板页，这版一行代码都不动它）；「做规划」仍走底部中央的 HoloAI 对话。Matter 焦点卡只是插在日程条和大按钮之间的一张薄卡——多件进行中的事也只展示最值得关注的一件，没有时整块消失、不留空壳。「需要关注」的黄点来自确定性规则（日期窗口、已确认问题的缓急），AI 只解释原因，不能自己决定标什么颜色；空间不够时卡片自动压缩，不挤占中央入口。</div>
+    </figure>
+
+    <!-- B1+ 紧凑态 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">B1+</span>
+        <div class="t">首页 · 紧凑态（拥挤的解法）</div>
+        <div class="d">同一张卡的第二档形态：小屏机型或首页内容多时，焦点卡自动收成一行条，高度只有日程条的水平——不挤占三环大按钮的空间。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="home">
+            <div class="greet">早上好，东林 👋<small>9月11日 星期五 · 距中秋还有 8 天</small></div>
+            <div class="schedbar">📅 今日：10:00 例会 · 19:30 健身</div>
+            <div class="focuscard compact">
+              <div class="ttl">✈️ 国庆日本旅行</div>
+              <div class="meta"><span class="dot" style="background:var(--amber); margin-right:3px;"></span>下一步：确认签证材料</div>
+              <div class="go">›</div>
+            </div>
+            <div class="kanban-hero">
+              <div class="oring" style="width:178px; height:178px;"></div>
+              <div class="oring" style="width:148px; height:148px; top:15px; opacity:0.65;"></div>
+              <div class="kanban-btn">
+                <div class="orbit" style="inset:6px;"></div>
+                <div class="orbit" style="inset:20px; opacity:0.65;"></div>
+                <div class="orbit" style="inset:34px; opacity:0.4;"></div>
+                <div class="core"></div>
+              </div>
+              <div class="mini-feat" style="left:6px; top:20px;">💭</div>
+              <div class="mini-feat" style="right:6px; top:26px;">💰</div>
+              <div class="mini-feat" style="right:14px; bottom:26px;">🏃</div>
+              <div class="kanban-cap">👆 中央三环大按钮 = 今日看板入口（点击打开今日看板页）</div>
+            </div>
+          </div>
+          <div class="tabbar">
+            <div class="tb"><span class="ic">👤</span>个人</div>
+            <div class="ai-btn">✦</div>
+            <div class="tb"><span class="ic">📖</span>记忆长廊</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>两档形态由代码按实际可用空间自动切换，不需要你设置。B1 的完整态有「需要关注 + 下一步」，B1+ 的紧凑态只保留「标题 + 下一步」一行——永远保证三环大按钮不被挤下屏。</div>
+    </figure>
+
+    <!-- B0 备选：放进今日看板 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no" style="background:#9A9A9A;">备选 · 已否决</span>
+        <div class="t">另一种做法：卡放进今日看板页</div>
+        <div class="d">2026-09-11 东林已拍板：不采用，维持首页焦点卡（两档形态自动切换）。此屏仅作决策留档。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="navbar"><span class="back" style="color:var(--text2);">✕</span><span class="ttl">今日看板</span><span class="act" style="color:#939393;">···</span></div>
+          <div class="kanban-page">
+            <div class="kb-week">📊 本周概览 · 任务 8/12 · 习惯 5/7 · 支出 ¥1,240</div>
+            <div class="focuscard" style="margin-top:8px;">
+              <div class="kicker">正在进行</div>
+              <div class="all">查看全部</div>
+              <div class="ttl">国庆日本旅行 <span class="badge att-warn"><span class="dot" style="background:var(--amber);"></span>需要关注</span></div>
+              <div class="meta">还有 20 天 · <span class="warn">签证临近建议处理窗口</span></div>
+              <div class="next"><span class="lbl">下一步</span><span class="v">确认签证材料</span></div>
+            </div>
+            <div class="kb-hero">
+              <div class="oring" style="width:120px; height:120px;"></div>
+              <div class="oring" style="width:100px; height:100px; top:10px; opacity:0.65;"></div>
+              <div class="kbtn">
+                <div class="orbit" style="inset:5px;"></div>
+                <div class="orbit" style="inset:17px; opacity:0.6;"></div>
+              </div>
+            </div>
+            <div class="kb-sec-lbl">今日任务</div>
+            <div class="kb-row"><span class="ck"></span>10:00 例会准备 · 整理周报数据</div>
+            <div class="kb-row"><span class="ck"></span>给猫咪预约驱虫</div>
+            <div class="kb-sec-lbl">习惯</div>
+            <div class="kb-row dim"><span class="ck"></span>健身 · 19:30</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>两种放法对比：</b>① <b>放首页</b>——打开 App 第一眼就看到，事情要推动时触达最强；代价是首页要多养一张卡（有紧凑态兜底）。② <b>放看板</b>——布局宽松、和任务/习惯天然相邻；代价是看板是「点进去」的页面，不是每天必经，事情容易沉底，而且看板本身已有任务/习惯/健康/心情/预算五六个分区，再加一张也开始变长。Holo 方案原文的选择是 <b>放首页</b>（ADR-05：Matter 是跨模块组织层，不是看板的一个板块）。</div>
+    </figure>
+
+    <!-- B2 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">B2</span>
+        <div class="t">「查看全部」→ 全部进行中的事</div>
+        <div class="d">只在内部跳转，不占底部 Tab。右下角「+」不是表单——点开是 Holo 对话，附带一句引导语，你用自己的话说就行。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="listbody">
+            <div class="bigtitle">进行中的事</div>
+            <div class="group-lbl">正在进行 · 1</div>
+            <div class="matter-row">
+              <div class="r1"><span class="ttl"><span class="dot" style="background:var(--amber);"></span>国庆日本旅行</span><span class="badge phase">规划中</span></div>
+              <div class="meta">还有 20 天 · 2 个待确认 · 1 个 AI 猜测待你确认</div>
+              <div class="nextln"><span class="k">下一步</span>确认签证材料</div>
+            </div>
+            <div class="group-lbl">已完成 · 1</div>
+            <div class="matter-row done">
+              <div class="r1"><span class="ttl">换掉旧热水器</span><span class="badge" style="background:#F0F0F0;color:#939393;">已完成</span></div>
+              <div class="meta">9月2日完成 · 点开可回看</div>
+            </div>
+            <div class="group-lbl">已归档</div>
+            <div class="empty-arch">还没有归档的事</div>
+          </div>
+          <div class="fab">+</div>
+          <div class="callout" style="right:14px; bottom:128px;">点「+」打开 Holo<br>并附引导语：最近有什么事情<br>希望 Holo 帮你一起推进？</div>
+          <div class="tabbar">
+            <div class="tb"><span class="ic">👤</span>个人</div>
+            <div class="ai-btn">✦</div>
+            <div class="tb"><span class="ic">📖</span>记忆长廊</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>AI 猜测的问题在列表页就提前告诉你数量（「1 个 AI 猜测待你确认」），进详情后能一眼分清；「+」只是打开对话，不会预写你的消息。</div>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 旅程 C ================= -->
+<section class="journey">
+  <h2><span class="tag">旅程 C</span> 事情详情页 —— 回答三个问题：现在怎么样、还差什么、下一步做什么</h2>
+  <div class="screens">
+
+    <!-- C1 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">C1</span>
+        <div class="t">详情页全景（自上而下固定顺序）</div>
+        <div class="d">顶部状态 → Holo 判断 → 最值得做的一件事 → 还没解决（已确认在前，AI 猜测弱化在后）→ 已解决 → 相关内容 → 最近变化 → 底部固定「和 Holo 讨论这件事」。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="navbar"><span class="back">‹</span><span class="ttl" style="font-size:11px;color:#939393;">进行中的事</span><span class="act" style="color:#939393;">···</span></div>
+          <div class="detail dense">
+            <div class="d-head">
+              <div class="ttl">国庆日本旅行</div>
+              <div class="meta">
+                <span class="badge phase">规划中</span>
+                <span>10月1日出发（约20天后）</span>
+                <span style="color:var(--primary);">✓ 完成这件事</span>
+              </div>
+            </div>
+            <div class="d-sec">
+              <div class="lbl">HOLO 判断</div>
+              <div class="ai-card">
+                <div class="sum">旅行进入筹备期：签证是最紧的一件事，住宿订了一半，猫咪照护还没着落。</div>
+                <div class="why">⚠️ 为什么说需要关注：签证建议 9 月中旬前递交，已进入建议处理窗口。</div>
+                <div class="ev">查看依据（6 条）›</div>
+              </div>
+            </div>
+            <div class="d-sec">
+              <div class="lbl">现在最值得做</div>
+              <div class="next-card">
+                <div class="ic">🛂</div>
+                <div style="flex:1;">
+                  <div class="t">确认签证材料</div>
+                  <div class="r">出发前约 3 周要递交，再等窗口会更紧</div>
+                </div>
+                <span class="badge evidence" style="flex-shrink:0;">建任务</span>
+              </div>
+            </div>
+            <div class="d-sec">
+              <div class="lbl">还没解决 · 3</div>
+              <div class="loop-row"><span class="st open"></span><div style="flex:1;"><div class="t">猫咪由谁照顾</div><div class="taskln">已建任务：问妈妈是否方便</div></div><span class="menu">⋮</span></div>
+              <div class="loop-row"><span class="st wait"></span><div style="flex:1;"><div class="t">预订京都住宿</div><div class="sub">在等 · 比价中</div></div><span class="menu">⋮</span></div>
+              <div class="loop-row suggested"><span class="st" style="width:14px;height:14px;border-radius:50%;border:2px dashed #C9C9C9;"></span><div style="flex:1;"><div class="t">可能还需要确认：买转换插头</div><div class="sub">AI 从方案里猜的 · 点 ⋮ 处理</div></div><span class="menu">⋮</span></div>
+            </div>
+          </div>
+          <div class="d-footer"><div class="discuss-btn">💬 和 Holo 讨论这件事</div></div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>①「Holo 判断」可点查看依据，AI 说的每句都能溯源；②「最值得做」永远只有一条，没有就不显示，绝不凑数；③ AI 猜的问题用虚线弱化并注明「AI 猜的」。—— 详情页为滚动页，下半段见下一屏。</div>
+    </figure>
+
+    <!-- C1b -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">C1+</span>
+        <div class="t">详情页下半段（同一页继续下滑）</div>
+        <div class="d">已解决的收进底部并置灰；相关内容是真实关联的计数入口；「最近变化」只记发生过的事，每条自动更新都带撤销。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="navbar"><span class="back">‹</span><span class="ttl" style="font-size:11px;color:#939393;">进行中的事</span><span class="act" style="color:#939393;">···</span></div>
+          <div class="detail dense">
+            <div class="d-head" style="border-bottom:none; padding-bottom:0;">
+              <div class="ttl" style="font-size:15px;">国庆日本旅行 <span style="font-size:9.5px;color:var(--text3);font-weight:400;">（续）</span></div>
+            </div>
+            <div class="d-sec">
+              <div class="lbl">已经解决 · 1</div>
+              <div class="loop-row resolved"><span class="st">✓</span><div style="flex:1;"><div class="t">预订东京住宿</div><div class="sub">9月11日 · 你在对话里确认</div></div><span class="menu">⋮</span></div>
+            </div>
+            <div class="d-sec">
+              <div class="lbl">相关内容</div>
+              <div class="links-bar">
+                <span class="link-pill">方案 <b>1</b></span><span class="link-pill">任务 <b>2</b></span><span class="link-pill">想法 <b>1</b></span><span class="link-pill">对话 <b>5</b></span>
+              </div>
+            </div>
+            <div class="d-sec">
+              <div class="lbl">最近变化</div>
+              <div class="event-row"><span class="tm">9月11日</span><span class="tx">你说「酒店订好了」→ 已解决「预订东京住宿」 <span class="undo">撤销</span></span></div>
+              <div class="event-row"><span class="tm">9月11日</span><span class="tx">你开始了「国庆日本旅行」</span></div>
+              <div class="event-row"><span class="tm">9月11日</span><span class="tx">AI 建议关注「转换插头」 · 待你确认</span></div>
+            </div>
+          </div>
+          <div class="d-footer"><div class="discuss-btn">💬 和 Holo 讨论这件事</div></div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>变化记录来自真实事件流（谁说的、什么时候、可撤销），不是靠当前状态倒推；财务/健康等记录首版只读引用，不会写进这里。</div>
+    </figure>
+
+    <!-- C2 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">C2</span>
+        <div class="t">AI 猜的问题：由你裁决</div>
+        <div class="d">点开任何一条 AI 猜测，三个去处：确认真的是问题、告诉她不需要处理、或者不属于这件事。被拒绝的内容会被记住，不会反复再提。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="navbar"><span class="back">‹</span><span class="ttl" style="font-size:11px;color:#939393;">进行中的事</span><span class="act" style="color:#939393;">···</span></div>
+          <div class="detail" style="opacity:0.55;">
+            <div class="d-head"><div class="ttl">国庆日本旅行</div></div>
+            <div class="d-sec">
+              <div class="lbl">还没解决 · 3</div>
+              <div class="loop-row"><span class="st open"></span><div style="flex:1;"><div class="t">猫咪由谁照顾</div></div></div>
+              <div class="loop-row suggested" style="border-color:var(--primary); box-shadow:0 4px 12px rgba(244,109,56,0.12);">
+                <span class="st" style="width:14px;height:14px;border-radius:50%;border:2px dashed var(--primary);"></span>
+                <div style="flex:1;"><div class="t">可能还需要确认：买转换插头</div><div class="sub">AI 从方案里猜的</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="menu-pop" style="right:22px; top:170px;">
+            <div class="mi primary">✓ 确认这是待办问题</div>
+            <div class="mi">✕ 不需要处理</div>
+            <div class="mi muted">↩ 不属于这件事</div>
+          </div>
+          <div class="callout" style="left:24px; top:320px;">拒绝会被记住（suppression）<br>同一内容不会再反复建议</div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>对应方案「拒绝结果保留为 suppression」——如果直接删掉，系统下次还会把同一个建议端上来；这里从机制上防止骚扰。</div>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 旅程 D ================= -->
+<section class="journey">
+  <h2><span class="tag">旅程 D</span> 在事情里继续聊 —— 不用重复解释背景，Holo 直接更新这件事</h2>
+  <div class="screens">
+
+    <!-- D1 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">D1</span>
+        <div class="t">「酒店订好了」→ 自动更新 + 可撤销</div>
+        <div class="d">从详情页进入对话时，顶部有橙色胶囊标识「正在聊这件事」。你说的话能唯一对上一件事时，Holo 直接更新，并给出绿色回执——点撤销立即恢复。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="navbar"><span class="back">‹</span><span class="ttl" style="font-size:11px;color:#939393;">Holo</span><span class="act"></span></div>
+          <div class="chat">
+            <div class="ctx-pill">📌 国庆日本旅行 <span class="x">✕</span></div>
+            <div class="callout" style="left:16px; top:96px;">点 ✕ 退出这件事的上下文<br>之后的话不再自动关联</div>
+            <div class="bubble-user">酒店订好了</div>
+            <div class="holo-msg">
+              <div class="bub">太好了 🎉 东京住宿这一项解决啦。现在这件事里还没定的：<b>京都住宿</b>（在等比价）和<b>猫咪照护</b>。距离出发还有 20 天，签证材料如果还没交要抓紧了。</div>
+            </div>
+            <div class="mut-toast">
+              <span class="ck">✓</span>
+              <span class="tx">已更新到「国庆日本旅行」：<b>已解决「预订东京住宿」</b></span>
+              <span class="undo">撤销</span>
+            </div>
+            <div class="bubble-sys">详情页的判断与下一步已同步刷新</div>
+          </div>
+          <div class="tabbar">
+            <div class="tb"><span class="ic">👤</span>个人</div>
+            <div class="ai-btn">✦</div>
+            <div class="tb"><span class="ic">📖</span>记忆长廊</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>系统认的是「这件事的对话身份」（matterID），不是靠猜关键词。自动更新只有一种情况会发生：你说的明确 + 只能对上一件事 + 低风险可撤销。</div>
+    </figure>
+
+    <!-- D2 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">D2</span>
+        <div class="t">说不清就不猜：「东京还是京都？」</div>
+        <div class="d">如果「东京住宿」「京都住宿」都还没解决，「酒店订好了」有歧义——Holo 不赌运气，问一句再动手。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="navbar"><span class="back">‹</span><span class="ttl" style="font-size:11px;color:#939393;">Holo</span><span class="act"></span></div>
+          <div class="chat">
+            <div class="ctx-pill">📌 国庆日本旅行 <span class="x">✕</span></div>
+            <div class="bubble-user">酒店订好了</div>
+            <div class="holo-msg">
+              <div class="bub">好！你说的是哪个的住宿？<br><span style="color:#939393;font-size:11px;">（这件事里东京和京都的住宿都还没标记解决）</span></div>
+              <div class="choice-row">
+                <div class="choice-btn">东京住宿</div>
+                <div class="choice-btn">京都住宿</div>
+              </div>
+            </div>
+            <div class="bubble-sys">你点了哪个，就只更新哪一个；另一个保持不动</div>
+          </div>
+          <div class="tabbar">
+            <div class="tb"><span class="ic">👤</span>个人</div>
+            <div class="ai-btn">✦</div>
+            <div class="tb"><span class="ic">📖</span>记忆长廊</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>对应方案里的红线「不允许自动把两个酒店都完成」。歧义时一律转追问，不存在「按置信度硬执行」。</div>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 旅程 E ================= -->
+<section class="journey">
+  <h2><span class="tag">旅程 E</span> 结束这件事 —— 永远由你说了算</h2>
+  <div class="screens">
+
+    <!-- E1 -->
+    <figure class="shot">
+      <div class="cap">
+        <span class="no">E1</span>
+        <div class="t">完成这件事（只能你亲手点）</div>
+        <div class="d">旅行结束后，Holo 可以在对话里「提示」你这件事似乎结束了，但绝不自动完成。完成后退出首页焦点位，仍可回看；想继续时一键重新打开，不新建重复的事。</div>
+      </div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><div class="island"></div><span>🔋</span></div>
+        <div class="screen-body">
+          <div class="navbar"><span class="back">‹</span><span class="ttl" style="font-size:11px;color:#939393;">进行中的事</span><span class="act">···</span></div>
+          <div class="detail" style="opacity:0.5;">
+            <div class="d-head">
+              <div class="ttl">国庆日本旅行</div>
+              <div class="meta"><span class="badge phase">进行中</span><span>10月1日 – 10月7日</span></div>
+            </div>
+          </div>
+          <div class="menu-pop" style="right:22px; top:76px;">
+            <div class="mi primary">✓ 完成这件事</div>
+            <div class="mi">📦 归档</div>
+            <div class="mi muted">↻ 重新打开（完成后）</div>
+          </div>
+          <div class="confirm-sheet" style="top:225px;">
+            <div class="em">🏁</div>
+            <h3>完成「国庆日本旅行」？</h3>
+            <div class="d">完成后它会从首页撤下，但你随时可以在列表里<b>回看</b>或<b>重新打开</b>。<br>这件事里的 1 个未解决问题会保留记录。</div>
+            <div class="btn-primary">确认完成</div>
+            <div class="btn-ghost" style="margin-top:8px;">再等等</div>
+          </div>
+          <div class="tabbar">
+            <div class="tb"><span class="ic">👤</span>个人</div>
+            <div class="ai-btn">✦</div>
+            <div class="tb"><span class="ic">📖</span>记忆长廊</div>
+          </div>
+        </div>
+      </div>
+      <div class="note"><b>要点：</b>首版没有「删除」入口，只有完成和归档（软性退出，不丢数据）；「重新打开」沿用原来的事和全部历史，避免同名重复建立。</div>
+    </figure>
+  </div>
+</section>
+
+<!-- ================= 设计说明 ================= -->
+<section class="journey">
+  <h2><span class="tag">附</span> 首版刻意不做的（防止预期跑偏）</h2>
+  <div class="screens">
+    <div style="width:100%; display:flex; gap:14px; flex-wrap:wrap;">
+      <div class="chip">❌ 不自动扫描全部历史、批量创建「进行中的事」——只在你确认后建立</div>
+      <div class="chip">❌ 不发通知 —— 首版只在首页和详情里排序提示，先证明「判断有用」再谈「提醒时机」</div>
+      <div class="chip">❌ 不自动改任务/日程/账单 —— 只关联和引用，业务对象永远归原模块管</div>
+      <div class="chip">❌ 不做进度百分比、不做项目管理表格 —— 这是生活事项，不是工作软件</div>
+      <div class="chip">❌ 不联网查政策 —— 首版先验证「持续推进」成立，联网是以后接进来的工具</div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

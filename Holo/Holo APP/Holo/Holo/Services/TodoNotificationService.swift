@@ -23,6 +23,10 @@ enum TodoNotificationCategory {
     static let weeklyBrief = "WEEKLY_BRIEF"
     static let billDue = "TODO_BILL_DUE"
     static let budgetOverrun = "TODO_BUDGET_OVERRUN"
+    /// 严格预算模式 · 月初结转回执（点击直达预算详情页）
+    static let budgetCarryover = "TODO_BUDGET_CARRYOVER"
+    /// 云端分析/回放/方案完成推送（后端 APNs 远程推送，payload 随带 taskId/taskType）
+    static let cloudAnalysisDone = "CLOUD_ANALYSIS_DONE"
 }
 
 enum TodoNotificationAction: String {
@@ -182,6 +186,14 @@ class TodoNotificationService: NSObject, ObservableObject {
             options: []
         )
 
+        // 严格预算模式 · 月初结转回执（无操作按钮，点击直达预算详情页）
+        let budgetCarryoverCategory = UNNotificationCategory(
+            identifier: BudgetCarryoverNotificationService.categoryIdentifier,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
         // 图片自动记账结果（无操作按钮，点击直达待复核项/最近结果；2026-09-14 方案 §25.3）
         let receiptBookingCategory = UNNotificationCategory(
             identifier: ReceiptBookingNotificationService.categoryIdentifier,
@@ -193,7 +205,7 @@ class TodoNotificationService: NSObject, ObservableObject {
         UNUserNotificationCenter.current().setNotificationCategories([
             taskCategory, dailyCategory, memoryInsightCategory,
             anniversaryCategory, goalRiskCategory, habitReminderCategory, weeklyBriefCategory,
-            billDueCategory, budgetOverrunCategory, receiptBookingCategory
+            billDueCategory, budgetOverrunCategory, receiptBookingCategory, budgetCarryoverCategory
         ])
         Self.logger.info("已注册通知分类")
     }
@@ -304,6 +316,44 @@ class TodoNotificationService: NSObject, ObservableObject {
         )
 
         try await UNUserNotificationCenter.current().add(request)
+    }
+
+    // MARK: - Execution Review Reminder（分步推进等待检查，2026-09-25 实施规格 §4.5）
+
+    /// 等待检查提醒：到点只提示「可以检查一下」，不认定事情已完成。
+    /// 标识 = <taskID>-executionReview-<stepID>：与任务提醒同前缀族，
+    /// 任务完成/删除时现有 cancelReminders 前缀过滤会一并清理（操作重放不重复安排：add 同 id 覆盖）。
+    func scheduleExecutionReviewReminder(taskID: UUID, stepID: UUID, fireAt: Date, reason: String) async {
+        guard isAuthorized else { return }
+        let content = UNMutableNotificationContent()
+        content.title = String(localized: "可以检查一下")
+        content.body = reason.isEmpty
+            ? String(localized: "之前在等的事，看看有没有进展")
+            : String(localized: "之前在等「\(reason)」，看看有没有进展")
+        content.sound = .default
+        content.userInfo = [
+            "executionTaskID": taskID.uuidString,
+            "executionStepID": stepID.uuidString,
+        ]
+        let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute], from: fireAt)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "\(taskID.uuidString)-executionReview-\(stepID.uuidString)",
+            content: content,
+            trigger: trigger
+        )
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+        } catch {
+            Self.logger.error("等待检查提醒创建失败：\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// 恢复/改期时取消等待检查提醒
+    func cancelExecutionReviewReminder(taskID: UUID, stepID: UUID) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: ["\(taskID.uuidString)-executionReview-\(stepID.uuidString)"]
+        )
     }
 
     // MARK: - Cancel Notifications
@@ -463,6 +513,7 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
     ) {
         let userInfo = response.notification.request.content.userInfo
         let taskIdString = userInfo["taskId"] as? String
+        Self.logger.notice("通知点击 action=\(response.actionIdentifier, privacy: .public) category=\(response.notification.request.content.categoryIdentifier, privacy: .public) keys=\(userInfo.keys.map(String.init).sorted().joined(separator: ","), privacy: .public)")
 
         switch response.actionIdentifier {
         case TodoNotificationAction.complete.rawValue:
@@ -479,74 +530,96 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
 
         case UNNotificationDefaultActionIdentifier:
             // 直接点击通知（打开应用）→ 按 category 触发对应的 Deep Link
-            let category = response.notification.request.content.categoryIdentifier
-            switch category {
-            case TodoNotificationCategory.task:
-                if let taskIdString = taskIdString, let taskId = UUID(uuidString: taskIdString) {
-                    Self.logger.info("任务通知 Deep Link：\(taskIdString)")
-                    DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
-                }
-            case TodoNotificationCategory.dailyReminder:
-                Self.logger.info("每日提醒 Deep Link")
-                DeepLinkState.shared.navigate(to: .dailyReminder)
-            case TodoNotificationCategory.memoryInsight:
-                Self.logger.info("洞察通知 Deep Link")
-                let period = WeeklyObservationPeriod.previousCompletedWeek(containing: Date())
-                // 不在此处 markRead：已读由 ChatView 打开回放卡片时落（与首页胶囊同口径），
-                // 点通知没看到内容时胶囊仍在。
-                if let insight = try? MemoryInsightRepository().fetchInsight(
-                    periodType: .weekly,
-                    start: period.start,
-                    end: period.end
-                ) {
-                    DeepLinkState.shared.navigate(to: .memoryInsight(insightId: insight.id))
-                } else {
-                    DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))
-                }
-            case TodoNotificationCategory.goalRisk:
-                if let goalIdString = userInfo["goalId"] as? String, let goalId = UUID(uuidString: goalIdString) {
-                    Self.logger.info("目标风险通知 Deep Link：\(goalIdString)")
-                    DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
-                }
-            case TodoNotificationCategory.anniversary:
-                if let anniversaryIdString = userInfo["anniversaryId"] as? String,
-                   let anniversaryId = UUID(uuidString: anniversaryIdString) {
-                    Self.logger.info("纪念日通知 Deep Link：\(anniversaryIdString)")
-                    DeepLinkState.shared.navigate(to: .anniversaryDetail(anniversaryId: anniversaryId))
-                }
-            case TodoNotificationCategory.habitReminder:
-                Self.logger.info("习惯提醒 Deep Link")
-                DeepLinkState.shared.navigate(to: .habits)
-            case TodoNotificationCategory.weeklyBrief:
-                Self.logger.info("周一晨报 Deep Link")
-                DeepLinkState.shared.navigate(to: .weeklyBrief)
-            case TodoNotificationCategory.billDue:
-                Self.logger.info("账单到期通知 Deep Link")
-                DeepLinkState.shared.navigate(to: .addTransaction)
-            case TodoNotificationCategory.budgetOverrun:
-                Self.logger.info("预算超支通知 Deep Link")
-                DeepLinkState.shared.navigate(to: .finance)
-            case ReceiptBookingNotificationService.categoryIdentifier:
-                Self.logger.info("图片自动记账通知 Deep Link")
-                if let draftIDString = userInfo["draftID"] as? String,
-                   let draftID = UUID(uuidString: draftIDString) {
-                    DeepLinkState.shared.navigate(to: .receiptReview(draftID: draftID))
-                } else if let transactionIDString = userInfo["transactionID"] as? String,
-                          let transactionID = UUID(uuidString: transactionIDString) {
-                    DeepLinkState.shared.navigate(to: .transactionDetail(transactionId: transactionID))
-                } else if let resultIDString = userInfo["resultID"] as? String,
-                          let resultID = UUID(uuidString: resultIDString) {
-                    DeepLinkState.shared.navigate(to: .receiptBookingResult(resultID: resultID))
-                }
-            default:
-                break
-            }
+            Self.routeDefaultActionTap(
+                category: response.notification.request.content.categoryIdentifier,
+                userInfo: userInfo
+            )
 
         default:
             break
         }
 
         completionHandler()
+    }
+
+    /// 点开通知（default action）的 category 路由。
+    /// 抽成独立静态函数：UNNotificationResponse 只能由系统构造，单测无法实例化，
+    /// 路由逻辑在此可直接喂 (category, userInfo) 断言深链目标。
+    @MainActor
+    static func routeDefaultActionTap(category: String, userInfo: [AnyHashable: Any]) {
+        let taskIdString = userInfo["taskId"] as? String
+        switch category {
+        case TodoNotificationCategory.task:
+            if let taskIdString = taskIdString, let taskId = UUID(uuidString: taskIdString) {
+                Self.logger.info("任务通知 Deep Link：\(taskIdString)")
+                DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
+            }
+        case TodoNotificationCategory.dailyReminder:
+            Self.logger.info("每日提醒 Deep Link")
+            DeepLinkState.shared.navigate(to: .dailyReminder)
+        case TodoNotificationCategory.memoryInsight:
+            Self.logger.info("洞察通知 Deep Link")
+            let period = WeeklyObservationPeriod.previousCompletedWeek(containing: Date())
+            // 不在此处 markRead：已读由 ChatView 打开回放卡片时落（与首页胶囊同口径），
+            // 点通知没看到内容时胶囊仍在。
+            if let insight = try? MemoryInsightRepository().fetchInsight(
+                periodType: .weekly,
+                start: period.start,
+                end: period.end
+            ) {
+                DeepLinkState.shared.navigate(to: .memoryInsight(insightId: insight.id))
+            } else {
+                DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))
+            }
+        case TodoNotificationCategory.goalRisk:
+            if let goalIdString = userInfo["goalId"] as? String, let goalId = UUID(uuidString: goalIdString) {
+                Self.logger.info("目标风险通知 Deep Link：\(goalIdString)")
+                DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
+            }
+        case TodoNotificationCategory.anniversary:
+            if let anniversaryIdString = userInfo["anniversaryId"] as? String,
+               let anniversaryId = UUID(uuidString: anniversaryIdString) {
+                Self.logger.info("纪念日通知 Deep Link：\(anniversaryIdString)")
+                DeepLinkState.shared.navigate(to: .anniversaryDetail(anniversaryId: anniversaryId))
+            }
+        case TodoNotificationCategory.habitReminder:
+            Self.logger.info("习惯提醒 Deep Link")
+            DeepLinkState.shared.navigate(to: .habits)
+        case TodoNotificationCategory.weeklyBrief:
+            Self.logger.info("周一晨报 Deep Link")
+            DeepLinkState.shared.navigate(to: .weeklyBrief)
+        case TodoNotificationCategory.billDue:
+            Self.logger.info("账单到期通知 Deep Link")
+            DeepLinkState.shared.navigate(to: .addTransaction)
+        case TodoNotificationCategory.budgetOverrun:
+            Self.logger.info("预算超支通知 Deep Link")
+            DeepLinkState.shared.navigate(to: .finance)
+        case BudgetCarryoverNotificationService.categoryIdentifier:
+            Self.logger.info("结转回执通知 Deep Link")
+            DeepLinkState.shared.navigate(to: .budgetDetail)
+        case TodoNotificationCategory.cloudAnalysisDone:
+            // 云端分析完成推送：点开 = 要看结果。立即恢复轮询领取（幂等，
+            // 不等 scenePhase 钩子的节奏），再按任务号定位消息直达到结果卡
+            Self.logger.info("云端分析完成通知 Deep Link：\(taskIdString ?? "无taskId", privacy: .public)")
+            HoloCloudAnalysisService.shared.resumePolling()
+            let messageID = HoloCloudAnalysisService.shared.messageID(forCloudTaskId: taskIdString)
+            DeepLinkState.shared.navigate(to: .cloudAnalysisReport(messageID: messageID))
+        case ReceiptBookingNotificationService.categoryIdentifier:
+            Self.logger.info("图片自动记账通知 Deep Link")
+            if let draftIDString = userInfo["draftID"] as? String,
+               let draftID = UUID(uuidString: draftIDString) {
+                // 统一走 Presenter：导航同时落「已自动弹过」标记，关掉后回前台兜底不再重复弹
+                ReceiptBookingForegroundPresenter.present(draftID: draftID)
+            } else if let transactionIDString = userInfo["transactionID"] as? String,
+                      let transactionID = UUID(uuidString: transactionIDString) {
+                DeepLinkState.shared.navigate(to: .transactionDetail(transactionId: transactionID))
+            } else if let resultIDString = userInfo["resultID"] as? String,
+                      let resultID = UUID(uuidString: resultIDString) {
+                DeepLinkState.shared.navigate(to: .receiptBookingResult(resultID: resultID))
+            }
+        default:
+            break
+        }
     }
 
     /// 设置代理

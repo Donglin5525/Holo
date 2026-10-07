@@ -46,7 +46,9 @@ actor ReceiptBookingResultStore {
     }
 
     /// 逐笔草案条目（2026-09-19 一图多笔）：一张图一个 StoredDraft，内含全部待确认笔
-    struct StoredDraftItem: Codable, Sendable, Equatable {
+    /// Hashable：复核列表以草案本体（而非 id）作为导航值压栈，推入页自带数据，
+    /// 列表刷新（确认/删除后草案消失）不再掏空已推入页的目的地（iOS 26 导航断言闪退隐患）。
+    struct StoredDraftItem: Codable, Sendable, Equatable, Hashable {
         let itemKey: String
         let amountText: String
         let typeIsIncome: Bool
@@ -64,7 +66,7 @@ actor ReceiptBookingResultStore {
     /// 待复核草案：只存必要纯值字段（方案 §25.1）
     /// 顶层单笔字段保留：旧格式文件（单笔）兼容读取 + 新文件冗余写第一笔作列表摘要。
     /// 多笔真相在 items；读侧一律走 effectiveItems。
-    struct StoredDraft: Codable, Sendable, Identifiable {
+    struct StoredDraft: Codable, Sendable, Identifiable, Hashable {
         let id: UUID
         let createdAt: Date
         let reasons: [String]
@@ -226,8 +228,70 @@ actor ReceiptBookingResultStore {
         loadResultsFromDisk()
     }
 
+    /// UITest 播种（DEBUG 门控）：清空草稿盘后写入两条待复核草案，
+    /// 供删除链路冒烟（详情页删除按钮 / 列表左滑删除）。走真实落盘通道，格式与生产一致。
+    #if DEBUG
+    func seedDraftsForUITestsIfRequested() {
+        guard ProcessInfo.processInfo.arguments.contains("UITEST_SEED_RECEIPT_DRAFTS") else { return }
+        if let dir = Self.draftDirectoryURL {
+            for file in (try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [] {
+                try? fileManager.removeItem(at: file)
+            }
+        }
+        func smokeDraft(_ amount: String, merchant: String, reason: String, createdAt: Date) -> StoredDraft {
+            let id = UUID()
+            let itemKey = id.uuidString.lowercased() + "-0"
+            let item = StoredDraftItem(
+                itemKey: itemKey,
+                amountText: amount,
+                typeIsIncome: false,
+                dateText: nil,
+                note: nil,
+                paymentChannel: "现金",
+                amountOriginalText: "¥ " + amount,
+                categoryCandidate: "超市",
+                normalizedCategoryCandidate: nil,
+                semanticCategoryHint: nil,
+                reviewNotes: nil
+            )
+            return StoredDraft(
+                id: id,
+                createdAt: createdAt,
+                reasons: [reason],
+                amountText: amount,
+                typeIsIncome: false,
+                merchant: merchant,
+                dateText: nil,
+                note: nil,
+                paymentChannel: "现金",
+                amountOriginalText: "¥ " + amount,
+                paymentStatusOriginalText: nil,
+                categoryCandidate: "超市",
+                normalizedCategoryCandidate: nil,
+                semanticCategoryHint: nil,
+                imageType: "",
+                sourceKey: "uitest-" + id.uuidString.lowercased(),
+                itemKey: itemKey,
+                accountChoiceRaw: "",
+                projectChoiceRaw: "",
+                modeRaw: "",
+                items: [item]
+            )
+        }
+        // 文件名必须用草稿自身的 id（删除按内容 id 找文件，错位=永远删不掉）。
+        // 山姆=现在（最新，兜底弹出必直达它），7-11=1分钟前（留在列表当「另一条」）——
+        // createdAt 错开让弹出对象确定，UITest 断言才可写死。
+        let draft1 = smokeDraft("62.10", merchant: "Seven-Eleven Japan", reason: "reviewPaymentStatusLowConfidence", createdAt: Date().addingTimeInterval(-60))
+        let draft2 = smokeDraft("158.00", merchant: "山姆会员店", reason: "reviewAmountLowConfidence", createdAt: Date())
+        if let url1 = draftURL(draft1.id), let url2 = draftURL(draft2.id) {
+            writeAtomically(draft1, to: url1)
+            writeAtomically(draft2, to: url2)
+        }
+    }
+    #endif
+
     nonisolated func loadDrafts() -> [StoredDraft] {
-        guard let dir = draftDirectoryURL, let files = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+        guard let dir = Self.draftDirectoryURL, let files = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
             return []
         }
         return files
@@ -240,10 +304,11 @@ actor ReceiptBookingResultStore {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
-    nonisolated private var draftDirectoryURL: URL? {
-        // 与 rootDirectory 相同的解析逻辑（nonisolated 环境下不能碰 lazy 实例属性）
-        let base = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.com.tangyuxuan.holo-app")
-            ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+    /// 草案目录（App Group 容器，无签名环境回落本机支持目录）。
+    /// static 供测试注入草案文件——与 rootDirectory 同一解析口径。
+    nonisolated static var draftDirectoryURL: URL? {
+        let base = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.tangyuxuan.holo-app")
+            ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
         return base?.appendingPathComponent("ReceiptBooking/drafts", isDirectory: true)
     }
 

@@ -1,0 +1,13 @@
+{
+  "images" : [
+    {
+      "filename" : "life-flow-memory-sky.jpg",
+      "idiom" : "universal",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

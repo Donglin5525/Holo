@@ -13,14 +13,29 @@ import SwiftUI
 struct CalendarRootView: View {
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 宽屏档章节大时间放大，与章节头排印同口径
-    @Environment(\.holoWindowWidth) private var scaleWindowWidth
+    @Environment(\.holoContentWidth) private var scaleWindowWidth
     @StateObject private var viewModel = CalendarViewModel()
     @State private var selectedEvent: CalendarEvent?
     @State private var selectedEventGroup: CalendarEventGroup?
     @State private var showWeekNarrative = false
     @State private var showScaleDatePicker = false
     @State private var pickerDate = Calendar.current.startOfDay(for: Date())
+    /// 档位选中胶囊滑动命名空间
+    @Namespace private var scaleNamespace
+    /// 内容方向性过渡：记上次档位，按档序（日0 周1 月2 轴3）决定滑入方向
+    @State private var lastScale: CalendarScale?
+
+    /// 新档位相对上次档位的滑入方向（升档从右进，降档从左进）
+    private var scaleInsertionEdge: Edge {
+        guard let last = lastScale, last != viewModel.scale,
+              let oldIdx = CalendarScale.allCases.firstIndex(of: last),
+              let newIdx = CalendarScale.allCases.firstIndex(of: viewModel.scale) else {
+            return .trailing
+        }
+        return newIdx > oldIdx ? .trailing : .leading
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,7 +43,7 @@ struct CalendarRootView: View {
             if viewModel.hasFailure { failureBanner }
             content
         }
-        .background(Color.holoBackground)
+        .background(Color.holoToolBackground)
         .task {
             await viewModel.loadInitial()
         }
@@ -53,6 +68,13 @@ struct CalendarRootView: View {
             CalendarScaleDatePickerSheet(
                 selection: $pickerDate,
                 isPresented: $showScaleDatePicker,
+                allowedRange: viewModel.scale == .timeline ? ...viewModel.timelineFutureLimit : ...Date(),
+                navigationTitle: viewModel.scale == .timeline
+                    ? String(localized: "前往一天")
+                    : String(localized: "回到一段生活"),
+                fieldLabel: viewModel.scale == .timeline
+                    ? String(localized: "选择日期")
+                    : String(localized: "选择回看的日期"),
                 onCommit: { viewModel.focusDay(pickerDate) }
             )
         }
@@ -77,11 +99,17 @@ struct CalendarRootView: View {
 
     @ViewBuilder
     private var content: some View {
-        switch viewModel.scale {
-        case .day:   dayContent
-        case .week:  weekContent
-        case .month: monthlyContent
-        case .timeline: timelineContent
+        Group {
+            switch viewModel.scale {
+            case .day:   dayContent.holoScaleTransition(edge: scaleInsertionEdge)
+            case .week:  weekContent.holoScaleTransition(edge: scaleInsertionEdge)
+            case .month: monthlyContent.holoScaleTransition(edge: scaleInsertionEdge)
+            case .timeline: timelineContent.holoScaleTransition(edge: scaleInsertionEdge)
+            }
+        }
+        .onAppear { lastScale = viewModel.scale }
+        .onChange(of: viewModel.scale) { _, newScale in
+            lastScale = newScale
         }
     }
 
@@ -185,7 +213,7 @@ struct CalendarRootView: View {
             Button(action: openScaleDatePicker) {
                 Text(viewModel.chapterPresentation.primaryText)
                     .font(chapterPrimaryFont)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .tracking(viewModel.scale == .week ? -1.5 : -2)
                     .fixedSize(horizontal: true, vertical: false)
                     .frame(minWidth: 66, alignment: .leading)
@@ -208,34 +236,62 @@ struct CalendarRootView: View {
     }
 
     private func openScaleDatePicker() {
-        pickerDate = min(viewModel.focusedDate, Date())
+        // 打开前把选中值钳进当前档位的可选范围：轴档上限一年、其余档上限今天
+        pickerDate = min(viewModel.focusedDate, viewModel.scale == .timeline ? viewModel.timelineFutureLimit : Date())
         showScaleDatePicker = true
     }
 
     // MARK: - 导航行：‹ 档位 › 当前期
 
     private var navRow: some View {
-        HStack(spacing: 6) {
-            if viewModel.scale != .day {
-                chevronButton(systemName: "chevron.left") {
-                    viewModel.step(by: -1)
+        Group {
+            // 辅助功能字号下分两行，日期按钮不能挤掉刻度入口。
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(spacing: HoloSpacing.xs) {
+                    scaleSwitch
+                    HStack(spacing: HoloSpacing.sm) {
+                        periodNavigation
+                        Spacer(minLength: 0)
+                        todayButton
+                        if viewModel.scale == .timeline { datePickerButton }
+                    }
+                }
+            } else {
+                HStack(spacing: 6) {
+                    scaleSwitch
+                    periodNavigation
+                    todayButton
+                    if viewModel.scale == .timeline { datePickerButton }
                 }
             }
-
-            scaleSwitch
-
-            if viewModel.scale != .day {
-                chevronButton(systemName: "chevron.right") {
-                    viewModel.step(by: 1)
-                }
-                .disabled(!viewModel.canStepForward)
-                .opacity(viewModel.canStepForward ? 1 : 0.35)
-            }
-
-            todayButton
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.top, HoloSpacing.xs)
+    }
+
+    @ViewBuilder
+    private var periodNavigation: some View {
+        if viewModel.scale != .day {
+            chevronButton(systemName: "chevron.left") { viewModel.step(by: -1) }
+            chevronButton(systemName: "chevron.right") { viewModel.step(by: 1) }
+                .disabled(!viewModel.canStepForward)
+                .opacity(viewModel.canStepForward ? 1 : 0.35)
+        }
+    }
+
+    /// 轴档选日期按钮：与回正按钮同一胶囊语言，轻点打开日历
+    private var datePickerButton: some View {
+        Button(action: openScaleDatePicker) {
+            Image(systemName: "calendar")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.holoPrimary)
+                .frame(width: 44, height: 44)
+                .background(Capsule().fill(Color.holoPrimary.opacity(0.10)))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "选择日期"))
+        .accessibilityHint(String(localized: "轻点打开日期选择器"))
     }
 
     /// 日|周|月 撑满两箭头之间、三档等宽——头部主控件，不做收缩小胶囊
@@ -247,11 +303,11 @@ struct CalendarRootView: View {
         }
         .padding(3)
         .frame(maxWidth: .infinity)
-        .background(Color.holoNestedCardBackground.opacity(0.78))
+        .background(Color.holoToolInset.opacity(0.78))
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder.opacity(0.55), lineWidth: 1)
+                .stroke(Color.holoToolBorder.opacity(0.55), lineWidth: 1)
         )
     }
 
@@ -263,14 +319,18 @@ struct CalendarRootView: View {
             }
         } label: {
             Text(scale.displayName)
-                .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
-                .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+                .holoText(.metadata)
+                .fontWeight(isSelected ? .semibold : .medium)
+                .foregroundColor(isSelected ? .holoPrimary : .holoToolTextSecondary)
                 .frame(maxWidth: .infinity)
-                .frame(height: 30)
-                .background(
-                    RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .fill(isSelected ? Color.holoCardBackground : Color.clear)
-                )
+                .frame(minHeight: 44)
+                .background {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(Color.holoToolSurface)
+                            .matchedGeometryEffect(id: "calendarScaleCapsule", in: scaleNamespace)
+                    }
+                }
                 .overlay(
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
                         .stroke(isSelected ? Color.holoPrimary.opacity(0.16) : Color.clear, lineWidth: 1)
@@ -278,6 +338,8 @@ struct CalendarRootView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("calendar.scale.\(scale.rawValue)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     /// 回正按钮：已在当前期时置灰免点
@@ -286,12 +348,14 @@ struct CalendarRootView: View {
             viewModel.goToToday()
         } label: {
             Text(viewModel.todayLabel)
-                .font(.holoLabel)
+                .holoText(.metadata)
                 .foregroundColor(viewModel.isAtCurrentPeriod ? .holoTextPlaceholder : .holoPrimary)
                 .padding(.horizontal, HoloSpacing.sm)
                 .padding(.vertical, 6)
+                .frame(minHeight: 44)
+                .fixedSize(horizontal: true, vertical: false)
                 .background(
-                    Capsule().fill(viewModel.isAtCurrentPeriod ? Color.holoBorder.opacity(0.28) : Color.holoPrimary.opacity(0.10))
+                    Capsule().fill(viewModel.isAtCurrentPeriod ? Color.holoToolBorder.opacity(0.28) : Color.holoPrimary.opacity(0.10))
                 )
         }
         .buttonStyle(.plain)
@@ -302,8 +366,8 @@ struct CalendarRootView: View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.holoTextSecondary)
-                .frame(width: 32, height: 32)
+                .foregroundColor(.holoToolTextSecondary)
+                .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -311,7 +375,7 @@ struct CalendarRootView: View {
 
     private var monthLegend: some View {
         HStack(spacing: HoloSpacing.sm) {
-            legendDot(color: Color.holoCardBackground)
+            legendDot(color: Color.holoToolSurface)
             Text("少")
             legendDot(color: CalendarHeatmap.color(forLevel: 2, colorScheme: colorScheme))
             legendDot(color: CalendarHeatmap.color(forLevel: 4, colorScheme: colorScheme))
@@ -322,7 +386,7 @@ struct CalendarRootView: View {
             Spacer(minLength: 0)
         }
         .font(.system(size: 11, weight: .medium))
-        .foregroundColor(.holoTextSecondary)
+        .foregroundColor(.holoToolTextSecondary)
         .padding(.top, 2)
     }
 
@@ -340,14 +404,14 @@ struct CalendarRootView: View {
                 .font(.system(size: 12))
                 .foregroundColor(.holoError)
             Text("部分数据暂未载入")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
             Spacer()
             Button {
                 Task { await viewModel.refreshForCurrentScale() }
             } label: {
                 Text("重试")
-                    .font(.holoLabel)
+                    .holoText(.metadata)
                     .foregroundColor(.holoPrimary)
             }
             .buttonStyle(.plain)
@@ -361,20 +425,24 @@ struct CalendarRootView: View {
 private struct CalendarScaleDatePickerSheet: View {
     @Binding var selection: Date
     @Binding var isPresented: Bool
+    /// 可选日期范围：回看档传 ...今天，轴档传 ...一年上限（回看+排布）
+    let allowedRange: PartialRangeThrough<Date>
+    let navigationTitle: String
+    let fieldLabel: String
     let onCommit: () -> Void
 
     var body: some View {
         NavigationStack {
             DatePicker(
-                "选择回看的日期",
+                fieldLabel,
                 selection: $selection,
-                in: ...Date(),
+                in: allowedRange,
                 displayedComponents: .date
             )
             .datePickerStyle(.graphical)
             .tint(.holoPrimary)
             .padding()
-            .navigationTitle("回到一段生活")
+            .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -389,5 +457,27 @@ private struct CalendarScaleDatePickerSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+// MARK: - 档位内容过渡
+
+/// 档位内容方向性过渡：新内容按档序从左/右滑入+淡入，旧内容纯淡出（克制，避免双向位移打架）
+private extension View {
+    func holoScaleTransition(edge: Edge) -> some View {
+        modifier(HoloCalendarScaleTransition(edge: edge))
+    }
+}
+
+/// 日期仍由同一个viewModel持有，过渡不创建第二份选中日期。
+private struct HoloCalendarScaleTransition: ViewModifier {
+    let edge: Edge
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content.transition(reduceMotion ? .opacity : .asymmetric(
+            insertion: .move(edge: edge).combined(with: .opacity),
+            removal: .opacity
+        ))
     }
 }

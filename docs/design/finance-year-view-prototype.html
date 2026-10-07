@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>财务·年口径设计稿 v1 — Holo</title>
+<style>
+  :root {
+    --bg: #141416;
+    --phone-bg: #1C1C1E;
+    --card: #2A2A2E;
+    --card-2: #232327;
+    --divider: #3A3A3F;
+    --text: #F5F5F7;
+    --text-2: #98989F;
+    --text-3: #6E6E76;
+    --primary: #F46D38;
+    --primary-light: #FED7AA;
+    --primary-dark: #EA580C;
+    --green: #34C77B;
+    --red: #E5484D;
+    --last-year: #4A4A52;
+    --phone-w: 390px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    padding: 40px 32px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ===== 页头 ===== */
+  .page-header { max-width: 1780px; margin: 0 auto 36px; }
+  .page-header h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
+  .page-header h1 .ver {
+    font-size: 12px; font-weight: 600; color: var(--primary);
+    background: rgba(244,109,56,.12); border-radius: 6px; padding: 3px 8px;
+    vertical-align: 4px; margin-left: 8px;
+  }
+  .page-header .sub { color: var(--text-2); font-size: 13px; margin-top: 8px; line-height: 1.7; }
+  .page-header .sub b { color: var(--primary-light); font-weight: 600; }
+
+  /* ===== 画板布局 ===== */
+  .boards {
+    max-width: 1780px; margin: 0 auto;
+    display: flex; flex-wrap: wrap; gap: 36px; align-items: flex-start;
+  }
+  .board { width: var(--phone-w); }
+  .board-head { margin-bottom: 14px; }
+  .board-head .no {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 7px;
+    background: var(--primary); color: #fff; font-size: 12px; font-weight: 700;
+    margin-right: 8px; vertical-align: -4px;
+  }
+  .board-head h2 { display: inline; font-size: 16px; font-weight: 700; }
+  .board-head .desc { color: var(--text-2); font-size: 12px; margin-top: 6px; line-height: 1.6; padding-left: 30px; }
+
+  /* ===== 手机框 ===== */
+  .phone {
+    width: var(--phone-w); background: var(--phone-bg);
+    border: 1px solid var(--divider); border-radius: 44px;
+    padding: 10px; box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+  .phone-screen {
+    position: relative;
+    background: var(--phone-bg); border-radius: 36px; overflow: hidden;
+    min-height: 720px; display: flex; flex-direction: column;
+  }
+  .statusbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 26px 6px; font-size: 13px; font-weight: 600;
+  }
+  .statusbar .icons { font-size: 11px; letter-spacing: 2px; color: var(--text-2); }
+  .notch {
+    width: 110px; height: 26px; background: #000; border-radius: 14px;
+    margin: -32px auto 4px; position: relative; z-index: 2;
+  }
+
+  /* ===== 手机内通用 ===== */
+  .app-pad { padding: 6px 16px 24px; flex: 1; }
+  .nav-title { display: flex; justify-content: space-between; align-items: center; padding: 8px 4px 2px; }
+  .nav-title .t { font-size: 20px; font-weight: 700; }
+  .nav-title .ico { font-size: 16px; }
+
+  /* 胶囊切换器 */
+  .chips { display: flex; gap: 8px; padding: 12px 0 4px; overflow-x: auto; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+    font-size: 12px; padding: 6px 12px; border-radius: 100px;
+    color: var(--text-2); background: var(--card-2);
+    border: 1px solid var(--divider);
+  }
+  .chip.on {
+    color: #fff; background: var(--primary); border-color: var(--primary);
+    font-weight: 600;
+  }
+  .chip .ci { font-size: 11px; }
+
+  /* 口径选项弹层（点区间胶囊调起，低频操作不外显） */
+  .sheet-mask {
+    position: absolute; inset: 0; background: rgba(0,0,0,.45);
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+    display: flex; align-items: flex-end; z-index: 20;
+  }
+  .sheet-mask.open { opacity: 1; pointer-events: auto; }
+  /* 演示态：弹层默认展开（画板 3 静态展示用） */
+  .sheet-mask.demo { opacity: 1; pointer-events: auto; }
+  .sheet-mask.demo .sheet { transform: translateY(0); }
+  .sheet {
+    width: 100%; background: #26262B; border-radius: 22px 22px 0 0;
+    padding: 8px 20px 30px; transform: translateY(100%); transition: transform .28s;
+  }
+  .sheet-mask.open .sheet { transform: translateY(0); }
+  .grabber { width: 38px; height: 5px; border-radius: 3px; background: #4A4A52; margin: 4px auto 10px; }
+  .sheet-title { text-align: center; font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+
+  /* 弹层内快速档位行（v4：年的到达路径） */
+  .range-chips { display: flex; justify-content: center; gap: 8px; margin: 2px 0 4px; }
+  .range-chip {
+    font-size: 11px; padding: 5px 15px; border-radius: 100px;
+    color: var(--text-2); background: var(--card-2); border: 1px solid var(--divider);
+    cursor: pointer; font-family: inherit;
+  }
+  .range-chip.on { color: #fff; background: var(--primary); border-color: var(--primary); font-weight: 700; }
+  .range-chip:not(.on):hover { color: var(--text); }
+  .sheet-sec { font-size: 11px; color: var(--text-3); margin: 14px 0 2px; }
+  .sheet-sec .sec-note { font-size: 9px; margin-left: 6px; color: rgba(244,109,56,.7); }
+  .opt-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 4px; border-bottom: 1px solid rgba(255,255,255,.05); cursor: pointer;
+  }
+  .opt-row .on-t { font-size: 14px; font-weight: 600; }
+  .opt-row .on-d { font-size: 10.5px; color: var(--text-3); margin-top: 3px; line-height: 1.5; }
+  .opt-row .check {
+    width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--divider); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; color: transparent; font-weight: 800;
+  }
+  .opt-row.sel .check { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .date-preview { font-size: 13px; padding: 10px 4px; font-variant-numeric: tabular-nums; }
+  .sheet-foot { font-size: 10px; color: var(--text-3); padding: 4px 4px 0; }
+
+  /* 区间胶囊上的口径状态小字（非按钮，仅示状态） */
+  .mode-tag { font-size: 10px; color: var(--text-2); opacity: .85; }
+
+  /* 区间行 */
+  .range-row { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 0 4px; }
+  .range-nav {
+    width: 30px; height: 30px; border-radius: 50%; background: var(--card);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-2); font-size: 13px;
+  }
+  .range-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    color: var(--primary); font-size: 12px; font-weight: 500;
+    background: var(--card); border-radius: 100px; padding: 5px 12px;
+    cursor: pointer;
+  }
+  .range-pill .cal { font-size: 10px; }
+
+  /* 卡片 */
+  .card {
+    background: var(--card); border-radius: 18px; padding: 16px;
+    margin-top: 12px; border: 1px solid rgba(255,255,255,.03);
+  }
+  .card-label { font-size: 12px; color: var(--text-2); margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+  .amount { font-size: 26px; font-weight: 700; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+  .amount.small { font-size: 17px; }
+
+  /* 同比 badge */
+  .badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 11px; font-weight: 600; border-radius: 6px; padding: 3px 7px;
+    vertical-align: 4px; margin-left: 8px;
+  }
+  .badge.up   { color: var(--red);  background: rgba(229,72,77,.12); }
+  .badge.down { color: var(--green); background: rgba(52,199,123,.12); }
+  .badge.flat { color: var(--text-2); background: rgba(152,152,159,.12); }
+
+  /* 同比对照条 */
+  .yoy-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .yoy-row .yl { font-size: 11px; color: var(--text-2); width: 44px; }
+  .yoy-bar-wrap { flex: 1; height: 8px; border-radius: 4px; background: var(--card-2); overflow: hidden; }
+  .yoy-bar { height: 100%; border-radius: 4px; }
+  .yoy-bar.now { background: var(--primary); }
+  .yoy-bar.last { background: var(--last-year); }
+  .yoy-row .yv { font-size: 11px; font-variant-numeric: tabular-nums; width: 58px; text-align: right; color: var(--text-2); }
+
+  /* 月均行 */
+  .avg-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .avg-cell { background: var(--card-2); border-radius: 14px; padding: 12px 14px; }
+  .avg-cell .k { font-size: 11px; color: var(--text-2); }
+  .avg-cell .v { font-size: 18px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .footnote { font-size: 10px; color: var(--text-3); margin-top: 10px; line-height: 1.5; }
+
+  /* 预算进度 */
+  .budget-bar { height: 10px; border-radius: 5px; background: var(--card-2); overflow: hidden; margin-top: 10px; }
+  .budget-fill { height: 100%; width: 71%; border-radius: 5px; background: linear-gradient(90deg, var(--primary), var(--primary-dark)); }
+  .budget-nums { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-2); margin-top: 8px; font-variant-numeric: tabular-nums; }
+
+  /* ===== 画板2 图表 ===== */
+  .chart-card { background: var(--card); border-radius: 18px; padding: 16px 12px 12px; margin-top: 12px; }
+  .chart-title { display: flex; justify-content: space-between; align-items: center; padding: 0 6px 10px; }
+  .chart-title .ct { font-size: 13px; font-weight: 600; }
+  .legend { display: flex; gap: 12px; font-size: 10px; color: var(--text-2); }
+  .legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+  .legend .l-now i { background: var(--primary); }
+  .legend .l-last i { background: var(--last-year); }
+
+  .tooltip {
+    background: var(--card-2); border: 1px solid var(--divider);
+    border-radius: 12px; padding: 10px 12px; margin: 0 6px 10px;
+    font-size: 11px; line-height: 1.8; color: var(--text-2);
+  }
+  .tooltip b { color: var(--text); font-size: 12px; }
+  .tooltip .tt-month { font-size: 12px; font-weight: 700; color: var(--text); margin-right: 8px; }
+
+  .chart { display: flex; align-items: flex-end; gap: 4px; height: 170px; padding: 0 4px; }
+  .grp { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; cursor: pointer; }
+  .grp .bars { display: flex; align-items: flex-end; gap: 2px; height: 100%; width: 100%; justify-content: center; }
+  .bar-now, .bar-last {
+    width: 7px; border-radius: 3px 3px 1px 1px; transition: opacity .15s;
+  }
+  .bar-now { background: var(--primary); }
+  .bar-last { background: var(--last-year); }
+  .grp.future .bar-now { background: rgba(244,109,56,.14); }
+  .grp.future .bar-last { background: rgba(74,74,82,.4); }
+  .grp.sel .bar-now { background: var(--primary-dark); box-shadow: 0 0 10px rgba(244,109,56,.5); }
+  .grp:not(.future):hover .bar-now { opacity: .82; }
+  .grp .m { font-size: 9px; color: var(--text-3); margin-top: 6px; white-space: nowrap; }
+  .grp.sel .m { color: var(--primary-light); font-weight: 700; }
+
+  .tap-hint { text-align: center; font-size: 10px; color: var(--text-3); margin-top: 12px; }
+
+  /* ===== 画板3 账本页 ===== */
+  .ledger-date { text-align: center; font-size: 12px; color: var(--text-2); padding: 6px 0; }
+  .ledger-date b { color: var(--text); font-size: 14px; }
+  .cal-strip { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+  .cal-cell { width: 34px; text-align: center; }
+  .cal-cell .w { font-size: 9px; color: var(--text-3); }
+  .cal-cell .d {
+    width: 28px; height: 28px; margin: 4px auto 0; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--text-2);
+  }
+  .cal-cell.today .d { background: var(--primary); color: #fff; font-weight: 700; }
+
+  .month-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .m-card { position: relative; background: var(--card); border-radius: 18px; padding: 14px; }
+  .m-card .k { font-size: 11px; color: var(--text-2); }
+  .m-card .v { font-size: 19px; font-weight: 700; margin-top: 5px; font-variant-numeric: tabular-nums; }
+  .m-card .cmp { font-size: 10px; margin-top: 5px; }
+
+  .see-year {
+    position: absolute; top: 12px; right: 12px;
+    display: inline-flex; align-items: center; gap: 2px;
+    font-size: 10px; color: var(--primary); background: rgba(244,109,56,.1);
+    padding: 4px 9px; border-radius: 100px; font-weight: 600;
+  }
+
+  .txn { display: flex; align-items: center; gap: 12px; padding: 12px 2px; border-bottom: 1px solid rgba(255,255,255,.05); }
+  .txn:last-child { border-bottom: none; }
+  .txn .ico {
+    width: 36px; height: 36px; border-radius: 12px; background: var(--card-2);
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+  .txn .info { flex: 1; }
+  .txn .n { font-size: 13px; font-weight: 600; }
+  .txn .s { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+  .txn .amt { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .txn .amt.in { color: var(--green); }
+
+  /* ===== 画板4 口径示意 ===== */
+  .cal-wheel { margin-top: 10px; }
+  .legend-line { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-2); margin: 14px 0 6px; }
+  .legend-line i { width: 14px; height: 8px; border-radius: 3px; display: inline-block; }
+  .months-strip { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; }
+  .months-strip .mm {
+    height: 40px; border-radius: 6px; background: rgba(244,109,56,.16);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; color: var(--primary-light);
+  }
+  .brace-label { text-align: center; font-size: 11px; color: var(--primary); font-weight: 600; margin-top: 8px; }
+
+  .cycle-strip { display: flex; gap: 3px; margin-top: 4px; }
+  .cycle-strip .cc {
+    flex: 1; height: 34px; border-radius: 6px;
+    background: rgba(52,199,123,.14); border: 1px dashed rgba(52,199,123,.45);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 8.5px; color: rgba(52,199,123,.9); text-align: center; line-height: 1.3;
+  }
+  .offset-note { font-size: 10px; color: var(--text-3); margin-top: 8px; line-height: 1.6; }
+
+  .decision { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .d-card { border-radius: 14px; padding: 13px; font-size: 11px; line-height: 1.7; }
+  .d-card.a { background: rgba(244,109,56,.1); border: 1px solid rgba(244,109,56,.4); }
+  .d-card.b { background: var(--card-2); border: 1px solid var(--divider); opacity: .75; }
+  .d-card .dh { font-weight: 700; font-size: 12px; margin-bottom: 4px; }
+  .d-card.a .dh { color: var(--primary); }
+  .d-card .pick { float: right; font-size: 10px; font-weight: 700; }
+
+  /* ===== 标注 ===== */
+  .notes { margin-top: 16px; background: var(--card-2); border-radius: 14px; padding: 14px 16px; }
+  .notes .nh { font-size: 11px; font-weight: 700; color: var(--text-2); margin-bottom: 8px; letter-spacing: 1px; }
+  .notes ol { list-style: none; }
+  .notes li { font-size: 12px; color: var(--text-2); line-height: 1.7; display: flex; gap: 8px; margin-bottom: 6px; }
+  .notes li b { color: var(--text); font-weight: 600; }
+  .notes .n-no {
+    flex-shrink: 0; width: 17px; height: 17px; border-radius: 5px;
+    background: rgba(244,109,56,.16); color: var(--primary);
+    font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+  }
+  .notes li .new { color: var(--primary); font-weight: 700; }
+
+  /* ===== 批注圈（叠在手机内） ===== */
+  .anno {
+    position: absolute; border: 1.5px dashed rgba(244,109,56,.75); border-radius: 12px;
+    pointer-events: none; z-index: 5;
+  }
+  .anno .tag {
+    position: absolute; top: -9px; left: -9px;
+    width: 19px; height: 19px; border-radius: 6px; background: var(--primary);
+    color: #fff; font-size: 10px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  }
+  .phone { position: relative; }
+
+  /* ===== 页脚拍板区 ===== */
+  .footer {
+    max-width: 1780px; margin: 48px auto 0;
+    background: var(--card); border: 1px solid var(--divider); border-radius: 20px;
+    padding: 24px 28px; display: flex; flex-wrap: wrap; gap: 32px;
+  }
+  .footer .fcol { flex: 1; min-width: 260px; }
+  .footer h3 { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--primary-light); }
+  .footer li { list-style: none; font-size: 12px; color: var(--text-2); line-height: 2; }
+  .footer li b { color: var(--text); font-weight: 600; }
+  .footer .ok { color: var(--green); font-weight: 700; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>财务 · 按年查看 <span class="ver">设计稿 v4 · 2026-09-26</span></h1>
+  <div class="sub">
+    定位：<b>年视图的价值是回望与复盘，不是翻账</b> —— 统计分析页把「年」档做完整。<br>
+    v2：自然年 / 记账年双口径可切换。
+    v3：口径切换收进区间弹层（低频操作不外显）。
+    v4 变更（东林反馈）：<b>撤掉账本页「看全年」入口——年的到达路径改为时间弹层内的快速档位选择（周/月/季/年一行胶囊，见画板 3）；
+    区间胶囊文字最小化（年档只标「2026年 · 口径」，完整起止收在弹层，不再换行）</b>。纯 iOS 改动，无需后端发版。
+  </div>
+</div>
+
+<div class="boards">
+
+  <!-- ================= 画板 1：年档汇总区 ================= -->
+  <div class="board">
+    <div class="board-head">
+      <span class="no">1</span><h2>年档 · 汇总区改版</h2>
+      <div class="desc">选「年」后的第一屏。核心变化：同比对照 + 日均换月均；区间胶囊最小信息（只标年份 + 口径小字，完整起止在弹层）。</div>
+    </div>
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="statusbar"><span>9:41</span><span class="icons">●●●● 📶 🔋</span></div>
+        <div class="notch"></div>
+        <div class="app-pad">
+          <div class="nav-title"><span class="t">统计分析</span><span class="ico">🗓</span></div>
+
+          <div class="chips">
+            <span class="chip"><span class="ci">🕰</span>周</span>
+            <span class="chip"><span class="ci">📅</span>月</span>
+            <span class="chip"><span class="ci">🔄</span>季</span>
+            <span class="chip on"><span class="ci">🗓</span>年</span>
+            <span class="chip"><span class="ci">🎚</span>自定义</span>
+          </div>
+
+          <div class="range-row">
+            <span class="range-nav">‹</span>
+            <span class="range-pill" id="p1-pill"><span id="p1-range">2026年</span> <span class="mode-tag" id="p1-mode">记账年</span> <span class="cal">📅</span></span>
+            <span class="range-nav">›</span>
+          </div>
+          <div class="tap-hint" style="margin-top:2px">口径在胶囊里 ▸ 点区间胶囊试试</div>
+
+          <!-- 同比对照卡 -->
+          <div class="card">
+            <div class="card-label"><span id="p1-yoy-title">今年 vs 上一个记账年</span></div>
+            <div class="yoy-row">
+              <span class="yl">今年</span>
+              <div class="yoy-bar-wrap"><div class="yoy-bar now" id="p1-bar-now" style="width:100%"></div></div>
+              <span class="yv" id="p1-yoy-now">¥52,830</span>
+            </div>
+            <div class="yoy-row">
+              <span class="yl">去年</span>
+              <div class="yoy-bar-wrap"><div class="yoy-bar last" id="p1-bar-last" style="width:95.8%"></div></div>
+              <span class="yv" id="p1-yoy-last">¥50,640</span>
+            </div>
+          </div>
+
+          <!-- 主汇总卡 -->
+          <div class="card">
+            <div class="card-label">今年支出 <span class="badge up" id="p1-exp-badge">▲ 4.3% vs 上个记账年</span></div>
+            <div class="amount" id="p1-exp">¥52,830</div>
+            <div style="height:14px"></div>
+            <div class="card-label">今年收入 <span class="badge up" id="p1-inc-badge">▲ 7.9% vs 上个记账年</span></div>
+            <div class="amount" style="color:var(--green)" id="p1-inc">¥79,600</div>
+            <div style="height:14px"></div>
+            <div class="card-label">全年结余（至今）</div>
+            <div class="amount" style="font-size:20px" id="p1-bal">+¥26,770</div>
+          </div>
+
+          <!-- 月均行 -->
+          <div class="avg-grid">
+            <div class="avg-cell">
+              <div class="k" id="p1-avg-exp-k">月均支出（按账期）</div>
+              <div class="v" id="p1-avg-exp">¥5,870</div>
+            </div>
+            <div class="avg-cell">
+              <div class="k" id="p1-avg-inc-k">月均收入（按账期）</div>
+              <div class="v" style="color:var(--green)" id="p1-avg-inc">¥8,844</div>
+            </div>
+          </div>
+          <div class="footnote" id="p1-avg-note">按已过的 9 个账期计算（第 9 期刚开始，计入后自动更新）。年档不再展示「日均」。</div>
+
+          <!-- 年预算 -->
+          <div class="card" id="p1-budget" style="display:none">
+            <div class="card-label">年预算 · 已用 71%</div>
+            <div class="budget-bar"><div class="budget-fill"></div></div>
+            <div class="budget-nums"><span>¥51,420</span><span>预算 ¥72,000</span></div>
+            <div class="footnote" style="margin-top:8px">仅当设置过「每年」预算时显示；未设置不占位。年预算目前挂自然年口径，记账年视图下暂不显示（见画板 4）。</div>
+          </div>
+
+          <div class="tap-hint">↓ 趋势图见画板 2</div>
+        </div>
+
+        <!-- 口径选项弹层：点区间胶囊调起 -->
+        <div class="sheet-mask" id="p1-mask">
+          <div class="sheet">
+            <div class="grabber"></div>
+            <div class="sheet-title">时间范围</div>
+            <div class="range-chips">
+              <span class="range-chip">周</span>
+              <span class="range-chip">月</span>
+              <span class="range-chip">季</span>
+              <span class="range-chip on">年</span>
+            </div>
+            <div class="sheet-sec">年度口径 <span class="sec-note">低频操作，收进弹层不占页面</span></div>
+            <div class="opt-row" data-mode="calendar">
+              <div>
+                <div class="on-t">自然年</div>
+                <div class="on-d">1月1日 – 12月31日 · 对外总结、报税常用</div>
+              </div>
+              <div class="check">✓</div>
+            </div>
+            <div class="opt-row sel" data-mode="billing">
+              <div>
+                <div class="on-t">记账年</div>
+                <div class="on-d">跟随记账起始日（25号）· 与月档同一把尺，月加总 = 年</div>
+              </div>
+              <div class="check">✓</div>
+            </div>
+            <div class="sheet-sec">起止日期</div>
+            <div class="date-preview" id="p1-date-preview">2026年1月25日 — 2027年1月24日</div>
+            <div class="sheet-foot">胶囊只标年份，完整起止在这里 · 点档位胶囊即切档收起 · 起始日为1号时「年度口径」段不出现</div>
+          </div>
+        </div>
+      </div>
+      <div class="anno" style="left:18px; right:18px; top:172px; height:96px;"><span class="tag">1</span></div>
+      <div class="anno" style="left:18px; right:18px; top:432px; height:88px;"><span class="tag">2</span></div>
+    </div>
+    <div class="notes">
+      <div class="nh">标注</div>
+      <ol>
+        <li><span class="n-no">1</span><span><span class="new">收纳式口径选项</span> <b>点区间胶囊 → 底部弹层</b>里选自然年/记账年，选中即应用收起。页面无外显切换控件，胶囊尾部只留口径状态小字。</span></li>
+        <li><span class="n-no">2</span><span><span class="new">新增</span> <b>同比对照卡</b>：跟口径走——自然年比「去年同期」，记账年比「上一个记账年」。</span></li>
+        <li><span class="n-no">＋</span><span><span class="new">口径替换</span> <b>日均 → 月均</b>：看全年时月均才有信息量；记账年下按账期均摊。</span></li>
+        <li><span class="n-no">＋</span><span><b>弹层显隐规则</b>：起始日 = 1 号（两口径等价）的用户，弹层里不出现「年度口径」段；口径段仅年档显示。</span></li>
+        <li><span class="n-no">＋</span><span><b>年预算卡</b>：一期挂自然年口径；记账年视图下暂不显示（预算周期联动见画板 4）。</span></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ================= 画板 2：趋势图同比 ================= -->
+  <div class="board">
+    <div class="board-head">
+      <span class="no">2</span><h2>年趋势 · 同比双柱</h2>
+      <div class="desc">12 个周期双柱：橙=今年、灰=去年。口径在区间胶囊的弹层里切换（点胶囊试试），柱子语义随动（自然月 / 账期），点柱子看单期对照。</div>
+    </div>
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="statusbar"><span>9:41</span><span class="icons">●●●● 📶 🔋</span></div>
+        <div class="notch"></div>
+        <div class="app-pad">
+          <div class="nav-title"><span class="t">统计分析</span><span class="ico">🗓</span></div>
+
+          <div class="chips">
+            <span class="chip">周</span><span class="chip">月</span><span class="chip">季</span>
+            <span class="chip on">年</span><span class="chip">自定义</span>
+          </div>
+          <div class="range-row">
+            <span class="range-nav">‹</span>
+            <span class="range-pill" id="p2-pill"><span id="p2-range">2026年</span> <span class="mode-tag" id="p2-mode">记账年</span> 📅</span>
+            <span class="range-nav">›</span>
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-title">
+              <span class="ct">支出趋势</span>
+              <span class="legend"><span class="l-now"><i></i>今年</span><span class="l-last"><i></i>去年</span></span>
+            </div>
+            <div class="tooltip" id="tooltip"></div>
+            <div class="chart" id="chart"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-label">分类占比（全年）</div>
+            <div style="display:flex; height:12px; border-radius:6px; overflow:hidden; margin-top:4px">
+              <span style="width:32%; background:#F46D38"></span>
+              <span style="width:22%; background:#FBA05A"></span>
+              <span style="width:16%; background:#FED7AA"></span>
+              <span style="width:12%; background:#8A8A93"></span>
+              <span style="width:18%; background:#4A4A52"></span>
+            </div>
+            <div class="footnote" style="margin-top:8px">餐饮 32% · 购物 22% · 居住 16% · 交通 12% · 其他 18% —— 饼图与 TOP3 沿用现有组件，按年聚合。</div>
+          </div>
+
+          <div class="tap-hint">↑ 本画板可交互：点区间胶囊切口径、点柱子看对照</div>
+        </div>
+
+        <!-- 口径选项弹层：点区间胶囊调起 -->
+        <div class="sheet-mask" id="p2-mask">
+          <div class="sheet">
+            <div class="grabber"></div>
+            <div class="sheet-title">时间范围</div>
+            <div class="range-chips">
+              <span class="range-chip">周</span>
+              <span class="range-chip">月</span>
+              <span class="range-chip">季</span>
+              <span class="range-chip on">年</span>
+            </div>
+            <div class="sheet-sec">年度口径 <span class="sec-note">低频操作，收进弹层不占页面</span></div>
+            <div class="opt-row" data-mode="calendar">
+              <div>
+                <div class="on-t">自然年</div>
+                <div class="on-d">1月1日 – 12月31日 · 柱子按自然月</div>
+              </div>
+              <div class="check">✓</div>
+            </div>
+            <div class="opt-row sel" data-mode="billing">
+              <div>
+                <div class="on-t">记账年</div>
+                <div class="on-d">跟随记账起始日（25号）· 柱子按账期（8月期 = 8/25–9/24）</div>
+              </div>
+              <div class="check">✓</div>
+            </div>
+            <div class="sheet-sec">起止日期</div>
+            <div class="date-preview" id="p2-date-preview">2026年1月25日 — 2027年1月24日</div>
+            <div class="sheet-foot">点档位胶囊即切档收起 · 灰色对照柱同步换成上一口径年的同位周期</div>
+          </div>
+        </div>
+      </div>
+      <div class="anno" style="left:18px; right:18px; top:236px; height:250px;"><span class="tag">3</span></div>
+    </div>
+    <div class="notes">
+      <div class="nh">标注</div>
+      <ol>
+        <li><span class="n-no">3</span><span><span class="new">新增</span> <b>去年对照柱</b>（灰）：与今年柱成对；记账年口径下灰柱 = 上一个记账年的同位账期。</span></li>
+        <li><span class="n-no">＋</span><span><b>柱子语义随口径</b>：自然年 = 自然月；记账年 = 账期（以起始月命名，tooltip 显示完整起止，如「8月期 8/25–9/24」）。</span></li>
+        <li><span class="n-no">＋</span><span><b>未来周期空位</b>：未到的月/账期降透明度占位，不画零柱（避免「年底暴跌」错觉）；进行中的账期标注「进行中」。</span></li>
+        <li><span class="n-no">＋</span><span><b>点柱下钻</b>：选中某期 → 看该期明细，链路已存在，仅顺文案。</span></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ================= 画板 3：时间弹层 · 快速档位 ================= -->
+  <div class="board">
+    <div class="board-head">
+      <span class="no">3</span><h2>时间弹层 · 快速档位</h2>
+      <div class="desc">年的到达路径：点区间胶囊 → 弹层顶部一行档位胶囊（周/月/季/年），点选即切档收起。本画板弹层默认展开，点「月」试试收起，再点胶囊重开。</div>
+    </div>
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="statusbar"><span>9:41</span><span class="icons">●●●● 📶 🔋</span></div>
+        <div class="notch"></div>
+        <div class="app-pad">
+          <div class="nav-title"><span class="t">统计分析</span><span class="ico">🗓</span></div>
+
+          <div class="chips">
+            <span class="chip">周</span>
+            <span class="chip">月</span>
+            <span class="chip">季</span>
+            <span class="chip on">年</span>
+            <span class="chip">自定义</span>
+          </div>
+          <div class="range-row">
+            <span class="range-nav">‹</span>
+            <span class="range-pill" id="p3-pill"><span>2026年</span> <span class="mode-tag">记账年</span> 📅</span>
+            <span class="range-nav">›</span>
+          </div>
+
+          <!-- 弹层打开时背景内容被遮罩压暗（示意） -->
+          <div class="card" style="opacity:.9">
+            <div class="card-label">今年 vs 上一个记账年</div>
+            <div class="yoy-row"><span class="yl">今年</span><div class="yoy-bar-wrap"><div class="yoy-bar now" style="width:100%"></div></div><span class="yv">¥52,830</span></div>
+            <div class="yoy-row"><span class="yl">去年</span><div class="yoy-bar-wrap"><div class="yoy-bar last" style="width:95.8%"></div></div><span class="yv">¥50,640</span></div>
+          </div>
+          <div class="tap-hint">弹层展开时背景压暗 · 点档位胶囊即切档收起</div>
+        </div>
+
+        <!-- 快速档位弹层：默认展开演示 -->
+        <div class="sheet-mask demo" id="p3-mask">
+          <div class="sheet">
+            <div class="grabber"></div>
+            <div class="sheet-title">时间范围</div>
+            <div class="range-chips">
+              <span class="range-chip">周</span>
+              <span class="range-chip">月</span>
+              <span class="range-chip">季</span>
+              <span class="range-chip on">年</span>
+            </div>
+            <div class="sheet-sec">年度口径 <span class="sec-note">仅年档出现</span></div>
+            <div class="opt-row" data-mode="calendar">
+              <div>
+                <div class="on-t">自然年</div>
+                <div class="on-d">1月1日 – 12月31日 · 对外总结、报税常用</div>
+              </div>
+              <div class="check">✓</div>
+            </div>
+            <div class="opt-row sel" data-mode="billing">
+              <div>
+                <div class="on-t">记账年</div>
+                <div class="on-d">跟随记账起始日（25号）· 与月档同一把尺，月加总 = 年</div>
+              </div>
+              <div class="check">✓</div>
+            </div>
+            <div class="sheet-sec">起止日期</div>
+            <div class="date-preview">2026年1月25日 — 2027年1月24日</div>
+            <div class="sheet-foot">切档/切口径即收起 · 也可点日历自定义起止 · 起始日为1号时「年度口径」段不出现</div>
+          </div>
+        </div>
+      </div>
+      <div class="anno" style="left:18px; right:18px; top:158px; height:44px;"><span class="tag">7</span></div>
+    </div>
+    <div class="notes">
+      <div class="nh">标注</div>
+      <ol>
+        <li><span class="n-no">7</span><span><span class="new">v4 拍板</span> <b>快速档位 = 年的到达路径</b>：弹层顶部一行胶囊（周/月/季/年），点选即切档收起；与页面顶部档位横滑条同语义、双入口并存。</span></li>
+        <li><span class="n-no">＋</span><span><b>账本页「看全年」入口已撤</b>（v3 方案废弃）：账本页保持纯日/月翻账，年度统计一律从统计页时间组件进入。</span></li>
+        <li><span class="n-no">＋</span><span><b>胶囊最小信息</b>：年档只标「2026年 · 记账年」，完整起止收在弹层起止卡；不再出现换行长文案。</span></li>
+        <li><span class="n-no">＋</span><span><b>日档不在弹层</b>：按天看账由账本页承担，弹层档位与顶部横滑条保持同一套（周/月/季/年）。</span></li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ================= 画板 4：口径拍板 ================= -->
+  <div class="board">
+    <div class="board-head">
+      <span class="no">4</span><h2>口径机制 · 双口径切换</h2>
+      <div class="desc">已定：两种口径都做、用户可切（见画板 1、2）。剩一个子拍板：默认展示哪个口径。</div>
+    </div>
+    <div class="phone">
+      <div class="phone-screen">
+        <div class="statusbar"><span>9:41</span><span class="icons">●●●● 📶 🔋</span></div>
+        <div class="notch"></div>
+        <div class="app-pad">
+          <div class="nav-title"><span class="t">口径示意</span></div>
+
+          <div class="card cal-wheel">
+            <div class="legend-line"><i style="background:rgba(244,109,56,.16); border:1px solid rgba(244,109,56,.5)"></i>「年」档 = 自然年</div>
+            <div class="months-strip">
+              <span class="mm">1</span><span class="mm">2</span><span class="mm">3</span><span class="mm">4</span><span class="mm">5</span><span class="mm">6</span>
+              <span class="mm">7</span><span class="mm">8</span><span class="mm">9</span><span class="mm">10</span><span class="mm">11</span><span class="mm">12</span>
+            </div>
+            <div class="brace-label">2026年1月1日 ─ 12月31日（与人类共识对齐）</div>
+
+            <div style="height:18px"></div>
+
+            <div class="legend-line"><i style="background:rgba(52,199,123,.14); border:1px dashed rgba(52,199,123,.45)"></i>「月」档 = 记账周期（如每月25日起）</div>
+            <div class="cycle-strip">
+              <span class="cc">3/25–4/24</span>
+              <span class="cc">4/25–5/24</span>
+              <span class="cc">5/25–6/24</span>
+              <span class="cc">6/25–7/24</span>
+            </div>
+            <div class="offset-note">
+              同一用户两种口径数字不同（如本例支出 ¥52,830 vs ¥51,420）——这正是切换的价值：<b style="color:var(--primary-light)">一套数据，两种视角</b>，跟「月度视图」和「自然月」的关系一样。
+            </div>
+          </div>
+
+          <div class="decision">
+            <div class="d-card a">
+              <div class="dh">默认记账年 <span class="pick">✓ 推荐</span></div>
+              与「月」档同锚：12 个记账月加总 = 年总额，数字自洽。改起始日的用户本就是在乎账期的人，默认给他账期视角；年终对外总结时再切自然年。
+            </div>
+            <div class="d-card b">
+              <div class="dh">默认自然年</div>
+              对外沟通直觉（报税、年度总结）。但与月档不同锚，「月加总 ≠ 年」的困惑会落在这批用户身上。不推荐做默认。
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-label">切换机制与周边联动</div>
+            <div class="footnote" style="margin-top:4px">
+              · 时间弹层顶部一行快速档位（周/月/季/年）点选即切档收起——年的到达路径<br>
+              · 口径选项收在同一弹层（点区间胶囊调起），页面无外显控件——低频操作不占页面<br>
+              · 区间胶囊最小信息：年档只标「2026年 · 口径」，完整起止在弹层起止卡<br>
+              · 弹层内仅年档显示「年度口径」段；起始日 = 1 号（两口径等价）时整段不出现<br>
+              · 口径选择记忆到下次进入；翻年箭头按当前口径翻（记账年 2026 → 2025 记账年）<br>
+              · 预算「每年」档一期挂自然年；记账年视图下年预算卡暂不显示<br>
+              · AI 问答默认跟月档同锚（记账年），用户明说「自然年」则用自然年，<b style="color:var(--primary-light)">无需后端发版</b><br>
+              · 远期念想：年度回顾报告（叙事化年报），不混入本次范围
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="nh">标注</div>
+      <ol>
+        <li><span class="n-no">5</span><span><b>拍板点①（已定 ✓）</b>：双口径都做、可切换——东林 9-26 反馈。</span></li>
+        <li><span class="n-no">6</span><span><b>拍板点②（待定）</b>：默认口径推荐「记账年」（与月档同锚、数字自洽）；对外总结时用户自切自然年。</span></li>
+      </ol>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== 页脚：一期范围 ===== -->
+<div class="footer">
+  <div class="fcol">
+    <h3>一期范围（本设计稿覆盖）</h3>
+    <li><b>弹层快速档位</b>：时间弹层顶部一行胶囊（周/月/季/年），点选即切档收起</li>
+    <li><b>口径选项（弹层内）</b>：点区间胶囊调起，自然年 / 记账年随选随算（页面无外显控件）</li>
+    <li><b>胶囊最小信息</b>：年档只标「2026年 · 口径」，完整起止收在弹层，不再换行</li>
+    <li><b>同比对照卡</b>：对照基准跟口径走（去年同期 / 上个记账年）</li>
+    <li><b>月均口径</b>：年档下日均 → 月均（记账年按账期均摊），含结余行</li>
+    <li><b>同比双柱图</b>：去年对照柱 + 单期点击对照 tooltip</li>
+    <li><b>年预算进度</b>：一期挂自然年口径，设了「每年」预算才显示</li>
+  </div>
+  <div class="fcol">
+    <h3>明确不做（一期）</h3>
+    <li><b>账本页年入口</b>：v3「看全年」角标方案废弃，年的到达路径统一归口时间弹层</li>
+    <li><b>账本页年层级</b>：翻账 ≠ 统计，信息架构不动</li>
+    <li><b>第三种年度口径</b>：只有自然年 / 记账年两档，不做自定义年</li>
+    <li><b>预算的记账年联动</b>：年预算暂只认自然年，二期再议</li>
+    <li><b>年度回顾报告</b>：远期单独立项</li>
+  </div>
+  <div class="fcol">
+    <h3>成本与风险</h3>
+    <li><b>纯 iOS</b>，无后端发版、无 CloudKit 部署</li>
+    <li>预估 2 天左右开发 + 测试</li>
+    <li>风险点：同比需同时拉两年数据，注意加载性能（本地库毫秒级，已串行实现）</li>
+    <li>记账年区间计算复用月档的账期引擎（BillingCycleCalculator），不另起炉灶</li>
+  </div>
+</div>
+
+<script>
+  // ===== 双口径数据（示例数据，起始日按 25 号设定，今天 = 2026-09-26） =====
+  const DATA = {
+    calendar: { // 自然年
+      range: '2026年1月1日 – 12月31日',
+      yoyTitle: '今年 vs 去年同期', yoyNow: '¥51,420', yoyLast: '¥49,190', barLast: '95.7%',
+      exp: '¥51,420', expBadge: '▲ 4.5% vs 去年同期',
+      inc: '¥78,000', incBadge: '▲ 7.7% vs 去年同期', bal: '+¥26,580',
+      avgExpK: '月均支出', avgExp: '¥5,713', avgIncK: '月均收入', avgInc: '¥8,667',
+      avgNote: '按已过的 9 个自然月计算（本月进行中，计入后自动更新）。年档不再展示「日均」。',
+      budget: true,
+      now:  [5200, 4800, 5600, 5900, 5400, 6200, 6800, 6420, 5100, null, null, null],
+      last: [4900, 5100, 5300, 5500, 5200, 5800, 6100, 5890, 5400, 5600, 5000, 6300],
+      ongoing: 8, // 9 月进行中
+      periodName: i => (i + 1) + '月',
+      lastLabel: '去年同期'
+    },
+    billing: { // 记账年（起始日 25）
+      range: '2026年1月25日 – 2027年1月24日',
+      yoyTitle: '今年 vs 上一个记账年', yoyNow: '¥52,830', yoyLast: '¥50,640', barLast: '95.8%',
+      exp: '¥52,830', expBadge: '▲ 4.3% vs 上个记账年',
+      inc: '¥79,600', incBadge: '▲ 7.9% vs 上个记账年', bal: '+¥26,770',
+      avgExpK: '月均支出（按账期）', avgExp: '¥5,870', avgIncK: '月均收入（按账期）', avgInc: '¥8,844',
+      avgNote: '按已过的 9 个账期计算（第 9 期刚开始，计入后自动更新）。年档不再展示「日均」。',
+      budget: false,
+      now:  [5350, 4900, 5700, 6000, 5500, 6300, 6900, 6520, 140, null, null, null],
+      last: [5000, 5200, 5400, 5600, 5300, 5900, 6200, 6010, 5500, 5700, 5100, 6400],
+      ongoing: 8, // 第 9 期（9/25 起）进行中
+      periodName: i => (i + 1) + '月期',
+      lastLabel: '上个记账年同期',
+      periodSpan: i => `${i + 1}/25 – ${i === 11 ? '次年1/24' : (i + 2) + '/24'}`
+    }
+  };
+  const fmt = n => '¥' + n.toLocaleString('zh-CN');
+  const $ = id => document.getElementById(id);
+
+  // ===== 画板 1：口径弹层 → 汇总区数字联动 =====
+  function renderBoard1(mode) {
+    const d = DATA[mode];
+    // 最小信息：胶囊只标年份（两口径同年），完整起止在弹层起止卡
+    $('p1-range').textContent = '2026年';
+    $('p1-mode').textContent = mode === 'billing' ? '记账年' : '自然年';
+    $('p1-date-preview').textContent = d.range.replace(' – ', ' — ');
+    $('p1-yoy-title').textContent = d.yoyTitle;
+    $('p1-yoy-now').textContent = d.yoyNow;
+    $('p1-yoy-last').textContent = d.yoyLast;
+    $('p1-bar-last').style.width = d.barLast;
+    $('p1-exp').textContent = d.exp;   $('p1-exp-badge').textContent = d.expBadge;
+    $('p1-inc').textContent = d.inc;   $('p1-inc-badge').textContent = d.incBadge;
+    $('p1-bal').textContent = d.bal;
+    $('p1-avg-exp-k').textContent = d.avgExpK; $('p1-avg-exp').textContent = d.avgExp;
+    $('p1-avg-inc-k').textContent = d.avgIncK; $('p1-avg-inc').textContent = d.avgInc;
+    $('p1-avg-note').textContent = d.avgNote;
+    $('p1-budget').style.display = d.budget ? '' : 'none';
+  }
+
+  // ===== 画板 2：口径弹层 → 柱图重绘 =====
+  const chart = $('chart'), tooltip = $('tooltip');
+  let p2Mode = 'billing', selIdx = 7;
+
+  function renderTooltip(i) {
+    const d = DATA[p2Mode], v = d.now[i], l = d.last[i];
+    const diff = ((v - l) / l) * 100;
+    const badge = `<span class="badge ${diff >= 0 ? 'up' : 'down'}" style="vertical-align:1px">${diff >= 0 ? '▲' : '▼'} ${Math.abs(diff).toFixed(1)}%</span>`;
+    const ongoing = i === d.ongoing ? ` <span class="badge flat" style="vertical-align:1px">进行中</span>` : '';
+    const span = p2Mode === 'billing' ? ` · ${d.periodSpan(i)}` : '';
+    tooltip.innerHTML = `
+      <span class="tt-month">${d.periodName(i)}${span}</span>${ongoing}<br>
+      今年 <b>${fmt(v)}</b> · ${d.lastLabel} <b>${fmt(l)}</b> ${badge}<br>
+      点击柱子下钻查看当期明细`;
+  }
+
+  function renderChart() {
+    const d = DATA[p2Mode];
+    const maxV = Math.max(...d.now.filter(x => x !== null), ...d.last) * 1.08;
+    chart.innerHTML = '';
+    d.now.forEach((v, i) => {
+      const future = v === null;
+      const nowH = future ? 3 : (v / maxV * 100);
+      const lastH = (d.last[i] / maxV * 100);
+      const grp = document.createElement('div');
+      grp.className = 'grp' + (future ? ' future' : '') + (i === selIdx ? ' sel' : '');
+      grp.innerHTML = `
+        <div class="bars">
+          <div class="bar-last" style="height:${lastH}%"></div>
+          <div class="bar-now" style="height:${nowH}%"></div>
+        </div>
+        <div class="m">${d.periodName(i)}</div>`;
+      if (!future) {
+        grp.onclick = () => {
+          selIdx = i;
+          chart.querySelectorAll('.grp').forEach(g => g.classList.remove('sel'));
+          grp.classList.add('sel');
+          renderTooltip(i);
+        };
+      }
+      chart.appendChild(grp);
+    });
+    renderTooltip(selIdx);
+  }
+
+  function applyBoard2(mode) {
+    p2Mode = mode; selIdx = 7;
+    $('p2-range').textContent = '2026年';
+    $('p2-mode').textContent = mode === 'billing' ? '记账年' : '自然年';
+    $('p2-date-preview').textContent = DATA[mode].range.replace(' – ', ' — ');
+    renderChart();
+  }
+
+  // ===== 弹层交互：点区间胶囊调起，选口径即应用收起 =====
+  function bindSheet(prefix, apply) {
+    const mask = $(prefix + '-mask'), pill = $(prefix + '-pill');
+    pill.onclick = () => mask.classList.add('open');
+    mask.onclick = e => { if (e.target === mask) mask.classList.remove('open'); };
+    mask.querySelectorAll('.opt-row').forEach(row => {
+      row.onclick = () => {
+        mask.querySelectorAll('.opt-row').forEach(r => r.classList.remove('sel'));
+        row.classList.add('sel');
+        mask.classList.remove('open');
+        apply(row.dataset.mode);
+      };
+    });
+  }
+  bindSheet('p1', renderBoard1);
+  bindSheet('p2', applyBoard2);
+
+  // ===== 快速档位胶囊（v4）：点选即切档收起 =====
+  document.querySelectorAll('.range-chip').forEach(chip => {
+    chip.onclick = () => {
+      const mask = chip.closest('.sheet-mask');
+      if (mask) mask.classList.remove('open', 'demo');
+    };
+  });
+
+  // 画板 3：演示弹层可关可重开
+  const p3Mask = $('p3-mask'), p3Pill = $('p3-pill');
+  if (p3Pill && p3Mask) {
+    p3Pill.onclick = () => p3Mask.classList.add('demo');
+    p3Mask.onclick = e => { if (e.target === p3Mask) p3Mask.classList.remove('demo'); };
+  }
+
+  // 初始渲染（默认记账年口径）
+  renderBoard1('billing');
+  renderChart();
+</script>
+
+</body>
+</html>

@@ -14,6 +14,7 @@ import { injectServerPrompt } from "../prompts/serverPromptPolicy.js";
 import { insightMaxTokensFor } from "../config.js";
 import { validateAgentLoopContent } from "../agentResponseValidator.js";
 import { createCloudAnalysisQueryEngine, buildCloudToolCatalog } from "./cloudAnalysisQueryEngine.js";
+import { createQuestionTimeResolver } from "./questionTimeResolver.js";
 
 const MAX_LLM_ROUNDS = 12;
 const MAX_PROVIDER_RETRIES = 3;
@@ -29,10 +30,29 @@ function sanitizeToken(value) {
  * 旧客户端不附带时按保守默认任务运行，不破坏旧协议。字段缺省用 unknown/空，
  * 不让模型补猜——任务范围由代码冻结，模型只负责在范围内工作。
  */
+// S03（2026-10-04 体检）：快照覆盖完整性提取——iOS 快照每个数据集携带
+// totalRows（截断前总量）与 coveredFrom（快照内最老一行）；此处原样回显进
+// 结果，客户端据此在报告范围行标注截断。旧快照无元数据时 total=provided。
+function snapshotCoverage(snapshot) {
+  const datasets = snapshot?.datasets;
+  if (!datasets || typeof datasets !== "object") return null;
+  const coverage = {};
+  for (const [name, dataset] of Object.entries(datasets)) {
+    const provided = Array.isArray(dataset?.rows) ? dataset.rows.length : 0;
+    const total = Number.isInteger(dataset?.totalRows) ? dataset.totalRows : provided;
+    coverage[name] = {
+      totalRows: total,
+      providedRows: provided,
+      truncated: provided < total,
+      coveredFrom: typeof dataset?.coveredFrom === "string" ? dataset.coveredFrom : null,
+    };
+  }
+  return coverage;
+}
+
 function normalizeAnswerTask(snapshot, fallbackQuestion) {
   const raw = snapshot?.answerTask;
-  const cutoffISO = snapshot?.generatedAt ?? null;
-  const questionKindWhitelist = new Set(["fact", "comparison", "diagnosis", "correlation", "decision", "general"]);
+  const cutoffISO = snapshot?.generatedAt ?? null;  const questionKindWhitelist = new Set(["fact", "comparison", "diagnosis", "correlation", "decision", "general"]);
   const task = {
     scenarioID: typeof raw?.scenarioID === "string" && raw.scenarioID ? raw.scenarioID : null,
     userQuestion: typeof raw?.userQuestion === "string" && raw.userQuestion.trim()
@@ -70,17 +90,24 @@ function normalizeAnswerTask(snapshot, fallbackQuestion) {
 
 /** 冻结任务段文案（拼进 system prompt）：用户可见问题原样保留，范围/类型/清单
  * 由代码声明，模型不得改写。旧客户端无 answerTask 时退化为最小任务（仅问题+
- * 快照截止），行为与旧版一致。 */
-function buildFrozenTaskBlock(task, availableSources) {
+ * 快照截止），行为与旧版一致。taskType（deep_analysis 等）由代码声明，
+ * 供 v23 契约的「深度分析展开豁免」做确定性识别，不靠模型从问句猜。 */
+function buildFrozenTaskBlock(task, availableSources, taskType) {
   const fmt = (ms) => new Date(ms).toISOString().slice(0, 16).replace("T", " ");
   const lines = [
     "【本轮冻结任务（系统生成，范围不得改写）】",
     `用户问题（原话）：${task.userQuestion}`,
     `问题类型：${task.questionKind}`,
   ];
+  if (taskType) lines.push(`任务类型：${taskType}`);
   if (task.scenarioID) lines.push(`场景：${task.scenarioID}`);
   if (task.primaryTimeRange) {
     lines.push(`主时间范围：${fmt(task.primaryTimeRange.startMs)} 至 ${fmt(task.primaryTimeRange.endMs)}（${task.primaryTimeRange.label}；Unix 秒 ${Math.floor(task.primaryTimeRange.startMs / 1000)}-${Math.floor(task.primaryTimeRange.endMs / 1000)}；dynamicPlan.timeRange 优先引用此范围）`);
+  } else {
+    // 无冻结窗兜底（2026-09-24「最近两个月答成180天」复盘）：词表外的口语时间
+    // 表达客户端解析不到时窗口缺失，模型行为不稳定——同一问句有的轮次自行
+    // 领悟、有的全窗查询。给确定性指令：问句含时间表述必须按它换算窗口。
+    lines.push("主时间范围：未冻结。若用户问题原话包含时间范围表述（如最近N天/周/月/年、某月起），必须按该表述换算 timeRange 查询，不得默认全窗口；回答开头注明实际分析的时间范围。");
   }
   if (task.snapshotCutoffAt) lines.push(`快照截止：${task.snapshotCutoffAt}（历史查询不得越过）`);
   if (task.availableSourcesHint) lines.push(`可用数据源：${task.availableSourcesHint}`);
@@ -116,19 +143,47 @@ function numberMatchesAllowed(value, allowed) {
   return false;
 }
 
+// 空台账定性拦截（2026-10-04 体检 AI02-C / R01）词表：整场没有任何指标入账时，
+// 含定性规律表述且不带诚实降级说明的 claim 不可能有数据支持。只收窄用于
+// ledgerHasMetrics === false 的实锤场景；有台账时的逐条定性-证据绑定属
+// factRole 语义分层（AI02 第二步），不用词表粗规则扩大拦截面。
+const QUALITATIVE_PATTERN_TOKENS = [
+  "主要", "为主", "最多", "最少", "持续上升", "持续下降", "不断上升", "不断下降",
+  "越来越多", "越来越少", "大幅", "显著", "集中在", "大部分", "多为", "偏多", "偏少",
+  "高频", "习惯性", "总是", "每次都",
+];
+const HONEST_LIMITATION_TOKENS = [
+  "无法判断", "不能判断", "无法确定", "说不准", "记录不足", "数据不足", "没有足够",
+  "暂无数据", "尚未记录", "未记录", "看不出", "缺少",
+];
+
+function containsAnyToken(text, tokens) {
+  return tokens.some((token) => text.includes(token));
+}
+
 /**
  * 交付核验（2026-09-19 方案任务1 §3.4）：final_claims 落库/提交额度/推送「完成」
  * 之前的云端专用闸门。「JSON 合法」不等于「可交付」：
  * - 空 claims 不允许完成（可解释缺口必须以 claim 形式说出，或走诚实失败）；
  * - 每条数字断言必须与本次工具 Ledger 一致（metricKey 存在 + 数值对上），
- *   对不上的断言降级剥离并记 warning，不回退为「整个证据池都当依据」；
+ *   对不上的断言降级剥离并记 warning；
  * - 引用不存在的 evidence ID 直接剥离；
- * - title/narrativeSummary/keyInsight 出现 Ledger 与 claims 都不支持的数字时清空
- *   该叙事字段（iOS 端有 claims 拼接回退，不丢事实）。
- * 返回 { claims, warnings, title, narrativeSummary, keyInsight, emptyClaims }。
+ * - 正文数字核验（2026-10-04 体检 AI02-A，堵 R02/R03）：displayText/summary 里的
+ *   可核对数字必须被 Ledger 已核验值、本条保留断言或所引证据原文支持——此前
+ *   正文从不数字对账，挂一条合法引用即可让编造金额（真实 74 写 9999）照常交付。
+ *   对不上 → 整条撤回进修复轮，不再「剥断言留正文」；
+ * - 空台账定性拦截（AI02-C，堵 R01）：整场无指标入账时，定性规律表述
+ *   （"主要/最多/持续上升"）且无诚实降级说明的 claim 撤回，不再仅记
+ *   NO_TOOL_EVIDENCE 后照常 completed；
+ * - claimTitle/title/narrativeSummary/keyInsight 出现 Ledger 与 claims 都不支持的
+ *   数字时清空该字段（iOS 端有 claims 拼接回退，不丢事实）。
+ * 撤回的 claim 记入 droppedClaims（带原因摘要）：主循环据此触发修复轮，
+ * 修复轮后仍被撤回的 claim 不交付。
+ * 返回 { claims, droppedClaims, warnings, title, narrativeSummary, keyInsight, emptyClaims }。
  */
-function verifyDelivery(output, { metricLedger, validEvidenceIDs }) {
+function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts }) {
   const warnings = [];
+  const dropped = [];
   const ledgerHasMetrics = metricLedger.size > 0;
   // 同 metricKey 可能对应多个分组（中文分组 sanitize 撞名），断言与任一分组值对上即通过
   const ledgerByMetricKey = new Map();
@@ -137,6 +192,13 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs }) {
     ledgerByMetricKey.get(entry.metricKey).push(entry);
   }
   const claims = [];
+  // claimTitle（v23 点破式标题）数字核验的白名单底座：Ledger 已核验值 +
+  // 本条 claim 正文/断言的数字。claimTitle 自身不进白名单（自证无核验意义）。
+  const ledgerNumbers = [];
+  for (const metric of metricLedger.values()) {
+    ledgerNumbers.push(metric.value);
+    if (metric.baselineValue != null) ledgerNumbers.push(metric.baselineValue);
+  }
   for (const claim of output.claims ?? []) {
     const sanitized = { ...claim };
     // 数字断言逐条对账
@@ -170,11 +232,58 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs }) {
     const hasAssertion = (sanitized.metricAssertions ?? []).length > 0;
     const hasEvidence = (sanitized.evidenceIDs ?? []).length > 0;
     const text = `${sanitized.displayText ?? ""}${sanitized.summary ?? ""}`;
-    // 已有工具证据的会话里，含数字的 claim 既无断言也无引用 = 未经核验的数字，
-    // 剥离（定性 claim 保留）。整场没查到任何指标的会话按降级保留并警告。
-    if (ledgerHasMetrics && !hasAssertion && !hasEvidence && extractCheckableNumbers(text).length > 0) {
+    // 含数字的 claim 既无断言也无引用 = 未经核验的数字，一律剥离（定性 claim 保留）。
+    // 2026-10-04 体检 S02：此前「整场没查到指标」的会话按降级保留数字结论——
+    // 合成复现实锤空数据 + 编造「本月支出 99999 元」可穿透防线交付 completed。
+    // 现在无论台账是否有数，数字结论必须挂得上断言/引用，挂不上就剥离；
+    // 全部剥空走既有诚实失败路径（修复轮 → 仍空 → failed）。
+    if (!hasAssertion && !hasEvidence && extractCheckableNumbers(text).length > 0) {
       warnings.push(`NUMERIC_CLAIM_UNVERIFIED:${sanitized.id ?? "claim"}`);
+      dropped.push({ id: sanitized.id ?? null, reason: "数字既无断言也无引用支撑", excerpt: text.slice(0, 60) });
       continue;
+    }
+    // 正文数字核验（AI02-A）：白名单 = Ledger 已核验值 + 本条保留断言 +
+    // 本条所引证据的原文摘要数字。行证据的单笔金额（excerpt 里出现）与
+    // 聚合值都能过；凭空编造或心算差值（未查派生指标）对不上 → 整条撤回。
+    // 数值与口径交给确定性计算，模型负责解释——与报告 AI02 产品决策一致。
+    const claimNumbersAllowed = [...ledgerNumbers];
+    for (const assertion of sanitized.metricAssertions ?? []) {
+      if (assertion.value != null) claimNumbersAllowed.push(assertion.value);
+      if (assertion.baselineValue != null) claimNumbersAllowed.push(assertion.baselineValue);
+    }
+    for (const id of sanitized.evidenceIDs ?? []) {
+      const excerpt = evidenceTexts.get(id);
+      if (excerpt) claimNumbersAllowed.push(...extractCheckableNumbers(excerpt));
+    }
+    const badBodyNumbers = extractCheckableNumbers(text)
+      .filter((n) => !numberMatchesAllowed(n, claimNumbersAllowed));
+    if (badBodyNumbers.length > 0) {
+      warnings.push(`CLAIM_NUMBERS_UNVERIFIED:${sanitized.id ?? "claim"}:${badBodyNumbers.join("/")}`);
+      dropped.push({ id: sanitized.id ?? null, reason: `数字与工具结果不一致（${badBodyNumbers.join("/")}）`, excerpt: text.slice(0, 60) });
+      continue;
+    }
+    // 空台账定性拦截（AI02-C）：无任何指标入账时定性规律不可能有数据支持；
+    // 诚实降级（"记录不足/无法判断"）与一般性建议不受影响。
+    if (!ledgerHasMetrics
+      && containsAnyToken(text, QUALITATIVE_PATTERN_TOKENS)
+      && !containsAnyToken(text, HONEST_LIMITATION_TOKENS)) {
+      warnings.push(`QUALITATIVE_CLAIM_NO_EVIDENCE:${sanitized.id ?? "claim"}`);
+      dropped.push({ id: sanitized.id ?? null, reason: "无数据支持却输出定性规律", excerpt: text.slice(0, 60) });
+      continue;
+    }
+    // claimTitle 数字一致性：标题里出现的数字必须被本条正文/断言或 Ledger 支持，
+    // 对不上清空该标题（编数标题宁缺毋滥，iOS 端有短句回退不丢卡）。
+    if (typeof sanitized.claimTitle === "string" && sanitized.claimTitle.trim()) {
+      const claimAllowed = [...ledgerNumbers, ...extractCheckableNumbers(sanitized.displayText), ...extractCheckableNumbers(sanitized.summary)];
+      for (const assertion of sanitized.metricAssertions ?? []) {
+        if (assertion.value != null) claimAllowed.push(assertion.value);
+        if (assertion.baselineValue != null) claimAllowed.push(assertion.baselineValue);
+      }
+      const badTitleNumbers = extractCheckableNumbers(sanitized.claimTitle).filter((n) => !numberMatchesAllowed(n, claimAllowed));
+      if (badTitleNumbers.length > 0) {
+        warnings.push(`CLAIM_TITLE_INCONSISTENT:${sanitized.id ?? "claim"}`);
+        sanitized.claimTitle = null;
+      }
     }
     claims.push(sanitized);
   }
@@ -208,6 +317,7 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs }) {
 
   return {
     claims,
+    droppedClaims: dropped,
     warnings: [...new Set(warnings)],
     title: output.title ?? null,
     narrativeSummary: output.narrativeSummary ?? null,
@@ -239,20 +349,75 @@ export function createCloudAnalysisExecutor({
   // token 用量记账（adminLogStore 同接口）：云端任务的 AI 调用此前完全不入
   // ai_call_logs，成本核算存在盲区。purpose 用 cloud_* 前缀与端点侧调用区分。
   aiCallLogger = null,
+  // 问句时间解析员注入点（测试用）：null = 用真解析员；传 stub 可跳过/替换
+  injectedQuestionTimeResolver = null,
   log = (...args) => console.log("[cloud-analysis]", ...args),
 } = {}) {
   const engine = createCloudAnalysisQueryEngine();
   const provider = providers.get(route.provider);
+  // 问句时间解析员（保险二）：客户端词表没命中的时间表达在此确定性解析成
+  // 冻结窗，存量旧客户端（无 answerTask）同样受益；故障静默回落不阻塞任务。
+  // 可注入 stub（测试里既有用例默认跳过解析员，避免 mock 响应序列错位）。
+  const questionTimeResolver = injectedQuestionTimeResolver
+    ?? createQuestionTimeResolver({ provider, route });
   if (!provider) {
     throw new Error(`CLOUD_ANALYSIS_PROVIDER_MISSING: ${route.provider}`);
   }
 
   // 工具结果统一为 iOS HoloDataToolResult 同构信封（错误也走 error 字段），
   // 模型按提示词约定解析，不出现自造结构。
-  function executeToolRequests(toolRequests, snapshot) {
+  // 工具参数行为日志（2026-09-21 时间过滤静默失效事故补件）：故障时只有参数
+  // 摘要才有第一手证据（当轮 ai_call_logs 不存请求体、任务内容端到端加密）。
+  // 隐私边界：只记结构与时间值原样，filters 只记字段名+操作符，不记筛选值
+  // （value 可能含「猫砂」等用户数据关键词）。
+  function describeToolRequest(request) {
+    const plan = request.dynamicPlan ?? request.parameters?.dynamicPlan;
+    if (plan) {
+      const aggs = (plan.aggregations ?? []).map((a) => a.operation).join("/") || "-";
+      const filters = (plan.filters ?? []).map((f) => `${f.field}:${f.operation}`).join(",") || "-";
+      const raw = (value) => { try { return JSON.stringify(value) ?? "-"; } catch { return "-"; } };
+      return `source=${plan.source} aggs=${aggs} filters=${filters} timeRange=${raw(plan.timeRange)} baseline=${raw(plan.baseline)}`;
+    }
+    if (request.tool === "snapshot_rows") {
+      const params = request.parameters ?? {};
+      // parameters 非 dynamicPlan 的值经 validateAgentLoopContent 规范化全是字符串
+      // （与引擎 normalizeRowsPlan 同一协议），filters 到此已是 JSON 字符串
+      let rawFilters = params.filters;
+      if (typeof rawFilters === "string") {
+        try { rawFilters = JSON.parse(rawFilters); } catch { rawFilters = []; }
+      }
+      const filters = (Array.isArray(rawFilters) ? rawFilters : [])
+        .map((f) => `${f.field}:${f.operation}`).join(",") || "-";
+      return `source=${params.source} filters=${filters} sortBy=${params.sortBy ?? "-"} limit=${params.limit ?? "-"}`;
+    }
+    return `query=${request.query ?? "-"}`;
+  }
+
+  /** 任务窗默认值护栏（2026-09-24「问近一周答 180 天」根治补件）：
+   * 模型不带 timeRange 时查询引擎按「无窗口=不过滤」全窗执行，主查询会越过
+   * 用户问句范围（实锤：问「最近一周」8 轮查询 timeRange 全 null，答成 180 天）。
+   * 这里把缺省窗口默认到冻结任务窗——只做默认不做硬夹紧：模型显式传的更宽
+   * 窗口（个人基线需要多期常态，v21 契约）保持尊重，并在工具结果 warning 里
+   * 告知模型被默认过滤了、需要宽窗时须显式声明。 */
+  function clampPlanToTaskWindow(plan, taskWindow, logContext = null) {
+    if (!taskWindow || plan.timeRange != null) return { plan, defaulted: false };
+    return {
+      plan: {
+        ...plan,
+        timeRange: {
+          start: Math.floor(taskWindow.startMs / 1000),
+          end: Math.floor(taskWindow.endMs / 1000),
+        },
+      },
+      defaulted: true,
+    };
+  }
+
+  function executeToolRequests(toolRequests, snapshot, logContext = null, taskWindow = null) {
     return toolRequests.map((request) => {
       const id = request.id ?? "tool";
       const tool = request.tool;
+      log(`工具参数 taskId=${logContext?.taskId ?? "-"} round=${logContext?.round ?? "-"} tool=${tool} ${describeToolRequest(request)}`);
       const envelope = (fields) => ({ toolRequestID: id, tool, coverage: null, warnings: [], ...fields });
       try {
         if (tool === "snapshot_rows") {
@@ -260,9 +425,19 @@ export function createCloudAnalysisExecutor({
           return engine.sampleRows(request.parameters ?? {}, snapshot, { toolRequestID: id, tool });
         }
         // validateAgentLoopContent 会把 parameters.dynamicPlan 规范化提升到请求顶层；两种位置都接受
-        const plan = request.dynamicPlan ?? request.parameters?.dynamicPlan;
-        if (plan) {
-          return engine.execute(plan, snapshot, { toolRequestID: id, tool });
+        const rawPlan = request.dynamicPlan ?? request.parameters?.dynamicPlan;
+        if (rawPlan) {
+          const { plan: clampedPlan, defaulted } = clampPlanToTaskWindow(rawPlan, taskWindow, logContext);
+          if (defaulted) {
+            log(`timeRange缺省→任务窗默认 taskId=${logContext?.taskId ?? "-"} round=${logContext?.round ?? "-"} tool=${tool}`);
+          }
+          const result = engine.execute(clampedPlan, snapshot, { toolRequestID: id, tool });
+          if (defaulted) {
+            (result.warnings ??= []).push(
+              `TIME_RANGE_DEFAULTED_TO_TASK：请求未带 timeRange，已按任务主范围过滤；如需更长窗口（如个人基线多期常态）请显式传 timeRange`
+            );
+          }
+          return result;
         }
         const statics = snapshot?.statics ?? {};
         if (Object.prototype.hasOwnProperty.call(statics, tool)) {
@@ -355,10 +530,19 @@ export function createCloudAnalysisExecutor({
     }
   }
 
-  /** 完成推送（fire-and-forget）：文案随任务类型；失败只记日志不影响任务终态。 */
-  function pushTaskCompleted(deviceId, { title, body }) {
+  /**
+   * 完成推送（fire-and-forget）：文案随任务类型；失败只记日志不影响任务终态。
+   * payload 带 category + {taskId, taskType}（iOS 点通知据此直达对应结果，
+   * 2026-09-24 修复「点推送只回到上次页面」）。
+   */
+  function pushTaskCompleted(deviceId, { title, body, taskId, taskType }) {
     if (!pushNotifier) return;
-    pushNotifier.notifyTaskCompleted(deviceId, { title, body }).catch((error) => {
+    pushNotifier.notifyTaskCompleted(deviceId, {
+      title,
+      body,
+      category: "CLOUD_ANALYSIS_DONE",
+      custom: { taskId, taskType },
+    }).catch((error) => {
       log(`完成推送发送失败: ${error?.message ?? error}`);
     });
   }
@@ -446,7 +630,7 @@ export function createCloudAnalysisExecutor({
         return "cancelled";
       }
       if (reservation) quotaLedger.commit(reservation);
-      pushTaskCompleted(task.device_id, { title: "回放已生成", body: "点按查看这段时光的回顾" });
+      pushTaskCompleted(task.device_id, { title: "回放已生成", body: "点按查看这段时光的回顾", taskId, taskType: "period_replay" });
       log(`回放任务完成 taskId=${taskId} chars=${content.length}`);
       return "completed";
     } catch (error) {
@@ -481,6 +665,11 @@ export function createCloudAnalysisExecutor({
       }
     }
     if (!prompt) {
+      log(
+        `规划 prompt 为空 taskId=${taskId} snapshotType=${typeof task.snapshot} ` +
+        `snapshotLen=${typeof task.snapshot === "string" ? task.snapshot.length : -1} ` +
+        `snapshotHead=${typeof task.snapshot === "string" ? task.snapshot.slice(0, 120) : String(task.snapshot)}`
+      );
       taskStore.fail({ id: taskId, reason: "规划请求缺失或为空" });
       taskStore.updateStage(taskId, { stage: "failed" });
       return "failed";
@@ -544,7 +733,7 @@ export function createCloudAnalysisExecutor({
       }
       taskStore.updateStage(taskId, { stage: "draftReady" });
       if (reservation) quotaLedger.commit(reservation);
-      pushTaskCompleted(task.device_id, { title: "个性化方案已就绪", body: "回到 Holo 查看你的专属方案" });
+      pushTaskCompleted(task.device_id, { title: "个性化方案已就绪", body: "回到 Holo 查看你的专属方案", taskId, taskType: "context_plan" });
       log(`规划任务完成 taskId=${taskId} chars=${content.length}`);
       return "completed";
     } catch (error) {
@@ -686,6 +875,36 @@ export function createCloudAnalysisExecutor({
       // 范围/类型/清单由代码声明进 system prompt，模型不得改写——「用户改写问句
       // 仍保留所选场景」与「九月只算九月」的同一真相源。
       const answerTask = normalizeAnswerTask(snapshot, task.question);
+      // 时间窗解析员补位（保险二，2026-09-24）：客户端词表没冻结窗时（词表外
+      // 口语表达或存量旧客户端无 answerTask），任务开始前确定性解析一次问句
+      // 时间；解析出即作为主时间范围（此后 executor 护栏硬约束+taskRange 回显），
+      // 解析不出保持无窗（冻结块的无窗兜底指令继续生效）。每次任务的窗口来源
+      // 进日志留痕，无窗可观测。
+      if (!answerTask.primaryTimeRange && answerTask.userQuestion) {
+        const cutoffMs = Date.parse(snapshot?.generatedAt ?? "");
+        const historyDays = Number(snapshot?.historyDays) > 0 ? Number(snapshot.historyDays) : 180;
+        const snapshotStartMs = Number.isFinite(cutoffMs)
+          ? cutoffMs - historyDays * 86_400_000
+          : Date.now() - historyDays * 86_400_000;
+        const resolvedWindow = await questionTimeResolver.resolveQuestionTime(
+          answerTask.userQuestion,
+          {
+            nowMs: Number.isFinite(cutoffMs) ? cutoffMs : Date.now(),
+            snapshotStartMs,
+            snapshotEndMs: Number.isFinite(cutoffMs) ? cutoffMs : Date.now(),
+            log,
+            logContext: { taskId: task.id },
+          }
+        );
+        if (resolvedWindow) {
+          answerTask.primaryTimeRange = resolvedWindow;
+          log(`时间窗解析 taskId=${task.id} source=resolver matched="${resolvedWindow.label}" start=${Math.floor(resolvedWindow.startMs / 1000)} end=${Math.floor(resolvedWindow.endMs / 1000)}`);
+        } else {
+          log(`时间窗解析 taskId=${task.id} source=none(词表未中且问句无显式时间/解析失败)`);
+        }
+      } else if (answerTask.primaryTimeRange) {
+        log(`时间窗解析 taskId=${task.id} source=client词表 label="${answerTask.primaryTimeRange.label}"`);
+      }
       const messages = [];
       const systemPrompted = injectServerPrompt("agent_loop", [
         { role: "user", content: task.question },
@@ -693,7 +912,7 @@ export function createCloudAnalysisExecutor({
       const datasetNames = Object.keys(snapshot.datasets ?? {});
       messages.push({
         role: "system",
-        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}\n\n${buildFrozenTaskBlock(answerTask, datasetNames)}`,
+        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}`,
       });
       messages.push({ role: "user", content: task.question });
 
@@ -705,6 +924,9 @@ export function createCloudAnalysisExecutor({
       const metricEvidence = new Map();
       const rowsEvidence = new Map();
       const validEvidenceIDs = new Set();
+      // 证据 ID → 原文摘要（AI02-A 正文数字白名单用）：claim 引用某条证据时，
+      // 证据原文里出现的数字（行样本的单笔金额、派生指标值）视为可支持数字。
+      const evidenceTexts = new Map();
 
       function collectEvidence(toolRequests, toolResults) {
         toolResults.forEach((result, index) => {
@@ -730,7 +952,12 @@ export function createCloudAnalysisExecutor({
             validEvidenceIDs.add(`dynamic-${metric.metricKey}`);
           }
           for (const event of result.events ?? []) {
-            if (typeof event?.id === "string" && event.id) validEvidenceIDs.add(event.id);
+            if (typeof event?.id === "string" && event.id) {
+              validEvidenceIDs.add(event.id);
+              if (typeof event.excerpt === "string" && event.excerpt) {
+                evidenceTexts.set(event.id, event.excerpt);
+              }
+            }
           }
           const request = toolRequests[index];
           if (request?.tool === "snapshot_rows" && Array.isArray(result.events)) {
@@ -800,14 +1027,21 @@ export function createCloudAnalysisExecutor({
           const verified = verifyDelivery(output, {
             metricLedger: metricEvidence,
             validEvidenceIDs,
+            evidenceTexts,
           });
-          if (verified.emptyClaims && !deliveryRepairUsed) {
+          // 修复轮触发（2026-10-04 体检 AI02 扩展）：空 claims 或有 claim 被核验
+          // 撤回（数字不一致/空台账定性规律）都给一次重发机会，撤回原因喂回模型；
+          // 第二次仍不过则只交付幸存 claims（全撤光走下方诚实失败）。
+          if ((verified.emptyClaims || verified.droppedClaims.length > 0) && !deliveryRepairUsed) {
             deliveryRepairUsed = true;
-            log(`轮次 ${round}/${maxRounds} taskId=${taskId} 交付核验不过（空 claims），请求重发`);
+            const repairDetail = verified.droppedClaims.length > 0
+              ? `final_claims 未通过交付核验，以下结论被撤回：\n${verified.droppedClaims.map((d) => `· ${d.excerpt ? `${d.excerpt} ` : ""}（${d.reason}）`).join("\n")}\n请重新输出完整 final_claims：金额/数量等数字必须与工具查得结果一致，对不上就去掉具体数字；没有任何数据支持时不得输出「主要/最多/持续上升」这类定性规律，改为说明缺少什么数据、哪部分不能判断。`
+              : "final_claims 不允许为空：请基于已查到的证据输出至少一条 claim 直接回答用户问题；关键证据不存在时，输出一条说明「缺什么数据、因此哪部分不能判断」的 observation claim，而不是空数组。";
+            log(`轮次 ${round}/${maxRounds} taskId=${taskId} 交付核验不过（empty=${verified.emptyClaims} dropped=${verified.droppedClaims.length}），请求重发`);
             messages.push({ role: "assistant", content: validation.content });
             messages.push({
               role: "user",
-              content: "final_claims 不允许为空：请基于已查到的证据输出至少一条 claim 直接回答用户问题；关键证据不存在时，输出一条说明「缺什么数据、因此哪部分不能判断」的 observation claim，而不是空数组。",
+              content: repairDetail,
             });
             continue;
           }
@@ -827,6 +1061,9 @@ export function createCloudAnalysisExecutor({
             reasoning: output.reasoning ?? "",
             evidence: evidenceSnapshot(),
             warnings: verified.warnings,
+            // S03（2026-10-04 体检）：快照覆盖完整性回显——截断发生时客户端
+            // 在报告范围行如实标注，截断明细不再冒充全量
+            snapshotCoverage: snapshotCoverage(snapshot),
             snapshotCutoffAt: answerTask.snapshotCutoffAt,
             taskRange: answerTask.primaryTimeRange
               ? {
@@ -846,14 +1083,14 @@ export function createCloudAnalysisExecutor({
             return "cancelled";
           }
           if (reservation) quotaLedger.commit(reservation);
-          pushTaskCompleted(task.device_id, { title: "深度分析完成", body: "结果已就绪，点按查看" });
+          pushTaskCompleted(task.device_id, { title: "深度分析完成", body: "结果已就绪，点按查看", taskId, taskType: "deep_analysis" });
           log(`任务完成 taskId=${taskId} rounds=${round} claims=${result.claims.length} evidence=${result.evidence.length}${verified.warnings.length ? ` warnings=${verified.warnings.join(",")}` : ""}`);
           return "completed";
         }
 
         const toolRequests = Array.isArray(output.toolRequests) ? output.toolRequests : [];
         if (toolRequests.length > 0) {
-          const toolResults = executeToolRequests(toolRequests, snapshot);
+          const toolResults = executeToolRequests(toolRequests, snapshot, { taskId, round }, answerTask.primaryTimeRange);
           collectEvidence(toolRequests, toolResults);
           const failures = toolResults
             .filter((r) => r.status === "error")
