@@ -1,12 +1,63 @@
 # Holo App Store Review Notes 与 ASO 元数据草稿
 
-更新时间：2026-09-28（1.0.9 提审版）
+更新时间：2026-10-07（1.1.0 草稿版，待东林定稿）
 
 ## 使用方式
 
 这份文档用于 App Store Connect 的版本信息、审核备注和截图文案准备。
 
-## 1.0.9 提审材料包（2026-09-28 定稿，本次发版贴这个）
+## 1.1.0 提审材料包（2026-10-07 起草，**草稿待东林定稿**）
+
+> 版本口径：1.1.0 / 构建 32（待归档）。更新说明覆盖 1.0.9/31 上架（2026-09-28）之后的全部用户可感变化。
+> 本版重点：今天减负、任务轻重缓急、习惯体验焕新、全局视觉升级 V2、小票图片导出。**注意：视觉 V2 全 App 换色，商店截图需按新视觉重制。**
+
+### 更新说明草稿（What's New，三语）
+
+**简体中文（草稿，待东林砍定）：**
+
+Holo 1.1 上线，这是一次大版本焕新。
+【今天减负】对 Holo 说一句「今天有点忙」，它会结合你的任务和日程，帮你挑出今天真正值得做的事；先放下的不丢，截止和提醒都在。
+【任务轻重缓急】任务可以标重要程度，紧急程度按截止日期自动算，首页四象限一目了然——「重要但不急」永远排在「不重要但很急」前面。
+【任务统计】新增按时完成率与逐日趋势明细，做得怎么样，一天天看得清。
+【习惯焕新】习惯支持长按拖动排序，进度缝线按自然月累积，这个月走到哪一眼看清。
+【全新视觉】全 App 换上暖色纸感新装，层次更清楚，深色模式同步适配。
+【小票跟着账走】导出账目时可以连小票图片一起打包，账和凭证一起带走。
+【更稳定】修复了很多问题，iPhone、iPad 和 Mac 体验都提升了。
+感谢每一位用户的支持，有问题随时在设置里反馈给我们。
+
+**繁體中文（草稿）：**
+
+Holo 1.1 上線，這是一次大版本煥新。
+【今天減負】對 Holo 說一句「今天有點忙」，它會結合你的任務和日程，幫你挑出今天真正值得做的事；先放下的不丟，截止和提醒都在。
+【任務輕重緩急】任務可以標重要程度，緊急程度按截止日期自動算，首頁四象限一目了然——「重要但不急」永遠排在「不重要但很急」前面。
+【任務統計】新增按時完成率與逐日趨勢明細，做得怎麼樣，一天天看得清。
+【習慣煥新】習慣支援長按拖動排序，進度縫線按自然月累積，這個月走到哪一眼看清。
+【全新視覺】全 App 換上暖色紙感新裝，層次更清楚，深色模式同步適配。
+【小票跟著帳走】匯出帳目時可以連小票圖片一起打包，帳和憑證一起帶走。
+【更穩定】修復了很多問題，iPhone、iPad 和 Mac 體驗都提升了。
+感謝每一位用戶的支持，有問題隨時在設定裡回饋給我們。
+
+**English（draft）：**
+
+Holo 1.1 is here — a major refresh.
+[Today, Lighter] Tell Holo "I'm busy today" and it sorts through your tasks and schedule to surface what truly matters. What you set aside keeps its deadline and reminders.
+[Task Priorities] Mark how important a task is; urgency is worked out from its due date automatically, and your home screen organizes it all into four quadrants.
+[Task Stats] New on-time completion rate and day-by-day trend details.
+[Habit Refresh] Drag to reorder habits, and the monthly progress trail fills up day by day.
+[A New Look] A warm, paper-feel redesign across the whole app, dark mode included.
+[Export with Receipts] Bundle receipt photos right into your ledger export.
+[More Reliable] Plenty of fixes across iPhone, iPad, and Mac.
+Thanks for your support — feedback is always welcome in Settings.
+
+### 推广文本草稿（Promotional Text，简中）
+
+> 今天太满？对 Holo 说一句话，让它帮你把今天理清楚。1.1 大版本焕新：任务轻重缓急、习惯焕新、全新视觉。
+
+### Review Notes
+
+沿用 1.0.9 版审核备注结构（AI 数据处理授权说明、订阅项说明、通知权限说明），版本号替换为 1.1.0；新增说明：今天减负为只读整理功能（不修改任务原始数据），需要 AI 数据处理授权后使用。
+
+## 1.0.9 提审材料包（2026-09-28 定稿，历史存档——最新草稿见上方 1.1.0 材料包）
 
 > 归档：`~/Library/Developer/Xcode/Archives/2026-09-28/`（版本 1.0.9 / 构建 31，归档后补具体文件名）。
 > 贴入位置：ASC → 版本 1.0.9 → 「此版本的新增内容」「推广文本」。
