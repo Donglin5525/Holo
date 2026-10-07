@@ -96,16 +96,17 @@ struct ThoughtCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .fill(Color.holoCardBackground)
+                .fill(Color.holoToolSurface)
                 // 2026-09-25 flomo 改版：去阴影改细描边——阴影是卡片厚重感的主要来源，
                 // 连续浏览时让注意力回到正文（容器安静原则）
                 .overlay(
                     RoundedRectangle(cornerRadius: HoloRadius.lg)
-                        .stroke(Color.holoBorder, lineWidth: 0.5)
+                        .stroke(Color.holoToolBorder, lineWidth: 0.5)
                 )
         )
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .holoHover()
+        .holoRecordArrival(thought.id, domain: .thought)
         // 卡片根不再挂打开手势（详情页已下线）：正文区域自己处理单击进编辑器，
         // 根手势若并存会与「…」按钮、标签 chip 抢单击。
         // 挂在卡片根（与「…」菜单不同锚点，避免连环弹层冲突）
@@ -146,8 +147,8 @@ struct ThoughtCardView: View {
         HStack(spacing: 8) {
             // 日期
             Text(thought.formattedDate)
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
 
             Spacer()
 
@@ -170,7 +171,7 @@ struct ThoughtCardView: View {
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 16))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .frame(width: 44, height: 44)
                         // iOS 26 plain 按钮热区会收缩到图标笔画，44×44 里大半是点不动的
                         // 空白（真机「时灵时不灵」的根因）；显式声明热区=整个 frame
@@ -304,16 +305,16 @@ struct ThoughtCardView: View {
                         }
                         if presentation.hiddenCount > 0 {
                             Text("+\(presentation.hiddenCount)")
-                                .font(.holoLabel)
-                                .foregroundColor(.holoTextSecondary)
+                                .holoText(.metadata)
+                                .foregroundColor(.holoToolTextSecondary)
                         }
                     }
                 }
             } else if !ThoughtSemanticFeatureFlags.uiEnabled, thought.organizedStatus == "processing" {
                 // 正在整理（V3 新 UI 下不出现：AI 过程不进主路径）
                 Text("AI 正在整理...")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             Spacer()
@@ -325,10 +326,10 @@ struct ThoughtCardView: View {
                     Image(systemName: "link")
                         .font(.system(size: 12))
                     Text("\(refCount)")
-                        .font(.holoLabel)
+                        .holoText(.metadata)
                 }
                 // 引用数是信息不是操作：品牌橙只留给主操作（2026-09-25 颜色纪律）
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             }
         }
     }
@@ -380,9 +381,9 @@ struct ThoughtCardView: View {
                 Image(systemName: "leaf.fill")
                     .font(.system(size: 9, weight: .semibold))
                 Text(sourceText)
-                    .font(.holoLabel)
+                    .holoText(.metadata)
                 Text(topic.title)
-                    .font(.holoLabel)
+                    .holoText(.metadata)
                     .fontWeight(.semibold)
                     .lineLimit(1)
             }
@@ -458,7 +459,7 @@ struct ThoughtCardView: View {
                     Text("#\(ThoughtTagNormalizer.lastSegment(tag.name))")
                 }
             }
-                .font(.holoLabel)
+                .holoText(.metadata)
                 .foregroundColor(tag.tagColor)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -479,16 +480,16 @@ struct ThoughtCardView: View {
             HStack(spacing: 3) {
                 // AI 归类展示完整主题路径（#碎碎念/加班），让「归到了哪」一眼可见；筛选仍用原始路径
                 Text("#\(ThoughtTagNormalizer.displayPath(tagName))")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Text("AI")
                     .font(.system(size: 8, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary.opacity(0.6))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.6))
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.holoTextSecondary.opacity(0.08))
+            .background(Color.holoToolTextSecondary.opacity(0.08))
             .cornerRadius(HoloRadius.sm)
             .fixedSize(horizontal: true, vertical: false)
         }
@@ -577,7 +578,7 @@ private struct ThoughtCardStatusBadge: View {
         if thought.organizedStatus == "pending" {
             // 断网挂起的 pending 实际是「等网络恢复再整理」，如实告知而非装作在整理
             if orgQueue.isOffline {
-                return (String(localized: "整理中"), "wifi.slash", .holoTextSecondary, nil)
+                return (String(localized: "整理中"), "wifi.slash", .holoToolTextSecondary, nil)
             }
             return (String(localized: "整理中"), "sparkles", .holoPrimary, nil)
         }
@@ -587,7 +588,7 @@ private struct ThoughtCardStatusBadge: View {
         }
         // 「待确认」：含新标签或低置信主题，点徽章直达详情页确认位（D-07′，规则集中在 Policy）
         if showsPendingConfirmation {
-            return (String(localized: "待确认"), "questionmark.circle", .holoAI, .openConfirmation)
+            return (String(localized: "待确认"), "questionmark.circle", .holoToolAction, .openConfirmation)
         }
         return nil
     }
@@ -645,9 +646,9 @@ private struct ThoughtContentBody: View {
 #Preview("想法卡片") {
     VStack(spacing: 16) {
         Text("预览需要 Core Data context")
-            .font(.holoBody)
-            .foregroundColor(.holoTextSecondary)
+            .holoText(.body)
+            .foregroundColor(.holoToolTextSecondary)
     }
     .padding()
-    .background(Color.holoBackground)
+    .background(Color.holoToolBackground)
 }

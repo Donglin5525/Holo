@@ -23,7 +23,6 @@ actor ThoughtSemanticRelateExecutor {
 
     private let logger = Logger(subsystem: "com.holo.Holo", category: "ThoughtSemanticRelate")
     private var running = false
-    private let maxAttempts = 3
 
     /// 每轮最多处理条数（relate 单条一次网络往返，批小于 embed）
     func processBatch(limit: Int = 8,
@@ -38,6 +37,7 @@ actor ThoughtSemanticRelateExecutor {
 
         var processed = 0
         while processed < limit {
+            guard ThoughtSemanticFeatureFlags.relation != .off, await MainActor.run(body: { HoloAIDataProcessingConsent.shared.isGranted }) else { break }
             let claimed: ThoughtSemanticStore.SemanticJob? =
                 (try? await store.claimNextDueJob(
                     consentGeneration: ThoughtSemanticFeatureFlags.consentGeneration,
@@ -58,7 +58,7 @@ actor ThoughtSemanticRelateExecutor {
             var out: (UUID, String)?
             context.performAndWait {
                 let request = Thought.fetchRequest()
-                request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", job.thoughtID as CVarArg)
+                request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil AND isArchived == NO", job.thoughtID as CVarArg)
                 request.fetchLimit = 1
                 if let thought = (try? context.fetch(request))?.first {
                     out = (thought.id, thought.content)
@@ -70,7 +70,7 @@ actor ThoughtSemanticRelateExecutor {
             try? await store.finishJob(id: job.id, state: "done", errorCode: "thought_unavailable")
             return
         }
-        guard ThoughtEmbeddingStore.contentHash(of: snapshot.text) == job.contentHash else {
+        guard ThoughtSemanticText.contentHash( snapshot.text) == job.contentHash else {
             try? await store.finishJob(id: job.id, state: "done", errorCode: "stale_content")
             return
         }
@@ -80,7 +80,8 @@ actor ThoughtSemanticRelateExecutor {
             return
         }
         // 2. 读回向量（真身 SQLite；无 active 向量=任务不应存在，防御性完成）
-        guard let vector = (try? await store.loadVector(thoughtID: snapshot.id)) ?? nil,
+        guard (try? await store.hasActiveItem(thoughtID: snapshot.id, contentHash: job.contentHash, modelVersion: ThoughtSemanticStore.defaultModelVersion)) == true,
+              let vector = (try? await store.loadVector(thoughtID: snapshot.id)) ?? nil,
               !vector.isEmpty else {
             try? await store.finishJob(id: job.id, state: "done", errorCode: "vector_unavailable")
             return
@@ -88,12 +89,13 @@ actor ThoughtSemanticRelateExecutor {
 
         // 3. flag 与校准门（§6.2：无正式校准 JSON 一律 shadow）
         let flag = await MainActor.run { ThoughtSemanticFeatureFlags.relation }
-        let (calibration, isCalibrated) = ThoughtSemanticCalibration.current()
-        let commit = (flag == .on) && isCalibrated
+        let calibration = ThoughtSemanticCalibration.current().config
+        // 向量阈值只负责召回；正式写入必须通过 V2 契约的双侧原文证据校验。
+        let commit = flag == .on
 
         do {
             let provider = await MainActor.run { HoloBackendAIProvider() }
-            let context = await MainActor.run { CoreDataStack.shared.viewContext }
+            let context = CoreDataStack.shared.newBackgroundContext()
             if commit {
                 _ = try await ThoughtTopicVerifier.evaluateAndCommit(
                     thoughtID: snapshot.id, redactedText: redacted, contentHash: job.contentHash,
@@ -111,18 +113,16 @@ actor ThoughtSemanticRelateExecutor {
         } catch {
             let attempt = job.attemptCount + 1
             let terminal = isTerminalError(error)
-            let next = Date().addingTimeInterval(min(60 * pow(2, Double(attempt)), 3600))
+            let next = Date().addingTimeInterval(ThoughtSemanticRetryPolicy.delay(error, attempt: attempt))
             try? await store.finishJob(id: job.id,
-                                       state: (terminal || attempt >= maxAttempts) ? "failed_terminal" : "pending",
+                                       state: terminal ? "failed_terminal" : "pending",
                                        nextAttemptAt: terminal ? nil : next,
-                                       errorCode: "relate_network_or_upstream")
+                                       errorCode: ThoughtSemanticRetryPolicy.code(error))
             logger.error("relate 失败 thought=\(job.thoughtID) attempt=\(attempt) terminal=\(terminal)：\(error.localizedDescription)")
         }
     }
 
     private func isTerminalError(_ error: Error) -> Bool {
-        let ns = error as NSError
-        // 4xx 类协议错误（401/403/413/422）不重试；429/5xx/网络错误重试（与 embed 同口径）
-        return (400...428).contains(ns.code) && ns.domain != NSURLErrorDomain
+        ThoughtSemanticRetryPolicy.isTerminal(error)
     }
 }

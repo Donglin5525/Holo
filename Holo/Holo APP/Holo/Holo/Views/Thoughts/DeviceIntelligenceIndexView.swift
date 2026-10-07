@@ -63,13 +63,13 @@ struct DeviceIntelligenceIndexView: View {
         if !snapshot.storeAvailable { return String(localized: "索引未初始化") }
         if snapshot.indexFlag == .off { return String(localized: "索引已暂停") }
         if let stats = snapshot.stats {
-            if stats.pendingJobs > 0 {
+            if stats.pendingJobs + stats.runningJobs > 0 {
                 return String(localized: "整理中：已索引 \(stats.activeItems) 条，剩 \(stats.pendingJobs) 条待处理")
             }
             if stats.failedJobs > 0 {
                 return String(localized: "已索引 \(stats.activeItems) 条，\(stats.failedJobs) 条处理失败")
             }
-            return String(localized: "已完成：已索引 \(stats.activeItems) 条想法")
+            return String(localized: "当前已索引 \(stats.activeItems) 条想法")
         }
         return String(localized: "索引开启中")
     }
@@ -147,11 +147,7 @@ struct DeviceIntelligenceIndexView: View {
                 .fontWeight(.semibold)
                 .foregroundColor(.holoTextSecondary)
 
-            if snapshot.indexFlag == .on {
-                actionButton(title: String(localized: "暂停处理"), role: .secondary) {
-                    ThoughtSemanticFeatureFlags.index = .off
-                    await loadStatus()
-                }
+            if ThoughtSemanticFeatureFlags.automaticEnabled {
                 if (snapshot.stats?.failedJobs ?? 0) > 0 {
                     actionButton(title: String(localized: "重试失败项（\(snapshot.stats?.failedJobs ?? 0) 条）"), role: .primary) {
                         if let store = await ThoughtSemanticPipeline.shared.store {
@@ -162,14 +158,6 @@ struct DeviceIntelligenceIndexView: View {
                     }
                 }
                 actionButton(title: String(localized: "重新核对全部想法"), role: .secondary) {
-                    await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts()
-                    await ThoughtSemanticPipeline.shared.kickQueue()
-                    await loadStatus()
-                }
-            } else {
-                actionButton(title: String(localized: snapshot.storeAvailable && snapshot.stats?.activeItems ?? 0 > 0 ? "继续处理" : "开启索引"), role: .primary) {
-                    ThoughtSemanticFeatureFlags.index = .shadow
-                    await ThoughtSemanticPipeline.shared.bootstrap()
                     await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts()
                     await ThoughtSemanticPipeline.shared.kickQueue()
                     await loadStatus()
@@ -243,7 +231,8 @@ struct DeviceIntelligenceIndexView: View {
     @MainActor
     private func destroyIndex() async {
         // 删除即回到未开启态；重新开启走「开启索引」（bootstrap + 全量对账）
-        ThoughtSemanticFeatureFlags.index = .off
+        UserDefaults.standard.set(false, forKey: ThoughtSemanticFeatureFlags.automaticKey)
+        ThoughtSemanticFeatureFlags.settingsChanged()
         try? await ThoughtSemanticChangeFeed.shared.destroyIndex()
         await loadStatus()
     }

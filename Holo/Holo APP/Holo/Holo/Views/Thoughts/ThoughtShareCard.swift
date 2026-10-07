@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 /// 分享图的固定版式。原始内容和导出规则由 ThoughtShareCard 统一承载。
 private enum ThoughtShareStyle: String, CaseIterable, Identifiable {
@@ -79,8 +80,58 @@ struct ThoughtShareCard: View {
     /// 品牌尾注开关（用户可在分享面板取消）
     var showsBrandFooter: Bool = true
 
+    /// 完整构造器：版式枚举文件私有，故签名也只能文件内可见
+    fileprivate init(
+        contentNodes: [HoloContentNode],
+        attachments: [ThoughtShareCardPhoto],
+        tagNames: [String],
+        moodLabel: String?,
+        createdAt: Date,
+        authorName: String?,
+        style: ThoughtShareStyle,
+        showsBrandFooter: Bool
+    ) {
+        self.contentNodes = contentNodes
+        self.attachments = attachments
+        self.tagNames = tagNames
+        self.moodLabel = moodLabel
+        self.createdAt = createdAt
+        self.authorName = authorName
+        self.style = style
+        self.showsBrandFooter = showsBrandFooter
+    }
+
+    /// 默认版式（暖纸手账）构造器：版式枚举文件私有，测试走这个签名
+    init(
+        contentNodes: [HoloContentNode],
+        attachments: [ThoughtShareCardPhoto],
+        tagNames: [String],
+        moodLabel: String?,
+        createdAt: Date,
+        authorName: String?
+    ) {
+        self.init(
+            contentNodes: contentNodes,
+            attachments: attachments,
+            tagNames: tagNames,
+            moodLabel: moodLabel,
+            createdAt: createdAt,
+            authorName: authorName,
+            style: .journal,
+            showsBrandFooter: true
+        )
+    }
+
     /// 导出宽度固定；高度由内容决定
     static let cardWidth: CGFloat = 340
+
+    /// 正文区宽度（卡宽减左右 28 边距），拍立得槽位由它派生
+    static let photoAreaWidth: CGFloat = cardWidth - 56
+
+    /// 拍立得槽位：定长 frame 是唯一能真正钳住 scaledToFill 封面尺寸的写法
+    /// （maxWidth/maxHeight .infinity 不构成上界，竖图会撑爆槽位、白框盖住正文与邻行）
+    static let singlePhotoSlot = CGSize(width: photoAreaWidth, height: 150)
+    static let gridPhotoSlot = CGSize(width: (photoAreaWidth - 12) / 2, height: 104)
 
     /// ImageRenderer 渲染上限约 8192px（实测 6077px 正常、9115px 起输出全透明空图），
     /// 长图按内容高度动态降 scale 压回 8000px 内，超长笔记以轻度降清换可用性
@@ -488,9 +539,11 @@ struct ThoughtShareCard: View {
     private var photosSection: some View {
         if !attachments.isEmpty {
             if attachments.count == 1 {
-                PolaroidPhoto(photo: attachments[0], rotation: .zero)
-                    .frame(height: 150)
-                    .frame(maxWidth: .infinity)
+                PolaroidPhoto(
+                    photo: attachments[0],
+                    rotation: .zero,
+                    slot: Self.singlePhotoSlot
+                )
             } else {
                 VStack(spacing: 12) {
                     ForEach(0..<photoRowCount, id: \.self) { rowIndex in
@@ -511,7 +564,7 @@ struct ThoughtShareCard: View {
             if row.count > 1 {
                 photoCell(rowIndex, 1, row[1])
             } else {
-                Color.clear.frame(maxWidth: .infinity)
+                Color.clear.frame(width: Self.gridPhotoSlot.width)
             }
         }
     }
@@ -520,9 +573,11 @@ struct ThoughtShareCard: View {
     private func photoCell(_ rowIndex: Int, _ colIndex: Int, _ photo: ThoughtShareCardPhoto) -> some View {
         let evenRow = rowIndex % 2 == 0
         let angle: CGFloat = evenRow ? (colIndex == 0 ? -2.2 : 1.6) : (colIndex == 0 ? 1.6 : -2.2)
-        return PolaroidPhoto(photo: photo, rotation: .degrees(angle))
-            .frame(height: 104)
-            .frame(maxWidth: .infinity)
+        return PolaroidPhoto(
+            photo: photo,
+            rotation: .degrees(angle),
+            slot: Self.gridPhotoSlot
+        )
     }
 
     // MARK: 标签胶囊（≤3，超出 +N）
@@ -680,14 +735,17 @@ struct ThoughtShareCardPhoto: Identifiable {
 private struct PolaroidPhoto: View {
     let photo: ThoughtShareCardPhoto
     let rotation: Angle
+    /// 定长槽位：fill 后的图先钳进固定尺寸再裁，白底才严格贴合槽位
+    let slot: CGSize
 
     var body: some View {
         Image(uiImage: photo.image)
             .resizable()
             .scaledToFill()
-            // fill 铁三角：竖图 fill 后远超外层槽高（白底跟着 Image 长高、下坠压尾注），
-            // 必须先钳进槽位再裁，白底才能贴合外层 frame(height:)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // fill 铁三角的正解：fixed frame(width:height:) 汇报尺寸恒等于给定值，
+            // 才真正钳得住竖图；在此之前的 frame(max*:.infinity) 版本不构成上界，
+            // 竖图白框溢出槽位、向上盖正文、向下压邻行（真机实锤过）
+            .frame(width: slot.width - 10, height: slot.height - 24)
             .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 2))
             .padding(5)
@@ -846,7 +904,7 @@ struct ThoughtShareSheet: View {
         .preferredColorScheme(.dark)
         .presentationDetents([.large])
         .task(id: "\(selectedStyleRaw)|\(showsBrandFooter)") {
-            regenerateImage()
+            await regenerateImage()
         }
     }
 
@@ -915,8 +973,9 @@ struct ThoughtShareSheet: View {
         )
     }
 
-    /// 渲染导出图。ImageRenderer 仅主线程可用；长图渲染一次性成本，配「正在生成」占位。
-    private func regenerateImage() {
+    /// 渲染导出图。照片解码走共享后台通道（此前主线程同步解原图，带图分享时
+    /// 弹层明显卡顿）；ImageRenderer 仅主线程可用，渲染段保持主线程。
+    private func regenerateImage() async {
         if parsedNodes == nil {
             parsedNodes = RichContentSerializer.nodes(
                 richJSON: thought.richContentJSON,
@@ -924,11 +983,33 @@ struct ThoughtShareSheet: View {
             )
         }
         if parsedPhotos == nil {
-            parsedPhotos = thought.sortedAttachments.compactMap { attachment -> ThoughtShareCardPhoto? in
-                loadImage(for: attachment).map {
-                    ThoughtShareCardPhoto(id: attachment.id, image: $0)
+            // 主线程取附件快照（objectID + 回退文件名），画质与原链路同序：原图优先、缩略图兜底
+            let thoughtId = thought.id
+            let snapshots = thought.sortedAttachments.map { attachment in
+                (id: attachment.id,
+                 objectID: attachment.objectID,
+                 fileName: attachment.fileName,
+                 thumbnailFileName: attachment.thumbnailFileName)
+            }
+            var photos: [ThoughtShareCardPhoto] = []
+            for snapshot in snapshots {
+                var image = await AttachmentImageLoader.fullImage(
+                    objectID: snapshot.objectID,
+                    fallbackFileName: snapshot.fileName,
+                    ownerID: thoughtId
+                )
+                if image == nil {
+                    image = await AttachmentImageLoader.thumbnail(
+                        objectID: snapshot.objectID,
+                        fallbackFileName: snapshot.thumbnailFileName,
+                        ownerID: thoughtId
+                    )
+                }
+                if let image {
+                    photos.append(ThoughtShareCardPhoto(id: snapshot.id, image: image))
                 }
             }
+            parsedPhotos = photos
         }
         guard let nodes = parsedNodes, let photos = parsedPhotos else { return }
         let card = ThoughtShareCard(
@@ -971,27 +1052,6 @@ struct ThoughtShareSheet: View {
         let raw = UserDefaults.standard.string(forKey: UserDisplayNameSettings.displayNameKey)
         guard UserDisplayNameSettings.isDisplayNameSet(raw) else { return nil }
         return UserDisplayNameSettings.normalizedDisplayName(raw)
-    }
-
-    /// 分享画质优先原图（Core Data 二进制 → 文件原图），都缺失时退回缩略图
-    private func loadImage(for attachment: ThoughtAttachment) -> UIImage? {
-        if let data = attachment.imageData, let image = UIImage(data: data) {
-            return image
-        }
-        if let thoughtId = attachment.thought?.id,
-           let full = AttachmentFileManager.loadFullImage(fileName: attachment.fileName, taskId: thoughtId) {
-            return full
-        }
-        if let data = attachment.thumbnailData, let image = UIImage(data: data) {
-            return image
-        }
-        if let thoughtId = attachment.thought?.id {
-            return AttachmentFileManager.loadThumbnail(
-                fileName: attachment.thumbnailFileName,
-                taskId: thoughtId
-            )
-        }
-        return nil
     }
 
     private func saveToAlbum(_ image: UIImage) {

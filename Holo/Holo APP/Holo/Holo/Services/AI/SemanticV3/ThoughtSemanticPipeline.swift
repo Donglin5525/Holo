@@ -27,12 +27,15 @@ actor ThoughtSemanticPipeline {
     func bootstrap(root: URL? = nil) async {
         guard !bootstrapped else { return }
         bootstrapped = true
+        await CoreDataStack.shared.waitUntilReady()
+        guard !Task.isCancelled else { bootstrapped = false; return }
 
         let semanticStore = await ThoughtSemanticStore(root: root)
         do {
             try await semanticStore.open()
         } catch {
-            logger.error("语义库打开失败，本会话禁用语义索引：\(error.localizedDescription)")
+            bootstrapped = false
+            logger.error("语义库打开失败：\(error.localizedDescription)")
             return
         }
         store = semanticStore
@@ -71,7 +74,7 @@ actor ThoughtSemanticPipeline {
         let indexOn = await MainActor.run { ThoughtSemanticFeatureFlags.index != .off }
         let relationOn = await MainActor.run { ThoughtSemanticFeatureFlags.relation != .off }
         if indexOn || relationOn {
-            await MainActor.run { Task { await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts() } }
+            await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts()
         }
 
         // 队列节拍（§13.3）：flag off 时空转长睡眠；shadow/on 时每 30s 处理一小批
@@ -99,6 +102,7 @@ actor ThoughtSemanticPipeline {
         }
         await ThoughtSemanticEmbeddingExecutor.shared.processBatch(store: store, index: index)
         await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
+        await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
     }
 
     private func startQueueHeartbeat() {
@@ -114,6 +118,7 @@ actor ThoughtSemanticPipeline {
                 if relationFlag != .off {
                     await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
                 }
+                await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
                 let anyActive = flag != .off || relationFlag != .off
                 let interval: UInt64 = anyActive ? 30 : 300
                 try? await Task.sleep(nanoseconds: interval * 1_000_000_000)
@@ -175,7 +180,7 @@ actor ThoughtSemanticPipeline {
                 let request = Thought.fetchRequest()
                 request.predicate = NSPredicate(format: "deletedAt == nil")
                 let thoughts = (try? context.fetch(request)) ?? []
-                for t in thoughts { currentHashes[t.id] = ThoughtEmbeddingStore.contentHash(of: t.content) }
+                for t in thoughts { currentHashes[t.id] = ThoughtSemanticText.contentHash( t.content) }
             }
         }
 

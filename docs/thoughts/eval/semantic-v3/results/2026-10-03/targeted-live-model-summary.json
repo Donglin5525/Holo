@@ -1,0 +1,79 @@
+[
+  {
+    "label": "同一持续活动",
+    "contractValid": true,
+    "pass": true,
+    "positive": [
+      "P0"
+    ],
+    "expected": [
+      "P0"
+    ]
+  },
+  {
+    "label": "同词不同对象",
+    "contractValid": true,
+    "pass": true,
+    "positive": [
+      "P1"
+    ],
+    "expected": [
+      "P1"
+    ]
+  },
+  {
+    "label": "否定与他人经历",
+    "contractValid": true,
+    "pass": true,
+    "positive": [],
+    "expected": []
+  },
+  {
+    "label": "指令注入",
+    "contractValid": true,
+    "pass": true,
+    "positive": [],
+    "expected": []
+  },
+  {
+    "label": "多主题并存",
+    "contractValid": true,
+    "pass": true,
+    "positive": [
+      "P0",
+      "P1"
+    ],
+    "expected": [
+      "P0",
+      "P1"
+    ]
+  },
+  {
+    "label": "三条同主题",
+    "contractValid": true,
+    "pass": true,
+    "positive": "topic",
+    "expected": "topic"
+  },
+  {
+    "label": "桥接假簇",
+    "contractValid": true,
+    "pass": true,
+    "positive": "no_topic",
+    "expected": "no_topic"
+  },
+  {
+    "label": "重复不足三条",
+    "contractValid": true,
+    "pass": true,
+    "positive": "no_topic",
+    "expected": "no_topic"
+  },
+  {
+    "label": "泛泛生活不能成主题",
+    "contractValid": true,
+    "pass": true,
+    "positive": "no_topic",
+    "expected": "no_topic"
+  }
+]

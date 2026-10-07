@@ -21,6 +21,7 @@ struct ThoughtsView: View {
     // MARK: - Properties
 
     @Environment(\.dismiss) var dismiss
+    @Environment(\.holoMotionSurfaceIsActive) private var parentMotionSurfaceActive
     /// ZStack 平级常驻模式下的关闭动作（由 HomeView 注入）。
     /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
     @Environment(\.holoDismiss) private var holoDismiss
@@ -67,6 +68,7 @@ struct ThoughtsView: View {
                 legacyBody
             }
         }
+        .environment(\.holoMotionSurfaceIsActive, parentMotionSurfaceActive && !showAddThought)
         .task {
             // P1.5.7: 进入想法页时合并 CloudKit 同步产生的重复 Topic（幂等）
             _ = try? topicRepository.mergeDuplicateTopics()
@@ -127,7 +129,7 @@ struct ThoughtsView: View {
     private var sidebarContainerBody: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
-                Color.holoBackground.ignoresSafeArea()
+                Color.holoToolBackground.ignoresSafeArea()
 
                 // 底层：侧栏内容保持原宽，外层可见宽度与笔记层共用同一位移。
                 // 拖动时只裁切，不重排标签行，避免文字换行和列表跳动。
@@ -141,7 +143,7 @@ struct ThoughtsView: View {
                     scope: $scope,
                     onSelect: { closeSidebar() })
                 .frame(width: sidebarWidth)
-                .background(Color.holoCardBackground.ignoresSafeArea())
+                .background(Color.holoToolSurface.ignoresSafeArea())
                 .frame(width: currentContentOffset, alignment: .leading)
                 .clipShape(UnevenRoundedRectangle(
                     bottomTrailingRadius: HoloRadius.lg * sidebarProgress,
@@ -155,7 +157,7 @@ struct ThoughtsView: View {
                 // 前景：内容层整体跟手右移（列表+搜索+浮动"+"同一层，§5.5）
                 contentLayer
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.holoBackground)
+                    .background(Color.holoToolBackground)
                     .clipShape(UnevenRoundedRectangle(
                         topLeadingRadius: HoloRadius.lg * sidebarProgress,
                         bottomLeadingRadius: HoloRadius.lg * sidebarProgress))
@@ -265,7 +267,7 @@ struct ThoughtsView: View {
 
     private var legacyBody: some View {
         ZStack {
-            Color.holoBackground.ignoresSafeArea()
+            Color.holoToolBackground.ignoresSafeArea()
 
             ThoughtListView(
                 onBack: { close() },

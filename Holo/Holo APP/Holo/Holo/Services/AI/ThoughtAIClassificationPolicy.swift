@@ -14,8 +14,8 @@ enum ThoughtAIClassificationPolicy {
     /// V2 自动整理（其标签在新 UI 不展示，继续自动跑只空耗配额），线上 Release
     /// （旧 UI 仍展示 V2 标签）保持默认开。回滚 = 设置页显式开启（2026-09-24 方案 §6.2 停算矩阵）。
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        if let explicit = defaults.object(forKey: isEnabledKey) as? Bool { return explicit }
-        return !ThoughtSemanticFeatureFlags.uiEnabled(in: defaults)
+        // 自动主题由 V3 统一处理；旧 V2 只保留用户主动发起的标签整理。
+        return false
     }
 
     /// 新想法保存后的初始整理状态。

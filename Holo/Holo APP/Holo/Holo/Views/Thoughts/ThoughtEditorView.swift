@@ -144,6 +144,21 @@ struct ThoughtEditorView: View {
     /// 本次会话是否新建过想法（V3「已记录」轻提示只在新建退出时给一次）
     @State private var didCreateThoughtInSession: Bool = false
 
+    // MARK: - G1 保存可信（2026-10-04 体检整改）
+    /// 本会话稳定身份（恢复日志 key，与 thoughtId 解耦：未落库的草稿没有 thoughtId）
+    @State private var sessionId = UUID()
+    /// 新建会话预分配的草稿 ID：首次落库前就固定，所有保存重试复用同一 ID，杜绝重复记录
+    @State private var newSessionThoughtId: UUID? = nil
+    /// 恢复日志防抖任务（比落库防抖更短，先保住已确认文本）
+    @State private var recoveryTask: Task<Void, Never>? = nil
+    /// 可恢复的未提交草稿（横幅展示，用户确认后才恢复，不自动覆盖）
+    @State private var recoverableDraft: ThoughtEditorRecoveryDraft? = nil
+    /// 完成键在图片在途时置位：全部转正结束后自动收口
+    @State private var finishAfterUploadCompletes = false
+    /// 编辑器强制重建令牌（恢复草稿后重建 UITextView 实例——hasLocalEdits 之后
+    /// 外部改 text binding 不再刷入编辑器，必须换 identity 才能可靠载入恢复内容）
+    @State private var editorReloadToken = 0
+
     // MARK: - Attachment State
     /// 新建模式暂存图：保留原始数据（落库走与编辑模式一致的 2048 压缩管线），
     /// preview 仅供缩略条展示，不再作为持久化来源。
@@ -152,6 +167,12 @@ struct ThoughtEditorView: View {
     /// 此间草稿处于「看起来无内容」的中间态，自动保存不得按空草稿删除
     /// （否则附件挂到已删除的想法上，界面刷新读到已失效对象直接崩溃）。
     @State private var isUploadingPendingImages = false
+    /// 渐进加载中的图片（微信式）：占位帧先上缩略条，成品流转进暂存/附件，失败留卡可重试。
+    @State private var inFlightImages: [InFlightImageItem] = []
+    /// 渐进加载任务句柄：按卡 ID 索引，删除卡/退出编辑器时取消对应系统请求。
+    @State private var inFlightTasks: [UUID: Task<Void, Never>] = [:]
+    /// 完成键在加载中图片在途时置位：全部流出（成功转出/删除）后自动续行收口。
+    @State private var finishAfterInFlightCompletes = false
     @State private var showAttachmentPhotoPicker: Bool = false
     @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
     @State private var showAttachmentCamera: Bool = false
@@ -182,6 +203,8 @@ struct ThoughtEditorView: View {
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: HoloSpacing.md) {
+                        // G1：杀进程后未提交内容的恢复入口（用户确认才恢复，不自动覆盖）
+                        recoveryBanner
                         // 内容编辑区（含光标吸附候选浮层）
                         contentSection
                         // AI 归类区域（只读回显）
@@ -214,7 +237,7 @@ struct ThoughtEditorView: View {
                     .padding(.horizontal, HoloSpacing.md)
                     .padding(.bottom, HoloSpacing.xl)  // 底部留白（工具栏已沉入编辑器卡片底部）
                 }
-                .background(Color.holoBackground)
+                .background(Color.holoToolBackground)
                 // 长文编辑时允许用户下滑交互式收起键盘，避免只能点「完成」或额外点击空白处。
                 .scrollDismissesKeyboard(.interactively)
                 .navigationTitle(editingThoughtId != nil
@@ -348,6 +371,8 @@ struct ThoughtEditorView: View {
         }
         .onAppear {
             loadEditingData()
+            // G1：孤儿 staged 文件对账（不被任何恢复记录引用且超期的清理掉）
+            Task { await ThoughtEditorRecoveryStore.shared.cleanupOrphans() }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
             updateKeyboardOverlap(note)
@@ -358,15 +383,32 @@ struct ThoughtEditorView: View {
             // 删除动作走 deleteCurrentThought，不能让兜底保存凭内容把已删想法重建一条。
             autoSaveTask?.cancel()
             autoSaveTask = nil
+            recoveryTask?.cancel()
+            recoveryTask = nil
+            // 渐进加载中的图随编辑器退出取消（加载完成前的图不进想法）
+            for (_, task) in inFlightTasks {
+                task.cancel()
+            }
+            inFlightTasks.removeAll()
             guard !didDeleteCurrentThought else { return }
-            persistContent(shouldDismiss: false, notifyDataChange: true)
+            let outcome = persistContent(shouldDismiss: false, notifyDataChange: true)
+            // G1：主路径已由「完成」承担；这里只兜底退出沿。保存成功时恢复记录已清，
+            // 不再补写快照（避免给已落库内容留一份假草稿）；失败时内容留本机快照可找回。
+            if case .failed = outcome {
+                Task { @MainActor in await writeRecoverySnapshot() }
+            }
         }
-        .onChange(of: content) { _, _ in
+        // G1 §E13：无实质修改不触发保存周期——加载时设置的初始值、用户撤销回原文
+        // 都在这里被挡住；真正的变化判断由 commit 层 no-op 跳过兜底。
+        .onChange(of: content) { _, newValue in
+            guard newValue != originalContent else { return }
             scheduleAutoSave()
+            scheduleRecoverySnapshot()
         }
         // 纯图片想法同样要落库：加图/删图与文字变化走同一套防抖自动保存
         .onChange(of: pendingImageItems) { _, _ in
             scheduleAutoSave()
+            scheduleRecoverySnapshot()
         }
         .alert("无法访问", isPresented: $showCameraPermissionAlert) {
             Button("取消", role: .cancel) {}
@@ -469,24 +511,57 @@ struct ThoughtEditorView: View {
         scheduleAutoSave()
     }
 
-    /// 核心持久化：根据当前状态 create / update / 删除空草稿。
+    /// 保存结果（G1）：
+    /// - saved: 落库成功，带想法 ID
+    /// - nothingToSave: 无需保存（未落库的空会话 / 图片转正中间态），可直接收口
+    /// - failed: 落库失败，页面必须留在原地（内容未丢，可重试）
+    private enum SaveOutcome: Equatable {
+        case saved(UUID)
+        case nothingToSave
+        case failed
+    }
+
+    /// 核心持久化：单笔事务提交（正文/富文本/行内标签/引用），随后补传暂存图。
     /// - Parameters:
-    ///   - shouldDismiss: 是否在保存后关闭页面（手动点保存 / 空内容退出时为 true）
+    ///   - shouldDismiss: 是否在保存成功后关闭页面
     ///   - notifyDataChange: 是否发送数据变更通知（退出时为 true；防抖中间保存为 false，
     ///     避免 Widget 快照、列表刷新等重链路频繁触发）
     @discardableResult
-    private func persistContent(shouldDismiss: Bool, notifyDataChange: Bool) -> UUID? {
-        // 无文字且无图片：不创建空记录。已创建过的草稿（draftThoughtId != nil）删除回退。
+    private func persistContent(shouldDismiss: Bool, notifyDataChange: Bool) -> SaveOutcome {
+        // 无文字且无图片：
         if !hasContent {
             // 图片转正在途：暂存列表刚清空、附件还没落库，「无内容」只是中间态，
-            // 草稿必须保留（曾因这里误删导致新建带图想法必崩）
-            guard !isUploadingPendingImages else { return nil }
-            if let draftId = draftThoughtId {
-                try? thoughtRepository.hardDelete(draftId)
-                draftThoughtId = nil
+            // 草稿必须保留（曾因这里误删导致新建带图想法必崩）。
+            // 渐进加载在途同理：图还没转进暂存条，加载完成前草稿不得按空删除。
+            guard !isUploadingPendingImages, inFlightImages.isEmpty else { return .nothingToSave }
+            if let thoughtId = currentThoughtId {
+                // G1 §3.4：清空已落库想法（含新建会话已自动保存过的草稿）是合法编辑——
+                // 落库空正文，不再硬删除；清空前的内容已先行写入本机恢复日志可找回。
+                do {
+                    _ = try thoughtRepository.commitEditorContent(
+                        thoughtId: thoughtId,
+                        content: "",
+                        inlineTags: [],
+                        richContentJSON: .some(nil),
+                        references: [],
+                        createIfMissing: false
+                    )
+                    clearRecoveryRecordAfterCommit()
+                    if notifyDataChange {
+                        NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                        onSave?()
+                    }
+                    if shouldDismiss { dismiss() }
+                    return .saved(thoughtId)
+                } catch {
+                    ThoughtLog.error("清空想法保存失败", error.localizedDescription)
+                    HoloToastCenter.shared.show(String(localized: "保存失败，请重试"), type: .error)
+                    return .failed
+                }
             }
+            // 从未落库的新空会话：不创建空记录，直接收口
             if shouldDismiss { dismiss() }
-            return nil
+            return .nothingToSave
         }
 
         let repository = thoughtRepository
@@ -507,84 +582,50 @@ struct ThoughtEditorView: View {
         }
         let inlineTags = InlineTagDetector.extractTags(from: content)
 
+        // G1：新建会话的稳定草稿 ID 在首次落库前就固定，保存重试永远复用同一 ID。
+        if editingThoughtId == nil, newSessionThoughtId == nil {
+            newSessionThoughtId = UUID()
+        }
+        let commitThoughtId = currentThoughtId ?? newSessionThoughtId!
+        let createIfMissing = editingThoughtId == nil
+
         let persistedThoughtId: UUID
         do {
-            if let thoughtId = currentThoughtId {
-                // 已有记录（编辑模式或草稿已创建）：update
-                try repository.update(
-                    thoughtId,
-                    content: content,
-                    mood: nil,
-                    inlineTags: inlineTags,
-                    richContentJSON: .some(richJSON)
-                )
-                try repository.replaceReferences(thoughtId: thoughtId, references: referenceSnapshots)
-                persistedThoughtId = thoughtId
-
-                // V2 §5.5：离开编辑器（notifyDataChange=true 即退出沿）且正文已变——
-                // update() 已把状态回 pending，这里重新排队整理。防抖中间保存不触发，
-                // 避免打字过程中每 2 秒消耗一次整理配额。
-                if notifyDataChange, originalContent != content,
-                   let updated = try? repository.fetchById(thoughtId),
-                   updated.organizedStatus == "pending" {
-                    Task { @MainActor in
-                        ThoughtOrganizationQueue.shared.enqueue(thoughtId: thoughtId)
-                    }
-                }
-            } else {
-                // 新建模式首次落库：create
-                let thought = try repository.create(
-                    content: content,
-                    mood: nil,
-                    manualTags: [],
-                    inlineTags: inlineTags,
-                    richContentJSON: richJSON
-                )
-                draftThoughtId = thought.id
+            // G1：正文/富文本/行内标签/引用同一笔事务提交——行内差异只增删 inline 来源
+            //（手动标签保护），引用完全一致时不重建，无变化时跳过写入（打开即退出
+            // 不动 updatedAt）；中途失败不会出现「正文已存、引用丢了」的半提交状态。
+            let receipt = try repository.commitEditorContent(
+                thoughtId: commitThoughtId,
+                content: content,
+                inlineTags: inlineTags,
+                richContentJSON: .some(richJSON),
+                references: referenceSnapshots,
+                createIfMissing: createIfMissing
+            )
+            persistedThoughtId = receipt.thoughtId
+            if currentThoughtId == nil {
+                draftThoughtId = receipt.thoughtId
                 didCreateThoughtInSession = true
                 MarkdownTextView.IMEDiag.log("persistContent: draft created wasComposing=\(isComposingIME)")
-                try repository.replaceReferences(thoughtId: thought.id, references: referenceSnapshots)
-                // 不能依赖上面的 @State 在本次同步调用中立即回写；调用方需要继续使用刚创建的 ID。
-                persistedThoughtId = thought.id
-
-                // 保存暂存图片（新建模式首次 create 后转为编辑模式；原始数据走与编辑模式一致的压缩管线）
-                let imagesToUpload = pendingImageItems
-                if !imagesToUpload.isEmpty {
-                    pendingImageItems = []
-                    // 清空暂存会触发 onChange(of: pendingImageItems) 的防抖自动保存，
-                    // 在途标志保证那次保存不会把刚落库的草稿当空草稿删除
-                    isUploadingPendingImages = true
-                    Task { @MainActor in
-                        var failedCount = 0
-                        for item in imagesToUpload {
-                            do {
-                                _ = try await repository.addAttachment(imageData: item.data, to: thought)
-                            } catch {
-                                ThoughtLog.error("保存暂存图片失败", error.localizedDescription)
-                                failedCount += 1
-                            }
-                        }
-                        // 附件落库完成：进编辑附件区展示（此前只清空暂存，缩略图会中途消失）
-                        refreshEditingAttachments()
-                        isUploadingPendingImages = false
-                        if failedCount > 0 {
-                            HoloToastCenter.shared.show(
-                                failedCount == imagesToUpload.count
-                                    ? String(localized: "图片保存失败，请重新编辑添加")
-                                    : String(localized: "\(failedCount) 张图片保存失败，部分图片可能丢失"),
-                                type: .error
-                            )
-                        }
-                    }
-                }
 
                 // AI 自动分类：每个草稿仅首次创建时触发一次
                 if !didEnqueueAIClassification,
                    ThoughtAIClassificationPolicy.isEnabled(), content.count >= 10 {
                     didEnqueueAIClassification = true
                     Task { @MainActor in
-                        ThoughtOrganizationQueue.shared.enqueue(thoughtId: thought.id)
+                        ThoughtOrganizationQueue.shared.enqueue(thoughtId: receipt.thoughtId)
                     }
+                }
+            }
+
+            // V2 §5.5：离开编辑器（notifyDataChange=true 即退出沿）且正文已变——
+            // commit 已把状态回 pending，这里重新排队整理。防抖中间保存不触发，
+            // 避免打字过程中每 2 秒消耗一次整理配额。
+            if notifyDataChange, originalContent != content,
+               let updated = try? repository.fetchById(persistedThoughtId),
+               updated.organizedStatus == "pending" {
+                Task { @MainActor in
+                    ThoughtOrganizationQueue.shared.enqueue(thoughtId: persistedThoughtId)
                 }
             }
         } catch {
@@ -592,7 +633,17 @@ struct ThoughtEditorView: View {
             // 保存失败必须可见（flomo 改版批4）：静默失败会让用户以为已记录；
             // 继续编辑会再次触发防抖自动保存、退出还有 onDisappear 兜底，两者都是重试路径
             HoloToastCenter.shared.show(String(localized: "保存失败，继续编辑会自动重试"), type: .error)
-            return nil
+            return .failed
+        }
+
+        // G1：正文已落库且暂存图已清空时才清恢复记录；图片在途时保留记录，
+        // 进程被杀后 staged 图片仍可找回（T11）。
+        clearRecoveryRecordAfterCommit()
+
+        // 暂存图转正（新建首次落库后 / 失败重试共用一条路径）
+        if !pendingImageItems.isEmpty, !isUploadingPendingImages,
+           pendingImageItems.contains(where: { $0.retryCount < 3 }) {
+            startPendingImageUpload()
         }
 
         // 同步修改检测基线
@@ -627,7 +678,271 @@ struct ThoughtEditorView: View {
         if shouldDismiss {
             dismiss()
         }
-        return persistedThoughtId
+        return .saved(persistedThoughtId)
+    }
+
+    // MARK: - G1 完成协议与恢复日志
+
+    /// 「完成」主动作（G1 §3.3）：先落库并核对附件，成功才关闭；失败留在页面。
+    /// 不再把关闭交给 onDisappear 兜底保存。
+    private func finishEditing() {
+        autoSaveTask?.cancel()
+        autoSaveTask = nil
+        if didDeleteCurrentThought {
+            closeEditor()
+            return
+        }
+        if !inFlightImages.isEmpty {
+            // 渐进加载在途：失败卡直接丢弃（进不了想法）并汇总告知；
+            // 加载中的等完成自动续行收口（微信式：完成不被下载卡死，也不静默丢图）
+            let failedCount = inFlightImages.filter {
+                if case .failed = $0.phase { return true }
+                return false
+            }.count
+            inFlightImages.removeAll { item in
+                if case .failed = item.phase {
+                    inFlightTasks[item.id]?.cancel()
+                    inFlightTasks[item.id] = nil
+                    return true
+                }
+                return false
+            }
+            if failedCount > 0 {
+                HoloToastCenter.shared.show(
+                    String(localized: "\(failedCount) 张图片加载失败，未保存"),
+                    type: .error
+                )
+            }
+            if !inFlightImages.isEmpty {
+                finishAfterInFlightCompletes = true
+                HoloToastCenter.shared.show(
+                    String(localized: "图片正在加载，完成后自动保存"),
+                    type: .info
+                )
+                return
+            }
+        }
+        if isUploadingPendingImages {
+            // 图片转正在途：结束后自动收口，不伪装成功
+            finishAfterUploadCompletes = true
+            return
+        }
+        if !pendingImageItems.isEmpty {
+            // 有未转正的暂存图：退出前补传一轮；失败则留在页面（staged 文件与恢复
+            // 记录都在，但让用户明确处理，不静默留半成品）
+            finishAfterUploadCompletes = true
+            startPendingImageUpload()
+            return
+        }
+        let outcome = persistContent(shouldDismiss: false, notifyDataChange: true)
+        if case .saved(let thoughtID) = outcome, editingThoughtId == nil {
+            HoloMotionFeedbackCenter.shared.saved(thoughtID, domain: .thought, operationID: sessionId)
+        }
+        if outcome != .failed {
+            closeEditor()
+        }
+    }
+
+    private func closeEditor() {
+        if let onRequestClose {
+            onRequestClose()
+        } else {
+            dismiss()
+        }
+    }
+
+    /// 恢复日志防抖（800ms 合并写）：只序列化已确认文本，组字期间不写。
+    private func scheduleRecoverySnapshot() {
+        guard !isComposingIME else { return }
+        recoveryTask?.cancel()
+        recoveryTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            guard !Task.isCancelled else { return }
+            await writeRecoverySnapshot()
+        }
+    }
+
+    private func writeRecoverySnapshot() async {
+        guard hasContent || editingThoughtId != nil else { return }
+        let nodes = editorNodesLoaded
+            ? editorNodes
+            : RichContentSerializer.nodes(richJSON: initialRichJSON, fallbackPlainText: content)
+        let hasStructuredContent = nodes.contains { node in
+            if case .text = node { return false }
+            return true
+        } || content != MarkdownTextView.visiblePlainText(from: nodes)
+        let richJSON = hasStructuredContent ? try? RichContentSerializer.jsonString(from: nodes) : nil
+        let draft = ThoughtEditorRecoveryDraft(
+            sessionId: sessionId,
+            thoughtId: currentThoughtId,
+            content: content,
+            richContentJSON: richJSON,
+            stagedImageFiles: pendingImageItems.compactMap(\.stagedFileName),
+            updatedAt: Date()
+        )
+        await ThoughtEditorRecoveryStore.shared.save(draft)
+    }
+
+    /// 正文落库成功后同步恢复日志：暂存图还有在途时保留记录（staged 图片仍需可恢复），
+    /// 否则清除本会话记录——已提交的内容不冒充「未保存草稿」。
+    private func clearRecoveryRecordAfterCommit() {
+        guard pendingImageItems.isEmpty else { return }
+        recoveryTask?.cancel()
+        recoveryTask = nil
+        let sid = sessionId
+        Task { await ThoughtEditorRecoveryStore.shared.clear(sessionId: sid) }
+    }
+
+    /// 恢复横幅：把上次未提交的内容载回编辑器。
+    /// staged 图片回到暂存条；编辑器实例通过 editorReloadToken 重建以可靠载入。
+    private func restoreRecoverableDraft(_ draft: ThoughtEditorRecoveryDraft) {
+        recoverableDraft = nil
+        content = draft.content
+        originalContent = draft.content
+        if draft.richContentJSON != nil {
+            initialRichJSON = draft.richContentJSON
+        }
+        editorNodesLoaded = false
+        editorReloadToken += 1
+        // 旧记录由当前会话接管身份：清旧记录文件（staged 文件保留给新记录引用）
+        let oldSessionId = draft.sessionId
+        Task { await ThoughtEditorRecoveryStore.shared.clear(sessionId: oldSessionId) }
+        Task { @MainActor in
+            var restored: [PendingImageItem] = []
+            for file in draft.stagedImageFiles {
+                if let data = await ThoughtEditorRecoveryStore.shared.stagedImageData(file),
+                   let image = UIImage(data: data) {
+                    let preview = await AttachmentFileManager.previewImageInBackground(image, maxDimension: 1024)
+                    if let preview {
+                        restored.append(PendingImageItem(data: data, preview: preview, stagedFileName: file))
+                        continue
+                    }
+                }
+                await ThoughtEditorRecoveryStore.shared.removeStagedImage(file)
+            }
+            pendingImageItems.append(contentsOf: restored)
+            scheduleRecoverySnapshot()
+        }
+    }
+
+    /// 丢弃恢复草稿：记录与 staged 图片一并清理（用户明确说不要了）
+    private func discardRecoverableDraft(_ draft: ThoughtEditorRecoveryDraft) {
+        recoverableDraft = nil
+        let sid = draft.sessionId
+        let files = draft.stagedImageFiles
+        Task {
+            let store = ThoughtEditorRecoveryStore.shared
+            await store.clear(sessionId: sid)
+            for file in files {
+                await store.removeStagedImage(file)
+            }
+        }
+    }
+
+    /// 恢复入口横幅
+    @ViewBuilder
+    private var recoveryBanner: some View {
+        if let draft = recoverableDraft {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "arrow.counterclockwise.circle.fill")
+                    .foregroundColor(.holoPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("检测到上次未保存的内容")
+                        .holoText(.body)
+                    Text("保存于 \(draft.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+                Spacer()
+                Button {
+                    restoreRecoverableDraft(draft)
+                } label: {
+                    Text("恢复")
+                        .holoText(.body)
+                        .foregroundColor(.holoPrimary)
+                }
+                Button(role: .destructive) {
+                    discardRecoverableDraft(draft)
+                } label: {
+                    Text("丢弃")
+                        .holoText(.body)
+                }
+            }
+            .padding(HoloSpacing.md)
+            .background(Color.holoToolSurface)
+            .cornerRadius(HoloRadius.md)
+            .overlay(
+                RoundedRectangle(cornerRadius: HoloRadius.md)
+                    .stroke(Color.holoToolBorder, lineWidth: 1)
+            )
+        }
+    }
+
+    // MARK: - G1 暂存图转正
+
+    /// 把暂存图转正为附件（新建首次落库后 / 失败重试 / 完成前补传共用）。
+    /// 失败项保留原图与 staged 文件回填暂存条；连续失败 3 次停止自动重试。
+    private func startPendingImageUpload() {
+        let retryable = pendingImageItems.filter { $0.retryCount < 3 }
+        guard !retryable.isEmpty,
+              let thoughtId = currentThoughtId,
+              let thought = try? thoughtRepository.fetchById(thoughtId) else {
+            // 全部超限或草稿不可用：只对用户主动触发的收口给提示
+            if finishAfterUploadCompletes {
+                finishAfterUploadCompletes = false
+                if !pendingImageItems.isEmpty {
+                    HoloToastCenter.shared.show(
+                        String(localized: "图片保存失败，请重试或删除后再退出"),
+                        type: .error
+                    )
+                }
+            }
+            return
+        }
+        pendingImageItems = []
+        // 清空暂存会触发 onChange 的防抖自动保存，在途标志保证中间态不被误判
+        isUploadingPendingImages = true
+        Task { @MainActor in
+            var failed: [PendingImageItem] = []
+            for var item in retryable {
+                do {
+                    _ = try await thoughtRepository.addAttachment(imageData: item.data, to: thought)
+                    if let staged = item.stagedFileName {
+                        await ThoughtEditorRecoveryStore.shared.removeStagedImage(staged)
+                        item.stagedFileName = nil
+                    }
+                } catch {
+                    ThoughtLog.error("保存图片失败", error.localizedDescription)
+                    item.retryCount += 1
+                    failed.append(item)
+                }
+            }
+            if !failed.isEmpty {
+                pendingImageItems.append(contentsOf: failed)
+            }
+            refreshEditingAttachments()
+            isUploadingPendingImages = false
+            if !failed.isEmpty {
+                let allExhausted = failed.allSatisfy { $0.retryCount >= 3 }
+                HoloToastCenter.shared.show(
+                    allExhausted
+                        ? String(localized: "图片保存失败，请重试或删除后再退出")
+                        : String(localized: "有 \(failed.count) 张图片未保存成功，稍后自动重试"),
+                    type: .error
+                )
+            }
+            if finishAfterUploadCompletes {
+                finishAfterUploadCompletes = false
+                if pendingImageItems.isEmpty {
+                    finishEditing()
+                } else {
+                    HoloToastCenter.shared.show(
+                        String(localized: "图片尚未保存成功，请重试或删除后再退出"),
+                        type: .error
+                    )
+                }
+            }
+        }
     }
 
     // MARK: - 转为任务
@@ -636,7 +951,7 @@ struct ThoughtEditorView: View {
     /// 整篇转化（selectedText=nil）和选中文字转化共用此入口。
     private func startTaskExtraction(selectedText: String? = nil, selectedRange: NSRange? = nil) {
         guard hasContent else { return }
-        guard let thoughtId = persistContent(shouldDismiss: false, notifyDataChange: false),
+        guard case .saved(let thoughtId) = persistContent(shouldDismiss: false, notifyDataChange: false),
               let thought = try? thoughtRepository.fetchById(thoughtId) else {
             // 落库失败不再静默（persistContent 已弹保存失败 toast；这里补动作受阻的说明）
             HoloToastCenter.shared.show(String(localized: "保存未完成，暂时无法转为任务"), type: .error)
@@ -714,6 +1029,9 @@ struct ThoughtEditorView: View {
                     }
                 }
             )
+            // G1：恢复草稿后必须换 identity 重建编辑器实例——发生过本地输入的
+            // UITextView 不会再消费外部 text binding，仅改绑定恢复不生效。
+            .id(editorReloadToken)
             .frame(height: editorFrameHeight)
 
             attachmentStrip
@@ -748,13 +1066,9 @@ struct ThoughtEditorView: View {
                 onDone: {
                     if showsColorPalette { showsColorPalette = false }
                     ThoughtLog.info("onDone: onRequestClose=\(onRequestClose != nil)")
-                    // 收起编辑器：弹层形态直接 dismiss（保存由 onDisappear 兜底）；
-                    // 宽屏右栏内联形态收起右栏，视图销毁时同样触发 onDisappear 兜底。
-                    if let onRequestClose {
-                        onRequestClose()
-                    } else {
-                        dismiss()
-                    }
+                    // G1 §E01：完成 = 先落库并核对附件，成功才关闭；失败留在页面可重试。
+                    // onDisappear 只作最终保险，不再承担唯一成功保存路径。
+                    finishEditing()
                 },
                 isComposingSession: editingThoughtId == nil,
                 smartSummaryEnabled: $smartSummaryEnabled,
@@ -762,11 +1076,11 @@ struct ThoughtEditorView: View {
                 showsColorPalette: $showsColorPalette
             )
         }
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .cornerRadius(HoloRadius.md)
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .stroke(Color.holoToolBorder, lineWidth: 1)
         )
         // 候选浮层必须挂在卡片的圆角裁剪之后，才能越过短编辑器卡片展示完整列表；
         // 同时仍以卡片左上角为坐标原点，与 caretRect 保持一致。
@@ -893,11 +1207,11 @@ struct ThoughtEditorView: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(spacing: 4) {
                 Text("AI 归类")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                 Image(systemName: "sparkles")
                     .font(.system(size: 10))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -909,7 +1223,7 @@ struct ThoughtEditorView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .cornerRadius(HoloRadius.md)
     }
 
@@ -921,12 +1235,12 @@ struct ThoughtEditorView: View {
         return HStack(spacing: 4) {
             // AI 归类展示归一化后的完整主题路径（#碎碎念/加班），与列表/详情页口径一致
             Text("#\(ThoughtTagNormalizer.displayPath(tagName))")
-                .font(.holoLabel)
-                .foregroundColor(isConfirmed ? .holoPrimary : .holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(isConfirmed ? .holoPrimary : .holoToolTextSecondary)
 
             Text("AI")
                 .font(.system(size: 8, weight: .semibold))
-                .foregroundColor(isConfirmed ? .holoPrimary.opacity(0.6) : .holoTextSecondary.opacity(0.5))
+                .foregroundColor(isConfirmed ? .holoPrimary.opacity(0.6) : .holoToolTextSecondary.opacity(0.5))
 
             if !isConfirmed {
                 Button {
@@ -962,7 +1276,7 @@ struct ThoughtEditorView: View {
         .background(
             isConfirmed
                 ? Color.holoPrimary.opacity(0.08)
-                : Color.holoTextSecondary.opacity(0.06)
+                : Color.holoToolTextSecondary.opacity(0.06)
         )
         .cornerRadius(HoloRadius.sm)
         // 标签名称来自用户/AI数据，横向滚动时保持完整内容宽度
@@ -1050,7 +1364,7 @@ struct ThoughtEditorView: View {
         } label: {
             Image(systemName: "ellipsis.circle")
                 .font(.system(size: 18))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
         }
     }
 
@@ -1086,7 +1400,12 @@ struct ThoughtEditorView: View {
         guard let thoughtId = currentThoughtId else { return }
         autoSaveTask?.cancel()
         autoSaveTask = nil
+        recoveryTask?.cancel()
+        recoveryTask = nil
         didDeleteCurrentThought = true
+        // 恢复记录随删除一并清理（记录里引用的 staged 文件也删）
+        let sid = sessionId
+        Task { await ThoughtEditorRecoveryStore.shared.clear(sessionId: sid) }
         do {
             try thoughtRepository.delete(thoughtId)
         } catch {
@@ -1120,15 +1439,15 @@ struct ThoughtEditorView: View {
             // 标题行
             VStack(spacing: 4) {
                 Text(tokenMenuTitle(token))
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.sectionTitle)
+                    .foregroundColor(.holoToolText)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
 
                 if let subtitle = tokenMenuSubtitle(token) {
                     Text(subtitle)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolTextSecondary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
                 }
@@ -1188,7 +1507,7 @@ struct ThoughtEditorView: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.bottom, HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
     }
 
     private func tokenMenuTitle(_ token: HoloContentNode) -> String {
@@ -1222,10 +1541,10 @@ struct ThoughtEditorView: View {
                     .font(.system(size: 16))
                     .frame(width: 24)
                 Text(title)
-                    .font(.holoBody)
+                    .holoText(.body)
                 Spacer()
             }
-            .foregroundColor(isDestructive ? .holoError : .holoTextPrimary)
+            .foregroundColor(isDestructive ? .holoError : .holoToolText)
             .padding(.vertical, HoloSpacing.sm)
             .contentShape(Rectangle())
         }
@@ -1242,12 +1561,9 @@ struct ThoughtEditorView: View {
 
     // MARK: - 图片附件区域
 
-    /// 最大可选数量（新建模式用 pendingImageItems，编辑模式用 editingAttachments）
+    /// 最大可选数量（已落库附件 + 暂存图 + 加载中图片共同占用 9 张上限）
     private var maxAttachmentSelection: Int {
-        if isEditing {
-            return max(0, 9 - editingAttachments.count)
-        }
-        return max(0, 9 - pendingImageItems.count)
+        max(0, 9 - editingAttachments.count - pendingImageItems.count - inFlightImages.count)
     }
 
     /// 当前编辑中的 Thought 对象（草稿转正后也可取到；用于图库浏览、分享卡等）
@@ -1277,7 +1593,7 @@ struct ThoughtEditorView: View {
     }
 
     private var hasAttachments: Bool {
-        isEditing ? !editingAttachments.isEmpty : !pendingImageItems.isEmpty
+        !editingAttachments.isEmpty || !pendingImageItems.isEmpty || !inFlightImages.isEmpty
     }
 
     // MARK: - 键盘避让
@@ -1307,77 +1623,165 @@ struct ThoughtEditorView: View {
         }
     }
 
-    /// 已添加图片的横向缩略图条（带可见删除按钮）
+    /// 已添加图片的横向缩略图条（带可见删除按钮）。
+    /// G1：多种来源合并展示——已落库附件（点按进图库）+ 暂存图（转正失败带角标，
+    /// 点按立即重试）+ 渐进加载中图片（占位帧即显，失败留卡重试），
+    /// 失败图不再只是 toast 一闪而过。
     @ViewBuilder
     private var attachmentStrip: some View {
-        if isEditing {
-            if !editingAttachments.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: HoloSpacing.sm) {
-                        ForEach(Array(editingAttachments.enumerated()), id: \.element.id) { index, item in
-                            ThoughtAttachmentThumbnailView(
-                                thumbnailData: item.thumbnailData,
-                                fileName: item.thumbnailFileName,
-                                thoughtId: editingThoughtId ?? UUID()
-                            )
-                            .frame(width: 80, height: 80)
-                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-                            .overlay(alignment: .topTrailing) {
-                                Button {
-                                    deleteEditingAttachment(item.objectID)
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .font(.system(size: 16))
-                                        .foregroundColor(.white)
-                                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                                }
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
+        if !editingAttachments.isEmpty || !pendingImageItems.isEmpty || !inFlightImages.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: HoloSpacing.sm) {
+                    ForEach(Array(editingAttachments.enumerated()), id: \.element.id) { index, item in
+                        ThoughtAttachmentThumbnailView(
+                            thumbnailData: item.thumbnailData,
+                            fileName: item.thumbnailFileName,
+                            thoughtId: editingThoughtId ?? UUID()
+                        )
+                        .frame(width: 80, height: 80)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+                        .overlay(alignment: .topTrailing) {
+                            Button {
+                                deleteEditingAttachment(item.objectID)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
                             }
+                            .frame(width: 44, height: 44)
                             .contentShape(Rectangle())
-                            .onTapGesture {
-                                galleryStartIndex = index
-                                showAttachmentGallery = true
-                            }
+                        }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            galleryStartIndex = index
+                            showAttachmentGallery = true
                         }
                     }
-                }
-                .padding(HoloSpacing.md)
-            }
-        } else {
-            if !pendingImageItems.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: HoloSpacing.sm) {
-                        ForEach(pendingImageItems) { item in
-                            Image(uiImage: item.preview)
-                                .resizable()
-                                .aspectRatio(1, contentMode: .fill)
-                                .frame(width: 80, height: 80)
-                                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-                                .overlay(alignment: .topTrailing) {
-                                    Button {
-                                        pendingImageItems.removeAll { $0.id == item.id }
-                                    } label: {
-                                        Image(systemName: "xmark.circle.fill")
-                                            .font(.system(size: 16))
-                                            .foregroundColor(.white)
-                                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                                    }
-                                    .frame(width: 44, height: 44)
-                                    .contentShape(Rectangle())
-                                }
-                        }
+                    ForEach(pendingImageItems) { item in
+                        pendingImageThumbnail(item)
+                    }
+                    ForEach(inFlightImages) { item in
+                        inFlightThumbnail(item)
                     }
                 }
-                .padding(HoloSpacing.md)
             }
+            .padding(HoloSpacing.md)
+        }
+    }
+
+    /// 暂存图缩略块：右上删除；转正失败过（retryCount > 0）显示角标，点按立即重试
+    private func pendingImageThumbnail(_ item: PendingImageItem) -> some View {
+        Image(uiImage: item.preview)
+            .resizable()
+            .aspectRatio(1, contentMode: .fill)
+            .frame(width: 80, height: 80)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    removePendingImage(item)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white)
+                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                }
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if item.retryCount > 0 {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoError)
+                        .padding(4)
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if item.retryCount > 0 {
+                    retryPendingImage(item)
+                }
+            }
+    }
+
+    /// 加载中图片缩略块：占位帧（本机缓存低清）立即显示，加载转圈；
+    /// 失败显示警示+重试字样，点按整卡重试；右上删除随时可撤。
+    private func inFlightThumbnail(_ item: InFlightImageItem) -> some View {
+        ZStack {
+            if let placeholder = item.placeholder {
+                Image(uiImage: placeholder)
+                    .resizable()
+                    .aspectRatio(1, contentMode: .fill)
+            } else {
+                Rectangle().fill(Color.holoToolSurface)
+            }
+            switch item.phase {
+            case .loading, .placeholderReady:
+                ProgressView()
+            case .failed:
+                VStack(spacing: 3) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.holoError)
+                    Text("重试")
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+            }
+        }
+        .frame(width: 80, height: 80)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+        .overlay(alignment: .topTrailing) {
+            Button {
+                removeInFlightImage(item)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 16))
+                    .foregroundColor(.white)
+                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+            }
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if case .failed = item.phase {
+                retryInFlightImage(item)
+            }
+        }
+    }
+
+    /// 删除暂存图：连同 staged 文件一起清理
+    private func removePendingImage(_ item: PendingImageItem) {
+        pendingImageItems.removeAll { $0.id == item.id }
+        if let staged = item.stagedFileName {
+            Task { await ThoughtEditorRecoveryStore.shared.removeStagedImage(staged) }
+        }
+    }
+
+    /// 手动重试单张失败图：清零重试计数后走统一补传
+    private func retryPendingImage(_ item: PendingImageItem) {
+        guard let index = pendingImageItems.firstIndex(where: { $0.id == item.id }) else { return }
+        pendingImageItems[index].retryCount = 0
+        if !isUploadingPendingImages {
+            startPendingImageUpload()
         }
     }
 
     // MARK: - Actions
     /// 加载编辑数据
     private func loadEditingData() {
-        guard let thoughtId = editingThoughtId else { return }
+        guard let thoughtId = editingThoughtId else {
+            // G1：新建会话查孤儿草稿（从未落库就被杀的会话），有则弹恢复横幅
+            Task { @MainActor in
+                let orphans = await ThoughtEditorRecoveryStore.shared.orphanDrafts()
+                guard let latest = orphans.first,
+                      content.isEmpty, pendingImageItems.isEmpty else { return }
+                recoverableDraft = latest
+            }
+            return
+        }
 
         do {
             let repo = ThoughtRepository()
@@ -1406,6 +1810,17 @@ struct ThoughtEditorView: View {
                 )
             }
             hasLoadedEditorData = true
+
+            // G1：查该想法的未提交修改。恢复记录比实体新（且用户尚未输入）才提示，
+            // 已保存的内容不冒充未保存草稿。
+            let entityUpdatedAt = thought.updatedAt
+            Task { @MainActor in
+                let drafts = await ThoughtEditorRecoveryStore.shared.drafts(forThoughtId: thoughtId)
+                guard let latest = drafts.first,
+                      latest.updatedAt > entityUpdatedAt,
+                      content == (thought.content) else { return }
+                recoverableDraft = latest
+            }
         } catch {
             ThoughtLog.error("加载编辑数据失败", error.localizedDescription)
         }
@@ -1413,55 +1828,114 @@ struct ThoughtEditorView: View {
 
     // MARK: - Attachment Actions
 
-    /// 加载相册选中的图片：统一走 PhotoLibraryImageLoader（Data 失败回退系统转码），
-    /// 失败不再静默跳过，给用户明确提示。
+    /// 加载相册选中的图片：微信式渐进加载——占位帧先上缩略条（iCloud 图秒回），
+    /// 成品后台补齐后自动转正，失败留卡点按重试；多张并发互不阻塞。
+    /// G1 §E02 口径保留：转正一律用会话稳定 ID（currentThoughtId），不读新建会话恒为
+    /// nil 的 editingThoughtId——渐进等待期间草稿可能首次落库，settle 时实时读取即可。
     private func loadAttachmentPhotos(_ photos: [PhotosPickerItem]) {
-        Task { @MainActor in
-            var failedCount = 0
-            var permissionRequired = false
-            var limitedAccess = false
-            var cloudFailed = false
-            for photo in photos {
-                let outcome = await PhotoLibraryImageLoader.loadImageData(from: photo)
-                guard case .data(let data) = outcome else {
-                    failedCount += 1
-                    if case .permissionRequired = outcome { permissionRequired = true }
-                    if case .limitedAccess = outcome { limitedAccess = true }
-                    if case .cloudDownloadFailed = outcome { cloudFailed = true }
-                    continue
-                }
+        for photo in photos {
+            startInFlightLoad(photo)
+        }
+        selectedAttachmentPhotos = []
+    }
 
-                if isEditing {
-                    // 编辑模式：直接保存到 CoreData
-                    guard let thoughtId = editingThoughtId,
-                          let thought = try? thoughtRepository.fetchById(thoughtId) else {
-                        failedCount += 1
-                        continue
+    /// 启动单张渐进加载。reuseId 供失败重试复用同一张卡（不新开卡位）。
+    /// 注意不在此处 cancel 旧任务：重试只发生在上一轮已结束（失败返回）之后，
+    /// cancel 反而会让旧任务的清理 defer 误抹新任务的句柄。
+    private func startInFlightLoad(_ photo: PhotosPickerItem, reuseId: UUID? = nil) {
+        let id = reuseId ?? UUID()
+        if let index = inFlightImages.firstIndex(where: { $0.id == id }) {
+            inFlightImages[index] = InFlightImageItem(id: id, pickerItem: photo)
+        } else {
+            inFlightImages.append(InFlightImageItem(id: id, pickerItem: photo))
+        }
+        inFlightTasks[id] = Task { @MainActor in
+            defer { inFlightTasks[id] = nil }
+            for await event in PhotoLibraryImageLoader.progressiveLoad(from: photo) {
+                switch event {
+                case .placeholder(let image):
+                    if let index = inFlightImages.firstIndex(where: { $0.id == id }) {
+                        inFlightImages[index].placeholder = image
+                        inFlightImages[index].phase = .placeholderReady
                     }
-                    do {
-                        _ = try await thoughtRepository.addAttachment(imageData: data, to: thought)
-                        refreshEditingAttachments()
-                    } catch {
-                        ThoughtLog.error("添加附件失败", error.localizedDescription)
-                        failedCount += 1
-                    }
-                } else {
-                    // 新建模式：暂存原始数据 + 轻量预览
-                    guard let image = UIImage(data: data) else {
-                        failedCount += 1
-                        continue
-                    }
-                    let preview = await AttachmentFileManager.previewImageInBackground(image, maxDimension: 1024)
-                    if let preview {
-                        pendingImageItems.append(PendingImageItem(data: data, preview: preview))
-                    } else {
-                        failedCount += 1
-                    }
+                case .loaded(let image, let originalData):
+                    await settleInFlight(id: id, image: image, originalData: originalData)
+                    return
+                case .failed(let outcome):
+                    failInFlight(id: id, outcome: outcome)
+                    return
                 }
             }
-            PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: photos.count, permissionRequired: permissionRequired, limitedAccess: limitedAccess, cloudFailed: cloudFailed)
-            selectedAttachmentPhotos = []
         }
+    }
+
+    /// 成品到达：已落库（编辑模式/草稿已自动保存）直接转正；未落库 staged 先行落盘进暂存条。
+    private func settleInFlight(id: UUID, image: UIImage, originalData: Data?) async {
+        guard let data = originalData ?? image.jpegData(compressionQuality: 0.95) else {
+            failInFlight(id: id, outcome: .unavailable)
+            return
+        }
+        if let thoughtId = currentThoughtId,
+           let thought = try? thoughtRepository.fetchById(thoughtId) {
+            // 已落库：直接转正。失败时 commitImageDirectly 已把图挪进暂存条
+            //（带 staged 文件）等待重试，不留失败卡。
+            let ok = await commitImageDirectly(data, to: thought, sourceType: "photoLibrary")
+            inFlightImages.removeAll { $0.id == id }
+            if ok {
+                refreshEditingAttachments()
+            }
+        } else {
+            // 未落库：staged 文件先行落盘 + 暂存条展示（与旧管线同口径）
+            let preview = await AttachmentFileManager.previewImageInBackground(image, maxDimension: 1024)
+            inFlightImages.removeAll { $0.id == id }
+            if let preview {
+                let stagedName = UUID().uuidString + ".jpg"
+                await ThoughtEditorRecoveryStore.shared.writeStagedImage(data, fileName: stagedName)
+                pendingImageItems.append(
+                    PendingImageItem(data: data, preview: preview, stagedFileName: stagedName)
+                )
+            } else {
+                // preview 生成失败极罕见：直接用成品图占缩略条，不丢图
+                pendingImageItems.append(PendingImageItem(data: data, preview: image))
+            }
+        }
+        maybeFinishAfterInFlight()
+    }
+
+    /// 单张失败：卡上留重试入口；权限类失败补 toast 指引（有明确自救动作），
+    /// 网络/下载类失败不再整批弹错，过程反馈由卡片承担。
+    private func failInFlight(id: UUID, outcome: PhotoLoadOutcome) {
+        if let index = inFlightImages.firstIndex(where: { $0.id == id }) {
+            inFlightImages[index].phase = .failed(outcome)
+        }
+        switch outcome {
+        case .permissionRequired:
+            PhotoLibraryImageLoader.announceLoadFailure(failedCount: 1, totalCount: 1, permissionRequired: true)
+        case .limitedAccess:
+            PhotoLibraryImageLoader.announceLoadFailure(failedCount: 1, totalCount: 1, limitedAccess: true)
+        default:
+            break
+        }
+    }
+
+    /// 删除加载中/失败卡：取消对应系统请求后移除。
+    private func removeInFlightImage(_ item: InFlightImageItem) {
+        inFlightTasks[item.id]?.cancel()
+        inFlightTasks[item.id] = nil
+        inFlightImages.removeAll { $0.id == item.id }
+        maybeFinishAfterInFlight()
+    }
+
+    /// 点按失败卡重试：同卡位重启渐进加载。
+    private func retryInFlightImage(_ item: InFlightImageItem) {
+        startInFlightLoad(item.pickerItem, reuseId: item.id)
+    }
+
+    /// 「完成」等待加载中图片：全部流出后自动续行收口（对齐 finishAfterUploadCompletes 模式）。
+    private func maybeFinishAfterInFlight() {
+        guard finishAfterInFlightCompletes, inFlightImages.isEmpty else { return }
+        finishAfterInFlightCompletes = false
+        finishEditing()
     }
 
     /// 处理相机拍照数据
@@ -1469,29 +1943,50 @@ struct ThoughtEditorView: View {
         guard let imageData = pendingCameraImageData else { return }
         pendingCameraImageData = nil
 
-        if isEditing {
-            guard let thoughtId = editingThoughtId,
-                  let thought = try? thoughtRepository.fetchById(thoughtId) else { return }
-            Task { @MainActor in
-                do {
-                    _ = try await thoughtRepository.addAttachment(
-                        imageData: imageData,
-                        to: thought,
-                        sourceType: "camera"
-                    )
+        Task { @MainActor in
+            if let thoughtId = currentThoughtId,
+               let thought = try? thoughtRepository.fetchById(thoughtId) {
+                // G1 §E02：会话稳定 ID，不再读 editingThoughtId（新建会话拍照图静默丢弃的老坑）
+                let ok = await commitImageDirectly(imageData, to: thought, sourceType: "camera")
+                if ok {
                     refreshEditingAttachments()
-                } catch {
-                    ThoughtLog.error("添加拍照附件失败", error.localizedDescription)
                 }
-            }
-        } else {
-            guard let image = UIImage(data: imageData) else { return }
-            Task { @MainActor in
+            } else {
+                guard let image = UIImage(data: imageData) else { return }
                 let preview = await AttachmentFileManager.previewImageInBackground(image, maxDimension: 1024)
                 if let preview {
-                    pendingImageItems.append(PendingImageItem(data: imageData, preview: preview))
+                    let stagedName = UUID().uuidString + ".jpg"
+                    await ThoughtEditorRecoveryStore.shared.writeStagedImage(imageData, fileName: stagedName)
+                    pendingImageItems.append(
+                        PendingImageItem(data: imageData, preview: preview, stagedFileName: stagedName)
+                    )
                 }
             }
+        }
+    }
+
+    /// staged 文件先行 + 立即转正一张图；转正失败时原图进暂存条保留重试（G1 §E03），
+    /// 不再让失败图凭空消失。
+    private func commitImageDirectly(_ data: Data, to thought: Thought, sourceType: String) async -> Bool {
+        let stagedName = UUID().uuidString + ".jpg"
+        await ThoughtEditorRecoveryStore.shared.writeStagedImage(data, fileName: stagedName)
+        do {
+            _ = try await thoughtRepository.addAttachment(imageData: data, to: thought, sourceType: sourceType)
+            await ThoughtEditorRecoveryStore.shared.removeStagedImage(stagedName)
+            return true
+        } catch {
+            ThoughtLog.error("添加附件失败", error.localizedDescription)
+            if let image = UIImage(data: data) {
+                let preview = await AttachmentFileManager.previewImageInBackground(image, maxDimension: 1024)
+                if let preview {
+                    pendingImageItems.append(
+                        PendingImageItem(data: data, preview: preview, stagedFileName: stagedName)
+                    )
+                    return false
+                }
+            }
+            await ThoughtEditorRecoveryStore.shared.removeStagedImage(stagedName)
+            return false
         }
     }
 
@@ -1555,13 +2050,43 @@ struct ThoughtEditorView: View {
     }
 }
 
+// MARK: - InFlightImageItem
+
+/// 渐进加载中的图片卡：placeholder 是系统低清占位帧（iCloud 图秒回）；
+/// phase 失败时保留 pickerItem 引用供点按重试。
+private struct InFlightImageItem: Identifiable {
+    enum Phase: Equatable {
+        /// 系统请求已发出，占位帧未到
+        case loading
+        /// 占位帧已到，成品补齐中
+        case placeholderReady
+        case failed(PhotoLoadOutcome)
+    }
+
+    let id: UUID
+    let pickerItem: PhotosPickerItem
+    var placeholder: UIImage?
+    var phase: Phase = .loading
+}
+
 // MARK: - PendingImageItem
 
-/// 新建模式下的暂存图：data 是持久化来源（原始格式），preview 仅用于缩略条展示。
+/// 暂存图：data 是持久化来源（原始格式），preview 仅用于缩略条展示。
+/// stagedFileName 指向本机恢复目录的原图副本（G1：落库失败不丢原图，杀进程可恢复）；
+/// retryCount 记录自动重试次数，超过上限停止自动补传、等待用户手动处理。
 private struct PendingImageItem: Identifiable, Equatable {
-    let id = UUID()
+    let id: UUID
     let data: Data
     let preview: UIImage
+    var stagedFileName: String?
+    var retryCount: Int = 0
+
+    init(id: UUID = UUID(), data: Data, preview: UIImage, stagedFileName: String? = nil) {
+        self.id = id
+        self.data = data
+        self.preview = preview
+        self.stagedFileName = stagedFileName
+    }
 
     static func == (lhs: PendingImageItem, rhs: PendingImageItem) -> Bool {
         lhs.id == rhs.id

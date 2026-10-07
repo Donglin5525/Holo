@@ -212,9 +212,7 @@ final class ThoughtOrganizationService {
                 let length = range[1]
                 guard location >= 0, length >= 0,
                       location + length <= redactedText.utf16.count else { continue }
-                let start = redactedText.index(redactedText.startIndex, offsetBy: location)
-                let end = redactedText.index(start, offsetBy: length)
-                guard redactedText[start..<end] == Substring(quote) else { continue }
+                guard ThoughtSemanticText.quoteMatches(quote, text: redactedText, range: [location, location + length]) else { continue }
             } else if !redactedText.contains(quote) {
                 continue
             }

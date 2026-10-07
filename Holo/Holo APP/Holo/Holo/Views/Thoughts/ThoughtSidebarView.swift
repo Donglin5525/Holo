@@ -82,7 +82,7 @@ struct ThoughtSidebarView: View {
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.xs)
         }
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .frame(maxWidth: .infinity, alignment: .leading)
         .task { loadData() }
         // emoji 图标变更只刷显示层（不全量重查库）
@@ -114,7 +114,7 @@ struct ThoughtSidebarView: View {
             sectionButton("主题", section: .topics)
         }
         .padding(4)
-        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color.holoBackground))
+        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color.holoToolBackground))
     }
 
     private func sectionButton(_ title: String, section: SidebarSection) -> some View {
@@ -122,14 +122,14 @@ struct ThoughtSidebarView: View {
             activeSection = section
         } label: {
             Text(title)
-                .font(.holoCaption)
+                .holoText(.supporting)
                 .fontWeight(activeSection == section ? .semibold : .regular)
-                .foregroundColor(activeSection == section ? .holoPrimary : .holoTextSecondary)
+                .foregroundColor(activeSection == section ? .holoPrimary : .holoToolTextSecondary)
                 .frame(maxWidth: .infinity, minHeight: 40)
                 .background {
                     if activeSection == section {
                         RoundedRectangle(cornerRadius: HoloRadius.sm)
-                            .fill(Color.holoCardBackground)
+                            .fill(Color.holoToolSurface)
                     }
                 }
                 .contentShape(Rectangle())
@@ -205,8 +205,8 @@ struct ThoughtSidebarView: View {
     private var topSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.xs) {
             Text("想法")
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.pageTitle)
+                .foregroundColor(.holoToolText)
                 .padding(.horizontal, HoloSpacing.sm)
                 .padding(.bottom, HoloSpacing.xs)
             sidebarRow(
@@ -259,7 +259,7 @@ struct ThoughtSidebarView: View {
         sidebarGroup(
             title: String(localized: "主题"),
             subtitle: String(localized: "Holo 串起的长期方向"),
-            emptyText: String(localized: "同类想法记多了会自动聚成主题，也可在下方「管理主题」手动新建")) {
+            emptyText: String(localized: "同类想法记多了会自动聚成主题，也可在「想法设置」里手动新建")) {
             ForEach(topics, id: \.id) { topic in
                 sidebarRow(
                     title: topic.title,
@@ -275,16 +275,7 @@ struct ThoughtSidebarView: View {
             if let cluster = suggestedCluster {
                 suggestedClusterRow(cluster)
             }
-            Button {
-                showTopicManagement = true
-            } label: {
-                Label("管理主题", systemImage: "slider.horizontal.3")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(minHeight: 44, alignment: .leading)
-                    .padding(.horizontal, HoloSpacing.sm)
-            }
-            .buttonStyle(.plain)
+
         }
     }
 
@@ -293,15 +284,15 @@ struct ThoughtSidebarView: View {
         HStack(spacing: 8) {
             Image(systemName: "sparkles")
                 .font(.system(size: 12))
-                .foregroundColor(.holoAI)
+                .foregroundColor(.holoToolAction)
             VStack(alignment: .leading, spacing: 2) {
                 Text(cluster.name?.isEmpty == false ? cluster.name! : "新的主题方向")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolText)
                     .lineLimit(1)
                 Text("\(cluster.memberIDs.count) 条相关想法")
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             Spacer(minLength: 0)
             Button {
@@ -313,7 +304,7 @@ struct ThoughtSidebarView: View {
                     .foregroundColor(.white)
                     .padding(.horizontal, 10)
                     .frame(height: 28)
-                    .background(Capsule().fill(Color.holoAI.opacity(0.75)))
+                    .background(Capsule().fill(Color.holoToolAction.opacity(0.75)))
             }
             .buttonStyle(.plain)
             Button {
@@ -331,7 +322,7 @@ struct ThoughtSidebarView: View {
         .padding(.horizontal, HoloSpacing.sm)
         .padding(.vertical, 6)
         .background(RoundedRectangle(cornerRadius: HoloRadius.md)
-            .fill(Color.holoAI.opacity(0.05)))
+            .fill(Color.holoToolAction.opacity(0.05)))
         .accessibilityElement(children: .contain)
         .accessibilityLabel(String(localized: "主题建议：\(cluster.name ?? "")，\(cluster.memberIDs.count) 条想法"))
     }
@@ -376,8 +367,8 @@ struct ThoughtSidebarView: View {
             emptyText: String(localized: "在想法里输入 #标签 即可归集")) {
             if tagTree.isEmpty {
                 Text("在想法里输入 #标签 即可归集")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                     .padding(.horizontal, HoloSpacing.sm)
                     .padding(.vertical, 6)
             } else {
@@ -442,7 +433,7 @@ struct ThoughtSidebarView: View {
                         } label: {
                             Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                                 .frame(width: 44, height: 44)
                                 .contentShape(Rectangle())
                         }
@@ -462,15 +453,15 @@ struct ThoughtSidebarView: View {
                                 Text(currentEmoji)
                                     .font(.system(size: 15))
                                 Text(node.displayName)
-                                    .font(.holoBody)
+                                    .holoText(.body)
                                     .fontWeight(isSelected ? .semibold : .regular)
-                                    .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
+                                    .foregroundColor(isSelected ? .holoPrimary : .holoToolText)
                                     .lineLimit(1)
                             } else {
                                 Text("#" + node.displayName)
-                                    .font(.holoBody)
+                                    .holoText(.body)
                                     .fontWeight(isSelected ? .semibold : .regular)
-                                    .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
+                                    .foregroundColor(isSelected ? .holoPrimary : .holoToolText)
                                     .lineLimit(1)
                             }
                             Spacer(minLength: 0)
@@ -561,8 +552,8 @@ struct ThoughtSidebarView: View {
                 showClearThoughtSheet = true
             } label: {
                 Label("数据清理…", systemImage: "trash")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(minHeight: 44, alignment: .leading)
                     .padding(.horizontal, HoloSpacing.sm)
             }
@@ -579,8 +570,8 @@ struct ThoughtSidebarView: View {
         VStack(alignment: .leading, spacing: HoloSpacing.xs) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
                 // P1 §3.1 身份说明：一句话讲清这组入口「是谁的」（标签=你写的 / 主题=Holo 串的）
                 if let subtitle {
                     Text(subtitle)
@@ -598,7 +589,7 @@ struct ThoughtSidebarView: View {
 
     private func sidebarRow(title: String,
                             icon: String,
-                            tint: Color = .holoTextPrimary,
+                            tint: Color = .holoToolText,
                             isSelected: Bool,
                             showIndentLine: Bool = true,
                             subtitle: String? = nil,
@@ -608,14 +599,14 @@ struct ThoughtSidebarView: View {
             HStack(spacing: 12) {
                 Image(systemName: icon)
                     .font(.system(size: 14))
-                    .foregroundColor(isSelected ? .holoPrimary : tint == .holoTextPrimary ? .holoTextSecondary : tint)
+                    .foregroundColor(isSelected ? .holoPrimary : tint == .holoToolText ? .holoToolTextSecondary : tint)
                     .frame(width: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
-                        .font(.holoBody)
+                        .holoText(.body)
                         // 选中态不只靠颜色（深色模式/色觉友好），字重同步变化
                         .fontWeight(isSelected ? .semibold : .regular)
-                        .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
+                        .foregroundColor(isSelected ? .holoPrimary : .holoToolText)
                         .lineLimit(1)
                     // P1 §3.1 主题行副标题：成员数（与侧栏计数/详情同口径的投影计数）
                     if let subtitle {

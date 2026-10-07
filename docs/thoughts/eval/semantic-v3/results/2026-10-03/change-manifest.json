@@ -1,0 +1,231 @@
+{
+  "baseHead": "ba6daba1a",
+  "files": [
+    {
+      "path": "Holo/Holo APP/Holo/Holo/HoloApp.swift",
+      "sha256": "ff1d2266ec492a6fcd1dc80484c350155bb75bd41440e557a7d957dff4266d62",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/Settings/SettingsView.swift",
+      "sha256": "35571075f5aab62402e46adb3243a0511e96b5dd8c7ae8bd164da1dd6bd9b787",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/Thoughts/DeviceIntelligenceIndexView.swift",
+      "sha256": "f7f98b2dce7335319383d2261f4fb58e57fd3fbdeac8ffb7e00f72af31834344",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtSidebarView.swift",
+      "sha256": "9914ad393f4df91db252263233cd14667c67e0792a4f972814ab5a11e80397f0",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtOrganizationSettingsView.swift",
+      "sha256": "4f66f7e2626975ac08eee5f09abc7ab308f76d70a1f3187c1032abc78e210bb9",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtListView.swift",
+      "sha256": "b026cfa6ec84481b1d8a2542f02e3a5e74a66176230cc2e635b26e7d9d8abc0b",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/ThoughtAIClassificationPolicy.swift",
+      "sha256": "d7d501449007a35dfe60989ddd3970441a9dd4a076f39c329b885eb39e849a53",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/ThoughtOrganizationService.swift",
+      "sha256": "85ea4e8c0a2e81875e12d1d3ed6cf70171bbd0c4c60ce0e4c72760ec428bc980",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/PromptManager.swift",
+      "sha256": "faa875d1614d03b69651ae04458507b5b17583e1de077687f578a3d12f33c5ba",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticStore.swift",
+      "sha256": "9d0ae5239511bcadf96ad9905f9ff4a81452dea6f985a70a3fcfc9696ddce26c",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticRelateExecutor.swift",
+      "sha256": "1b7a7b33d4adab604a32baa246093d81d9ce57ec6c3b1079410a6d15766c1f4f",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticChangeFeed.swift",
+      "sha256": "13e8a8524839db5800b6a8348ba08e58a329bcef78ccca6e7a3da52c835d59ed",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticEmbeddingExecutor.swift",
+      "sha256": "9579b1701fdeaadae445f7f04170f37245e2163343e6f7de4aa8342452a8453c",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtTopicSummaryClient.swift",
+      "sha256": "237d3a61336117c361cf81a825ddf29a7d366cc37f7b407f371794981d3e60aa",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticFeatureFlags.swift",
+      "sha256": "652b7d3f74dd97c1b4bf8312d6189c7c10d8a2c89e274055f262b5adb50b207f",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtTopicCandidateEngine.swift",
+      "sha256": "7662179d7cc9d39e164e97250e39712a9ef4e54d1e917e59586853132ecdb135",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticPipeline.swift",
+      "sha256": "ecbe73bda74bbd837762d21c03ec91e63b5b3784505cabf2813bcce042cd3e6c",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtTopicVerifier.swift",
+      "sha256": "08e78795f9fc27b798d488067b15d41e84b55263e188981c8bc36178c741a5b4",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtTopicClusterEngine.swift",
+      "sha256": "396b27ccc2825b1e36f310d5d0bad668317aa996afd6bb4026bcf01e51495f80",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/Thoughts/ThoughtTopicLinkProjection.swift",
+      "sha256": "262358442756466f94c8838a46012508592e9c82081311532e6a7cdfb122083e",
+      "new": false
+    },
+    {
+      "path": "HoloBackend/tests/thought-topic-insight.test.js",
+      "sha256": "44896599ee44d9ac37b23140d902c7b63365b3da497847110194098787dbffaa",
+      "new": false
+    },
+    {
+      "path": "HoloBackend/tests/thought-semantic-v3.test.js",
+      "sha256": "bbeb5adab5503e120afdfc4723adcebee6d2d8e1a896a5116da3cd99f32176a9",
+      "new": false
+    },
+    {
+      "path": "HoloBackend/src/config.js",
+      "sha256": "c0060801dbf506ebd02e221ba4522a268582742603d4850ca54ef669d3003bcc",
+      "new": false
+    },
+    {
+      "path": "HoloBackend/src/app.js",
+      "sha256": "c8fee29ab144f8f170859d21c7dd3b5e71e99f8a843299ae5289335e8e5c6928",
+      "new": false
+    },
+    {
+      "path": "HoloBackend/src/thoughts/semanticRelateService.js",
+      "sha256": "694f4b7ebf5658dc14fe8ae5d8b98d7132cfe0b6c2a27a5342a92bcd5cd3a35c",
+      "new": false
+    },
+    {
+      "path": "HoloBackend/src/thoughts/topicInsightSchema.js",
+      "sha256": "a07b937785f425c94e8df07a5aab8c39cb5d7e9a7c47776d1e203321bba0641d",
+      "new": false
+    },
+    {
+      "path": "HoloBackend/src/thoughts/semanticRelateSchema.js",
+      "sha256": "8842a814b5dbf024c8c7a422c97383fa905beecb41426320957ea65baac9f0b4",
+      "new": false
+    },
+    {
+      "path": "HoloBackend/src/thoughts/topicInsightService.js",
+      "sha256": "cfd8b91b1286a569d15af9b8d6891da938c62a9b6aa4ff79bb35bd7e0725d9cb",
+      "new": false
+    },
+    {
+      "path": "HoloBackend/src/prompts/defaultPrompts.json",
+      "sha256": "cc2415182df04d26df5aae3b143b28759926759489824a71e54dd00a8c7a735a",
+      "new": false
+    },
+    {
+      "path": "HoloBackend/src/prompts/promptRegistry.js",
+      "sha256": "5c1896352bb4699fa43b059e4e41cd54e3e4cb69c4a448e008d7041e470fab70",
+      "new": false
+    },
+    {
+      "path": "Holo/Holo APP/Holo/HoloTests/Services/AI/SemanticV3/ThoughtSemanticStoreStandaloneTests.swift",
+      "sha256": "d91eb2bde0efcb7a8eb8c513b2aef553f3a956b5aaed0c06aae7b07b43016cce",
+      "new": true
+    },
+    {
+      "path": "scripts/run-thought-semantic-store-standalone.sh",
+      "sha256": "ae2cc6211fbafa51e9644d83d6328e4b147819d921805a59e804484889d27deb",
+      "new": true
+    },
+    {
+      "path": "scripts/run-thought-topic-link-standalone.sh",
+      "sha256": "04bca8c020807a0baa1e2844fb9103321c35b8d556e6f7ac40c0366cefa7b52c",
+      "new": true
+    },
+    {
+      "path": "scripts/run-thought-cluster-standalone.sh",
+      "sha256": "94093b03ea413422bda5a43a01aafafbc45e85cbda179bdf7d5de09e1e08349a",
+      "new": true
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticText.swift",
+      "sha256": "93c251652adbea9b60b8b885a46833be82d7d46806af494464a2138166727525",
+      "new": true
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticRetryPolicy.swift",
+      "sha256": "f57d2086669c18dbeae5e9dd68e99dcdfde19d3a44558543e436ab79764f3126",
+      "new": true
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtAutomaticTopicDiscovery.swift",
+      "sha256": "b1e3738598a66664bc697041a6ebebcb389a86eae03364f7a8b3f8361cc303f4",
+      "new": true
+    },
+    {
+      "path": "Holo/Holo APP/Holo/HoloTests/Services/AI/SemanticV3/ThoughtSemanticTextStandaloneTests.swift",
+      "sha256": "472349950c1b21f7f402246ad0b8c3edadd87aee30bc34c1e3206f1b38f49b02",
+      "new": true
+    },
+    {
+      "path": "Holo/Holo APP/Holo/HoloTests/Services/Thoughts/ThoughtTopicLinkProjectionStandaloneTests.swift",
+      "sha256": "d103f6122832207785ab241ab982748de1c50db52cdba85331a4f66eabdbb4b7",
+      "new": true
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticCalibration.swift",
+      "sha256": "3dab34c13ff137c185fae5a70b718cec54a441db57f6e392e4c8ffdb877f3275",
+      "new": false
+    },
+    {
+      "path": "HoloBackend/deploy/env.production.example",
+      "sha256": "b02c5db38b72abe4f3e53385a3efde4481713abd32cd2ccd31eae921f73bb080",
+      "new": true
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/Settings/AIDataProcessingConsentView.swift",
+      "sha256": "c6142eb67817ec445b6275691d9bdb34d77f944a92ba7220cd6b45efc5b3a92a",
+      "new": true
+    },
+    {
+      "path": "Holo/Holo APP/Holo/Holo/Views/Thoughts/TopicManagementView.swift",
+      "sha256": "7603ecb2411a9fd40eb8a2eee879532c9004158bed6738e9d4766bcb7f334f89",
+      "new": false
+    },
+    {
+      "path": "scripts/run-thought-semantic-text-standalone.sh",
+      "sha256": "95c08ff80f512cfe3286f1775bfe173d10a45e2b21b32fa42c828eddddeca03f",
+      "new": true
+    }
+  ],
+  "verificationDependencies": [
+    "现有在途 DesignSystem.swift 定义",
+    "现有在途 8 个 Tool 颜色资产"
+  ],
+  "productionDeployed": false,
+  "deviceInstalled": false
+}

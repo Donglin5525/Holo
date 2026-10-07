@@ -25,6 +25,7 @@ final class ThoughtSemanticChangeFeed {
     private let logger = Logger(subsystem: "com.holo.Holo", category: "ThoughtSemanticFeed")
     private var store: ThoughtSemanticStore?
     private var started = false
+    private var wakeTask: Task<Void, Never>?
     /// 对账防重入：CloudKit 启动会连发多个 remoteChange，并发 reconcile 会竞态重复入队
     private var isReconciling = false
 
@@ -40,6 +41,8 @@ final class ThoughtSemanticChangeFeed {
         NotificationCenter.default.addObserver(
             self, selector: #selector(handleSave(_:)),
             name: .NSManagedObjectContextDidSave, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleSettingsChange(_:)),
+            name: ThoughtSemanticFeatureFlags.settingsDidChange, object: nil)
         // CloudKit 远端合并（NSPersistentCloudKitContainer 强制开 history tracking）
         NotificationCenter.default.addObserver(
             self, selector: #selector(handleRemoteChange(_:)),
@@ -57,10 +60,47 @@ final class ThoughtSemanticChangeFeed {
         guard let context = note.object as? NSManagedObjectContext,
               context.persistentStoreCoordinator === CoreDataStack.shared.persistentContainer.persistentStoreCoordinator
         else { return }
-        let inserted = (note.userInfo?[NSInsertedObjectsKey] as? Set<NSManagedObject>) ?? []
-        let updated = (note.userInfo?[NSUpdatedObjectsKey] as? Set<NSManagedObject>) ?? []
-        let deleted = (note.userInfo?[NSDeletedObjectsKey] as? Set<NSManagedObject>) ?? []
-        handleChanges(inserted: inserted, updated: updated, deleted: deleted)
+        // 通知由保存上下文同步发出，必须在其队列内读成值快照。
+        let events: [(id: UUID, hash: String?, deleted: Bool)] = context.performAndWait {
+            let inserted = (note.userInfo?[NSInsertedObjectsKey] as? Set<NSManagedObject>) ?? []
+            let updated = (note.userInfo?[NSUpdatedObjectsKey] as? Set<NSManagedObject>) ?? []
+            let deleted = (note.userInfo?[NSDeletedObjectsKey] as? Set<NSManagedObject>) ?? []
+            return inserted.union(updated).union(deleted).compactMap { object in
+                guard object.entity.name == "Thought", let id = object.value(forKey: "id") as? UUID else { return nil }
+                let unavailable = deleted.contains(object) || (object.value(forKey: "deletedAt") as? Date) != nil
+                    || (object.value(forKey: "isArchived") as? Bool) == true
+                let content = object.value(forKey: "content") as? String ?? ""
+                return (id, content.isEmpty ? nil : ThoughtSemanticText.contentHash( content), unavailable)
+            }
+        }
+        Task { @MainActor in
+            for event in events {
+                if event.deleted { await handleSoftDelete(thoughtID: event.id) }
+                else if let hash = event.hash { _ = await enqueueEmbedIfNeeded(thoughtID: event.id, contentHash: hash, priority: 100) }
+            }
+            scheduleWake()
+        }
+    }
+
+    @objc private func handleSettingsChange(_ note: Notification) {
+        Task {
+            try? await store?.cancelAllJobs()
+            await ThoughtAutomaticTopicDiscovery.shared.retryNow()
+            await reconcileAllThoughts()
+            await ThoughtSemanticPipeline.shared.kickQueue()
+        }
+    }
+    /// 输入停止后再处理，保存本身不等待网络。
+    private func scheduleWake() {
+        wakeTask?.cancel()
+        wakeTask = Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            guard !Task.isCancelled else { return }
+            // 防抖只取消等待阶段；AI 保存关系会再次通知，不能把正在执行的整批整理取消。
+            wakeTask = nil
+            await reconcileAllThoughts()
+            await ThoughtSemanticPipeline.shared.kickQueue()
+        }
     }
 
     @objc private func handleRemoteChange(_ note: Notification) {
@@ -91,7 +131,7 @@ final class ThoughtSemanticChangeFeed {
     /// 旧实现 relate 内联在 embed 尾部，已有向量提前 return 直接跳过）。
     /// 分页快照入队（每页 500、创建时间倒序=最近内容优先），10 万级历史不整批进内存。
     func reconcileAllThoughts() async {
-        guard let store, !isReconciling else { return }
+        guard ThoughtSemanticFeatureFlags.index != .off, let store, !isReconciling else { return }
         isReconciling = true
         defer { isReconciling = false }
         let context = CoreDataStack.shared.viewContext
@@ -102,7 +142,7 @@ final class ThoughtSemanticChangeFeed {
             let page: [(id: UUID, hash: String)] = await MainActor.run {
                 context.performAndWait {
                     let request = Thought.fetchRequest()
-                    request.predicate = NSPredicate(format: "deletedAt == nil")
+                    request.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
                     request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
                     request.fetchLimit = pageSize
                     request.fetchOffset = offset
@@ -112,7 +152,7 @@ final class ThoughtSemanticChangeFeed {
                     return thoughts.compactMap { thought in
                         guard let id = thought.value(forKey: "id") as? UUID,
                               let content = thought.value(forKey: "content") as? String else { return nil }
-                        return (id, ThoughtEmbeddingStore.contentHash(of: content))
+                        return (id, ThoughtSemanticText.contentHash( content))
                     }
                 }
             }
@@ -140,39 +180,21 @@ final class ThoughtSemanticChangeFeed {
 
     // MARK: - 入队（去重）
 
-    private func handleChanges(inserted: Set<NSManagedObject>, updated: Set<NSManagedObject>, deleted: Set<NSManagedObject>) {
-        for mo in deleted where mo.entity.name == "Thought" {
-            let id = (mo.value(forKey: "id") as? UUID) ?? UUID()
-            Task { await self.handleDeletion(thoughtID: id) }
-        }
-        for mo in inserted.union(updated) where mo.entity.name == "Thought" {
-            guard let id = mo.value(forKey: "id") as? UUID,
-                  let content = mo.value(forKey: "content") as? String else { continue }
-            let deletedAt = mo.value(forKey: "deletedAt") as? Date
-            let hash = ThoughtEmbeddingStore.contentHash(of: content)
-            if deletedAt != nil {
-                Task { await self.handleSoftDelete(thoughtID: id) }
-            } else {
-                Task { _ = await self.enqueueEmbedIfNeeded(thoughtID: id, contentHash: hash) }
-            }
-        }
-    }
-
     /// 版本去重入队（§9.1：thoughtId + contentHash + kind）。
     /// flag 为 off 时同样入队——队列只是本机事实，不触发任何网络行为。
-    private func enqueueEmbedIfNeeded(thoughtID: UUID, contentHash: String) async -> Bool {
-        guard let store else { return false }
+    private func enqueueEmbedIfNeeded(thoughtID: UUID, contentHash: String, priority: Int = 0) async -> Bool {
+        guard ThoughtSemanticFeatureFlags.index != .off, let store else { return false }
         do {
             if try await store.hasPendingJob(thoughtID: thoughtID, contentHash: contentHash, kind: "embed") {
                 return false
             }
             if try await store.hasActiveItem(thoughtID: thoughtID, contentHash: contentHash,
                                              modelVersion: ThoughtSemanticStore.defaultModelVersion) {
-                return false // 相同 contentHash/modelVersion 已完成（管线第 2 步版本判定）
+                return await enqueueRelateIfNeeded(thoughtID: thoughtID, contentHash: contentHash, priority: priority)
             }
             let job = ThoughtSemanticStore.SemanticJob(
                 id: UUID(), thoughtID: thoughtID, contentHash: contentHash, kind: "embed",
-                priority: 0, state: "pending", attemptCount: 0, nextAttemptAt: nil,
+                priority: priority, state: "pending", attemptCount: 0, nextAttemptAt: Date().addingTimeInterval(priority > 0 ? 5 : 0),
                 consentGeneration: ThoughtSemanticFeatureFlags.consentGeneration, lastErrorCode: nil)
             try await store.enqueueJob(job)
             return true
@@ -185,18 +207,19 @@ final class ThoughtSemanticChangeFeed {
     /// relate 任务去重入队（P0-C）：同 (thought, hash) 无 pending 任务且从未跑过
     /// （relation_candidate 无记录）才入队。跑过的重评（主题目录变更/校准升级）
     /// 属 P2 受控重评，P0 不自动触发——避免 AI 写 link 与重评互相点火成环。
-    func enqueueRelateIfNeeded(thoughtID: UUID, contentHash: String) async -> Bool {
-        guard let store else { return false }
+    func enqueueRelateIfNeeded(thoughtID: UUID, contentHash: String, priority: Int = 0) async -> Bool {
+        guard ThoughtSemanticFeatureFlags.relation != .off, let store else { return false }
         do {
             if try await store.hasPendingJob(thoughtID: thoughtID, contentHash: contentHash, kind: "relate") {
                 return false
             }
-            if try await store.hasRelationRecord(thoughtID: thoughtID, contentHash: contentHash) {
+            let evaluationVersion = await ThoughtTopicVerifier.evaluationVersion(context: CoreDataStack.shared.viewContext)
+            if try await store.hasRelationRecord(thoughtID: thoughtID, contentHash: contentHash, evaluationVersion: evaluationVersion) {
                 return false
             }
             let job = ThoughtSemanticStore.SemanticJob(
                 id: UUID(), thoughtID: thoughtID, contentHash: contentHash, kind: "relate",
-                priority: 0, state: "pending", attemptCount: 0, nextAttemptAt: nil,
+                priority: priority, state: "pending", attemptCount: 0, nextAttemptAt: nil,
                 consentGeneration: ThoughtSemanticFeatureFlags.consentGeneration, lastErrorCode: nil)
             try await store.enqueueJob(job)
             return true

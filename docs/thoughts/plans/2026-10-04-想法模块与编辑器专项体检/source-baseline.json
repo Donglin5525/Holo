@@ -1,0 +1,315 @@
+{
+  "date": "2026-10-04",
+  "workspace": "/Users/tangyuxuan/Desktop/Claude/HOLO",
+  "head": "acd5a42e080a2a140fdc76f8d948c12b13399b0e",
+  "snapshotScope": "交付前源文件取样；测试对当时工作副本执行，不是干净 HEAD 的发布验收",
+  "sources": [
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtEditorView.swift",
+      "sha256": "10d2704e95894dd8ffa8aec6e22226345775f502eda294ab5424b0e315bf14c5",
+      "lines": 1574
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/MarkdownTextView.swift",
+      "sha256": "79584f216eb3a9eecbad4bb5ea238c1978db00be2e8a035120b2a6a10aa0f7b4",
+      "lines": 3672
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/EditorFormatToolbar.swift",
+      "sha256": "64eb733dfd76971502cc776572c118657448bb4872a922d3c670e970d36bcfe8",
+      "lines": 351
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/RichContentSerializer.swift",
+      "sha256": "24253b9d4efd29ba7deb6d658fc9c45101976a3255f530565fa2363ade36b65d",
+      "lines": 284
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/HoloContentNode.swift",
+      "sha256": "3c797447289391c32e8ef9d967ec614b0ee161fe60b948c02afc081e369ee31e",
+      "lines": 157
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtRelatedSection.swift",
+      "sha256": "82eb5cb19aadaa23a63da3672a770e26c95687fdf528980274216457b6d88510",
+      "lines": 447
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtListView.swift",
+      "sha256": "b026cfa6ec84481b1d8a2542f02e3a5e74a66176230cc2e635b26e7d9d8abc0b",
+      "lines": 1919
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Data/Repositories/ThoughtRepository.swift",
+      "sha256": "250f11b1dde8208a90b72572e64d1bdcf9b973d2fb964e71ae8a003429e61818",
+      "lines": 1610
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Data/Repositories/ThoughtRepository+RichContent.swift",
+      "sha256": "5b79ed81bde7fc69095112e42f55b0143fa34ca7dff4c76587c621cf77370d47",
+      "lines": 290
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Data/Repositories/ThoughtRepository+Attachments.swift",
+      "sha256": "9a8beff091a6e05a20317eab7bcbb1d609d28177308412edcb636330464d2ae6",
+      "lines": 99
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticFeatureFlags.swift",
+      "sha256": "652b7d3f74dd97c1b4bf8312d6189c7c10d8a2c89e274055f262b5adb50b207f",
+      "lines": 59
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticPipeline.swift",
+      "sha256": "ecbe73bda74bbd837762d21c03ec91e63b5b3784505cabf2813bcce042cd3e6c",
+      "lines": 217
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Utils/MarkdownParser.swift",
+      "sha256": "c85048440e65927382fd7b4c80213a244d7e1ccfa691e32bef9cf098716d2959",
+      "lines": 514
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Models/CoreDataStack+ThoughtEntities.swift",
+      "sha256": "2cc138531431ee0b73470cd06df949743069233fb301ccd5052a2e7aaea9e44c",
+      "lines": 1008
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/HoloTests/Views/Thoughts/MarkdownTextViewNodePipelineTests.swift",
+      "sha256": "e827de2c2a6da4ebc1297780bdf1670c70682ce35441349d338bb56e678d5a02",
+      "lines": 1123
+    },
+    {
+      "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/HoloBackend/src/app.js",
+      "sha256": "7c6816e8eff2ab17a110d464e79b5de798eb3cd1b27a132c3a8279e6f7a6098a",
+      "lines": 2660
+    }
+  ],
+  "relevantGitStatus": " M \"Holo/Holo APP/Holo/Holo/Data/Repositories/ThoughtRepository.swift\"\n M \"Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticFeatureFlags.swift\"\n M \"Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticPipeline.swift\"\n M \"Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtEditorView.swift\"\n M \"Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtListView.swift\"\n M HoloBackend/src/app.js\n",
+  "tests": {
+    "suite": "MarkdownTextViewNodePipelineTests",
+    "total": 49,
+    "passed": 49,
+    "failed": 0,
+    "skipped": 0,
+    "result": "Passed",
+    "resultBundle": "/tmp/HoloEditorAudit-20261004.xcresult"
+  },
+  "verification": {
+    "internal_links": [
+      {
+        "file": "03-证据与验收边界.md",
+        "target": "source-baseline.json",
+        "exists": true
+      },
+      {
+        "file": "03-证据与验收边界.md",
+        "target": "02-GLM完整改善方案.md",
+        "exists": true
+      },
+      {
+        "file": "02-GLM完整改善方案.md",
+        "target": "01-产品判断与根因.md",
+        "exists": true
+      },
+      {
+        "file": "02-GLM完整改善方案.md",
+        "target": "03-证据与验收边界.md",
+        "exists": true
+      },
+      {
+        "file": "01-产品判断与根因.md",
+        "target": "02-GLM完整改善方案.md",
+        "exists": true
+      },
+      {
+        "file": "01-产品判断与根因.md",
+        "target": "03-证据与验收边界.md",
+        "exists": true
+      },
+      {
+        "file": "01-产品判断与根因.md",
+        "target": "../2026-10-03-想法智能整理实施与验收记录.md",
+        "exists": true
+      }
+    ],
+    "json_examples": 2,
+    "existing_paths": [
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtEditorView.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/MarkdownTextView.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/HoloContentNode.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/RichContentSerializer.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/ReadOnlyRichTextView.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/EditorFormatToolbar.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/TriggerDetector.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/SuggestionPanelViewModel.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Data/Repositories/ThoughtRepository.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Data/Repositories/ThoughtRepository+RichContent.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Data/Repositories/ThoughtRepository+Attachments.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Models/CoreDataStack+ThoughtEntities.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Models/Thought+CoreDataClass.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtListView.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtsView.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtCardView.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtRelatedSection.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/ThoughtOrganizationSettingsView.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticPipeline.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/SemanticV3/ThoughtSemanticEmbeddingExecutor.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/AI/HoloBackendAIProvider.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Utils/MarkdownParser.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Utils/DesignSystem.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/HoloTests/Views/Thoughts/MarkdownTextViewNodePipelineTests.swift",
+        "exists": true
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo.xcodeproj/project.pbxproj",
+        "exists": true
+      }
+    ],
+    "planned_paths": [
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/ThoughtEditorSession.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/ThoughtEditorDocument.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/ThoughtEditorHost.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/Thoughts/ThoughtEditorRecoveryStore.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Data/Repositories/ThoughtRepository+EditorCommit.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/ThoughtVersionHistoryView.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Views/Thoughts/Editor/ThoughtDocumentFindBar.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/Thoughts/ThoughtSearchQuery.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/Holo/Services/Thoughts/ThoughtArchiveService.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/HoloTests/Views/Thoughts/ThoughtEditorSessionTests.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/HoloTests/Services/Thoughts/ThoughtEditorCommitTests.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/HoloTests/Services/Thoughts/ThoughtEditorRecoveryTests.swift",
+        "exists_now": false
+      },
+      {
+        "path": "/Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo APP/Holo/HoloUITests/ThoughtEditorJourneyUITests.swift",
+        "exists_now": false
+      }
+    ],
+    "requirements": 50,
+    "sourceDriftAfterSnapshot": [
+      "/Users/tangyuxuan/Desktop/Claude/HOLO/HoloBackend/src/app.js"
+    ],
+    "trailingWhitespace": "passed",
+    "scopedGitDiffCheck": "",
+    "documentationOnly": "本轮仅此目录文档和 source-baseline.json，未暂存/提交",
+    "backendDriftReview": {
+      "currentSHA256": "90ac3c2da7fbe13698539f0c0e583eba4077ceb88582cd65d63be43c5f50e88d",
+      "lines": 2723,
+      "relevantRouteAndGateChecks": {
+        "app.post(\"/v1/thoughts/insight\"": true,
+        "app.post(\"/v1/thoughts/semantic-relate\"": true,
+        "config.thoughtInsight.privacyVerified": true,
+        "config.thoughtSemanticRelate.privacyVerified": true,
+        "config.thoughtTopicInsight.privacyVerified": true
+      },
+      "meaning": "后端在交接期间发生其它在途变化；相关洞察/关系/主题闸门结构重核仍存在。未读取生产有效配置，不重复解释为已部署。编辑器源文件未发生同轮漂移。"
+    },
+    "handoffStatus": "passed_with_documented_concurrent_backend_drift"
+  },
+  "errors": []
+}

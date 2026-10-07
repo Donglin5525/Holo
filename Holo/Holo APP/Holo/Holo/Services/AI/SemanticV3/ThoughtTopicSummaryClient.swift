@@ -15,7 +15,7 @@ import OSLog
 
 // MARK: - 传输 DTO（与后端 topicInsightSchema 契约对齐）
 
-struct ThoughtTopicSummaryRequestDTO: Codable {
+nonisolated struct ThoughtTopicSummaryRequestDTO: Codable {
     struct Representative: Codable { let ref: String; let text: String }
     struct Topic: Codable { let title: String }
     let schemaVersion: Int
@@ -25,7 +25,7 @@ struct ThoughtTopicSummaryRequestDTO: Codable {
     let representatives: [Representative]
 }
 
-struct ThoughtTopicSummaryResponseDTO: Codable {
+nonisolated struct ThoughtTopicSummaryResponseDTO: Codable {
     struct Viewpoint: Codable {
         let ref: String
         let quote: String
@@ -38,7 +38,7 @@ struct ThoughtTopicSummaryResponseDTO: Codable {
 }
 
 /// 落库前的干净结果（ref 已解析回想法 UUID，逐字校验通过）
-struct ThoughtTopicSummaryContent: Codable, Equatable {
+nonisolated struct ThoughtTopicSummaryContent: Codable, Equatable {
     struct Viewpoint: Codable, Equatable {
         var thoughtID: UUID
         var quote: String
@@ -47,7 +47,7 @@ struct ThoughtTopicSummaryContent: Codable, Equatable {
     var viewpoints: [Viewpoint]
 }
 
-enum ThoughtTopicSummaryClient {
+nonisolated enum ThoughtTopicSummaryClient {
 
     static let engineVersion = ThoughtTopicVerifier.engineVersion
     private static let logger = Logger(subsystem: "com.holo.Holo", category: "ThoughtTopicSummary")
@@ -145,7 +145,7 @@ extension String {
 
 // MARK: - 主题命名（topic-name，方案 §4.4）
 
-struct ThoughtTopicNameRequestDTO: Codable {
+nonisolated struct ThoughtTopicNameRequestDTO: Codable {
     struct Representative: Codable { let ref: String; let text: String }
     let schemaVersion: Int
     let operationId: String
@@ -153,10 +153,14 @@ struct ThoughtTopicNameRequestDTO: Codable {
     let representatives: [Representative]
 }
 
-struct ThoughtTopicNameResponseDTO: Codable {
+nonisolated struct ThoughtTopicNameResponseDTO: Codable {
     let schemaVersion: Int
     let operationId: String
     let name: String
+    var outcome: String? = nil
+    var definition: String? = nil
+    var members: [Member]? = nil
+    struct Member: Codable { let ref: String; let quote: String; let rangeUTF16: [Int] }
 }
 
 extension ThoughtTopicSummaryClient {

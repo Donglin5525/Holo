@@ -18,7 +18,7 @@ import SQLite3
 import os
 
 /// SQLITE_TRANSIENT 是 C 宏，Swift 侧需手工等价定义
-private let SQLITE_TRANSIENT_DESTRUCTOR = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+nonisolated(unsafe) private let SQLITE_TRANSIENT_DESTRUCTOR = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
 actor ThoughtSemanticStore {
 
@@ -129,6 +129,8 @@ actor ThoughtSemanticStore {
         try exec("PRAGMA journal_mode=WAL")
         try exec("PRAGMA foreign_keys=ON")
         try migrateIfNeeded()
+        // 上一次进程在网络请求中退出，running 没有执行者；冷启动统一回收到队列。
+        try exec("UPDATE semantic_job SET state='pending', next_attempt_at=NULL, last_error_code='interrupted' WHERE state='running'")
     }
 
     func close() {
@@ -146,6 +148,17 @@ actor ThoughtSemanticStore {
         }
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try open()
+    }
+
+    /// 主题定义向量缓存，不与想法的向量槽位混用。读取走统一向量契约（R03）。
+    func topicProfile(topicID: UUID, contentHash: String) throws -> [Float]? {
+        let stmt = try prepare("SELECT dimension, vector_f16 FROM topic_profile WHERE topic_id=?1 AND content_hash=?2 AND model_version=?3", .uuid(topicID), .text(contentHash), .text(Self.defaultModelVersion))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return decodeF16Vector(stmt, dimensionCol: 0, blobCol: 1)
+    }
+    func saveTopicProfile(topicID: UUID, contentHash: String, vector: [Float]) throws {
+        try bindExec("INSERT INTO topic_profile(topic_id,content_hash,model_version,dimension,vector_f16) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(topic_id) DO UPDATE SET content_hash=?2,model_version=?3,dimension=?4,vector_f16=?5", .uuid(topicID), .text(contentHash), .text(Self.defaultModelVersion), .int(Int64(vector.count)), .blob(f16Blob(vector.map(Float16.init))))
     }
 
     // MARK: - semantic_item
@@ -264,11 +277,12 @@ actor ThoughtSemanticStore {
     }
 
     /// 该想法此正文版本是否已有 relate 记录（P0-C 补跑去重：跑过就不再重复入队）。
-    func hasRelationRecord(thoughtID: UUID, contentHash: String) throws -> Bool {
+    func hasRelationRecord(thoughtID: UUID, contentHash: String, evaluationVersion: String? = nil) throws -> Bool {
         let stmt = try prepare("""
             SELECT COUNT(*) FROM relation_candidate
-            WHERE thought_id=?1 AND content_hash=?2
-            """, .uuid(thoughtID), .text(contentHash))
+            WHERE thought_id=?1 AND content_hash=?2 AND expires_at > ?3
+                AND (?4 IS NULL OR engine_version=?4)
+            """, .uuid(thoughtID), .text(contentHash), .date(Date()), .text(evaluationVersion))
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return false }
         return sqlite3_column_int64(stmt, 0) > 0
@@ -388,6 +402,16 @@ actor ThoughtSemanticStore {
         return clusterRow(stmt)
     }
 
+    func clusters(states: [String]) throws -> [ClusterRecord] {
+        let stmt = try prepare("SELECT id, fingerprint, member_ids, state, cohesion, first_seen_at, last_seen_at, dismissed_until, name FROM candidate_cluster ORDER BY cohesion DESC, last_seen_at DESC")
+        defer { sqlite3_finalize(stmt) }
+        var result: [ClusterRecord] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let row = clusterRow(stmt), states.contains(row.state) { result.append(row) }
+        }
+        return result
+    }
+
     /// 当前建议簇（state='suggested'，取内聚度最高一条）。
     func loadSuggestedCluster() throws -> ClusterRecord? {
         let stmt = try prepare("""
@@ -426,8 +450,11 @@ actor ThoughtSemanticStore {
 
     // MARK: - semantic_job（可恢复队列，方案 §13.4）
 
-    @discardableResult
     func enqueueJob(_ job: SemanticJob) throws {
+        try bindExec("UPDATE semantic_job SET state='cancelled' WHERE thought_id=?1 AND kind=?2 AND state IN ('pending','running') AND (content_hash != ?3 OR consent_generation != ?4)",
+                     .uuid(job.thoughtID), .text(job.kind), .text(job.contentHash), .int64(job.consentGeneration))
+        // actor 内先查后写，多个入口的同版本任务也只产生一个在途记录。
+        if try hasPendingJob(thoughtID: job.thoughtID, contentHash: job.contentHash, kind: job.kind) { return }
         try bindExec("""
             INSERT INTO semantic_job(id, thought_id, content_hash, kind, priority, state,
                                      attempt_count, next_attempt_at, consent_generation, last_error_code)
@@ -453,7 +480,7 @@ actor ThoughtSemanticStore {
                    next_attempt_at, consent_generation, last_error_code
             FROM semantic_job
             WHERE state='pending' AND (next_attempt_at IS NULL OR next_attempt_at <= ?1)
-                  AND consent_generation <= ?2
+                  AND consent_generation = ?2
                   AND (?3 IS NULL OR kind=?3)
             ORDER BY priority DESC, rowid ASC LIMIT 1
             """, .date(now), .int64(consentGeneration), .text(kind))
@@ -471,7 +498,7 @@ actor ThoughtSemanticStore {
         try bindExec("""
             UPDATE semantic_job SET state=?2, next_attempt_at=?3, last_error_code=?4,
                    attempt_count = attempt_count + 1, finished_at=COALESCE(?5, finished_at)
-            WHERE id=?1
+            WHERE id=?1 AND state != 'cancelled'
             """, .uuid(id), .text(state), .date(nextAttemptAt), .text(errorCode), .date(finishedAt))
     }
 
@@ -502,14 +529,22 @@ actor ThoughtSemanticStore {
     /// pending=0 ≠ 完成——需区分待处理/失败/不适合处理/最近成功时间）。
     struct IndexStats {
         var activeItems = 0          // 已入库向量
+        var runningJobs = 0
         var pendingJobs = 0          // 待处理
         var failedJobs = 0           // 失败终态（可重试）
         var unavailableDone = 0      // 合法不适处理（纯图/空文/已删）
         var lastFinishedAt: Date?    // 最近一次任务完成
+        var waitingReason: String?
     }
 
     func indexStats() throws -> IndexStats {
         var stats = IndexStats()
+        let runningStatement = try prepare("SELECT COUNT(*) FROM semantic_job WHERE state='running'")
+        if sqlite3_step(runningStatement) == SQLITE_ROW { stats.runningJobs = Int(sqlite3_column_int64(runningStatement, 0)) }
+        sqlite3_finalize(runningStatement)
+        let waitingStatement = try prepare("SELECT last_error_code FROM semantic_job WHERE state IN ('pending','failed_terminal') AND last_error_code IS NOT NULL ORDER BY finished_at DESC LIMIT 1")
+        if sqlite3_step(waitingStatement) == SQLITE_ROW { stats.waitingReason = textCol(waitingStatement, 0) }
+        sqlite3_finalize(waitingStatement)
         if let stmt = try? prepare("SELECT COUNT(*) FROM semantic_item WHERE state='active'") {
             defer { sqlite3_finalize(stmt) }
             if sqlite3_step(stmt) == SQLITE_ROW { stats.activeItems = Int(sqlite3_column_int64(stmt, 0)) }
@@ -531,9 +566,9 @@ actor ThoughtSemanticStore {
         return stats
     }
 
-    /// 「仅重试失败」：失败终态任务重置回待处理。
+    /// 用户主动重试：恢复失败项，也让暂时失败的待处理项立即重试；保留取消状态。
     func retryFailedJobs() throws {
-        try exec("UPDATE semantic_job SET state='pending', attempt_count=0, next_attempt_at=NULL WHERE state='failed_terminal'")
+        try exec("UPDATE semantic_job SET state='pending', attempt_count=0, next_attempt_at=NULL,last_error_code=NULL WHERE state='failed_terminal' OR (state='pending' AND last_error_code IS NOT NULL)")
     }
 
     // MARK: - 相关旧想法反馈（方案 §5.2：同版本不重复推荐）
@@ -612,6 +647,7 @@ actor ThoughtSemanticStore {
     // MARK: - schema（六表一次到位；后三表 API 在 Phase 3/5 落地）
 
     private func migrateIfNeeded() throws {
+        try exec("CREATE TABLE IF NOT EXISTS topic_profile(topic_id BLOB PRIMARY KEY,content_hash TEXT NOT NULL,model_version TEXT NOT NULL,dimension INTEGER NOT NULL,vector_f16 BLOB NOT NULL)")
         try exec("""
             CREATE TABLE IF NOT EXISTS semantic_manifest(
                 id INTEGER PRIMARY KEY CHECK(id=1),

@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct ThoughtTagManagementView: View {
 
@@ -36,6 +37,8 @@ struct ThoughtTagManagementView: View {
     @State private var deleteTarget: String? = nil
     @State private var deleteAffectedCount: Int = 0
     @State private var notice: String? = nil
+    /// 点行查看该标签下的想法（fullScreenCover 弹层，与主题详情同一交互模式）
+    @State private var viewingTag: TagRef? = nil
 
     @Environment(\.dismiss) private var dismiss
 
@@ -79,6 +82,9 @@ struct ThoughtTagManagementView: View {
                 }
             }
             .onAppear { loadData() }
+            .fullScreenCover(item: $viewingTag) { tag in
+                TagThoughtListView(tagName: tag.name)
+            }
             .alert("重命名标签", isPresented: renameBinding) {
                 TextField("新标签名", text: $renameText)
                 Button("取消", role: .cancel) { renameTarget = nil }
@@ -160,7 +166,12 @@ struct ThoughtTagManagementView: View {
                 Image(systemName: "ellipsis.circle")
                     .foregroundColor(.holoTextSecondary)
             }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13))
+                .foregroundColor(.holoTextSecondary.opacity(0.6))
         }
+        .contentShape(Rectangle())
+        .onTapGesture { viewingTag = TagRef(name: name) }
     }
 
     // MARK: - 动作
@@ -240,5 +251,94 @@ struct ThoughtTagManagementView: View {
 
     private var deleteBinding: Binding<Bool> {
         Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })
+    }
+}
+
+/// fullScreenCover(item:) 的标签引用（String 非_identifiable 的薄包装）
+private struct TagRef: Identifiable {
+    let name: String
+    var id: String { name }
+}
+
+/// 标签下的想法列表（标签治理页点行进入）：日期 + 正文摘要，点行进编辑器
+private struct TagThoughtListView: View {
+    let tagName: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var thoughts: [Thought] = []
+    @State private var selectedThoughtId: UUID?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if thoughts.isEmpty {
+                    VStack(spacing: HoloSpacing.sm) {
+                        Text("这个标签下还没有想法")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    List {
+                        ForEach(thoughts, id: \.id) { thought in
+                            thoughtRow(thought)
+                                .contentShape(Rectangle())
+                                .onTapGesture { selectedThoughtId = thought.id }
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+            .background(Color.holoBackground)
+            .navigationTitle("#\(ThoughtTagNormalizer.displayName(tagName))")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+            .fullScreenCover(item: $selectedThoughtId) { thoughtId in
+                ThoughtEditorView(editingThoughtId: thoughtId)
+                    .holoContentColumn()
+            }
+            .task { load() }
+            .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
+                load()
+            }
+        }
+        // 全屏弹层：边缘右滑返回（fullScreenCover 无系统返回）
+        .holoEdgeSwipeBack { dismiss() }
+    }
+
+    private func thoughtRow(_ thought: Thought) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(thought.createdAt.formatted(date: .abbreviated, time: .omitted))
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary.opacity(0.6))
+            Text(thought.content)
+                .font(.holoBody)
+                .foregroundColor(.holoTextPrimary)
+                .lineLimit(2)
+        }
+        .padding(.vertical, HoloSpacing.xs)
+    }
+
+    @MainActor
+    private func load() {
+        let context = CoreDataStack.shared.viewContext
+        context.performAndWait {
+            let request = Thought.fetchRequest()
+            request.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
+            request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+            let all = (try? context.fetch(request)) ?? []
+            let key = ThoughtTagNormalizer.key(tagName)
+            thoughts = all.filter {
+                ThoughtTagPresentation.matches(
+                    key,
+                    manualNames: $0.tagArray.map(\.name),
+                    aiNames: $0.visibleAITagNames
+                )
+            }
+        }
     }
 }

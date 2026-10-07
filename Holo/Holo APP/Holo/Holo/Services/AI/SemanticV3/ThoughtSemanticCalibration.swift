@@ -4,14 +4,14 @@
 //
 //  决策阈值配置（语义图谱 V3 Phase 3，方案 §10.2）
 //
-//  数值阈值不散落代码：统一于此带版本管理。当前为仅供 shadow 的种子配置；
-//  生产配置须由开发集校准后固化为带版本的 ThoughtSemanticCalibration.json——
-//  文件缺失或 modelVersion 不匹配时，自动可见关联强制关闭（只留 shadow/搜索候选）。
+//  数值阈值不散落代码：统一于此带版本管理。当前种子配置仅用于候选召回；
+//  召回优化配置可由开发集校准后固化为带版本的 ThoughtSemanticCalibration.json——
+//  未校准时使用种子召回参数；正式归属由 V2 双侧原文证据协议核对，不以向量分数直接写入。
 //
 
 import Foundation
 
-struct ThoughtSemanticCalibration: Codable, Equatable {
+nonisolated struct ThoughtSemanticCalibration: Codable, Equatable {
 
     /// 配置版本与适配的 embedding 模型；任一不符即视为未校准
     var calibrationVersion: Int
@@ -28,7 +28,7 @@ struct ThoughtSemanticCalibration: Codable, Equatable {
     /// topic-name 候选标题上限（UTF-16，Phase 5 消费）
     var suggestedTitleMaxUTF16: Int
 
-    /// 种子配置（仅供 shadow；生产可见关联开启前必须由真实留出集校准替换）
+    /// 未完成召回质量校准时的起始参数；不作为直接归属的证据。
     static let seed = ThoughtSemanticCalibration(
         calibrationVersion: 1,
         modelVersion: ThoughtSemanticStore.defaultModelVersion,
@@ -40,7 +40,7 @@ struct ThoughtSemanticCalibration: Codable, Equatable {
     )
 
     /// 当前生效配置：优先加载 Bundle 内 ThoughtSemanticCalibration.json；
-    /// 无文件/版本不匹配 → 回落种子配置并将 isCalibrated 置 false（强制 shadow）。
+    /// 无文件/版本不匹配 → 使用种子召回参数；返回值用于标记尚未做真实留出集校准。
     static func current(bundle: Bundle = .main) -> (config: ThoughtSemanticCalibration, isCalibrated: Bool) {
         if let url = bundle.url(forResource: "ThoughtSemanticCalibration", withExtension: "json"),
            let data = try? Data(contentsOf: url),

@@ -16,6 +16,7 @@
 
 import CoreData
 import Foundation
+import CryptoKit
 
 enum ThoughtTopicLinkProjection {
 
@@ -28,11 +29,11 @@ enum ThoughtTopicLinkProjection {
     static func upsertLink(thought: Thought, topic: Topic) -> ThoughtTopicLink {
         let request = ThoughtTopicLink.fetchRequest()
         request.predicate = NSPredicate(format: "thought == %@ AND topic == %@", thought, topic)
-        request.fetchLimit = 3
+        request.fetchLimit = 0
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
         if let rows = try? ManagedObjectContextCompat.fetch(request, in: thought.managedObjectContext),
-           let first = rows.first {
-            for extra in rows.dropFirst() where extra.stateEnum == .active {
+           let first = rows.sorted(by: { $0.projectionRank < $1.projectionRank }).first {
+            for extra in rows where extra !== first && extra.stateEnum == .active {
                 extra.stateEnum = .superseded
                 extra.updatedAt = Date()
             }
@@ -145,7 +146,7 @@ enum ThoughtTopicLinkProjection {
     static func isUserRejectedPair(thought: Thought, topic: Topic) -> Bool {
         let request = ThoughtTopicLink.fetchRequest()
         request.predicate = NSPredicate(format: "thought == %@ AND topic == %@", thought, topic)
-        request.fetchLimit = 3
+        request.fetchLimit = 0
         let rows = (try? ManagedObjectContextCompat.fetch(request, in: thought.managedObjectContext)) ?? []
         return rows.contains { $0.stateEnum == .rejected }
     }
@@ -179,6 +180,14 @@ enum ThoughtTopicLinkProjection {
         }
     }
 
+    /// AI 关系只对生成它的正文版本有效；用户决定持续有效。
+    private static func isCurrentActive(_ link: ThoughtTopicLink, thought: Thought) -> Bool {
+        guard link.stateEnum == .active else { return false }
+        guard link.sourceEnum == .aiV3 else { return true }
+        let hash = SHA256.hash(data: Data(thought.content.trimmingCharacters(in: .whitespacesAndNewlines).utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+        return link.basisTextHash == hash
+    }
+
     // MARK: - 读投影（Phase 1 shadow 口径；Phase 4 起为新读路径）
 
     /// 一条想法的有效 Topic：同 pair 取投影优先级行，仅 active 计入。
@@ -198,8 +207,9 @@ enum ThoughtTopicLinkProjection {
             }
         }
         return bestByPair.values
-            .filter { $0.stateEnum == .active }
+            .filter { isCurrentActive($0, thought: thought) }
             .compactMap { $0.topic }
+            .filter { $0.isVisibleTopic && ($0.value(forKey: "deletedAt") as? Date) == nil }
     }
 
     /// 单 pair 有效成员判定（2026-09-27 P0-A 读源统一）：与 effectiveTopics 同一
@@ -210,7 +220,7 @@ enum ThoughtTopicLinkProjection {
         for link in links where link.topic?.id == topic.id {
             if best == nil || link.projectionRank < best!.projectionRank { best = link }
         }
-        return best?.stateEnum == .active
+        return best.map { isCurrentActive($0, thought: thought) } ?? false
     }
 
     /// 有效成员的来源（P1 来源感知）：user=用户手动/接受建议，ai=Holo 高可信
@@ -223,7 +233,7 @@ enum ThoughtTopicLinkProjection {
         for link in links where link.topic?.id == topic.id {
             if best == nil || link.projectionRank < best!.projectionRank { best = link }
         }
-        guard let winner = best, winner.stateEnum == .active else { return nil }
+        guard let winner = best, isCurrentActive(winner, thought: thought) else { return nil }
         switch winner.sourceEnum {
         case .userManual, .userAcceptedSuggestion:
             return .user
@@ -247,7 +257,7 @@ enum ThoughtTopicLinkProjection {
             bestByThought[key] = (thought, link)
         }
         return bestByThought.values.filter { pair in
-            pair.1.stateEnum == .active
+            isCurrentActive(pair.1, thought: pair.0)
                 && (pair.0.value(forKey: "deletedAt") as? Date) == nil
                 && (includeArchived || pair.0.isArchived == false)
         }.count
