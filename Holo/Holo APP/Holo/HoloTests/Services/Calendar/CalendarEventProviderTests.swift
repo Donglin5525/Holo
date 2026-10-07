@@ -277,6 +277,61 @@ final class CalendarEventProviderTests: XCTestCase {
 
     // MARK: - fetchEvents 集成
 
+    /// 取消打卡（isCompleted=NO 的打卡型行，为保备注保留）不算一条记忆事件；
+    /// 已完成打卡与数值型行（isCompleted 恒 false）正常进事件
+    func test_fetchEvents_取消打卡不进事件_完成打卡与数值行正常() async throws {
+        let (provider, _) = try makeProviderWithHabitRecords()
+
+        let result = await provider.fetchEvents(in: DateInterval(
+            start: makeDate(year: 2026, month: 7, day: 1),
+            end: makeDate(year: 2026, month: 7, day: 3)
+        ))
+
+        let habitEvents = result.events.filter { $0.module == .habit }
+        XCTAssertEqual(habitEvents.count, 2, "取消打卡行不出现，完成打卡行与数值行出现")
+        XCTAssertEqual(habitEvents.first?.title, "晨间复盘")
+        XCTAssertEqual(habitEvents.first?.detail, String(localized: "已完成"))
+        XCTAssertEqual(habitEvents.last?.title, "喝水")
+        XCTAssertEqual(result.moduleStates[.habit], .loaded)
+    }
+
+    /// 造一个打卡型习惯（已完成+取消两行）与一个数值型习惯（一行）的 in-memory provider
+    private func makeProviderWithHabitRecords() throws -> (CalendarEventProvider, NSManagedObjectContext) {
+        let model = CoreDataTestSupport.sharedModel
+        let container = NSPersistentContainer(name: "ProviderHabitTest", managedObjectModel: model)
+        let description = NSPersistentStoreDescription()
+        description.type = NSInMemoryStoreType
+        container.persistentStoreDescriptions = [description]
+        var storeError: Error?
+        container.loadPersistentStores { _, error in storeError = error }
+        if let storeError { throw storeError }
+        let ctx = container.viewContext
+
+        let checkInHabit = Habit.create(
+            in: ctx, name: "晨间复盘", icon: "sun.max", color: "#F97316", type: .checkIn
+        )
+        let completedRecord = HabitRecord.createCheckIn(in: ctx, habit: checkInHabit, isCompleted: true)
+        completedRecord.date = makeDate(year: 2026, month: 7, day: 1, hour: 8)
+        // 取消打卡：行保留（为保备注）但翻未完成
+        let cancelledRecord = HabitRecord.createCheckIn(in: ctx, habit: checkInHabit, isCompleted: false)
+        cancelledRecord.date = makeDate(year: 2026, month: 7, day: 1, hour: 13)
+
+        let numericHabit = Habit.create(
+            in: ctx, name: "喝水", icon: "drop", color: "#38BDF8", type: .numeric, unit: "杯"
+        )
+        let numericRecord = HabitRecord.createNumeric(in: ctx, habit: numericHabit, value: 3)
+        numericRecord.date = makeDate(year: 2026, month: 7, day: 2, hour: 10)
+        try ctx.save()
+
+        let provider = CalendarEventProvider(
+            financeRepo: FinanceRepository(context: ctx),
+            habitRepo: HabitRepository(context: ctx),
+            todoRepo: TodoRepository(context: ctx),
+            thoughtRepo: ThoughtRepository(context: ctx)
+        )
+        return (provider, ctx)
+    }
+
     func test_fetchEvents_想法数据正确映射且其他模块empty() async throws {
         let (provider, _) = try makeProviderWithThought()
 

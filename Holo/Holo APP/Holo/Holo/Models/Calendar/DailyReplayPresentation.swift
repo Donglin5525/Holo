@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import UIKit
 
 enum DailyReplayPeriod: Int, CaseIterable, Identifiable {
     case untimed
@@ -177,6 +178,24 @@ enum DailyReplayPresentation {
         case .thought: return String(localized: "这一天留下了不少值得回看的念头。")
         case .health:  return String(localized: "这一天，对身体的感受格外清晰。")
         }
+    }
+
+    /// 想法正文是否长过给定行数：按卡片实际可用宽度量一次文本高度。
+    /// 有图拍立得卡与无图时刻卡共用这一个判定，保证「轻点查看全文」提示口径一致。
+    /// 高度阈值留半行容差，误差只会让临界长文少/多出一次提示。
+    static func thoughtExceedsLineLimit(_ text: String,
+                                        lines: Int,
+                                        fontSize: CGFloat,
+                                        availableWidth: CGFloat) -> Bool {
+        let base = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let font = base.fontDescriptor.withDesign(.serif).map { UIFont(descriptor: $0, size: fontSize) } ?? base
+        let textHeight = (text as NSString).boundingRect(
+            with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font],
+            context: nil
+        ).height
+        return textHeight > font.lineHeight * (CGFloat(lines) + 0.5)
     }
 
     private static func groupTitle(for events: [CalendarEvent], module: CalendarModule) -> String {

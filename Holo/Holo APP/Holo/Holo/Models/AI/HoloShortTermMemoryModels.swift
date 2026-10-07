@@ -81,6 +81,8 @@ struct HoloMemorySummaryEntry: Codable, Equatable {
     /// 锚点分组标签（如财务分类「餐饮」），注入渲染按它聚簇；nil 时不分组。
     /// 可选型保证旧持久化数据（UserContext 缓存）解码兼容。
     var anchorGroupLabel: String? = nil
+    /// 限定建议记忆（qualifiedAdvice）：注入时须带限定表达标记，AI 不得当确定事实使用。
+    var isQualifiedAdvice: Bool = false
 }
 
 struct HoloMemoryPromptSummary: Codable, Equatable {

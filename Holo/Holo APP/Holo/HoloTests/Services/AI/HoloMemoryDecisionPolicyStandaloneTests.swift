@@ -124,15 +124,16 @@ struct HoloMemoryDecisionPolicyStandaloneTests {
                 "医疗诊断推断应被丢弃，不能靠确认转正"
             )
 
-            // 召回通道：只有 factEligible 进普通事实召回；qualifiedAdvice/不可靠解码被拦。
+            // 召回通道：factEligible 与 qualifiedAdvice 都可进入召回（注入信封对
+            // 限定建议条目带「谨慎参考」标记约束表达）；不可靠解码仍整体拦截。
             var qualifiedActive = HoloMemoryFiveWayFixtures.mtx08FirstCrossDomainCorrelation.record
             qualifiedActive.state = .active
             qualifiedActive.decisionMetadata = HoloMemoryDecisionMetadataEnvelope(
                 v2: HoloMemoryDecisionPolicy.evaluate(qualifiedActive, now: now).metadata
             )
             expect(
-                HoloMemoryRecallPolicy.exclusionReason(for: qualifiedActive, now: now) == .useLevelRestricted,
-                "qualifiedAdvice 不得进入普通事实召回（只走限定建议通道）"
+                HoloMemoryRecallPolicy.exclusionReason(for: qualifiedActive, now: now) == nil,
+                "qualifiedAdvice 应可进入召回（与长廊「Holo 会参考」同口径，2026-10-03 修正）"
             )
             var factActive = preference
             factActive.state = .active
