@@ -1025,7 +1025,7 @@ export function createApp(overrides = {}) {
   });
 
   // P2（方案 §5.2）：想法语义候选召回的 embedding 批量端点。
-  // 鉴权/限流与 chat 端点同范式；独立 purpose 限流桶（默认 20/分、120/天，.env 可调）。
+  // 鉴权/限流与 chat 端点同范式；独立 purpose 限流桶（默认 20/分，不设日次数上限，.env 可调）。
   // 不做 moderation：正文在 thought_organization 分类时已审核，同一内容不重复消耗审核调用。
   // 响应不含正文，服务端日志不记录文本与向量内容。
   app.post("/v1/ai/embeddings", async (context) => {
@@ -1073,7 +1073,7 @@ export function createApp(overrides = {}) {
         dailyLimit: requestLimits.perDay,
       });
       if (!usage.allowed) {
-        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429, { reason: usage.reason });
       }
 
       const provider = providers.get(route.provider);
@@ -1187,7 +1187,7 @@ export function createApp(overrides = {}) {
         dailyLimit: config.thoughtSemanticRelate.requestLimits.perDay,
       });
       if (!usage.allowed) {
-        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429, { reason: usage.reason });
       }
 
       const body = await readJson(context);
@@ -1255,7 +1255,7 @@ export function createApp(overrides = {}) {
           dailyLimit: config.thoughtTopicInsight.requestLimits.perDay,
         });
         if (!usage.allowed) {
-          throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+          throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429, { reason: usage.reason });
         }
 
         const body = await readJson(context);

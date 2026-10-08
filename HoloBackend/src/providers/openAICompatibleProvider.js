@@ -7,22 +7,33 @@ export function createOpenAICompatibleProvider(config) {
     // P2：OpenAI 兼容 /embeddings 端点（DashScope compatible-mode / 通义 text-embedding-v3）
     // 返回 { model, vectors }；向量只作客户端候选召回输入，不直接面向用户。
     async embed(request) {
-      const response = await callEmbeddingsUpstream(config, {
-        model: request.model,
-        input: request.texts,
-      }, request.clientSignal);
-      const json = await response.json();
-      if (!Array.isArray(json?.data) || json.data.length !== request.texts.length) {
-        throw new GatewayError("MODEL_UNAVAILABLE", "Upstream embeddings response malformed", 503);
-      }
-      return {
-        model: json.model ?? request.model,
-        vectors: json.data.map((item) => {
-          if (!Array.isArray(item?.embedding)) {
+      // 客户端协议允许 16 条；供应商可能更小（通义 V3 最多 10 条），适配器负责拆批。
+      const batchSize = config.embeddingBatchSize ?? 16;
+      const vectors = [];
+      for (let offset = 0; offset < request.texts.length; offset += batchSize) {
+        const texts = request.texts.slice(offset, offset + batchSize);
+        const response = await callEmbeddingsUpstream(config, {
+          model: request.model,
+          input: texts,
+          ...(request.dimensions ? { dimensions: request.dimensions } : {}),
+          encoding_format: "float",
+        }, request.clientSignal);
+        const json = await response.json();
+        if (!Array.isArray(json?.data) || json.data.length !== texts.length) {
+          throw new GatewayError("MODEL_UNAVAILABLE", "Upstream embeddings response malformed", 503);
+        }
+        const ordered = [...json.data].sort((a, b) => a.index - b.index);
+        for (const item of ordered) {
+          if (!Array.isArray(item?.embedding) || !item.embedding.every(Number.isFinite)
+              || (request.dimensions && item.embedding.length !== request.dimensions)) {
             throw new GatewayError("MODEL_UNAVAILABLE", "Upstream embedding vector malformed", 503);
           }
-          return item.embedding;
-        }),
+          vectors.push(item.embedding);
+        }
+      }
+      return {
+        model: request.model,
+        vectors,
       };
     },
 

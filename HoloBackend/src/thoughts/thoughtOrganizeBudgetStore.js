@@ -133,7 +133,7 @@ export function createThoughtOrganizeBudgetStore(db, options = {}) {
     const budget = stmts.getBudget.get(subjectId, dayKey)
       ?? { committed_micro: 0, reserved_micro: 0 };
     const totalAfterReserve = budget.committed_micro + budget.reserved_micro + estimateMicro;
-    if (totalAfterReserve > dailyBudgetMicro) {
+    if (dailyBudgetMicro > 0 && totalAfterReserve > dailyBudgetMicro) {
       return {
         allowed: false,
         reason: "budget_exceeded",
@@ -190,7 +190,7 @@ export function createThoughtOrganizeBudgetStore(db, options = {}) {
     const dayKey = shanghaiDateString(new Date(now));
     const budget = stmts.getBudget.get(existing.subject_id, existing.day_key)
       ?? { committed_micro: 0, reserved_micro: 0 };
-    if (budget.committed_micro + budget.reserved_micro + estimateMicro > dailyBudgetMicro) {
+    if (dailyBudgetMicro > 0 && budget.committed_micro + budget.reserved_micro + estimateMicro > dailyBudgetMicro) {
       return false;
     }
     db.transaction(() => {

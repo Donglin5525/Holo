@@ -50,7 +50,7 @@ export function createSqliteUsageStore(db, { failClosed = true } = {}) {
 
         // 检查日限制
         const dayRow = getCountStmt.get(dayKey);
-        if (dayRow && dayRow.count >= dailyLimit) {
+        if (dailyLimit > 0 && dayRow && dayRow.count >= dailyLimit) {
           return { allowed: false, reason: 'daily_limit' };
         }
 

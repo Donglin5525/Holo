@@ -260,7 +260,7 @@ const DEFAULT_CONFIG = {
       dimensions: Number(process.env.HOLO_EMBEDDING_DIMENSIONS ?? 1024),
       requestLimits: {
         perMinute: Number(process.env.HOLO_EMBEDDING_REQUESTS_PER_MINUTE ?? 20),
-        perDay: Number(process.env.HOLO_EMBEDDING_REQUESTS_PER_DAY ?? 120),
+        perDay: Number(process.env.HOLO_EMBEDDING_REQUESTS_PER_DAY ?? 0), // 0：历史回填不设日次数上限
       },
     },
     // 通用个人情境（docs/_common/plans/2026-09-06-HoloAI通用个人情境理解与规划-完整实施方案.md §11）。
@@ -523,6 +523,7 @@ const DEFAULT_CONFIG = {
       apiKey: process.env.DEEPSEEK_VISION_API_KEY ?? process.env.DEEPSEEK_API_KEY,
     },
     qwen: {
+      embeddingBatchSize: 10,
       type: "openai-compatible",
       baseURL: process.env.QWEN_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1",
       // QWEN_BASE_URL 默认就是 DashScope 兼容模式，生产只配了 DASHSCOPE_API_KEY（ASR 在用），
@@ -616,7 +617,7 @@ const DEFAULT_CONFIG = {
     privacyVerified: process.env.HOLO_THOUGHT_SEMANTIC_PRIVACY_VERIFIED === "true",
     deadlineMs: Number(process.env.HOLO_THOUGHT_SEMANTIC_DEADLINE_MS ?? 30_000),
     budgets: {
-      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_SEMANTIC_DAILY_MAX_CNY ?? 0.10),
+      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_SEMANTIC_DAILY_MAX_CNY ?? 0), // 保留费用台账，不以日预算阻断整理
       moderationPerCallCNY: Number(process.env.HOLO_THOUGHT_SEMANTIC_MODERATION_CNY ?? 0.0005),
     },
     pricing: {
@@ -625,7 +626,7 @@ const DEFAULT_CONFIG = {
     },
     requestLimits: {
       perMinute: Number(process.env.HOLO_THOUGHT_SEMANTIC_REQUESTS_PER_MINUTE ?? 20),
-      perDay: Number(process.env.HOLO_THOUGHT_SEMANTIC_REQUESTS_PER_DAY ?? 200),
+      perDay: Number(process.env.HOLO_THOUGHT_SEMANTIC_REQUESTS_PER_DAY ?? 0),
     },
   },
   // 主题命名/摘要 V3：两端点共享预算池（Phase 5 低频事件），限流各自独立桶
@@ -634,7 +635,7 @@ const DEFAULT_CONFIG = {
     privacyVerified: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_PRIVACY_VERIFIED === "true",
     deadlineMs: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_DEADLINE_MS ?? 30_000),
     budgets: {
-      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_DAILY_MAX_CNY ?? 0.20),
+      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_DAILY_MAX_CNY ?? 0),
       moderationPerCallCNY: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_MODERATION_CNY ?? 0.0005),
     },
     pricing: {
@@ -643,7 +644,7 @@ const DEFAULT_CONFIG = {
     },
     requestLimits: {
       perMinute: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REQUESTS_PER_MINUTE ?? 20),
-      perDay: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REQUESTS_PER_DAY ?? 100),
+      perDay: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REQUESTS_PER_DAY ?? 0),
     },
   },
   // 想法按需洞察（2026-09-24 方案 §5.1）：用户主动点击才发生，独立小额预算
