@@ -44,6 +44,7 @@ struct ContextExtractorOrchestratorStandaloneTests {
         try await testMergeReusesStableIdentity()
         try await testMultiPackagePageProcessesAllSources()
         try await testMidPageFailureRetriesRemainingPackagesOnly()
+        try await testDomainFollowsOrchestratorAndEvidenceCarriesQuote()
         print("ContextExtractorOrchestratorStandaloneTests: \(assertionCount) 断言全部通过")
     }
 
@@ -167,8 +168,11 @@ struct ContextExtractorOrchestratorStandaloneTests {
         quote: String = "低盐",
         sourceID: String = "thought-1"
     ) -> String {
+        // 主体恒为用户本人（scope=user）：2026-09 底第三方主体准入闸落地后，
+        // person 指向的候选被拦截持久化，旧夹具（父亲/person）让全套件在
+        // happy path 即 fatal 中止、后续用例被掩蔽（既有红归因见 74b94c141/5f314f4f1）。
         """
-        {"candidates":[{"candidateRef":"\(ref)","statement":"\(statement)","relationText":"\(statement)","subjects":[{"label":"父亲","scope":"person"}],"facets":[{"kind":"constraint"}],"epistemicStatus":"declared","basis":[{"sourceID":"\(sourceID)","quote":"\(quote)","revision":"rev-1","stance":"support"}],"openQuestions":[]}],"counterEvidence":[]}
+        {"candidates":[{"candidateRef":"\(ref)","statement":"\(statement)","relationText":"\(statement)","subjects":[{"label":"我","scope":"user"}],"facets":[{"kind":"constraint"}],"epistemicStatus":"declared","basis":[{"sourceID":"\(sourceID)","quote":"\(quote)","revision":"rev-1","stance":"support"}],"openQuestions":[]}],"counterEvidence":[]}
         """
     }
 
@@ -214,10 +218,12 @@ struct ContextExtractorOrchestratorStandaloneTests {
         expect(outcome.createdRecords == 1, "创建一条记录（实际 \(outcome.createdRecords)）")
         expect(writer.records.count == 1, "落库一条")
         let record = writer.records[0]
-        expect(record.state == .candidate, "新记录默认 candidate")
+        // v4 五路决策口径：declared 用户命题 + supported → factEligible 自动采信为 active
+        // （挂载时投影 admission 恒为 adviceEligible，见 HoloMemoryDecisionPolicy.attach）。
+        expect(record.state == .active, "declared+supported 自动采信为 active")
         expect(record.personalContext?.isReadable == true, "载荷可读")
         expect(record.personalContext?.v1?.admission.level == .adviceEligible, "supported → 建议背景")
-        expect(writer.cursor?.sourceCursor == nil, "全部处理完游标清空")
+        expect(writer.cursor?.sourceCursor != nil, "页非空时游标推进到页尾（G1：追平由下一轮空页判定，不再清空水位）")
         expect(writer.cursor?.progress.createdRecords == 1, "进度计数")
     }
 
@@ -377,11 +383,11 @@ struct ContextExtractorOrchestratorStandaloneTests {
         let sources = [source()]
         let (extractor, llm, writer) = makeExtractor(sources: sources)
 
-        // 既有记录（同一命题）。
+        // 既有记录（同一命题；主体与夹具同为用户本人，保证签名匹配——见 extractionRaw 注）。
         let existingPayload = HoloPersonalContextPayloadV1(
             contextID: "existing-ctx",
             statement: "父亲被要求低盐",
-            subjects: [HoloContextPartyRef(label: "父亲", scope: .person)],
+            subjects: [HoloContextPartyRef(label: "我", scope: .user)],
             relationText: "父亲被要求低盐",
             epistemicStatus: .declared,
             basis: [HoloContextBasisRef(sourceID: "thought-0", quote: "低盐", sourceRevision: "rev-0")],
@@ -466,7 +472,7 @@ struct ContextExtractorOrchestratorStandaloneTests {
         expect(outcome.createdRecords == 3, "每包各建一条（实际 \(outcome.createdRecords)）")
         expect(writer.records.count == 3, "落库 3 条")
         expect(writer.cursor?.progress.scannedSources == 30, "整页 30 条计入扫描（实际 \(writer.cursor?.progress.scannedSources ?? -1)）")
-        expect(writer.cursor?.sourceCursor == nil, "全部处理完游标清空")
+        expect(writer.cursor?.sourceCursor != nil, "页非空时游标推进到页尾（G1：追平由下一轮空页判定）")
     }
 
     /// 页内第 2 包失败：抛错、游标不推进；已成功包按 receipt 幂等，重试只补余下包。
@@ -494,9 +500,60 @@ struct ContextExtractorOrchestratorStandaloneTests {
         let outcome = try await extractor.runOneBatch(now: Date(timeIntervalSince1970: 1_790_000_200))
         expect(llm.extractCallCount == 4, "重试只补 2 包（3+4，实际 \(llm.extractCallCount)）")
         expect(writer.records.count == 1, "不重复落库")
-        expect(writer.cursor?.sourceCursor == nil, "重试成功后游标清空")
+        expect(writer.cursor?.sourceCursor != nil, "重试成功后游标推进到页尾（G1 语义）")
         expect(writer.cursor?.progress.scannedSources == 30, "整页 30 条计入扫描（实际 \(writer.cursor?.progress.scannedSources ?? -1)）")
         expect(outcome.createdRecords == 0, "重试零新建")
+    }
+
+    /// 域归属根治锁定（2026-10-09 东林反馈）：记录域必须取来源编排器的域，
+    /// 不再依赖「包首来源 == 依据首来源」的相等判断——习惯域编排器里依据指向
+    /// 第二条来源的候选，旧实现会失配回落 thought（习惯记忆被错标成想法的根因）。
+    /// 同时锁定新证据必须携带依据原话摘要（出处页不再误报「原始内容已删除」）。
+    static func testDomainFollowsOrchestratorAndEvidenceCarriesQuote() async throws {
+        // sourceKey 前缀按 HoloLifeSourceKeys 契约字面书写（standalone 编译不拖仓储层）。
+        let checkinKey1 = "habit-checkin:77777777-7777-7777-7777-777777777771"
+        let checkinKey2 = "habit-checkin:77777777-7777-7777-7777-777777777772"
+        let sources = [
+            source(id: checkinKey1, text: "完成习惯打卡「戒烟」，数值 1", revision: "rev-h1"),
+            source(id: checkinKey2, text: "完成习惯打卡「戒烟」，数值 1（第二次）", revision: "rev-h2"),
+        ]
+        // 覆盖快照域为 habit（source() 默认 thought，这里按真实习惯域来源构造）。
+        let habitSources = sources.map { snapshot in
+            var habitSnapshot = snapshot
+            habitSnapshot.sourceDomain = "habit"
+            habitSnapshot.sourceKind = "habitCheckin"
+            return habitSnapshot
+        }
+        let llm = FakeLLM()
+        let writer = FakeWriter()
+        writer.seedRevisions(from: HoloContextSourceIndex(habitSources).sources)
+        let extractor = HoloPersonalContextExtractor(
+            paging: HoloContextInMemorySourcePaging(sources: habitSources),
+            llm: llm,
+            writer: writer,
+            domain: "habit"
+        )
+        // 依据指向第二条来源：旧实现下 page 首来源是 checkinKey1，相等判断必失配。
+        // 主体必须是用户本人（scope=user）：第三方主体被准入策略拦截持久化（既有红同因）。
+        llm.extractResponses = [
+            """
+            {"candidates":[{"candidateRef":"c1","statement":"用户在坚持戒烟打卡","relationText":"用户在坚持戒烟打卡","subjects":[{"label":"我","scope":"user"}],"facets":[{"kind":"state"}],"epistemicStatus":"observed","basis":[{"sourceID":"\(checkinKey2)","quote":"完成习惯打卡「戒烟」，数值 1（第二次）","revision":"rev-h2","stance":"support"}],"openQuestions":[]}],"counterEvidence":[]}
+            """
+        ]
+        llm.verifyResponses = ["{\"verdicts\":[{\"candidateRef\":\"c1\",\"verdict\":\"supported\"}]}"]
+
+        _ = try await extractor.runOneBatch(now: Date(timeIntervalSince1970: 1_790_000_000))
+
+        expect(writer.records.count == 1, "习惯域候选落库 1 条")
+        guard let record = writer.records.first else { return }
+        expect(record.primaryDomain == .habit, "记录域必须随编排器落习惯域（实际 \(record.primaryDomain?.rawValue ?? "nil")）")
+        expect(record.sourceDomains == [.habit], "来源域与主域一致")
+        guard let evidence = record.evidenceRefs.first else {
+            expect(false, "记录必须携带证据")
+            return
+        }
+        expect(evidence.sourceID == checkinKey2, "证据指向依据来源")
+        expect(evidence.summary == "完成习惯打卡「戒烟」，数值 1（第二次）", "证据必须携带依据原话摘要")
     }
 }
 

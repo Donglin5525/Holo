@@ -19,7 +19,8 @@ struct HoloMemoryEvidenceRoutingTests {
         testThoughtExplicitStatementRoutesToThoughtDetail()
         testConversationExplicitStatementStaysInPreviewSheet()
         testInvalidSourceIDHasNoRoute()
-        try await testConversationExcerptLookupSkipsWhenSummaryExists()
+        try await testSourceLookupSkipsWhenSummaryExists()
+        try await testSourceLookupMissingRecordReturnsNil()
         print("HoloMemoryEvidenceRoutingTests: \(assertions) assertions passed")
     }
 
@@ -92,7 +93,7 @@ struct HoloMemoryEvidenceRoutingTests {
                "sourceID 缺失时不得路由")
     }
 
-    private static func testConversationExcerptLookupSkipsWhenSummaryExists() async throws {
+    private static func testSourceLookupSkipsWhenSummaryExists() async throws {
         let messageID = UUID(uuidString: "55555555-5555-5555-5555-555555555555")!
         let withSummary = makeEvidence(
             kind: .explicitUserStatement, domain: .conversation, sourceID: messageID.uuidString
@@ -100,14 +101,34 @@ struct HoloMemoryEvidenceRoutingTests {
         // 修改副本让 summary 已存在：回查必须直接跳过，不触库。
         var existing = withSummary
         existing.summary = "已保存的摘要"
-        let result = await HoloMemoryConversationExcerptLookup.excerpt(for: existing)
+        let result = await HoloMemoryEvidenceSourceLookup.liveText(for: existing)
         expect(result == nil, "已带摘要的证据不应触发回查")
 
-        let notConversation = makeEvidence(
-            kind: .explicitUserStatement, domain: .thought, sourceID: messageID.uuidString
+        let noSource = makeEvidence(
+            kind: .explicitUserStatement, domain: .thought, sourceID: nil
         )
-        let domainResult = await HoloMemoryConversationExcerptLookup.excerpt(for: notConversation)
-        expect(domainResult == nil, "非对话域证据不参与对话回查")
+        let missingSourceResult = await HoloMemoryEvidenceSourceLookup.liveText(for: noSource)
+        expect(missingSourceResult == nil, "sourceID 缺失的证据无从回查")
+    }
+
+    /// 六域回查泛化后的兜底契约：库中不存在的记录（含带域前缀的 sourceKey 与
+    /// thought 存量裸 UUID）一律返回 nil，由出处页落「已删除」占位。
+    private static func testSourceLookupMissingRecordReturnsNil() async throws {
+        let missingID = UUID(uuidString: "66666666-6666-6666-6666-666666666666")!
+        for sourceID in [
+            HoloLifeSourceKeys.conversationKey(missingID),
+            HoloLifeSourceKeys.habitCheckinKey(missingID),
+            HoloLifeSourceKeys.taskKey(missingID),
+            HoloLifeSourceKeys.financeKey(missingID),
+            HoloLifeSourceKeys.goalKey(missingID),
+            missingID.uuidString,
+        ] {
+            let evidence = makeEvidence(
+                kind: .explicitUserStatement, domain: .thought, sourceID: sourceID
+            )
+            let result = await HoloMemoryEvidenceSourceLookup.liveText(for: evidence)
+            expect(result == nil, "库中不存在的来源（\(sourceID)）应返回 nil 而非编造文本")
+        }
     }
 
     private static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {

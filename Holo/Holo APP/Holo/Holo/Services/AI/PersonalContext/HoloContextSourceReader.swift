@@ -150,6 +150,31 @@ nonisolated enum HoloContextSegmenter {
 
 // MARK: - 富文本规范化（纯逻辑部分）
 
+/// 用户原文进记忆链路前的统一清洗：去控制字符、隔离角色标记、截断。
+/// 个人情境萃取（standalone 编译）与领域信号构造共用同一份实现，避免清洗规则分叉。
+nonisolated enum HoloUserTextSanitizer {
+    static let maximumLength = 1_000
+
+    static func sanitize(_ value: String) -> String {
+        let withoutControls = String(value.unicodeScalars.filter {
+            !CharacterSet.controlCharacters.contains($0)
+        })
+        let roleMarkers = [
+            "<|system|>", "<|assistant|>", "<|user|>",
+            "system:", "assistant:", "user:"
+        ]
+        var isolated = withoutControls
+        for marker in roleMarkers {
+            isolated = isolated.replacingOccurrences(
+                of: marker,
+                with: "［role-marker］",
+                options: [.caseInsensitive]
+            )
+        }
+        return String(isolated.prefix(maximumLength))
+    }
+}
+
 /// 统一富文本 → 纯文本：剥离 Markdown 标记，附件只标记覆盖缺口不编造内容。
 nonisolated enum HoloContextPlainTextNormalizer {
     static func normalize(_ raw: String) -> (plainText: String, coverageGaps: [String]) {

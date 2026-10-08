@@ -453,7 +453,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
                             payload: payload,
                             claimKind: claimKind,
                             sensitivity: decision.sensitivity,
-                            packageSources: page,
+                            sourceDomain: domain,
                             now: now
                           ) else { continue }
                     batchRecords.append(record)
@@ -565,20 +565,22 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
     }
 
     /// 从决策构造新记录：candidate 默认、锚点用 contextID、稳定 ID 沿用既有算法。
+    /// 域直接取来源编排器的域：一页来源恒来自同一域（HoloLifeSourceObservation 按域
+    /// 轮转分页），编排器自己就是域的权威。旧实现用「包首来源 ID == 依据首来源 ID」
+    /// 相等判断、失配即回落 thought——多候选包里几乎必失配，是习惯/任务/账单等
+    /// 记忆被整体错标成「想法」的根因（2026-10-09 东林反馈）。
     static func newRecord(
         payload: HoloPersonalContextPayloadV1,
         claimKind: HoloMemoryClaimKind,
         sensitivity: HoloMemorySensitivity,
-        packageSources: [HoloContextSourceSnapshot],
+        sourceDomain: String,
         now: Date
     ) -> HoloMemoryRecord? {
         guard let anchor = try? HoloMemoryAnchorRef(
             type: .userTheme,
             value: payload.contextAnchorValue
         ) else { return nil }
-        let domain = packageSources.first.flatMap {
-            $0.sourceID == payload.basis.first?.sourceID ? Self.memoryDomain($0.sourceDomain) : nil
-        } ?? .thought
+        let domain = Self.memoryDomain(sourceDomain)
         guard let stableID = try? HoloMemoryIdentity.makeStableID(
             scope: .domain,
             primaryDomain: domain,
@@ -594,7 +596,12 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
                 lineageKey: basis.sourceID,
                 sourceID: basis.sourceID,
                 revisionDigest: basis.sourceRevision,
-                observedAt: now
+                observedAt: now,
+                // 摘要带依据原话（与 ThoughtMemorySignalBuilder 同式截断+净化），
+                // 出处页不再因「证据无摘要」误报原始内容已删除（2026-10-09 东林反馈）。
+                summary: basis.quote.map {
+                    HoloUserTextSanitizer.sanitize(String($0.prefix(200)))
+                }
             )
         }
         var record = HoloMemoryRecord(

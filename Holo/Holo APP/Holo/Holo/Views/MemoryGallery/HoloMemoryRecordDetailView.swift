@@ -23,7 +23,7 @@ struct HoloMemoryRecordDetailView: View {
     @State private var correctionText = ""
     @State private var showForgetConfirmation = false
     @State private var selectedEvidence: HoloMemoryEvidenceRef?
-    @State private var liveEvidenceExcerpt: String?
+    @State private var liveEvidenceText: String?
 
     let onChange: (HoloMemoryRecordDetailChange) -> Void
 
@@ -99,21 +99,24 @@ struct HoloMemoryRecordDetailView: View {
                 .foregroundColor(.holoTextPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Label(
-                HoloMemoryUserPresentation.durationTitle(for: record),
-                systemImage: HoloMemoryUserPresentation.durationIcon(for: record)
-            )
-            .font(.holoCaption)
-            .foregroundColor(.holoPrimary)
+            HStack(alignment: .firstTextBaseline) {
+                Label(
+                    HoloMemoryUserPresentation.durationTitle(for: record),
+                    systemImage: HoloMemoryUserPresentation.durationIcon(for: record)
+                )
+                .font(.holoCaption)
+                .foregroundColor(.holoPrimary)
+
+                Spacer()
+
+                Text(HoloMemoryUserPresentation.timeRange(for: record))
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextPlaceholder)
+            }
 
             Text(HoloMemoryUserPresentation.durationExplanation(for: record))
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextSecondary)
-
-            Text("观察时间：\(HoloMemoryUserPresentation.timeRange(for: record))")
-                .font(.holoTinyLabel)
-                .foregroundColor(.holoTextPlaceholder)
-
             if let status = HoloMemoryUserPresentation.degradedStatus(for: record) {
                 Label(status, systemImage: "exclamationmark.circle")
                     .font(.holoCaption)
@@ -264,23 +267,23 @@ struct HoloMemoryRecordDetailView: View {
                 }
             }
             .task(id: evidence.id) {
-                liveEvidenceExcerpt = nil
-                liveEvidenceExcerpt = await HoloMemoryConversationExcerptLookup.excerpt(for: evidence)
+                liveEvidenceText = nil
+                liveEvidenceText = await HoloMemoryEvidenceSourceLookup.liveText(for: evidence)
             }
         }
         .presentationDetents([.medium, .large])
     }
 
-    /// 存量证据未保存摘要时按 sourceID 回查原文；查不到才落占位文案。
+    /// 存量证据未保存摘要时按 sourceID 回查原文；查不到（已删除/不存在）才落占位文案。
     private func previewBody(for evidence: HoloMemoryEvidenceRef) -> String {
         if let summary = evidence.summary?.trimmingCharacters(in: .whitespacesAndNewlines),
            !summary.isEmpty {
             return summary
         }
-        if let liveEvidenceExcerpt, !liveEvidenceExcerpt.isEmpty {
-            return liveEvidenceExcerpt
+        if let liveEvidenceText, !liveEvidenceText.isEmpty {
+            return liveEvidenceText
         }
-        return "这条证据没有留下文字摘要，原始内容可能已被删除。"
+        return "原始记录已删除，无法显示当时的原文。"
     }
 
     private var feedbackSection: some View {
@@ -298,14 +301,28 @@ struct HoloMemoryRecordDetailView: View {
                 }
             }
 
-            HStack(spacing: HoloSpacing.sm) {
-                feedbackButton("纠正", icon: "pencil", color: .holoPrimary) {
+            // 次级动作降权为轻量文字按钮：纠正/删除是低频操作，不该与主判断抢视觉权重。
+            HStack(spacing: HoloSpacing.lg) {
+                Button {
                     correctionText = record.displaySummary
                     showCorrection = true
+                } label: {
+                    Label("纠正", systemImage: "pencil")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
                 }
-                feedbackButton("不再使用", icon: "eye.slash", color: .red) {
+                .buttonStyle(.plain)
+
+                Button {
                     showForgetConfirmation = true
+                } label: {
+                    Label("不再使用", systemImage: "eye.slash")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
                 }
+                .buttonStyle(.plain)
+
+                Spacer()
             }
         }
         .disabled(isWorking)
