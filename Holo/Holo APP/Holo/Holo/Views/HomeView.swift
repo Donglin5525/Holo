@@ -915,44 +915,44 @@ struct HomeView: View {
             let arc = (t / 60).truncatingRemainder(dividingBy: 1) * 360
             let twinkle = 0.65 + 0.35 * sin(2 * .pi * t / 4)
             return ZStack {
-                // 中心大橙色光晕 — 缓慢浮动。
-                // 渐变本身即软边光晕，不再叠 .blur（半径 55~80 的实时高斯模糊是
-                // 首页 GPU 离屏渲染大头，iCloud 同步等尖峰叠加时全 App 阶段性掉帧）；
-                // 用三段渐变 + 加大 endRadius 补出高斯式的长尾衰减，视觉等效
+                // 中心大橙色光晕 — 缓慢浮动
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [Color.holoPrimary.opacity(0.12), Color.holoPrimary.opacity(0.05), Color.holoPrimary.opacity(0)],
-                            center: .center, startRadius: 0, endRadius: 300
+                            colors: [Color.holoPrimary.opacity(0.12), Color.holoPrimary.opacity(0)],
+                            center: .center, startRadius: 0, endRadius: 250
                         )
                     )
                     .frame(width: 500, height: 500)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .offset(y: drift * 8)
+                    .blur(radius: 80)
 
-                // 右上紫 — 对向浮动（同上：渐变自带软边，无 blur）
+                // 右上紫 — 对向浮动
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [Color.holoPurple.opacity(0.08), Color.holoPurple.opacity(0.03), Color.holoPurple.opacity(0)],
-                            center: .center, startRadius: 0, endRadius: 255
+                            colors: [Color.holoPurple.opacity(0.08), Color.holoPurple.opacity(0)],
+                            center: .center, startRadius: 0, endRadius: 210
                         )
                     )
                     .frame(width: 420, height: 420)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                     .offset(x: 100, y: -40 + drift * -6)
+                    .blur(radius: 65)
 
-                // 左下蓝 — 独立节奏（同上：渐变自带软边，无 blur）
+                // 左下蓝 — 独立节奏
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [Color.holoInfo.opacity(0.06), Color.holoInfo.opacity(0.025), Color.holoInfo.opacity(0)],
-                            center: .center, startRadius: 0, endRadius: 230
+                            colors: [Color.holoInfo.opacity(0.06), Color.holoInfo.opacity(0)],
+                            center: .center, startRadius: 0, endRadius: 190
                         )
                     )
                     .frame(width: 380, height: 380)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                     .offset(x: -80, y: 60 + drift * 10)
+                    .blur(radius: 55)
 
                 // 装饰弧线 — 缓慢旋转
                 Circle()

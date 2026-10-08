@@ -114,78 +114,35 @@ struct DailyKanbanEntryButton: View {
     }
 
     // MARK: - 球体（原版布局：三环轨道 + 中心呼吸光点）
-    //
-    // 渲染分层（2026-10-08 掉帧治理）：TimelineView 每帧只重建「随时间变的层」
-    // （外圈虚线环 + 三环 + 呼吸光点）；渐变球体与弧形铭文不随时间变，移出
-    // TimelineView 静态挂载，不再被每 0.05s 一次的重建牵连。实时阴影
-    // (.shadow radius 30 = 每帧离屏高斯模糊) 换成同色渐变光晕，视觉等效、
-    // 成本降一个数量级。呼吸微缩（1.5%~3%）随之只作用于动态层。
 
     private var sphere: some View {
-        ZStack {
-            // 球体柔光：替代原 .shadow(color: .holoPrimary.opacity(0.3), radius: 30)
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.holoPrimary.opacity(0.3), Color.holoPrimary.opacity(0)],
-                        center: .center, startRadius: 96, endRadius: 160
+        TimelineView(.animation(minimumInterval: 0.05, paused: !ambientMotionActive)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            ZStack {
+                // 外环（320pt）— 缓慢旋转
+                Circle()
+                    .stroke(
+                        Color.holoPrimary.opacity(0.08),
+                        style: StrokeStyle(lineWidth: 0.5, dash: [4, 8])
                     )
-                )
-                .frame(width: 320, height: 320)
-                .allowsHitTesting(false)
+                    .frame(width: 320, height: 320)
+                    .rotationEffect(.degrees(Self.orbitAngle(t, period: 90) * 0.3))
+                    .allowsHitTesting(false)
 
-            Button(action: action) {
-                ZStack {
-                    // 渐变填充（静态层）
-                    Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [.holoPrimaryLight, .holoPrimary, .holoPrimaryDark],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                // 外环（256pt）— 较快旋转
+                Circle()
+                    .stroke(
+                        Color.holoPrimary.opacity(0.15),
+                        style: StrokeStyle(lineWidth: 1, dash: [4, 8])
+                    )
+                    .frame(width: 256, height: 256)
+                    .rotationEffect(.degrees(Self.orbitAngle(t, period: 90) * 0.5))
+                    .allowsHitTesting(false)
 
-                    // 动态层：随时间旋转/呼吸的元素
-                    TimelineView(.animation(minimumInterval: 0.05, paused: !ambientMotionActive)) { timeline in
-                        let t = timeline.date.timeIntervalSinceReferenceDate
-                        ZStack {
-                            // 外环（320pt）— 缓慢旋转
-                            Circle()
-                                .stroke(
-                                    Color.holoPrimary.opacity(0.08),
-                                    style: StrokeStyle(lineWidth: 0.5, dash: [4, 8])
-                                )
-                                .frame(width: 320, height: 320)
-                                .rotationEffect(.degrees(Self.orbitAngle(t, period: 90) * 0.3))
-                                .allowsHitTesting(false)
-
-                            // 外环（256pt）— 较快旋转
-                            Circle()
-                                .stroke(
-                                    Color.holoPrimary.opacity(0.15),
-                                    style: StrokeStyle(lineWidth: 1, dash: [4, 8])
-                                )
-                                .frame(width: 256, height: 256)
-                                .rotationEffect(.degrees(Self.orbitAngle(t, period: 90) * 0.5))
-                                .allowsHitTesting(false)
-
-                            orbits(at: t)
-                        }
-                        // 呼吸沿用原参数：整体 1↔1.03，周期 4s 正弦往返
-                        .scaleEffect(1.015 + 0.015 * sin(2 * .pi * t / 4))
-                    }
-
-                    // 状态铭文：沿球内下弧逐字排布（素四终稿，弧 r=72；静态层）
-                    ArcInscriptionText(text: captionText)
-                        .allowsHitTesting(false)
-                }
+                mainButton(at: t)
             }
             .frame(width: 192, height: 192)
-            .contentShape(Circle())
-            .accessibilityLabel(Text("今天，\(captionText)，按钮"))
         }
-        .frame(width: 192, height: 192)
     }
 
     /// 环绕角度只由绝对时间决定：每 period 秒一圈，相位跨任何中断连续。
@@ -193,36 +150,57 @@ struct DailyKanbanEntryButton: View {
         (t / period).truncatingRemainder(dividingBy: 1) * 360
     }
 
-    /// 数据驱动三环 + 中心呼吸光点（动态层内容，随 t 旋转）
-    private func orbits(at t: Double) -> some View {
+    private func mainButton(at t: Double) -> some View {
         let ring1 = Self.orbitAngle(t, period: 90)
         let ring2 = -Self.orbitAngle(t, period: 60)
         let ring3 = Self.orbitAngle(t, period: 45)
-        // 呼吸沿用原参数：中心光点 0.6↔1.0，周期 4s 正弦往返
+        // 呼吸沿用原参数：中心光点 0.6↔1.0、整体 1↔1.03，周期 4s 正弦往返
         let centerPulse = 0.8 + 0.2 * sin(2 * .pi * t / 4)
-        return ZStack {
-            // 外环（104pt，原 80 放大 30%）— 总体进度（素四终稿：细金丝降调）
-            progressOrbit(size: 104, progress: animatedOverall, opacity: 0.55, lineWidth: 3.5, rotation: ring1)
-
-            // 中环（75pt，原 58 放大 30%）— 习惯进度
-            progressOrbit(size: 75, progress: animatedHabit, opacity: 0.38, lineWidth: 2.8, rotation: ring2)
-
-            // 内环（49pt，原 38 放大 30%）— 任务进度
-            progressOrbit(size: 49, progress: animatedTask, opacity: 0.26, lineWidth: 2.2, rotation: ring3)
-
-            // 中心呼吸光点
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color.white.opacity(0.6), Color.white.opacity(0)],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 10
+        let breathScale = 1.015 + 0.015 * sin(2 * .pi * t / 4)
+        return Button(action: action) {
+            ZStack {
+                // 渐变填充
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [.holoPrimaryLight, .holoPrimary, .holoPrimaryDark],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
-                )
-                .frame(width: 20, height: 20)
-                .scaleEffect(centerPulse)
+
+                // 外环（104pt，原 80 放大 30%）— 总体进度（素四终稿：细金丝降调）
+                progressOrbit(size: 104, progress: animatedOverall, opacity: 0.55, lineWidth: 3.5, rotation: ring1)
+
+                // 中环（75pt，原 58 放大 30%）— 习惯进度
+                progressOrbit(size: 75, progress: animatedHabit, opacity: 0.38, lineWidth: 2.8, rotation: ring2)
+
+                // 内环（49pt，原 38 放大 30%）— 任务进度
+                progressOrbit(size: 49, progress: animatedTask, opacity: 0.26, lineWidth: 2.2, rotation: ring3)
+
+                // 中心呼吸光点
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.white.opacity(0.6), Color.white.opacity(0)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 10
+                        )
+                    )
+                    .frame(width: 20, height: 20)
+                    .scaleEffect(centerPulse)
+
+                // 状态铭文：沿球内下弧逐字排布（素四终稿，弧 r=72）
+                ArcInscriptionText(text: captionText)
+                    .allowsHitTesting(false)
+            }
         }
+        .frame(width: 192, height: 192)
+        .contentShape(Circle())
+        .shadow(color: .holoPrimary.opacity(0.3), radius: 30)
+        .scaleEffect(breathScale)
+        .accessibilityLabel(Text("今天，\(captionText)，按钮"))
     }
 
     private var captionText: String {
