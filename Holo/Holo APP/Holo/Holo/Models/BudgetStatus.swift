@@ -47,3 +47,29 @@ struct CategoryBudgetWarning: Identifiable {
     let progress: Double
     let isOverBudget: Bool
 }
+
+/// 分类预算月度总览行（预算详情页科目预算区）
+/// 全部账户视角下，同科目在多个账户各设的预算合并为一行：额度相加、已花相加；
+/// 父子层级不合并（给一级「餐饮」与二级「早餐」各设预算是两条独立预算，天然重叠是既定语义）。
+/// 分类预算不参与严格结转（carryoverDeduction 仅作用总预算），分母恒为原始额度。
+struct CategoryBudgetOverview: Identifiable {
+    let categoryId: UUID
+    let categoryName: String
+    let categoryIcon: String
+    let categoryColor: String
+    /// 同科目各账户的预算状态（周期范围各自独立）
+    let statuses: [BudgetStatus]
+
+    var id: UUID { categoryId }
+    var totalBudgetAmount: Decimal { statuses.reduce(Decimal(0)) { $0 + $1.budgetAmount } }
+    var totalSpentAmount: Decimal { statuses.reduce(Decimal(0)) { $0 + $1.spentAmount } }
+    var totalRemainingAmount: Decimal { totalBudgetAmount - totalSpentAmount }
+    var progress: Double {
+        guard totalBudgetAmount > 0 else {
+            return totalSpentAmount > 0 ? 1.0 : 0.0
+        }
+        return Double(truncating: NSDecimalNumber(decimal: totalSpentAmount / totalBudgetAmount))
+    }
+    var isOverBudget: Bool { progress >= 1.0 }
+    var isWarning: Bool { progress >= 0.8 && progress < 1.0 }
+}

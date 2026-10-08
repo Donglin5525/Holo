@@ -23,6 +23,11 @@ struct BudgetDetailView: View {
     @State private var todayExpense: Decimal?
     @State private var showRulesSheet = false
     @State private var showBudgetEditor = false
+    @State private var categoryOverviews: [CategoryBudgetOverview] = []
+    @State private var selectedOverview: CategoryBudgetOverview?
+    @State private var showCategoryBudgetEditor = false
+    @State private var editorAccount: Account?
+    @State private var showAccountPicker = false
 
     var body: some View {
         NavigationStack {
@@ -33,6 +38,7 @@ struct BudgetDetailView: View {
                     }
                     compositionCard
                     statGrid
+                    categoryBudgetSection
                     strictModeCard
                     if selectedAccountId != nil {
                         editBudgetButton
@@ -53,6 +59,26 @@ struct BudgetDetailView: View {
         }
         .sheet(isPresented: $showRulesSheet) { rulesSheet }
         .sheet(isPresented: $showBudgetEditor) { budgetEditor }
+        .sheet(item: $selectedOverview) { overview in
+            BudgetCategoryDetailSheet(categoryId: overview.categoryId, accountId: selectedAccountId)
+        }
+        .sheet(isPresented: $showCategoryBudgetEditor) {
+            if let account = editorAccount {
+                BudgetSettingsSheet(account: account, initialMode: .category) { }
+            }
+        }
+        .confirmationDialog(
+            String(localized: "给哪个账户添加预算？"),
+            isPresented: $showAccountPicker,
+            titleVisibility: .visible
+        ) {
+            ForEach(accounts, id: \.id) { account in
+                Button(account.name) {
+                    editorAccount = account
+                    showCategoryBudgetEditor = true
+                }
+            }
+        }
         .onAppear { reload() }
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
             reload()
@@ -67,14 +93,14 @@ struct BudgetDetailView: View {
             Menu {
                 Button {
                     selectedAccountId = nil
-                    loadTodayExpense()
+                    reload()
                 } label: {
                     Label(String(localized: "全部账户"), systemImage: selectedAccountId == nil ? "checkmark" : "")
                 }
                 ForEach(accounts, id: \.id) { account in
                     Button {
                         selectedAccountId = account.id
-                        loadTodayExpense()
+                        reload()
                     } label: {
                         Label(account.name, systemImage: selectedAccountId == account.id ? "checkmark" : "")
                     }
@@ -293,6 +319,153 @@ struct BudgetDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
+    // MARK: - 分类预算区（科目预算，点行看明细）
+
+    private var categoryBudgetSection: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(String(localized: "分类预算"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                Spacer()
+                Button {
+                    gateBudget { startAddCategoryBudget() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12))
+                        Text(String(localized: "添加"))
+                            .font(.holoCaption)
+                    }
+                    .foregroundColor(.holoPrimary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
+
+            if categoryOverviews.isEmpty {
+                Button {
+                    gateBudget { startAddCategoryBudget() }
+                } label: {
+                    VStack(spacing: HoloSpacing.sm) {
+                        Image(systemName: "chart.pie")
+                            .font(.system(size: 24))
+                            .foregroundColor(.holoTextSecondary.opacity(0.4))
+                        Text(String(localized: "给重点科目单独设预算，如餐饮、购物"))
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, HoloSpacing.lg)
+                }
+                .buttonStyle(.plain)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(categoryOverviews) { overview in
+                        categoryBudgetRow(overview)
+                    }
+                }
+                .padding(.bottom, 8)
+            }
+        }
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .overlay(RoundedRectangle(cornerRadius: HoloRadius.lg).stroke(Color.holoBorder, lineWidth: 1))
+    }
+
+    /// 点击行 = 看该科目的花销明细（预算闭环的核心一跳）
+    private func categoryBudgetRow(_ overview: CategoryBudgetOverview) -> some View {
+        Button {
+            selectedOverview = overview
+        } label: {
+            HStack(spacing: HoloSpacing.md) {
+                CategoryIconBadge(
+                    iconName: overview.categoryIcon,
+                    color: Color(hex: overview.categoryColor),
+                    diameter: 32
+                )
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(overview.categoryName)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.holoTextPrimary)
+                            .lineLimit(1)
+                        if overview.statuses.count > 1 {
+                            Text(String(localized: "\(overview.statuses.count) 账户"))
+                                .font(.system(size: 10))
+                                .foregroundColor(.holoTextPlaceholder)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color.holoBackground)
+                                .clipShape(Capsule())
+                        }
+                    }
+
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.holoBorder.opacity(0.3))
+                                .frame(height: 4)
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(budgetProgressColor(overview.progress))
+                                .frame(width: geo.size.width * min(CGFloat(overview.progress), 1.0), height: 4)
+                        }
+                    }
+                    .frame(height: 4)
+                }
+
+                Spacer()
+
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(Int(overview.progress * 100))%")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundColor(budgetProgressColor(overview.progress))
+                    if overview.isOverBudget {
+                        Text(String(localized: "超支 \(formatAmount(overview.totalRemainingAmount))"))
+                            .font(.system(size: 10))
+                            .foregroundColor(.holoError)
+                    } else {
+                        Text(String(localized: "剩余 \(formatAmount(overview.totalRemainingAmount))"))
+                            .font(.system(size: 10))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, HoloSpacing.sm)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 添加分类预算：单账户视角（或仅一个账户）直接进设置；全部账户视角多账户时先选账户
+    private func startAddCategoryBudget() {
+        if let id = selectedAccountId, let account = accounts.first(where: { $0.id == id }) {
+            editorAccount = account
+            showCategoryBudgetEditor = true
+        } else if accounts.count == 1, let only = accounts.first {
+            editorAccount = only
+            showCategoryBudgetEditor = true
+        } else {
+            showAccountPicker = true
+        }
+    }
+
+    /// 预算编辑为 Plus 权益：非 Plus 弹付费墙，购买成功后回开原入口；存量预算展示不受影响
+    private func gateBudget(_ open: @escaping () -> Void) {
+        guard HoloEntitlementState.shared.isPlusActive else {
+            HoloPlusActionCoordinator.shared.requirePlus(context: .budget, resume: open)
+            return
+        }
+        open()
+    }
+
+    private func formatAmount(_ amount: Decimal) -> String {
+        NumberFormatter.currency.string(from: NSDecimalNumber(decimal: abs(amount))) ?? "¥0"
+    }
+
     // MARK: - 严格模式开关区
 
     private var strictModeCard: some View {
@@ -361,7 +534,7 @@ struct BudgetDetailView: View {
 
     private var editBudgetButton: some View {
         Button {
-            showBudgetEditor = true
+            gateBudget { showBudgetEditor = true }
         } label: {
             HStack {
                 Image(systemName: "slider.horizontal.3")
@@ -437,6 +610,7 @@ struct BudgetDetailView: View {
             selectedAccountId = nil
         }
         loadTodayExpense()
+        categoryOverviews = BudgetRepository.shared.computeMonthlyCategoryBudgetOverviews(accountId: selectedAccountId)
     }
 
     private func loadTodayExpense() {
