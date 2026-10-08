@@ -277,9 +277,12 @@ test("V2 关联拒绝伪造主题证据，允许两个独立主题", () => {
   const none = {candidateRef:"P1",relation:"none"};
   assert.equal(validateRelateModelOutput({decisions:[d,none]}, parsed).decisions.length, 2);
   assert.equal(validateRelateModelOutput({decisions:[d]}, parsed).malformed,true, "漏掉候选不能视为已经核对完毕");
-  assert.equal(validateRelateModelOutput({decisions:[{...d, representativeQuote:"凭空证据"},none]}, parsed).reason, "representative_quote_not_verbatim");
+  const unsupported = validateRelateModelOutput({decisions:[{...d, representativeQuote:"凭空证据"},none]}, parsed);
+  assert.equal(unsupported.decisions[0].relation, "insufficient");
+  assert.equal(unsupported.decisions[0].quote, null, "无主题侧依据不能输出正式归属证据");
+  assert.equal(unsupported.decisions[1].relation, "none", "单个候选依据不足不阻断其他候选");
   assert.equal(validateRelateModelOutput({decisions:[{...d, sharedSubject:null},none]}, parsed).reason, "shared_subject_missing");
-  assert.equal(validateRelateModelOutput({decisions:[{...d, representativeRef:"其他主题"},none]}, parsed).reason, "representative_quote_not_verbatim");
+  assert.equal(validateRelateModelOutput({decisions:[{...d, representativeRef:"其他主题"},none]}, parsed).decisions[0].relation, "insufficient");
   const mixed = validateRelateModelOutput({decisions:[d,{candidateRef:"P1",relation:"related",quote:null}]},parsed);
   assert.equal(mixed.decisions[0].relation,"same_thread", "不归属的相关候选不阻止另一主题的合法归入");
   assert.equal(mixed.decisions[1].quote,null);

@@ -195,11 +195,15 @@ export function validateRelateModelOutput(output, parsedRequest) {
         ? (candidate.summary ?? candidate.title)
         : candidate.representatives.find(r => r.ref === item.representativeRef)?.text;
       if (typeof item.representativeQuote !== "string" || !item.representativeQuote.length
-          || item.representativeQuote.length > 120 || !basis?.includes(item.representativeQuote)) {
-        return { malformed: true, reason: "representative_quote_not_verbatim" };
+          || !basis?.includes(item.representativeQuote)) {
+        // 这个候选缺少可核对的主题侧依据：明确保留为依据不足，不写归属，也不阻塞其他候选。
+        decisions.push({ candidateRef: item.candidateRef, relation: "insufficient", quote: null, rangeUTF16: null });
+        continue;
       }
       if (!isCleanShortString(item.sharedSubject, 120)) return { malformed: true, reason: "shared_subject_missing" };
-      evidence = { representativeRef: item.representativeRef, representativeQuote: item.representativeQuote, sharedSubject: item.sharedSubject };
+      let representativeQuote = item.representativeQuote.slice(0, 120);
+      if (/[\uD800-\uDBFF]$/.test(representativeQuote)) representativeQuote = representativeQuote.slice(0, -1);
+      evidence = { representativeRef: item.representativeRef, representativeQuote, sharedSubject: item.sharedSubject };
     }
     decisions.push({ candidateRef: item.candidateRef, relation: item.relation, quote, rangeUTF16: [range[0], range[1]], ...evidence });
   }
