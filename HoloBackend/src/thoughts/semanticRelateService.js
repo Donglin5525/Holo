@@ -227,6 +227,14 @@ export function createThoughtSemanticRelateService({
 
     const validated = validateRelateModelOutput(parseModelJSON(content), parsed);
     if (validated.malformed) {
+      // 只记录契约失败字段，不记录笔记、引用或模型正文；上游返回成功不等于整理成功。
+      if (captureLogs && logId) {
+        adminLogStore.finishAiCall(logId, {
+          status: "error",
+          error: { code: `MODEL_OUTPUT_INVALID/${validated.reason}`, status: 502 },
+          usage: { prompt_tokens: usage.inputTokens, completion_tokens: usage.outputTokens },
+        });
+      }
       finalize("failed", committedMicro + moderationFeeMicro());
       throw new GatewayError("MODEL_OUTPUT_INVALID", `Relate output malformed: ${validated.reason}`, 502);
     }

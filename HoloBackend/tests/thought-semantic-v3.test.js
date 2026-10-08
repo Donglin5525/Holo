@@ -182,7 +182,7 @@ test("端到端：合法决策回传 + no-store + usage 元数据", async () => 
 
 test("端到端：模型输出 malformed 返回 502 且不二次调用", async () => {
   let calls = 0;
-  const { app } = makeApp({
+  const { app, db } = makeApp({
     providerOverrides: stubProvider(() => {
       calls += 1;
       return stubCompletion('{"decisions":[{"candidateRef":"GHOST","relation":"same_thread"}]}');
@@ -192,6 +192,10 @@ test("端到端：模型输出 malformed 返回 502 且不二次调用", async (
   const response = await postRelate(app, relateBody());
   assert.equal(response.status, 502);
   assert.equal(calls, 1);
+  const log = db.prepare("SELECT error_message,prompt_tokens,completion_tokens FROM ai_call_logs ORDER BY id DESC LIMIT 1").get();
+  assert.equal(JSON.parse(log.error_message).code, "MODEL_OUTPUT_INVALID/candidate_ref_not_allowed");
+  assert.equal(log.prompt_tokens, 100);
+  assert.equal(log.completion_tokens, 30);
 });
 
 test("端到端：非 mock provider 且隐私路由未核实返回 503", async () => {
