@@ -116,16 +116,10 @@ private struct HoloLightResponse: View {
     }
 
     private func light(progress: CGFloat) -> some View {
+        // 2026-10-08：删去左缘 3×24pt 橙色竖条——观感与渲染残留无异（东林反馈
+        // 「创建笔记时闪一个橙色竖条，像交互 BUG」），保存反馈只保留描边光晕淡出。
         RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
             .strokeBorder(Color.holoPrimary.opacity(Double(1 - progress) * 0.38), lineWidth: 1.5)
-            .background(alignment: .leading) {
-                if !completion {
-                    Capsule()
-                        .fill(Color.holoPrimary.opacity(Double(1 - progress) * 0.75))
-                        .frame(width: 3, height: 24)
-                        .padding(.leading, 2)
-                }
-            }
             .scaleEffect(completion ? 1 + progress * HoloAnimation.completionGlowExpansion : 1)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
