@@ -167,7 +167,7 @@ export function validateTopicSummaryRequest(body) {
  * 规则：
  * - summary 必须是 1-240 UTF-16 的正文文本；
  * - viewpoints 只允许请求中的 ref（拒绝模型自造来源）；
- * - quote 必须是所指代表片段的逐字子串且 rangeUTF16 严格对齐；
+ * - quote 必须是所指代表片段的逐字子串，服务端从原文计算 rangeUTF16；
  * - viewpoints 缺失视为空（合法——主题可能太新没有反复观点）。
  * 返回 { summary, viewpoints } 或 { malformed, reason }。
  */
@@ -201,12 +201,8 @@ export function validateTopicSummaryOutput(output, parsedRequest) {
     const text = byRef.get(item.ref);
     const start = text.indexOf(item.quote);
     if (start < 0) return { malformed: true, reason: "quote_not_verbatim" };
-    const range = item.rangeUTF16;
-    if (!Array.isArray(range) || range.length !== 2
-        || !Number.isInteger(range[0]) || !Number.isInteger(range[1])
-        || range[0] !== start || range[1] !== start + item.quote.length) {
-      return { malformed: true, reason: "range_mismatch" };
-    }
+    // 下标是原文的确定性结果，不依赖模型做 UTF-16 算术；引用仍须逐字匹配。
+    const range = [start, start + item.quote.length];
     viewpoints.push({ ref: item.ref, quote: item.quote, rangeUTF16: [start, start + item.quote.length] });
   }
   return { summary, viewpoints };
