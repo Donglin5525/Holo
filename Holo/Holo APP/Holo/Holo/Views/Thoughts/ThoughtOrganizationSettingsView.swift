@@ -48,8 +48,10 @@ struct ThoughtOrganizationSettingsView: View {
                         NavigationLink("授权后开始整理") { AIDataProcessingConsentView() }
                     } else if let stats {
                         LabeledContent("已归类", value: "\(classifiedCount) 条笔记 · \(topicCount) 个主题")
-                        LabeledContent("整理进度", value: stats.pendingJobs + stats.runningJobs > 0
-                                       ? "\(stats.pendingJobs + stats.runningJobs) 条排队中" : "全部处理完成")
+                        LabeledContent("已建立智能索引", value: "\(stats.activeItems) 条笔记")
+                        LabeledContent("整理进度", value: stats.unfinishedThoughts > 0
+                                       ? "\(stats.unfinishedThoughts) 条笔记待整理"
+                                       : stats.failedJobs > 0 ? "\(stats.failedJobs) 项处理失败，可重试" : "全部处理完成")
                         if let last = stats.lastFinishedAt {
                             LabeledContent("最近整理", value: last.formatted(.relative(presentation: .named)))
                         } else if stats.activeItems == 0 {

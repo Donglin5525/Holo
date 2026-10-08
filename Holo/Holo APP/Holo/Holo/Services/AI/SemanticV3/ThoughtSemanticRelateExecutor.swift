@@ -45,6 +45,10 @@ actor ThoughtSemanticRelateExecutor {
             guard let job = claimed else { break }
             processed += 1
             await run(job: job, store: store, index: index)
+            // 服务每分钟处理 20 次；历史队列串行匀速消费，避免刚恢复就再次撞限流。
+            if processed < limit {
+                do { try await Task.sleep(for: .seconds(4)) } catch { break }
+            }
         }
     }
 

@@ -131,6 +131,36 @@ actor ThoughtSemanticStore {
         try migrateIfNeeded()
         // 上一次进程在网络请求中退出，running 没有执行者；冷启动统一回收到队列。
         try exec("UPDATE semantic_job SET state='pending', next_attempt_at=NULL, last_error_code='interrupted' WHERE state='running'")
+        try repairLegacyQueue()
+    }
+
+    /// 升级旧队列：同一笔记同一阶段只留最新版任务，历史重复记录保留为取消态。
+    /// 唯一索引保证以后所有写入口都遵循同一规则，不再重复调用或虚增排队数。
+    private func repairLegacyQueue() throws {
+        try exec("BEGIN IMMEDIATE")
+        do {
+            try exec("""
+                UPDATE semantic_job SET state='cancelled', last_error_code='duplicate_job',
+                    finished_at=strftime('%s','now')
+                WHERE state IN ('pending','running') AND rowid NOT IN (
+                    SELECT MAX(rowid) FROM semantic_job WHERE state IN ('pending','running')
+                    GROUP BY thought_id, kind)
+                """)
+            let marker = try prepare("SELECT COUNT(*) FROM sqlite_master WHERE name='idx_semantic_job_active_unique'")
+            let needsRecovery = sqlite3_step(marker) == SQLITE_ROW && sqlite3_column_int64(marker, 0) == 0
+            sqlite3_finalize(marker)
+            if needsRecovery {
+                // 旧版把任何 429 都挂起一小时；服务与批次修复后仅首次升级立即恢复。
+                try exec("UPDATE semantic_job SET next_attempt_at=NULL, last_error_code=NULL WHERE state='pending' AND last_error_code='RATE_LIMITED'")
+            }
+            try exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_semantic_job_active_unique ON semantic_job(thought_id,kind) WHERE state IN ('pending','running')")
+            // 与新版重试策略对齐：恢复旧版模型格式错误留下的长退避，不改额度/网络等待。
+            try exec("UPDATE semantic_job SET next_attempt_at=MIN(next_attempt_at,strftime('%s','now')+60) WHERE state='pending' AND last_error_code='MODEL_OUTPUT_INVALID'")
+            try exec("COMMIT")
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
     }
 
     func close() {
@@ -535,14 +565,18 @@ actor ThoughtSemanticStore {
         var unavailableDone = 0      // 合法不适处理（纯图/空文/已删）
         var lastFinishedAt: Date?    // 最近一次任务完成
         var waitingReason: String?
+        var unfinishedThoughts = 0
     }
 
     func indexStats() throws -> IndexStats {
         var stats = IndexStats()
+        let unfinished = try prepare("SELECT COUNT(DISTINCT thought_id) FROM semantic_job WHERE state IN ('pending','running')")
+        if sqlite3_step(unfinished) == SQLITE_ROW { stats.unfinishedThoughts = Int(sqlite3_column_int64(unfinished, 0)) }
+        sqlite3_finalize(unfinished)
         let runningStatement = try prepare("SELECT COUNT(*) FROM semantic_job WHERE state='running'")
         if sqlite3_step(runningStatement) == SQLITE_ROW { stats.runningJobs = Int(sqlite3_column_int64(runningStatement, 0)) }
         sqlite3_finalize(runningStatement)
-        let waitingStatement = try prepare("SELECT last_error_code FROM semantic_job WHERE state IN ('pending','failed_terminal') AND last_error_code IS NOT NULL ORDER BY finished_at DESC LIMIT 1")
+        let waitingStatement = try prepare("SELECT last_error_code FROM semantic_job WHERE state IN ('pending','failed_terminal') AND last_error_code IS NOT NULL AND rowid IN (SELECT MAX(rowid) FROM semantic_job GROUP BY thought_id,kind) ORDER BY finished_at DESC LIMIT 1")
         if sqlite3_step(waitingStatement) == SQLITE_ROW { stats.waitingReason = textCol(waitingStatement, 0) }
         sqlite3_finalize(waitingStatement)
         if let stmt = try? prepare("SELECT COUNT(*) FROM semantic_item WHERE state='active'") {
@@ -550,10 +584,11 @@ actor ThoughtSemanticStore {
             if sqlite3_step(stmt) == SQLITE_ROW { stats.activeItems = Int(sqlite3_column_int64(stmt, 0)) }
         }
         if let stmt = try? prepare("""
-            SELECT SUM(state='pending'), SUM(state='failed_terminal'),
+            SELECT SUM(state='pending'), COUNT(DISTINCT CASE WHEN state='failed_terminal' THEN thought_id END),
                    SUM(state='done' AND last_error_code IN('text_unavailable','thought_unavailable')),
-                   MAX(finished_at)
+                   MAX(CASE WHEN state='done' AND last_error_code IS NULL THEN finished_at END)
             FROM semantic_job
+            WHERE rowid IN (SELECT MAX(rowid) FROM semantic_job GROUP BY thought_id,kind)
             """) {
             defer { sqlite3_finalize(stmt) }
             if sqlite3_step(stmt) == SQLITE_ROW {
@@ -568,7 +603,17 @@ actor ThoughtSemanticStore {
 
     /// 用户主动重试：恢复失败项，也让暂时失败的待处理项立即重试；保留取消状态。
     func retryFailedJobs() throws {
-        try exec("UPDATE semantic_job SET state='pending', attempt_count=0, next_attempt_at=NULL,last_error_code=NULL WHERE state='failed_terminal' OR (state='pending' AND last_error_code IS NOT NULL)")
+        // 只恢复最新版终态任务；旧正文/旧授权和已经有执行者的版本不能被重新点燃。
+        try exec("""
+            UPDATE semantic_job AS target SET state='pending', attempt_count=0,
+                next_attempt_at=NULL,last_error_code=NULL
+            WHERE (state='pending' AND last_error_code IS NOT NULL) OR (
+                state='failed_terminal' AND rowid=(
+                    SELECT MAX(rowid) FROM semantic_job WHERE thought_id=target.thought_id
+                        AND kind=target.kind AND state!='cancelled')
+                AND NOT EXISTS (SELECT 1 FROM semantic_job WHERE thought_id=target.thought_id
+                    AND kind=target.kind AND state IN ('pending','running')))
+            """)
     }
 
     // MARK: - 相关旧想法反馈（方案 §5.2：同版本不重复推荐）

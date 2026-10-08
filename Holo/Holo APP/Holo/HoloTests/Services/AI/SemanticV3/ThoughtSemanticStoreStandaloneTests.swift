@@ -27,6 +27,7 @@ struct ThoughtSemanticStoreStandaloneTests {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("semantic-v3-test-\(UUID().uuidString)")
         try await storeLifecycleAndCRUD(tmp)
         try await jobQueueSemantics(tmp)
+        try await legacyQueueRecovery(tmp.appendingPathComponent("legacy"))
         await flatIndexBehavior()
         vectorMath()
         try await destroySemantics(tmp)
@@ -155,6 +156,46 @@ struct ThoughtSemanticStoreStandaloneTests {
     }
 
     // MARK: - 3. Flat 索引检索正确性
+
+    static func legacyQueueRecovery(_ root: URL) async throws {
+        let store = await ThoughtSemanticStore(root: root)
+        try await store.open()
+        let thoughtID = UUID(), jobID = UUID()
+        let job = ThoughtSemanticStore.SemanticJob(id: jobID, thoughtID: thoughtID, contentHash: "latest",
+            kind: "embed", priority: 0, state: "pending", attemptCount: 1,
+            nextAttemptAt: Date().addingTimeInterval(3_600), consentGeneration: 0, lastErrorCode: "RATE_LIMITED")
+        try await store.enqueueJob(job)
+        await store.close()
+        var db: OpaquePointer?
+        check(sqlite3_open(root.appendingPathComponent("ThoughtSemanticV3/semantic.sqlite").path, &db) == SQLITE_OK)
+        check(sqlite3_exec(db, "DROP INDEX idx_semantic_job_active_unique", nil, nil, nil) == SQLITE_OK)
+        // 模拟手机上的旧版重复任务：同一正文累计四个在途记录。
+        for _ in 0..<3 {
+            check(sqlite3_exec(db, "INSERT INTO semantic_job SELECT randomblob(16),thought_id,content_hash,kind,priority,state,attempt_count,next_attempt_at,consent_generation,last_error_code,finished_at FROM semantic_job LIMIT 1", nil, nil, nil) == SQLITE_OK)
+        }
+        sqlite3_close(db)
+        let repaired = await ThoughtSemanticStore(root: root)
+        try await repaired.open()
+        check(try await repaired.pendingJobCount() == 1, "升级必须把四个重复任务恢复为一个")
+        check(try await repaired.indexStats().unfinishedThoughts == 1, "状态按笔记数统计")
+        let claimed = try await repaired.claimNextDueJob(consentGeneration: 0, kind: "embed")
+        check(claimed?.thoughtID == thoughtID && claimed?.nextAttemptAt == nil, "旧的一小时限流等待应立即恢复")
+        try await repaired.finishJob(id: claimed!.id, state: "failed_terminal")
+        try await repaired.enqueueJob(.init(id: UUID(), thoughtID: thoughtID, contentHash: "newer", kind: "embed",
+            priority: 0, state: "pending", attemptCount: 0, nextAttemptAt: nil, consentGeneration: 0, lastErrorCode: nil))
+        try await repaired.retryFailedJobs()
+        check(try await repaired.pendingJobCount() == 1, "重试不能重新点燃旧正文失败项")
+        check(try await repaired.indexStats().failedJobs == 0, "旧正文失败不能混入当前失败数")
+        try await repaired.enqueueJob(.init(id: UUID(), thoughtID: thoughtID, contentHash: "newer", kind: "relate",
+            priority: 0, state: "pending", attemptCount: 3, nextAttemptAt: Date().addingTimeInterval(3_600),
+            consentGeneration: 0, lastErrorCode: "MODEL_OUTPUT_INVALID"))
+        await repaired.close()
+        let retryRecovery = await ThoughtSemanticStore(root: root)
+        try await retryRecovery.open()
+        let due = try await retryRecovery.claimNextDueJob(now: Date().addingTimeInterval(61), consentGeneration: 0, kind: "relate")
+        check(due?.lastErrorCode == "MODEL_OUTPUT_INVALID", "旧模型格式错误不得继续等待一小时")
+        await retryRecovery.close()
+    }
 
     static func flatIndexBehavior() async {
         let index = FlatSemanticIndex()

@@ -136,7 +136,10 @@ nonisolated enum ThoughtTopicVerifier {
                 let response = try await provider.semanticRelate(request)
                 guard response.schemaVersion == 2, response.operationId == request.operationId,
                       response.textRevision == contentHash else { throw ThoughtTopicVerifierError.responseContractViolation(reason: "envelope") }
-                if response.outcome == "deferred" { throw APIError.httpError(statusCode: 400, message: "内容暂不适合 AI 处理") }
+                if response.outcome == "deferred" {
+                    throw APIError.backendError(statusCode: 400, code: "CONTENT_DEFERRED",
+                        message: "这条笔记暂未通过 AI 处理审核，原文已保留。", requestId: nil)
+                }
                 guard response.decisions.count == candidates.count else {
                     throw ThoughtTopicVerifierError.responseContractViolation(reason: "decisions_missing")
                 }
