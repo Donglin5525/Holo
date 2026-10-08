@@ -29,11 +29,12 @@ const PROMPT_VERSIONS = {
   thought_organize_r: 1,
   thought_organize_b: 1,
   agent_loop: 25,                  // v25: 目录驱动字段原则（能力标记{可筛·可组}随快照目录上云，问句概念先对字段圈定再聚合、取值以行数据为准不猜原词、报错按字段清单自愈——此后新字段只改 iOS 目录声明即可被模型自动使用，零提示词教学）；v24: 报告可读性数字纪律（对比必须写差额/幅度不许并排原始值、单句≤1数字/段≤3、字段间数字分工不重复、量纲生活化、禁引用不存在的图表）；v23: 财务深析五层深挖法（备注/付款时刻/结构/生活状态交叉/串联点破）+管家记忆+claimTitle 点破式标题+深析展开豁免，财务维度菜单自 v21 迁入并修正 linearTrend 空头支票；v22: 任务优先与环境中性（先回答问题/工具目录为能力真相/数字与时间纪律/交付核验对齐）+ 条件化 v21 无条件命令；v21: 分析方法论（维度菜单+个人基线+推算口径）+ keyInsight/interpretation 输出字段
-  memory_domain_extraction: 2,
+  memory_domain_extraction: 3,      // v3: displaySummary 人话纪律（禁 JSON 字段名/英文键名/考据式括号注进用户摘要；2026-10-09 东林反馈记忆正文出现 isCompleted 等技术记号）
   memory_cross_domain_fusion: 2,
   weekly_plan_generation: 1,       // v1: 优先结果+行动卡结构化生成（Life Agent 第一刀）
   // 通用个人情境（2026-09-06 完整实施方案 §11）：四 purpose 首版
-  personal_context_extraction: 2,
+  // v3: statement 人话纪律（禁 JSON 字段名/英文键名/考据式括号注；businessState 键名原值不得进 statement；2026-10-09 东林反馈记忆正文出现 isCompleted 为 false 等调试文本）
+  personal_context_extraction: 3,
   personal_context_verification: 1,
   personal_context_request: 1,
   // v2（2026-09-21 Matter 战略收敛 §6.1）：生成收缩——资格线（跨天/多步/影响下一步，否则纯建议不拆步）、
