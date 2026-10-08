@@ -16,6 +16,7 @@
 
 import Foundation
 import CoreData
+import os.log
 
 extension Notification.Name {
     /// iCloud 云端数据已同步到本地（主线程广播）
@@ -25,6 +26,9 @@ extension Notification.Name {
 final class CloudImportRelay {
 
     static let shared = CloudImportRelay()
+
+    /// 掉帧诊断打点用（2026-10-08）：同步批次落地时刻，供与 HangMonitor 卡顿报告对时
+    private static let syncLogger = Logger(subsystem: "com.holo.app", category: "CloudImportRelay")
 
     /// 防抖窗口：CloudKit 导入是逐批落库的，窗口内合并成一次广播，避免列表反复重拉
     private static let debounceInterval: TimeInterval = 2
@@ -50,6 +54,9 @@ final class CloudImportRelay {
             // import（后续增量导入）；export 是本机上传，不触发重拉
             switch event.type {
             case .setup, .import:
+                // 掉帧诊断打点（2026-10-08）：与 HangMonitor 的卡顿报告对时，
+                // 回答「卡顿发生时是否恰有同步批次落地」（os_log 自带时间戳）
+                Self.syncLogger.notice("CloudKit \(event.type == .setup ? "setup" : "import", privacy: .public) 批次落地")
                 self?.scheduleBroadcast()
             case .export:
                 break

@@ -84,6 +84,10 @@ struct HoloApp: App {
         // store 加载在后台进行，UI 先以默认值渲染，加载完成后通过 await 切换
         CoreDataStack.shared.prepareIfNeeded()
 
+        // 卡顿取证（2026-10-08 掉帧诊断）：只订阅 MetricKit 落盘，无行为影响；
+        // 与 CloudImportRelay 的同步批次日志对时，定位「卡顿时刻主线程在干什么」
+        HoloHangDiagnosticCollector.shared.startIfNeeded()
+
         // 签名未携带 iCloud entitlement 时，CloudKit 容器初始化会触发系统 trap。
         // 因此只在运行时确认可用后提前启动监听；设置页仍可按需展示不可用状态。
         if CloudKitRuntimeAvailability.isAvailable {
