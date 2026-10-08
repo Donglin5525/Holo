@@ -169,16 +169,23 @@ export function validateRelateModelOutput(output, parsedRequest) {
     }
     // 正式归属必须携带可核对证据；V1 的 related 保留原契约，V2 非归属结果不要求引用。
     if (typeof item.quote !== "string" || item.quote.length === 0
-        || item.quote.length > RELATE_LIMITS.quoteMaxUTF16) {
+        || (parsedRequest.schemaVersion === 1 && item.quote.length > RELATE_LIMITS.quoteMaxUTF16)) {
       return { malformed: true, reason: "quote_shape" };
     }
     const text = parsedRequest.target.text;
     const start = text.indexOf(item.quote);
     if (start < 0) return { malformed: true, reason: "quote_not_verbatim" };
-    const range = parsedRequest.schemaVersion === 2 ? [start, start + item.quote.length] : item.rangeUTF16;
+    // V2 先核对完整引用确实来自原文，再规范成协议允许的证据长度；不信任部分匹配。
+    // 模型经常复制整段，长度属于传输规范，不应使已核对的笔记无限重试。
+    let quote = item.quote;
+    if (parsedRequest.schemaVersion === 2 && quote.length > RELATE_LIMITS.quoteMaxUTF16) {
+      quote = quote.slice(0, RELATE_LIMITS.quoteMaxUTF16);
+      if (/[\uD800-\uDBFF]$/.test(quote)) quote = quote.slice(0, -1);
+    }
+    const range = parsedRequest.schemaVersion === 2 ? [start, start + quote.length] : item.rangeUTF16;
     if (!Array.isArray(range) || range.length !== 2
         || !Number.isInteger(range[0]) || !Number.isInteger(range[1])
-        || range[0] !== start || range[1] !== start + item.quote.length) {
+        || range[0] !== start || range[1] !== start + quote.length) {
       return { malformed: true, reason: "range_mismatch" };
     }
     let evidence = {};
@@ -194,7 +201,7 @@ export function validateRelateModelOutput(output, parsedRequest) {
       if (!isCleanShortString(item.sharedSubject, 120)) return { malformed: true, reason: "shared_subject_missing" };
       evidence = { representativeRef: item.representativeRef, representativeQuote: item.representativeQuote, sharedSubject: item.sharedSubject };
     }
-    decisions.push({ candidateRef: item.candidateRef, relation: item.relation, quote: item.quote, rangeUTF16: [range[0], range[1]], ...evidence });
+    decisions.push({ candidateRef: item.candidateRef, relation: item.relation, quote, rangeUTF16: [range[0], range[1]], ...evidence });
   }
   return { decisions };
 }

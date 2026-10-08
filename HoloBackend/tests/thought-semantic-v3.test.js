@@ -283,6 +283,13 @@ test("V2 关联拒绝伪造主题证据，允许两个独立主题", () => {
   const mixed = validateRelateModelOutput({decisions:[d,{candidateRef:"P1",relation:"related",quote:null}]},parsed);
   assert.equal(mixed.decisions[0].relation,"same_thread", "不归属的相关候选不阻止另一主题的合法归入");
   assert.equal(mixed.decisions[1].quote,null);
+  const long = validateRelateRequest(relateBody({schemaVersion:2,
+    target:{ref:"T0",text:"x".repeat(119)+"🏃"+"继续记录".repeat(10)}}));
+  const normalized = validateRelateModelOutput({decisions:[{...d,quote:long.target.text},none]},long);
+  assert.equal(normalized.decisions[0].quote.length,119,"规范引用不能截断 emoji 的 UTF-16 代理对");
+  assert.deepEqual(normalized.decisions[0].rangeUTF16,[0,119]);
+  assert.equal(validateRelateModelOutput({decisions:[{...d,quote:long.target.text+"伪造尾部"},none]},long).reason,
+    "quote_not_verbatim","不能只因前120字匹配就接受伪造长引用");
 });
 test("V2 空预设主题使用定义核对；旧协议仍拒绝空代表片段", () => {
   const candidates = [{ref:"P0", title:"跑步训练", representatives:[]}];
