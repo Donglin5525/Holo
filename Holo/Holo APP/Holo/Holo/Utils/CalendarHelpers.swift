@@ -64,6 +64,17 @@ nonisolated extension Date {
     func addingMonths(_ m: Int) -> Date { Calendar.current.date(byAdding: .month, value: m, to: self) ?? self }
     func addingWeeks(_ w: Int) -> Date { Calendar.current.date(byAdding: .weekOfYear, value: w, to: self) ?? self }
     func addingYears(_ y: Int) -> Date { Calendar.current.date(byAdding: .year, value: y, to: self) ?? self }
+
+    /// 选中日翻月迁移（2026-10-09 东林拍板口径）：保号数迁到目标月，
+    /// 目标月没有该号钳到月末（1/31 → 2/28、3/31 → 4/30）；
+    /// 与 loadPreviousPeriodComparison 的「min(号数, 月天数)」同款语义
+    func shiftingToMonth(_ month: Date) -> Date {
+        let monthStart = month.startOfMonth
+        let clampedDay = min(Calendar.current.component(.day, from: self), monthStart.daysInMonth)
+        var comps = Calendar.current.dateComponents([.year, .month], from: monthStart)
+        comps.day = clampedDay
+        return Calendar.current.date(from: comps) ?? monthStart
+    }
 }
 
 // MARK: - 月历网格生成

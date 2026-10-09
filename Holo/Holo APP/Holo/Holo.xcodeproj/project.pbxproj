@@ -315,6 +315,8 @@
 		B71FE0A12F6A4C1E9D2B0202 /* SwipeCloseResidentBlackScreenUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0201 /* SwipeCloseResidentBlackScreenUITests.swift */; };
 		B71FE0A12F6A4C1E9D2B0204 /* HabitRepositoryReadinessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0203 /* HabitRepositoryReadinessTests.swift */; };
 		B71FE0A12F6A4C1E9D2B0302 /* HabitReviewTrendChartLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0301 /* HabitReviewTrendChartLayoutTests.swift */; };
+		HVPRTEST00000000000000B2 /* HabitReviewProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HVPRTEST00000000000000A1 /* HabitReviewProjectionTests.swift */; };
+		CALHLPTEST0000000000000B2 /* CalendarHelpersTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CALHLPTEST0000000000000A1 /* CalendarHelpersTests.swift */; };
 		B71FE0A12F6A4C1E9D2B0304 /* HabitTodayFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0303 /* HabitTodayFilterTests.swift */; };
 		B71FE0A12F6A4C1E9D2C0002 /* HabitTypeConversionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2C0001 /* HabitTypeConversionTests.swift */; };
 		B71FE0A12F6A4C1E9D2D0002 /* HighlightDetectorBatchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2D0001 /* HighlightDetectorBatchTests.swift */; };
@@ -800,6 +802,8 @@
 		B71FE0A12F6A4C1E9D2B0201 /* SwipeCloseResidentBlackScreenUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SwipeCloseResidentBlackScreenUITests.swift; sourceTree = "<group>"; };
 		B71FE0A12F6A4C1E9D2B0203 /* HabitRepositoryReadinessTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitRepositoryReadinessTests.swift; sourceTree = "<group>"; };
 		B71FE0A12F6A4C1E9D2B0301 /* HabitReviewTrendChartLayoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitReviewTrendChartLayoutTests.swift; sourceTree = "<group>"; };
+		HVPRTEST00000000000000A1 /* HabitReviewProjectionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitReviewProjectionTests.swift; sourceTree = "<group>"; };
+		CALHLPTEST0000000000000A1 /* CalendarHelpersTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarHelpersTests.swift; sourceTree = "<group>"; };
 		B71FE0A12F6A4C1E9D2B0303 /* HabitTodayFilterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitTodayFilterTests.swift; sourceTree = "<group>"; };
 		B71FE0A12F6A4C1E9D2C0001 /* HabitTypeConversionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitTypeConversionTests.swift; sourceTree = "<group>"; };
 		B71FE0A12F6A4C1E9D2D0001 /* HighlightDetectorBatchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HighlightDetectorBatchTests.swift; sourceTree = "<group>"; };
@@ -1129,6 +1133,7 @@
 				B71FE0A12F6A4C1E9D2B0105 /* HabitPauseTests.swift */,
 				B71FE0A12F6A4C1E9D2B0203 /* HabitRepositoryReadinessTests.swift */,
 				B71FE0A12F6A4C1E9D2B0301 /* HabitReviewTrendChartLayoutTests.swift */,
+				HVPRTEST00000000000000A1 /* HabitReviewProjectionTests.swift */,
 				B71FE0A12F6A4C1E9D2B0303 /* HabitTodayFilterTests.swift */,
 				DDA06C0100000000000000A1 /* HabitOrderMergeTests.swift */,
 				DDA06C0100000000000000B1 /* HabitOverLimitHintTests.swift */,
@@ -1337,6 +1342,7 @@
 			isa = PBXGroup;
 			children = (
 				2DACE68F96BC4189A35FF7C0 /* EmojiCatalogSearchTests.swift */,
+				CALHLPTEST0000000000000A1 /* CalendarHelpersTests.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -1890,6 +1896,8 @@
 				L1FESRC0000000000000003 /* HoloLifeUnderstandingRedTests.swift in Sources */,
 				L1FESRC0000000000000001 /* HoloLifeSourceObservationTests.swift in Sources */,
 				5E3E2DB2A86C4845A1576752 /* EmojiCatalogSearchTests.swift in Sources */,
+				HVPRTEST00000000000000B2 /* HabitReviewProjectionTests.swift in Sources */,
+				CALHLPTEST0000000000000B2 /* CalendarHelpersTests.swift in Sources */,
 				979F3655BCAAFECFC44EE333 /* TodoTaskPlannedTimeRangeTests.swift in Sources */,
 				7C4E8A91D2B3F4056A1E9C01 /* AnniversaryDaysCalculationTests.swift in Sources */,
 				A1B2C3D4E5F60718293A0C02 /* TaskCompletionCascadeTests.swift in Sources */,

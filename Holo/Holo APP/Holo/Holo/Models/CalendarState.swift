@@ -124,8 +124,12 @@ class CalendarState: ObservableObject {
         }
     }
     
-    func goToNextMonth() { currentMonth = currentMonth.addingMonths(1); loadMonthIfNeeded() }
-    func goToPreviousMonth() { currentMonth = currentMonth.addingMonths(-1); loadMonthIfNeeded() }
+    /// 翻月即换月上下文（2026-10-09 东林拍板）：选中新月同号日（无该号钳到月末）。
+    /// 必须走 selectDate 统一跨月同步链（月汇总/环比/当日明细一次刷新）——
+    /// 此前只改 currentMonth 不动 selectedDate，翻月后明细区停在旧月旧日期且
+    /// 月历无选中格子指示（与习惯回顾日历 8375e34cc 同族脱钩）
+    func goToNextMonth() { selectDate(selectedDate.shiftingToMonth(currentMonth.addingMonths(1))) }
+    func goToPreviousMonth() { selectDate(selectedDate.shiftingToMonth(currentMonth.addingMonths(-1))) }
     
     /// 跳转到指定年月（年月滚轮选择器确认后调用）
     func jumpToMonth(year: Int, month: Int) {
@@ -320,8 +324,5 @@ class CalendarState: ObservableObject {
     }
 
     // MARK: - 内部
-    
-    private func loadMonthIfNeeded() {
-        Task { await loadMonthSummaries(for: currentMonth) }
-    }
+
 }

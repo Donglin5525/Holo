@@ -181,6 +181,7 @@ class FinanceAnalysisState: ObservableObject {
         if range != .custom {
             customDateRange = nil
         }
+        selectedChartDate = nil // 旧范围的选中点在新范围无对应数据点，留着只会高亮丢失
         scheduleLoad()
     }
 
@@ -192,6 +193,7 @@ class FinanceAnalysisState: ObservableObject {
         basis.persist()
         guard isYearView else { return }
         customDateRange = nil
+        selectedChartDate = nil // 口径变更后「今年」的定义变了，旧选中点失效
         scheduleLoad()
     }
 
@@ -200,6 +202,7 @@ class FinanceAnalysisState: ObservableObject {
         timeRange = .custom
         originalTimeRange = .custom
         customDateRange = (start, end)
+        selectedChartDate = nil
         scheduleLoad()
     }
 
@@ -217,6 +220,7 @@ class FinanceAnalysisState: ObservableObject {
     func navigateToRange(start: Date, end: Date) {
         customDateRange = (start, end)
         // 保持原始的 timeRange 类型，不设置为 .custom
+        selectedChartDate = nil // 平移后的范围不含旧选中点
         scheduleLoad()
     }
 
