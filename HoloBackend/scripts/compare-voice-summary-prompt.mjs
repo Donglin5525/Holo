@@ -49,7 +49,7 @@ const NEW_PROMPT = `你是一个语音记录提炼助手。用户通过语音表
 直接输出整理结果：`;
 
 // ---------- 测试场景 ----------
-const MODEL = "deepseek-v4-flash"; // ✅ 线上真实模型（与 .env HOLO_CHAT_MODEL 待确认一致）
+const MODEL = "deepseek-flash"; // ✅ 线上真实模型（2026-10-09 正名，与生产 env 一致）
 
 const SCENARIOS = [
   {

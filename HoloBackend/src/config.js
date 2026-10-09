@@ -144,7 +144,7 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_REPLAY_DIGEST_PROVIDER ?? process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_REPLAY_DIGEST_MODEL ?? process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_REPLAY_DIGEST_TEMPERATURE ?? 0.2),
-      // §reasoning-budget: 跨周期归纳是复杂任务，推理模型（deepseek-v4-flash）会先在
+      // §reasoning-budget: 跨周期归纳是复杂任务，推理模型（deepseek-flash）会先在
       // reasoning_content 里展开大量思考，再写 content。maxTokens=1024 时思维链就吃满，
       // finish_reason=length，content 为空 → App 端报"回放摘要返回格式不正确"。
       // 提到 4096，与 insight / memory_domain_extraction 等同类复杂任务对齐。
@@ -175,10 +175,12 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_THOUGHT_VOICE_SUMMARY_PROVIDER
         ?? process.env.HOLO_CHAT_PROVIDER
         ?? "mock",
-      // §model-v4-flash: 切到 v4-flash（理解力强于 deepseek-chat，能更好识别自我纠正/废话/情绪信号）。
+      // §model-v4-flash: v4 系（理解力强于 deepseek-chat，能更好识别自我纠正/废话/情绪信号）。
       // 仍允许 env 覆盖，但默认不再 fallback 到 HOLO_CHAT_MODEL，避免被旧配置拖回 deepseek-chat。
+      // §model-rename（2026-10-09）：deepseek-v4-flash 旧名已被官方路由到 V4.1 Flash 且仅「暂时」
+      // 维持——正名 deepseek-flash 防路由停止断线（v4-flash-vision-exp 同批下线）。
       model: process.env.HOLO_THOUGHT_VOICE_SUMMARY_MODEL
-        ?? "deepseek-v4-flash",
+        ?? "deepseek-flash",
       temperature: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_MAX_TOKENS ?? 1024),
       // §reasoning-off: 语音总结是轻量文本整理任务，不需要推理模型先思考再输出。
@@ -494,15 +496,18 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_BILL_CATEGORIZATION_REQUESTS_PER_DAY ?? 300),
       },
     },
-    // 截图识别记账（2026-09-09 方案 §5）：视觉抽取单次调用。模型 deepseek-v4-flash-vision-exp
+    // 截图识别记账（2026-09-09 方案 §5）：视觉抽取单次调用。DeepSeek 视觉通道
     //（2026-09-09 东林拍板定版 DeepSeek 不换模型，2026-09-23 代码默认值与生产 env 对齐，
     // 删掉误导性的 qwen3-vl-plus 默认）。钥匙独立于主 DEEPSEEK_API_KEY，避免视觉实验
     // 模型与主聊天通道互相牵连。
+    // §model-rename（2026-10-09）：deepseek-v4-flash-vision-exp 已随 V4 系下线、被官方「暂时」
+    // 路由到 V4.1 Flash——正名 deepseek-flash（V4.1 原生多模态，image_url 格式不变，
+    // 实测识别正常且 effort=none 思考归零与旧通道一致）。
     vision_extraction: {
       provider: process.env.HOLO_VISION_EXTRACTION_PROVIDER ?? "deepseek-vision",
-      model: process.env.HOLO_VISION_EXTRACTION_MODEL ?? "deepseek-v4-flash-vision-exp",
+      model: process.env.HOLO_VISION_EXTRACTION_MODEL ?? "deepseek-flash",
       temperature: Number(process.env.HOLO_VISION_EXTRACTION_TEMPERATURE ?? 0),
-      // 4000：deepseek-v4-flash-vision-exp 是推理模型（评测实测会先思考再出 JSON），
+      // 4000：该通道是推理模型（评测实测会先思考再出 JSON），
       // 1500 时推理偶发吃满上限导致 content 空回复（f01 空回复实锤），放宽保输出。
       maxTokens: Number(process.env.HOLO_VISION_EXTRACTION_MAX_TOKENS ?? 4000),
       // 思考档位 none：单步感知任务不需要多步推理（同 intent §reasoning-off 先例，
@@ -537,7 +542,8 @@ const DEFAULT_CONFIG = {
       baseURL: process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
       apiKey: process.env.DEEPSEEK_API_KEY,
     },
-    // 截图识别专用 DeepSeek 通道（2026-09-09 东林拍板换 deepseek-v4-flash-vision-exp）：
+    // 截图识别专用 DeepSeek 通道（2026-09-09 东林拍板走 DeepSeek 视觉模型，2026-10-09 正名
+    // deepseek-flash，V4.1 原生多模态）：
     // 钥匙独立于主 DEEPSEEK_API_KEY，避免视觉实验模型与主聊天通道互相牵连。
     "deepseek-vision": {
       type: "openai-compatible",
