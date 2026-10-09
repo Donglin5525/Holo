@@ -298,10 +298,13 @@ private class EdgeGestureHostView: UIView {
 
     /// 检查「包含本视图的」导航栈是否有推送内容。
     /// NavigationStack 底层使用 UINavigationController，viewControllers.count > 1 表示有推送的视图。
-    /// 必须沿响应链向上找自己的导航栈，不能递归扫整个窗口：
-    /// HomeView 常驻模块（ChatView 等）隐藏在后面也算窗口成员，全窗口扫描会让
-    /// 本页的边缘右滑被「别人的」推送内容误杀（2026-09-01 财务搜索页实测，
-    /// 见 FinanceSearchView 同款注释；当时只迁走一处，其余调用点仍暴露在同一坑下）。
+    /// 优先沿响应链向上找自己的导航栈（手势挂在栈内部根内容时命中此路径）；
+    /// 手势挂在栈外（模块根 ZStack，栈在子内容里）时，overlay 与导航控制器是兄弟层级，
+    /// 响应链永远找不到——降级扫描本视图父容器子树内的 UINavigationController。
+    /// 扫描范围限于本模块内容树：sheet / fullScreenCover 是独立 presentation 层不进本子树，
+    /// HomeView 其他常驻模块在更外层也不进本子树——与 2026-09-01 财务搜索页事故的
+    /// 「扫整个窗口」范围不同。子树内栈 count > 1 = 有 push 子页，让位给系统 pop
+    /// （财务账户/项目详情、今天看板 Matter 路由等手势挂栈外根的模块靠此路径让位）。
     private func hasActiveNavigationStack() -> Bool {
         var responder: UIResponder? = self
         while let next = responder?.next {
@@ -309,6 +312,20 @@ private class EdgeGestureHostView: UIView {
                 return navController.viewControllers.count > 1
             }
             responder = next
+        }
+        if let container = superview {
+            return containsPushedNavigationStack(in: container)
+        }
+        return false
+    }
+
+    private func containsPushedNavigationStack(in view: UIView) -> Bool {
+        if let navController = view as? UINavigationController,
+           navController.viewControllers.count > 1 {
+            return true
+        }
+        for subview in view.subviews where containsPushedNavigationStack(in: subview) {
+            return true
         }
         return false
     }

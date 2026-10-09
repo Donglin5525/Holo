@@ -63,6 +63,9 @@ struct HabitSingleReviewView: View {
             }
         }
         .background(Color.holoToolBackground)
+        // 本页是 ZStack 覆盖层（非 push），右滑返回 = 回顾整体页一层；
+        // 容器级「右滑关模块」手势在本页期间已整层失效让位（见 HabitModuleContainer）
+        .swipeBackToDismiss { model.reviewRoute = .overview }
         .onAppear {
             if snapshot == nil { initializeState() }
             rebuild()

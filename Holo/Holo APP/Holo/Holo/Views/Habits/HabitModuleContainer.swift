@@ -65,7 +65,10 @@ struct HabitModuleContainer: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
+        // 单习惯回顾页是 ZStack 覆盖层（无 NavigationStack 可让位），容器手势必须在
+        // 该页期间整层失效穿透，由单习惯页自己的右滑手势接管「返回回顾整体」——
+        // 否则让位判断找不到导航栈恒失效，子页右滑会把整个模块滑出去直达首页
+        .swipeBackToDismiss(isEnabled: !isSingleReviewShown, isResidentScreenRoot: true) { close() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !isExpandedWidth, !isSingleReviewShown {
                 tabBar

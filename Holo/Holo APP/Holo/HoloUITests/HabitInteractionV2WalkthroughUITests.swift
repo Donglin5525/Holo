@@ -258,4 +258,38 @@ final class HabitInteractionV2WalkthroughUITests: XCTestCase {
         sleep(1)
         shoot("V2_O04_visibility_page")
     }
+
+    /// 2026-10-09 东林实报：单习惯回顾页左缘右滑直接回首页（应回回顾整体）。
+    /// 根因=单习惯页是 ZStack 覆盖层无导航栈，容器「右滑关模块」手势让位判断
+    /// 恒失效。修复后容器手势在该页整层失效穿透，由单习惯页自己的边缘手势接管。
+    /// （本手势是 App 自挂 UIScreenEdgePan，可被 XCUITest 合成触发；系统
+    /// interactivePop 对合成事件不响应——见 FinanceProjectWalkthroughUITests 在档结论）
+    func testE_单习惯回顾_边缘右滑回整体不关模块() throws {
+        XCTAssertTrue(enterHabitsModule(), "未进入习惯模块")
+        tapIdentifier("habit.tab.review")
+        XCTAssertTrue(waitFor("habit.review.monthTitle", 5), "缺月份导航")
+
+        let anyRow = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH 'habit.review.row.'")
+        ).firstMatch
+        var rowFound = anyRow.waitForExistence(timeout: 5)
+        if !rowFound {
+            app.swipeUp()
+            rowFound = anyRow.waitForExistence(timeout: 5)
+        }
+        XCTAssertTrue(rowFound, "回顾列表无习惯行")
+        anyRow.tap()
+        XCTAssertTrue(waitFor("habit.single.back", 6), "未进入单习惯回顾")
+
+        // 左缘右滑（本页自挂手势）：应退一层回回顾整体，模块不得被整个滑出
+        // 起点放屏幕外一點再拖入：合成触摸从屏内 6pt 起常被边缘手势忽略
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: -0.05, dy: 0.5))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.5))
+        start.press(forDuration: 0.3, thenDragTo: end, withVelocity: .slow, thenHoldForDuration: 0)
+
+        let singleGone = !app.buttons["habit.single.back"].waitForExistence(timeout: 6)
+        XCTAssertTrue(singleGone, "右滑后应离开单习惯回顾页")
+        XCTAssertTrue(waitFor("habit.review.monthTitle", 5),
+                      "应回到回顾整体页（模块未关闭直达首页）")
+    }
 }
