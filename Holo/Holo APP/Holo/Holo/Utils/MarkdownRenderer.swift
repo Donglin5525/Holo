@@ -24,12 +24,14 @@ struct MarkdownRenderer {
         return renderDocument(document)
     }
 
-    /// 渲染纯文本预览（去除格式，截取前 N 字符）
+    /// 渲染纯文本预览（去除格式，截取前 N 字符）；原文更长时以省略号收尾，
+    /// 让「内容没显示完」在卡片上可被感知——长廊卡据此同步给出「轻点查看全文」提示。
     static func previewText(_ markdown: String, maxLength: Int = 80) -> String {
         let stripped = MarkdownParser.stripFormatting(markdown)
             .replacingOccurrences(of: "\n", with: " ")
             .trimmingCharacters(in: .whitespaces)
-        return String(stripped.prefix(maxLength))
+        guard stripped.count > maxLength else { return stripped }
+        return String(stripped.prefix(maxLength)) + "…"
     }
 
     /// 提取内容中的 # 标签名称

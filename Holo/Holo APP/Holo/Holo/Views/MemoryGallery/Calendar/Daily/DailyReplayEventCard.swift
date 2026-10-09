@@ -133,11 +133,11 @@ struct DailyReplayEventCard: View {
             : .system(size: 15 * typeScale, weight: .semibold)
     }
 
-    /// 想法正文是否长过 6 行：判定收在 DailyReplayPresentation，与拍立得卡同一口径。
+    /// 想法「查看全文」判定与拍立得卡同源：摘要被截断（…结尾）或排超 6 行即提示。
     /// 宽度取「屏宽 − 页边距 − 时间列 − 卡内边距」的近似值。
     private var thoughtNeedsFullTextHint: Bool {
         guard moment.module == .thought else { return false }
-        return DailyReplayPresentation.thoughtExceedsLineLimit(
+        return DailyReplayPresentation.thoughtNeedsFullTextHint(
             moment.title,
             lines: 6,
             fontSize: 15 * typeScale,
@@ -148,24 +148,14 @@ struct DailyReplayEventCard: View {
     @ViewBuilder
     private var groupedRecords: some View {
         if moment.module == .habit {
+            // 同一习惯多条记录只占一枚 chip（×N），避免「戒烟 戒烟 戒烟」式重复误导；
+            // 各条数值明细轻点卡片进组弹层看。
+            let orderedHabitNames = moment.events.reduce(into: [String]()) { names, event in
+                if !names.contains(event.title) { names.append(event.title) }
+            }
             HStack(spacing: 7) {
-                ForEach(Array(moment.events.prefix(4))) { event in
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 8 * typeScale, weight: .bold))
-                        Text(event.title)
-                            .lineLimit(1)
-                    }
-                    .font(.system(size: 10 * typeScale, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-                    .padding(.horizontal, 8)
-                    .frame(height: 27)
-                    .background(Color.holoSuccess.opacity(0.055))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 9)
-                            .stroke(Color.holoSuccess.opacity(0.12), lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 9))
+                ForEach(orderedHabitNames.prefix(4), id: \.self) { name in
+                    habitChip(name: name, recordCount: moment.events.filter { $0.title == name }.count)
                 }
             }
         } else {
@@ -198,6 +188,25 @@ struct DailyReplayEventCard: View {
                     .frame(height: 1)
             }
         }
+    }
+
+    private func habitChip(name: String, recordCount: Int) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 8 * typeScale, weight: .bold))
+            Text(recordCount > 1 ? "\(name) ×\(recordCount)" : name)
+                .lineLimit(1)
+        }
+        .font(.system(size: 10 * typeScale, weight: .medium))
+        .foregroundColor(.holoTextSecondary)
+        .padding(.horizontal, 8)
+        .frame(height: 27)
+        .background(Color.holoSuccess.opacity(0.055))
+        .overlay(
+            RoundedRectangle(cornerRadius: 9)
+                .stroke(Color.holoSuccess.opacity(0.12), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 9))
     }
 
     private func topicTags(_ topics: [String]) -> some View {

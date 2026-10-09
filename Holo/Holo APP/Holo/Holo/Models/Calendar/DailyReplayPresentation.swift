@@ -7,7 +7,11 @@
 //
 
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 enum DailyReplayPeriod: Int, CaseIterable, Identifiable {
     case untimed
@@ -187,15 +191,34 @@ enum DailyReplayPresentation {
                                         lines: Int,
                                         fontSize: CGFloat,
                                         availableWidth: CGFloat) -> Bool {
+        // 字体度量只用于量文本高度；双平台条件编译让本文件保持 macOS 可独立验证
+        // （standalone 套件在命令行直接跑），iOS 上仍是 serif 语义字体。
+        #if canImport(UIKit)
         let base = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
         let font = base.fontDescriptor.withDesign(.serif).map { UIFont(descriptor: $0, size: fontSize) } ?? base
+        #else
+        let base = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let font = base.fontDescriptor.withDesign(.serif).flatMap { NSFont(descriptor: $0, size: fontSize) } ?? base
+        #endif
         let textHeight = (text as NSString).boundingRect(
             with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font],
             context: nil
         ).height
-        return textHeight > font.lineHeight * (CGFloat(lines) + 0.5)
+        // UIFont.lineHeight 的定义式，UIFont/NSFont 通用
+        let lineHeight = font.ascender - font.descender + font.leading
+        return textHeight > lineHeight * (CGFloat(lines) + 0.5)
+    }
+
+    /// 「轻点查看全文」的统一判定：摘要被 80 字上限截断（…结尾）即有全文可看，
+    /// 与排版行数无关——否则短行宽卡上的截断摘要会显得像一句没说完的完整文本。
+    static func thoughtNeedsFullTextHint(_ text: String,
+                                         lines: Int,
+                                         fontSize: CGFloat,
+                                         availableWidth: CGFloat) -> Bool {
+        if text.hasSuffix("…") { return true }
+        return thoughtExceedsLineLimit(text, lines: lines, fontSize: fontSize, availableWidth: availableWidth)
     }
 
     private static func groupTitle(for events: [CalendarEvent], module: CalendarModule) -> String {
@@ -206,7 +229,14 @@ enum DailyReplayPresentation {
             if directions == [.positive] { return String(localized: "\(events.count) 笔收入") }
             if directions == [.negative] { return String(localized: "\(events.count) 笔支出") }
             return String(localized: "\(events.count) 笔记账")
-        case .habit:   return String(localized: "完成了 \(events.count) 个习惯")
+        case .habit:
+            // 一条记录 ≠ 一个习惯：数值型/多次打卡同一天会留下多条同习惯记录，
+            // 「完成了 N 个习惯」必须按去重后的习惯数说，单习惯时改用次数表述。
+            let habitNames = Set(events.compactMap(\.title))
+            if habitNames.count == 1, let name = habitNames.first {
+                return String(localized: "\(name) · \(events.count) 次记录")
+            }
+            return String(localized: "完成了 \(habitNames.count) 个习惯")
         case .todo:    return String(localized: "完成了 \(events.count) 项待办")
         case .thought: return String(localized: "记录了 \(events.count) 条想法")
         case .health:  return String(localized: "留下了 \(events.count) 条健康记录")

@@ -312,10 +312,10 @@ struct PolaroidMomentCard: View {
         .padding(.horizontal, 4)
     }
 
-    /// 判定与无图卡同源（DailyReplayPresentation.thoughtExceedsLineLimit）。
+    /// 判定与无图卡同源（DailyReplayPresentation.thoughtNeedsFullTextHint）。
     /// 字号按 caption 实际渲染字号 14.5；宽度 = 屏宽 − 页边距 − caption 内边距。
     private var needsFullTextHint: Bool {
-        DailyReplayPresentation.thoughtExceedsLineLimit(
+        DailyReplayPresentation.thoughtNeedsFullTextHint(
             moment.title,
             lines: 6,
             fontSize: 14.5,
