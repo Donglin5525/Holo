@@ -57,10 +57,14 @@ final class MemoryInsightBackgroundService {
     func scheduleBackgroundTask() {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
-        // 正常最早 1 小时后；额度耗尽时延后到 resetAt，避免系统唤醒后再次撞 429。
+        // 正常最早 1 小时后；额度耗尽时延后到 resetAt，避免系统唤醒后再次撞 429；
+        // 谷时段门控（2026-10-09 降本）：再取「下一个谷窗起点」，让系统唤醒落在谷价时段。
         request.earliestBeginDate = max(
-            Date().addingTimeInterval(3600),
-            automaticQuotaCooldownUntil() ?? .distantPast
+            max(
+                Date().addingTimeInterval(3600),
+                automaticQuotaCooldownUntil() ?? .distantPast
+            ),
+            HoloAIWindowPolicy.nextValleyStart()
         )
 
         do {

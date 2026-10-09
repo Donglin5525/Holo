@@ -22,6 +22,7 @@ nonisolated enum HoloMemorySchedulerEvent: Equatable, Sendable {
     case deferredByResource(HoloMemoryResourceDeferral)
     case deferredByFrequency(HoloMemoryObservationTarget)
     case deferredByBackoff(HoloMemoryObservationTarget, until: Date)
+    case deferredByWindow(until: Date)
     case belowMaterialThreshold(HoloMemoryObservationTarget)
     case cancelledByNewerControl(HoloMemoryObservationTarget)
     case automaticMemoryDisabled
@@ -216,6 +217,13 @@ actor HoloMemoryObservationScheduler {
         effectiveResources.dailyAICallCount += todayCalls
         if case .deferred(let reason) = HoloMemoryResourceBudget.evaluate(effectiveResources) {
             return [.deferredByResource(reason)]
+        }
+
+        // 谷时段门控（2026-10-09 降本）：上游按北京时间峰谷计费，高峰期顺延到最近的
+        // 谷窗起点（当日 12:00 / 18:00，周末全天谷）。任务不丢：registry 与频控状态
+        // 原样保留，下一次生命周期触发落在谷窗即自然执行。
+        if !HoloAIWindowPolicy.isValleyWindow(at: now) {
+            return [.deferredByWindow(until: HoloAIWindowPolicy.nextValleyStart(after: now))]
         }
 
         let ready = state.registry.readyEntries(now: now, debounce: debounce)

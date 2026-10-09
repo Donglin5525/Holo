@@ -68,6 +68,7 @@ struct HoloMemorySchedulerStandaloneTests {
         testObservationKeyContract()
         testResourceBudget()
         try await testIdempotencyFrequencyAndRetry()
+        try await testPeakWindowDefersToValley()
         try await testCommitValidationRefusedDefersToNextLocalDay()
         try await testMaterialThresholdCrossDomainAndDailyBudget()
         try await testOnlyOneAIJobRunsAtATime()
@@ -150,7 +151,8 @@ struct HoloMemorySchedulerStandaloneTests {
             controlStateProvider: { await control.snapshot() },
             consentProvider: { await control.hasConsent() }
         )
-        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        // 2024-07-03 19:46 北京（周三谷时段）：now 必须落谷窗，否则被谷时门控 defer（同日语义不变）。
+        let now = Date(timeIntervalSince1970: 1_720_007_200)
         await scheduler.markDirty(target: .domain(.finance), sourceDigest: "finance-v1", now: now)
         let events = await scheduler.runIfNeeded(
             now: now.addingTimeInterval(10),
@@ -218,6 +220,52 @@ struct HoloMemorySchedulerStandaloneTests {
         let counts = await counter.snapshot()
         expect(counts.0 == 1 && counts.1 == 1,
                "同 key/同日限制与退避期间不得重复调用或提交")
+    }
+
+    /// 谷时段门控（2026-10-09 降本）：高峰期 defer 到谷窗起点、不消耗 dirty 状态、谷窗触发即成功。
+    private static func testPeakWindowDefersToValley() async throws {
+        let control = SchedulerControlBox()
+        let counter = CounterBox()
+        let scheduler = HoloMemoryObservationScheduler(
+            controlStateProvider: { await control.snapshot() },
+            consentProvider: { await control.hasConsent() }
+        )
+        // 2024-07-03 17:46 北京（周三下午高峰 14-18），谷窗起点=当日 18:00（10:00 UTC）。
+        let peakNow = Date(timeIntervalSince1970: 1_720_000_000)
+        await scheduler.markDirty(target: .domain(.finance), sourceDigest: "finance-peak", now: peakNow)
+        let deferredEvents = await scheduler.runIfNeeded(
+            now: peakNow.addingTimeInterval(10),
+            resourceSnapshot: .init(),
+            extractorVersion: 1,
+            promptVersion: 1,
+            debounce: 5,
+            materialChange: { _ in true },
+            extract: { _ in await counter.extracted(); return Data("ok".utf8) },
+            commit: { _, _ in await counter.committed() }
+        )
+        expect(deferredEvents == [.deferredByWindow(until: Date(timeIntervalSince1970: 1_720_000_800))],
+               "高峰期应整体顺延到当日谷窗起点 18:00（北京）")
+        var peakCounts = await counter.snapshot()
+        expect(peakCounts.0 == 0 && peakCounts.1 == 0,
+               "高峰期不得发起 AI 调用")
+
+        // 谷窗触发：同 digest 未被消费，正常萃取成功（顺延不丢任务）。
+        let valleyNow = Date(timeIntervalSince1970: 1_720_094_400) // 2024-07-04 20:00 北京（周四谷）
+        let valleyEvents = await scheduler.runIfNeeded(
+            now: valleyNow,
+            resourceSnapshot: .init(),
+            extractorVersion: 1,
+            promptVersion: 1,
+            debounce: 0,
+            materialChange: { _ in true },
+            extract: { _ in await counter.extracted(); return Data("ok".utf8) },
+            commit: { _, _ in await counter.committed() }
+        )
+        expect(valleyEvents.contains(where: { if case .succeeded = $0 { true } else { false } }),
+               "谷窗触发应正常完成被顺延的任务")
+        peakCounts = await counter.snapshot()
+        expect(peakCounts.0 == 1 && peakCounts.1 == 1,
+               "谷窗执行恰好一次调用与提交")
     }
 
     private static func testCommitValidationRefusedDefersToNextLocalDay() async throws {
@@ -308,7 +356,8 @@ struct HoloMemorySchedulerStandaloneTests {
             controlStateProvider: { await control.snapshot() },
             consentProvider: { await control.hasConsent() }
         )
-        let now = Date(timeIntervalSince1970: 1_725_000_000)
+        // 2024-08-30 20:00 北京（周五谷时段）：同日语义不变，now 落谷窗避开谷时门控。
+        let now = Date(timeIntervalSince1970: 1_725_019_200)
         await materialScheduler.markDirty(
             target: .domain(.thought),
             sourceDigest: "tiny-change",

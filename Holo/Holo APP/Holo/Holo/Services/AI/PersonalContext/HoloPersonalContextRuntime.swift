@@ -459,6 +459,11 @@ enum HoloPersonalContextExtractionScheduler {
            Date().timeIntervalSince(last) < minimumInterval {
             return
         }
+        // 谷时段门控（2026-10-09 降本）：高峰期不跑也不写防抖时间戳，谷窗首次触发即补跑。
+        // 手动（实验室按钮）直调 runPass 不经过这里，不受影响。
+        if !HoloAIWindowPolicy.isValleyWindow() {
+            return
+        }
         defaults.set(Date(), forKey: lastPassAtKey)
         _ = await HoloPersonalContextExtractionJob.runPass(packageLimit: packageLimit)
     }

@@ -109,19 +109,25 @@ actor ThoughtSemanticPipeline {
         guard let store, let index, heartbeatTask == nil else { return }
         heartbeatTask = Task {
             while !Task.isCancelled {
-                let flag = await MainActor.run { ThoughtSemanticFeatureFlags.index }
-                if flag != .off {
-                    await ThoughtSemanticEmbeddingExecutor.shared.processBatch(store: store, index: index)
+                // 谷时段门控（2026-10-09 降本）：高峰期只保持节拍不消费队列，谷窗自动续跑；
+                // 设置页 kickQueue（用户手动加速）不经此门。
+                if HoloAIWindowPolicy.isValleyWindow() {
+                    let flag = await MainActor.run { ThoughtSemanticFeatureFlags.index }
+                    if flag != .off {
+                        await ThoughtSemanticEmbeddingExecutor.shared.processBatch(store: store, index: index)
+                    }
+                    // relate 队列（P0-C）：独立 flag，与 embed 并列消费
+                    let relationFlag = await MainActor.run { ThoughtSemanticFeatureFlags.relation }
+                    if relationFlag != .off {
+                        await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
+                    }
+                    await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
+                    let anyActive = flag != .off || relationFlag != .off
+                    let interval: UInt64 = anyActive ? 30 : 300
+                    try? await Task.sleep(nanoseconds: interval * 1_000_000_000)
+                } else {
+                    try? await Task.sleep(nanoseconds: 60 * 1_000_000_000)
                 }
-                // relate 队列（P0-C）：独立 flag，与 embed 并列消费
-                let relationFlag = await MainActor.run { ThoughtSemanticFeatureFlags.relation }
-                if relationFlag != .off {
-                    await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
-                }
-                await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
-                let anyActive = flag != .off || relationFlag != .off
-                let interval: UInt64 = anyActive ? 30 : 300
-                try? await Task.sleep(nanoseconds: interval * 1_000_000_000)
             }
         }
     }

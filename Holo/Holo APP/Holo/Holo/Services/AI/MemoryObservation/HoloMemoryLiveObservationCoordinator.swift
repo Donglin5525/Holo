@@ -501,8 +501,8 @@ actor HoloMemoryLiveObservationCoordinator {
                 target = failedTarget
                 outcome = "failed"
             case .deferredByResource, .deferredByFrequency, .deferredByBackoff,
-                 .belowMaterialThreshold, .cancelledByNewerControl, .automaticMemoryDisabled,
-                 .dataProcessingConsentMissing, .alreadyRunning:
+                 .deferredByWindow, .belowMaterialThreshold, .cancelledByNewerControl,
+                 .automaticMemoryDisabled, .dataProcessingConsentMissing, .alreadyRunning:
                 continue
             }
             let domainName: String
@@ -550,6 +550,11 @@ actor HoloMemoryLiveObservationCoordinator {
             return false
         }) {
             message = "未执行：任务仍在失败退避期"
+        } else if events.contains(where: {
+            if case .deferredByWindow = $0 { return true }
+            return false
+        }) {
+            message = "未执行：当前是上游计费高峰时段，已顺延到谷时段自动执行"
         } else if changedDomainCount == 0 {
             message = "无需执行：没有检测到新的实质数据变化"
         } else {

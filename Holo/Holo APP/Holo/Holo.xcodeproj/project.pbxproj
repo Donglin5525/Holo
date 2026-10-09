@@ -297,6 +297,7 @@
 		B1C2D3E4F5A6C0DEBEEF0002 /* HoloAgentAnalysisReconcileTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A6C0DEBEEF0001 /* HoloAgentAnalysisReconcileTests.swift */; };
 		B20B6A13F48F3E5B9E25A4CF /* ThoughtVoiceTranscriptInsertionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B6BEFB331A0A6982A4E3E3B /* ThoughtVoiceTranscriptInsertionTests.swift */; };
 		B2C3D4E5F60718293A4B5C6D /* MemoryExtractionCostSlimTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5C /* MemoryExtractionCostSlimTests.swift */; };
+		7AE1AB100926000000000002 /* HoloAIWindowPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AE1AB100926000000000001 /* HoloAIWindowPolicyTests.swift */; };
 		B31834F8A17B44F309DB752C /* HoloTaskToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD2C3CC59EF1E08B6305D230 /* HoloTaskToolTests.swift */; };
 		B3E84C21906FDAE743A17F5D1 /* HealthWorkoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17F5D3E8B4C21906FDAE743 /* HealthWorkoutTests.swift */; };
 		B71FE0A12F6A4C1E9D2B0002 /* HabitLifetimeTotalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B71FE0A12F6A4C1E9D2B0001 /* HabitLifetimeTotalTests.swift */; };
@@ -646,6 +647,7 @@
 		A1B2C3D4E5F60718293A0C01 /* TaskCompletionCascadeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskCompletionCascadeTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A0D01 /* HoloTaskCompletionCoordinatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloTaskCompletionCoordinatorTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4B5C /* MemoryExtractionCostSlimTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryExtractionCostSlimTests.swift; sourceTree = "<group>"; };
+		7AE1AB100926000000000001 /* HoloAIWindowPolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAIWindowPolicyTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4C02 /* HoloFixedToolSemanticStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloFixedToolSemanticStandaloneTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F60718293A4C04 /* HoloAnswerCrossDomainStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAnswerCrossDomainStandaloneTests.swift; sourceTree = "<group>"; };
 		A1C000000000000000000001 /* TodoCompletionCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TodoCompletionCore.swift; path = Holo/Models/TodoCompletionCore.swift; sourceTree = "<group>"; };
@@ -983,6 +985,7 @@
 				976992B49B18745C696A05F9 /* HoloDomainMemoryObserverIntegrationTests.swift */,
 				048596AA782988EDBDCD636D /* HoloDomainObservationSecurityTests.swift */,
 				A1B2C3D4E5F60718293A4B5C /* MemoryExtractionCostSlimTests.swift */,
+				7AE1AB100926000000000001 /* HoloAIWindowPolicyTests.swift */,
 				80E45E5C115F57CB16E57702 /* HoloLegacyMemoryStoreRegressionTests.swift */,
 				904EB7A6B077C5326B91A4A4 /* HoloLongTermMemoryMigrationStandaloneTests.swift */,
 				BD9072B04A04CEFFDFC02564 /* HoloMemoryAccessPolicyStandaloneTests.swift */,
@@ -2100,6 +2103,7 @@
 				3F9C04B6A4A90A7A96D14DAE /* HoloDomainMemoryObserverIntegrationTests.swift in Sources */,
 				9682024D9CADB38D9428A7CC /* HoloDomainObservationSecurityTests.swift in Sources */,
 				B2C3D4E5F60718293A4B5C6D /* MemoryExtractionCostSlimTests.swift in Sources */,
+				7AE1AB100926000000000002 /* HoloAIWindowPolicyTests.swift in Sources */,
 				0009867F6020999D115D66EB /* HoloLegacyMemoryStoreRegressionTests.swift in Sources */,
 				C80F76C7E8D88DB03C70179C /* HoloLongTermMemoryMigrationStandaloneTests.swift in Sources */,
 				4B6A953DB90277DC3F7E13F1 /* HoloMemoryAccessPolicyStandaloneTests.swift in Sources */,

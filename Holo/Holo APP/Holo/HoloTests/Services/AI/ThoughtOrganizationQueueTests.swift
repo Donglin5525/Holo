@@ -17,6 +17,7 @@ final class ThoughtOrganizationQueueTests: XCTestCase {
     // MARK: - Scaffold
 
     private var savedAutoOrganizationSetting: Any?
+    private var savedNowProvider: (() -> Date)!
 
     override func setUp() async throws {
         // 队列恢复路径（rebuildFromDatabase）尊重自动分类开关；
@@ -25,6 +26,12 @@ final class ThoughtOrganizationQueueTests: XCTestCase {
             forKey: ThoughtAIClassificationPolicy.isEnabledKey
         )
         UserDefaults.standard.set(true, forKey: ThoughtAIClassificationPolicy.isEnabledKey)
+        // 谷时门控（2026-10-09 降本）走 HoloAIWindowPolicy 时钟：测试钉死谷时，
+        // 避免在真实高峰时段跑测试被门控挂起造成按时刻随机红。
+        savedNowProvider = HoloAIWindowPolicy.nowProvider
+        HoloAIWindowPolicy.nowProvider = {
+            Date(timeIntervalSince1970: 1_720_094_400) // 2024-07-04 20:00 北京（周四谷）
+        }
     }
 
     override func tearDown() async throws {
@@ -33,6 +40,7 @@ final class ThoughtOrganizationQueueTests: XCTestCase {
         } else {
             UserDefaults.standard.removeObject(forKey: ThoughtAIClassificationPolicy.isEnabledKey)
         }
+        HoloAIWindowPolicy.nowProvider = savedNowProvider
     }
 
     private func makeContext() throws -> NSManagedObjectContext {

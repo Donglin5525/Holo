@@ -184,6 +184,9 @@ final class HoloReplayDigestService {
     /// - Note: 失败仅 log，不阻塞启动。重复调用安全（已有有效摘要则跳过）。
     func backfillIfNeeded(historyRepo: MemoryInsightRepository) async {
         guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else { return }
+        // 谷时段门控（2026-10-09 降本）：历史回填是纯后台归纳，不挑时刻，
+        // 高峰期跳过，谷窗的下一次启动/回前台触发再扫。
+        guard HoloAIWindowPolicy.isValleyWindow() else { return }
         // 冷却短路：上次撞 429 后，冷却期内不再扫描，避免每次启动冗余请求。
         if let cooldownUntil = model.backfillRateLimitCooldownUntil,
            Date() < cooldownUntil {
@@ -501,6 +504,8 @@ final class HoloReplayDigestService {
 
     private func drainConsolidationQueue() async {
         guard !isConsolidating, activeUserReplayIDs.isEmpty else { return }
+        // 谷时段门控（2026-10-09 降本）：高峰期只入队不消费，队列天然支持等窗口。
+        guard HoloAIWindowPolicy.isValleyWindow() else { return }
         isConsolidating = true
         defer { isConsolidating = false }
 
