@@ -195,11 +195,9 @@ enum ThoughtTopicLinkProjection {
     static func effectiveTopics(for thought: Thought) -> [Topic] {
         guard let links = thought.topicLinks as? Set<ThoughtTopicLink>, !links.isEmpty else { return [] }
         var bestByPair: [UUID: ThoughtTopicLink] = [:]
-        var pairKeyByLink: [ObjectIdentifier: UUID] = [:]
         for link in links {
             guard let topic = link.topic else { continue }
             let pair = ThoughtTopicLink.deterministicID(thoughtID: thought.id, topicID: topic.id)
-            pairKeyByLink[ObjectIdentifier(link)] = pair
             if let best = bestByPair[pair] {
                 if link.projectionRank < best.projectionRank { bestByPair[pair] = link }
             } else {
@@ -210,6 +208,13 @@ enum ThoughtTopicLinkProjection {
             .filter { isCurrentActive($0, thought: thought) }
             .compactMap { $0.topic }
             .filter { $0.isVisibleTopic && ($0.value(forKey: "deletedAt") as? Date) == nil }
+            // Set / Dictionary 不提供显示顺序。统一按创建时间和 UUID 排序，
+            // 避免列表重绘时徽章互换位置，也让 prefix(2) 始终选中同两个主题。
+            // 不用 updatedAt / 名称，整理刷新或改名不能改变已有主题的位置。
+            .sorted {
+                if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+                return $0.id.uuidString < $1.id.uuidString
+            }
     }
 
     /// 单 pair 有效成员判定（2026-09-27 P0-A 读源统一）：与 effectiveTopics 同一

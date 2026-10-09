@@ -496,6 +496,15 @@ final class HoloVisualV2SmokeUITests: XCTestCase {
         XCTAssertTrue(button("图片识别记账").exists)
         XCTAssertTrue(app.textFields.firstMatch.exists || app.textViews.firstMatch.exists)
         capture("V2-对话")
+        // 安装前入口闸门覆盖异步初始化和实际发送，不能只证明输入框存在。
+        sleep(3)
+        let input = app.textFields.firstMatch.exists ? app.textFields.firstMatch : app.textViews.firstMatch
+        input.tap()
+        input.typeText("你好")
+        let send = button("发送消息")
+        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        send.tap()
+        XCTAssertTrue(app.staticTexts["你好"].waitForExistence(timeout: 10))
     }
 }
 
@@ -640,5 +649,124 @@ final class HoloMotionAccessibilityUITests: XCTestCase {
             XCTAssertEqual(app.state, .runningForeground)
             app.terminate()
         }
+    }
+}
+
+// MARK: - 主题徽章宽度与滚动顺序回归
+
+
+final class ThoughtTopicBadgeUITests: XCTestCase {
+    private func verifyBadges(largeType: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_THOUGHT_TOPIC_BADGE_GATE"] = "1"
+        // 只测显示和滚动；不要让自动整理在测试中修改虚构关系。
+        app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN",
+                               "-thoughts.automaticOrganization.enabled", "NO",
+                               "-isThoughtAutoOrganizationEnabled", "NO"]
+        if largeType {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
+        app.launch()
+        let thoughts = app.buttons.matching(NSPredicate(format: "label == '想法'")).firstMatch
+        XCTAssertTrue(thoughts.waitForExistence(timeout: 20))
+        thoughts.tap()
+        // 按想法身份定位，不依赖界面中有多少其他截图剧本的卡片。
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format:
+            "identifier BEGINSWITH 'thought.topic.BAD6E100-0000-0000-0000-000000000000.'"))
+            .firstMatch.waitForExistence(timeout: 15))
+
+        func visibleBadges() -> [XCUIElement] {
+            // 完整快照避免 iOS 26 单元素优化查询返回无限坐标。
+            app.buttons.allElementsBoundByIndex.filter {
+                $0.identifier.hasPrefix("thought.topic.BAD6E100") && app.frame.intersects($0.frame)
+            }
+        }
+        var observedKinds = Set<Int>()
+        func verifyVisible() {
+            let badges = visibleBadges()
+            XCTAssertFalse(badges.isEmpty)
+            for badge in badges {
+                XCTAssertGreaterThanOrEqual(badge.frame.minX, app.frame.minX + 20)
+                XCTAssertLessThanOrEqual(badge.frame.maxX, app.frame.maxX - 20,
+                                         "主题徽章不能撑宽卡片或越出页面")
+            }
+            let groups = Dictionary(grouping: badges) { String($0.identifier.split(separator: ".")[2]) }
+            for (thought, group) in groups where group.count == 2 {
+                guard let index = Int(thought.suffix(12)) else { continue }
+                observedKinds.insert(index % 3)
+                let ordered = group.sorted {
+                    if abs($0.frame.minY - $1.frame.minY) > 1 { return $0.frame.minY < $1.frame.minY }
+                    return $0.frame.minX < $1.frame.minX
+                }
+                let firstTitles = ["Holo 产品开发与运营", "持续记录产品开发过程与用户反馈", String(repeating: "超长主题名称", count: 12)]
+                XCTAssertTrue(ordered[0].label.hasPrefix("主题 \(firstTitles[index % 3])"),
+                              "滚动和换行后，主题名称的显示顺序必须稳定")
+            }
+            XCTAssertFalse(app.staticTexts["Holo 已归入"].exists)
+            XCTAssertFalse(app.staticTexts["已加入"].exists)
+        }
+        let scroll = app.scrollViews.firstMatch
+        for _ in 0..<4 where visibleBadges().isEmpty { scroll.swipeUp() }
+        verifyVisible()
+        for _ in 0..<3 {
+            scroll.swipeUp()
+            verifyVisible()
+        }
+        for _ in 0..<3 { scroll.swipeDown(); if !visibleBadges().isEmpty { verifyVisible() } }
+        XCTAssertEqual(observedKinds, [0, 1, 2], "必须覆盖双主题、长名称与超长名称三类卡片")
+        app.terminate()
+    }
+
+    func testTwoTopicsRemainBoundedAndOrderedWhileScrolling() throws {
+        try verifyBadges(largeType: false)
+    }
+
+    func testLongTopicsRemainBoundedAtAccessibilitySize() throws {
+        try verifyBadges(largeType: true)
+    }
+}
+
+/// 真机只读取现有卡片并滚动，不播种、不编辑用户记录。
+final class ThoughtTopicBadgeDeviceUITests: XCTestCase {
+    func testExistingTopicsKeepTheirPositionsAndStayInsideScreen() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launch()
+        let thoughts = app.buttons.matching(NSPredicate(format: "label == '想法'")).firstMatch
+        XCTAssertTrue(thoughts.waitForExistence(timeout: 20))
+        thoughts.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'thought.topic.'"))
+            .firstMatch.waitForExistence(timeout: 15))
+        var orderByThought: [String: [String]] = [:]
+        var repeatedPairCount = 0
+        func inspect() {
+            let badges = app.buttons.allElementsBoundByIndex.filter {
+                $0.identifier.hasPrefix("thought.topic.") && app.frame.intersects($0.frame)
+            }
+            for badge in badges {
+                XCTAssertGreaterThanOrEqual(badge.frame.minX, app.frame.minX + 20)
+                XCTAssertLessThanOrEqual(badge.frame.maxX, app.frame.maxX - 20)
+            }
+            let groups = Dictionary(grouping: badges) { String($0.identifier.split(separator: ".")[2]) }
+            for (thought, group) in groups where group.count == 2 {
+                let order = group.sorted {
+                    if abs($0.frame.minY - $1.frame.minY) > 1 { return $0.frame.minY < $1.frame.minY }
+                    return $0.frame.minX < $1.frame.minX
+                }.map(\.identifier)
+                if let previous = orderByThought[thought] {
+                    XCTAssertEqual(order, previous, "真实双主题卡片滚动重绘后不能交换位置")
+                    repeatedPairCount += 1
+                }
+                orderByThought[thought] = order
+            }
+        }
+        inspect()
+        let scroll = app.scrollViews.firstMatch
+        for _ in 0..<3 { scroll.swipeUp(); inspect() }
+        for _ in 0..<3 { scroll.swipeDown(); inspect() }
+        XCTAssertGreaterThan(repeatedPairCount, 0, "必须实际复查至少一张双主题卡片")
+        app.terminate()
     }
 }

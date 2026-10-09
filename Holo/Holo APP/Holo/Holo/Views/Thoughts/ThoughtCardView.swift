@@ -257,7 +257,7 @@ struct ThoughtCardView: View {
 
     private func footerView(aiTagNames: [String]) -> some View {
         // P1（2026-09-27）双行分离：第一行 = 用户 #标签 + 引用数；第二行 = 主题行
-        // （来源字样区分「Holo 已归入 / 已加入」，轻点进主题、长按纠错）。
+        // （只展示主题名称，轻点进主题、长按纠错）。
         // spacing 0 + 主题行自带 top padding：两行全空（新用户常见）时卡片底部不多占位
         VStack(alignment: .leading, spacing: 0) {
             tagAndReferenceRow(aiTagNames: aiTagNames)
@@ -337,19 +337,28 @@ struct ThoughtCardView: View {
     // MARK: - V3 主题行（P1 双行制）
 
     /// 卡片底部的主题行（V3 §4.3 + P1 §3.2）：来自 ThoughtTopicLink 投影，最多 2 个。
-    /// 来源字样区分 AI/手动（AI 不冒充用户决定）；轻点进主题详情、长按出纠错菜单。
+    /// 只展示主题名称；来源保留在无障碍说明，轻点进详情、长按出纠错菜单。
     private var topicBadgeRow: some View {
         let topics = ThoughtTopicLinkProjection.effectiveTopics(for: thought)
             .filter { $0.statusEnum == .active || $0.statusEnum == .classification }
             .prefix(2)
         return Group {
             if !topics.isEmpty {
-                HStack(spacing: 6) {
-                    ForEach(Array(topics), id: \.id) { topic in
-                        topicBadge(topic)
+                // 放得下时并排，放不下时上下排列；不能用徽章的理想宽度撑大整张卡片。
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(Array(topics), id: \.id) { topic in
+                            topicBadge(topic)
+                        }
                     }
-                    Spacer(minLength: 0)
+                    .fixedSize(horizontal: true, vertical: false)
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(topics), id: \.id) { topic in
+                            topicBadge(topic)
+                        }
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 // padding 在有内容的分支内：无主题行时不占位（校验实锤 2026-09-27）
                 .padding(.top, 6)
             }
@@ -357,20 +366,15 @@ struct ThoughtCardView: View {
     }
 
     private func topicBadge(_ topic: Topic) -> some View {
-        // 来源字样（P1 §3.2）：AI 高可信写「Holo 已归入」，用户手动/接受建议写「已加入」，
-        // 历史归集中性写「已归入」——AI 来源不冒充用户决定，VoiceOver 同步读出
+        // 可见徽章只保留名称；VoiceOver 继续说明来源，避免 AI 归类冒充用户决定。
         let source = ThoughtTopicLinkProjection.membershipSource(of: thought, in: topic)
-        let sourceText: String
         let sourceAX: String
         switch source {
         case .ai:
-            sourceText = String(localized: "Holo 已归入")
             sourceAX = String(localized: "Holo 自动归入")
         case .user:
-            sourceText = String(localized: "已加入")
             sourceAX = String(localized: "你加入的")
         default:
-            sourceText = String(localized: "已归入")
             sourceAX = String(localized: "已归入")
         }
         return Button {
@@ -380,21 +384,21 @@ struct ThoughtCardView: View {
             HStack(spacing: 4) {
                 Image(systemName: "leaf.fill")
                     .font(.system(size: 9, weight: .semibold))
-                Text(sourceText)
-                    .holoText(.metadata)
                 Text(topic.title)
                     .holoText(.metadata)
                     .fontWeight(.semibold)
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
             .foregroundColor(Color.holoSuccess.opacity(Metrics.topicBadgeTintOpacity))
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(Color.holoSuccess.opacity(0.09))
             .cornerRadius(HoloRadius.sm)
-            .fixedSize(horizontal: true, vertical: false)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("thought.topic.\(thought.id.uuidString).\(topic.id.uuidString)")
         // 轻点=进主题详情（脉络可逛）；纠错菜单收进长按（P1 行为变化，原轻点弹菜单）
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.45).onEnded { _ in

@@ -122,6 +122,9 @@ enum HoloAppStoreScreenshotSeeder {
         let context = CoreDataStack.shared.viewContext
         let story = requestedStory
         do {
+            if environment["HOLO_THOUGHT_TOPIC_BADGE_GATE"] == "1" {
+                try HoloThoughtTopicBadgeGateSeeder.seed(in: context, now: now)
+            }
             try seedMarkdownTableConversationIfNeeded(
                 context: context,
                 route: Route(rawValue: environment[routeKey] ?? "")
