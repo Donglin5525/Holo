@@ -378,7 +378,7 @@ struct HabitSingleReviewView: View {
                 calendarMonthNav(snapshot)
             }
             ReviewCalendarGrid(
-                month: calendarMonth,
+                month: selectedRange.calendarDisplayMonth(fallback: calendarMonth),
                 snapshot: snapshot,
                 selectedDay: selectedDay,
                 today: model.projectionNow
@@ -727,6 +727,11 @@ struct HabitSingleReviewView: View {
         selectedRange = range
         selectedDay = nil
         rangeSheetShown = false
+        // 翻月状态归位到新范围（月范围显示月直接派生自范围，此赋值让切回
+        // 跨月范围时日历从范围首月起步，不停在无关月份）
+        let calendar = Calendar.current
+        let rangeStart = range.dateInterval(now: model.projectionNow, calendar: calendar).start
+        calendarMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: rangeStart)) ?? calendarMonth
         rebuild()
     }
 

@@ -93,6 +93,42 @@ final class HabitReviewProjectionTests: XCTestCase {
         XCTAssertFalse(day(2026, 10, 4, hour: 0) >= interval.start && day(2026, 10, 4, hour: 0) < interval.end)
     }
 
+    // MARK: - 日历显示月派生（2026-10-09 真机实锤：切「上月」后日历仍画本月）
+
+    func test_月范围显示月恒为范围月_不落翻月状态() {
+        let staleCalendarMonth = oct // 翻月状态停在十月（切「上月」前的残留）
+        let display = HabitReviewRange.month(sep)
+            .calendarDisplayMonth(fallback: staleCalendarMonth)
+        XCTAssertEqual(display, sep)
+    }
+
+    func test_跨月范围显示月用翻月状态() {
+        let panned = day(2026, 9, 1)
+        XCTAssertEqual(HabitReviewRange.lastDays(30).calendarDisplayMonth(fallback: panned), panned)
+        XCTAssertEqual(HabitReviewRange.all.calendarDisplayMonth(fallback: panned), panned)
+    }
+
+    // MARK: - 界日记录归属（rangeSnapshot 过滤必须半开）
+
+    func test_次月零点整记录不漏进本月范围() {
+        let id = UUID()
+        let facts = [
+            fact(id, oct),                       // 10/1 00:00 整（界日）
+            fact(id, day(2026, 9, 15)),
+        ]
+        let data = buildData(facts)
+        // 九月快照：只认 9/15，界日记录不算九月
+        let sepSnapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id), range: .month(sep), data: data)
+        XCTAssertEqual(sepSnapshot.recordedDayCount, 1)
+        XCTAssertTrue(sepSnapshot.containsDay(day(2026, 9, 15), calendar: calendar))
+        XCTAssertFalse(sepSnapshot.containsDay(oct, calendar: calendar))
+        // 十月快照：界日记录归十月
+        let octSnapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id), range: .month(oct), data: data)
+        XCTAssertEqual(octSnapshot.recordedDayCount, 1)
+    }
+
     // MARK: - 记录日去重（R08）
 
     func test_同习惯同日多条记录只算一个记录日() {

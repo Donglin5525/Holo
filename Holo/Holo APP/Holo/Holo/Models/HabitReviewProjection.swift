@@ -51,6 +51,15 @@ enum HabitReviewRange: Equatable {
         return DateInterval(start: start, end: min(nominalEnd, tomorrow))
     }
 
+    /// 记录日历应显示的月份。月范围恒等于范围月——显示月是范围的派生值，
+    /// 不允许落在独立翻月状态上（否则切「上月」后日历仍画本月，全部格子按
+    /// 范围外禁用、无圆点，统计与日历对不上，2026-10-09 东林真机实锤）；
+    /// 跨月范围显示月由用户翻月，读 fallback。
+    func calendarDisplayMonth(fallback: Date) -> Date {
+        if case .month(let monthStart) = self { return monthStart }
+        return fallback
+    }
+
     /// 范围标题（与内容同步变化；HTML range 标签同款语义）
     func label(now: Date, calendar: Calendar) -> String {
         let interval = dateInterval(now: now, calendar: calendar)
@@ -294,7 +303,11 @@ enum HabitReviewProjector {
         data: HabitProjectionData
     ) -> HabitRangeSnapshot {
         let interval = range.dateInterval(now: data.now, calendar: data.calendar)
-        let facts = (data.recordsByHabit[info.id] ?? []).filter { interval.contains($0.date) }
+        // 半开归属 [start, end)：DateInterval.contains 含 end，界日（次月零点）
+        // 会漏进本月（与 containsDay 同一个坑，必须手写比较）
+        let facts = (data.recordsByHabit[info.id] ?? []).filter {
+            $0.date >= interval.start && $0.date < interval.end
+        }
 
         var recordedDays: Set<Date> = []
         if info.kind == .checkIn {
