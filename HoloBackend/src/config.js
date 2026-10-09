@@ -92,6 +92,9 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_ANALYSIS_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_ANALYSIS_TEMPERATURE ?? 0.2),
       maxTokens: Number(process.env.HOLO_ANALYSIS_MAX_TOKENS ?? 4096),
+      // §reasoning-budget（2026-10-09 全量补档）：不配 effort → 模型默认满档思考。
+      // low 档与 chat 同级：自由问答保理解质量，思考开销可控。
+      reasoningEffort: process.env.HOLO_ANALYSIS_REASONING_EFFORT ?? "low",
     },
     intent: {
       provider: process.env.HOLO_INTENT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -115,6 +118,9 @@ const DEFAULT_CONFIG = {
         ?? "holo-mock",
       temperature: Number(process.env.HOLO_FLEXIBLE_QUERY_PLANNER_TEMPERATURE ?? 0),
       maxTokens: Number(process.env.HOLO_FLEXIBLE_QUERY_PLANNER_MAX_TOKENS ?? 4096),
+      // §reasoning-budget（2026-10-09 全量补档）：规划器输出固定 schema 短 JSON，
+      // 与 intent 同理（单步分类/规划，无多步推理需求）配 none。
+      reasoningEffort: process.env.HOLO_FLEXIBLE_QUERY_PLANNER_REASONING_EFFORT ?? "none",
     },
     insight: {
       provider: process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -160,6 +166,10 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_HEALTH_INSIGHT_MODEL ?? process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_HEALTH_INSIGHT_TEMPERATURE ?? 0.35),
       maxTokens: Number(process.env.HOLO_HEALTH_INSIGHT_MAX_TOKENS ?? 1600),
+      // §reasoning-budget（2026-10-09 全量补档）：此前未配 effort → 满档思考，
+      // 生产实测（2026-10-03~09）completion 的 82% 是 reasoning tokens。低档与 insight
+      // 同级；若洞察质量下降可经 env 调回。
+      reasoningEffort: process.env.HOLO_HEALTH_INSIGHT_REASONING_EFFORT ?? "low",
     },
     thought_voice_summary: {
       provider: process.env.HOLO_THOUGHT_VOICE_SUMMARY_PROVIDER
@@ -233,12 +243,17 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_FINANCE_ACTION_PARSER_MODEL ?? process.env.HOLO_INTENT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_FINANCE_ACTION_PARSER_TEMPERATURE ?? 0),
       maxTokens: Number(process.env.HOLO_FINANCE_ACTION_PARSER_MAX_TOKENS ?? 512),
+      // §reasoning-budget（2026-10-09 全量补档）：解析器输出固定 schema 短 JSON（maxTokens 512），
+      // 满档思考极易吃满上限导致 content 空，与 intent 同机制配 none。
+      reasoningEffort: process.env.HOLO_FINANCE_ACTION_PARSER_REASONING_EFFORT ?? "none",
     },
     task_action_parser: {
       provider: process.env.HOLO_TASK_ACTION_PARSER_PROVIDER ?? process.env.HOLO_INTENT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_TASK_ACTION_PARSER_MODEL ?? process.env.HOLO_INTENT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_TASK_ACTION_PARSER_TEMPERATURE ?? 0),
       maxTokens: Number(process.env.HOLO_TASK_ACTION_PARSER_MAX_TOKENS ?? 512),
+      // §reasoning-budget（2026-10-09 全量补档）：同 finance_action_parser。
+      reasoningEffort: process.env.HOLO_TASK_ACTION_PARSER_REASONING_EFFORT ?? "none",
     },
     thought_organization: {
       provider: process.env.HOLO_THOUGHT_ORG_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -380,12 +395,16 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_THOUGHT_TASK_EXTRACTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_TASK_EXTRACTION_TEMPERATURE ?? 0),
       maxTokens: Number(process.env.HOLO_THOUGHT_TASK_EXTRACTION_MAX_TOKENS ?? 1024),
+      // §reasoning-budget（2026-10-09 全量补档）：任务抽取输出短结构化 JSON，与 thought_organization 同理配 none。
+      reasoningEffort: process.env.HOLO_THOUGHT_TASK_EXTRACTION_REASONING_EFFORT ?? "none",
     },
     thought_tag_convergence: {
       provider: process.env.HOLO_THOUGHT_CONVERGENCE_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_THOUGHT_CONVERGENCE_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_CONVERGENCE_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_THOUGHT_CONVERGENCE_MAX_TOKENS ?? 2048),
+      // §reasoning-budget（2026-10-09 全量补档）：标签收敛是短列表归纳，none 档足够。
+      reasoningEffort: process.env.HOLO_THOUGHT_CONVERGENCE_REASONING_EFFORT ?? "none",
     },
     // 想法自动整理 V2（docs/thoughts/plans/2026-09-05-想法自动整理V2实施方案-GLM.md §5/§6）：
     // A 提取概念 / R 目录筛选 / B 词表对齐，三段结构化短 JSON 输出，非思考模式。
@@ -449,6 +468,9 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_CATEGORY_INDUCTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_CATEGORY_INDUCTION_TEMPERATURE ?? 0.2),
       maxTokens: Number(process.env.HOLO_CATEGORY_INDUCTION_MAX_TOKENS ?? 2048),
+      // §reasoning-budget（2026-10-09 全量补档）：跨周期归纳是复杂任务，low 档保归纳质量
+      // （与 memory_cross_domain_fusion 同级），仅规避满档默认值。
+      reasoningEffort: process.env.HOLO_CATEGORY_INDUCTION_REASONING_EFFORT ?? "low",
     },
     // 账单智能导入（docs/plans/2026-08-17-finance-bill-import-ai-plan.md §5）：
     // 两个 purpose 都只输出短结构化 JSON（列号指认 / 科目路径指认），无多步推理需求，

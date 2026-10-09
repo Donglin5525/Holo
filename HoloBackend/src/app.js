@@ -2063,6 +2063,8 @@ function createAdminTestChatRunner({ config, providers, logStore }) {
       model: route.model,
       temperature: route.temperature,
       maxTokens: route.maxTokens,
+      // 与主链路（/v1/ai/chat/completions）同构：透传 route 的思考档，测试台行为=生产行为。
+      reasoningEffort: route.reasoningEffort,
       responseFormat: null,
     };
     const logId = logStore.startAiCall({
