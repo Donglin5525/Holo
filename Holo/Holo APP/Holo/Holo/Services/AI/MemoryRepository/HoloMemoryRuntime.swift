@@ -104,6 +104,20 @@ final class HoloMemoryRuntime {
         #endif
         do {
             let repository = try await repository()
+            // 存量重建迁移（2026-10-09 修复批）：先于重评估执行，一次性退役
+            // 域归属缺陷时代的个人情境/跨域记忆并清空萃取游标，触发全量重萃取。
+            let cursorKeys = HoloLifeSourceObservation.domains.map {
+                HoloPersonalContextRuntimeWriter.cursorKey(domain: $0)
+            }
+            let rebuildResult = try await HoloPersonalContextRebuildMigration.rebuildIfNeeded(
+                repository: repository,
+                defaults: .standard,
+                cursorKeys: cursorKeys,
+                schedulingKeys: [HoloPersonalContextExtractionJob.roundRobinKey]
+            )
+            if let rebuildResult {
+                logger.info("个人情境存量重建迁移：归档 \(rebuildResult.archivedRecordCount) 条，保留用户已表态 \(rebuildResult.preservedUserDecidedCount) 条，游标已重置")
+            }
             _ = try await HoloMemoryCandidateReconciler.reconcileIfNeeded(repository: repository)
         } catch {
             // 重评估失败不影响主业务，下次启动重试。

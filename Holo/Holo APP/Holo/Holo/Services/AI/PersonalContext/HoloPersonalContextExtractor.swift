@@ -90,7 +90,9 @@ nonisolated struct HoloContextExtractionCursorState: Codable, Equatable, Sendabl
         sourceCursor: HoloContextSourceCursor? = nil,
         progress: HoloContextExtractionProgress = HoloContextExtractionProgress(),
         watermark: Date? = nil,
-        extractorVersion: Int = 1,
+        // v2（2026-10-09 存量重建迁移）：域判定与提示词修复后全量重萃取——
+        // 批次键含此版本号，提升即让全部历史批次回执失效。配套迁移清空既有游标。
+        extractorVersion: Int = 2,
         admissionPolicyVersion: Int = HoloContextReconciler.admissionPolicyVersion
     ) {
         self.sourceCursor = sourceCursor
@@ -697,5 +699,78 @@ extension HoloContextReconcileDecision {
             return recordID
         }
         return nil
+    }
+}
+
+// MARK: - 存量重建迁移（2026-10-09 修复批）
+
+/// 个人情境存量重建迁移：域归属缺陷与无人话纪律时代生成的旧记忆整体退役，
+/// 由修复后的管线在新提示词/新域判定下全量重萃取。
+///
+/// 一次性、版本门控、幂等。退役策略是归档而非删除：
+///  - 旧记录置 .archived 进「过去记忆」分组，正文与证据保留可回溯，AI 回答不再使用；
+///  - 剥离 personalContext 载荷是关键一步——归并池按「带载荷」圈定既有记录
+///    （HoloContextReconciler 签名匹配），不剥离的话重萃取出的干净新命题会被
+///    合并回旧记录，旧域/旧摘要复活，重建失效；
+///  - 用户已亲自表态（确认/纠正）的记录不动：那是用户核准过的版本，按 §A10
+///    纠正即权威口径继续生效；
+///  - promptVersion ≥ 2（重建启动后新管线写出）的记录不动——防迁移与前台
+///    萃取批次竞态时误伤刚生成的新记录；
+///  - 游标与调度指针由调用方传入键名清空（键名归运行时层所有，此处不感知），
+///    配合 HoloContextExtractionCursorState 默认 extractorVersion 提升，全部
+///    批次键自然失效，历史来源重新进入萃取。
+nonisolated enum HoloPersonalContextRebuildMigration {
+    static let currentVersion = 1
+    /// 重建后新管线的记录戳（HoloMemoryPipelineVersions.personalPromptVersion 同步提升）。
+    static let minimumFreshPromptVersion = 2
+    static let versionKey = "holo_personal_context_rebuild_migration_version"
+
+    struct Result: Equatable, Sendable {
+        var archivedRecordCount = 0
+        var preservedUserDecidedCount = 0
+        var cursorReset = false
+    }
+
+    static func rebuildIfNeeded(
+        repository: any HoloMemoryRepository,
+        defaults: UserDefaults,
+        cursorKeys: [String],
+        schedulingKeys: [String] = [],
+        now: Date = Date()
+    ) async throws -> Result? {
+        guard defaults.integer(forKey: versionKey) < currentVersion else { return nil }
+        var result = Result()
+
+        let allRecords = try await repository.query(.all)
+        for var record in allRecords {
+            let inRebuildScope = record.personalContext?.v1 != nil || record.scope == .crossDomain
+            guard inRebuildScope else { continue }
+            guard record.userDecision == .none else {
+                result.preservedUserDecidedCount += 1
+                continue
+            }
+            guard record.state != .archived,
+                  record.state != .suppressed,
+                  record.state != .tombstoned,
+                  record.state != .deleted else { continue }
+            guard record.promptVersion < minimumFreshPromptVersion else { continue }
+            record.state = .archived
+            record.personalContext = nil
+            record.recordVersion += 1
+            record.updatedAt = now
+            try await repository.replaceRecordForMigration(record)
+            result.archivedRecordCount += 1
+        }
+
+        for key in cursorKeys {
+            defaults.removeObject(forKey: key)
+        }
+        for key in schedulingKeys {
+            defaults.removeObject(forKey: key)
+        }
+        result.cursorReset = true
+
+        defaults.set(currentVersion, forKey: versionKey)
+        return result
     }
 }

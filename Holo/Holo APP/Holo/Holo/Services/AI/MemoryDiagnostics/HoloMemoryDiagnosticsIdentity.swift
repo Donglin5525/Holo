@@ -15,8 +15,10 @@ nonisolated enum HoloMemoryPipelineVersions {
     static let domainExtractorVersion = 1
     static let domainPromptVersion = 2
     /// 个人情境萃取链路（applyObservationBatch 落库登记）。
-    static let personalExtractorVersion = 1
-    static let personalPromptVersion = 1
+    /// v2（2026-10-09 存量重建迁移）：域判定根治+提示词人话纪律后全量重萃取，
+    /// 记录戳随之提升；重建迁移以 promptVersion ≥ 2 识别新管线记录防竞态误伤。
+    static let personalExtractorVersion = 2
+    static let personalPromptVersion = 2
 }
 
 /// 记忆链路当前生效配置的一次性快照：供日志与「AI 记忆实验室」定位

@@ -272,7 +272,8 @@ enum HoloPersonalContextExtractionJob {
     }
 
     /// 四域轮转指针键：保证游标公平推进（不总从同一域开始）。
-    private static let roundRobinKey = "holo_personal_context_extraction_domain_pointer_v1"
+    /// 非私有：存量重建迁移清空调度状态时需要同一键名。
+    static let roundRobinKey = "holo_personal_context_extraction_domain_pointer_v1"
 
     /// 一轮萃取通过调用（appLaunch/回前台触发；前台每轮最多 2 包）。
     /// R1 四域：thought/finance/task/habit 轮转，每域独立游标；单域失败不拖垮其他域（§3.11）。
