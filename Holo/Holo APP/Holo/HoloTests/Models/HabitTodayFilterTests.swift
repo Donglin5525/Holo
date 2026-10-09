@@ -93,3 +93,43 @@ final class HabitTodayFilterTests: XCTestCase {
         XCTAssertTrue(model.filteredTodayRows.isEmpty, "重进筛选按当下重算")
     }
 }
+
+/// 2026-10-09 触觉回归锁（东林实报打卡无震动）：V1 重构把触觉随旧磁贴留在
+/// HabitTileView，协调器只接了视觉暖光。此矩阵钉死「写库成功必有对应档位触觉」，
+/// 再重构不得静默丢档。
+final class HabitHapticPolicyTests: XCTestCase {
+
+    private func receipt(newState: Bool? = nil, firstCompletion: Bool = false) -> HabitActionReceipt {
+        HabitActionReceipt(
+            operationID: UUID(), habitId: UUID(), kind: .toggleCheckIn,
+            recordId: nil, previousCheckInState: nil, newCheckInState: newState,
+            recordFingerprint: nil, isTodayFirstCompletion: firstCompletion
+        )
+    }
+
+    func test_打卡_勾上success_取消light() {
+        XCTAssertEqual(HabitHapticPolicy.haptic(for: .toggleCheckIn, result: .confirmed(receipt(newState: true))), .success)
+        XCTAssertEqual(HabitHapticPolicy.haptic(for: .toggleCheckIn, result: .confirmed(receipt(newState: false))), .light)
+    }
+
+    func test_数值与计数_当日首笔success_追加light() {
+        XCTAssertEqual(HabitHapticPolicy.haptic(for: .addNumeric(value: 3), result: .confirmed(receipt(firstCompletion: true))), .success)
+        XCTAssertEqual(HabitHapticPolicy.haptic(for: .addNumeric(value: 3), result: .confirmed(receipt(firstCompletion: false))), .light)
+        XCTAssertEqual(HabitHapticPolicy.haptic(for: .increment(amount: 1), result: .confirmed(receipt(firstCompletion: true))), .success)
+        XCTAssertEqual(HabitHapticPolicy.haptic(for: .increment(amount: 1), result: .confirmed(receipt(firstCompletion: false))), .light)
+    }
+
+    func test_撤销补录与明细操作_恒light() {
+        XCTAssertEqual(HabitHapticPolicy.haptic(for: .removeLatestNumeric, result: .confirmed(receipt())), .light)
+        XCTAssertEqual(HabitHapticPolicy.haptic(for: .retroactive(mode: .sign, day: Date(), value: nil), result: .confirmed(receipt())), .light)
+        XCTAssertEqual(HabitHapticPolicy.haptic(for: .updateRecord(recordId: UUID(), value: nil, note: nil), result: .confirmed(receipt())), .light)
+        XCTAssertEqual(HabitHapticPolicy.haptic(for: .deleteRecord(recordId: UUID()), result: .confirmed(receipt())), .light)
+    }
+
+    func test_失败无变化与需权益_不震() {
+        XCTAssertNil(HabitHapticPolicy.haptic(for: .toggleCheckIn, result: .invalidated(.habitPaused)))
+        XCTAssertNil(HabitHapticPolicy.haptic(for: .toggleCheckIn, result: .unchanged(.alreadyRecorded)))
+        XCTAssertNil(HabitHapticPolicy.haptic(for: .toggleCheckIn, result: .failed("网络中断")))
+        XCTAssertNil(HabitHapticPolicy.haptic(for: .retroactive(mode: .sign, day: Date(), value: nil), result: .requiresEntitlement(.retroactiveQuotaExhausted)))
+    }
+}

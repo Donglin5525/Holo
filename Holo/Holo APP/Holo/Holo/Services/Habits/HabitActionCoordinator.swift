@@ -51,7 +51,16 @@ final class HabitActionCoordinator: ObservableObject {
         case .deleteRecord(let recordId):
             result = performDeleteRecord(habitId: habitId, recordId: recordId)
         }
+        playHabitHaptic(HabitHapticPolicy.haptic(for: kind, result: result))
         return result
+    }
+
+    private func playHabitHaptic(_ haptic: HabitHapticPolicy.Haptic?) {
+        switch haptic {
+        case .success: HapticManager.success()
+        case .light: HapticManager.light()
+        case nil: break
+        }
     }
 
     // MARK: - 打卡
@@ -281,6 +290,7 @@ final class HabitActionCoordinator: ObservableObject {
             do {
                 _ = try repository.performCheckInReceipt(habitId: receipt.habitId)
                 HoloMotionFeedbackCenter.shared.cancelHabitResponse(receipt.habitId)
+                HapticManager.light()
                 return .confirmed(HabitActionReceipt(
                     operationID: UUID(),
                     habitId: receipt.habitId,
@@ -304,6 +314,7 @@ final class HabitActionCoordinator: ObservableObject {
                 let removed = try repository.performDeleteRecordReceipt(recordId: recordId, fingerprint: fingerprint)
                 if removed {
                     HoloMotionFeedbackCenter.shared.cancelHabitResponse(receipt.habitId)
+                    HapticManager.light()
                     return .confirmed(HabitActionReceipt(
                         operationID: UUID(),
                         habitId: receipt.habitId,
@@ -334,6 +345,26 @@ final class HabitActionCoordinator: ObservableObject {
         case .habitIsPaused: return .invalidated(.habitPaused)
         case .invalidData: return .invalidated(.invalidValue)
         default: return .failed(error.localizedDescription)
+        }
+    }
+}
+
+/// 记录动作 → 触觉档位映射。语义沿旧磁贴版：勾上打卡/当日首笔数值 = success，
+/// 取消、追加、撤销与补录 = light；失败/无变化不震（各走行内错误文案）。
+/// 坏习惯超限的 warning 震由 HabitRecordFeedbackView 超限提示自带。
+enum HabitHapticPolicy {
+    enum Haptic: Equatable { case success, light }
+
+    static func haptic(for kind: HabitActionKind, result: HabitActionResult) -> Haptic? {
+        guard case .confirmed(let receipt) = result else { return nil }
+        switch kind {
+        case .toggleCheckIn:
+            // 勾上恒 success（暖光才看当天首次）；取消 = light
+            return receipt.newCheckInState == true ? .success : .light
+        case .addNumeric, .increment:
+            return receipt.isTodayFirstCompletion ? .success : .light
+        case .removeLatestNumeric, .retroactive, .updateRecord, .deleteRecord:
+            return .light
         }
     }
 }
