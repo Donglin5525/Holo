@@ -10,6 +10,7 @@ import Foundation
 import CoreData
 import CloudKit
 import BackgroundTasks
+import os.log
 
 /// 记账功能数据仓库
 /// 使用 @MainActor 保证所有操作在主线程执行，返回的对象可在 UI 中安全使用
@@ -37,9 +38,17 @@ class FinanceRepository {
         self.context = context
     }
 
+    /// setup 幂等标记（2026-10-09 C2）：setup 有多个生产调用点（App 启动/账本页/
+    /// AI 路由/组件快照/截图种子），旧实现每次调用都 force 首扫，多入口叠加会把
+    /// 全实体扫描越开越多。现在只有进程内首次调用做种子/迁移/首扫。
+    /// 实例级（测试用 init(context:) 注入的独立实例互不影响）。
+    private var isSetupComplete = false
+
     /// 延迟初始化：触发 Core Data → seed
-    /// 在首次使用 FinanceRepository 时调用
+    /// 在首次使用 FinanceRepository 时调用；重复调用无副作用
     func setup() {
+        guard !isSetupComplete else { return }
+        isSetupComplete = true
         _ = context          // 触发 lazy var → CoreDataStack.shared.viewContext
         seedDefaultData()
         migrateLegacyInstallmentNotes()
@@ -84,36 +93,65 @@ class FinanceRepository {
     /// 在 viewContext（主线程）同步跑会把 UI 反复锤死。主线程绝不同步执行扫描：
     /// 这里只做调度，实际扫描（含误种清理）全部在后台 context 跑完，
     /// 删除落库后由 automaticallyMergesChangesFromParent 自动合并回主上下文。
-    private static let minScanInterval: TimeInterval = 60
-    private static var lastScanAt: Date?
-    /// 后台扫描启动时刻。宽限期内视为「正在跑」挡住新轮；超期视为僵死
-    /// （如 SQLite 长锁等待），放行新一轮——避免一次卡住永久停摆清不动数据。
-    private static var scanStartedAt: Date?
-    private static let scanStuckGrace: TimeInterval = 300
+    private static let scanLogger = Logger(subsystem: "com.holo.app", category: "FinanceDuplicateScan")
+    /// 调度状态机（纯值，单测覆盖）。旧实现（2026-10-09 C2 之前）：force 可绕过
+    /// 「正在扫」、300s 宽限到期还放行新扫——多入口 setup 叠加时全实体扫描并发
+    /// 争抢数据库与 CPU。现语义：in-flight 硬门禁（force 也只跳过冷却）；
+    /// 扫描中的新变化记 pending 结束后补一轮；完成回调按 runID 对身份。
+    private static var scanGate = DuplicateScanGate(minScanInterval: 60)
+    /// 僵死只记异常日志不重开（单工作者不可破）；超时值沿用旧宽限
+    private static let scanStuckLogThreshold: TimeInterval = 300
 
-    /// 调度一轮副本修复（任意线程可调）。force 跳过节流，仅启动首扫使用。
+    /// 调度一轮副本修复（任意线程可调）。force 只跳过冷却，不绕过单工作者门禁。
     private func scheduleDuplicateScan(force: Bool = false) {
         Task { @MainActor in
             FinanceRepository.shared.scheduleDuplicateScanOnMain(force: force)
         }
     }
 
-    /// 节流 + 防重入 + 起后台任务；状态只在主线程读写，无需加锁。
+    /// 节流 + 单工作者 + 起后台任务；状态只在主线程读写，无需加锁。
     @MainActor
     private func scheduleDuplicateScanOnMain(force: Bool) {
-        let now = Date()
-        if !force {
-            if let started = Self.scanStartedAt, now.timeIntervalSince(started) < Self.scanStuckGrace { return }
-            if let last = Self.lastScanAt, now.timeIntervalSince(last) < Self.minScanInterval { return }
+        switch Self.scanGate.request(force: force, now: Date()) {
+        case .start(let runID):
+            self.beginScanRun(runID: runID)
+        case .markPending:
+            Self.scanLogger.notice("副本扫描进行中：新请求记 pending（force=\(force, privacy: .public)）")
+        case .dropped:
+            break
         }
-        Self.lastScanAt = now
-        Self.scanStartedAt = now
+    }
+
+    @MainActor
+    private func beginScanRun(runID: UUID) {
+        Self.scanLogger.notice("副本扫描开始 run=\(runID)")
+        // 僵死观察：超时只记异常日志，保持单工作者不重开（防叠跑优先于自愈）
+        let threshold = Self.scanStuckLogThreshold
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(threshold))
+            if Self.scanGate.isRunning(runID: runID) {
+                Self.scanLogger.error("副本扫描超 \(Int(threshold))s 未结束，保持单工作者不重开 run=\(runID)")
+            }
+        }
         let container = CoreDataStack.shared.persistentContainer
         container.performBackgroundTask { bgContext in
             self.runRepairPass(on: bgContext)
             Task { @MainActor in
-                Self.scanStartedAt = nil
+                self.completeScanRun(runID: runID)
             }
+        }
+    }
+
+    @MainActor
+    private func completeScanRun(runID: UUID) {
+        switch Self.scanGate.finish(runID: runID, now: Date()) {
+        case .start(let nextID):
+            Self.scanLogger.notice("副本扫描结束，补做 pending 一轮 run=\(nextID)")
+            self.beginScanRun(runID: nextID)
+        case .dropped:
+            Self.scanLogger.notice("副本扫描结束 run=\(runID)")
+        case .markPending:
+            break   // finish 不返回此值，穷尽分支
         }
     }
 
@@ -202,13 +240,13 @@ class FinanceRepository {
                       globalResult.conflictingGroups, globalResult.deferredGroups)
             }
             if globalResult.removed > 0 {
+                // C3a（2026-10-09）：按实际删除的实体精准失效所在域，不再六连发。
+                // 域外实体由 domainNotifications 兜底退回全六域，不丢刷新。
+                let domainNames = GlobalDuplicateRepair.domainNotifications(for: globalResult.removedByEntity)
                 Task { @MainActor in
-                    NotificationCenter.default.post(name: .todoDataDidChange, object: nil)
-                    NotificationCenter.default.post(name: .habitDataDidChange, object: nil)
-                    NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
-                    NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
-                    NotificationCenter.default.post(name: .anniversaryDataDidChange, object: nil)
-                    NotificationCenter.default.post(name: .goalDataDidChange, object: nil)
+                    for name in domainNames {
+                        NotificationCenter.default.post(name: name, object: nil)
+                    }
                 }
             }
         } catch {
@@ -1522,4 +1560,58 @@ final class SpendingProjectBackgroundService {
 extension Notification.Name {
     /// 财务数据发生变化时发送此通知，账本列表监听后刷新
     static let financeDataDidChange = Notification.Name("financeDataDidChange")
+}
+
+// MARK: - 副本扫描调度状态机（2026-10-09 C2，纯值可单测）
+
+/// 副本扫描的调度决策核心：单工作者硬门禁（force 只跳过冷却，不绕过「正在扫」）、
+/// in-flight 期间新变化挂 pending 结束后补一轮、完成回调按 runID 对身份。
+/// 语义细节由 HoloSyncSchedulingTests 钉死；FinanceRepository 只做薄壳接线。
+struct DuplicateScanGate {
+    enum Decision: Equatable {
+        /// 放行开跑（附本轮 runID）
+        case start(UUID)
+        /// in-flight：挂 pending，本轮结束后补做
+        case markPending
+        /// 冷却期内丢弃 / 过期回调无动作
+        case dropped
+    }
+
+    private(set) var currentRunID: UUID?
+    private(set) var pendingRescan = false
+    private(set) var lastScanAt: Date?
+    let minScanInterval: TimeInterval
+
+    init(minScanInterval: TimeInterval) {
+        self.minScanInterval = minScanInterval
+    }
+
+    var isScanning: Bool { currentRunID != nil }
+
+    func isRunning(runID: UUID) -> Bool { currentRunID == runID }
+
+    mutating func request(force: Bool, now: Date) -> Decision {
+        if currentRunID != nil {
+            pendingRescan = true
+            return .markPending
+        }
+        if !force, let last = lastScanAt, now.timeIntervalSince(last) < minScanInterval {
+            return .dropped
+        }
+        let id = UUID()
+        currentRunID = id
+        lastScanAt = now
+        return .start(id)
+    }
+
+    mutating func finish(runID: UUID, now: Date) -> Decision {
+        guard currentRunID == runID else { return .dropped }
+        currentRunID = nil
+        guard pendingRescan else { return .dropped }
+        pendingRescan = false
+        let id = UUID()
+        currentRunID = id
+        lastScanAt = now
+        return .start(id)
+    }
 }

@@ -17,7 +17,8 @@ import os.log
 // MARK: - 数据模型
 
 /// 推送提醒状态（跨模块通用，不可变）
-struct ScheduleReminderState {
+/// Equatable（2026-10-09 C3b）：相同状态不重复发布，避免首页无谓重算
+struct ScheduleReminderState: Equatable {
     /// 稳定标识（曝光记录 / tiebreaker，方案 §4.4）
     let id: String
     /// 紧急程度 → 决定信号灯颜色
@@ -86,16 +87,16 @@ class HomeScheduleService: ObservableObject {
             NotificationCenter.default.publisher(for: name)
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
-                    self?.refresh()
+                    self?.requestMergedRefresh()
                 }
                 .store(in: &cancellables)
         }
 
-        // 监听 App 回到前台
+        /// 监听 App 回到前台
         NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.refresh()
+                self?.refreshNow(source: "foreground")
             }
             .store(in: &cancellables)
 
@@ -106,15 +107,69 @@ class HomeScheduleService: ObservableObject {
             repeats: true
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.refresh()
+                self?.refreshNow(source: "timer")
             }
+        }
+    }
+
+    // MARK: - 展示生命周期与合并刷新（2026-10-09 C3b）
+
+    /// 首页展示可见性（HomeView 驱动）：不可见时不重建候选、只记脏，
+    /// 恢复可见补一次刷新。currentState 的唯一消费者是首页信号灯 UI；
+    /// ChatViewModel / MemoryInsightBackgroundService 的 refresh() 调用
+    /// 同样被门控，效果在回到首页时生效即可。
+    private var isPresentationVisible = true
+    private var hasPendingRefreshWhileHidden = false
+
+    /// 幂等入口：HomeView 可见性变化时调用（可见 = 首页无模块遮挡、无覆盖层）
+    func setPresentationVisible(_ visible: Bool) {
+        guard visible != isPresentationVisible else { return }
+        isPresentationVisible = visible
+        if visible, hasPendingRefreshWhileHidden {
+            hasPendingRefreshWhileHidden = false
+            logger.debug("信号灯恢复可见，补一次延迟刷新")
+            refreshNow(source: "restore")
+        }
+    }
+
+    /// 四域通知合并窗口：窗口内多次通知只重算一次（一轮修复/同步风暴
+    /// 原会把首页候选连算四次）。首个通知起 200ms 定时，窗口内后续通知
+    /// 合并进同一轮且不延长——连续风暴下最多延迟 200ms，不会无限推迟。
+    private static let mergeWindow: Duration = .milliseconds(200)
+    private var mergedRefreshTask: Task<Void, Never>?
+    private var mergedSignalCount = 0
+
+    private func requestMergedRefresh() {
+        guard mergedRefreshTask == nil else {
+            mergedSignalCount += 1
+            return
+        }
+        mergedSignalCount = 1
+        mergedRefreshTask = Task { [weak self] in
+            try? await Task.sleep(for: Self.mergeWindow)
+            guard let self else { return }
+            self.mergedRefreshTask = nil
+            let merged = self.mergedSignalCount
+            self.mergedSignalCount = 0
+            self.refreshNow(source: "merged(\(merged))")
         }
     }
 
     // MARK: - Refresh
 
-    /// 聚合所有模块候选，按业务优先级取最高的一条（ScheduleRanker，方案 §4.4）
+    /// 聚合所有模块候选，按业务优先级取最高的一条（ScheduleRanker，方案 §4.4）。
+    /// 外部手动调用入口；通知驱动路径走 requestMergedRefresh 合并后到这里。
     func refresh() {
+        refreshNow(source: "manual")
+    }
+
+    /// 真正构建候选并发布：隐藏门控（不重建投影，只记脏）+ 相等跳过发布。
+    private func refreshNow(source: String) {
+        guard isPresentationVisible else {
+            hasPendingRefreshWhileHidden = true
+            logger.debug("信号灯刷新延迟到恢复可见（source=\(source, privacy: .public)）")
+            return
+        }
         let now = Date()
         var candidates: [ScheduleCandidate] = []
         var deepLinks: [String: DeepLinkTarget] = [:]
@@ -132,7 +187,9 @@ class HomeScheduleService: ObservableObject {
         add(buildWeeklyObservationCandidate(now: now))
 
         guard let top = ScheduleRanker.topCandidate(candidates) else {
-            currentState = nil
+            if currentState != nil {
+                currentState = nil
+            }
             return
         }
 
@@ -144,6 +201,10 @@ class HomeScheduleService: ObservableObject {
             deepLinkTarget: deepLinks[top.id]
         )
 
+        if currentState == newState {
+            logger.debug("信号灯无变化，跳过发布（source=\(source, privacy: .public)）")
+            return
+        }
         currentState = newState
     }
 

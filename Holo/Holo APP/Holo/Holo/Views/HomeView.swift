@@ -188,6 +188,11 @@ struct HomeView: View {
                 .opacity(activeScreen == nil ? 1 : 0)
                 .allowsHitTesting(activeScreen == nil)
                 .accessibilityHidden(activeScreen != nil)
+                // C3b（2026-10-09）：首页被模块/覆盖层遮挡时，信号灯服务只记脏
+                // 不重算候选；恢复可见补一次刷新。幂等入口，initial 对齐首帧。
+                .onChange(of: homeMotionIsVisible, initial: true) { _, visible in
+                    scheduleService.setPresentationVisible(visible)
+                }
                 .zIndex(0)
 
             // 每个模块首次进入时挂载，之后仅隐藏、不销毁：侧边栏往返切换只翻转
