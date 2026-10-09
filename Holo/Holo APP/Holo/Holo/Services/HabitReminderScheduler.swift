@@ -109,7 +109,7 @@ final class HabitReminderScheduler: RollingNotificationScheduler {
                 let soloContent = UNMutableNotificationContent()
                 soloContent.title = String(localized: "「\(item.name.holoTruncated())」还没打卡")
                 soloContent.body = item.streak >= 2
-                    ? String(localized: "已连续 \(item.streak) 天，今天别断了")
+                    ? String(localized: "已连续打卡 \(item.streak) 天，今天别断了")
                     : String(localized: "今天记得打卡")
                 soloContent.sound = .default
                 soloContent.categoryIdentifier = TodoNotificationCategory.habitReminder
@@ -168,15 +168,20 @@ final class HabitReminderScheduler: RollingNotificationScheduler {
         let body: String
         if pending.count == 1 {
             body = byStreak[0].streak >= 2
-                ? String(localized: "已连续 \(byStreak[0].streak) 天，今天别断了")
+                ? String(localized: "已连续打卡 \(byStreak[0].streak) 天，今天别断了")
                 : String(localized: "睡前一分钟，完成今天的打卡")
+        } else if byStreak[0].streak >= 2 {
+            // 濒危 streak 的习惯打头把「别断」的赌注说透，其余点名兜后；它自身不再重复进名单
+            let head = String(localized: "\(byStreak[0].name.holoTruncated())已连续打卡 \(byStreak[0].streak) 天，今天别断")
+            let rest = byStreak.dropFirst()
+            let restNames = rest.prefix(2).map { $0.name.holoTruncated() }.joined(separator: "、")
+            let tail = rest.count == 1
+                ? String(localized: "还有\(restNames)")
+                : String(localized: "还有\(restNames)等 \(rest.count) 个")
+            body = head + " · " + tail
         } else {
             let names = pending.prefix(2).map { $0.name.holoTruncated() }.joined(separator: "、")
-            var text = pending.count > 2 ? String(localized: "\(names) 等 \(pending.count) 个") : names
-            if byStreak[0].streak >= 2 {
-                text += String(localized: " · \(byStreak[0].name.holoTruncated())已连续 \(byStreak[0].streak) 天")
-            }
-            body = text
+            body = pending.count > 2 ? String(localized: "\(names) 等 \(pending.count) 个") : names
         }
         return (title, body)
     }

@@ -97,22 +97,6 @@
         }
       }
     },
-    " · %@已连续 %lld 天" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "· %@ for %lld consecutive days"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " · %@已連續 %lld 天"
-          }
-        }
-      }
-    },
     " · %lld 件已过期" : {
       "localizations" : {
         "en" : {
@@ -483,22 +467,6 @@
         }
       }
     },
-    "%lld 账户" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld accounts"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 帳戶"
-          }
-        }
-      }
-    },
     "-%@" : {
       "localizations" : {
         "en" : {
@@ -543,166 +511,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "—"
-          }
-        }
-      }
-    },
-    "给哪个账户添加预算？" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add a budget to which account?"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "給哪個帳戶添加預算？"
-          }
-        }
-      }
-    },
-    "给重点科目单独设预算，如餐饮、购物" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Set a separate budget for key categories like Dining or Shopping"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "給重點科目單獨設預算，如餐飲、購物"
-          }
-        }
-      }
-    },
-    "该科目的预算已删除" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The budget for this category has been deleted"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "該科目的預算已刪除"
-          }
-        }
-      }
-    },
-    "本月该科目还没有支出" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No spending in this category yet this month"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本月該科目還沒有支出"
-          }
-        }
-      }
-    },
-    "已花 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Spent %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已花 %@"
-          }
-        }
-      }
-    },
-    "本月合计 · %lld 笔" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Monthly total · %lld items"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本月合計 · %lld 筆"
-          }
-        }
-      }
-    },
-    "未知账户" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unknown Account"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未知帳戶"
-          }
-        }
-      }
-    },
-    "编辑哪个预算？" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Which budget do you want to edit?"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "編輯哪個預算？"
-          }
-        }
-      }
-    },
-    "编辑预算" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edit Budget"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "編輯預算"
-          }
-        }
-      }
-    },
-    "已合并 %lld 个账户的预算" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Merged budgets from %lld accounts"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已合併 %lld 個帳戶的預算"
           }
         }
       }
@@ -2258,16 +2066,16 @@
     },
     "%@ · %lld 项完成" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ · %2$lld 项完成"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ · %2$lld done"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld 项完成"
           }
         },
         "zh-Hant" : {
@@ -2312,16 +2120,16 @@
     },
     "%@ · 共 %lld 新增 / %lld 完成" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ · 共 %2$lld 新增 / %3$lld 完成"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ · %2$lld added / %3$lld done"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · 共 %2$lld 新增 / %3$lld 完成"
           }
         },
         "zh-Hant" : {
@@ -2334,16 +2142,16 @@
     },
     "%@ · 共 %lld 项" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ · 共 %2$lld 项"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ · %2$lld in total"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · 共 %2$lld 项"
           }
         },
         "zh-Hant" : {
@@ -2549,15 +2357,15 @@
     },
     "%@ %@  %@ %@%%" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ %2$@  %3$@ %4$@%%"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
+            "value" : "%1$@ %2$@  %3$@ %4$@%%"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
             "value" : "%1$@ %2$@  %3$@ %4$@%%"
           }
         },
@@ -2571,15 +2379,15 @@
     },
     "%@ %@ / %@ %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ %2$@ / %3$@ %4$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
+            "value" : "%1$@ %2$@ / %3$@ %4$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
             "value" : "%1$@ %2$@ / %3$@ %4$@"
           }
         },
@@ -2593,15 +2401,15 @@
     },
     "%@ %@ %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ %2$@ %3$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
+            "value" : "%1$@ %2$@ %3$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
             "value" : "%1$@ %2$@ %3$@"
           }
         },
@@ -2647,15 +2455,15 @@
     },
     "%@ %@%%" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ %2$@%%"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
+            "value" : "%1$@ %2$@%%"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
             "value" : "%1$@ %2$@%%"
           }
         },
@@ -2685,16 +2493,16 @@
     },
     "%@ %lld / %lld 次" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ %2$lld / %3$lld 次"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ %2$lld / %3$lld times"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$lld / %3$lld 次"
           }
         },
         "zh-Hant" : {
@@ -2787,15 +2595,15 @@
     },
     "%@ vs %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ vs %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
+            "value" : "%1$@ vs %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
             "value" : "%1$@ vs %2$@"
           }
         },
@@ -3167,16 +2975,16 @@
     },
     "%@，%@，%lld项" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@，%2$@，%3$lld项"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@, %2$@, %3$lld items"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@，%2$@，%3$lld项"
           }
         },
         "zh-Hant" : {
@@ -3685,22 +3493,38 @@
     },
     "%@已记录 %lld 天" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@已记录 %2$lld 天"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@: %2$lld days recorded"
           }
         },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@已记录 %2$lld 天"
+          }
+        },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@已記錄 %2$lld 天"
+          }
+        }
+      }
+    },
+    "%@已连续打卡 %lld 天，今天别断" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ has a %lld-day streak, don't break it today"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@已連續打卡 %lld 天，今天別斷"
           }
         }
       }
@@ -3723,16 +3547,16 @@
     },
     "%@年第%lld季度" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@年第%2$lld季度"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ Q%2$lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@年第%2$lld季度"
           }
         },
         "zh-Hant" : {
@@ -4178,15 +4002,15 @@
     },
     "%lld · %lld%%" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld · %2$lld%%"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
+            "value" : "%1$lld · %2$lld%%"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
             "value" : "%1$lld · %2$lld%%"
           }
         },
@@ -4216,16 +4040,16 @@
     },
     "%lld / %lld 项按时完成" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld / %2$lld 项按时完成"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld / %2$lld done on time"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld / %2$lld 项按时完成"
           }
         },
         "zh-Hant" : {
@@ -4769,16 +4593,16 @@
     },
     "%lld 张 · %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld 张 · %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld photos · %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld 张 · %2$@"
           }
         },
         "zh-Hant" : {
@@ -5070,16 +4894,16 @@
     },
     "%lld 条想法 · 横跨 %lld 天" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld 条想法 · 横跨 %2$lld 天"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld thoughts · across %2$lld days"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld 条想法 · 横跨 %2$lld 天"
           }
         },
         "zh-Hant" : {
@@ -5092,16 +4916,16 @@
     },
     "%lld 条想法也在主题%@，点按查看" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld 条想法也在主题%2$@，点按查看"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld more thoughts in \"%2$@\" — tap to view"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld 条想法也在主题%2$@，点按查看"
           }
         },
         "zh-Hant" : {
@@ -5471,16 +5295,16 @@
     },
     "%lld 笔 · 共 ¥%@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld 笔 · 共 ¥%2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld entries · ¥%2$@ total"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld 笔 · 共 ¥%2$@"
           }
         },
         "zh-Hant" : {
@@ -5557,16 +5381,16 @@
     },
     "%lld 笔支出 · 日均 ¥%@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld 笔支出 · 日均 ¥%2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld expenses · ¥%2$@/day on average"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld 笔支出 · 日均 ¥%2$@"
           }
         },
         "zh-Hant" : {
@@ -5637,6 +5461,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 組"
+          }
+        }
+      }
+    },
+    "%lld 账户" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld accounts"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 帳戶"
           }
         }
       }
@@ -5755,16 +5595,16 @@
     },
     "%lld，%@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld，%2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld, %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld，%2$@"
           }
         },
         "zh-Hant" : {
@@ -5825,16 +5665,16 @@
     },
     "%lld（%lld）" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld（%2$lld）"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld (%2$lld)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld（%2$lld）"
           }
         },
         "zh-Hant" : {
@@ -11832,16 +11672,16 @@
     },
     "上限 %@%@/日" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "上限 %1$@%2$@/日"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Limit %1$@%2$@/day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "上限 %1$@%2$@/日"
           }
         },
         "zh-Hant" : {
@@ -13370,16 +13210,16 @@
     },
     "主题 %@，%@，轻点查看脉络" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "主题 %1$@，%2$@，轻点查看脉络"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Topic %1$@, %2$@ — tap to see the thread"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "主题 %1$@，%2$@，轻点查看脉络"
           }
         },
         "zh-Hant" : {
@@ -13553,16 +13393,16 @@
     },
     "主题建议：%@，%lld 条想法" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "主题建议：%1$@，%2$lld 条想法"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Topic suggestion: %1$@ — %2$lld thoughts"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "主题建议：%1$@，%2$lld 条想法"
           }
         },
         "zh-Hant" : {
@@ -13881,16 +13721,16 @@
     },
     "习惯 %lld/%lld" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "习惯 %1$lld/%2$lld"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Habits %1$lld/%2$lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "习惯 %1$lld/%2$lld"
           }
         },
         "zh-Hant" : {
@@ -15121,16 +14961,16 @@
     },
     "今天 %@ / %@ %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "今天 %1$@ / %2$@ %3$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Today %1$@ / %2$@ %3$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "今天 %1$@ / %2$@ %3$@"
           }
         },
         "zh-Hant" : {
@@ -15143,16 +14983,16 @@
     },
     "今天 %@ %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "今天 %1$@ %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Today %1$@ %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "今天 %1$@ %2$@"
           }
         },
         "zh-Hant" : {
@@ -15182,16 +15022,16 @@
     },
     "今天 %@ %@，增加一次或撤销最近一次" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "今天 %1$@ %2$@，增加一次或撤销最近一次"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Today %1$@ %2$@ — add one or undo the latest"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "今天 %1$@ %2$@，增加一次或撤销最近一次"
           }
         },
         "zh-Hant" : {
@@ -16662,6 +16502,9 @@
           }
         }
       }
+    },
+    "今日处理次数已达上限" : {
+
     },
     "今日完成" : {
       "extractionState" : "stale",
@@ -20153,16 +19996,16 @@
     },
     "保留 %lld 件事的安排（%@）" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "保留 %1$lld 件事的安排（%2$@）"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keep %1$lld things planned (%2$@)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "保留 %1$lld 件事的安排（%2$@）"
           }
         },
         "zh-Hant" : {
@@ -20191,16 +20034,16 @@
     },
     "保留 %lld 件推进，放下 %lld 件。" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "保留 %1$lld 件推进，放下 %2$lld 件。"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Keeping %1$lld to push, setting aside %2$lld."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "保留 %1$lld 件推进，放下 %2$lld 件。"
           }
         },
         "zh-Hant" : {
@@ -22403,16 +22246,16 @@
     },
     "共 %@ %@ · 记录 %lld 天" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "共 %1$@ %2$@ · 记录 %3$lld 天"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ %2$@ total · %3$lld days recorded"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "共 %1$@ %2$@ · 记录 %3$lld 天"
           }
         },
         "zh-Hant" : {
@@ -23068,16 +22911,16 @@
     },
     "其中 %lld 条也在「%@」" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "其中 %1$lld 条也在「%2$@」"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld of them are also in \"%2$@\""
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "其中 %1$lld 条也在「%2$@」"
           }
         },
         "zh-Hant" : {
@@ -23668,16 +23511,16 @@
     },
     "最近 %@ %@ · 记录 %lld 天" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "最近 %1$@ %2$@ · 记录 %3$lld 天"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Last %1$@ %2$@ · %3$lld days recorded"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "最近 %1$@ %2$@ · 记录 %3$lld 天"
           }
         },
         "zh-Hant" : {
@@ -29473,16 +29316,16 @@
     },
     "发生 %lld 天 · 共 %@ %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "发生 %1$lld 天 · 共 %2$@ %3$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld days · %2$@ %3$@ total"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "发生 %1$lld 天 · 共 %2$@ %3$@"
           }
         },
         "zh-Hant" : {
@@ -38532,6 +38375,22 @@
         }
       }
     },
+    "已合并 %lld 个账户的预算" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merged budgets from %lld accounts"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已合併 %lld 個帳戶的預算"
+          }
+        }
+      }
+    },
     "已合并到 #%@" : {
       "localizations" : {
         "en" : {
@@ -39186,6 +39045,9 @@
         }
       }
     },
+    "已建立智能索引" : {
+
+    },
     "已开启" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -39799,16 +39661,16 @@
     },
     "已整理 %lld 项 · 跳过 %lld 项" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "已整理 %1$lld 项 · 跳过 %2$lld 项"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Organized %1$lld · skipped %2$lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已整理 %1$lld 项 · 跳过 %2$lld 项"
           }
         },
         "zh-Hant" : {
@@ -40208,16 +40070,16 @@
     },
     "已清理 %lld 个导入分类%@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "已清理 %1$lld 个导入分类%2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cleaned %1$lld imported categories%2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已清理 %1$lld 个导入分类%2$@"
           }
         },
         "zh-Hant" : {
@@ -40551,16 +40413,16 @@
     },
     "已索引 %lld 条，%lld 条处理失败" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "已索引 %1$lld 条，%2$lld 条处理失败"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld indexed, %2$lld failed to process"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已索引 %1$lld 条，%2$lld 条处理失败"
           }
         },
         "zh-Hant" : {
@@ -40809,6 +40671,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已花"
+          }
+        }
+      }
+    },
+    "已花 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spent %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已花 %@"
           }
         }
       }
@@ -41471,7 +41349,7 @@
         }
       }
     },
-    "已连续 %lld 天，今天别断了" : {
+    "已连续打卡 %lld 天，今天别断了" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -41482,7 +41360,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已連續 %lld 天，今天別斷了"
+            "value" : "已連續打卡 %lld 天，今天別斷了"
           }
         }
       }
@@ -41505,16 +41383,16 @@
     },
     "已退 %@ / %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "已退 %1$@ / %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Refunded %1$@ / %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已退 %1$@ / %2$@"
           }
         },
         "zh-Hant" : {
@@ -52366,16 +52244,16 @@
     },
     "收入 %@ · 净投入 %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "收入 %1$@ · 净投入 %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Income %1$@ · Net investment %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "收入 %1$@ · 净投入 %2$@"
           }
         },
         "zh-Hant" : {
@@ -53643,16 +53521,16 @@
     },
     "整理中：已索引 %lld 条，剩 %lld 条待处理" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "整理中：已索引 %1$lld 条，剩 %2$lld 条待处理"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Organizing: %1$lld indexed, %2$lld to go"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "整理中：已索引 %1$lld 条，剩 %2$lld 条待处理"
           }
         },
         "zh-Hant" : {
@@ -54002,16 +53880,16 @@
     },
     "新增 %lld · 完成 %lld" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "新增 %1$lld · 完成 %2$lld"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld added · %2$lld done"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "新增 %1$lld · 完成 %2$lld"
           }
         },
         "zh-Hant" : {
@@ -59782,6 +59660,22 @@
         }
       }
     },
+    "未知账户" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown Account"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未知帳戶"
+          }
+        }
+      }
+    },
     "未知错误" : {
       "localizations" : {
         "en" : {
@@ -60820,6 +60714,22 @@
         }
       }
     },
+    "本月合计 · %lld 笔" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monthly total · %lld items"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月合計 · %lld 筆"
+          }
+        }
+      }
+    },
     "本月完成率" : {
       "localizations" : {
         "en" : {
@@ -60944,6 +60854,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本月洞察"
+          }
+        }
+      }
+    },
+    "本月该科目还没有支出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No spending in this category yet this month"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月該科目還沒有支出"
           }
         }
       }
@@ -62951,16 +62877,16 @@
     },
     "标签%@，%lld 条想法用过，点按查看" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "标签%1$@，%2$lld 条想法用过，点按查看"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tag %1$@ — used by %2$lld thoughts, tap to view"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "标签%1$@，%2$lld 条想法用过，点按查看"
           }
         },
         "zh-Hant" : {
@@ -73674,16 +73600,16 @@
     },
     "第 %lld / %lld 项" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "第 %1$lld / %2$lld 项"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Item %1$lld / %2$lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "第 %1$lld / %2$lld 项"
           }
         },
         "zh-Hant" : {
@@ -75458,6 +75384,22 @@
         }
       }
     },
+    "给哪个账户添加预算？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a budget to which account?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "給哪個帳戶添加預算？"
+          }
+        }
+      }
+    },
     "给妈妈打电话" : {
       "localizations" : {
         "en" : {
@@ -75534,6 +75476,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "給這個日子起個名字"
+          }
+        }
+      }
+    },
+    "给重点科目单独设预算，如餐饮、购物" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set a separate budget for key categories like Dining or Shopping"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "給重點科目單獨設預算，如餐飲、購物"
           }
         }
       }
@@ -76130,6 +76088,22 @@
         }
       }
     },
+    "编辑哪个预算？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which budget do you want to edit?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯哪個預算？"
+          }
+        }
+      }
+    },
     "编辑字段映射" : {
       "localizations" : {
         "en" : {
@@ -76302,6 +76276,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "編輯項目"
+          }
+        }
+      }
+    },
+    "编辑预算" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Budget"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯預算"
           }
         }
       }
@@ -80979,6 +80969,22 @@
         }
       }
     },
+    "该科目的预算已删除" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The budget for this category has been deleted"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "該科目的預算已刪除"
+          }
+        }
+      }
+    },
     "该账户未设置月度预算" : {
       "localizations" : {
         "en" : {
@@ -83340,16 +83346,16 @@
     },
     "趋势图：新增 %lld 项，完成 %lld 项，可通过「查看趋势明细」逐日核对" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "趋势图：新增 %1$lld 项，完成 %2$lld 项，可通过「查看趋势明细」逐日核对"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Trend: %1$lld added, %2$lld completed — check day by day via \"View trend details\""
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "趋势图：新增 %1$lld 项，完成 %2$lld 项，可通过「查看趋势明细」逐日核对"
           }
         },
         "zh-Hant" : {
@@ -83540,16 +83546,16 @@
     },
     "距离「%@」的目标还有 %lld 天，建议今天先处理它。" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "距离「%1$@」的目标还有 %2$lld 天，建议今天先处理它。"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%2$lld days left until the goal for \"%1$@\" — handle it first today."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "距离「%1$@」的目标还有 %2$lld 天，建议今天先处理它。"
           }
         },
         "zh-Hant" : {
@@ -84418,16 +84424,16 @@
     },
     "较%@ %@%@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "较%1$@ %2$@%3$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "vs %1$@ %2$@%3$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "较%1$@ %2$@%3$@"
           }
         },
         "zh-Hant" : {
@@ -84456,16 +84462,16 @@
     },
     "较上期多 %lld %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "较上期多 %1$lld %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld %2$@ more than last period"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "较上期多 %1$lld %2$@"
           }
         },
         "zh-Hant" : {
@@ -84478,16 +84484,16 @@
     },
     "较上期少 %lld %@" : {
       "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "较上期少 %1$lld %2$@"
-          }
-        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld %2$@ less than last period"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "较上期少 %1$lld %2$@"
           }
         },
         "zh-Hant" : {
@@ -86057,6 +86063,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還有 %lld 項待點亮"
+          }
+        }
+      }
+    },
+    "还有%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還有%@"
+          }
+        }
+      }
+    },
+    "还有%@等 %lld 个" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus %@ and %lld more"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還有%@等 %lld 個"
           }
         }
       }
