@@ -427,21 +427,18 @@ private struct DailyReplayMomentRow: View {
     @Environment(\.holoContentWidth) private var windowWidth
 
     var body: some View {
+        // 全部时刻统一「时间列 + 卡片」行结构（2026-10-10 东林反馈：带图想法满宽特写
+        // 与其他卡容器边缘不齐）。带图想法只是卡片形态不同，行结构不再分叉——
+        // 时间永远在行头时间列，卡内不再重复显示。
         let typeScale = HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: windowWidth)
-        Group {
-            if moment.module == .thought, moment.events.contains(where: { !$0.attachmentThumbnails.isEmpty }) {
-                DailyReplayEventCard(moment: moment, onSelect: onSelect, onSelectGroup: onSelectGroup)
-            } else {
-                HStack(alignment: .top, spacing: 10) {
-                    Text(moment.timeText)
-                        .font(.system(size: 11 * typeScale, weight: .medium, design: .rounded))
-                        .foregroundColor(.holoToolTextSecondary)
-                        .monospacedDigit()
-                        .frame(width: 46 * typeScale, alignment: .trailing)
-                        .padding(.top, 14)
-                    DailyReplayEventCard(moment: moment, onSelect: onSelect, onSelectGroup: onSelectGroup)
-                }
-            }
+        HStack(alignment: .top, spacing: 10) {
+            Text(moment.timeText)
+                .font(.system(size: 11 * typeScale, weight: .medium, design: .rounded))
+                .foregroundColor(.holoToolTextSecondary)
+                .monospacedDigit()
+                .frame(width: 46 * typeScale, alignment: .trailing)
+                .padding(.top, 14)
+            DailyReplayEventCard(moment: moment, onSelect: onSelect, onSelectGroup: onSelectGroup)
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.top, 9)
@@ -650,7 +647,8 @@ private struct DailyReplayDatePortal: View {
             Text("\(Calendar.current.component(.day, from: date))")
                 .font(.system(size: 76, weight: .medium, design: .serif))
                 .foregroundColor(.white)
-                .tracking(-4)
+                // 不加负字距：tracking 会把最后一个字符的布局宽度算短，字形溢出
+                // 布局框被裁（2026-10-10 东林反馈门上数字显示不全）；单字符也无字距可收。
             Text(Self.formatter.string(from: date))
                 .font(.system(size: 15, weight: .semibold, design: .serif))
                 .foregroundColor(.white.opacity(0.86))
