@@ -220,6 +220,7 @@ struct CalendarEventProvider {
                     .filter(\.isVisibleTopic)
                     .map { $0.title }
                     .sorted()
+                let quotes = Self.referenceQuotes(richContentJSON: thought.richContentJSON)
                 return CalendarEvent(
                     id: thought.id,
                     module: .thought,
@@ -228,6 +229,7 @@ struct CalendarEventProvider {
                     detail: thought.moodType?.displayName,
                     relatedTopics: topics.isEmpty ? nil : topics,
                     attachmentThumbnails: thumbnailsByThought[thought.id] ?? [],
+                    thoughtReferenceQuotes: quotes,
                     originID: thought.objectID
                 )
             }
@@ -235,6 +237,26 @@ struct CalendarEventProvider {
         } catch {
             Self.logger.error("日历·想法加载失败：\(String(describing: error))")
             return Partial(module: .thought, events: [], state: .failed(message: String(localized: "想法加载失败")))
+        }
+    }
+
+    /// 正文 @ 引用的被引内容摘要：与编辑器 Token 操作面板的「来源」行同口径——
+    /// 显示名走统一规则（优先标题、缺了用快照首行兜底），来源行与显示名同文时不再重复。
+    private static func referenceQuotes(richContentJSON: String?) -> [ThoughtReferenceQuote] {
+        guard let richContentJSON, !richContentJSON.isEmpty,
+              let nodes = try? RichContentSerializer.nodes(fromJSONString: richContentJSON) else {
+            return []
+        }
+        return nodes.compactMap { node in
+            guard case .reference(_, let displayText, let snapshot) = node else { return nil }
+            let display = RichContentSerializer.normalizedReferenceDisplayText(
+                displayText: displayText,
+                snapshot: snapshot
+            )
+            let sourceLine = RichContentSerializer.firstLine(fromPlainText: snapshot)
+            let normalizedSource = sourceLine.hasPrefix("@") ? String(sourceLine.dropFirst()) : sourceLine
+            let source: String? = (normalizedSource.isEmpty || normalizedSource == display) ? nil : normalizedSource
+            return ThoughtReferenceQuote(displayText: display, sourceLine: source)
         }
     }
 }

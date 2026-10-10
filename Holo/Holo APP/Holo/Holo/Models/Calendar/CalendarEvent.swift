@@ -40,6 +40,9 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
     /// 附件缩略图数据（仅想法模块；册页风照片堆直接消费，最大 9 张 300×300）
     let attachmentThumbnails: [Data]
 
+    /// 正文里 @ 引用的被引内容摘要（仅想法模块；长廊回看时不用跳出也能看到引了什么）
+    let thoughtReferenceQuotes: [ThoughtReferenceQuote]
+
     /// 原始实体对象 ID（跨线程安全，用于「在 X 模块打开」回查实体；UI 不直接消费）
     let originID: NSManagedObjectID
 
@@ -53,6 +56,7 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
          valueDirection: CalendarEventValueDirection? = nil,
          relatedTopics: [String]? = nil,
          attachmentThumbnails: [Data] = [],
+         thoughtReferenceQuotes: [ThoughtReferenceQuote] = [],
          originID: NSManagedObjectID) {
         self.id = id
         self.module = module
@@ -64,6 +68,7 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
         self.valueDirection = valueDirection
         self.relatedTopics = relatedTopics
         self.attachmentThumbnails = attachmentThumbnails
+        self.thoughtReferenceQuotes = thoughtReferenceQuotes
         self.originID = originID
     }
 
@@ -71,6 +76,15 @@ nonisolated struct CalendarEvent: Identifiable, Equatable {
     static func == (lhs: CalendarEvent, rhs: CalendarEvent) -> Bool {
         lhs.id == rhs.id
     }
+}
+
+/// 想法正文里一个 @ 引用的展示摘要：引用名 + 被引想法的内容首行。
+/// 与编辑器 Token 操作面板的「来源」行同口径（RichContentSerializer 派生）。
+nonisolated struct ThoughtReferenceQuote: Equatable {
+    /// 引用显示名（不含 @ 前缀，展示时统一补 @）
+    let displayText: String
+    /// 被引想法的内容首行；与显示名同文或缺失时为 nil（不再重复一行）
+    let sourceLine: String?
 }
 
 nonisolated enum CalendarEventValueDirection: Hashable {

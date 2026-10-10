@@ -85,6 +85,8 @@ struct DailyReplayEventCard: View {
                         .lineLimit(2)
                 }
 
+                DailyReplayReferenceQuotes(quotes: moment.referenceQuotes, typeScale: typeScale)
+
                 if thoughtNeedsFullTextHint {
                     Text("轻点查看全文")
                         .font(.system(size: 10 * typeScale, weight: .medium))
@@ -259,5 +261,43 @@ struct DailyReplayEventCard: View {
         } else {
             onSelectGroup(moment.events)
         }
+    }
+}
+
+// MARK: - 想法卡 @ 引用区
+
+/// 想法卡正文的 @ 引用内容：引用名用编辑器 Token 同款主色，后跟被引想法的内容首行
+/// （与编辑器 Token 操作面板「来源」行同口径）。回看时不用跳出长廊就知道引了什么。
+/// 分隔线与明细行（groupedRecords）同一套区块语言。
+struct DailyReplayReferenceQuotes: View {
+    let quotes: [ThoughtReferenceQuote]
+    let typeScale: CGFloat
+
+    var body: some View {
+        if !quotes.isEmpty {
+            VStack(alignment: .leading, spacing: 7) {
+                ForEach(Array(quotes.enumerated()), id: \.offset) { _, quote in
+                    quoteLine(quote)
+                }
+            }
+            .padding(.top, 9)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(Color.holoBorder.opacity(0.42))
+                    .frame(height: 1)
+            }
+        }
+    }
+
+    private func quoteLine(_ quote: ThoughtReferenceQuote) -> some View {
+        var line = Text("@\(quote.displayText)")
+            .font(.system(size: 10 * typeScale, weight: .semibold))
+            .foregroundColor(.holoPrimary)
+        if let source = quote.sourceLine {
+            line = line + Text(" \(source)")
+                .font(.system(size: 10 * typeScale, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
+        }
+        return line.lineLimit(1)
     }
 }

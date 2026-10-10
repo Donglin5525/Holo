@@ -110,6 +110,7 @@ struct PolaroidMomentCard: View {
             headerLine
             photoStack
             caption
+            DailyReplayReferenceQuotes(quotes: moment.referenceQuotes, typeScale: typeScale)
             if needsFullTextHint {
                 Text("轻点查看全文")
                     .font(.system(size: 10 * typeScale, weight: .medium))

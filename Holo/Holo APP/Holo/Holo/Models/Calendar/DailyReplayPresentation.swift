@@ -82,6 +82,15 @@ nonisolated struct DailyReplayMoment: Identifiable {
         return event.detail
     }
 
+    /// 正文 @ 引用的被引内容摘要（想法时刻才有；多条事件合并时逐条汇入并按内容去重）
+    var referenceQuotes: [ThoughtReferenceQuote] {
+        var result: [ThoughtReferenceQuote] = []
+        for quote in events.flatMap(\.thoughtReferenceQuotes) where !result.contains(quote) {
+            result.append(quote)
+        }
+        return result
+    }
+
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
