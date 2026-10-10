@@ -58,6 +58,13 @@ struct TaskCreationSheet: View {
     @State private var showDismissConfirm = false
     @State private var isSaving = false
     @State private var saveErrorMessage: String?
+
+    // MARK: 语音输入（描述行右端入口，能力与任务详情页同源——随 10-07 换页漏搬运，找回）
+
+    @State private var showVoiceInput = false
+    @State private var pendingVoiceTranscript: String? = nil
+    @State private var isSplittingVoice = false
+    @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
     /// 首次保存已建成的任务：后续步骤（重复/附件）失败重试时跳过重建，杜绝重复任务（R11）
     @State private var createdTask: TodoTask? = nil
 
@@ -129,6 +136,35 @@ struct TaskCreationSheet: View {
             .sheet(isPresented: $showListPicker) {
                 TaskCreationListPickerSheet(repository: repository, draft: draft)
                     .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
+                if smartSummaryEnabled {
+                    VoiceInputSheet(
+                        speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .task),
+                        readySubtitle: String(localized: "确认后插入到任务描述"),
+                        submitButtonTitle: String(localized: "插入"),
+                        resultConfig: VoiceResultConfig(
+                            title: String(localized: "智能总结完成"),
+                            subtitle: String(localized: "已整理成更适合任务描述的表达"),
+                            showsOriginalToggle: true
+                        ),
+                        postProcessor: ThoughtVoiceSummaryProcessor(),
+                        transcriptFormatter: formatVoiceTranscript
+                    ) { transcript in
+                        pendingVoiceTranscript = transcript
+                        showVoiceInput = false
+                    }
+                } else {
+                    VoiceInputSheet(
+                        speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .task),
+                        readySubtitle: String(localized: "确认后插入到任务描述"),
+                        submitButtonTitle: String(localized: "插入"),
+                        transcriptFormatter: formatVoiceTranscript
+                    ) { transcript in
+                        pendingVoiceTranscript = transcript
+                        showVoiceInput = false
+                    }
+                }
             }
             .photosPicker(
                 isPresented: $showPhotoPicker,
@@ -208,12 +244,15 @@ struct TaskCreationSheet: View {
 
             Rectangle().fill(Color.holoDivider).frame(height: 0.5).padding(.leading, HoloSpacing.md)
 
-            TextField(String(localized: "描述（可选）"), text: Binding(
-                get: { draft.note },
-                set: { draft.note = $0; draft.markEdited() }
-            ), axis: .vertical)
-            .lineLimit(1...4)
-            .font(.holoBody)
+            HStack(alignment: .firstTextBaseline) {
+                TextField(String(localized: "描述（可选）"), text: Binding(
+                    get: { draft.note },
+                    set: { draft.note = $0; draft.markEdited() }
+                ), axis: .vertical)
+                .lineLimit(1...4)
+                .font(.holoBody)
+                voiceButton
+            }
             .padding(HoloSpacing.md)
 
             Rectangle().fill(Color.holoDivider).frame(height: 0.5).padding(.leading, HoloSpacing.md)
@@ -223,6 +262,32 @@ struct TaskCreationSheet: View {
         }
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+    }
+
+    /// 描述行语音入口：录音转文字，回来后先尝试拆成「标题＋检查清单项」，拆不出退回塞描述。
+    /// 样式与标题行回形针同构（32pt 圆钮）；智能总结开关与任务详情页共享同一偏好。
+    private var voiceButton: some View {
+        Button {
+            HapticManager.selection()
+            showVoiceInput = true
+        } label: {
+            Group {
+                if isSplittingVoice {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+            }
+            .foregroundColor(Color.holoPrimary)
+            .frame(width: 32, height: 32)
+            .background(Circle().fill(Color.holoBackground))
+        }
+        .buttonStyle(.plain)
+        .disabled(isSplittingVoice)
+        .accessibilityLabel(String(localized: "语音输入"))
+        .accessibilityHint(String(localized: "录音并将识别结果拆成标题和检查项"))
     }
 
     /// 标题行回形针：附件入口；有附件时红点角标
@@ -634,6 +699,62 @@ struct TaskCreationSheet: View {
                 saveErrorMessage = String(localized: "没有保存成功，请重试")
             }
         }
+    }
+
+    // MARK: - 语音转写落地（与任务详情页同链：拆解优先、塞描述兜底）
+
+    private func formatVoiceTranscript(_ transcript: String) -> String {
+        ThoughtVoiceTranscriptInsertion.makeInsertionText(
+            transcript: transcript,
+            currentContent: draft.note,
+            selectedRange: NSRange(location: draft.note.count, length: 0)
+        )
+    }
+
+    private func insertPendingVoiceTranscript() {
+        guard let transcript = pendingVoiceTranscript else { return }
+        pendingVoiceTranscript = nil
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        splitVoiceTranscript(trimmed)
+    }
+
+    /// 语音拆解：成功且拆出子任务时填入标题与检查清单；
+    /// 拆不出、或调用失败时退回「塞进描述」。
+    private func splitVoiceTranscript(_ text: String) {
+        isSplittingVoice = true
+        Task { @MainActor in
+            let splitter = TaskTextSplitter()
+            do {
+                let result = try await splitter.split(text)
+                if !result.subtasks.isEmpty {
+                    if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        draft.title = result.title
+                    }
+                    checkItemTitles.append(contentsOf: result.subtasks)
+                    draft.markEdited()
+                    HoloToastCenter.shared.show(String(localized: "已为你拆成 \(result.subtasks.count) 个检查项，可调整"), type: .success)
+                } else {
+                    appendTextToNote(text)
+                }
+            } catch {
+                appendTextToNote(text)
+            }
+            isSplittingVoice = false
+        }
+    }
+
+    private func appendTextToNote(_ text: String) {
+        if draft.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            draft.note = text
+        } else if draft.note.hasSuffix("\n\n") {
+            draft.note += text
+        } else if draft.note.hasSuffix("\n") {
+            draft.note += "\n" + text
+        } else {
+            draft.note += "\n\n" + text
+        }
+        draft.markEdited()
     }
 }
 

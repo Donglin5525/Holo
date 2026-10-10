@@ -50,7 +50,11 @@ struct TodayReliefSheet: View {
             }
         }
         .holoSheetShell()
-        .task { await loadContext() }
+        .task {
+            // AI 协调器随弹层挂载（此前漏接：入口永远走手动候选，AI 从未被调用）
+            viewModel.attachCoordinator(HoloTodayReliefCoordinator.makeDefault())
+            await loadContext()
+        }
         .sheet(isPresented: $showVoiceInput) {
             VoiceInputSheet(
                 readySubtitle: String(localized: "说完后自动填入"),
@@ -187,8 +191,7 @@ struct TodayReliefSheet: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button {
-                    viewModel.updateSituation(String(localized: "手动整理"))
-                    viewModel.submit(context: context)
+                    viewModel.submitManually(context: context)
                 } label: {
                     Text(String(localized: "手动挑今天要做的事"))
                         .font(.subheadline.weight(.medium))
@@ -277,7 +280,7 @@ struct TodayReliefSheet: View {
 
                 Button {
                     // 跳过追问直接手动（R34：一次追问后不再循环）
-                    viewModel.answerClarification(String(localized: "先手动选"), context: context)
+                    viewModel.submitManually(context: context)
                 } label: {
                     Text(String(localized: "先手动选"))
                         .font(.subheadline)
@@ -787,7 +790,7 @@ struct TodayReliefSheet: View {
             }
             Button {
                 // 手动模式兜底（R27：失败后手动可用）
-                viewModel.submit(context: context)
+                viewModel.submitManually(context: context)
             } label: {
                 Text(String(localized: "先手动挑"))
                     .font(.subheadline.weight(.medium))

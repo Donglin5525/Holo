@@ -127,25 +127,32 @@ struct MatterExecutionContent: View {
     @ViewBuilder
     private func absentContent(_ view: HoloTaskExecutionView) -> some View {
         if HoloTaskExecutionRolloutPolicy.entryEnabled, !view.taskCompleted {
-            VStack(alignment: .leading, spacing: 10) {
+            // 行式轻量入口（与 TodayPlanOutletRow「加入今天」同语言）：
+            // 嵌卡内的次级入口一律行式小胶囊，不做整宽按钮
+            HStack(spacing: 8) {
+                Image(systemName: "wand.and.stars")
+                    .font(.caption)
+                    .foregroundStyle(Color.holoPrimary)
+                Text(String(localized: "拆成一步步可做的小动作，卡住了可以调整"))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 4)
                 Button {
                     showProposalSheet = true
                 } label: {
-                    // 品牌胶囊（与「加入今天」同语言）：iOS 26 的 .bordered 是玻璃材质，
-                    // 投影被外层 clipShape 裁出脏边，禁用
-                    Label(String(localized: "帮我拆开"), systemImage: "wand.and.stars")
-                        .font(.subheadline.weight(.semibold))
+                    Text(String(localized: "帮我拆开"))
+                        .font(.caption.weight(.medium))
                         .foregroundStyle(Color.holoPrimary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
                         .background(Capsule().fill(Color.holoPrimary.opacity(0.1)))
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("executionSplitButton")
-                Text(String(localized: "把这件事拆成一步步可做的小动作，卡住了可以调整"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color.holoToolBackground.opacity(0.5)))
         }
     }
 
