@@ -135,11 +135,13 @@ struct PolaroidMomentCard: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onSelect)
         .sensoryFeedback(.selection, trigger: topIndex)
-        .task {
+        .task(id: moment.photoRevision) {
             await decodePhotos()
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
+        .accessibilityValue(String(localized: "第 \(topIndex + 1) 张，共 \(photos.count) 张"))
+        .accessibilityIdentifier("daily.replay.photo.\(moment.id)")
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(String(localized: "轻点打开想法详情，左右滑动切换照片"))
     }
@@ -147,11 +149,14 @@ struct PolaroidMomentCard: View {
     /// 解码进共享缓存：先同步探测（滚动回位时当帧全部命中，不闪占位），
     /// 未命中的逐张后台强制解码、到一张显一张。
     private func decodePhotos() async {
-        guard decodedImages.isEmpty, !photos.isEmpty else { return }
+        guard !photos.isEmpty else { decodedImages = []; return }
+        topIndex = min(topIndex, photos.count - 1)
         var images = photos.map { AttachmentImageLoader.cachedThumbnail(for: $0) }
         decodedImages = images
         for (index, data) in photos.enumerated() where images[index] == nil {
+            guard !Task.isCancelled else { return }
             images[index] = await AttachmentImageLoader.decodedThumbnail(from: data)
+            guard !Task.isCancelled else { return }
             decodedImages = images
         }
     }
@@ -183,7 +188,7 @@ struct PolaroidMomentCard: View {
         }
         .frame(height: photoHeight + 46 * galleryScale)
         .frame(maxWidth: .infinity)
-        .gesture(
+        .simultaneousGesture(
             DragGesture(minimumDistance: 14)
                 .onChanged { value in
                     guard photos.count > 1, abs(value.translation.width) > abs(value.translation.height) else { return }

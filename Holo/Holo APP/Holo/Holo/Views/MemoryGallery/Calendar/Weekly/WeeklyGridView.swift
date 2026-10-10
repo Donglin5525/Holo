@@ -20,6 +20,8 @@ struct WeeklyGridView: View {
     let weekDays: [Date]
     /// 按天分组的事件字典（key = startOfDay）
     let eventsByDay: [Date: [CalendarEvent]]
+    let dayPresentations: [Date: CalendarDayPresentation]
+    let dataRevision: UUID
     /// 聚焦日期（双向绑定：滑动手势 / 点日期头都改它）
     @Binding var focusedDate: Date
     /// 选中事件
@@ -109,13 +111,7 @@ struct WeeklyGridView: View {
     /// 时间轴密度：按当前完整周的七天计算（方案 §8.5——同一小时七天内同高同坐标，
     /// 周内滑动时高度稳定不跳变，跨周后随窗口统一更新）。
     private func computeProfile(_ eventsByDay: [Date: [CalendarEvent]]) -> WeeklyGridAxisProfile {
-        let cal = Calendar.current
-        let countsByDay: [[Int: Int]] = weekDays.map { day in
-            let events = eventsByDay[cal.startOfDay(for: day)] ?? []
-            return Dictionary(grouping: events) { event in
-                cal.component(.hour, from: event.date)
-            }.mapValues(\.count)
-        }
+        let countsByDay = weekDays.map { dayPresentations[$0]?.hourCounts ?? [:] }
         return WeeklyGridAxisProfile.make(
             eventCountsByDay: countsByDay,
             startHour: visibleStartHour,
@@ -222,32 +218,6 @@ struct WeeklyGridView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(collapseMorning ? String(localized: "展开凌晨零点到七点") : String(localized: "收起凌晨零点到七点"))
         .accessibilityHint(String(localized: "显示或隐藏凌晨零点到七点的时间轴"))
-    }
-
-    // MARK: - 事件区（单日竖条的事件部分）
-
-    @ViewBuilder
-    private func eventColumn(_ day: Date, columnWidth: CGFloat, profile: WeeklyGridAxisProfile, events: [CalendarEvent]) -> some View {
-        let layout = WeeklyGridEventLayout.layout(
-            events: events,
-            axisProfile: profile,
-            collapsedHours: collapseMorning ? collapsedMorningHours : nil
-        )
-        ZStack(alignment: .topLeading) {
-            // 今日泳道：整列淡橙底贯穿全高，滑动翻页时随列移动
-            if Calendar.current.isDateInToday(day) {
-                Color.holoPrimary.opacity(0.032)
-            }
-            gridBackground(profile: profile)
-            ForEach(layout.displayItems) { item in
-                gridDisplayBlock(item, columnWidth: columnWidth)
-            }
-            // 当前时间线，只在「今天」这根竖条上显示
-            if Calendar.current.isDateInToday(day) {
-                nowLine(profile: profile, columnWidth: columnWidth)
-            }
-        }
-        .frame(width: columnWidth, height: profile.totalHeight)
     }
 
     private func dayHeader(_ day: Date) -> some View {
@@ -372,20 +342,6 @@ struct WeeklyGridView: View {
         .frame(maxWidth: .infinity)
         .background(Color.holoToolInset.opacity(0.52))
         .overlay(alignment: .trailing) { laneSeparator }
-    }
-
-    private func gridBackground(profile: WeeklyGridAxisProfile) -> some View {
-        VStack(spacing: 0) {
-            ForEach(profile.segments) { segment in
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(height: segment.height)
-                    .overlay(
-                        Rectangle().fill(Color.holoDivider.opacity(0.52)).frame(height: 0.5),
-                        alignment: .top
-                    )
-            }
-        }
     }
 
     @ViewBuilder
@@ -519,12 +475,12 @@ struct WeeklyGridView: View {
                             viewportWidth: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(weekDays, id: \.self) { day in
-                eventColumn(
-                    day,
-                    columnWidth: columnWidth,
-                    profile: profile,
-                    events: eventsByDay[day] ?? []
+                WeeklyGridEventColumn(
+                    day: day, columnWidth: columnWidth, profile: profile,
+                    events: eventsByDay[day] ?? [], dataRevision: dataRevision,
+                    collapseMorning: collapseMorning, onSelect: onSelect, onSelectGroup: onSelectGroup
                 )
+                .equatable()
             }
         }
         .frame(width: columnWidth * CGFloat(weekDays.count), alignment: .leading)
@@ -588,68 +544,8 @@ struct WeeklyGridView: View {
         return index >= windowStartIndex && index < end
     }
 
-    // MARK: - 事件块
-
-    private func gridDisplayBlock(_ item: WeeklyGridEventLayout.DisplayItem, columnWidth: CGFloat) -> some View {
-        let accentColor = item.isOverflow ? Color.holoToolTextSecondary : item.module.color
-        return Button {
-            if item.isOverflow {
-                onSelectGroup(item.events)
-            } else {
-                onSelect(item.primaryEvent)
-            }
-        } label: {
-            HStack(spacing: 3) {
-                Text(item.displayTitle)
-                    .font(.system(size: item.isOverflow ? 8.5 : 10, weight: .bold))
-                    .foregroundColor(item.isOverflow ? .holoToolTextSecondary : .holoToolText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.68)
-                Spacer(minLength: 0)
-            }
-            .padding(.leading, item.isOverflow ? 5 : 6)
-            .padding(.trailing, 2)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: item.height)
-            .background(accentColor.opacity(item.isOverflow ? 0.045 : 0.075))
-            .overlay(alignment: .leading) {
-                Rectangle()
-                    .fill(accentColor.opacity(item.isOverflow ? 0.65 : 0.82))
-                    .frame(width: 2)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: item.isOverflow ? 4 : 6))
-        }
-        .buttonStyle(.plain)
-        .frame(width: max(24, columnWidth - 4))
-        .offset(x: 2, y: item.top)
-    }
-
     private func shouldShowHourLabel(_ hour: Int) -> Bool {
         hour >= visibleStartHour && (hour - visibleStartHour) % 2 == 0
-    }
-
-    // MARK: - 当前时间线（只在「今天」竖条内部显示）
-
-    @ViewBuilder
-    private func nowLine(profile: WeeklyGridAxisProfile, columnWidth: CGFloat) -> some View {
-        let calendar = Calendar.current
-        let now = Date()
-        let comps = calendar.dateComponents([.hour, .minute], from: now)
-        let hour = comps.hour ?? startHour
-        if hour >= visibleStartHour && hour <= endHour {
-            let top = profile.yPosition(hour: hour, minute: comps.minute ?? 0)
-            ZStack(alignment: .topLeading) {
-                Rectangle()
-                    .fill(Color.holoPrimary)
-                    // 时间线完全收在今天列内，今天刚滑出窗口时不会从相邻列边缘露出。
-                    .frame(width: max(0, columnWidth - 2), height: 1.5)
-                    .offset(x: 1, y: top)
-                Circle()
-                    .fill(Color.holoPrimary)
-                    .frame(width: 6, height: 6)
-                    .offset(x: 1, y: top - 3)
-            }
-        }
     }
 
     // MARK: - 图例
@@ -702,4 +598,124 @@ struct WeeklyGridView: View {
 
     private static func weekdayText(for date: Date) -> String { weekdayFormatter.string(from: date) }
     private static func dayText(for date: Date) -> String { dayFormatter.string(from: date) }
+}
+
+/// 事件列是静止内容；横向拖动只挪外层条带，不逐帧排序七天记录和重建所有按钮。
+private struct WeeklyGridEventColumn: View, Equatable {
+    let day: Date
+    let columnWidth: CGFloat
+    let profile: WeeklyGridAxisProfile
+    let events: [CalendarEvent]
+    let dataRevision: UUID
+    let collapseMorning: Bool
+    let onSelect: (CalendarEvent) -> Void
+    let onSelectGroup: ([CalendarEvent]) -> Void
+    private let collapsedMorningHours = 0..<7
+    private var visibleStartHour: Int { profile.startHour }
+    private var startHour: Int { profile.startHour }
+    private var endHour: Int { profile.endHour }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.day == rhs.day && lhs.columnWidth == rhs.columnWidth
+            && lhs.dataRevision == rhs.dataRevision && lhs.collapseMorning == rhs.collapseMorning
+            && lhs.profile.segments == rhs.profile.segments
+    }
+
+    var body: some View {
+        let layout = WeeklyGridEventLayout.layout(
+            events: events,
+            axisProfile: profile,
+            collapsedHours: collapseMorning ? collapsedMorningHours : nil
+        )
+        ZStack(alignment: .topLeading) {
+            // 今日泳道：整列淡橙底贯穿全高，滑动翻页时随列移动
+            if Calendar.current.isDateInToday(day) {
+                Color.holoPrimary.opacity(0.032)
+            }
+            gridBackground(profile: profile)
+            ForEach(layout.displayItems) { item in
+                gridDisplayBlock(item, columnWidth: columnWidth)
+            }
+            // 当前时间线，只在「今天」这根竖条上显示
+            if Calendar.current.isDateInToday(day) {
+                nowLine(profile: profile, columnWidth: columnWidth)
+            }
+        }
+        .frame(width: columnWidth, height: profile.totalHeight)
+    }
+
+    private func gridBackground(profile: WeeklyGridAxisProfile) -> some View {
+        VStack(spacing: 0) {
+            ForEach(profile.segments) { segment in
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(height: segment.height)
+                    .overlay(
+                        Rectangle().fill(Color.holoDivider.opacity(0.52)).frame(height: 0.5),
+                        alignment: .top
+                    )
+            }
+        }
+    }
+
+    // MARK: - 事件块
+
+    private func gridDisplayBlock(_ item: WeeklyGridEventLayout.DisplayItem, columnWidth: CGFloat) -> some View {
+        let accentColor = item.isOverflow ? Color.holoToolTextSecondary : item.module.color
+        return Button {
+            if item.isOverflow {
+                onSelectGroup(item.events)
+            } else {
+                onSelect(item.primaryEvent)
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(item.displayTitle)
+                    .font(.system(size: item.isOverflow ? 8.5 : 10, weight: .bold))
+                    .foregroundColor(item.isOverflow ? .holoToolTextSecondary : .holoToolText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, item.isOverflow ? 5 : 6)
+            .padding(.trailing, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: item.height)
+            .background(accentColor.opacity(item.isOverflow ? 0.045 : 0.075))
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(accentColor.opacity(item.isOverflow ? 0.65 : 0.82))
+                    .frame(width: 2)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: item.isOverflow ? 4 : 6))
+        }
+        .buttonStyle(.plain)
+        .frame(width: max(24, columnWidth - 4))
+        .offset(x: 2, y: item.top)
+    }
+
+    // MARK: - 当前时间线（只在「今天」竖条内部显示）
+
+    @ViewBuilder
+    private func nowLine(profile: WeeklyGridAxisProfile, columnWidth: CGFloat) -> some View {
+        let calendar = Calendar.current
+        let now = Date()
+        let comps = calendar.dateComponents([.hour, .minute], from: now)
+        let hour = comps.hour ?? startHour
+        if hour >= visibleStartHour && hour <= endHour {
+            let top = profile.yPosition(hour: hour, minute: comps.minute ?? 0)
+            ZStack(alignment: .topLeading) {
+                Rectangle()
+                    .fill(Color.holoPrimary)
+                    // 时间线完全收在今天列内，今天刚滑出窗口时不会从相邻列边缘露出。
+                    .frame(width: max(0, columnWidth - 2), height: 1.5)
+                    .offset(x: 1, y: top)
+                Circle()
+                    .fill(Color.holoPrimary)
+                    .frame(width: 6, height: 6)
+                    .offset(x: 1, y: top - 3)
+            }
+        }
+    }
+
 }

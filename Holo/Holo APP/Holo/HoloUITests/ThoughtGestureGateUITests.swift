@@ -770,3 +770,52 @@ final class ThoughtTopicBadgeDeviceUITests: XCTestCase {
         app.terminate()
     }
 }
+
+
+/// 性能修复的交互回归：切档确实生效，照片上的纵向拖动仍带动日回放。
+final class MemoryGalleryPerformanceSmokeUITests: XCTestCase {
+    private func launch() -> XCUIApplication {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "memory-gallery-multi-photo"
+        app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
+        app.launch()
+        XCTAssertTrue(app.buttons["calendar.scale.day"].waitForExistence(timeout: 30))
+        return app
+    }
+
+    private func scale(_ name: String, in app: XCUIApplication) throws -> XCUIElement {
+        try XCTUnwrap(app.buttons.allElementsBoundByIndex.first { $0.identifier == "calendar.scale.\(name)" })
+    }
+
+    func testRepeatedScaleSwitchAndScrollRemainAvailable() throws {
+        let app = launch()
+        for _ in 0..<3 {
+            for name in ["week", "month", "day"] {
+                let rect = try scale(name, in: app).frame
+                XCTAssertTrue(rect.midX.isFinite && rect.midY.isFinite && app.frame.intersects(rect))
+                app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: rect.midX, dy: rect.midY)).tap()
+                let selected = try scale(name, in: app)
+                let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: selected)
+                XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
+                if name == "day" {
+                    app.swipeUp()
+                    app.swipeDown()
+                }
+            }
+        }
+    }
+
+    func testVerticalDragOnPhotoMovesReplay() throws {
+        let app = launch()
+        let photo = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'daily.replay.photo.'")).firstMatch
+        XCTAssertTrue(photo.waitForExistence(timeout: 30))
+        let rect = photo.frame
+        XCTAssertTrue(rect.midX.isFinite && rect.midY.isFinite && app.frame.intersects(rect))
+        let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: rect.midX, dy: rect.midY))
+        let end = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: rect.midX, dy: max(150, rect.midY - 240)))
+        start.press(forDuration: 0.05, thenDragTo: end)
+        XCTAssertTrue(!photo.isHittable || photo.frame.midY < rect.midY - 30, "照片上的上滑必须实际移动列表")
+    }
+}

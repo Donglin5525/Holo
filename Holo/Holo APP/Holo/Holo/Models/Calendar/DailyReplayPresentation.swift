@@ -13,7 +13,7 @@ import UIKit
 import AppKit
 #endif
 
-enum DailyReplayPeriod: Int, CaseIterable, Identifiable {
+nonisolated enum DailyReplayPeriod: Int, CaseIterable, Identifiable {
     case untimed
     case earlyMorning
     case morning
@@ -49,13 +49,15 @@ enum DailyReplayPeriod: Int, CaseIterable, Identifiable {
     }
 }
 
-struct DailyReplayMoment: Identifiable {
+nonisolated struct DailyReplayMoment: Identifiable {
     let id: String
     let module: CalendarModule
     let date: Date
     let events: [CalendarEvent]
     let title: String
     let signedTotal: Decimal?
+    /// 缩略图版本在组装时计算；卡片身份保持稳定，附件编辑仍会重新解码。
+    let photoRevision: Int
 
     var timeText: String {
         events.allSatisfy { !$0.hasReliableTime }
@@ -88,7 +90,7 @@ struct DailyReplayMoment: Identifiable {
     }()
 }
 
-enum DailyReplayPresentation {
+nonisolated enum DailyReplayPresentation {
 
     /// 一个时段的记忆分块：河流阅读序的排版单元。
     struct PeriodBlock: Identifiable {
@@ -120,13 +122,18 @@ enum DailyReplayPresentation {
                 return lhs.id.uuidString < rhs.id.uuidString
             }
             let module = sorted[0].module
+            var photoHasher = Hasher()
+            for data in sorted.first(where: { !$0.attachmentThumbnails.isEmpty })?.attachmentThumbnails ?? [] {
+                photoHasher.combine(data)
+            }
             return DailyReplayMoment(
                 id: sorted.map { $0.id.uuidString }.joined(separator: "-"),
                 module: module,
                 date: sorted[0].date,
                 events: sorted,
                 title: groupTitle(for: sorted, module: module),
-                signedTotal: signedFinanceTotal(for: sorted, module: module)
+                signedTotal: signedFinanceTotal(for: sorted, module: module),
+                photoRevision: photoHasher.finalize()
             )
         }
         .sorted { lhs, rhs in

@@ -123,6 +123,7 @@ struct CalendarRootView: View {
         DailyReplayView(
             focusedDate: $viewModel.focusedDate,
             eventsByDay: viewModel.eventsByDay,
+            dayPresentations: viewModel.dayPresentations,
             moduleFilter: $viewModel.moduleFilter,
             isInitialLoading: viewModel.isInitialLoading,
             onSelect: { handleEventSelect($0) },
@@ -149,6 +150,8 @@ struct CalendarRootView: View {
             WeeklyGridView(
                 weekDays: viewModel.currentWeekDays,
                 eventsByDay: viewModel.eventsByDay,
+                dayPresentations: viewModel.dayPresentations,
+                dataRevision: viewModel.presentationSnapshot.revision,
                 focusedDate: $viewModel.focusedDate,
                 onSelect: { handleEventSelect($0) },
                 onSelectGroup: { selectedEventGroup = CalendarEventGroup(events: $0) },
@@ -165,7 +168,7 @@ struct CalendarRootView: View {
     /// 月档：时间章节 + 安静月历 + 当天记忆时刻。健康周摘要移出月历，避免跨口径信息干扰。
     private var monthlyContent: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
+            LazyVStack(spacing: 0) {
                 scaleChapterHeader
 
                 if viewModel.observationSummary.tone != .empty {
@@ -190,7 +193,7 @@ struct CalendarRootView: View {
 
                 DayDetailCard(
                     day: viewModel.focusedDate,
-                    events: viewModel.selectedDayEvents,
+                    presentation: viewModel.selectedDayPresentation,
                     onSelect: { handleEventSelect($0) },
                     onSelectGroup: { selectedEventGroup = CalendarEventGroup(events: $0) },
                     onReplay: viewModel.selectedDayEvents.isEmpty ? nil : {

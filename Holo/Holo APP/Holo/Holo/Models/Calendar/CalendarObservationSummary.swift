@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct CalendarObservationSummary: Equatable {
+nonisolated struct CalendarObservationSummary: Equatable {
     enum Scope {
         case day
         case week

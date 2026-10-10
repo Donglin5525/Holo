@@ -94,6 +94,31 @@ final class HabitPresentationProjectorTests: XCTestCase {
         return HabitPresentationProjector.buildData(records: facts, pauseWindowsByHabit: windows, now: Date())
     }
 
+    func test_长廊批量成就与仓库连续口径一致_含今日撤回() throws {
+        let (repo, context) = try makeRepo()
+        var habits: [Habit] = []
+        for frequency in [HabitFrequency.daily, .weekly, .monthly] {
+            for bad in [false, true] {
+                let habit = try makeHabit(in: context, frequency: frequency, isBadHabit: bad,
+                                          targetCount: 2, createdAtDaysAgo: 40)
+                for offset in [0, 1, 2, 3, 8, 9, 16, 17, 31, 32] {
+                    try makeRecord(in: context, habit: habit, daysAgo: offset, hour: 0)
+                }
+                // 今日最后一条撤回：不能因更早一条为完成态而改变连续倒查起点。
+                let cancellation = try makeRecord(in: context, habit: habit, daysAgo: 0, completed: false)
+                cancellation.date = Date().addingTimeInterval(-1)
+                habits.append(habit)
+            }
+        }
+        try context.save()
+        let snapshot = MemoryAchievementSnapshot(context: context)
+        for habit in habits {
+            XCTAssertEqual(snapshot.streaks[habit.id]?.value, repo.calculateStreakInfo(for: habit).value,
+                           "批量读取不能改变连续成就的数值")
+            XCTAssertEqual(snapshot.completedToday.contains(habit.id), repo.isTodayCompleted(for: habit))
+        }
+    }
+
     // MARK: - 记录 / 达标分离（R05）
 
     func test_计数一条记录算已记录但不算达标() throws {

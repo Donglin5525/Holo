@@ -24,6 +24,9 @@ struct MemoryGalleryView: View {
 
     @StateObject private var viewModel = MemoryGalleryViewModel()
     @State private var selectedTab: MemoryGalleryTab = .calendar
+    @State private var hasMountedInsight = false
+    @Environment(\.holoMotionSurfaceIsActive) private var presentationIsVisible
+    private var insightIsVisible: Bool { presentationIsVisible && selectedTab == .insight }
     @ObservedObject private var deepLinkState = DeepLinkState.shared
     /// expanded 档放宽内容列（720→920），减少两侧留白；其余档维持全局列宽
     @Environment(\.holoContentWidth) private var galleryWindowWidth
@@ -92,7 +95,9 @@ struct MemoryGalleryView: View {
             }
             #endif
             consumeMemoryFocus()
-            await viewModel.refresh()
+        }
+        .task(id: insightIsVisible) {
+            await viewModel.setPresentationVisible(insightIsVisible)
         }
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             consumeMemoryFocus()
@@ -162,16 +167,21 @@ struct MemoryGalleryView: View {
         GeometryReader { geo in
             ZStack {
                 calendarTab
+                    .environment(\.holoMotionSurfaceIsActive, presentationIsVisible && selectedTab == .calendar)
                     .frame(width: geo.size.width)
                     .opacity(selectedTab == .calendar ? 1 : 0)
                     .allowsHitTesting(selectedTab == .calendar)
                     .accessibilityHidden(selectedTab != .calendar)
 
-                insightTab
-                    .frame(width: geo.size.width)
-                    .opacity(selectedTab == .insight ? 1 : 0)
-                    .allowsHitTesting(selectedTab == .insight)
-                    .accessibilityHidden(selectedTab != .insight)
+                if selectedTab == .insight || hasMountedInsight {
+                    insightTab
+                        .frame(width: geo.size.width)
+                        .opacity(selectedTab == .insight ? 1 : 0)
+                        .allowsHitTesting(selectedTab == .insight)
+                        .accessibilityHidden(selectedTab != .insight)
+                        .environment(\.holoMotionSurfaceIsActive, insightIsVisible)
+                        .onAppear { hasMountedInsight = true }
+                }
             }
         }
     }
@@ -192,7 +202,7 @@ struct MemoryGalleryView: View {
             errorView(message: errorMessage)
         } else {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 0) {
+                LazyVStack(spacing: 0) {
                     insightChapterHeader
 
                     // 通宵冲刺 D4（v2 三批欠账）：expanded 档洞察分双栏——

@@ -10,7 +10,7 @@
 
 import Foundation
 
-enum CalendarRangeBuilder {
+nonisolated enum CalendarRangeBuilder {
 
     /// DateInterval.contains 在系统实现中包含 end；业务查询统一使用半开区间。
     static func contains(_ date: Date, in interval: DateInterval) -> Bool {

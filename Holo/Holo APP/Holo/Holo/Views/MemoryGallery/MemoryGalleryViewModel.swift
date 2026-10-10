@@ -154,12 +154,25 @@ class MemoryGalleryViewModel: ObservableObject {
         )
     }
 
+    private var presentationIsVisible = false
+    private var needsPresentationRefresh = true
+    private var isRefreshing = false
+
+    /// 隐藏页只记脏；再次可见补一次，不让日历滚动与洞察全量准备竞争。
+    func setPresentationVisible(_ visible: Bool) async {
+        presentationIsVisible = visible
+        guard visible, needsPresentationRefresh else { return }
+        await refresh()
+    }
+
     /// 多模块广播常在同一窗口内连发（批量写入、云端导入后的模块级联刷新），合并成一次刷新
     private var dataChangeRefreshTask: Task<Void, Never>?
 
     @objc private func handleDataChange() {
-        invalidateCache()
+        cacheTimestamp = nil
+        needsPresentationRefresh = true
         dataChangeRefreshTask?.cancel()
+        guard presentationIsVisible else { return }
         dataChangeRefreshTask = Task {
             try? await Task.sleep(for: .milliseconds(600))
             guard !Task.isCancelled else { return }
@@ -210,9 +223,22 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 本地数据（Core Data）始终刷新；若 AI 洞察刷新配额未满，顺带重新生成。
     /// 统计/热力图随 loadData 的缓存重建在后台一并计算（见 computeSnapshotInBackground）。
     func refresh() async {
+        guard presentationIsVisible, !isRefreshing else {
+            needsPresentationRefresh = true
+            return
+        }
+        isRefreshing = true
+        needsPresentationRefresh = false
+        defer {
+            isRefreshing = false
+            if needsPresentationRefresh && presentationIsVisible {
+                Task { await self.refresh() }
+            }
+        }
         currentDayOffset = 0
         hasMoreData = true
         await loadData()
+        guard presentationIsVisible, !Task.isCancelled else { needsPresentationRefresh = true; return }
         await loadInsights()
         await loadLatestReportEntry()
         if quota.canRefresh() {
@@ -228,10 +254,11 @@ class MemoryGalleryViewModel: ObservableObject {
     }
 
     /// 后台重计算快照：全部列查询/预取，不物化无关对象，不占主线程。
-    /// streak 成就高亮与里程碑依赖 @MainActor HabitRepository，留在主线程（量级 = 活跃习惯数）。
+    /// 高光与里程碑也复用后台批量习惯投影，不再在展示发布时逐日查库。
     private struct GallerySnapshot {
         let items: [MemoryItem]
         let batchHighlights: [Date: [HighlightData]]
+        let milestones: [(date: Date, data: MilestoneData)]
         let totalMemoryCount: Int
         let totalRecordedDays: Int
         let heatmap: [Date: Int]
@@ -241,12 +268,15 @@ class MemoryGalleryViewModel: ObservableObject {
         try await CoreDataStack.shared.performBackgroundTask { context in
             let items = try Self.fetchAllMemoryItems(context: context)
             let dates = Self.collectUniqueDates(from: items)
-            let highlights = HighlightDetector.detectBatch(for: dates, context: context)
+            let achievements = MemoryAchievementSnapshot(context: context)
+            let highlights = HighlightDetector.detect(for: dates, context: context, achievements: achievements)
+            let milestones = MilestoneDetector.detect(context: context, achievements: achievements)
             let stats = Self.computeAggregateStats(context: context)
             let heatmap = Self.computeHeatmapData(context: context)
             return GallerySnapshot(
                 items: items,
                 batchHighlights: highlights,
+                milestones: milestones,
                 totalMemoryCount: stats.memoryCount,
                 totalRecordedDays: stats.recordedDays,
                 heatmap: heatmap
@@ -270,14 +300,8 @@ class MemoryGalleryViewModel: ObservableObject {
                 cachedItems = snapshot.items
                 cacheTimestamp = Date()
 
-                // 运行高亮（批量部分已在后台算出）和里程碑检测
-                var highlights = snapshot.batchHighlights
-                for highlight in HighlightDetector.detectStreakAchievements(context: context) {
-                    let dayStart = Calendar.current.startOfDay(for: highlight.date)
-                    highlights[dayStart, default: []].append(highlight.data)
-                }
-                cachedHighlights = highlights
-                cachedMilestones = MilestoneDetector.detect(context: context)
+                cachedHighlights = snapshot.batchHighlights
+                cachedMilestones = snapshot.milestones
 
                 totalMemoryCount = snapshot.totalMemoryCount
                 totalRecordedDays = snapshot.totalRecordedDays

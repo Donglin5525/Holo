@@ -28,12 +28,14 @@ struct MilestoneDetector {
     /// 检测所有里程碑
     /// - Parameter context: Core Data viewContext
     /// - Returns: 里程碑数据数组（附带触发日期）
-    static func detect(context: NSManagedObjectContext) -> [(date: Date, data: MilestoneData)] {
+    static func detect(context: NSManagedObjectContext,
+                       achievements: MemoryAchievementSnapshot? = nil) -> [(date: Date, data: MilestoneData)] {
+        let achievements = achievements ?? MemoryAchievementSnapshot(context: context)
         var results: [(date: Date, data: MilestoneData)] = []
 
-        results.append(contentsOf: detectStreakDays(context: context))
+        results.append(contentsOf: detectStreakDays(context: context, achievements: achievements))
         results.append(contentsOf: detectCumulativeCount(context: context))
-        results.append(contentsOf: detectHabitMastery(context: context))
+        results.append(contentsOf: detectHabitMastery(context: context, achievements: achievements))
 
         return results
     }
@@ -42,7 +44,8 @@ struct MilestoneDetector {
 
     /// 检测连续打卡 N 天里程碑
     private static func detectStreakDays(
-        context: NSManagedObjectContext
+        context: NSManagedObjectContext,
+        achievements: MemoryAchievementSnapshot
     ) -> [(date: Date, data: MilestoneData)] {
         var results: [(date: Date, data: MilestoneData)] = []
         let calendar = Calendar.current
@@ -53,7 +56,7 @@ struct MilestoneDetector {
         guard let habits = try? context.fetch(habitRequest) else { return results }
 
         for habit in habits {
-            let streakInfo = HabitRepository.shared.calculateStreakInfo(for: habit)
+            let streakInfo = achievements.streaks[habit.id] ?? .zero()
             let streakDays = streakInfo.value * habit.habitFrequency.periodDays
             let matchedThresholds = streakDaysThresholds.filter { streakDays >= $0 }
 
@@ -116,7 +119,8 @@ struct MilestoneDetector {
 
     /// 检测习惯掌握（单个习惯连续完成 >= 30 天）
     private static func detectHabitMastery(
-        context: NSManagedObjectContext
+        context: NSManagedObjectContext,
+        achievements: MemoryAchievementSnapshot
     ) -> [(date: Date, data: MilestoneData)] {
         var results: [(date: Date, data: MilestoneData)] = []
         let calendar = Calendar.current
@@ -127,7 +131,7 @@ struct MilestoneDetector {
         guard let habits = try? context.fetch(habitRequest) else { return results }
 
         for habit in habits {
-            let streakInfo = HabitRepository.shared.calculateStreakInfo(for: habit)
+            let streakInfo = achievements.streaks[habit.id] ?? .zero()
             let streakDays = streakInfo.value * habit.habitFrequency.periodDays
             guard streakDays >= habitMasteryThreshold, streakDays < 365 else { continue }
 

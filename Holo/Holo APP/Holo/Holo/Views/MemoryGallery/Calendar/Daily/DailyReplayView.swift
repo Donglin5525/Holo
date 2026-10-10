@@ -16,6 +16,7 @@ import SwiftUI
 struct DailyReplayView: View {
     @Binding var focusedDate: Date
     let eventsByDay: [Date: [CalendarEvent]]
+    let dayPresentations: [Date: CalendarDayPresentation]
     @Binding var moduleFilter: CalendarModule?
     let isInitialLoading: Bool
     let onSelect: (CalendarEvent) -> Void
@@ -29,10 +30,6 @@ struct DailyReplayView: View {
     @State private var pickerDate: Date
     @State private var portalDate: Date?
     @State private var scrollDrivenDate: Date?
-    @StateObject private var revealSession = HoloReplayRevealSession()
-    @State private var revealRequestID: UUID? = UUID()
-    @State private var revealRequestedAt = Date()
-    @State private var revealDay: Date
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let pageSize = 12
@@ -44,6 +41,7 @@ struct DailyReplayView: View {
 
     init(focusedDate: Binding<Date>,
          eventsByDay: [Date: [CalendarEvent]],
+         dayPresentations: [Date: CalendarDayPresentation],
          moduleFilter: Binding<CalendarModule?>,
          isInitialLoading: Bool,
          onSelect: @escaping (CalendarEvent) -> Void,
@@ -56,6 +54,7 @@ struct DailyReplayView: View {
 
         self._focusedDate = focusedDate
         self.eventsByDay = eventsByDay
+        self.dayPresentations = dayPresentations
         self._moduleFilter = moduleFilter
         self.isInitialLoading = isInitialLoading
         self.onSelect = onSelect
@@ -64,7 +63,6 @@ struct DailyReplayView: View {
         self._rangeStart = State(initialValue: start)
         self._rangeEnd = State(initialValue: anchorDay)
         self._pickerDate = State(initialValue: anchorDay)
-        self._revealDay = State(initialValue: anchorDay)
     }
 
     var body: some View {
@@ -84,6 +82,7 @@ struct DailyReplayView: View {
                         }
                     }
                     .coordinateSpace(name: scrollSpace)
+                    .accessibilityIdentifier("daily.replay.scroll")
                     .background(Color.holoPaper)
                     .onPreferenceChange(DailyReplayChapterOffsetKey.self) { offsets in
                         updateFocusedDate(from: offsets)
@@ -116,10 +115,6 @@ struct DailyReplayView: View {
                 .sensoryFeedback(.selection, trigger: portalDate)
                 .onAppear {
                     onEnsureData(focusedDate)
-                }
-                .onChange(of: moduleFilter) { _, _ in
-                    if let revealRequestID { revealSession.cancel(revealRequestID) }
-                    revealRequestID = nil
                 }
                 .onChange(of: focusedDate) { _, newDate in
                     let target = calendar.startOfDay(for: min(newDate, today))
@@ -173,26 +168,32 @@ struct DailyReplayView: View {
                             proxy: ScrollViewProxy,
                             minimumDayContentHeight: CGFloat) -> some View {
         let dayStart = calendar.startOfDay(for: day)
-        let events = eventsByDay[dayStart] ?? []
+        let presentation = dayPresentations[dayStart] ?? CalendarDayPresentation(day: dayStart, events: [])
+        let events = presentation.events
         return Section {
-            DailyReplayDayContent(
-                day: dayStart,
-                events: events,
-                moduleFilter: moduleFilter,
-                onSelect: onSelect,
-                onSelectGroup: onSelectGroup,
-                minimumHeight: minimumDayContentHeight,
-                revealRequestID: calendar.isDate(dayStart, inSameDayAs: revealDay) ? revealRequestID : nil,
-                revealRequestedAt: revealRequestedAt,
-                revealSession: revealSession,
-                onEmptySwipe: { direction in
+            if events.isEmpty {
+                DailyReplayEmptyDayContent(day: dayStart, moduleFilter: moduleFilter,
+                                           minimumHeight: minimumDayContentHeight) { direction in
                     navigateEmptyDay(from: dayStart, direction: direction, proxy: proxy)
                 }
-            )
+            } else {
+                if let narrative = presentation.narrative {
+                    DailyReplayNarrative(text: narrative)
+                }
+                // 卡片直接成为外层 LazyVStack 的行。不能再用一整天的 VStack 包住，
+                // 否则滑到多记录日会同帧生成整天所有照片和卡片。
+                ForEach(presentation.blocks) { block in
+                    DailyReplayPeriodHeader(period: block.period)
+                    ForEach(block.moments) { moment in
+                        DailyReplayMomentRow(moment: moment, onSelect: onSelect, onSelectGroup: onSelectGroup)
+                    }
+                }
+                DailyReplayDayFooter(day: dayStart, isEmpty: false)
+            }
         } header: {
             DailyReplayChapterHeader(
                 day: dayStart,
-                events: events,
+                presentation: presentation.chapter,
                 isFocused: calendar.isDate(dayStart, inSameDayAs: focusedDate),
                 moduleFilter: $moduleFilter,
                 onChooseDate: {
@@ -231,7 +232,7 @@ struct DailyReplayView: View {
         DailyReplayChapterBuilder.make(
             from: rangeStart,
             through: rangeEnd,
-            eventCountsByDay: eventsByDay.mapValues(\.count),
+            eventCountsByDay: [:],
             collapseEmptyRuns: false
         ).reversed()
     }
@@ -262,11 +263,6 @@ struct DailyReplayView: View {
 
     private func jump(to rawDate: Date, proxy: ScrollViewProxy) {
         let target = calendar.startOfDay(for: min(rawDate, today))
-        if !calendar.isDate(target, inSameDayAs: revealDay) {
-            revealDay = target
-            revealRequestID = UUID()
-            revealRequestedAt = Date()
-        }
         rangeEnd = target
         rangeStart = calendar.date(byAdding: .day, value: -pageSize, to: target) ?? target
         onEnsureData(target)
@@ -345,7 +341,7 @@ struct DailyReplayView: View {
 
 private struct DailyReplayChapterHeader: View {
     let day: Date
-    let events: [CalendarEvent]
+    let presentation: MemoryTimeChapterPresentation
     let isFocused: Bool
     @Binding var moduleFilter: CalendarModule?
     let onChooseDate: () -> Void
@@ -381,23 +377,6 @@ private struct DailyReplayChapterHeader: View {
             .highPriorityGesture(portalGesture)
             .accessibilityLabel(String(localized: "\(Self.fullDateFormatter.string(from: day))，轻点选择日期，长按快速穿梭"))
             .accessibilityAddTraits(.isButton)
-    }
-
-    private var presentation: MemoryTimeChapterPresentation {
-        let reliable = events.filter(\.hasReliableTime).sorted { $0.date < $1.date }
-        let end = calendar.date(byAdding: .day, value: 1, to: day) ?? day
-        return MemoryTimeChapterPresentation.make(
-            scale: .day,
-            focusedDate: day,
-            periodStart: day,
-            periodEnd: end,
-            eventCount: events.count,
-            momentCount: DailyReplayPresentation.moments(from: events).count,
-            activeDayCount: events.isEmpty ? 0 : 1,
-            firstEventDate: reliable.first?.date,
-            lastEventDate: reliable.last?.date,
-            isCurrentPeriod: calendar.isDateInToday(day)
-        )
     }
 
     private var portalGesture: some Gesture {
@@ -441,130 +420,62 @@ private struct DailyReplayChapterHeader: View {
 
 // MARK: - 单日内容
 
-private struct DailyReplayDayContent: View {
-    let day: Date
-    let events: [CalendarEvent]
-    let moduleFilter: CalendarModule?
+private struct DailyReplayMomentRow: View {
+    let moment: DailyReplayMoment
     let onSelect: (CalendarEvent) -> Void
     let onSelectGroup: ([CalendarEvent]) -> Void
-    let minimumHeight: CGFloat
-    let revealRequestID: UUID?
-    let revealRequestedAt: Date
-    let revealSession: HoloReplayRevealSession
-    let onEmptySwipe: (DailyReplayEmptyDaySwipeDirection) -> Void
-
-    /// 宽屏档时段注脚与空态文案放大（与章节头排印同口径）
-    @Environment(\.holoContentWidth) private var dayContentWindowWidth
-    private var typeScale: CGFloat { HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: dayContentWindowWidth) }
-
-    private var periodBlocks: [DailyReplayPresentation.PeriodBlock] {
-        DailyReplayPresentation.readingOrderBlocks(from: events)
-    }
+    @Environment(\.holoContentWidth) private var windowWidth
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if events.isEmpty {
-                emptyState
-                Spacer(minLength: 48)
+        let typeScale = HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: windowWidth)
+        Group {
+            if moment.module == .thought, moment.events.contains(where: { !$0.attachmentThumbnails.isEmpty }) {
+                DailyReplayEventCard(moment: moment, onSelect: onSelect, onSelectGroup: onSelectGroup)
             } else {
-                if let narrative = DailyReplayPresentation.narrative(for: events) {
-                    dayNarrative(narrative)
-                }
-
-                ForEach(Array(periodBlocks.enumerated()), id: \.element.id) { index, block in
-                    periodBlock(block.period, moments: block.moments)
-                        .holoReplayReveal(requestID: revealRequestID, requestedAt: revealRequestedAt, item: block.period.rawValue, order: index, session: revealSession)
-                }
-            }
-
-            HStack(spacing: 9) {
-                Rectangle().fill(Color.holoToolBorder.opacity(0.35)).frame(height: 1)
-                Text(footerText)
-                    .font(.system(size: 9 * typeScale, weight: .medium, design: .serif))
-                    .foregroundColor(.holoTextPlaceholder)
-                    .fixedSize()
-                Rectangle().fill(Color.holoToolBorder.opacity(0.35)).frame(height: 1)
-            }
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.top, 14)
-            .padding(.bottom, 16)
-        }
-        .frame(minHeight: events.isEmpty ? minimumHeight : 0, alignment: .top)
-        .contentShape(Rectangle())
-        .simultaneousGesture(emptyDaySwipeGesture)
-    }
-
-    private var footerText: String {
-        guard events.isEmpty else {
-            // 「现在」的语义由列表顶端的「今天的记忆还在继续」承担；章节脚注只管方向引导，
-            // 不再单独给今天塞一个「此刻」，避免把连续阅读切断。
-            return String(localized: "继续向下，回看前一天")
-        }
-        return Calendar.current.isDateInToday(day) ? String(localized: "上滑回看昨天") : String(localized: "上滑回看前一天")
-    }
-
-    private var emptyDaySwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 24)
-            .onEnded { value in
-                guard events.isEmpty,
-                      abs(value.translation.height) > abs(value.translation.width) * 1.15,
-                      abs(value.translation.height) >= 44 else { return }
-                onEmptySwipe(value.translation.height < 0 ? .upward : .downward)
-            }
-    }
-
-    private func periodBlock(_ period: DailyReplayPeriod, moments: [DailyReplayMoment]) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 9) {
-                Text(period.displayName)
-                    .font(.system(size: 11 * typeScale, weight: .semibold, design: .serif))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .tracking(1.5)
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.holoToolBorder.opacity(0.55), Color.holoToolBorder.opacity(0)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(height: 1)
-            }
-            .padding(.leading, 56 * typeScale)
-
-            ForEach(moments) { moment in
-                // 带图想法走册页风整行版式：时间已在照片下方的手记里，左侧时间列不再重复一遍，
-                // 照片堆也由此拿回整行宽度。
-                if moment.module == .thought,
-                   moment.events.contains(where: { !$0.attachmentThumbnails.isEmpty }) {
-                    DailyReplayEventCard(
-                        moment: moment,
-                        onSelect: onSelect,
-                        onSelectGroup: onSelectGroup
-                    )
-                } else {
-                    HStack(alignment: .top, spacing: 10) {
-                        Text(moment.timeText)
-                            .font(.system(size: 11 * typeScale, weight: .medium, design: .rounded))
-                            .foregroundColor(.holoToolTextSecondary)
-                            .monospacedDigit()
-                            .frame(width: 46 * typeScale, alignment: .trailing)
-                            .padding(.top, 14)
-
-                        DailyReplayEventCard(
-                            moment: moment,
-                            onSelect: onSelect,
-                            onSelectGroup: onSelectGroup
-                        )
-                    }
+                HStack(alignment: .top, spacing: 10) {
+                    Text(moment.timeText)
+                        .font(.system(size: 11 * typeScale, weight: .medium, design: .rounded))
+                        .foregroundColor(.holoToolTextSecondary)
+                        .monospacedDigit()
+                        .frame(width: 46 * typeScale, alignment: .trailing)
+                        .padding(.top, 14)
+                    DailyReplayEventCard(moment: moment, onSelect: onSelect, onSelectGroup: onSelectGroup)
                 }
             }
         }
         .padding(.horizontal, HoloSpacing.md)
+        .padding(.top, 9)
+    }
+}
+
+private struct DailyReplayPeriodHeader: View {
+    let period: DailyReplayPeriod
+    @Environment(\.holoContentWidth) private var windowWidth
+
+    var body: some View {
+        let typeScale = HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: windowWidth)
+        HStack(spacing: 9) {
+            Text(period.displayName)
+                .font(.system(size: 11 * typeScale, weight: .semibold, design: .serif))
+                .foregroundColor(.holoToolTextSecondary)
+                .tracking(1.5)
+            Rectangle()
+                .fill(LinearGradient(colors: [Color.holoToolBorder.opacity(0.55), Color.holoToolBorder.opacity(0)],
+                                     startPoint: .leading, endPoint: .trailing))
+                .frame(height: 1)
+        }
+        .padding(.leading, 56 * typeScale)
+        .padding(.horizontal, HoloSpacing.md)
         .padding(.top, 16)
     }
+}
 
-    private func dayNarrative(_ text: String) -> some View {
+private struct DailyReplayNarrative: View {
+    let text: String
+    @Environment(\.holoContentWidth) private var windowWidth
+
+    var body: some View {
+        let typeScale = HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: windowWidth)
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "sparkle")
                 .font(.system(size: 10 * typeScale, weight: .semibold))
@@ -578,36 +489,67 @@ private struct DailyReplayDayContent: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 13)
-        .background(
-            LinearGradient(
-                colors: [Color.holoPrimary.opacity(0.085), Color.holoToolSurface.opacity(0.45)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        )
+        .background(LinearGradient(colors: [Color.holoPrimary.opacity(0.085), Color.holoToolSurface.opacity(0.45)],
+                                   startPoint: .leading, endPoint: .trailing))
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color.holoPrimary.opacity(0.13), lineWidth: 1)
-        )
+        .overlay(RoundedRectangle(cornerRadius: 15, style: .continuous).stroke(Color.holoPrimary.opacity(0.13), lineWidth: 1))
         .padding(.horizontal, HoloSpacing.md)
         .padding(.top, HoloSpacing.sm)
     }
+}
 
-    private var emptyState: some View {
-        Text(moduleFilter.map { String(localized: "这一天没有\($0.displayName)记录") } ?? String(localized: "这一天没有留下记录，生活安静地经过。"))
-            .font(.system(size: 11 * typeScale, weight: .medium, design: .serif))
-            .foregroundColor(.holoTextPlaceholder)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 18)
-            .background(Color.holoToolSurface.opacity(0.32))
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .stroke(Color.holoToolBorder.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-            )
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.top, HoloSpacing.sm)
+private struct DailyReplayDayFooter: View {
+    let day: Date
+    let isEmpty: Bool
+    @Environment(\.holoContentWidth) private var windowWidth
+
+    var body: some View {
+        HStack(spacing: 9) {
+            Rectangle().fill(Color.holoToolBorder.opacity(0.35)).frame(height: 1)
+            Text(isEmpty
+                 ? (Calendar.current.isDateInToday(day) ? String(localized: "上滑回看昨天") : String(localized: "上滑回看前一天"))
+                 : String(localized: "继续向下，回看前一天"))
+                .font(.system(size: 9 * HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: windowWidth), weight: .medium, design: .serif))
+                .foregroundColor(.holoTextPlaceholder)
+                .fixedSize()
+            Rectangle().fill(Color.holoToolBorder.opacity(0.35)).frame(height: 1)
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.top, 14)
+        .padding(.bottom, 16)
+    }
+}
+
+private struct DailyReplayEmptyDayContent: View {
+    let day: Date
+    let moduleFilter: CalendarModule?
+    let minimumHeight: CGFloat
+    let onEmptySwipe: (DailyReplayEmptyDaySwipeDirection) -> Void
+    @Environment(\.holoContentWidth) private var windowWidth
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(moduleFilter.map { String(localized: "这一天没有\($0.displayName)记录") } ?? String(localized: "这一天没有留下记录，生活安静地经过。"))
+                .font(.system(size: 11 * HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: windowWidth), weight: .medium, design: .serif))
+                .foregroundColor(.holoTextPlaceholder)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+                .background(Color.holoToolSurface.opacity(0.32))
+                .overlay(RoundedRectangle(cornerRadius: HoloRadius.lg)
+                    .stroke(Color.holoToolBorder.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.top, HoloSpacing.sm)
+            Spacer(minLength: 48)
+            DailyReplayDayFooter(day: day, isEmpty: true)
+        }
+        .frame(minHeight: minimumHeight, alignment: .top)
+        .contentShape(Rectangle())
+        .simultaneousGesture(DragGesture(minimumDistance: 24).onEnded { value in
+            guard abs(value.translation.height) > abs(value.translation.width) * 1.15,
+                  abs(value.translation.height) >= 44 else { return }
+            onEmptySwipe(value.translation.height < 0 ? .upward : .downward)
+        })
     }
 }
 

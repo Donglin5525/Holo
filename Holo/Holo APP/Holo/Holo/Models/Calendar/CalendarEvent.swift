@@ -12,7 +12,7 @@ import CoreData
 ///
 /// 设计为单条 1:1 实体（非聚合）：月历的色阶/色条由渲染层从 [CalendarEvent] 计算。
 /// 不复用 MemoryItem——它是去模块化的展示 struct，丢失了模块身份与原始实体引用。
-struct CalendarEvent: Identifiable, Equatable {
+nonisolated struct CalendarEvent: Identifiable, Equatable {
     let id: UUID
     let module: CalendarModule
 
@@ -73,7 +73,7 @@ struct CalendarEvent: Identifiable, Equatable {
     }
 }
 
-enum CalendarEventValueDirection: Hashable {
+nonisolated enum CalendarEventValueDirection: Hashable {
     case positive
     case negative
 }
@@ -83,7 +83,7 @@ extension CalendarEvent {
     /// 数据源只能确定日期（时间部分为 0 点整）时视为无可靠时刻。
     /// 补签、账单导入等场景落 0 点的记录归入日回放「当天记录」区，
     /// 不伪装成凌晨事件（统一浏览方案 §7.6 / §15.2：不制造虚假时间精度）。
-    var hasReliableTime: Bool {
+    nonisolated var hasReliableTime: Bool {
         let comps = Calendar.current.dateComponents([.hour, .minute, .second], from: date)
         return !(comps.hour == 0 && comps.minute == 0 && comps.second == 0)
     }

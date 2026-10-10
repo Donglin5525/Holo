@@ -104,3 +104,8 @@ build-*.dd/
 .qa-tmp/
 qa-shots/
 .build-trend-dd/
+
+# 本机性能诊断与临时输出
+/.tmp/
+*.trace/
+*.xcresult/

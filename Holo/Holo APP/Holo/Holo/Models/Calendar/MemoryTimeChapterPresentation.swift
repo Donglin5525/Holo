@@ -8,13 +8,13 @@
 
 import Foundation
 
-enum MemoryTimeChapterScale: Equatable {
+nonisolated enum MemoryTimeChapterScale: Equatable {
     case day
     case week
     case month
 }
 
-struct MemoryTimeChapterPresentation: Equatable {
+nonisolated struct MemoryTimeChapterPresentation: Equatable {
     let primaryText: String
     let title: String
     let evidence: String

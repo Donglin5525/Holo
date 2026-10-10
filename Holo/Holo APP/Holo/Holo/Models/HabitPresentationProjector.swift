@@ -402,7 +402,8 @@ enum HabitPresentationProjector {
     }
 
     /// 打卡型连续（与 repository.calculateStreakInfo 同口径）
-    static func checkInStreakLabel(habit: Habit, data: HabitProjectionData) -> HabitStreakLabel {
+    static func checkInStreakLabel(habit: Habit, data: HabitProjectionData,
+                                   todayCompleted: Bool? = nil) -> HabitStreakLabel {
         let frequency = habit.habitFrequency
         let target = max(habit.targetCountValue ?? 1, 1)
         let completedDays = data.completedDaysByHabit[habit.id] ?? []
@@ -417,7 +418,7 @@ enum HabitPresentationProjector {
         case .daily:
             let days = dailyCompletionStreak(
                 completedDays: completedDays, isBadHabit: false,
-                windows: windows, creationDay: creationDay, data: data)
+                windows: windows, creationDay: creationDay, data: data, todayCompleted: todayCompleted)
             return HabitStreakLabel(value: days, unitName: String(localized: "天"),
                                     kindName: dailyKindName)
 
@@ -440,12 +441,13 @@ enum HabitPresentationProjector {
     }
 
     /// 坏习惯打卡「连续控制住」：与 repository.calculateStreak 坏习惯分支同口径
-    static func checkInControlStreak(habit: Habit, data: HabitProjectionData) -> Int {
+    static func checkInControlStreak(habit: Habit, data: HabitProjectionData,
+                                     todayCompleted: Bool? = nil) -> Int {
         let completedDays = data.completedDaysByHabit[habit.id] ?? []
         return dailyCompletionStreak(
             completedDays: completedDays, isBadHabit: true,
             windows: data.pauseWindowsByHabit[habit.id] ?? [],
-            creationDay: data.dayStart(habit.createdAt), data: data)
+            creationDay: data.dayStart(habit.createdAt), data: data, todayCompleted: todayCompleted)
     }
 
     /// daily 逐日倒查（好习惯 = 连续完成天数；坏习惯 = 连续无记录控制天数）
@@ -454,11 +456,13 @@ enum HabitPresentationProjector {
         isBadHabit: Bool,
         windows: [HabitPauseWindow],
         creationDay: Date,
-        data: HabitProjectionData
+        data: HabitProjectionData,
+        todayCompleted: Bool? = nil
     ) -> Int {
         let calendar = data.calendar
         var checkDate = data.today
-        let todayHasCompletion = completedDays.contains(data.today)
+        // 旧仓库以今日最新记录决定倒查起点；成就快照显式传入，其他展示保持原口径。
+        let todayHasCompletion = todayCompleted ?? completedDays.contains(data.today)
 
         if isBadHabit {
             if todayHasCompletion {
