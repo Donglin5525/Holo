@@ -526,6 +526,7 @@ struct AddTransactionSheet: View {
                     .foregroundColor(amountString == "0" ? .holoToolTextSecondary : .holoToolText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.65)
+                    .accessibilityIdentifier("transactionSheet.amountDisplay")
 
                 if showNumericKeypad {
                     Rectangle()
@@ -800,6 +801,7 @@ struct RefundEntrySheet: View {
                         .foregroundColor(amountText == "0" || amountText.isEmpty ? .holoToolTextSecondary : .holoPrimaryDark)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
+                        .accessibilityIdentifier("refundSheet.amountDisplay")
                     if showKeypad {
                         Rectangle()
                             .fill(Color.holoPrimary)
@@ -883,7 +885,6 @@ struct RefundEntrySheet: View {
             HoloAmountKeypad(
                 amountText: $amountText,
                 onConfirm: {
-                    amountText = AmountMath.resolve(amountText)
                     save()
                 },
                 onNext: {

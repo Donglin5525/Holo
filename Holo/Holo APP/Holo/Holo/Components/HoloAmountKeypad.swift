@@ -11,7 +11,8 @@ import SwiftUI
 // MARK: - 键盘视图
 
 /// 计算键盘：直接读写调用方的金额串（可含 +−×÷ 表达式，如 "100-30"）
-/// - onConfirm：✓ 键（调用方负责先求值再保存，与记账页同语义）
+/// - onConfirm：✓ 键两段式——输入是算式时第一次点只求值回填结果（如 "3+4"→"7"），
+///   已是纯数字时才回调确认（由调用方保存）；求值失败（如除零）保留原式不回调
 /// - onNext：↩︎ 键（记账页=跳名称输入；退款层=收起键盘）
 struct HoloAmountKeypad: View {
     @Binding var amountText: String
@@ -59,7 +60,7 @@ struct HoloAmountKeypad: View {
             }
 
         case "✓":
-            onConfirm()
+            confirm()
 
         case "+", "-", "×", "÷":
             handleOperator(key)
@@ -76,6 +77,20 @@ struct HoloAmountKeypad: View {
 
         default:
             handleDigit(key)
+        }
+    }
+
+    /// ✓ 键两段式：算式先折算成结果展示，纯数字才代表确认完成
+    private func confirm() {
+        guard AmountMath.containsOperator(amountText) else {
+            onConfirm()
+            return
+        }
+        let resolved = AmountMath.resolve(amountText)
+        if resolved != amountText {
+            amountText = resolved
+        } else {
+            HapticManager.error()
         }
     }
 
