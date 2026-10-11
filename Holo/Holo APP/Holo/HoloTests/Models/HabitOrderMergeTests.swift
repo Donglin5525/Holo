@@ -119,3 +119,84 @@ final class HabitOrderMergeTests: XCTestCase {
         XCTAssertEqual(repo.fetchAllHabitsForReview().map(\.sortOrder), [0, 1])
     }
 }
+
+// MARK: - 拖拽会话自愈（2026-10-11「习惯记录点击不动」根治）
+
+/// isInteracting 的清除不能押「drag.onEnded 必然回调」——系统打断（来电/通知
+/// 横幅/控制中心）不保证回调，会话状态会永久卡死，全页按钮 guard 静默吞点击。
+/// 陈旧窗口（8s）后自愈为非交互态。
+@MainActor
+final class HabitReorderSessionSelfHealTests: XCTestCase {
+
+    /// 模型钉住不释放：iOS 26.3 模拟器上 @MainActor 类在用例内局部释放会踩
+    /// Swift 运行时 deinit-on-executor 的 malloc double-free（.ips 栈：
+    /// swift_task_deinitOnExecutorMainActorBackDeploy），与产品逻辑无关
+    nonisolated(unsafe) private static var pinnedModels: [HabitListReorderModel] = []
+
+    private func makeActiveSession() -> (model: HabitListReorderModel, id: UUID) {
+        let model = HabitListReorderModel()
+        Self.pinnedModels.append(model)
+        let a = UUID(), b = UUID()
+        _ = model.effectiveIds(.today, baseline: [a, b]) // 喂 baseline（beginDrag 底序）
+        model.beginDrag(id: a, section: .today, spacing: 8)
+        return (model, a)
+    }
+
+    func test_激活即交互中() {
+        let (model, _) = makeActiveSession()
+        XCTAssertTrue(model.isInteracting)
+    }
+
+    func test_手势回调彻底丢失_陈旧后自愈放行交互() {
+        let (model, _) = makeActiveSession()
+        // 模拟 onEnded 永不到来：时间流逝超过陈旧窗口
+        model.test_backdateGestureActivity(by: 9)
+        XCTAssertFalse(model.isInteracting, "死会话应自愈为非交互态，否则全页点击被永久吞掉")
+    }
+
+    func test_窗口内仍算交互_拖动续命() {
+        let (model, _) = makeActiveSession()
+        model.test_backdateGestureActivity(by: 7)
+        XCTAssertTrue(model.isInteracting, "8s 窗口内仍是活会话")
+        model.test_backdateGestureActivity(by: 5) // 累计 12s
+        model.dragMoved(translationY: 10, locationY: 300) // 手指动了 = 活着
+        XCTAssertTrue(model.isInteracting)
+    }
+
+    func test_取消会话后陈旧自愈兜底() {
+        let (model, _) = makeActiveSession()
+        model.cancelDrag()
+        // cancelDrag 后 isLifting 有 0.2s 防误触锁窗；陈旧窗口覆盖它
+        model.test_backdateGestureActivity(by: 9)
+        XCTAssertFalse(model.isInteracting)
+    }
+
+    func test_死会话后拖拽可重启_陈旧清场不吞新会话() {
+        let (model, a) = makeActiveSession()
+        model.test_backdateGestureActivity(by: 9)
+        XCTAssertFalse(model.isInteracting, "死会话自愈放行点击")
+        // 死会话上再次长按：就地清场并开新会话（不是被 guard 静默拒绝）
+        let b = UUID()
+        _ = model.effectiveIds(.today, baseline: [b, a])
+        model.beginDrag(id: b, section: .today, spacing: 8)
+        XCTAssertTrue(model.isInteracting, "新会话应正常进入交互态")
+        XCTAssertEqual(model.draggingId, b)
+    }
+
+    func test_活会话内拒绝重入() {
+        let (model, a) = makeActiveSession()
+        let b = UUID()
+        _ = model.effectiveIds(.today, baseline: [b, a])
+        model.beginDrag(id: b, section: .today, spacing: 8)
+        XCTAssertEqual(model.draggingId, a, "活会话内第二次激活应被拒绝")
+    }
+
+    func test_正常落座后交互结束() {
+        let (model, _) = makeActiveSession()
+        model.endDrag()
+        XCTAssertTrue(model.isInteracting, "0.2s 防误触锁窗内仍挡点击")
+        model.test_backdateGestureActivity(by: 9)
+        XCTAssertFalse(model.isInteracting)
+    }
+}
+

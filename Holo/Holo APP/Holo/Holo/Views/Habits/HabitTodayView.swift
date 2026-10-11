@@ -32,6 +32,7 @@ struct HabitTodayView: View {
     // MARK: 拖拽排序（单一连续列表，跨频率自由拖动，落库全局生效）
 
     @StateObject private var reorder = HabitListReorderModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     private var orderedRows: [HabitRowSnapshot] {
         let base = model.filteredTodayRows
@@ -71,6 +72,11 @@ struct HabitTodayView: View {
                 consumeFocus(proxy)
             }
             .onChange(of: focusHabitId) { _, _ in consumeFocus(proxy) }
+        }
+        // 离开前台（来电/控制中心/切换 App）时系统不保证手势 onEnded 回调，
+        // 未收尾的拖拽会话就地取消，防全页按钮被 guard 永久静默吞掉
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { reorder.cancelDrag() }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             // 页面内撤销提示（底部导航之上；导航由容器层提供 inset）
