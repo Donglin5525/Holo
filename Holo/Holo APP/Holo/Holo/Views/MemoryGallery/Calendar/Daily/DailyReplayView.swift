@@ -5,6 +5,8 @@
 //  「记忆河流」日回放：日期是章节，不是右侧索引。列表自最新向过去流动——
 //  打开就在今天，向上滑动回看更早的一天；一天之内同样自晚到早阅读（时段与
 //  时刻都倒序排布，无时间的记录沉底），往下滑始终是往过去走。
+//  河的上界恒为今天：时间门/选日期跳到过去后，目标日与今天之间的章节始终
+//  在场，向列表顶部滑可以一路走回今天，不会被跳转截成死路。
 //  翻页把更早的页追加在列表底部，
 //  永远不动正在阅读的位置（此前「往顶部插入更早内容再钉回位置」的两轮方案
 //  在 SwiftUI 下时序不可靠，已在踩坑速查表结案：位置保持类方案禁止再用于首屏定位）。
@@ -23,9 +25,11 @@ struct DailyReplayView: View {
     let onSelectGroup: ([CalendarEvent]) -> Void
     let onEnsureData: (Date) -> Void
 
-    /// 窗口两端：end=最晚一天（列表顶部，通常为聚焦/今天），start=最早一天（列表底部，翻页向过去扩）。
+    /// 窗口下界：最早一天（列表底部，翻页向过去扩）。上界恒为今天——时间河的源头固定，
+    /// 从任何过去日期向上滑都能一路回到今天，不存在被跳转截断的死路。
     @State private var rangeStart: Date
-    @State private var rangeEnd: Date
+    /// 聚焦在过去时打开视图的初始定位目标；滚到位即清空，loading 结束前章节未渲染则留待补滚。
+    @State private var pendingInitialAnchor: Date?
     @State private var showDatePicker = false
     @State private var pickerDate: Date
     @State private var portalDate: Date?
@@ -61,7 +65,9 @@ struct DailyReplayView: View {
         self.onSelectGroup = onSelectGroup
         self.onEnsureData = onEnsureData
         self._rangeStart = State(initialValue: start)
-        self._rangeEnd = State(initialValue: anchorDay)
+        self._pendingInitialAnchor = State(
+            initialValue: calendar.isDate(anchorDay, inSameDayAs: today) ? nil : anchorDay
+        )
         self._pickerDate = State(initialValue: anchorDay)
     }
 
@@ -115,6 +121,7 @@ struct DailyReplayView: View {
                 .sensoryFeedback(.selection, trigger: portalDate)
                 .onAppear {
                     onEnsureData(focusedDate)
+                    settleInitialAnchorIfNeeded(proxy: proxy)
                 }
                 .onChange(of: focusedDate) { _, newDate in
                     let target = calendar.startOfDay(for: min(newDate, today))
@@ -123,6 +130,9 @@ struct DailyReplayView: View {
                         return
                     }
                     jump(to: target, proxy: proxy)
+                }
+                .onChange(of: isInitialLoading) { _, _ in
+                    settleInitialAnchorIfNeeded(proxy: proxy)
                 }
                 .sheet(isPresented: $showDatePicker) {
                     DailyReplayDatePickerSheet(
@@ -140,9 +150,7 @@ struct DailyReplayView: View {
     @ViewBuilder
     private func chapterList(proxy: ScrollViewProxy,
                              minimumDayContentHeight: CGFloat) -> some View {
-        if calendar.isDate(rangeEnd, inSameDayAs: today) {
-            DailyReplayTodayEndView()
-        }
+        DailyReplayTodayEndView()
 
         ForEach(chapters) { chapter in
             switch chapter {
@@ -227,11 +235,12 @@ struct DailyReplayView: View {
         }
     }
 
-    /// 自最新向过去排列：构建器产出升序，这里反转为降序——最晚一天在列表顶部。
+    /// 自最新向过去排列：构建器产出升序，这里反转为降序——今天在列表顶部，
+    /// 上界恒为今天，向上滑永远可以回到今天。
     private var chapters: [DailyReplayChapter] {
         DailyReplayChapterBuilder.make(
             from: rangeStart,
-            through: rangeEnd,
+            through: today,
             eventCountsByDay: [:],
             collapseEmptyRuns: false
         ).reversed()
@@ -263,7 +272,8 @@ struct DailyReplayView: View {
 
     private func jump(to rawDate: Date, proxy: ScrollViewProxy) {
         let target = calendar.startOfDay(for: min(rawDate, today))
-        rangeEnd = target
+        // 只重铺过去方向的窗口并定位；上界恒为今天，目标日与今天之间的章节始终在场，
+        // 向上滑即可走回今天——此前把上界钉在目标日，是「跳过去就滑不回来」的病根。
         rangeStart = calendar.date(byAdding: .day, value: -pageSize, to: target) ?? target
         onEnsureData(target)
         if !calendar.isDate(target, inSameDayAs: focusedDate) {
@@ -273,6 +283,18 @@ struct DailyReplayView: View {
             withAnimation(reduceMotion ? nil : HoloAnimation.standard) {
                 proxy.scrollTo(target, anchor: .top)
             }
+        }
+    }
+
+    /// 打开即聚焦日：聚焦在过去时视口放到聚焦日（顶部是今天，需要定位一次）。
+    /// 热缓存下 onAppear 章节已就位直接滚；冷启动先 loading 后出章节，onAppear 滚空，
+    /// loading 结束再补一次。滚过即清空，后续不再打扰阅读位置。
+    private func settleInitialAnchorIfNeeded(proxy: ScrollViewProxy) {
+        guard let anchor = pendingInitialAnchor, !isInitialLoading else { return }
+        pendingInitialAnchor = nil
+        let target = calendar.startOfDay(for: anchor)
+        DispatchQueue.main.async {
+            proxy.scrollTo(target, anchor: .top)
         }
     }
 
