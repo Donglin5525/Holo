@@ -331,18 +331,18 @@ function relateBodyV3(extra = {}) {
   };
 }
 
-test("schema3 接受类别候选（kind/definition）并放宽候选数到 7", () => {
+test("schema3 接受类别候选（kind/definition）并放宽候选数到 12（全量核对）", () => {
   const parsed = validateRelateRequest(relateBodyV3({
-    candidates: [1, 2, 3, 4, 5, 6, 7].map((i) => ({
-      ref: `P${i - 1}`, title: `主题${i}`, kind: i === 1 ? "category" : "thread",
+    candidates: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((i) => ({
+      ref: `P${i - 1}`, title: `主题${i}`, kind: i <= 9 ? "category" : "thread",
       representatives: [{ ref: "R", text: "片段" }],
     })),
   }));
-  assert.equal(parsed.candidates.length, 7);
+  assert.equal(parsed.candidates.length, 12);
   assert.equal(parsed.candidates[0].kind, "category");
   assert.equal(parsed.candidates[0].definition, null);
   assert.throws(() => validateRelateRequest(relateBodyV3({
-    candidates: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({
+    candidates: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13].map((i) => ({
       ref: `P${i - 1}`, title: `主题${i}`,
       representatives: [{ ref: "R", text: "片段" }],
     })),

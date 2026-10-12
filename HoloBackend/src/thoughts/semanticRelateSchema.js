@@ -12,14 +12,14 @@ export const RELATE_LIMITS = Object.freeze({
   requestBodyMaxBytes: 64 * 1024,
   targetTextMaxUTF16: 4_000,
   candidateMaxCount: 3,
-  // schema 3（2026-10-12 主题双通道）：脉络 ≤3 + 用户类别 ≤4
-  candidateMaxCountV3: 7,
+  // schema 3（2026-10-12 主题双通道，A1 自查修复后全量核对）：脉络 ≤3 + 用户类别 ≤9
+  candidateMaxCountV3: 12,
   titleMaxUTF16: 32,
   summaryMaxUTF16: 240,
   definitionMaxUTF16: 240,
   representativeMaxCount: 3,
   representativeTextMaxUTF16: 240,
-  decisionsMaxCount: 7,
+  decisionsMaxCount: 12,
   quoteMaxUTF16: 120,
   idMaxUTF16: 64,
 });
