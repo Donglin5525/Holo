@@ -118,9 +118,8 @@ export function validateBriefRequest(body) {
  */
 export function validateBriefModelOutput(output, parsedRequest) {
   if (!output || typeof output !== "object") return { malformed: true, reason: "not_object" };
-  if (typeof output.operationId === "string" && output.operationId !== parsedRequest.operationId) {
-    return { malformed: true, reason: "operationId_mismatch" };
-  }
+  // operationId 属响应封套，服务端回填请求值（模型回显不影响客户端）；
+  // 致命校验只保留内容契约：definition/exclusions/evidence 逐字回源。
   const brief = output.brief;
   if (!brief || typeof brief !== "object") return { malformed: true, reason: "brief_missing" };
   if (!isBoundedText(brief.definition, BRIEF_LIMITS.briefDefinitionMaxUTF16)) {
