@@ -363,6 +363,72 @@ actor ThoughtSemanticStore {
         try bindExec("DELETE FROM topic_summary WHERE topic_id=?1", .uuid(topicID))
     }
 
+    // MARK: - category_brief（类别理解，2026-10-12 主题双通道·零打扰；AI 派生只存本机）
+
+    struct CategoryBriefRecord: Equatable {
+        var topicID: UUID
+        var version: Int
+        var definition: String
+        var exclusions: [String]
+        var basisMemberCount: Int
+        var basisRemovalCount: Int
+        var updatedAt: Date
+
+        var exclusionsJSON: String {
+            (try? JSONEncoder().encode(exclusions)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        }
+    }
+
+    /// 幂等落库一版 brief（version 由调用方递增）。
+    func saveCategoryBrief(_ record: CategoryBriefRecord) throws {
+        try bindExec("""
+            INSERT INTO category_brief(topic_id, version, definition, exclusions_json,
+                                       basis_member_count, basis_removal_count, updated_at)
+            VALUES(?1,?2,?3,?4,?5,?6,?7)
+            ON CONFLICT(topic_id) DO UPDATE SET version=?2, definition=?3, exclusions_json=?4,
+                basis_member_count=?5, basis_removal_count=?6, updated_at=?7
+            """,
+            .uuid(record.topicID), .int64(Int64(record.version)), .text(record.definition),
+            .text(record.exclusionsJSON), .int64(Int64(record.basisMemberCount)),
+            .int64(Int64(record.basisRemovalCount)), .date(record.updatedAt))
+    }
+
+    func loadCategoryBrief(topicID: UUID) throws -> CategoryBriefRecord? {
+        let stmt = try prepare("""
+            SELECT version, definition, exclusions_json, basis_member_count, basis_removal_count, updated_at
+            FROM category_brief WHERE topic_id=?1
+            """, .uuid(topicID))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        let exclusionsData = Data(bytes: sqlite3_column_blob(stmt, 2), count: Int(sqlite3_column_bytes(stmt, 2)))
+        let exclusions = (try? JSONDecoder().decode([String].self, from: exclusionsData)) ?? []
+        return CategoryBriefRecord(
+            topicID: topicID,
+            version: Int(sqlite3_column_int64(stmt, 0)),
+            definition: String(cString: sqlite3_column_text(stmt, 1)),
+            exclusions: exclusions,
+            basisMemberCount: Int(sqlite3_column_int64(stmt, 3)),
+            basisRemovalCount: Int(sqlite3_column_int64(stmt, 4)),
+            updatedAt: dateCol(stmt, 5) ?? Date())
+    }
+
+    /// 全部 brief 的版本键（topicID:version），供关联重评指纹拼接——brief 升版自然重评。
+    func allCategoryBriefVersionKeys() throws -> [String] {
+        let stmt = try prepare("SELECT topic_id, version FROM category_brief")
+        defer { sqlite3_finalize(stmt) }
+        var keys: [String] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let id = uuidCol(stmt, 0) {
+                keys.append("\(id.uuidString):\(sqlite3_column_int64(stmt, 1))")
+            }
+        }
+        return keys.sorted()
+    }
+
+    func deleteCategoryBrief(topicID: UUID) throws {
+        try bindExec("DELETE FROM category_brief WHERE topic_id=?1", .uuid(topicID))
+    }
+
     // MARK: - candidate_cluster（新脉络建议，方案 §4.4；AI 派生只存本机）
 
     /// 幂等落库一簇。dismissedUntil 传 nil 表示清除冷却；name 传 nil 不覆盖已有名。
@@ -773,6 +839,20 @@ actor ThoughtSemanticStore {
                 basis_revision INTEGER NOT NULL DEFAULT 0,
                 summary TEXT NOT NULL,
                 viewpoints_json TEXT NOT NULL DEFAULT '[]',
+                updated_at REAL NOT NULL)
+            """)
+        // 类别理解 brief（2026-10-12 主题双通道·零打扰）：AI 起草/精化的「收什么」定义
+        // 与排除边界，AI 派生只存本机不进 CloudKit；exclusions_json 是字符串数组。
+        // basis_* 记录生成时的证据规模：member_count/removal_count 变化到阈值才触发精化，
+        // 排除项在客户端只增不减（边界只由用户移出动作改写的机器强制依据）。
+        try exec("""
+            CREATE TABLE IF NOT EXISTS category_brief(
+                topic_id BLOB PRIMARY KEY,
+                version INTEGER NOT NULL DEFAULT 1,
+                definition TEXT NOT NULL,
+                exclusions_json TEXT NOT NULL DEFAULT '[]',
+                basis_member_count INTEGER NOT NULL DEFAULT 0,
+                basis_removal_count INTEGER NOT NULL DEFAULT 0,
                 updated_at REAL NOT NULL)
             """)
         // Phase 5：建议卡命名（轻量加列；重复加列错误幂等吞掉）

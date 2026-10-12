@@ -111,9 +111,20 @@ nonisolated enum ThoughtTopicVerifier {
         targetVector: [Float], store: ThoughtSemanticStore, index: (any LocalSemanticIndex)?,
         context: NSManagedObjectContext, provider: HoloBackendAIProvider,
         calibration: ThoughtSemanticCalibration, commit: Bool, consentGeneration: Int64) async throws -> [ThoughtRelationDecision]? {
-        let version = await evaluationVersion(context: context)
+        var version = await evaluationVersion(context: context)
+        // 类别理解版本纳入重评指纹（2026-10-12 主题双通道）：brief 起草/精化升版后
+        // 受影响笔记自然重评，与主题目录变化同一机制，不需要额外触发器。
+        let briefKeys = (try? await store.allCategoryBriefVersionKeys()) ?? []
+        if !briefKeys.isEmpty { version += ":brief=" + briefKeys.joined(separator: "|") }
         let recall = try await ThoughtTopicCandidateEngine.recall(targetVector: targetVector, thoughtID: thoughtID,
             store: store, index: index, context: context, calibration: calibration, provider: provider)
+        // 类别定义来源：用户口径（categoryDefinition）优先，其次本机 AI brief（零打扰起草/精化）
+        var briefDefinitionByTopic: [UUID: String] = [:]
+        for candidate in recall.candidates where candidate.kind == "category" {
+            if let brief = try? await store.loadCategoryBrief(topicID: candidate.topicID) {
+                briefDefinitionByTopic[candidate.topicID] = brief.definition
+            }
+        }
         var candidates: [ThoughtSemanticRelateRequestDTO.Candidate] = []
         var topicByRef: [String: UUID] = [:]
         var payloadDroppedTopicIDs: [UUID] = []
@@ -146,7 +157,8 @@ nonisolated enum ThoughtTopicVerifier {
                     summary: topic.summary.map { ThoughtSemanticText.prefix($0, maxUTF16: 240) },
                     kind: candidate.kind,
                     definition: candidate.kind == "category"
-                        ? topic.categoryDefinition.map { ThoughtSemanticText.prefix($0, maxUTF16: 240) }
+                        ? (topic.categoryDefinition.map { ThoughtSemanticText.prefix($0, maxUTF16: 240) }
+                           ?? briefDefinitionByTopic[candidate.topicID].map { ThoughtSemanticText.prefix($0, maxUTF16: 240) })
                         : nil,
                     representatives: representatives)
             }

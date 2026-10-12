@@ -33,6 +33,8 @@ struct TopicDetailView: View {
     /// 类别定义编辑（主题双通道 2026-10-12）：仅 classification 主题展示定义卡
     @State private var showDefinitionEditor = false
     @State private var definitionInput = ""
+    /// AI 代写回退（零打扰）：用户没写过定义时展示本机 brief（语义库 AI 派生）
+    @State private var briefDefinition: String? = nil
 
     /// 关键词管理（长按：全局重命名/删除，承接原抽屉能力）
     @State private var tagActionTarget: ThoughtRepository.AITagBucket?
@@ -191,7 +193,19 @@ struct TopicDetailView: View {
         tagBuckets = (try? thoughtRepository.fetchAITagBuckets(excludeAbsorbed: false)) ?? []
         if ThoughtSemanticFeatureFlags.uiEnabled, let topic {
             await loadSummaryIfEligible(for: topic)
+            await loadBriefDefinitionIfEligible(for: topic)
         }
+    }
+
+    /// AI 代写定义（零打扰）：用户没写过定义的 classification 主题，回退展示本机 brief。
+    @MainActor
+    private func loadBriefDefinitionIfEligible(for topic: Topic) async {
+        briefDefinition = nil
+        guard topic.isClassificationTopic,
+              topic.categoryDefinition?.isEmpty != false,
+              let store = await ThoughtSemanticPipeline.shared.store,
+              let brief = try? await store.loadCategoryBrief(topicID: topicId) else { return }
+        briefDefinition = brief.definition
     }
 
     // MARK: - V3 主题摘要（§4.5；AI 派生只存本机语义库）
@@ -299,6 +313,16 @@ struct TopicDetailView: View {
                             .foregroundColor(.holoTextPrimary)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if let brief = briefDefinition {
+                        Text(brief)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextPrimary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("AI 根据你放进来的笔记代写 · 点开可改；不改它，它也只跟着你的动作学")
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoTextPlaceholder)
+                            .multilineTextAlignment(.leading)
                     } else {
                         Text("写一句「收什么、不收什么」，AI 会按它归类；不写也可以，AI 按你的用法慢慢学")
                             .font(.holoCaption)
@@ -767,7 +791,7 @@ struct TopicDetailView: View {
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.md)
-            .navigationTitle("「\(topic?.title ?? "")」收什么")
+            .navigationTitle(String(localized: "这个主题收什么"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {

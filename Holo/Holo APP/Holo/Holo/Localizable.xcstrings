@@ -96019,7 +96019,87 @@
           }
         }
       }
+    },
+  "这个主题收什么" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What belongs here"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個主題收什麼"
+          }
+        }
     }
+  },
+  "写一句「收什么、不收什么」，AI 会按它归类；不写也可以，AI 按你的用法慢慢学" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write one line of what fits and what doesn't — the AI will sort by it. Skip it and the AI learns from how you use this topic."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寫一句「收什麼、不收什麼」，AI 會按它歸類；不寫也可以，AI 按你的用法慢慢學"
+          }
+        }
+    }
+  },
+  "AI 根据你放进来的笔记代写 · 点开可改；不改它，它也只跟着你的动作学" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafted by AI from the notes you put here · Tap to edit. Left alone, it only learns from your actions."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 根據你放進來的筆記代寫 · 點開可改；不改它，它也只跟著你的動作學"
+          }
+        }
+    }
+  },
+  "这行话就是 AI 的归类依据。改了它，相关笔记会自动重新归类；不写也可以，AI 按你放进来的笔记用法判定。" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This line is what the AI sorts by. Change it and related notes re-sort automatically. Skip it and the AI goes by the notes you put here."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這行話就是 AI 的歸類依據。改了它，相關筆記會自動重新歸類；不寫也可以，AI 按你放進來的筆記用法判定。"
+          }
+        }
+    }
+  },
+  "主题定义，点按编辑" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Topic definition, tap to edit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主題定義，點按編輯"
+          }
+        }
+    }
+  }
   },
   "version" : "1.0"
 }

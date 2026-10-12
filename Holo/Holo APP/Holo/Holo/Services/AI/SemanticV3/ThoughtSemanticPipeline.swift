@@ -103,6 +103,7 @@ actor ThoughtSemanticPipeline {
         await ThoughtSemanticEmbeddingExecutor.shared.processBatch(store: store, index: index)
         await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
         await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
+        await ThoughtCategoryBriefMaintainer.shared.process(store: store)
     }
 
     private func startQueueHeartbeat() {
@@ -122,6 +123,8 @@ actor ThoughtSemanticPipeline {
                         await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
                     }
                     await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
+                    // 类别理解维护（2026-10-12 主题双通道·零打扰）：每拍最多一个主题，谷时段慢速精化
+                    await ThoughtCategoryBriefMaintainer.shared.process(store: store)
                     let anyActive = flag != .off || relationFlag != .off
                     let interval: UInt64 = anyActive ? 30 : 300
                     try? await Task.sleep(nanoseconds: interval * 1_000_000_000)

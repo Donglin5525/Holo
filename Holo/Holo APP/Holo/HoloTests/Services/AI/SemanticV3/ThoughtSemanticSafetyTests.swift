@@ -188,6 +188,84 @@ final class ThoughtSemanticSafetyTests: XCTestCase {
         XCTAssertEqual(outcome.reason, "below_recall_threshold")
     }
 
+    // MARK: - ⑤ 类别理解 brief（2026-10-12 主题双通道·零打扰）
+
+    /// 铁律：排除项只增不减；无新移出时 AI 提议的新排除全部丢弃。
+    func testBriefExclusionsMergeIronRule() {
+        let previous = ["纯转载", "任务清单"]
+        // 无新移出：AI 想加「会议纪要」→ 丢弃（边界只由用户动作改写）
+        XCTAssertEqual(ThoughtCategoryBriefClient.mergedExclusions(
+            previous: previous, proposed: ["纯转载", "会议纪要"], newRemovalCount: 0), previous)
+        // 有新移出：允许追加，永不删除已有项
+        XCTAssertEqual(ThoughtCategoryBriefClient.mergedExclusions(
+            previous: previous, proposed: ["纯转载", "行业报告转载"], newRemovalCount: 1),
+            ["纯转载", "任务清单", "行业报告转载"])
+        // 上限 6：追加截断不溢出
+        let six = ["一", "二", "三", "四", "五", "六"]
+        XCTAssertEqual(ThoughtCategoryBriefClient.mergedExclusions(
+            previous: six, proposed: ["七"], newRemovalCount: 2).count, 6)
+    }
+
+    /// brief 库表往返：保存/读回/版本键排序（版本键进关联重评指纹，稳定性必须锁定）。
+    func testCategoryBriefStoreRoundTripAndVersionKeys() async throws {
+        let (store, root) = try await makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let topicID = UUID()
+        let initial = try await store.loadCategoryBrief(topicID: topicID)
+        XCTAssertNil(initial)
+
+        let record = ThoughtSemanticStore.CategoryBriefRecord(
+            topicID: topicID, version: 1,
+            definition: "个人生活片段、即时感受、吐槽，以及个人观察与反思。",
+            exclusions: ["纯转载", "任务清单"],
+            basisMemberCount: 12, basisRemovalCount: 1, updatedAt: Date())
+        try await store.saveCategoryBrief(record)
+
+        let loaded = try await store.loadCategoryBrief(topicID: topicID)
+        XCTAssertEqual(loaded?.definition, record.definition)
+        XCTAssertEqual(loaded?.exclusions, record.exclusions)
+        XCTAssertEqual(loaded?.basisMemberCount, 12)
+        XCTAssertEqual(loaded?.basisRemovalCount, 1)
+
+        let other = ThoughtSemanticStore.CategoryBriefRecord(
+            topicID: UUID(), version: 3, definition: "工作与事业的观察记录。",
+            exclusions: [], basisMemberCount: 8, basisRemovalCount: 0, updatedAt: Date())
+        try await store.saveCategoryBrief(other)
+        let keys = try await store.allCategoryBriefVersionKeys()
+        XCTAssertEqual(keys.count, 2)
+        XCTAssertTrue(keys.contains("\(topicID.uuidString):1"))
+        XCTAssertTrue(keys.contains("\(other.topicID.uuidString):3"))
+    }
+
+    /// 响应二次校验：证据逐字回源才放行；伪 quote / 越界定义 / 空 evidence 拒绝。
+    func testBriefValidatedContentContract() {
+        let request = ThoughtCategoryBriefClient.makeRequest(
+            title: "碎碎念", userDefinition: nil, currentBrief: nil,
+            members: [
+                ("R0", "食堂两个肉菜 53 块，这定价是认真的吗。", "user"),
+                ("R1", "出门喂猫的时候发现楼下的桂花开了。", "user"),
+                ("R2", "Agent 越来越能干，人反而更不敢拍板了。", "ai"),
+            ],
+            removals: [])!
+        func response(_ brief: ThoughtCategoryBriefResponseDTO.Brief,
+                      evidence: [ThoughtCategoryBriefResponseDTO.Evidence]) -> ThoughtCategoryBriefResponseDTO {
+            .init(schemaVersion: 1, operationId: request.operationId, brief: brief, evidence: evidence)
+        }
+        let good = ThoughtCategoryBriefClient.validatedContent(from: response(
+            .init(definition: "个人生活片段、即时感受、吐槽与观察反思。", exclusions: ["纯转载", ""]),
+            evidence: [.init(ref: "R0", quote: "这定价是认真的吗")]), request: request)
+        XCTAssertEqual(good?.exclusions, ["纯转载"], "排除项去空")
+
+        XCTAssertNil(ThoughtCategoryBriefClient.validatedContent(from: response(
+            .init(definition: "定义", exclusions: []),
+            evidence: [.init(ref: "R0", quote: "不在原文里的字")]), request: request))
+        XCTAssertNil(ThoughtCategoryBriefClient.validatedContent(from: response(
+            .init(definition: "定".padding(toLength: 250, withPad: "义", startingAt: 0), exclusions: []),
+            evidence: [.init(ref: "R0", quote: "这定价是认真的吗")]), request: request), "定义超 240 拒绝")
+        XCTAssertNil(ThoughtCategoryBriefClient.validatedContent(from: response(
+            .init(definition: "定义", exclusions: []), evidence: []), request: request), "空 evidence 拒绝")
+    }
+
     func testIndexStatsDistinguishesPendingFailedAndUnavailable() async throws {
         let (store, root) = try await makeStore()
         defer { try? FileManager.default.removeItem(at: root) }

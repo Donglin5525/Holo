@@ -48,6 +48,7 @@ final class PromptManager {
         case thoughtOrganizeB = "thought_organize_b"
         case thoughtSemanticRelate = "thought_semantic_relate_v1"
         case thoughtSemanticRelateV2 = "thought_semantic_relate_v2"
+        case thoughtCategoryBrief = "thought_category_brief_v1"
         case thoughtTopicName = "thought_topic_name_v1"
         case healthInsightGeneration = "health_insight_generation"
         case weeklyPlanGeneration = "weekly_plan_generation"
@@ -81,6 +82,7 @@ final class PromptManager {
             case .thoughtOrganizeB: return "想法整理·词表对齐"
             case .thoughtSemanticRelate: return "想法主题关联"
             case .thoughtSemanticRelateV2: return "想法主题关联·双通道"
+            case .thoughtCategoryBrief: return "归档类别理解"
             case .thoughtTopicName: return "想法主题发现"
             case .healthInsightGeneration: return "健康洞察生成"
             case .weeklyPlanGeneration: return "每周计划生成"
@@ -116,6 +118,7 @@ final class PromptManager {
             case .thoughtOrganizeB: return "想法整理 V2 阶段B：词表对齐与证据复核"
             case .thoughtSemanticRelate: return "双侧原文证据核对主题归属"
             case .thoughtSemanticRelateV2: return "类别定义与内容脉络双通道判定"
+            case .thoughtCategoryBrief: return "成员证据起草/精化类别定义"
             case .thoughtTopicName: return "至少三条独立笔记核对新主题"
             case .healthInsightGeneration: return "健康页核心洞察与生活闭环的 LLM 生成"
             case .weeklyPlanGeneration: return "本周生活计划的结构化生成（优先结果+行动卡）"
@@ -151,6 +154,7 @@ final class PromptManager {
             case .thoughtOrganizeB: return "checkmark.seal"
             case .thoughtSemanticRelate: return "link"
             case .thoughtSemanticRelateV2: return "square.stack.3d.up"
+            case .thoughtCategoryBrief: return "text.badge.plus"
             case .thoughtTopicName: return "leaf"
             case .healthInsightGeneration: return "heart.text.square"
             case .weeklyPlanGeneration: return "calendar.badge.checkmark"
@@ -168,6 +172,9 @@ final class PromptManager {
         // v2（2026-10-12 主题双通道）：schema 3 + fits_category，与后端
         // defaultPrompts.json thought_semantic_relate_v2 对齐；路由/预算/隐私仍挂 v1 purpose。
         .thoughtSemanticRelateV2: 2,
+        // v1（2026-10-12 主题双通道·零打扰）：成员证据→类别定义/排除边界，与后端
+        // defaultPrompts.json thought_category_brief_v1 对齐。
+        .thoughtCategoryBrief: 1,
         .thoughtTopicName: 2,
         .personaPreamble: 1,            // v1: 人格层首版（Persona Preamble 唯一真源见 PROMPT_GUIDELINES.md）
         .systemPrompt: 4,               // v4: 删除重复表达边界块与档案规则块，由 Persona Preamble 接管
@@ -1691,6 +1698,7 @@ final class PromptManager {
         case thoughtOrganizeB = "thought_organize_b"
         case thoughtSemanticRelate = "thought_semantic_relate_v1"
         case thoughtSemanticRelateV2 = "thought_semantic_relate_v2"
+        case thoughtCategoryBrief = "thought_category_brief_v1"
         case thoughtTopicName = "thought_topic_name_v1"
         case healthInsightGeneration = "health_insight_generation"
         case weeklyPlanGeneration = "weekly_plan_generation"

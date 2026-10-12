@@ -357,6 +357,23 @@ final class HoloBackendAIProvider: AIProvider {
         return try await apiClient.send(request)
     }
 
+    /// 归档类别理解器（POST /v1/thoughts/category-brief，2026-10-12 主题双通道）。
+    /// 与 semantic-relate 同隐私口径与闸门。
+    func categoryBrief(_ body: ThoughtCategoryBriefRequestDTO) async throws -> ThoughtCategoryBriefResponseDTO {
+        try ensureDataProcessingConsent()
+        let request = APIRequest(
+            baseURL: baseURL,
+            path: "/v1/thoughts/category-brief",
+            method: .post,
+            headers: [
+                "Content-Type": "application/json",
+                "X-Holo-Device-Id": deviceIdProvider()
+            ],
+            body: body
+        )
+        return try await apiClient.send(request)
+    }
+
     /// 主题摘要 V3 专用无状态端点（POST /v1/thoughts/topic-summary）。
     /// 同隐私口径（metadata_only + 独立预算限流）；失败由调用方静默降级为无摘要区。
     func topicSummary(_ body: ThoughtTopicSummaryRequestDTO) async throws -> ThoughtTopicSummaryResponseDTO {
