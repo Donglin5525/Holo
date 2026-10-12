@@ -40,6 +40,8 @@ struct HabitModuleContainer: View {
     @State private var retroactiveTarget: HabitRetroactiveSheetContext? = nil
     /// 「去今天记录」定位（回今天后滚动到该习惯）
     @State private var focusHabitId: UUID? = nil
+    /// 弹层发起的测量输入（弹层主动作 dismiss 后由这里接住开键盘，避免断链）
+    @State private var measureSheetTarget: HabitRowSnapshot? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -96,15 +98,27 @@ struct HabitModuleContainer: View {
                     openSettingsAfterSheetDismiss(id)
                 },
                 onOpenReview: { id in
-                    // 「查看完整回顾」：先收弹层，转场落定后再切回顾（与 ··· 菜单同款节拍，
+                    // 「查看长期回顾」：先收弹层，转场落定后再切回顾（与 ··· 菜单同款节拍，
                     // 避免dismissal中途叠转场把展示状态卡死——模拟器连击实锤过一次）
                     todayRecordTarget = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                         model.selectedTab = .review
                         model.reviewRoute = .single(id)
                     }
+                },
+                onRequestMeasureInput: { id in
+                    // 弹层主动作（计数/测量）收弹层后接住：开与今天页同一套测量输入；
+                    // 间隔须大于 sheet 收起动画，否则新 sheet 被 dismissal 吞掉（偶发实锤）
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                        measureSheetTarget = model.todayRows.first { $0.id == id }
+                    }
                 }
             )
+        }
+        .sheet(item: $measureSheetTarget) { snapshot in
+            HabitMeasureInputSheet(snapshot: snapshot) { value, note in
+                Task { await model.record(kind: .addNumeric(value: value), habitId: snapshot.id, note: note) }
+            }
         }
         .sheet(isPresented: $showOptionsSheet, onDismiss: { optionsInitialPage = nil }) {
             HabitModuleOptionsSheet(

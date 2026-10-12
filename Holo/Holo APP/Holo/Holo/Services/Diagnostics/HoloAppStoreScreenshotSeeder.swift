@@ -1391,6 +1391,13 @@ enum HoloAppStoreScreenshotSeeder {
             sortOrder: 2
         )
 
+        // 历史记录最早写在 -24 天，创建日必须更早：统计口径「创建前不计入」
+        // 会被创建日晚于记录的数据放大成荒谬值（如完成率 = 记录天数 ÷ 1 天）
+        let historyStart = date(from: startOfWeek, dayOffset: -25, hour: 0, minute: 0)
+        reading.createdAt = historyStart
+        walk.createdAt = historyStart
+        sleep.createdAt = historyStart
+
         for day in 0...4 {
             let record = HabitRecord.createCheckIn(in: context, habit: reading)
             record.date = date(from: startOfWeek, dayOffset: day, hour: 8, minute: 35)

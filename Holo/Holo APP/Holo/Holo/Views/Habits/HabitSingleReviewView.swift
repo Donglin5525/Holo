@@ -30,6 +30,10 @@ struct HabitSingleReviewView: View {
     @State private var selectedDay: Date?
     @State private var calendarMonth: Date = Date()
     @State private var snapshot: HabitRangeSnapshot?
+    /// 本期 vs 上期对比（方案A：替代旧摘要区，回答「有没有进步」）
+    @State private var comparison: HabitPeriodComparison?
+    /// 打卡型每周走势（方案A：打卡型第一次有走势图）
+    @State private var weeklyTrend: (mode: HabitWeeklyTrendMode, bars: [HabitWeeklyBar])?
     @State private var rangeSheetShown = false
     @State private var editingRecord: RecordTarget?
     @State private var pendingDeleteRecord: HabitRecord?
@@ -119,7 +123,13 @@ struct HabitSingleReviewView: View {
             VStack(alignment: .leading, spacing: 0) {
                 headerHead(snapshot.info)
                 rangeControl
-                summarySection(snapshot)
+                if let comparison {
+                    periodCompareCard(comparison, info: snapshot.info)
+                        .padding(.top, 14)
+                }
+                if snapshot.info.kind == .checkIn, let weeklyTrend {
+                    weeklyTrendSection(weeklyTrend, info: snapshot.info)
+                }
                 vizSection(snapshot)
                 if let day = selectedDay {
                     dayDetailSection(snapshot, day: day)
@@ -216,73 +226,250 @@ struct HabitSingleReviewView: View {
         .accessibilityLabel(Text(String(localized: "时间范围")))
     }
 
-    // MARK: 结果摘要（最多两项）
-
-    private func summarySection(_ snapshot: HabitRangeSnapshot) -> some View {
-        let info = snapshot.info
-        return HStack(spacing: 0) {
-            switch info.kind {
-            case .checkIn:
-                summaryCell(
-                    value: "\(snapshot.recordedDayCount)", unit: String(localized: "天"),
-                    title: info.isBadHabit ? String(localized: "有发生记录的日子") : String(localized: "有记录的日子"))
-            case .count:
-                summaryCell(
-                    value: HabitPresentationProjector.formatValue(snapshot.countTotal ?? 0),
-                    unit: info.unit,
-                    title: String(localized: "所选范围累计"))
-                verticalDivider
-                summaryCell(
-                    value: "\(snapshot.recordedDayCount)", unit: String(localized: "天"),
-                    title: String(localized: "有记录的日子"))
-            case .measure:
-                if let latest = snapshot.latestMeasure {
-                    summaryCell(
-                        value: HabitPresentationProjector.formatValue(latest.value),
-                        unit: info.unit,
-                        title: String(localized: "所选范围最近值 · \(shortDate(latest.day))"))
-                } else {
-                    summaryCell(value: "—", unit: "", title: String(localized: "所选范围最近值"))
-                }
-                verticalDivider
-                summaryCell(
-                    value: "\(snapshot.recordedDayCount)", unit: String(localized: "天"),
-                    title: String(localized: "有记录的日子"))
-            }
-        }
-        .padding(.vertical, 16)
-        .overlay(alignment: .top) { summarySeparator }
-        .overlay(alignment: .bottom) { summarySeparator }
-        .padding(.top, 14)
-    }
+    // MARK: 本期 vs 上期对比卡（方案A：替代旧摘要区，一进门先回答「有没有进步」）
 
     private var summarySeparator: some View {
         Rectangle().fill(Color.holoToolBorder.opacity(0.5)).frame(height: 0.5)
     }
 
-    private var verticalDivider: some View {
-        Rectangle().fill(Color.holoToolBorder.opacity(0.5)).frame(width: 0.5, height: 40)
-    }
-
-    private func summaryCell(value: String, unit: String, title: String) -> some View {
-        VStack(spacing: 5) {
-            HStack(alignment: .firstTextBaseline, spacing: 3) {
-                Text(value)
-                    .font(.system(size: 24, weight: .medium).monospacedDigit())
-                    .foregroundColor(.holoToolText)
-                if !unit.isEmpty {
-                    Text(unit)
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoToolTextSecondary)
+    @ViewBuilder
+    private func periodCompareCard(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> some View {
+        let accent = Color(hex: info.colorHex)
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(compareCaption(comparison, info: info))
+                    .font(.system(size: 10.5))
+                    .foregroundColor(.holoToolTextSecondary)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(compareMainValue(comparison, info: info))
+                        .font(.system(size: 21, weight: .semibold).monospacedDigit())
+                        .foregroundColor(.holoToolText)
+                    if let delta = compareDelta(comparison, info: info) {
+                        Text(delta.text)
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundColor(delta.color)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(delta.color.opacity(0.14)))
+                    }
                 }
+                Text(compareSubline(comparison, info: info))
+                    .font(.system(size: 10.5))
+                    .foregroundColor(.holoToolTextSecondary)
             }
-            Text(title)
-                .font(.system(size: 11))
-                .foregroundColor(.holoToolTextSecondary)
+            Spacer(minLength: 0)
+            compareSparkline(info: info, accent: accent)
+                .frame(width: 64, height: 52)
         }
-        .frame(maxWidth: .infinity)
+        .padding(13)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.holoToolInset.opacity(0.6))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.holoToolBorder.opacity(0.7))
+        )
         .accessibilityElement(children: .combine)
     }
+
+    /// 卡右侧的迷你走势（近期态势一眼；打卡型用周走势，数值型用日数值）
+    @ViewBuilder
+    private func compareSparkline(info: HabitReviewHabitInfo, accent: Color) -> some View {
+        let values = sparkValues(info: info)
+        if values.count >= 2, let first = values.first, let last = values.last {
+            let lo = min(values.min() ?? 0, first)
+            let hi = max(values.max() ?? 1, last)
+            let span = max(hi - lo, 0.0001)
+            GeometryReader { geo in
+                let w = geo.size.width, h = geo.size.height - 8
+                let points = values.enumerated().map { index, value in
+                    CGPoint(x: w * CGFloat(index) / CGFloat(values.count - 1),
+                            y: h - h * CGFloat((value - lo) / span))
+                }
+                ZStack(alignment: .bottomLeading) {
+                    Path { path in
+                        path.move(to: CGPoint(x: points[0].x, y: points[0].y))
+                        for point in points.dropFirst() { path.addLine(to: point) }
+                    }
+                    .stroke(accent, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    Circle().fill(accent).frame(width: 6.4)
+                        .position(points[0])
+                        .opacity(0.45)
+                    Circle().fill(accent).frame(width: 6.4)
+                        .position(points[points.count - 1])
+                }
+            }
+        } else {
+            EmptyView()
+        }
+    }
+
+    private func sparkValues(info: HabitReviewHabitInfo) -> [Double] {
+        if info.kind == .checkIn {
+            let values = (weeklyTrend?.bars ?? []).compactMap(\.fraction)
+            return Array(values.suffix(10))
+        }
+        guard let snapshot else { return [] }
+        return Array(snapshot.dailyValues.suffix(30).map(\.value))
+    }
+
+    /// 标题行：「本月 vs 上月同期」/「最近 30 天 vs 前 30 天」
+    private func compareCaption(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> String {
+        let currentLabel: String
+        if case .month(let monthStart) = selectedRange {
+            let calendar = Calendar.current
+            let current = calendar.date(from: calendar.dateComponents([.year, .month], from: Date())) ?? Date()
+            currentLabel = calendar.isDate(monthStart, equalTo: current, toGranularity: .month)
+                ? String(localized: "本月") : String(localized: "该月")
+        } else {
+            currentLabel = selectedRange.label(now: model.projectionNow, calendar: .current)
+        }
+        guard comparison.previous != nil else {
+            return currentLabel
+        }
+        return "\(currentLabel) vs \(comparison.previousLabel)"
+    }
+
+    /// 主数字：打卡=记录天数 / 计数=累计 / 测量=均值
+    private func compareMainValue(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> String {
+        switch info.kind {
+        case .checkIn:
+            let noun = info.isBadHabit ? String(localized: "发生") : String(localized: "记录")
+            return "\(noun) \(comparison.current.recordedDays) \(String(localized: "天"))"
+        case .count:
+            let total = HabitPresentationProjector.formatValue(comparison.current.countTotal ?? 0)
+            return info.unit.isEmpty ? total : "\(total) \(info.unit)"
+        case .measure:
+            guard let avg = comparison.current.measureAverage else { return "—" }
+            let text = HabitPresentationProjector.formatValue(avg)
+            return info.unit.isEmpty ? text : "\(text) \(info.unit)"
+        }
+    }
+
+    /// 变化胶囊：好习惯升=绿、坏习惯降=绿；测量型只标方向不判好坏（增减目标因人而异）
+    private func compareDelta(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> (text: String, color: Color)? {
+        guard let previous = comparison.previous else { return nil }
+        let good = Color(hex: "#5BC98A")
+        let bad = Color(hex: "#F27A7A")
+        let neutral = Color.holoToolText
+        func capsule(_ value: Double, _ text: String) -> (String, Color)? {
+            guard abs(value) > 0.0001 else { return nil }
+            let isGoodDirection = info.isBadHabit ? value < 0 : value > 0
+            let color: Color = info.kind == .measure ? neutral : (isGoodDirection ? good : bad)
+            return (text, color)
+        }
+        switch info.kind {
+        case .checkIn:
+            if info.frequency == .daily && !info.isBadHabit,
+               let cur = comparison.current.completion, let prev = previous.completion {
+                let diff = (cur - prev) * 100
+                return capsule(diff, String(localized: "\(diff >= 0 ? "↑" : "↓") \(Int(abs(diff).rounded()))%"))
+            }
+            let diff = Double(comparison.current.recordedDays - previous.recordedDays)
+            return capsule(diff, String(localized: "\(diff >= 0 ? "↑" : "↓") \(Int(abs(diff))) \(String(localized: "天"))"))
+        case .count:
+            guard let curTotal = comparison.current.countTotal, let prevTotal = previous.countTotal else { return nil }
+            let curRate = dailyRate(curTotal, days: comparison.current.validDays)
+            let prevRate = dailyRate(prevTotal, days: previous.validDays)
+            let diff = curRate - prevRate
+            guard abs(diff) > 0.05 else { return nil }
+            let text = HabitPresentationProjector.formatValue(abs(diff))
+            return capsule(diff, String(localized: "日均 \(diff >= 0 ? "↑" : "↓") \(text)"))
+        case .measure:
+            guard let cur = comparison.current.measureAverage, let prev = previous.measureAverage else { return nil }
+            let diff = cur - prev
+            let text = HabitPresentationProjector.formatValue(abs(diff))
+            return capsule(diff, String(localized: "\(diff >= 0 ? "↑" : "↓") \(text)"))
+        }
+    }
+
+    private func dailyRate(_ total: Double, days: Int) -> Double {
+        guard days > 0 else { return 0 }
+        return total / Double(days)
+    }
+
+    /// 副行：完成率口径 / 上期值 / 上期均值
+    private func compareSubline(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> String {
+        guard let previous = comparison.previous else {
+            switch info.kind {
+            case .checkIn:
+                if info.frequency == .daily && !info.isBadHabit,
+                   let completion = comparison.current.completion {
+                    return String(localized: "完成率 \(Int((completion * 100).rounded()))%")
+                }
+                return String(localized: "更早还没有这个习惯的记录")
+            case .count, .measure:
+                return String(localized: "更早还没有这个习惯的记录")
+            }
+        }
+        switch info.kind {
+        case .checkIn:
+            if info.frequency == .daily && !info.isBadHabit,
+               let cur = comparison.current.completion, let prev = previous.completion {
+                return String(localized: "完成率 \(Int((cur * 100).rounded()))% · 上期 \(Int((prev * 100).rounded()))%")
+            }
+            return String(localized: "上期\(info.isBadHabit ? "发生" : "记录") \(previous.recordedDays) \(String(localized: "天"))")
+        case .count:
+            let cur = dailyRate(comparison.current.countTotal ?? 0, days: comparison.current.validDays)
+            let prev = dailyRate(previous.countTotal ?? 0, days: previous.validDays)
+            let curText = HabitPresentationProjector.formatValue(cur)
+            let prevText = HabitPresentationProjector.formatValue(prev)
+            return String(localized: "日均 \(curText) · 上期日均 \(prevText)")
+        case .measure:
+            let prevText = HabitPresentationProjector.formatValue(previous.measureAverage ?? 0)
+            return String(localized: "上期均值 \(prevText)\(info.unit.isEmpty ? "" : " \(info.unit)")")
+        }
+    }
+
+    // MARK: 打卡型每周走势（方案A：常驻块，与日历并存）
+
+    @ViewBuilder
+    private func weeklyTrendSection(
+        _ trend: (mode: HabitWeeklyTrendMode, bars: [HabitWeeklyBar]),
+        info: HabitReviewHabitInfo
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(trend.mode.title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.holoToolText)
+            if trend.bars.isEmpty || trend.bars.allSatisfy({ $0.days == 0 }) {
+                Text(String(localized: "这个范围还没有可统计的周。"))
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoToolTextSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 22)
+            } else {
+                WeeklyRateChart(
+                    bars: trend.bars,
+                    mode: trend.mode,
+                    color: Color(hex: info.colorHex),
+                    isBadHabit: info.isBadHabit,
+                    today: model.projectionNow,
+                    selectedWeek: $selectedWeek
+                )
+                .frame(height: 176)
+                Text(weeklyFootnote(trend.mode, info: info))
+                    .font(.system(size: 10))
+                    .foregroundColor(.holoToolTextSecondary)
+            }
+        }
+        .padding(.top, 16)
+    }
+
+    private func weeklyFootnote(_ mode: HabitWeeklyTrendMode, info: HabitReviewHabitInfo) -> String {
+        switch mode {
+        case .completionRate:
+            return String(localized: "一根柱是一周的完成率（记录天数 ÷ 应打卡天数）。暂停日与创建前不计入。")
+        case .weeklyDays:
+            if info.isBadHabit {
+                return String(localized: "一根柱是一周的发生天数，往下走是好事。")
+            }
+            return String(localized: "一根柱是一周的记录天数。周/月习惯每周记 1 次即达成。")
+        }
+    }
+
+    @State private var selectedWeek: Date?
 
     // MARK: 可视化（一块主要图，互斥）
 
@@ -815,7 +1002,10 @@ struct HabitSingleReviewView: View {
             pauseWindowsByHabit: HabitRepository.shared.pauseWindowsByIds([habitId]),
             now: model.projectionNow
         )
-        snapshot = HabitReviewProjector.rangeSnapshot(info: info, range: selectedRange, data: data)
+        let snap = HabitReviewProjector.rangeSnapshot(info: info, range: selectedRange, data: data)
+        snapshot = snap
+        comparison = HabitReviewProjector.periodComparison(snapshot: snap, data: data)
+        weeklyTrend = HabitReviewProjector.weeklyTrend(snapshot: snap, data: data)
         // 选中日失效（范围切换后外置）时清空
         if let day = selectedDay, let snap = snapshot,
            !snap.containsDay(day, calendar: .current) {
@@ -957,6 +1147,181 @@ private struct ReviewCustomRangeForm: View {
             }
             .buttonStyle(HoloPressStyle())
         }
+    }
+}
+
+// MARK: - 每周走势图（打卡型：完成率柱 / 每周天数柱；财务图表套件同款画法）
+
+/// 与 ReviewTrendChart 同一套几何与交互规则（ReviewTrendChartLayout 复用）：
+/// 柱宽同参封顶、X 刻度 chartOverlay 自绘、横向拖动/点按沿途选中、气泡跟随。
+struct WeeklyRateChart: View {
+
+    let bars: [HabitWeeklyBar]
+    let mode: HabitWeeklyTrendMode
+    let color: Color
+    let isBadHabit: Bool
+    let today: Date
+    @Binding var selectedWeek: Date?
+
+    private var calendar: Calendar { .current }
+
+    /// 展示柱（分母为 0 的周如实跳过，不画 0% 假柱）
+    private var visibleBars: [HabitWeeklyBar] {
+        bars.filter { $0.days > 0 }
+    }
+
+    private var selectedSlot: Int? {
+        guard let week = selectedWeek else { return nil }
+        return visibleBars.firstIndex { calendar.isDate($0.weekStart, inSameDayAs: week) }
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let slotWidthPt = ChartBarPairLayout.estimatedSlotWidthPt(
+                containerWidthPt: geometry.size.width,
+                pointCount: visibleBars.count
+            )
+            chart(barWidthPt: ReviewTrendChartLayout.barWidthPt(
+                dayCount: visibleBars.count, slotWidthPt: slotWidthPt))
+        }
+    }
+
+    private func chart(barWidthPt: CGFloat) -> some View {
+        Chart {
+            ForEach(Array(visibleBars.enumerated()), id: \.element.id) { index, bar in
+                BarMark(
+                    x: .value("周", Double(index)),
+                    y: .value("值", barValue(bar)),
+                    width: .fixed(barWidthPt)
+                )
+                .foregroundStyle(color.opacity(bar.weekStart == selectedWeek ? 1.0 : 0.62))
+                .cornerRadius(3)
+            }
+        }
+        .chartXScale(domain: ReviewTrendChartLayout.xDomain(dayCount: visibleBars.count))
+        .chartYScale(domain: yDomain)
+        // X 刻度自绘（与柱子同坐标系；不隐藏会叠出一套默认数字刻度——回顾趋势图同坑）
+        .chartXAxis(.hidden)
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: yAxisValues) { value in
+                AxisGridLine().foregroundStyle(Color.holoToolBorder.opacity(0.4))
+                AxisValueLabel {
+                    if let v = value.as(Double.self) {
+                        Text(yAxisText(v))
+                            .font(.system(size: 9))
+                            .foregroundColor(.holoToolTextSecondary)
+                    }
+                }
+            }
+        }
+        .chartPlotStyle { plotArea in
+            plotArea.padding(.leading, 2).padding(.trailing, 2)
+        }
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                let plotFrame = proxy.plotFrame.map { geometry[$0] }
+                if let plotFrame {
+                    ForEach(ReviewTrendChartLayout.tickSlots(dayCount: visibleBars.count), id: \.self) { slot in
+                        if let xPos = proxy.position(forX: Double(slot)) {
+                            Text(axisLabel(slot: slot))
+                                .font(.system(size: 9))
+                                .foregroundStyle(Color.holoToolTextSecondary)
+                                .position(x: plotFrame.minX + xPos, y: plotFrame.maxY + 10)
+                        }
+                    }
+
+                    if let slot = selectedSlot,
+                       let xPos = proxy.position(forX: Double(slot)) {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.holoToolText.opacity(0.05))
+                            .frame(width: plotFrame.width / CGFloat(max(visibleBars.count, 1)),
+                                   height: plotFrame.height)
+                            .position(x: plotFrame.minX + xPos, y: plotFrame.midY)
+
+                        let detail = bubbleDetail(slot: slot)
+                        VStack(spacing: 2) {
+                            Text(detail.caption)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.holoToolTextSecondary)
+                            Text(detail.value)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(color)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.holoToolSurface)
+                                .shadow(color: .black.opacity(0.1), radius: 3, y: 1)
+                        )
+                        .fixedSize()
+                        .position(x: min(max(plotFrame.minX + xPos, 66), geometry.size.width - 66),
+                                  y: min(max(plotFrame.minY + plotFrame.height * 0.14, 16), geometry.size.height - 16))
+                    }
+
+                    DirectionalChartGestureOverlay(
+                        onChanged: { location in
+                            selectNearest(location, proxy: proxy, plotFrame: plotFrame)
+                        },
+                        onEnded: { _ in },
+                        onCancelled: {},
+                        onTap: { location in
+                            selectNearest(location, proxy: proxy, plotFrame: plotFrame)
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    private var yDomain: ClosedRange<Double> {
+        mode == .completionRate ? 0...100 : 0...7
+    }
+
+    private var yAxisValues: [Double] {
+        mode == .completionRate ? [0, 50, 100] : [0, 4, 7]
+    }
+
+    private func yAxisText(_ value: Double) -> String {
+        mode == .completionRate ? "\(Int(value))%" : "\(Int(value))"
+    }
+
+    private func barValue(_ bar: HabitWeeklyBar) -> Double {
+        mode == .completionRate ? (bar.fraction ?? 0) * 100 : Double(bar.recordedDays)
+    }
+
+    private func selectNearest(_ location: CGPoint, proxy: ChartProxy, plotFrame: CGRect?) {
+        guard let plotFrame,
+              let slot = ReviewTrendChartLayout.touchedSlot(
+                  touchXInPlot: location.x - plotFrame.minX,
+                  plotWidth: plotFrame.width,
+                  dayCount: visibleBars.count),
+              slot < visibleBars.count else { return }
+        selectedWeek = visibleBars[slot].weekStart
+    }
+
+    private func bubbleDetail(slot: Int) -> (caption: String, value: String) {
+        let bar = visibleBars[slot]
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.setLocalizedDateFormatFromTemplate("M/d")
+        let caption = formatter.string(from: bar.weekStart) + String(localized: " 起")
+        switch mode {
+        case .completionRate:
+            let percent = Int(((bar.fraction ?? 0) * 100).rounded())
+            return (caption, "\(percent)%（\(bar.recordedDays)/\(bar.days) 天）")
+        case .weeklyDays:
+            let noun = isBadHabit ? String(localized: "发生") : String(localized: "记录")
+            return (caption, "\(noun) \(bar.recordedDays) 天")
+        }
+    }
+
+    private func axisLabel(slot: Int) -> String {
+        guard slot < visibleBars.count else { return "" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.setLocalizedDateFormatFromTemplate("M/d")
+        return formatter.string(from: visibleBars[slot].weekStart)
     }
 }
 

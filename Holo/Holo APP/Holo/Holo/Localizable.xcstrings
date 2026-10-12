@@ -454,6 +454,22 @@
         }
       }
     },
+    " 起" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " onward"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " 起"
+          }
+        }
+      }
+    },
     " 项" : {
       "localizations" : {
         "en" : {
@@ -2532,6 +2548,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ %lld"
+          }
+        }
+      }
+    },
+    "%@ %lld %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %lld %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %lld %@"
           }
         }
       }
@@ -11007,6 +11039,54 @@
         }
       }
     },
+    "一根柱是一周的记录天数。周/月习惯每周记 1 次即达成。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each bar is one week's recorded days. Weekly and monthly habits count as met with 1 entry per week."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一根柱是一週的記錄天數。週/月習慣每週記 1 次即達成。"
+          }
+        }
+      }
+    },
+    "一根柱是一周的发生天数，往下走是好事。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each bar is one week's occurrence days — trending down is good."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一根柱是一週的發生天數，往下走是好事。"
+          }
+        }
+      }
+    },
+    "一根柱是一周的完成率（记录天数 ÷ 应打卡天数）。暂停日与创建前不计入。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each bar is one week's completion rate (days recorded ÷ days due). Paused and pre-creation days are excluded."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一根柱是一週的完成率（記錄天數 ÷ 應打卡天數）。暫停日與創建前不計入。"
+          }
+        }
+      }
+    },
     "一次性" : {
       "localizations" : {
         "en" : {
@@ -11698,6 +11778,22 @@
         }
       }
     },
+    "上月同期" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same period last month"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上月同期"
+          }
+        }
+      }
+    },
     "上月超支 %@ 已结转 · 本月额度 %@" : {
       "localizations" : {
         "en" : {
@@ -11762,6 +11858,38 @@
         }
       }
     },
+    "上期均值 %@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous avg %@%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上期均值 %@%@"
+          }
+        }
+      }
+    },
+    "上期%@ %lld %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous: %@ %lld %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上期%@ %lld %@"
+          }
+        }
+      }
+    },
     "上期较短，对比至上期结束" : {
       "localizations" : {
         "en" : {
@@ -11790,6 +11918,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上次 %1$@"
+          }
+        }
+      }
+    },
+    "上次 %@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last %@ · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上次 %@ · %@"
           }
         }
       }
@@ -14464,6 +14608,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "習慣的節奏越來越好"
+          }
+        }
+      }
+    },
+    "习惯管理" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manage habit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "習慣管理"
           }
         }
       }
@@ -27557,6 +27717,22 @@
         }
       }
     },
+    "前 %lld 天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous %lld days"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前 %lld 天"
+          }
+        }
+      }
+    },
     "前半夜" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -30371,6 +30547,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只有打卡型習慣能設提醒，數值型不參與"
+          }
+        }
+      }
+    },
+    "只留一眼近况；走势与对比都在长期回顾里看。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Just a quick glance — trends and comparisons live in the long-term review."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只留一眼近況；走勢與對比都在長期回顧裡看。"
           }
         }
       }
@@ -35900,6 +36092,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完成率"
+          }
+        }
+      }
+    },
+    "完成率 %lld%% · 上期 %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completion %lld%% · previous %lld%%"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成率 %lld%% · 上期 %lld%%"
           }
         }
       }
@@ -55626,6 +55834,38 @@
         }
       }
     },
+    "日均 %@ %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日均 %@ %@"
+          }
+        }
+      }
+    },
+    "日均 %@ · 上期日均 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily avg %@ · previous %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日均 %@ · 上期日均 %@"
+          }
+        }
+      }
+    },
     "日均 %@ 分钟 · 达标 %lld/%lld 天" : {
       "localizations" : {
         "en" : {
@@ -57352,6 +57592,22 @@
         }
       }
     },
+    "暂停习惯 · Plus" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause habit · Plus"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫停習慣 · Plus"
+          }
+        }
+      }
+    },
     "暂停日" : {
       "localizations" : {
         "en" : {
@@ -58541,6 +58797,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新項目狀態失敗"
+          }
+        }
+      }
+    },
+    "更早还没有这个习惯的记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No records of this habit from earlier"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更早還沒有這個習慣的記錄"
           }
         }
       }
@@ -63407,6 +63679,22 @@
         }
       }
     },
+    "查看长期回顾" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View long-term review"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看長期回顧"
+          }
+        }
+      }
+    },
     "查看隐私政策" : {
       "localizations" : {
         "en" : {
@@ -66043,6 +66331,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每週%@"
+          }
+        }
+      }
+    },
+    "每周天数" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Days per week"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每週天數"
+          }
+        }
+      }
+    },
+    "每周完成率" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weekly completion"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每週完成率"
           }
         }
       }
@@ -72237,6 +72557,22 @@
         }
       }
     },
+    "看数值曲线 · 前后对比" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See the value curve · before vs after"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看數值曲線 · 前後對比"
+          }
+        }
+      }
+    },
     "看板" : {
       "localizations" : {
         "en" : {
@@ -72249,6 +72585,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "看板"
+          }
+        }
+      }
+    },
+    "看每天次数 · 累计走势" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See daily counts · cumulative trend"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看每天次數 · 累計走勢"
           }
         }
       }
@@ -72284,6 +72636,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "看這份追問報告"
+          }
+        }
+      }
+    },
+    "看连续天数 · 每周完成率 · 日历" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See streaks · weekly completion · calendar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看連續天數 · 每週完成率 · 日曆"
           }
         }
       }
@@ -81758,6 +82126,22 @@
         }
       }
     },
+    "该月" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That month"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "該月"
+          }
+        }
+      }
+    },
     "该月无记录" : {
       "localizations" : {
         "en" : {
@@ -83906,6 +84290,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "走到哪一步 / 下一步怎麼選"
+          }
+        }
+      }
+    },
+    "走势 · 对比 · 日历" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trends · Compare · Calendar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "走勢 · 對比 · 日曆"
           }
         }
       }
@@ -86161,6 +86561,22 @@
         }
       }
     },
+    "近 7 天还没有记录。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No records in the last 7 days."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近 7 天還沒有記錄。"
+          }
+        }
+      }
+    },
     "近%lld天 · 每类最多%lld条" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -88040,6 +88456,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個索引是什麼"
+          }
+        }
+      }
+    },
+    "这个范围还没有可统计的周。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No countable weeks in this range yet."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個範圍還沒有可統計的週。"
           }
         }
       }

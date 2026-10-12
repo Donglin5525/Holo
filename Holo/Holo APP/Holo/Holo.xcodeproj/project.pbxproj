@@ -433,6 +433,7 @@
 		L1FESRC0000000000000011 /* LifeUnderstandingJourneyUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = L1FESRC0000000000000012 /* LifeUnderstandingJourneyUITests.swift */; };
 		P0CONS000000000000000001 /* ThoughtTopicConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = P0CONS000000000000000002 /* ThoughtTopicConsistencyTests.swift */; };
 		P1SMOKE0000000000000001 /* ThoughtP1PerceptionSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = P1SMOKE0000000000000002 /* ThoughtP1PerceptionSmokeUITests.swift */; };
+		PLANAWK0000000000000001B /* HabitPlanAVisualWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = PLANAWK0000000000000002B /* HabitPlanAVisualWalkthroughUITests.swift */; };
 		RECONUI0000000000000002 /* NewEntryReconUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RECONUI0000000000000001 /* NewEntryReconUITests.swift */; };
 		TPEDIT020000000000000002 /* TaskPendingEditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TPEDIT010000000000000001 /* TaskPendingEditTests.swift */; };
 		TSAFE0B000000000000000001 /* ThoughtSemanticSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TSAFE0A000000000000000001 /* ThoughtSemanticSafetyTests.swift */; };
@@ -903,6 +904,7 @@
 		L1FESRC0000000000000012 /* LifeUnderstandingJourneyUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LifeUnderstandingJourneyUITests.swift; sourceTree = "<group>"; };
 		P0CONS000000000000000002 /* ThoughtTopicConsistencyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtTopicConsistencyTests.swift; sourceTree = "<group>"; };
 		P1SMOKE0000000000000002 /* ThoughtP1PerceptionSmokeUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtP1PerceptionSmokeUITests.swift; sourceTree = "<group>"; };
+		PLANAWK0000000000000002B /* HabitPlanAVisualWalkthroughUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitPlanAVisualWalkthroughUITests.swift; sourceTree = "<group>"; };
 		RECONUI0000000000000001 /* NewEntryReconUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewEntryReconUITests.swift; sourceTree = "<group>"; };
 		TPEDIT010000000000000001 /* TaskPendingEditTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskPendingEditTests.swift; sourceTree = "<group>"; };
 		TSAFE0A000000000000000001 /* ThoughtSemanticSafetyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtSemanticSafetyTests.swift; sourceTree = "<group>"; };
@@ -1678,6 +1680,7 @@
 				A7C20000000000000000000D /* PolaroidPerfSmokeUITests.swift */,
 				A7C20000000000000000000F /* ReceiptDeletePathUITests.swift */,
 				HBV2UI0000000000000002B /* HabitInteractionV2WalkthroughUITests.swift */,
+				PLANAWK0000000000000002B /* HabitPlanAVisualWalkthroughUITests.swift */,
 				B71FE0A12F6A4C1E9D2B0201 /* SwipeCloseResidentBlackScreenUITests.swift */,
 				EA77E10C0DE0000000000031 /* MatterVerticalSliceUITests.swift */,
 				RECONUI0000000000000001 /* NewEntryReconUITests.swift */,
@@ -2316,6 +2319,7 @@
 				A7C20000000000000000000E /* PolaroidPerfSmokeUITests.swift in Sources */,
 				A7C200000000000000000010 /* ReceiptDeletePathUITests.swift in Sources */,
 				HBV2UI0000000000000001B /* HabitInteractionV2WalkthroughUITests.swift in Sources */,
+				PLANAWK0000000000000001B /* HabitPlanAVisualWalkthroughUITests.swift in Sources */,
 				B71FE0A12F6A4C1E9D2B0202 /* SwipeCloseResidentBlackScreenUITests.swift in Sources */,
 				EA77E10C0DE0000000000032 /* MatterVerticalSliceUITests.swift in Sources */,
 				RECONUI0000000000000002 /* NewEntryReconUITests.swift in Sources */,

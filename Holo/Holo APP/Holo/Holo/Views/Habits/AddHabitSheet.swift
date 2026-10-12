@@ -577,14 +577,20 @@ struct AddHabitSheet: View {
                 methodCard(.checkIn, .sum,
                            title: String(localized: "打卡"),
                            subtitle: String(localized: "做了以后留一个勾"),
+                           outcome: String(localized: "看连续天数 · 每周完成率 · 日历"),
+                           outcomeColor: Color(hex: "#2FA360"),
                            icon: "checkmark.circle")
                 methodCard(.numeric, .sum,
                            title: String(localized: "计数"),
                            subtitle: String(localized: "一次次累加，例如喝水、练习次数"),
+                           outcome: String(localized: "看每天次数 · 累计走势"),
+                           outcomeColor: Color(hex: "#D9662C"),
                            icon: "number")
                 methodCard(.numeric, .latest,
                            title: String(localized: "测量"),
                            subtitle: String(localized: "记下每次的数值，例如体重、时长"),
+                           outcome: String(localized: "看数值曲线 · 前后对比"),
+                           outcomeColor: Color(hex: "#3B76C9"),
                            icon: "scalemass")
             }
 
@@ -608,8 +614,11 @@ struct AddHabitSheet: View {
         }
     }
 
+    /// 记录方式卡：副标题下带「日后看到什么图」的后果行（创建时即可预见解锁的图表）
     private func methodCard(_ type: HabitType, _ aggregation: HabitAggregationType,
-                            title: String, subtitle: String, icon: String) -> some View {
+                            title: String, subtitle: String,
+                            outcome: String, outcomeColor: Color,
+                            icon: String) -> some View {
         let isSelected = selectedType == type && selectedAggregationType == aggregation
         return Button {
             withAnimation(HoloAnimation.quick) {
@@ -629,6 +638,10 @@ struct AddHabitSheet: View {
                     Text(subtitle)
                         .font(.holoCaption)
                         .foregroundColor(.holoToolTextSecondary)
+                    Text(outcome)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(outcomeColor)
+                        .padding(.top, 1)
                 }
                 Spacer()
                 if isSelected {

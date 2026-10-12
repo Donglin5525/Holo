@@ -452,6 +452,198 @@ enum HabitReviewProjector {
     }
 }
 
+// MARK: - 打卡型周走势（2026-10-12 方案A：打卡型第一次有走势图）
+
+/// 周走势的柱口径：完成率（daily 好习惯）或每周天数（坏习惯 / 周、月习惯）
+enum HabitWeeklyTrendMode: Equatable {
+    /// 记录天数 ÷ 有效天数（0...1）；仅 daily 好习惯
+    case completionRate
+    /// 每周记录（发生）天数；坏习惯往下走是好事，周习惯一周记 1 次即达成
+    case weeklyDays
+
+    var title: String {
+        switch self {
+        case .completionRate: return String(localized: "每周完成率")
+        case .weeklyDays: return String(localized: "每周天数")
+        }
+    }
+}
+
+/// 一周一根柱的数据（周一起界，与回顾日历的周一首列一致）
+struct HabitWeeklyBar: Equatable, Identifiable {
+    /// 该周周一零点
+    let weekStart: Date
+    /// 有效天数（分母；创建前 / 暂停日剔除，本周只数到今天）
+    let days: Int
+    /// 有记录的天数（分子）
+    let recordedDays: Int
+
+    var id: Date { weekStart }
+
+    /// 完成率（0...1）；分母为 0 的周不画柱（那时习惯还不存在或整周暂停）
+    var fraction: Double? {
+        guard days > 0 else { return nil }
+        return Double(recordedDays) / Double(days)
+    }
+}
+
+// MARK: - 本期 vs 上期对比（方案A：回答「有没有进步」）
+
+/// 一侧窗口的聚合（等长窗口 + 完成率归一，月中对比才公平）
+struct HabitPeriodSide: Equatable {
+    /// 有记录的天数
+    let recordedDays: Int
+    /// 有效天数（创建前 / 暂停日剔除）
+    let validDays: Int
+    /// 计数型范围总量（仅 count）
+    let countTotal: Double?
+    /// 测量型均值（仅 measure；无记录 nil）
+    let measureAverage: Double?
+
+    /// 完成率（0...1）；分母 0 时 nil
+    var completion: Double? {
+        guard validDays > 0 else { return nil }
+        return Double(recordedDays) / Double(validDays)
+    }
+}
+
+/// 本期 vs 上期：上期 = 紧邻本期起点的等长窗口（长度 = 本期已过自然天数）。
+/// 「本月过了 12 天」就跟「上月 1–12 日」比，完成率归一后月中与月末才可比。
+struct HabitPeriodComparison {
+    let current: HabitPeriodSide
+    let previous: HabitPeriodSide?
+    /// 上期窗口起日（nil = 无上期，如范围 all / 习惯创建晚于上期窗口）
+    let previousStart: Date?
+    /// 上期称谓（如「上月同期」「前 30 天」）
+    let previousLabel: String
+}
+
+// MARK: - 投影器
+
+extension HabitReviewProjector {
+
+    /// 打卡型周走势柱（升序，最多 maxWeeks 根；范围 all 时只取最近 maxWeeks 周）
+    static func weeklyTrend(
+        snapshot: HabitRangeSnapshot,
+        data: HabitProjectionData,
+        maxWeeks: Int = 12
+    ) -> (mode: HabitWeeklyTrendMode, bars: [HabitWeeklyBar]) {
+        guard snapshot.info.kind == .checkIn else {
+            return (mode: .weeklyDays, bars: [])
+        }
+        let calendar = data.calendar
+        let mode: HabitWeeklyTrendMode =
+            (snapshot.info.frequency == .daily && !snapshot.info.isBadHabit)
+            ? .completionRate : .weeklyDays
+
+        // 首桶周一 = 范围首日所在周的周一（首周可能不足 7 天，如实画）
+        let firstDay = snapshot.interval.start
+        let weekday = calendar.component(.weekday, from: firstDay)
+        let mondayOffset = (weekday + 5) % 7  // 周日=0 → 6，周一=0
+        let firstMonday = calendar.date(byAdding: .day, value: -mondayOffset, to: firstDay) ?? firstDay
+
+        var bars: [HabitWeeklyBar] = []
+        var weekStart = firstMonday
+        while weekStart < snapshot.interval.end {
+            let nextWeek = calendar.date(byAdding: .day, value: 7, to: weekStart) ?? weekStart
+            var days = 0
+            var recorded = 0
+            // 首桶从范围首日起数（周一首界早于范围时，范围前的天不计入分母）
+            var day = max(weekStart, snapshot.interval.start)
+            while day < nextWeek && day < snapshot.interval.end {
+                let info = snapshot.day(day, today: data.now, calendar: calendar)
+                if !info.isBeforeCreation && !info.isPaused && !info.isFuture {
+                    days += 1
+                    if info.isRecorded { recorded += 1 }
+                }
+                day = calendar.date(byAdding: .day, value: 1, to: day) ?? day
+            }
+            bars.append(HabitWeeklyBar(weekStart: weekStart, days: days, recordedDays: recorded))
+            weekStart = nextWeek
+        }
+        if bars.count > maxWeeks {
+            bars = Array(bars.suffix(maxWeeks))
+        }
+        return (mode: mode, bars: bars)
+    }
+
+    /// 本期 vs 上期对比。上期窗口紧邻本期起点、等长于本期已过天数；
+    /// 上期没有任何有效天（习惯还不存在 / 整段暂停）时不比，不造无中生有的基线。
+    static func periodComparison(
+        snapshot: HabitRangeSnapshot,
+        data: HabitProjectionData
+    ) -> HabitPeriodComparison {
+        let calendar = data.calendar
+        let elapsedDays = max(
+            calendar.dateComponents([.day], from: snapshot.interval.start, to: snapshot.interval.end).day ?? 0,
+            1)
+        let current = side(of: snapshot, data: data)
+
+        // 上期窗口 [start - elapsed, start)
+        let previousEnd = snapshot.interval.start
+        let previousStart = calendar.date(byAdding: .day, value: -elapsedDays, to: previousEnd) ?? previousEnd
+        guard previousStart < previousEnd else {
+            return HabitPeriodComparison(current: current, previous: nil,
+                                         previousStart: nil, previousLabel: "")
+        }
+        let previousSnapshot = rangeSnapshot(
+            info: snapshot.info,
+            range: .custom(start: previousStart,
+                           end: calendar.date(byAdding: .day, value: -1, to: previousEnd) ?? previousEnd),
+            data: data
+        )
+        let previous = side(of: previousSnapshot, data: data)
+        guard previous.validDays > 0 else {
+            return HabitPeriodComparison(current: current, previous: nil,
+                                         previousStart: nil, previousLabel: "")
+        }
+        return HabitPeriodComparison(
+            current: current,
+            previous: previous,
+            previousStart: previousStart,
+            previousLabel: previousLabel(for: snapshot.range, start: previousStart, calendar: calendar)
+        )
+    }
+
+    /// 单侧窗口聚合：记录天数 / 有效天数 / 计数总量 / 测量均值
+    private static func side(of snapshot: HabitRangeSnapshot, data: HabitProjectionData) -> HabitPeriodSide {
+        var validDays = 0
+        var day = snapshot.interval.start
+        while day < snapshot.interval.end {
+            let info = snapshot.day(day, today: data.now, calendar: data.calendar)
+            if !info.isBeforeCreation && !info.isPaused && !info.isFuture {
+                validDays += 1
+            }
+            day = data.calendar.date(byAdding: .day, value: 1, to: day) ?? day
+        }
+        var measureAverage: Double?
+        if snapshot.info.kind == .measure, !snapshot.dailyValues.isEmpty {
+            measureAverage = snapshot.dailyValues.reduce(0.0) { $0 + $1.value }
+                / Double(snapshot.dailyValues.count)
+        }
+        return HabitPeriodSide(
+            recordedDays: snapshot.recordedDayCount,
+            validDays: validDays,
+            countTotal: snapshot.countTotal,
+            measureAverage: measureAverage
+        )
+    }
+
+    /// 上期称谓：月范围 →「上月同期」；其余 →「前 N 天」
+    private static func previousLabel(
+        for range: HabitReviewRange,
+        start: Date,
+        calendar: Calendar
+    ) -> String {
+        if case .month = range {
+            return String(localized: "上月同期")
+        }
+        let end = calendar.date(byAdding: .day, value: -1, to: start) ?? start
+        let days = (calendar.dateComponents([.day], from: start, to: end).day ?? 0) + 1
+        return String(localized: "前 \(days) 天")
+    }
+}
+
 // MARK: - HabitProjectionData 暂停判定（静态出口）
 
 extension HabitProjectionData {
