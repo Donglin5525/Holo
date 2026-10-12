@@ -64,6 +64,10 @@ struct ThoughtCardView: View {
     @State private var showActionSheet = false
     /// V3 主题徽章的纠错菜单
     @State private var topicMenuTopic: Topic? = nil
+    /// 「为什么归这里」理由面板（2026-10-12 主题双通道 B1：信任界面——
+    /// AI 归属给逐字依据，手动/历史归属给来源说明，零猜测）
+    @State private var reasonSheetTopic: Topic? = nil
+    @State private var reasonEvidence: (relation: String, verifierQuote: String?, engineVersion: String?)? = nil
     /// 「…」菜单删除的二次确认（软删进回收站，提示可恢复）
     @State private var showDeleteConfirm = false
     /// 分享卡面板
@@ -126,6 +130,22 @@ struct ThoughtCardView: View {
         // 分享面板同样挂卡片根：与「…」菜单锚点解耦后，菜单收起完成再请求才可靠弹出
         .sheet(isPresented: $showShareCard) {
             ThoughtShareSheet(thought: thought)
+        }
+        // 「为什么归这里」理由面板（长按菜单入口；confirmationDialog 收起后再弹，
+        // 与 pendingMenuAction 同理走一小段延迟避免连环弹层被系统丢弃）
+        .sheet(item: $reasonSheetTopic) { topic in
+            TopicMembershipReasonSheet(
+                thought: thought,
+                topic: topic,
+                evidence: reasonEvidence,
+                onOpenTopic: { target in
+                    reasonSheetTopic = nil
+                    onOpenTopic?(target)
+                })
+                .task(id: topic.id) {
+                    guard let store = await ThoughtSemanticPipeline.shared.store else { return }
+                    reasonEvidence = try? await store.loadRelationEvidence(thoughtID: thought.id, topicID: topic.id) ?? nil
+                }
         }
         // 菜单收起动画（约 0.4s）走完后再弹目标层；提前请求会被弹层系统丢弃
         .onChange(of: showActionSheet) { _, isPresented in
@@ -421,6 +441,16 @@ struct ThoughtCardView: View {
             ),
             titleVisibility: .visible
         ) {
+            Button(String(localized: "为什么归这里？")) {
+                let target = topic
+                topicMenuTopic = nil
+                reasonEvidence = nil
+                // 对话框收起动画未走完就请求弹层会被系统丢弃（与 pendingMenuAction 同坑），延迟弹出
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    reasonSheetTopic = target
+                }
+            }
             Button(String(localized: "更改主题…")) {
                 topicMenuTopic = nil
                 onChangeTopic?()
@@ -502,6 +532,92 @@ struct ThoughtCardView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "按 AI 标签 \(tagName) 筛选"))
+    }
+}
+
+// MARK: - 主题归属理由面板（2026-10-12 主题双通道 B1）
+
+/// 长按主题徽章「为什么归这里？」：AI 归属给判定值 + 逐字依据（可回源不硬造），
+/// 手动/历史归属给来源说明。只读不改判定；「查看主题」直达主题详情（定义卡所在）。
+private struct TopicMembershipReasonSheet: View {
+    let thought: Thought
+    let topic: Topic
+    let evidence: (relation: String, verifierQuote: String?, engineVersion: String?)?
+    var onOpenTopic: ((Topic) -> Void)?
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var sourceText: String {
+        switch ThoughtTopicLinkProjection.membershipSource(of: thought, in: topic) {
+        case .user: return String(localized: "你加入的")
+        case .ai: return String(localized: "Holo 自动归入")
+        case .legacy: return String(localized: "早期整理归入")
+        case nil: return String(localized: "已归入")
+        }
+    }
+
+    private var relationText: String? {
+        switch evidence?.relation {
+        case "fits_category": return String(localized: "符合「\(topic.title)」这个类别的定义")
+        case "same_thread": return String(localized: "和「\(topic.title)」谈论同一件事")
+        default: return nil
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                HStack(spacing: 6) {
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.holoSuccess)
+                    Text(sourceText)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                if let relationText {
+                    Text(relationText)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                }
+                if let quote = evidence?.verifierQuote, !quote.isEmpty {
+                    Text("「\(quote)」")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(RoundedRectangle(cornerRadius: HoloRadius.md)
+                            .fill(Color.holoSuccess.opacity(0.07)))
+                }
+                if let engine = evidence?.engineVersion, !engine.isEmpty {
+                    Text(String(localized: "判定引擎 \(engine)"))
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextPlaceholder)
+                }
+                Text(String(localized: "不想要这个归属：长按徽章「从这条移除」，移出会成为 AI 的反例，同类内容以后不会再收进来。"))
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextPlaceholder)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.top, HoloSpacing.md)
+            .navigationTitle(String(localized: "为什么归这里"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("关闭") { dismiss() }
+                        .foregroundColor(.holoPrimary)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button(String(localized: "查看主题")) {
+                        onOpenTopic?(topic)
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 

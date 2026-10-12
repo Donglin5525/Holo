@@ -96099,6 +96099,182 @@
           }
         }
     }
+  },
+  "早期整理归入" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added by early organization"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "早期整理歸入"
+          }
+        }
+    }
+  },
+  "查看主题" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Topic"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看主題"
+          }
+        }
+    }
+  },
+  "为什么归这里？" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why is it here?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為什麼歸這裡？"
+          }
+        }
+    }
+  },
+  "为什么归这里" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why it's here"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為什麼歸這裡"
+          }
+        }
+    }
+  },
+  "类别理解" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Category Understanding"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "類別理解"
+          }
+        }
+    }
+  },
+  "符合「%@」这个类别的定义" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matches what “%@” collects"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "符合「%@」這個類別的定義"
+          }
+        }
+    }
+  },
+  "和「%@」谈论同一件事" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Talks about the same thing as “%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "和「%@」談論同一件事"
+          }
+        }
+    }
+  },
+  "判定引擎 %@" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decision engine %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "判定引擎 %@"
+          }
+        }
+    }
+  },
+  "不想要这个归属：长按徽章「从这条移除」，移出会成为 AI 的反例，同类内容以后不会再收进来。" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don't want this? Long-press the badge and choose “Remove”. Removals become counter-examples for the AI — similar content won't be added again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不想要這個歸屬：長按徽章「從這條移除」，移出會成為 AI 的反例，同類內容以後不會再收進來。"
+          }
+        }
+    }
+  },
+  "待起草（分类主题攒够 5 条笔记后自动开始）" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending (starts automatically once a category topic has 5 notes)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待起草（分類主題攢夠 5 條筆記後自動開始）"
+          }
+        }
+    }
+  },
+  " 个主题已代写" : {
+    "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " topics drafted"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " 個主題已代寫"
+          }
+        }
+    }
   }
   },
   "version" : "1.0"

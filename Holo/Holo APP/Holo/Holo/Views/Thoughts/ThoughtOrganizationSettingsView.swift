@@ -19,6 +19,9 @@ struct ThoughtOrganizationSettingsView: View {
     /// 成果视角计数：已归类笔记数与可见主题数（与工程视角的索引/队列数互补）
     @State private var classifiedCount = 0
     @State private var topicCount = 0
+    /// 类别理解进度（2026-10-12 主题双通道 B4）：防「没做/没轮到」误判——
+    /// 起草走慢速节拍，没有进度表达时装包数小时看不到定义会被当成没生效。
+    @State private var briefStats: (count: Int, lastUpdatedAt: Date?)? = nil
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -57,6 +60,17 @@ struct ThoughtOrganizationSettingsView: View {
                         } else if stats.activeItems == 0 {
                             Text("还没有开始整理，保持 App 打开会自动进行")
                                 .font(.holoCaption).foregroundStyle(Color.holoTextSecondary)
+                        }
+                        // 类别理解（零打扰管线）：进度可见，等待期不再像「没生效」
+                        if let briefStats {
+                            if briefStats.count > 0 {
+                                LabeledContent("类别理解",
+                                               value: briefStats.lastUpdatedAt != nil
+                                               ? "\(briefStats.count) 个主题已代写 · 最近 \(briefStats.lastUpdatedAt!.formatted(.relative(presentation: .named)))"
+                                               : "\(briefStats.count) 个主题已代写")
+                            } else {
+                                LabeledContent("类别理解", value: "待起草（分类主题攒够 5 条笔记后自动开始）")
+                            }
                         }
                         // 等待原因只保留一条：与主题发现状态撞同一文案时去重，避免同句提示重复出现
                         if let reason = stats.waitingReason {
@@ -115,7 +129,10 @@ struct ThoughtOrganizationSettingsView: View {
     }
     @MainActor private func refresh() async {
         granted = HoloAIDataProcessingConsent.shared.isGranted
-        if let store = await ThoughtSemanticPipeline.shared.store { stats = try? await store.indexStats() }
+        if let store = await ThoughtSemanticPipeline.shared.store {
+            stats = try? await store.indexStats()
+            briefStats = try? await store.categoryBriefStats()
+        }
         discoveryMessage = await ThoughtAutomaticTopicDiscovery.shared.statusMessage
         await refreshOutcomeCounts()
     }

@@ -429,6 +429,28 @@ actor ThoughtSemanticStore {
         try bindExec("DELETE FROM category_brief WHERE topic_id=?1", .uuid(topicID))
     }
 
+    /// 类别理解统计（设置页状态卡）：已代写主题数 + 最近更新时间。
+    func categoryBriefStats() throws -> (count: Int, lastUpdatedAt: Date?) {
+        let stmt = try prepare("SELECT COUNT(*), MAX(updated_at) FROM category_brief")
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return (0, nil) }
+        return (Int(sqlite3_column_int64(stmt, 0)), dateCol(stmt, 1))
+    }
+
+    /// 单对判定的证据回读（主题徽章「为什么归这里」）：判定值 + 逐字依据 + 引擎版本。
+    /// 只有正式归属（same_thread/fits_category）写过逐 pair 行；无行=用户手动或历史归集。
+    func loadRelationEvidence(thoughtID: UUID, topicID: UUID) throws -> (relation: String, verifierQuote: String?, engineVersion: String?)? {
+        let stmt = try prepare("""
+            SELECT verifier_result, verifier_quote, engine_version
+            FROM relation_candidate
+            WHERE thought_id=?1 AND topic_id=?2 AND verifier_result IN ('same_thread','fits_category')
+            ORDER BY expires_at DESC LIMIT 1
+            """, .uuid(thoughtID), .uuid(topicID))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return (String(cString: sqlite3_column_text(stmt, 0)), textCol(stmt, 1), textCol(stmt, 2))
+    }
+
     // MARK: - candidate_cluster（新脉络建议，方案 §4.4；AI 派生只存本机）
 
     /// 幂等落库一簇。dismissedUntil 传 nil 表示清除冷却；name 传 nil 不覆盖已有名。

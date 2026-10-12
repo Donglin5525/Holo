@@ -401,6 +401,8 @@ enum ManagedObjectContextCompat {
     }
 }
 
+extension Topic: Identifiable {}
+
 // MARK: - 同 id 多行副本的有效行解析（读源统一，2026-10-12）
 
 /// 9-8 库迁事故后「同 id 多行副本」是长期库况。语义 V3 的候选召回、成员画像、

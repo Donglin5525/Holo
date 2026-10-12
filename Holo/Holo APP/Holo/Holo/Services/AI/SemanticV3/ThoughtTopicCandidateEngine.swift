@@ -41,6 +41,10 @@ nonisolated struct ThoughtTopicCandidateOutcome: Equatable {
 
 nonisolated enum ThoughtTopicCandidateEngine {
 
+    /// 类别通道上限（A1 自查修复）：全量核对是本意，9 是请求体保险丝非选择规则
+    /// （脉络 ≤3 + 类别 ≤9 = 后端 schema 3 契约上限 12）。
+    static let categoryChannelLimit = 9
+
     /// 顶层入口：目标向量 → 候选主题列表。
     /// - Parameters:
     ///   - targetVector: 目标想法向量（已归一化）
@@ -57,12 +61,19 @@ nonisolated enum ThoughtTopicCandidateEngine {
         //    同 id 多行副本先解析成唯一有效行，否则质心/近邻投票会被重复计。
         //    双通道拆分（2026-10-12）：classification 主题走类别通道（不进相似度竞争），
         //    其余走内容脉络通道；两条通道独立产出候选，互不占名额。
+        //    类别通道排序=有效成员数降序（A1 自查修复：全量核对是本意，成员多的
+        //    证据足优先；标题序只作稳定平局，不再有按码点任意淘汰）。
         let (categoryTopics, threadTopics): ([(id: UUID, title: String)], [(id: UUID, title: String, definition: String)]) = await context.perform {
             let request = Topic.fetchRequest()
             request.predicate = NSPredicate(format: "deletedAt == nil")
             let rows = Topic.resolveValidRows((try? context.fetch(request)) ?? [])
             let categories = rows.filter(\.isClassificationTopic)
-                .sorted { $0.title < $1.title }
+                .sorted {
+                    let ca = ThoughtTopicLinkProjection.effectiveActiveThoughtCount(of: $0)
+                    let cb = ThoughtTopicLinkProjection.effectiveActiveThoughtCount(of: $1)
+                    if ca != cb { return ca > cb }
+                    return $0.title < $1.title
+                }
                 .map { ($0.id, $0.title) }
             let threads = rows.filter { !$0.isClassificationTopic }
                 .map { ($0.id, $0.title, $0.summary ?? "") }
@@ -161,10 +172,11 @@ nonisolated enum ThoughtTopicCandidateEngine {
             $0.recallScore == $1.recallScore ? $0.topicID.uuidString < $1.topicID.uuidString : $0.recallScore > $1.recallScore
         }.prefix(3).map { $0 }
 
-        // 5. 类别通道：用户启用的归档类别全量直达——不做相似度筛选、不与脉络争名额
+        // 5. 类别通道：用户启用的归档类别全量核对——不做相似度筛选、不与脉络争名额
         //    （表达方式类分类没有稳定内容中心，相似度竞争天然吃亏，doc §4）。
-        //    上限 4 控制请求体；用户拒绝过的墓碑同样压制。
-        let categoryCandidates = categoryTopics.filter { !rejected.contains($0.id) }.prefix(4).map {
+        //    上限 9 仅作请求体保险丝（现实分类主题数远低于此，正常永不触发）；
+        //    用户拒绝过的墓碑同样压制。
+        let categoryCandidates = categoryTopics.filter { !rejected.contains($0.id) }.prefix(Self.categoryChannelLimit).map {
             ThoughtTopicCandidate(topicID: $0.id, topicTitle: $0.title, kind: "category", centroidCosine: nil, neighborVotes: 0, neighborMeanCosine: 0)
         }
         let candidates = categoryCandidates + threadCandidates

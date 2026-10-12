@@ -129,13 +129,43 @@ final class ThoughtSemanticSafetyTests: XCTestCase {
         XCTAssertNil(outcome.reason)
     }
 
-    /// 类别通道上限 4：请求体可控（脉络 ≤3 + 类别 ≤4 = 契约上限 7）。
-    func testRecallCategoryChannelCapsAtFour() async throws {
+    /// 类别通道全量核对（A1 自查修复）：不再按标题码点砍主题；成员多的证据足优先。
+    func testRecallCategoryChannelFullCoverageAndEvidenceOrdering() async throws {
         let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
-        try CoreDataTestSupport.clearEntities(ctx, ["Topic"])
-        for index in 0..<5 {
-            try insertSemanticTopic(ctx, title: "类别\(index)", classification: true)
+        try CoreDataTestSupport.clearEntities(ctx, ["Topic", "Thought", "ThoughtTopicLink"])
+        // 大主题：2 条有效成员；小主题：1 条；三个空主题——全部都应进候选，大者在前
+        func makeMember(_ name: String) throws -> Thought {
+            let t = ctx.insertTestObject(Thought.self)
+            t.id = UUID()
+            t.content = name
+            t.createdAt = Date()
+            t.updatedAt = Date()
+            t.orderIndex = 0
+            t.organizedStatus = "organized"
+            return t
         }
+        func link(_ thought: Thought, _ topic: Topic) {
+            let l = ctx.insertTestObject(ThoughtTopicLink.self)
+            l.id = ThoughtTopicLink.deterministicID(thoughtID: thought.id, topicID: topic.id)
+            l.thought = thought
+            l.topic = topic
+            l.sourceEnum = .userManual
+            l.stateEnum = .active
+            l.visibilityEnum = .internalOnly
+            l.consentGeneration = 0
+            l.createdAt = Date()
+            l.updatedAt = Date()
+        }
+        let richTopic = try insertSemanticTopic(ctx, title: "类别小样本", classification: true)
+        let thinTopic = try insertSemanticTopic(ctx, title: "类别大样本", classification: true)
+        let m1 = try makeMember("成员一")
+        let m2 = try makeMember("成员二")
+        let m3 = try makeMember("成员三")
+        link(m1, richTopic); link(m2, richTopic); link(m3, thinTopic)
+        for index in 0..<3 {
+            try insertSemanticTopic(ctx, title: "空类别\(index)", classification: true)
+        }
+        try ctx.save()
 
         let (store, root) = try await makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -147,7 +177,11 @@ final class ThoughtSemanticSafetyTests: XCTestCase {
             targetVector: vector, thoughtID: UUID(), store: store, index: nil,
             context: ctx, calibration: .seed, provider: provider)
 
-        XCTAssertEqual(outcome.candidates.filter { $0.kind == "category" }.count, 4)
+        let categories = outcome.candidates.filter { $0.kind == "category" }
+        XCTAssertEqual(categories.count, 5, "5 个分类主题全量进候选，不再有任意截断")
+        // richTopic 2 条成员但标题按码点排在 thinTopic（1 条成员）之后：
+        // 断言 rich 在前 = 排序依据是成员数而非标题，A1 修复的核心行为。
+        XCTAssertEqual(categories.first?.topicID, richTopic.id)
     }
 
     /// 用户拒绝墓碑同样压制类别候选：手动移出过的主题，类别通道也不得再收。
