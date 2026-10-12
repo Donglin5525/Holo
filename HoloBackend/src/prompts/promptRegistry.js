@@ -25,6 +25,7 @@ const PROMPT_VERSIONS = {
   thought_topic_summary_v1: 1,    // v1: 主题≤12片段→摘要+≤4逐字反复观点
   thought_semantic_relate_v1: 2,   // v1: 目标想法×候选主题离散判断（same_thread/related/none/insufficient + 逐字证据，无置信度）
   thought_semantic_relate_v2: 1,   // v1: schema 3 双通道（2026-10-12 主题双通道方案）：category/thread 分别独立判定，新增 fits_category（类别定义符合，不要求共同对象）
+  thought_category_brief_v1: 1,    // v1: 归档类别理解器（2026-10-12 主题双通道·零打扰）：成员证据→类别定义/排除边界；排除边界只随用户移出新增
   thought_insight_v1: 1,           // v1: 单条笔记→观察(逐字)/推测/下一步（2026-09-24 方案 §5.1 帮我想想）
   thought_organize_a: 1,
   thought_organize_r: 1,

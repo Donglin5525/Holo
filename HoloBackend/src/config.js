@@ -441,6 +441,15 @@ const DEFAULT_CONFIG = {
       reasoningEffort: process.env.HOLO_THOUGHT_SEMANTIC_REASONING_EFFORT ?? "none",
       maxTokens: Number(process.env.HOLO_THOUGHT_SEMANTIC_MAX_TOKENS ?? 1400),
     },
+    // 归档类别理解器（2026-10-12 主题双通道·零打扰）：成员证据→类别定义/排除边界。
+    // 沿用语义关联同组 env（provider/model 同源），生产零配置；输出短，maxTokens 独立默认。
+    thought_category_brief_v1: {
+      provider: process.env.HOLO_THOUGHT_SEMANTIC_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_SEMANTIC_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_SEMANTIC_TEMPERATURE ?? 0),
+      reasoningEffort: process.env.HOLO_THOUGHT_SEMANTIC_REASONING_EFFORT ?? "none",
+      maxTokens: Number(process.env.HOLO_THOUGHT_CATEGORY_BRIEF_MAX_TOKENS ?? 600),
+    },
     // 主题命名/摘要 V3（§4.4/§4.5）：命名是轻量归纳（短输出），摘要是带反复观点的结构化 JSON。
     thought_topic_name_v1: {
       provider: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",

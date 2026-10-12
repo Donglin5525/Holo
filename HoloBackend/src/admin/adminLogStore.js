@@ -67,6 +67,9 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   // v2 双通道（2026-10-12）：请求额外携带类别定义与代表笔记，口径同 v1 一律 metadata_only。
   // 当前日志 purpose 仍记 v1（路由/预算挂靠未变），此处登记是把口径锁死为服务器级约束。
   'thought_semantic_relate_v2',
+  // 归档类别理解器（2026-10-12 主题双通道·零打扰）：请求携带成员笔记片段与移出反证——
+  // 一律 metadata_only，正文与证据不落任何日志。
+  'thought_category_brief_v1',
   'thought_topic_name_v1',
   'thought_topic_summary_v1',
   // 想法按需洞察（2026-09-24 方案 §5.1）：请求含笔记原文，响应含观察/推测——

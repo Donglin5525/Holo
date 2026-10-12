@@ -47,10 +47,12 @@ import { createContentModerationService } from "./moderation/contentModerationSe
 import { createThoughtOrganizeBudgetStore } from "./thoughts/thoughtOrganizeBudgetStore.js";
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
 import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateService.js";
+import { createThoughtCategoryBriefService } from "./thoughts/categoryBriefService.js";
 import { createThoughtTopicInsightService } from "./thoughts/topicInsightService.js";
 import { createThoughtInsightService } from "./thoughts/thoughtInsightService.js";
 import { TOPIC_NAME_LIMITS, TOPIC_SUMMARY_LIMITS } from "./thoughts/topicInsightSchema.js";
 import { RELATE_LIMITS } from "./thoughts/semanticRelateSchema.js";
+import { BRIEF_LIMITS } from "./thoughts/categoryBriefSchema.js";
 import { ORGANIZE_LIMITS } from "./thoughts/organizeSchema.js";
 import { extractJsonContent, normalizeUnderstanding } from "./vision/understandingContract.js";
 
@@ -326,6 +328,16 @@ export function createApp(overrides = {}) {
 
   // 想法语义关联 V3（方案 §16.2）：预算挂靠整理记账类（operationId 维度幂等），上限独立
   const thoughtSemanticRelateService = createThoughtSemanticRelateService({
+    config,
+    providers,
+    adminLogStore,
+    budgetStore: thoughtOrganizeBudgetStore,
+    contentModeration,
+  });
+
+  // 归档类别理解器（2026-10-12 主题双通道·零打扰）：同预算记账类；
+  // 开关/隐私/限流复用 thoughtSemanticRelate 配置（同一隐私家族同一套闸门）
+  const thoughtCategoryBriefService = createThoughtCategoryBriefService({
     config,
     providers,
     adminLogStore,
@@ -1192,6 +1204,57 @@ export function createApp(overrides = {}) {
 
       const body = await readJson(context);
       const result = await thoughtSemanticRelateService.relate({
+        deviceId,
+        subjectId: entitlement.usageSubjectId,
+        body,
+        clientSignal: context.req.raw.signal,
+      });
+      context.header("Cache-Control", "no-store");
+      return context.json(result);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // 归档类别理解器（2026-10-12 主题双通道·零打扰）：成员证据→类别定义/排除边界。
+  // 与 relate 同口径的闸门（开关/隐私/限流复用 thoughtSemanticRelate 配置）。
+  app.post("/v1/thoughts/category-brief", async (context) => {
+    try {
+      if (!config.thoughtSemanticRelate?.enabled) {
+        throw new GatewayError("THOUGHT_SEMANTIC_DISABLED", "Thought semantic relate is disabled", 503);
+      }
+      const briefRoute = config.routes.thought_category_brief_v1;
+      const usesMockProvider = briefRoute?.provider === "mock";
+      if (!usesMockProvider && !config.thoughtSemanticRelate.privacyVerified) {
+        throw new GatewayError("PRIVACY_ROUTE_UNVERIFIED", "Privacy route is not verified", 503);
+      }
+      if (!briefRoute) {
+        throw new GatewayError("MODEL_UNAVAILABLE", "Category brief route is not configured", 503);
+      }
+
+      const contentLength = Number(context.req.header("content-length") ?? 0);
+      if (contentLength > BRIEF_LIMITS.requestBodyMaxBytes) {
+        throw new GatewayError(
+          "INPUT_TOO_LARGE",
+          `Request body exceeds ${BRIEF_LIMITS.requestBodyMaxBytes} bytes`,
+          413,
+        );
+      }
+
+      const deviceId = await getDeviceId(context, config);
+      const entitlement = entitlementResolver.resolve(deviceId);
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "thought_semantic_relate",
+        minuteLimit: config.thoughtSemanticRelate.requestLimits.perMinute,
+        dailyLimit: config.thoughtSemanticRelate.requestLimits.perDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429, { reason: usage.reason });
+      }
+
+      const body = await readJson(context);
+      const result = await thoughtCategoryBriefService.brief({
         deviceId,
         subjectId: entitlement.usageSubjectId,
         body,
