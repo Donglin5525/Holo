@@ -170,6 +170,8 @@ struct DailyReplayView: View {
                 }
             }
         }
+        // 尾部避让 Home 指示条（2026-10-12 视觉改版：末条不再压进底部手势区）
+        Color.clear.frame(height: 24)
     }
 
     private func daySection(_ day: Date,

@@ -16,7 +16,9 @@ struct EditListSheet: View {
     @State private var name: String = ""
     @State private var color: String = "#007AFF"
     @State private var selectedFolderId: UUID? = nil
+    @State private var isEphemeral: Bool = false
     @State private var showDismissAlert: Bool = false
+    @State private var showArchiveConfirm: Bool = false
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "EditListSheet")
 
@@ -119,6 +121,50 @@ struct EditListSheet: View {
                         }
                     }
 
+                    // 一次性清单开关（AI/事项建的清单默认开启，做完自动归档退场）
+                    HStack(spacing: HoloSpacing.md) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("一次性清单")
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
+
+                            Text("任务全部做完后自动归档，可随时在归档管理恢复")
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextSecondary)
+                        }
+
+                        Spacer()
+
+                        Toggle("", isOn: $isEphemeral)
+                            .labelsHidden()
+                            .tint(.holoPrimary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.holoCardBackground)
+                    .cornerRadius(HoloRadius.sm)
+
+                    // 归档清单（此前全 App 无归档清单入口，唯一出口只有删除）
+                    Button {
+                        showArchiveConfirm = true
+                    } label: {
+                        HStack(spacing: HoloSpacing.sm) {
+                            Image(systemName: "archivebox")
+                                .font(.system(size: 16, weight: .medium))
+
+                            Text("归档这个清单")
+                                .font(.holoBody)
+
+                            Spacer()
+                        }
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.holoCardBackground)
+                        .cornerRadius(HoloRadius.sm)
+                    }
+                    .buttonStyle(.plain)
+
                     Spacer()
                 }
                 .padding(.horizontal, HoloSpacing.lg)
@@ -131,7 +177,8 @@ struct EditListSheet: View {
                     Button("取消") {
                         if name != list.name
                             || color != (list.color ?? "#007AFF")
-                            || selectedFolderId != list.folder?.id {
+                            || selectedFolderId != list.folder?.id
+                            || isEphemeral != list.isEphemeral {
                             showDismissAlert = true
                         } else {
                             dismiss()
@@ -154,11 +201,18 @@ struct EditListSheet: View {
             name = list.name
             color = list.color ?? "#007AFF"
             selectedFolderId = list.folder?.id
+            isEphemeral = list.isEphemeral
         }
-        .presentationDetents([.height(360)])
+        .presentationDetents([.height(470)])
         .presentationDragIndicator(.visible)
         .unsavedChangesAlert(isPresented: $showDismissAlert) {
             dismiss()
+        }
+        .alert("归档清单", isPresented: $showArchiveConfirm) {
+            Button("取消", role: .cancel) { }
+            Button("归档") { archiveCurrentList() }
+        } message: {
+            Text("清单会从各入口收起，可在「归档管理」随时恢复；清单里未完成的任务仍会保留在任务列表中。")
         }
     }
 
@@ -181,11 +235,21 @@ struct EditListSheet: View {
                 name: name.trimmingCharacters(in: .whitespaces),
                 color: color,
                 folder: selectedFolder,
+                isEphemeral: isEphemeral,
                 shouldUpdateFolder: true
             )
             dismiss()
         } catch {
             Self.logger.error("更新清单失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func archiveCurrentList() {
+        do {
+            try repository.archiveList(list)
+            dismiss()
+        } catch {
+            Self.logger.error("归档清单失败: \(error.localizedDescription)")
         }
     }
 }

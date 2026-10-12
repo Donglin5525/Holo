@@ -18,7 +18,7 @@ struct TaskExperienceRow: View {
     var isCompleted: Bool = false
     var isHistoryRow: Bool = false
 
-    /// 是否已加入今日安排（菜单文案与动作状态化）
+    /// 是否已加入今日安排（长按菜单文案与动作状态化）
     var isInTodayPlan: Bool = false
 
     let onToggleCompletion: () -> Void
@@ -29,112 +29,202 @@ struct TaskExperienceRow: View {
     let onToggleToday: () -> Void
     let onArchive: () -> Void
     let onDelete: () -> Void
+    let onToggleCheckItem: (CheckItemSnapshot) -> Void
+    let onAddCheckItem: (String) -> Void
 
-    private var quadrant: TaskQuadrant {
-        member.quadrant(now: now, calendar: calendar)
-    }
+    /// 展开态（点行就地展开子任务，无弹窗）；LazyVStack 里按行自身 id 保持
+    @State private var isExpanded = false
+    @State private var newStepTitle = ""
+    @FocusState private var isNewStepFocused: Bool
 
     private var isOverdueRow: Bool {
         !member.completed && member.isOverdue(asOf: now, calendar: calendar)
     }
 
+    private var showsChevron: Bool {
+        !member.checkItems.isEmpty
+    }
+
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            // 完成按钮（独立，不触发详情）
-            Button(action: onToggleCompletion) {
-                Image(systemName: isCompleting || isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 21))
-                    .foregroundColor(isCompleting || isCompleted ? .holoSuccess : .holoTextPlaceholder)
-                    .frame(width: 32, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "完成\(member.title)"))
+        HStack(alignment: .top, spacing: 14) {
+            // 进度环：点=完成/撤回整卡；弧=子任务进度（无子任务是细空环）
+            Button(action: onToggleCompletion) { progressRing }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "完成\(member.title)"))
 
-            // 行主体：点开详情
-            Button(action: onOpenDetail) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        // 象限色点（辅助，文字才是主信息）
-                        if !isHistoryRow {
-                            Circle()
-                                .fill(quadrant.tintColor)
-                                .frame(width: 6, height: 6)
-                        }
-                        Text(member.title)
-                            .font(.system(size: 17))
-                            .foregroundColor(isCompleted ? .holoTextSecondary : .holoTextPrimary)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                            .strikethrough(isCompleted, color: .holoTextPlaceholder)
-                    }
-
-                    HStack(spacing: 8) {
-                        // 历史·已完成：展示完成时间（缺失明示），不再显示截止
-                        if isHistoryRow && isCompleted {
-                            if let completedAt = member.completedAt {
-                                Text(String(localized: "完成于 ") + Self.historyTimeFormatter.string(from: completedAt))
-                            } else {
-                                Text("完成时间未记录")
-                            }
-                        } else {
-                            // 截止信息（今天/明天/后天自然语言；全天只显示自然日，§4.4）
-                            dueText
-                        }
-                        Text("·")
-                            .foregroundColor(.holoTextPlaceholder)
-                        Text(listLabel)
-                        // 紧急分徽章（2026-10-07）：待整理无分不显示；分数即组内次序
-                        if !isHistoryRow, let score = member.urgencyScore(now: now, calendar: calendar) {
-                            Spacer(minLength: 6)
-                            Text("\(score)")
-                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
-                                .foregroundColor(quadrant.tintColor)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 1.5)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 5)
-                                        .fill(quadrant.backgroundColor.opacity(0.8))
-                                )
-                                .fixedSize()
-                                .accessibilityLabel(Text(String(localized: "紧急分 \(score)")))
-                        }
-                    }
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                    .lineLimit(1)
+            // 行主体：点=就地展开/收起子任务
+            Button {
+                guard !member.checkItems.isEmpty else {
+                    onOpenDetail()
+                    return
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                withAnimation(HoloAnimation.snappy) { isExpanded.toggle() }
+            } label: {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(member.title)
+                        .font(.system(size: 16.5, weight: .semibold))
+                        .foregroundColor(isCompleted ? .holoTextSecondary : .holoTextPrimary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .strikethrough(isCompleted, color: .holoTextPlaceholder)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // 唯一辅助信息：历史行报完成时间；进行中报截止（今天橙/逾期红）
+                    if let auxiliary = auxiliaryText {
+                        Text(auxiliary.text)
+                            .font(.system(size: 12))
+                            .foregroundColor(auxiliary.color)
+                    }
+
+                    if isExpanded { expandedContent }
+                }
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
 
-            // 更多入口（独立）
-            rowMenu
+            if showsChevron {
+                // 展开箭头是真按钮（真机实报「点不动」：初版只当装饰画，点了没反应）
+                Button {
+                    withAnimation(HoloAnimation.snappy) { isExpanded.toggle() }
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isExpanded ? .holoTextSecondary : .holoTextPlaceholder)
+                        .frame(width: 34, height: 34)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isExpanded ? String(localized: "收起子任务") : String(localized: "展开子任务"))
+            }
         }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, 9)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+        .contextMenu { rowActions }
         .opacity(isCompleting ? 0.55 : 1)
     }
 
-    @ViewBuilder
-    private var dueText: some View {
-        if let due = member.effectiveDue(calendar: calendar) {
-            if isOverdueRow {
-                Text("\(Self.formatNatural(due, member: member, calendar: calendar)) · 已逾期")
-                    .foregroundColor(.holoError)
-            } else {
-                Text(Self.formatNatural(due, member: member, calendar: calendar))
+    // MARK: 进度环（「还有 N 步」的图形化继任者）
+
+    private var progressRing: some View {
+        let items = member.checkItems
+        let fraction = items.isEmpty ? 0 : Double(items.filter(\.isChecked).count) / Double(items.count)
+        return ZStack {
+            Circle()
+                .stroke(Color.holoTextSecondary.opacity(0.24), lineWidth: 1.2)
+            if !items.isEmpty {
+                // 至少留一粒起点弧：0 完成也能看出「这行有进度系统」
+                Circle()
+                    .trim(from: 0, to: max(fraction, 0.05))
+                    .stroke(Color.holoTextPrimary,
+                            style: StrokeStyle(lineWidth: 3.2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(HoloAnimation.snappy, value: fraction)
             }
-        } else {
-            Text("未设截止日期")
+            if isCompleting || isCompleted {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.holoTextPrimary)
+            }
         }
+        .frame(width: 26, height: 26)
+        .padding(.top, 1)
+        .contentShape(Circle())
     }
 
-    private var listLabel: String {
+    // MARK: 展开态：子任务就地勾选 + 加一步 + 注脚
+
+    private var expandedContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(member.checkItems) { item in
+                Button {
+                    onToggleCheckItem(item)
+                } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .strokeBorder(item.isChecked ? Color.holoTextSecondary : Color.holoTextPlaceholder,
+                                              lineWidth: 1.5)
+                                .frame(width: 17, height: 17)
+                            if item.isChecked {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.holoBackground)
+                            }
+                        }
+                        .frame(width: 17, height: 17)
+                        .padding(.top, 1.5)
+                        Text(item.title)
+                            .font(.system(size: 13.5))
+                            .foregroundColor(item.isChecked ? .holoTextPlaceholder : .holoTextSecondary)
+                            .strikethrough(item.isChecked, color: .holoTextPlaceholder)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.vertical, 7)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            // 加一步（行内输入，回车落库）
+            HStack(spacing: 10) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.holoTextPlaceholder)
+                TextField(String(localized: "加一步，回车保存"), text: $newStepTitle)
+                    .font(.system(size: 13.5))
+                    .foregroundColor(.holoTextSecondary)
+                    .focused($isNewStepFocused)
+                    .submitLabel(.done)
+                    .onSubmit(commitNewStep)
+            }
+            .padding(.top, 4)
+
+            // 注脚：清单名（收起态不上屏，展开态才出现）+ 详情入口
+            HStack(spacing: 6) {
+                Text(verbatim: String(localized: "清单：\(Self.listLabel(for: member))"))
+                Text(verbatim: "·")
+                Button(String(localized: "详情 ›")) { onOpenDetail() }
+            }
+            .font(.system(size: 11.5))
+            .foregroundColor(.holoTextPlaceholder)
+            .padding(.top, 8)
+        }
+        .padding(.top, 6)
+    }
+
+    private func commitNewStep() {
+        let trimmed = newStepTitle.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        onAddCheckItem(trimmed)
+        newStepTitle = ""
+    }
+
+    // MARK: 唯一辅助信息
+
+    private var auxiliaryText: (text: String, color: Color)? {
+        if isHistoryRow {
+            if let completedAt = member.completedAt {
+                return (String(localized: "完成于 ") + Self.historyTimeFormatter.string(from: completedAt),
+                        .holoTextSecondary)
+            }
+            return nil
+        }
+        guard let due = member.effectiveDue(calendar: calendar) else { return nil }
+        let natural = Self.formatNatural(due, member: member, calendar: calendar)
+        if isOverdueRow {
+            return (natural + String(localized: " · 已逾期"), .holoError)
+        }
+        if calendar.isDateInToday(due) {
+            return (natural, .holoPrimary)
+        }
+        return (natural, .holoTextSecondary)
+    }
+
+    /// 清单名（展开态注脚显示）
+    static func listLabel(for member: TaskRecordSnapshot) -> String {
         if member.listID == nil { return String(localized: "收件箱") }
         return member.listAvailable ? (member.listName ?? String(localized: "未归属清单")) : String(localized: "未归属清单")
     }
@@ -168,37 +258,36 @@ struct TaskExperienceRow: View {
         return base + " " + timeFormatter.string(from: due)
     }
 
-    private var rowMenu: some View {
-        Menu {
-            Button(action: onClassify) {
-                Label(String(localized: "调整轻重缓急"), systemImage: "square.grid.2x2")
-            }
-            Button(action: onChangeDue) {
-                Label(String(localized: "修改截止日期"), systemImage: "calendar")
-            }
-            Button(action: onPlanRange) {
-                Label(String(localized: member.hasValidPlannedRange ? "调整执行时段" : "安排执行时段"), systemImage: "clock")
-            }
-            Button(action: onToggleToday) {
-                Label(
-                    isInTodayPlan ? String(localized: "放下今日安排") : String(localized: "加入今日安排"),
-                    systemImage: isInTodayPlan ? "moon.zzz" : "sun.max"
-                )
-            }
-            Button(action: onArchive) {
-                Label(String(localized: "归档"), systemImage: "archivebox")
-            }
-            Button(role: .destructive, action: onDelete) {
-                Label(String(localized: "删除"), systemImage: "trash")
-            }
+    // MARK: 长按菜单（原「⋯」的继任者：低频操作收进长按，不占常驻视觉）
+
+    @ViewBuilder
+    private var rowActions: some View {
+        Button {
+            onOpenDetail()
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
-                .frame(width: 32, height: 44)
-                .contentShape(Rectangle())
+            Label(String(localized: "打开详情"), systemImage: "doc.text")
         }
-        .accessibilityLabel(String(localized: "更多操作"))
+        Button(action: onClassify) {
+            Label(String(localized: "调整轻重缓急"), systemImage: "square.grid.2x2")
+        }
+        Button(action: onChangeDue) {
+            Label(String(localized: "修改截止日期"), systemImage: "calendar")
+        }
+        Button(action: onPlanRange) {
+            Label(String(localized: member.hasValidPlannedRange ? "调整执行时段" : "安排执行时段"), systemImage: "clock")
+        }
+        Button(action: onToggleToday) {
+            Label(
+                isInTodayPlan ? String(localized: "放下今日安排") : String(localized: "加入今日安排"),
+                systemImage: isInTodayPlan ? "moon.zzz" : "sun.max"
+            )
+        }
+        Button(action: onArchive) {
+            Label(String(localized: "归档"), systemImage: "archivebox")
+        }
+        Button(role: .destructive, action: onDelete) {
+            Label(String(localized: "删除"), systemImage: "trash")
+        }
     }
 }
 

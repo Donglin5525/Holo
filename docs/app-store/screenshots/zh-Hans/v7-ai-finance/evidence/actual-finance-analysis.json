@@ -1,0 +1,79 @@
+[
+  {
+    "claims" : [
+      {
+        "confidence" : 0.85,
+        "displayText" : "按你说的 10 月 1 日到 7 日看，这七天的餐饮分两块。外卖 318 元，咖啡 152 元。",
+        "evidenceIDs" : [
+          "E934EBDD-CEFB-4058-9B32-3A10165880A6:finance:q-meal-total:q-meal-total-category-2",
+          "E934EBDD-CEFB-4058-9B32-3A10165880A6:finance:q-meal-total:q-meal-total-category-5"
+        ],
+        "id" : "c1",
+        "interpretation" : "餐饮在这段时间不是一笔笼统的花销，而是两种节奏：一种是被工作推着点的外卖，一种是日常顺手买的咖啡。",
+        "metricAssertions" : [
+          {
+            "comparison" : "外卖",
+            "evidenceIDs" : [
+              "E934EBDD-CEFB-4058-9B32-3A10165880A6:finance:q-meal-total:q-meal-total-category-2"
+            ],
+            "metricKey" : "finance.category.amount",
+            "unit" : "元",
+            "value" : 318
+          }
+        ],
+        "prohibitedInferences" : [
+          "不得推断外卖或咖啡的笔数与频次"
+        ],
+        "type" : "observation"
+      },
+      {
+        "confidence" : 0.5,
+        "displayText" : "以下指标数据不足，无法给出结论：finance.total.amount",
+        "evidenceIDs" : [
+
+        ],
+        "id" : "coverage-boundary",
+        "metricAssertions" : [
+
+        ],
+        "prohibitedInferences" : [
+
+        ],
+        "type" : "capability_boundary"
+      }
+    ],
+    "evidenceIDs" : [
+      "E934EBDD-CEFB-4058-9B32-3A10165880A6:finance:q-meal-total:q-meal-total-category-5",
+      "E934EBDD-CEFB-4058-9B32-3A10165880A6:finance:q-meal-total:q-meal-total-category-2"
+    ],
+    "generatedAt" : "2026-10-07T16:32:55Z",
+    "id" : "agent-result:E934EBDD-CEFB-4058-9B32-3A10165880A6",
+    "jobID" : "E934EBDD-CEFB-4058-9B32-3A10165880A6",
+    "keyInsight" : "外卖更像加班的外置成本，咖啡只是零头",
+    "lineage" : {
+      "lineageDepth" : 1,
+      "parentJobID" : "cloud-19dcf883-0996-4e04-9bf7-6263b857ad02",
+      "parentResultID" : "cloud-19dcf883-0996-4e04-9bf7-6263b857ad02",
+      "relationRawValue" : "explain",
+      "rootJobID" : "cloud-19dcf883-0996-4e04-9bf7-6263b857ad02",
+      "rootResultID" : "cloud-19dcf883-0996-4e04-9bf7-6263b857ad02",
+      "schemaVersion" : 1
+    },
+    "memoryCandidateIDs" : [
+
+    ],
+    "narrativeSummary" : "按你说的 10 月 1 日到 7 日看，这七天的餐饮分成两块：外卖 318 元，咖啡 152 元。把两块合起来，它的体量在这段时间里排在最前面，比房租那一类还高一档。金额最靠前的外卖，备注里写着复盘加班和改稿——它更像是被工作节奏推着下的单，而不是嘴馋；咖啡反而是零散的日常。所以真要动，先动外卖比抠咖啡划算。",
+    "requestedDeliverables" : [
+      "directAnswer",
+      "diagnosis",
+      "recommendations"
+    ],
+    "status" : "completed",
+    "summary" : "按你说的 10 月 1 日到 7 日看，这七天的餐饮分两块。外卖 318 元，咖啡 152 元。；以下指标数据不足，无法给出结论：finance.total.amount",
+    "timeRangeAttribution" : {
+      "provenance" : "unspecified"
+    },
+    "title" : "外卖跟着加班来，先从这里调",
+    "updatedAt" : "2026-10-07T16:32:55Z"
+  }
+]

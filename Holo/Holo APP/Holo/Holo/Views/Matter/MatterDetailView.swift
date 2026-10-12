@@ -26,6 +26,8 @@ struct MatterDetailView: View {
     @State private var creatingTaskFromLoop: UUID?
     /// V2：任务完成经 TodoRepository 广播，驱动计划/下一步即时重算（INV-07 不经 LLM）。
     @State private var v2ReloadToken = 0
+    /// 「拆成几步」确认页（2026-10-11 拆开瘦身：子任务化，等待挂在行上）
+    @State private var showTaskSplitSheet = false
 
     var body: some View {
         // 注意：本视图不得自带 NavigationStack——它作为目的地被压入宿主导航栈
@@ -176,6 +178,17 @@ struct MatterDetailView: View {
         }
     }
 
+    /// 「行，按这个来」：拆解产物落库为子任务；完成/数据广播驱动下一步卡重算
+    private func applySplitDrafts(_ drafts: [TaskSplitStepDraft], to task: TodoTask) {
+        do {
+            _ = try TodoRepository.shared.addSplitSteps(drafts, to: task)
+            v2ReloadToken += 1
+        } catch {
+            // 失败不静默：控制台留痕，下一步卡保持原状可重试
+            print("MatterDetailView 拆解落库失败: \(error.localizedDescription)")
+        }
+    }
+
     private func v2NextAction(next: MatterPlanQuery.PlanTask?, hasActiveLoops: Bool) -> some View {
         Group {
             if let next {
@@ -184,16 +197,18 @@ struct MatterDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                         .fixedSize(horizontal: false, vertical: true)
-                    // 分步推进在原卡内融合（2026-09-25 实施规格 §4.1）：
-                    // 未采纳=帮我拆开入口；已采纳=一个动作+一次点击。
-                    // 生成步骤不新增 TodoTask、不进 Matter 分母（E01/E04 锁定）。
-                    MatterExecutionContent(
-                        taskID: next.id,
-                        repository: TodoRepository.shared,
-                        originMatterID: matterID,
-                        sourceSurface: "matter",
-                        onDiscuss: { onDiscuss?(matterID) }
-                    )
+                    // 2026-10-11 拆开瘦身：拆开产物=子任务清单（带序号/等待态），
+                    // 不再新增独立执行步骤体系
+                    if let task = TodoRepository.shared.findTask(by: next.id), !task.completed {
+                        TaskSplitEntryRow(existingStepCount: task.checkItems?.count ?? 0) {
+                            showTaskSplitSheet = true
+                        }
+                        .sheet(isPresented: $showTaskSplitSheet) {
+                            TaskSplitSheet(task: task) { drafts in
+                                applySplitDrafts(drafts, to: task)
+                            }
+                        }
+                    }
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -295,22 +310,10 @@ struct MatterDetailView: View {
     }
 
     /// 计划行完成/撤销：走 Todo 域真实对象（INV-08 真实 ID），广播后本页即时重算。
-    /// 完成报错不再吞（2026-09-25 实施规格 §8.4-1）：分步接管任务走统一完成语义。
     private func v2Toggle(_ planTask: MatterPlanQuery.PlanTask) {
         guard let task = repository.todoTask(id: planTask.id) else { return }
         do {
-            if task.isExecutionManaged && !task.completed {
-                // 已启用分步：直接完成 = 用户明确断言原结果（清单全勾不再自动完成根）
-                try HoloTaskExecutionService.shared.completeRootDirectly(
-                    taskID: task.id,
-                    sourceSurface: "matter.planRow",
-                    operationID: UUID().uuidString,
-                    in: TodoRepository.shared
-                )
-            } else {
-                // 普通任务或取消完成：原逻辑（重开保留步骤历史）
-                try TodoRepository.shared.toggleTaskCompletion(task)
-            }
+            try TodoRepository.shared.toggleTaskCompletion(task)
         } catch {
             NSLog("[MatterDetail] 计划行完成失败: \(error.localizedDescription)")
         }

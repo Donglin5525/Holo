@@ -25,9 +25,17 @@ nonisolated struct TaskOnTimeStats: Equatable, Sendable {
 
     var denominatorCount: Int { denominatorIDs.count }
     var onTimeCount: Int { onTimeIDs.count }
+    var lateCount: Int { lateIDs.count }
+    var unfinishedCount: Int { unfinishedIDs.count }
     /// |E| == 0 时无数值（显示「—」），由视图判断 denominatorCount
     var rate: Double? {
         denominatorCount > 0 ? Double(onTimeCount) / Double(denominatorCount) : nil
+    }
+    /// 到期完成率（按时 + 迟到）÷ 到期分母：「到期的事里完成了几成」，与按时率互补
+    var completionRate: Double? {
+        denominatorCount > 0
+            ? Double(onTimeCount + lateCount) / Double(denominatorCount)
+            : nil
     }
 }
 
@@ -38,6 +46,9 @@ nonisolated struct TaskAnalyticsComparison: Equatable, Sendable {
     let completedDelta: Int
     /// 上期较短、对比终点截到上期结束（方案 §7.6-4）
     let truncatedToPreviousEnd: Bool
+    /// 上期到期完成率 / 按时率（同等已过窗口口径；上期无到期任务时为 nil）
+    let previousDueCompletionRate: Double?
+    let previousOnTimeRate: Double?
 }
 
 // MARK: - 趋势桶
@@ -49,6 +60,19 @@ nonisolated struct TaskAnalyticsBucketStat: Equatable, Sendable {
     let completedIDs: [UUID]
     let isFuture: Bool
     let isPartialToday: Bool
+    /// 到期完成视角（§7.5 同口径逐桶化）：桶内成熟到期候选与结果计数
+    let maturedDueCount: Int
+    let onTimeDueCount: Int
+    let lateDueCount: Int
+    let excludedDueMissingTimeCount: Int
+
+    /// 桶内到期完成率 =（按时 + 迟到）÷（成熟候选 − 缺完成时间排除）
+    var dueCompletionRate: Double? {
+        let denominator = maturedDueCount - excludedDueMissingTimeCount
+        return denominator > 0
+            ? Double(onTimeDueCount + lateDueCount) / Double(denominator)
+            : nil
+    }
 }
 
 // MARK: - 清单分布
@@ -63,6 +87,24 @@ nonisolated struct TaskListBreakdownStat: Equatable, Sendable, Identifiable {
     let listIsArchived: Bool
 
     var count: Int { completedIDs.count }
+}
+
+// MARK: - 事项分布（P2）
+
+nonisolated struct TaskMatterBreakdownStat: Equatable, Sendable, Identifiable {
+    let id: UUID
+    let title: String
+    let completedIDs: [UUID]
+
+    var count: Int { completedIDs.count }
+}
+
+// MARK: - 完成节奏（P2）
+
+/// 热力网格单日：按天完成数（固定窗口内逐日，含零完成日）
+nonisolated struct TaskDailyCompletionCount: Equatable, Sendable {
+    let start: Date
+    let completedCount: Int
 }
 
 // MARK: - 当前待处理（截至现在，方案 §7.9）
@@ -96,6 +138,12 @@ nonisolated struct TaskAnalyticsSnapshot: Equatable, Sendable {
     let buckets: [TaskAnalyticsBucketStat]
     let listBreakdown: [TaskListBreakdownStat]
     let attention: TaskCurrentAttention
+    /// 完成节奏热力网格：固定近 12 个自然周（84 天，自本周周一起算），不随档位（P2）
+    let heatDays: [TaskDailyCompletionCount]
+    /// 本期完成时刻分布：24 桶（0–23 时计数）
+    let hourlyCompletedCounts: [Int]
+    /// 本期完成按事项分组（一任务链接多事项会重复计入各事项，视图需注明；P2）
+    let matterBreakdown: [TaskMatterBreakdownStat]
 
     var createdCount: Int { createdIDs.count }
     var completedCount: Int { completedIDs.count }

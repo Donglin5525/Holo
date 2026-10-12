@@ -53,59 +53,10 @@ extension TaskQuadrant {
     }
 }
 
-// MARK: - 象限格
+// MARK: - 象限胶囊总览（2026-10-11 列表减法）
 
-struct TaskQuadrantCell: View {
-    let quadrant: TaskQuadrant
-    let count: Int
-    let isSelected: Bool
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(quadrant.displayTitle)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(quadrant.tintColor)
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
-                    Text("\(count)")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundColor(quadrant.tintColor)
-                }
-                Text(quadrant.guidance)
-                    .font(.holoTinyLabel)
-                    .foregroundColor(quadrant.tintColor.opacity(0.8))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-            }
-            .padding(.horizontal, 13)
-            .padding(.vertical, 11)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(quadrant.backgroundColor)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color.holoPrimary.opacity(0.6) : Color.clear,
-                        lineWidth: 1.5
-                    )
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(String(localized: "\(quadrant.displayTitle)，\(quadrant.axisDescription)，\(count)项"))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        .accessibilityHint(String(localized: "查看任务"))
-    }
-}
-
-// MARK: - 2×2 总览
-
+/// 零值象限不出场；有值的象限瘦成一粒胶囊（无教学句、无四色大卡）。
+/// 四象限全零时整行自然隐藏。选中态 = 象限底色 + 品牌描边。
 struct TaskQuadrantOverview: View {
     /// 四象限数量（不含待整理）
     let countsByQuadrant: [TaskQuadrant: Int]
@@ -113,17 +64,60 @@ struct TaskQuadrantOverview: View {
     let selectedQuadrant: TaskQuadrant?
     let onQuadrantTap: (TaskQuadrant) -> Void
 
+    private var visibleQuadrants: [(quadrant: TaskQuadrant, count: Int)] {
+        TaskQuadrant.overviewOrder.compactMap { quadrant in
+            let count = countsByQuadrant[quadrant] ?? 0
+            return count > 0 ? (quadrant, count) : nil
+        }
+    }
+
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 9), GridItem(.flexible(), spacing: 9)], spacing: 9) {
-            ForEach(TaskQuadrant.overviewOrder, id: \.self) { quadrant in
-                TaskQuadrantCell(
-                    quadrant: quadrant,
-                    count: countsByQuadrant[quadrant] ?? 0,
-                    isSelected: selectedQuadrant == quadrant
-                ) {
-                    onQuadrantTap(quadrant)
+        if !visibleQuadrants.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 7) {
+                    ForEach(visibleQuadrants, id: \.quadrant) { item in
+                        quadrantChip(item.quadrant, count: item.count)
+                    }
                 }
+                .padding(.horizontal, 1)
+                .padding(.vertical, 2)
             }
         }
+    }
+
+    private func quadrantChip(_ quadrant: TaskQuadrant, count: Int) -> some View {
+        let isSelected = selectedQuadrant == quadrant
+        return Button {
+            onQuadrantTap(quadrant)
+        } label: {
+            HStack(spacing: 5) {
+                Circle()
+                    .fill(quadrant.tintColor)
+                    .frame(width: 7, height: 7)
+                Text(quadrant.displayTitle)
+                    .font(.system(size: 12.5, weight: .semibold))
+                Text("\(count)")
+                    .font(.system(size: 12.5, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+            }
+            .foregroundColor(quadrant.tintColor)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule().fill(isSelected ? quadrant.backgroundColor : Color.holoCardBackground)
+            )
+            .overlay(
+                Capsule().strokeBorder(
+                    isSelected ? Color.holoPrimary.opacity(0.55) : Color.holoBorder,
+                    lineWidth: 1
+                )
+            )
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(String(localized: "\(quadrant.displayTitle)，\(count)项"))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityHint(String(localized: "查看任务"))
     }
 }

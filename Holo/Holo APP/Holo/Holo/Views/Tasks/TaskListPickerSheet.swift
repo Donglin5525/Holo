@@ -86,7 +86,8 @@ struct TaskListPickerSheet: View {
                                     name: list.name,
                                     subtitle: nil,
                                     selected: selectedListId == list.id,
-                                    dotColor: Color(hex: list.color ?? "#007AFF")
+                                    dotColor: Color(hex: list.color ?? "#007AFF"),
+                                    isEphemeral: list.isEphemeral
                                 )
                             }
                             .buttonStyle(.plain)
@@ -137,7 +138,8 @@ struct TaskListPickerSheet: View {
         name: String,
         subtitle: String?,
         selected: Bool,
-        dotColor: Color? = nil
+        dotColor: Color? = nil,
+        isEphemeral: Bool = false
     ) -> some View {
         HStack(spacing: HoloSpacing.sm) {
             if let icon {
@@ -153,9 +155,15 @@ struct TaskListPickerSheet: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(name)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                HStack(spacing: 6) {
+                    Text(name)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+
+                    if isEphemeral {
+                        EphemeralListBadge()
+                    }
+                }
 
                 if let subtitle {
                     Text(subtitle)
@@ -176,5 +184,19 @@ struct TaskListPickerSheet: View {
         .padding(.vertical, HoloSpacing.md)
         .background(selected ? Color.holoPrimary.opacity(0.1) : Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+    }
+}
+
+/// 一次性清单小标记：AI 归组/事项推进自动建的清单，任务全部做完后自动归档退场。
+/// 清单选择下拉与查看范围菜单共用。
+struct EphemeralListBadge: View {
+    var body: some View {
+        Text("一次性")
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(.holoPrimary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(Color.holoPrimary.opacity(0.12))
+            .clipShape(Capsule())
     }
 }

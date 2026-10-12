@@ -1152,18 +1152,38 @@ enum ReviewTrendChartLayout {
 
     /// 图域（起日 + 天数）。月/近 N 天保持完整范围（空槽如实留白，末日不超今天）；
     /// 超长范围（全部记录/多年自定义）收敛到首末记录日，否则一天一槽细到不可读。
+    /// `sparseCollapse`（概览弹层等稀疏场景）：记录跨度 ≤6 天时同样收敛到首末记录日
+    /// 并前后各留 1 天呼吸位（末日不越今天、至少 3 槽）——30 个槽里孤零零一根
+    /// 细柱/一个点既难看又没信息量（2026-10-11 东林实报「细细长长一条」）。
     static func chartRange(interval: DateInterval, today: Date,
-                           values: [HabitDailyNumericValue], calendar: Calendar) -> (start: Date, dayCount: Int) {
+                           values: [HabitDailyNumericValue], calendar: Calendar,
+                           sparseCollapse: Bool = false) -> (start: Date, dayCount: Int) {
         let nominalStart = calendar.startOfDay(for: interval.start)
         let rangeEndDay = calendar.date(byAdding: .day, value: -1, to: interval.end) ?? interval.end
         let nominalEnd = min(calendar.startOfDay(for: rangeEndDay), calendar.startOfDay(for: today))
         let spanDays = calendar.dateComponents([.day], from: nominalStart, to: nominalEnd).day ?? 0
+        let valueDays = values.map { calendar.startOfDay(for: $0.date) }
         if spanDays > 366 {
-            let valueDays = values.map { calendar.startOfDay(for: $0.date) }
             let first = valueDays.min() ?? nominalStart
             let last = max(valueDays.max() ?? nominalEnd, first)
             let count = (calendar.dateComponents([.day], from: first, to: last).day ?? 0) + 1
             return (first, max(count, 1))
+        }
+        if sparseCollapse, let first = valueDays.min(), let last = valueDays.max() {
+            let span = calendar.dateComponents([.day], from: first, to: last).day ?? 0
+            if span <= 6 {
+                let todayStart = calendar.startOfDay(for: today)
+                var start = calendar.date(byAdding: .day, value: -1, to: first) ?? first
+                var end = min(calendar.date(byAdding: .day, value: 1, to: last) ?? last, todayStart)
+                let count = (calendar.dateComponents([.day], from: start, to: end).day ?? 0) + 1
+                if count < 3 {
+                    // 末日已顶到今天（如只有今天一条记录）：向前补足 3 槽
+                    end = max(end, start)
+                    start = calendar.date(byAdding: .day, value: -2, to: end) ?? start
+                }
+                let padded = (calendar.dateComponents([.day], from: start, to: end).day ?? 0) + 1
+                return (start, max(padded, 3))
+            }
         }
         return (nominalStart, max(spanDays, 0) + 1)
     }
@@ -1183,6 +1203,9 @@ struct ReviewTrendChart: View {
     let today: Date
     let selectedDay: Date?
     var onSelectDay: (Date) -> Void
+    /// 稀疏收敛（概览弹层用）：记录跨度 ≤6 天时图域收敛到首末记录日，
+    /// 避免 30 槽里一根孤柱/孤点；默认 false 保持回顾页「空槽如实留白」语义
+    var sparseCollapse: Bool = false
 
     private struct SlotValue: Identifiable {
         let slot: Int
@@ -1200,7 +1223,8 @@ struct ReviewTrendChart: View {
 
     private var chartRange: (start: Date, dayCount: Int) {
         ReviewTrendChartLayout.chartRange(interval: interval, today: today,
-                                          values: values, calendar: calendar)
+                                          values: values, calendar: calendar,
+                                          sparseCollapse: sparseCollapse)
     }
 
     private func slotValues(range: (start: Date, dayCount: Int)) -> [SlotValue] {
@@ -1237,7 +1261,10 @@ struct ReviewTrendChart: View {
         let minVal = nums.min() ?? 0
         let maxVal = nums.max() ?? 1
         if kind == .count {
-            return 0...max(maxVal, 1)
+            // 计数柱顶留 ~20% 呼吸位（向上取整保轴刻度整数）：
+            // 单日满值柱会整根顶到绘图区上缘，观感差（2026-10-11 东林实报）
+            let ceiling = (maxVal * 1.2).rounded(.up)
+            return 0...max(ceiling, 1)
         }
         if maxVal == minVal {
             return max(minVal - 1, 0)...(maxVal + 1)

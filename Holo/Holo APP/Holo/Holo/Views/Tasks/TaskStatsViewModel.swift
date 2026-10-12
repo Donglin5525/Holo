@@ -52,10 +52,25 @@ final class TaskStatsViewModel: ObservableObject {
     @Published private(set) var loadFailed: Bool = false
     /// 明细打开期间数据更新提示（§7.10）
     @Published private(set) var dataUpdatedWhileViewing: Bool = false
+    /// Today 计划对账（仅周档有值；P2）
+    @Published private(set) var todayPlanWeek: TodayPlanWeek?
+
+    /// Today 计划周对账（nil 日 = 当日无显式计划或计划不可读）
+    struct TodayPlanDay: Equatable {
+        let date: Date
+        let planned: Int
+        let done: Int
+    }
+    struct TodayPlanWeek: Equatable {
+        let days: [TodayPlanDay?]
+        var plannedTotal: Int { days.compactMap(\.self).map(\.planned).reduce(0, +) }
+        var doneTotal: Int { days.compactMap(\.self).map(\.done).reduce(0, +) }
+    }
 
     var analytics: TaskAnalyticsSnapshot? { result?.analytics }
 
     private let service = TaskAnalyticsService.shared
+    private let todayRepository = HoloTodayPlanRepository(context: CoreDataStack.shared.viewContext)
     private var cancellables: Set<AnyCancellable> = []
 
     var calendar: Calendar { TaskAnalyticsPeriod.makeCalendar() }
@@ -97,8 +112,9 @@ final class TaskStatsViewModel: ObservableObject {
         isLoading = result == nil
         do {
             let loaded = try service.load(period: period, calendar: calendar)
-            guard service.isCurrent(version) else { return } // 旧响应丢弃（§7.10）
+            guard service.isCurrent(version) else { return } // 旧响应丢弃（§9.10）
             result = loaded
+            reloadTodayPlanWeek(from: loaded)
             isLoading = false
             loadFailed = false
             if markUpdated {
@@ -114,6 +130,36 @@ final class TaskStatsViewModel: ObservableObject {
 
     func clearUpdatedFlag() {
         dataUpdatedWhileViewing = false
+    }
+
+    // MARK: - Today 计划对账（周档，P2）
+
+    /// 逐日读 Today 计划 head：显式计划日的 entries 数为「计划」，
+    /// entries 中完成时间落当日的为「完成」；无计划/继承基础/不可读 = nil 日。
+    private func reloadTodayPlanWeek(from loaded: TaskAnalyticsService.Result) {
+        guard case .week = kind else {
+            todayPlanWeek = nil
+            return
+        }
+        let timeZone = calendar.timeZone
+        var days: [TodayPlanDay?] = []
+        var cursor = loaded.analytics.start
+        while cursor < loaded.analytics.endExclusive {
+            let scope = HoloTodayDayScope(referenceTime: cursor, calendar: calendar, timeZone: timeZone)
+            if case .active(let payload, _) = todayRepository.currentPlan(scope: scope).state,
+               payload.selectionMode == .explicit {
+                let done = payload.entries.filter { entry in
+                    guard let record = loaded.recordsByID[entry.taskID],
+                          let completedAt = record.completedAt else { return false }
+                    return completedAt >= scope.dayStart && completedAt < scope.dayEnd
+                }.count
+                days.append(TodayPlanDay(date: scope.dayStart, planned: payload.entries.count, done: done))
+            } else {
+                days.append(nil)
+            }
+            cursor = calendar.date(byAdding: .day, value: 1, to: cursor)!
+        }
+        todayPlanWeek = TodayPlanWeek(days: days)
     }
 
     // MARK: - 周期切换（左右箭头，§7.2）
@@ -192,11 +238,52 @@ final class TaskStatsViewModel: ObservableObject {
         return title
     }
 
+    /// 胶囊徽标：当前看的是哪一期（本周/上周/2周前…）；档位下拉菜单仍用 kind.title（§7.2 修复）
+    var periodBadgeTitle: String {
+        switch TaskAnalyticsPeriodResolver.position(of: period, asOf: Date(), calendar: calendar) {
+        case .current:
+            return kind.title
+        case .previous:
+            switch kind {
+            case .week: return String(localized: "上周")
+            case .month: return String(localized: "上月")
+            case .year: return String(localized: "去年")
+            case .custom: return kind.title
+            }
+        case .earlier(let count):
+            switch kind {
+            case .week:
+                return String(localized: "\(count)周前")
+            case .month:
+                // 更早月份直接报月份名：当年「9月」、往年「2025年12月」（与 rangeTitle 同款中文格式）
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "zh_CN")
+                let sameYear = calendar.component(.year, from: monthAnchor)
+                    == calendar.component(.year, from: Date())
+                formatter.dateFormat = sameYear ? "M月" : "yyyy年M月"
+                return formatter.string(from: monthAnchor)
+            case .year:
+                let year = calendar.component(.year, from: yearAnchor)
+                return String(localized: "\(year)年")
+            case .custom:
+                return kind.title
+            }
+        }
+    }
+
     /// 对比差值文案（数量差，不显示百分比增长，§7.6-6）
     func deltaText(_ delta: Int, unit: String = String(localized: "项")) -> String {
         if delta > 0 { return String(localized: "较上期多 \(delta) \(unit)") }
         if delta < 0 { return String(localized: "较上期少 \(-delta) \(unit)") }
         return String(localized: "与上期持平")
+    }
+
+    /// 率差（百分点，如「+6%」）：上期无数值或持平时返回 nil
+    func rateDeltaPercentage(_ current: Double?, _ previous: Double?) -> (text: String, positive: Bool)? {
+        guard let current, let previous else { return nil }
+        let points = Int(((current - previous) * 100).rounded())
+        guard points != 0 else { return nil }
+        return points > 0 ? ("+\(points)%", true) : ("\(points)%", false)
     }
 
     /// 明细行

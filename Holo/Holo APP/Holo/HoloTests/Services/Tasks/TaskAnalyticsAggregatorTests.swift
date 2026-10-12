@@ -48,7 +48,8 @@ final class TaskAnalyticsAggregatorTests: XCTestCase {
         listName: String? = nil,
         archived: Bool = false,
         deleted: Bool = false,
-        hasPlannedRange: Bool = false
+        hasPlannedRange: Bool = false,
+        matterLinks: [TaskMatterLinkFact] = []
     ) -> TaskRecordSnapshot {
         TaskRecordSnapshot(
             id: UUID(uuidString: id)!,
@@ -69,8 +70,17 @@ final class TaskAnalyticsAggregatorTests: XCTestCase {
             listAvailable: listID != nil,
             listIsArchived: false,
             hasValidPlannedRange: hasPlannedRange,
-            priorityRaw: 1
+            priorityRaw: 1,
+            checkItems: [],
+            matterLinks: matterLinks
         )
+    }
+
+    /// 快照换绑事项链接（按事项分组测试用）
+    private func withMatter(_ snapshot: TaskRecordSnapshot, _ links: [TaskMatterLinkFact]) -> TaskRecordSnapshot {
+        var copy = snapshot
+        copy.matterLinks = links
+        return copy
     }
 
     /// §14.1 全表（T12 编号未使用，样例表原样）
@@ -345,5 +355,119 @@ final class TaskAnalyticsAggregatorTests: XCTestCase {
         // 上期窗口内创建：T02（09-28 09:00）与 T11（09-29 09:00，早于 15:30）=2 → 新增差 7-2=5
         XCTAssertEqual(snapshot.comparison.createdDelta, 5)
         XCTAssertEqual(snapshot.comparison.completedDelta, 4)
+    }
+
+    // MARK: - 到期完成率（期间 + 逐桶 + 上期环比）
+
+    func test_到期完成率_期间_按时3迟到1分母6() {
+        let snapshot = aggregate()
+        XCTAssertEqual(snapshot.onTime.lateCount, 1)
+        XCTAssertEqual(snapshot.onTime.unfinishedCount, 2)
+        XCTAssertEqual(snapshot.onTime.completionRate ?? -1, 4.0 / 6.0, accuracy: 0.0001)
+    }
+
+    func test_到期完成率_逐桶_10月5日4除5_10月6日0除1_未来桶无数值() {
+        let snapshot = aggregate()
+        let day5 = snapshot.buckets.first { $0.start == makeDate(2026, 10, 5) }!
+        let day6 = snapshot.buckets.first { $0.start == makeDate(2026, 10, 6) }!
+        let day7 = snapshot.buckets.first { $0.start == makeDate(2026, 10, 7) }!
+        // 10-05：成熟6（T01/T02/T06/T07/T11/T13）排除T06缺时间 → 分母5，按时3迟到1未完成1
+        XCTAssertEqual(day5.maturedDueCount, 6)
+        XCTAssertEqual(day5.excludedDueMissingTimeCount, 1)
+        XCTAssertEqual(day5.onTimeDueCount, 3)
+        XCTAssertEqual(day5.lateDueCount, 1)
+        XCTAssertEqual(day5.dueCompletionRate ?? -1, 4.0 / 5.0, accuracy: 0.0001)
+        // 10-06：仅 T03（12:00 已成熟）进分母且未完成；T04 全天未成熟不进
+        XCTAssertEqual(day6.maturedDueCount, 1)
+        XCTAssertEqual(day6.onTimeDueCount, 0)
+        XCTAssertEqual(day6.dueCompletionRate ?? -1, 0.0, accuracy: 0.0001)
+        // 未来桶无成熟到期 → 无数值
+        XCTAssertNil(day7.dueCompletionRate)
+    }
+
+    func test_到期完成率_逐桶合计等于期间口径() {
+        let snapshot = aggregate()
+        XCTAssertEqual(snapshot.buckets.reduce(0) { $0 + $1.onTimeDueCount }, snapshot.onTime.onTimeCount)
+        XCTAssertEqual(snapshot.buckets.reduce(0) { $0 + $1.lateDueCount }, snapshot.onTime.lateCount)
+        XCTAssertEqual(
+            snapshot.buckets.reduce(0) { $0 + $1.maturedDueCount - $1.excludedDueMissingTimeCount },
+            snapshot.onTime.denominatorCount
+        )
+    }
+
+    func test_上期环比率_同等已过窗口内到期() {
+        // fixture 上期窗口（09-28 00:00–09-29 15:30）内无到期 → 两率 nil
+        let base = aggregate()
+        XCTAssertNil(base.comparison.previousDueCompletionRate)
+        XCTAssertNil(base.comparison.previousOnTimeRate)
+
+        // 加一条上期到期且按时完成的任务 → 上期到期完成率/按时率均 100%
+        var rows = fixture()
+        rows.append(snap(id: "00000000-0000-0000-0000-000000000030",
+                         created: makeDate(2026, 9, 27, 9),
+                         due: makeDate(2026, 9, 28, 10),
+                         completedAt: makeDate(2026, 9, 28, 9)))
+        let withPrev = aggregate(rows)
+        XCTAssertEqual(withPrev.comparison.previousDueCompletionRate ?? -1, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(withPrev.comparison.previousOnTimeRate ?? -1, 1.0, accuracy: 0.0001)
+    }
+
+    // MARK: - 完成节奏（P2：热力网格 + 小时分布 + 按事项分组）
+
+    func test_热力网格_近12周84天_含零完成日_固定窗口跨期取数() {
+        let snapshot = aggregate()
+        XCTAssertEqual(snapshot.heatDays.count, 84)
+        // 本周一（10-05）前推 11 周 = 07-20（周一）起，至 10-11（本周日）
+        XCTAssertEqual(snapshot.heatDays.first?.start, makeDate(2026, 7, 20))
+        XCTAssertEqual(snapshot.heatDays.last?.start, makeDate(2026, 10, 11))
+        // 本周完成：10-05 三件（T01/T02/T07 归档保留）、10-06 一件（T05）
+        XCTAssertEqual(snapshot.heatDays.first { $0.start == makeDate(2026, 10, 5) }?.completedCount, 3)
+        XCTAssertEqual(snapshot.heatDays.first { $0.start == makeDate(2026, 10, 6) }?.completedCount, 1)
+        // 窗口含上周日：T11 的 10-04 18:00 完成也计入（节奏网格固定窗口、不随档期过滤）
+        XCTAssertEqual(snapshot.heatDays.first { $0.start == makeDate(2026, 10, 4) }?.completedCount, 1)
+        XCTAssertEqual(snapshot.heatDays.first { $0.start == makeDate(2026, 10, 7) }?.completedCount, 0)
+        // 合计 = 窗口内全部完成（本期 4 + 跨期 T11 = 5），≠ 期间完成数
+        XCTAssertEqual(snapshot.heatDays.reduce(0) { $0 + $1.completedCount }, 5)
+    }
+
+    func test_小时分布_按完成时刻落24桶() {
+        let snapshot = aggregate()
+        XCTAssertEqual(snapshot.hourlyCompletedCounts.count, 24)
+        XCTAssertEqual(snapshot.hourlyCompletedCounts.reduce(0, +), 4)
+        XCTAssertEqual(snapshot.hourlyCompletedCounts[9], 1)   // T07 09:00
+        XCTAssertEqual(snapshot.hourlyCompletedCounts[11], 1)  // T05 11:00
+        XCTAssertEqual(snapshot.hourlyCompletedCounts[13], 1)  // T02 13:00
+        XCTAssertEqual(snapshot.hourlyCompletedCounts[17], 1)  // T01 17:00
+        XCTAssertEqual(snapshot.hourlyCompletedCounts[0], 0)
+    }
+
+    func test_按事项分组_多链接重复计入_未链接不出现_数量降序() {
+        let matterA = UUID(uuidString: "AAAA0000-0000-0000-0000-000000000001")!
+        let matterC = UUID(uuidString: "CCCC0000-0000-0000-0000-000000000003")!
+        let rows = fixture().map { snapshot -> TaskRecordSnapshot in
+            switch snapshot.id.uuidString {
+            case "00000000-0000-0000-0000-000000000001":  // T01 → A + C
+                return withMatter(snapshot, [
+                    TaskMatterLinkFact(matterID: matterA, title: "装修新家"),
+                    TaskMatterLinkFact(matterID: matterC, title: "健康体检")
+                ])
+            case "00000000-0000-0000-0000-000000000002":  // T02 → A
+                return withMatter(snapshot, [TaskMatterLinkFact(matterID: matterA, title: "装修新家")])
+            default:
+                return snapshot
+            }
+        }
+        let snapshot = aggregate(rows)
+        XCTAssertEqual(snapshot.matterBreakdown.count, 2)
+        let a = snapshot.matterBreakdown.first { $0.id == matterA }
+        XCTAssertEqual(a?.title, "装修新家")
+        XCTAssertEqual(a?.count, 2)
+        XCTAssertEqual(Set(a?.completedIDs ?? []), ids("00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000002"))
+        // T01 多链接 → 同时计入事项 C（重复计入，视图需注明）
+        XCTAssertEqual(snapshot.matterBreakdown.first { $0.id == matterC }?.count, 1)
+        // 数量降序：A（2）在前
+        XCTAssertEqual(snapshot.matterBreakdown.first?.id, matterA)
+        // 基线 fixture 无任何链接 → 空分布
+        XCTAssertTrue(aggregate().matterBreakdown.isEmpty)
     }
 }

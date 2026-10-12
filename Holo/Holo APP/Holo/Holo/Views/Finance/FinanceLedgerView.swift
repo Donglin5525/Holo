@@ -314,18 +314,18 @@ struct FinanceLedgerView: View {
     // MARK: - 顶部导航栏
     
     /// 修复 #3（安全区）#4（单日期）#5（返回按钮）
+    /// 2026-10-12 视觉改版：头钮统一 34pt 灰圆（无阴影），页边距统一 20pt
     private var headerView: some View {
         VStack(spacing: 0) {
             // Row 1: 返回按钮 | Spacer | 搜索 + 日历按钮
             HStack {
                 Button(action: { onBack() }) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.holoToolText)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 34, height: 34)
                         .background(Color.holoToolSurface)
                         .clipShape(Circle())
-                        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
                 }
 
                 Spacer()
@@ -341,12 +341,11 @@ struct FinanceLedgerView: View {
                         }
                     } label: {
                         Image(systemName: "camera.viewfinder")
-                            .font(.system(size: 18, weight: .medium))
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundColor(.holoToolTextSecondary)
-                            .frame(width: 40, height: 40)
+                            .frame(width: 34, height: 34)
                             .background(Color.holoToolSurface)
                             .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                             .overlay(alignment: .topTrailing) {
                                 if receiptDraftCount > 0 {
                                     Text(receiptDraftCount >= 100 ? "99+" : "\(receiptDraftCount)")
@@ -365,12 +364,11 @@ struct FinanceLedgerView: View {
                     // 搜索按钮
                     Button { showSearch = true } label: {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 18, weight: .medium))
+                            .font(.system(size: 15, weight: .medium))
                             .foregroundColor(.holoToolTextSecondary)
-                            .frame(width: 40, height: 40)
+                            .frame(width: 34, height: 34)
                             .background(Color.holoToolSurface)
                             .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                     }
 
                     // 「返回今天」按钮 — 仅在选中日期非今天时显示
@@ -381,9 +379,9 @@ struct FinanceLedgerView: View {
                             }
                         } label: {
                             Text("今")
-                                .font(.system(size: 14, weight: .bold))
+                                .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(.holoPrimary)
-                                .frame(width: 40, height: 40)
+                                .frame(width: 34, height: 34)
                                 .background(Color.holoPrimary.opacity(0.1))
                                 .clipShape(Circle())
                         }
@@ -393,25 +391,24 @@ struct FinanceLedgerView: View {
                     // 日历 icon → 弹出底部抽屉
                     Button(action: { calendarState.showPopupCalendar() }) {
                         Image(systemName: "calendar")
-                            .font(.system(size: 20, weight: .medium))
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundColor(calendarState.isPopupVisible ? .holoPrimary : .holoToolTextSecondary)
-                            .frame(width: 40, height: 40)
+                            .frame(width: 34, height: 34)
                             .background(Color.holoToolSurface)
                             .clipShape(Circle())
-                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                     }
                 }
             }
-            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.horizontal, HoloSpacing.page)
             .padding(.top, 8)
             .padding(.bottom, 4)
 
             // Row 2: 标题居中（不受左右按钮宽度影响）
             Text(headerTitle)
-                .holoText(.pageTitle)
+                .holoText(.sectionTitle)
                 .foregroundColor(.holoToolText)
                 .frame(maxWidth: .infinity)
-                .padding(.bottom, 12)
+                .padding(.bottom, 10)
         }
         .background(Color.holoToolBackground)
     }
@@ -436,12 +433,11 @@ struct FinanceLedgerView: View {
     }
 
     /// 箭头：点击切换 + 拖拽连续控制
+    /// 把手（2026-10-12 视觉改版）：裸箭头改标准把手条，可点可拖
     private var calendarDragHandle: some View {
-        Image(systemName: "chevron.down")
-            .font(.system(size: 9, weight: .semibold))
-            .foregroundColor(.holoToolTextSecondary.opacity(0.45))
-            .rotationEffect(.degrees(isCalendarExpanded ? 180 : 0))
-            .contentTransition(.symbolEffect(.replace))
+        Capsule()
+            .fill(Color.holoToolTextSecondary.opacity(0.35))
+            .frame(width: 36, height: 4)
             .frame(maxWidth: .infinity, minHeight: 28)
             .padding(.vertical, 2)
             .contentShape(Rectangle())
@@ -545,7 +541,7 @@ struct FinanceLedgerView: View {
                     BudgetSummaryCard(summary: summary, warnings: categoryWarnings) {
                         showBudgetDetail = true
                     }
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, HoloSpacing.page)
                     .padding(.top, HoloSpacing.sm)
                     .padding(.bottom, 8)
                 }
@@ -608,7 +604,7 @@ struct FinanceLedgerView: View {
                             todayAmount: calendarState.selectedDayIncome)
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, HoloSpacing.page)
     }
 
     /// 构建月度卡片，减少重复代码
@@ -636,7 +632,7 @@ struct FinanceLedgerView: View {
                     .foregroundColor(.holoToolText)
                 Spacer()
             }
-            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.horizontal, HoloSpacing.page)
             .padding(.top, 24)
             .padding(.bottom, HoloSpacing.xs)
             

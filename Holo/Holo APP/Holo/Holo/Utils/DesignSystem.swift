@@ -506,6 +506,59 @@ enum HoloTaskPaperTheme {
     )
 }
 
+// MARK: - 计数徽章（视觉改版纪律④：全 App 唯一计数形态）
+
+/// 「N 件 / N 步 / N 条」类数量计数的统一形态：嵌套提亮底 + 圆角 6 + 灰字。
+/// 任何计数展示一律用它；禁止再自造橙数字、白字胶囊、方块徽章等旁支形态。
+struct HoloCountBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text(verbatim: "\(count)")
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .foregroundColor(.holoTextSecondary)
+            .padding(.horizontal, 6)
+            .frame(minWidth: 20, minHeight: 20)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.holoNestedCardBackground)
+            )
+    }
+}
+
+/// 头部图标按钮的统一形态（视觉改版纪律⑤）：34pt 灰圆底 + 次级图标色。
+/// 各模块头部（返回/搜索/更多/日历等）一律用它，替代裸图标与各写各的圆钮。
+struct HoloHeaderIconBtn<Content: View>: View {
+    let action: (() -> Void)?
+    @ViewBuilder let content: Content
+
+    init(action: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
+        self.action = action
+        self.content = content()
+    }
+
+    var body: some View {
+        Group {
+            if let action {
+                Button(action: action) { label }
+                    .buttonStyle(.plain)
+            } else {
+                label
+            }
+        }
+    }
+
+    private var label: some View {
+        content
+            .font(.system(size: 14, weight: .medium))
+            .foregroundColor(.holoTextSecondary)
+            .frame(width: 34, height: 34)
+            .background(Circle().fill(Color.holoNestedCardBackground))
+            .contentShape(Circle())
+    }
+}
+
 // MARK: - 卡片样式
 
 /// Holo 标准卡片样式

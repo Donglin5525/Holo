@@ -108,28 +108,28 @@ struct AnniversaryListView: View {
 
     private var headerView: some View {
         HStack {
-            // 44×44 触控区域，与 TaskListView/TaskStatsView 一致
             Button(action: onBack) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
-                    .frame(width: 44, height: 44)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 34, height: 34)
+                    .background(Circle().fill(Color.holoNestedCardBackground))
+                    .contentShape(Circle())
             }
+            .accessibilityLabel(Text("返回"))
+
+            Spacer()
 
             Text("纪念日")
-                .font(.holoTitle)
+                .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
 
             Spacer()
 
-            Button(action: { sheetTarget = .add }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 44, height: 44)
-            }
+            // 右下 FAB 已承担新增（含纪念日语境）；头部不再放第二个创建入口
+            Color.clear.frame(width: 34, height: 34)
         }
-        .padding(.horizontal, HoloSpacing.md)
+        .padding(.horizontal, HoloSpacing.page)
         .padding(.top, 8)
         .padding(.bottom, HoloSpacing.sm)
     }
@@ -312,17 +312,17 @@ struct AnniversaryListView: View {
                     .lineSpacing(4)
             }
 
+            // 右下 FAB 是本屏唯一橙主行动；空态引导退为灰描边次级（2026-10-12 橙纪律）
             Button(action: { sheetTarget = .add }) {
                 HStack(spacing: 6) {
                     Image(systemName: "sparkles")
                     Text("点亮一个日子")
                 }
                 .font(.holoLabel)
-                .foregroundColor(.white)
+                .foregroundColor(.holoTextSecondary)
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.sm + 4)
-                .background(Color.holoPrimary)
-                .clipShape(Capsule())
+                .background(Capsule().strokeBorder(Color.holoDivider, lineWidth: 1))
             }
 
             Spacer()

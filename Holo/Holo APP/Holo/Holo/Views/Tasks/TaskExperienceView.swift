@@ -205,7 +205,7 @@ struct TaskExperienceView: View {
                             quadrantContent
                         }
                     }
-                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.horizontal, HoloSpacing.page)
                     .padding(.top, HoloSpacing.xs)
                     .padding(.bottom, 100)
                     .onChange(of: model.locateTaskID) { _, newValue in
@@ -236,33 +236,37 @@ struct TaskExperienceView: View {
                     onBack()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
-                        .frame(width: 44, height: 44)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.holoNestedCardBackground))
                 }
+                .accessibilityLabel(Text("返回"))
                 Spacer()
                 Text("任务")
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
-                HStack(spacing: 0) {
+                HStack(spacing: 8) {
                     Button {
                         showSearchView = true
                     } label: {
                         Image(systemName: "magnifyingglass")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.holoTextSecondary)
-                            .frame(width: 32, height: 44)
+                            .frame(width: 34, height: 34)
+                            .background(Circle().fill(Color.holoNestedCardBackground))
                     }
                     .accessibilityLabel(String(localized: "搜索任务"))
                     moreMenu
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.horizontal, HoloSpacing.md)
+            .padding(.horizontal, HoloSpacing.page)
             .padding(.vertical, HoloSpacing.sm)
 
-            // 范围菜单：默认全部未完成，可看到当前范围名称（§4.1-2）
+            // 范围菜单：默认全部未完成，可看到当前范围名称（§4.1-2）；
+            // 计数收进统一灰徽章（2026-10-12 橙纪律：数字不再用品牌色）
             Button {
                 showScopeSheet = true
             } label: {
@@ -271,22 +275,19 @@ struct TaskExperienceView: View {
                         .font(.system(size: 13, weight: .medium))
                         .lineLimit(1)
                     if !model.scope.isHistorical {
-                        Text("\(model.conservedTotal)")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            .foregroundColor(.holoPrimary)
+                        HoloCountBadge(count: model.conservedTotal)
                     }
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .semibold))
                 }
                 .foregroundColor(.holoTextSecondary)
-                .padding(.horizontal, 4)
                 .padding(.vertical, 6)
                 .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "查看范围，当前\(model.scopeTitle)"))
-            .padding(.horizontal, HoloSpacing.md)
+            .padding(.horizontal, HoloSpacing.page)
             .padding(.bottom, HoloSpacing.xs)
         }
         .background(Color.holoBackground)
@@ -307,9 +308,10 @@ struct TaskExperienceView: View {
             Toggle(String(localized: "新版任务体验"), isOn: v2ToggleBinding)
         } label: {
             Image(systemName: "ellipsis")
-                .font(.system(size: 16, weight: .medium))
+                .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.holoTextSecondary)
-                .frame(width: 32, height: 44)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(Color.holoNestedCardBackground))
         }
     }
 
@@ -350,34 +352,9 @@ struct TaskExperienceView: View {
             } else if model.conservedTotal == 0 && model.unclassifiedCount == 0 {
                 emptyStateView
             } else {
-                TaskQuadrantOverview(
-                    countsByQuadrant: model.quadrantCounts,
-                    selectedQuadrant: model.selectedQuadrant
-                ) { quadrant in
-                    withAnimation(HoloAnimation.quick) {
-                        // 再次点该象限也可返回全部（§4.3）
-                        model.selectedQuadrant = model.selectedQuadrant == quadrant ? nil : quadrant
-                    }
-                }
-                .padding(.top, HoloSpacing.sm)
-                .padding(.bottom, HoloSpacing.md)
-
-                triageEntry
-
-                if model.selectedQuadrant != nil {
-                    Button {
-                        withAnimation(HoloAnimation.quick) {
-                            model.selectedQuadrant = nil
-                        }
-                    } label: {
-                        Label(String(localized: "返回全部象限"), systemImage: "chevron.left")
-                            .font(.holoCaption)
-                            .foregroundColor(.holoPrimary)
-                            .padding(.vertical, HoloSpacing.sm)
-                    }
-                    .buttonStyle(.plain)
-                }
-
+                // 象限概览胶囊行退役（2026-10-12 大改 v2）：
+                // 与下方分组头同名同计数出现两次，是判读点名的层级噪音；
+                // 轻重缓急的导航由分组头与长按菜单承载
                 if let selected = model.selectedQuadrant {
                     singleGroupSection(selected)
                 } else {
@@ -392,40 +369,8 @@ struct TaskExperienceView: View {
         }
     }
 
-    /// 待整理入口（一行，§4.1-4）
-    private var triageEntry: some View {
-        Button {
-            guard model.unclassifiedCount > 0 else { return }
-            showTriageSheet = true
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "questionmark.circle")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(model.unclassifiedCount > 0 ? .holoPrimary : .holoTextSecondary)
-                Text(model.unclassifiedCount > 0
-                     ? String(localized: "待整理 \(model.unclassifiedCount) 项")
-                     : String(localized: "已整理"))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(model.unclassifiedCount > 0 ? .holoTextPrimary : .holoTextSecondary)
-                Spacer()
-                if model.unclassifiedCount > 0 {
-                    Text("开始整理")
-                        .font(.holoCaption.weight(.semibold))
-                        .foregroundColor(.holoPrimary)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.holoPrimary)
-                }
-            }
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.vertical, 10)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .padding(.bottom, HoloSpacing.md)
-        .accessibilityElement(children: .combine)
-    }
+    // 2026-10-11 列表减法：待整理入口横幅整行删除，
+    // 「整理」动作并入 unclassifiedSection 的分组头（见 groupHeader trailingAction）
 
     /// 单组（点象限后仅显示该组全部任务，§4.3）
     @ViewBuilder
@@ -452,9 +397,7 @@ struct TaskExperienceView: View {
             .padding(.vertical, HoloSpacing.xl)
         } else {
             groupHeader(quadrant, count: members.count, expanded: true)
-            ForEach(members) { member in
-                taskRow(member)
-            }
+            rowsContainer(members)
         }
     }
 
@@ -464,9 +407,7 @@ struct TaskExperienceView: View {
             let expanded = model.expandedGroups.contains(quadrant)
             groupHeader(quadrant, count: members.count, expanded: expanded)
             let displayed = expanded ? members : Array(members.prefix(3))
-            ForEach(displayed) { member in
-                taskRow(member)
-            }
+            rowsContainer(displayed)
             if !expanded && members.count > 3 {
                 Button {
                     withAnimation(HoloAnimation.smooth) {
@@ -498,23 +439,36 @@ struct TaskExperienceView: View {
         }
     }
 
-    private func groupHeader(_ quadrant: TaskQuadrant, count: Int, expanded: Bool) -> some View {
+    /// 分组头：圆点 + 名称 + 计数；trailingAction 供「待整理」组挂「整理」动作
+    /// （2026-10-12 视觉改版：计数用统一徽章、动作胶囊去橙改灰描边、左缘与卡片同线）
+    private func groupHeader(
+        _ quadrant: TaskQuadrant,
+        count: Int,
+        expanded: Bool,
+        trailingAction: (title: String, handler: () -> Void)? = nil
+    ) -> some View {
         HStack(spacing: 7) {
-            Circle()
-                .fill(quadrant.tintColor)
-                .frame(width: 7, height: 7)
             Text(quadrant.displayTitle)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(.holoTextPrimary)
-            Text("\(count)")
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 12.5, weight: .bold))
                 .foregroundColor(.holoTextSecondary)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 1)
-                .background(Capsule().fill(Color.holoBorder))
+            Text(verbatim: "\(count)")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(.holoTextPlaceholder)
             Spacer()
+            if let action = trailingAction {
+                Button(action: action.handler) {
+                    HStack(spacing: 3) {
+                        Text(action.title)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .font(.system(size: 12.5))
+                    .foregroundColor(.holoTextSecondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "整理待整理任务"))
+            }
         }
-        .padding(.horizontal, HoloSpacing.xs)
         .padding(.top, HoloSpacing.md)
         .padding(.bottom, HoloSpacing.xs)
         .accessibilityElement(children: .combine)
@@ -524,31 +478,56 @@ struct TaskExperienceView: View {
     private var unclassifiedSection: some View {
         let members = model.unclassifiedMembers
         if !members.isEmpty {
-            groupHeader(.unclassified, count: members.count, expanded: true)
+            groupHeader(
+                .unclassified,
+                count: members.count,
+                expanded: true,
+                trailingAction: (title: String(localized: "整理"), handler: { showTriageSheet = true })
+            )
+            rowsContainer(members)
+        }
+    }
+
+    /// 行组容器（2026-10-12 大改 v2）：极淡底色分组，行透明+行间细线，
+    /// 卡片底色退役——层级靠留白与分组容器，一行只有一个落点
+    private func rowsContainer(_ members: [TaskRecordSnapshot], isHistory: Bool = false) -> some View {
+        VStack(spacing: 0) {
             ForEach(members) { member in
-                taskRow(member)
+                taskRow(member, isHistoryRow: isHistory)
+                if member.id != members.last?.id {
+                    Rectangle()
+                        .fill(Color.holoDivider.opacity(0.5))
+                        .frame(height: 0.5)
+                        .padding(.leading, 54)
+                }
             }
         }
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+        )
     }
 
     // MARK: - 历史范围内容（已完成/归档连续列表，§4.2）
 
     private var historicalContent: some View {
-        VStack(spacing: 0) {
-            let members = model.historicalMembers
+        let members = model.historicalMembers
+        return Group {
             if members.isEmpty {
                 emptyStateView
             } else {
-                ForEach(members) { member in
-                    taskRow(member, isHistoryRow: true)
-                }
+                rowsContainer(members, isHistory: true)
             }
         }
     }
 
-    // MARK: - 任务行（§4.4：完成钮 + 标题 + 截止与清单 + 更多）
+    // MARK: - 任务行（2026-10-12 大改 v2：进度环 + 就地展开子任务 + 长按菜单；
+    // 紧急分/清单名/「还有N步」文字全部退场）
 
-    private func taskRow(_ member: TaskRecordSnapshot, isHistoryRow: Bool = false) -> some View {
+    private func taskRow(
+        _ member: TaskRecordSnapshot,
+        isHistoryRow: Bool = false
+    ) -> some View {
         TaskExperienceRow(
             member: member,
             calendar: model.calendar,
@@ -589,10 +568,39 @@ struct TaskExperienceView: View {
             },
             onDelete: {
                 deleteTask(member)
+            },
+            onToggleCheckItem: { snapshot in
+                toggleCheckItem(member: member, snapshot: snapshot)
+            },
+            onAddCheckItem: { title in
+                addCheckItem(member: member, title: title)
             }
         )
         .id("task-\(member.id.uuidString)")
-        .padding(.bottom, 10)
+    }
+
+    /// 卡上勾子任务：经仓储切状态（勾掉即清等待态），通知链路刷新列表
+    private func toggleCheckItem(member: TaskRecordSnapshot, snapshot: CheckItemSnapshot) {
+        guard let task = repository.findTask(by: member.id),
+              let item = (task.checkItems?.allObjects as? [CheckItem])?.first(where: { $0.id == snapshot.id })
+        else { return }
+        do {
+            try repository.toggleCheckItem(item)
+            HapticManager.light()
+        } catch {
+            Self.logger.error("列表勾选子任务失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 展开态「加一步」：行内输入回车落库
+    private func addCheckItem(member: TaskRecordSnapshot, title: String) {
+        guard let task = repository.findTask(by: member.id) else { return }
+        do {
+            let order = Int16(task.checkItems?.count ?? 0)
+            try repository.addCheckItem(title: title, to: task, order: order)
+        } catch {
+            Self.logger.error("列表加一步失败：\(error.localizedDescription)")
+        }
     }
 
     // MARK: - 移动提示（§4.3）
@@ -631,6 +639,9 @@ struct TaskExperienceView: View {
 
     // MARK: - 撤回 banner
 
+    /// 键盘高度（真机实报：展开态输「加一步」时完成任务的撤回 toast 被键盘盖住）
+    @State private var keyboardHeight: CGFloat = 0
+
     @ViewBuilder
     private var undoBannerIfVisible: some View {
         if model.pendingCompletionTaskID != nil {
@@ -642,8 +653,17 @@ struct TaskExperienceView: View {
                 }
             )
             .padding(.horizontal, HoloSpacing.lg)
-            .padding(.bottom, 8)
+            // 上移到 FAB 上方：真机实报撤回钮被「加一步」键盘挡住；判读又实锤
+            // toast 右端与右下 FAB 同高水平线互压——底部 74 一并避开两者（键盘另算）
+            .padding(.bottom, 80 + keyboardHeight)
             .transition(.move(edge: .bottom).combined(with: .opacity))
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+                let end = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
+                withAnimation(HoloAnimation.quick) {
+                    // 收起（frame 落到屏外）归零；弹出时上移键盘可视高度
+                    keyboardHeight = end.minY >= UIScreen.main.bounds.height - 1 ? 0 : end.height
+                }
+            }
         }
     }
 
@@ -674,14 +694,14 @@ struct TaskExperienceView: View {
             Button {
                 openCreation()
             } label: {
-                Label(String(localized: "创建第一个任务"), systemImage: "plus.circle.fill")
+                Label(String(localized: "创建第一个任务"), systemImage: "plus.circle")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(.holoTextSecondary)
                     .padding(.horizontal, 26)
                     .padding(.vertical, 11)
                     .background(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.holoPrimary)
+                            .strokeBorder(Color.holoDivider, lineWidth: 1)
                     )
             }
             .buttonStyle(.plain)

@@ -232,6 +232,7 @@ struct TaskCreationSheet: View {
                     set: { draft.title = $0; draft.markEdited() }
                 ))
                 .font(.system(size: 22, weight: .bold))
+                voiceButton
                 attachButton
             }
             .padding(HoloSpacing.md)
@@ -251,7 +252,6 @@ struct TaskCreationSheet: View {
                 ), axis: .vertical)
                 .lineLimit(1...4)
                 .font(.holoBody)
-                voiceButton
             }
             .padding(HoloSpacing.md)
 
@@ -264,8 +264,9 @@ struct TaskCreationSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
     }
 
-    /// 描述行语音入口：录音转文字，回来后先尝试拆成「标题＋检查清单项」，拆不出退回塞描述。
-    /// 样式与标题行回形针同构（32pt 圆钮）；智能总结开关与任务详情页共享同一偏好。
+    /// 标题行语音入口（2026-10-11 东林拍板：在上面说任务）：
+    /// 录音转文字回来后拆成「标题＋描述」；拆不出、或调用失败时整段退回塞描述。
+    /// 样式与回形针同构（32pt 圆钮）；智能总结开关与任务详情页共享同一偏好。
     private var voiceButton: some View {
         Button {
             HapticManager.selection()
@@ -287,7 +288,7 @@ struct TaskCreationSheet: View {
         .buttonStyle(.plain)
         .disabled(isSplittingVoice)
         .accessibilityLabel(String(localized: "语音输入"))
-        .accessibilityHint(String(localized: "录音并将识别结果拆成标题和检查项"))
+        .accessibilityHint(String(localized: "录音并将识别结果拆成标题和描述"))
     }
 
     /// 标题行回形针：附件入口；有附件时红点角标
@@ -375,13 +376,15 @@ struct TaskCreationSheet: View {
 
             VStack(spacing: 0) {
                 ForEach(checkItemTitles.indices, id: \.self) { index in
-                    HStack(spacing: 8) {
+                    HStack(alignment: .top, spacing: 8) {
                         Circle()
                             .strokeBorder(Color.holoTextPlaceholder, lineWidth: 1.2)
                             .frame(width: 15, height: 15)
+                            .padding(.top, 3)
                         Text(checkItemTitles[index])
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
+                            .lineSpacing(2)
                         Spacer()
                         Button {
                             checkItemTitles.remove(at: index)
@@ -393,6 +396,7 @@ struct TaskCreationSheet: View {
                                 .frame(width: 32, height: 32)
                         }
                         .buttonStyle(.plain)
+                        .padding(.top, -5)
                     }
                     .padding(.vertical, 8)
                     if index < checkItemTitles.count - 1 {
@@ -400,12 +404,14 @@ struct TaskCreationSheet: View {
                     }
                 }
 
-                HStack(spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "plus")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.holoPrimary)
-                    TextField(String(localized: "添加一项"), text: $newCheckItemTitle)
+                        .padding(.top, 3)
+                    TextField(String(localized: "添加一项"), text: $newCheckItemTitle, axis: .vertical)
                         .font(.holoBody)
+                        .lineSpacing(2)
                         .focused($isNewCheckItemFocused)
                         .onSubmit(addCheckItem)
                     if !newCheckItemTitle.isEmpty {
@@ -415,6 +421,7 @@ struct TaskCreationSheet: View {
                                 .foregroundColor(.holoPrimary)
                         }
                         .buttonStyle(.plain)
+                        .padding(.top, 1)
                     }
                 }
                 .padding(.vertical, 8)
@@ -553,6 +560,7 @@ struct TaskCreationSheet: View {
         }
         .buttonStyle(.plain)
         .disabled(!draft.canSave || isSaving)
+        .accessibilityIdentifier("taskCreationSaveBar")
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.top, HoloSpacing.sm)
         .padding(.bottom, HoloSpacing.sm)
@@ -701,7 +709,7 @@ struct TaskCreationSheet: View {
         }
     }
 
-    // MARK: - 语音转写落地（与任务详情页同链：拆解优先、塞描述兜底）
+    // MARK: - 语音转写落地（在上面说任务：拆成标题＋描述，塞描述兜底）
 
     private func formatVoiceTranscript(_ transcript: String) -> String {
         ThoughtVoiceTranscriptInsertion.makeInsertionText(
@@ -719,8 +727,9 @@ struct TaskCreationSheet: View {
         splitVoiceTranscript(trimmed)
     }
 
-    /// 语音拆解：成功且拆出子任务时填入标题与检查清单；
-    /// 拆不出、或调用失败时退回「塞进描述」。
+    /// 语音拆解（2026-10-11 东林拍板）：在上面说任务，自动拆到标题和描述——
+    /// 拆出标题时填标题（已有标题不覆盖），其余内容按行归描述；
+    /// 拆不出、或调用失败时整段退回塞描述。不再自动生成检查清单项。
     private func splitVoiceTranscript(_ text: String) {
         isSplittingVoice = true
         Task { @MainActor in
@@ -728,12 +737,12 @@ struct TaskCreationSheet: View {
             do {
                 let result = try await splitter.split(text)
                 if !result.subtasks.isEmpty {
-                    if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       !result.title.isEmpty {
                         draft.title = result.title
                     }
-                    checkItemTitles.append(contentsOf: result.subtasks)
-                    draft.markEdited()
-                    HoloToastCenter.shared.show(String(localized: "已为你拆成 \(result.subtasks.count) 个检查项，可调整"), type: .success)
+                    appendTextToNote(result.subtasks.joined(separator: "\n"))
+                    HoloToastCenter.shared.show(String(localized: "已帮你填好标题和描述，可调整"), type: .success)
                 } else {
                     appendTextToNote(text)
                 }

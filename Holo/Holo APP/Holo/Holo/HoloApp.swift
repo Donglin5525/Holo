@@ -84,6 +84,14 @@ struct HoloApp: App {
         // store 加载在后台进行，UI 先以默认值渲染，加载完成后通过 await 切换
         CoreDataStack.shared.prepareIfNeeded()
 
+        // 存量分步推进数据一次性迁移：执行步骤转子任务（幂等，后台等库就绪后执行）。
+        // 必须放在 prepareIfNeeded 之后：容器由主线程先建立，避免后台任务抢跑懒加载、
+        // 与 buildContainer 里 viewContext 的 performBlockAndWait(主队列) 互锁（ABBA 死锁实锤在档）
+        TaskExecutionMigration.runIfNeeded()
+
+        // 存量清空清单一次性归档（once 标记；做完的一次性项目清单退场收尾）
+        TodoListEphemeralMigration.runIfNeeded()
+
         // 卡顿取证（2026-10-08 掉帧诊断）：只订阅 MetricKit 落盘，无行为影响；
         // 与 CloudImportRelay 的同步批次日志对时，定位「卡顿时刻主线程在干什么」
         HoloHangDiagnosticCollector.shared.startIfNeeded()

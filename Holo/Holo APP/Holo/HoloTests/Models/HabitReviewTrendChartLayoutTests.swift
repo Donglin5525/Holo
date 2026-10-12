@@ -118,4 +118,52 @@ final class HabitReviewTrendChartLayoutTests: XCTestCase {
         XCTAssertEqual(range.start, day(2026, 9, 10))
         XCTAssertEqual(range.dayCount, 28)
     }
+
+    // MARK: 稀疏收敛（概览弹层；2026-10-11 东林实报 30 槽孤柱）
+
+    func test_图域_稀疏收敛_仅今天一条记录_收敛三天域不越今天() {
+        let interval = DateInterval(start: day(2026, 9, 12), end: day(2026, 10, 12))
+        let values = [HabitDailyNumericValue(date: day(2026, 10, 11), value: 3)]
+        let range = ReviewTrendChartLayout.chartRange(
+            interval: interval, today: day(2026, 10, 11), values: values,
+            calendar: calendar, sparseCollapse: true)
+        XCTAssertEqual(range.start, day(2026, 10, 9))
+        XCTAssertEqual(range.dayCount, 3, "单日记录应收敛到 3 槽，末日不越过今天")
+    }
+
+    func test_图域_稀疏收敛_跨度六天内_首末各留一天呼吸位() {
+        let interval = DateInterval(start: day(2026, 9, 12), end: day(2026, 10, 12))
+        let values = [
+            HabitDailyNumericValue(date: day(2026, 10, 2), value: 1),
+            HabitDailyNumericValue(date: day(2026, 10, 6), value: 2),
+        ]
+        let range = ReviewTrendChartLayout.chartRange(
+            interval: interval, today: day(2026, 10, 11), values: values,
+            calendar: calendar, sparseCollapse: true)
+        XCTAssertEqual(range.start, day(2026, 10, 1))
+        XCTAssertEqual(range.dayCount, 7)
+    }
+
+    func test_图域_稀疏收敛关闭_维持完整范围() {
+        let interval = DateInterval(start: day(2026, 9, 12), end: day(2026, 10, 12))
+        let values = [HabitDailyNumericValue(date: day(2026, 10, 11), value: 3)]
+        let range = ReviewTrendChartLayout.chartRange(
+            interval: interval, today: day(2026, 10, 11), values: values,
+            calendar: calendar, sparseCollapse: false)
+        XCTAssertEqual(range.start, day(2026, 9, 12))
+        XCTAssertEqual(range.dayCount, 30, "回顾页语义（空槽如实留白）不受稀疏收敛影响")
+    }
+
+    func test_图域_稀疏收敛_跨度七天不触发() {
+        let interval = DateInterval(start: day(2026, 9, 12), end: day(2026, 10, 12))
+        let values = [
+            HabitDailyNumericValue(date: day(2026, 10, 1), value: 1),
+            HabitDailyNumericValue(date: day(2026, 10, 8), value: 2),
+        ]
+        let range = ReviewTrendChartLayout.chartRange(
+            interval: interval, today: day(2026, 10, 11), values: values,
+            calendar: calendar, sparseCollapse: true)
+        XCTAssertEqual(range.start, day(2026, 9, 12))
+        XCTAssertEqual(range.dayCount, 30)
+    }
 }

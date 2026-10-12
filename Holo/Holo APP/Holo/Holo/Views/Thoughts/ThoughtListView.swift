@@ -1070,9 +1070,10 @@ struct ThoughtListView: View {
                     onOpenSidebar()
                 } label: {
                     Image(systemName: "sidebar.leading")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.holoToolText)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.holoToolSurface))
                 }
                 .accessibilityLabel(String(localized: "打开导航侧栏"))
 
@@ -1117,24 +1118,28 @@ struct ThoughtListView: View {
 
                 Button { showThoughtSettings = true } label: {
                     Image(systemName: "gearshape")
-                        .font(.system(size: 17)).foregroundStyle(Color.holoTextSecondary)
-                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                        .font(.system(size: 15)).foregroundStyle(Color.holoToolTextSecondary)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.holoToolSurface))
+                        .contentShape(Circle())
                 }
                 .accessibilityLabel("想法设置")
                 .accessibilityIdentifier("thoughts.settings.open")
 
+                // 返回用左箭头：与全 App 返回语言一致，也消除与标题下拉箭头的重复观感
                 Button {
                     onBack()
                 } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 16, weight: .semibold))
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.holoToolText)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.holoToolSurface))
+                        .contentShape(Circle())
                 }
                 .accessibilityLabel(String(localized: "返回 Holo"))
             }
-            .padding(.horizontal, HoloSpacing.md)
+            .padding(.horizontal, HoloSpacing.page)
             .padding(.vertical, HoloSpacing.sm)
             .background(Color.holoToolBackground)
         } else {
@@ -1327,14 +1332,14 @@ struct ThoughtListView: View {
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.holoToolSurface)
+        .padding(.vertical, 8)
+        .background(Color.holoToolInset)
         .cornerRadius(HoloRadius.md)
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
                 .stroke(Color.holoToolBorder, lineWidth: 1)
         )
-        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.horizontal, HoloSpacing.page)
         .padding(.vertical, HoloSpacing.sm)
     }
 
@@ -1880,20 +1885,19 @@ struct ThoughtListView: View {
                 .holoText(.supporting)
                 .foregroundColor(.holoToolTextSecondary.opacity(0.7))
 
-            // 空态行动按钮（激活方案 §3.2）：一键直达编辑器，替代「找右下角 +」
-            // 仅真·零想法出现（搜索/筛选空态点它不符合用户当下意图）
+            // 空态行动按钮：右下 FAB 是本屏唯一橙主行动，此处退为灰描边次级引导
             if !isSearching && !isFiltering {
                 Button {
                     showAddThought = true
                 } label: {
-                    Label(String(localized: "记录第一条想法"), systemImage: "plus.circle.fill")
+                    Label(String(localized: "记录第一条想法"), systemImage: "plus.circle")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(.holoToolTextSecondary)
                         .padding(.horizontal, 26)
                         .padding(.vertical, 11)
                         .background(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.holoPrimary)
+                                .strokeBorder(Color.holoToolBorder, lineWidth: 1)
                         )
                         .contentShape(Rectangle())
                 }

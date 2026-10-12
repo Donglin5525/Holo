@@ -80,15 +80,6 @@ struct MemoryTimeChapterHeader<DateControl: View>: View {
                 endPoint: .bottom
             )
         )
-        .overlay(alignment: .bottomLeading) {
-            LinearGradient(
-                colors: [Color.holoPrimary.opacity(0.68), Color.holoPrimary.opacity(0)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            .frame(width: 104, height: 1)
-            .padding(.leading, HoloSpacing.md)
-        }
         .zIndex(10)
     }
 

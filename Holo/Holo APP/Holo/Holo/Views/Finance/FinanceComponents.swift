@@ -416,15 +416,16 @@ struct EmptyStateView: View {
                     .multilineTextAlignment(.center)
 
                 if let ctaTitle, let ctaAction {
+                    // 右下 FAB 已是本屏唯一橙主行动；空态引导钮退为灰描边次级（2026-10-12 橙纪律）
                     Button(action: ctaAction) {
-                        Label(ctaTitle, systemImage: "plus.circle.fill")
+                        Label(ctaTitle, systemImage: "plus.circle")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.holoToolTextSecondary)
                             .padding(.horizontal, 26)
                             .padding(.vertical, 11)
                             .background(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(Color.holoPrimary)
+                                    .strokeBorder(Color.holoToolBorder, lineWidth: 1)
                             )
                             .contentShape(Rectangle())
                     }

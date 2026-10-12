@@ -129,6 +129,11 @@ struct TaskDetailView: View {
     @State private var checklistCompletionCelebrationID = UUID()
     @FocusState private var isCheckItemEditing: Bool
 
+    // ===== 拆成几步 / 先等等（2026-10-11 拆开瘦身）=====
+    @State private var showTaskSplitSheet = false
+    @State private var waitingCheckItem: CheckItem?
+    @State private var splitToastText: String?
+
     // ===== 语音拆解子任务 =====
     @State private var isSplittingTaskVoice = false
     @FocusState private var isAddingCheckItemFocused: Bool
@@ -262,28 +267,6 @@ struct TaskDetailView: View {
                         VStack(spacing: HoloSpacing.lg) {
                             titleSection
 
-                            // 分步推进（2026-09-25 实施规格 §4.7）：与 Matter 下一步同组件同状态；
-                            // 未采纳时展示「帮我拆开」入口，已采纳展示当前动作
-                            if let task = existingTask, !task.completed,
-                               HoloTaskExecutionRolloutPolicy.entryEnabled || task.isExecutionManaged {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(verbatim: "一步步做")
-                                        .font(.caption.weight(.bold))
-                                        .tracking(1)
-                                        .foregroundStyle(.secondary)
-                                    MatterExecutionContent(
-                                        taskID: task.id,
-                                        repository: repository,
-                                        originMatterID: nil,
-                                        sourceSurface: "taskDetail"
-                                    )
-                                    .padding(12)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.holoNestedCardBackground)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                }
-                            }
-
                             // 来源想法紧跟标题：想法转来的任务标题常被改写，
                             // 原话是高频查看项，不能压在属性设置之后
                             if let thought = existingTask?.sourceThought {
@@ -299,6 +282,27 @@ struct TaskDetailView: View {
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.top, HoloSpacing.md)
                         .padding(.bottom, 60)
+                    }
+                    .overlay(alignment: .bottom) {
+                        // 拆解落库轻回执：拆好了，加了 N 步
+                        if let splitToastText {
+                            Text(splitToastText)
+                                .font(.holoCaption)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 9)
+                                .background(Capsule().fill(Color.black.opacity(0.75)))
+                                .padding(.bottom, 12)
+                                .transition(.opacity)
+                                .accessibilityIdentifier("taskSplitToast")
+                        }
+                    }
+                    .onChange(of: splitToastText) { _, newValue in
+                        guard newValue != nil else { return }
+                        Task {
+                            try? await Task.sleep(nanoseconds: 2_000_000_000)
+                            if splitToastText == newValue { splitToastText = nil }
+                        }
                     }
                 }
             }
@@ -418,6 +422,20 @@ struct TaskDetailView: View {
             ) { importance, urgencyMode in
                 classificationImportance = importance
                 classificationUrgencyMode = urgencyMode
+            }
+        }
+        .sheet(isPresented: $showTaskSplitSheet) {
+            // 拆成几步（唯一一次 AI 调用）：确认页落库为子任务
+            if let task = existingTask {
+                TaskSplitSheet(task: task) { drafts in
+                    applySplitDrafts(drafts)
+                }
+            }
+        }
+        .sheet(item: $waitingCheckItem) { item in
+            // 先等等：自由输入 + 本地 AI 候选 + 明天 9:00 提醒
+            CheckItemWaitSheet(item: item) { note, remindAt in
+                applyWaiting(note: note, remindAt: remindAt)
             }
         }
         .sheet(isPresented: $showTaskVoiceInput, onDismiss: insertPendingTaskVoiceTranscript) {
@@ -921,15 +939,14 @@ struct TaskDetailView: View {
             .padding(.bottom, 4)
 
             // 子任务计数文字（编辑模式，基于本地数组实时计算）：
-            // 只保留「已完成 n/m 项」辅助语，去掉迷你进度条
-            //（动效融合定稿 §5：移去重复表达完成比例的迷你条）
+            // 用户视角报「还剩几步」——剩下多少比已完成多少更常被关心
             if existingTask != nil, !checkItems.isEmpty {
-                let completedCount = checkItems.filter(\.isChecked).count
-                let isComplete = checklistProgress >= 1.0
+                let remainingCount = checkItems.filter { !$0.isChecked }.count
+                let isComplete = remainingCount == 0
 
                 HStack {
                     Spacer()
-                    Text("已完成 \(completedCount)/\(checkItems.count) 项")
+                    Text(isComplete ? String(localized: "全部完成") : String(localized: "还剩 \(remainingCount) 步"))
                         .font(.holoCaption)
                         .foregroundColor(isComplete ? .holoSuccess : .holoTextSecondary)
                         .contentTransition(.numericText())
@@ -949,6 +966,16 @@ struct TaskDetailView: View {
                 }
             }
 
+            // 拆成几步（2026-10-11 拆开瘦身）：行式入口落在子任务卡头部，
+            // 整条链路只在点它时调一次 AI
+            if let task = existingTask, !task.completed {
+                TaskSplitEntryRow(existingStepCount: checkItems.count) {
+                    showTaskSplitSheet = true
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+            }
+
             // 子任务列表
             if existingTask != nil {
                 ForEach(checkItems, id: \.id) { item in
@@ -959,7 +986,7 @@ struct TaskDetailView: View {
                 }
             } else {
                 ForEach(pendingCheckItems) { item in
-                    HStack(spacing: HoloSpacing.sm) {
+                    HStack(alignment: .top, spacing: HoloSpacing.sm) {
                         Image(systemName: "circle")
                             .font(.system(size: 20, weight: .medium))
                             .foregroundColor(.holoTextSecondary.opacity(0.5))
@@ -967,6 +994,7 @@ struct TaskDetailView: View {
                         Text(item.title)
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
+                            .lineSpacing(2)
 
                         Spacer()
 
@@ -982,6 +1010,7 @@ struct TaskDetailView: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .padding(.top, -3)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
@@ -998,9 +1027,16 @@ struct TaskDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
 
-    /// 编辑模式的子任务行：圈勾选 + 文字改名 + ✕ 删除
+    /// 编辑模式的子任务行：序号 + 圈勾选 + 文字改名 + 等待徽章 + ⋯ 菜单
     private func checkItemRow(_ item: CheckItem) -> some View {
-        HStack(spacing: HoloSpacing.sm) {
+        let rowNumber = checkItems.firstIndex(where: { $0.id == item.id }).map { $0 + 1 } ?? 0
+        return HStack(alignment: .top, spacing: HoloSpacing.sm) {
+            Text(verbatim: "\(rowNumber)")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+                .frame(width: 16, alignment: .center)
+                .padding(.top, 3)
+
             Button {
                 toggleCheckItem(item)
             } label: {
@@ -1011,42 +1047,87 @@ struct TaskDetailView: View {
             }
             .buttonStyle(.plain)
 
-            if editingCheckItemId == item.id {
-                TextField("子任务内容", text: $editingCheckItemTitle)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-                    .focused($isCheckItemEditing)
-                    .submitLabel(.done)
-                    .onSubmit {
-                        commitCheckItemEdit(item)
-                    }
-                    .onChange(of: isCheckItemEditing) { _, focused in
-                        if !focused {
+            VStack(alignment: .leading, spacing: 4) {
+                if editingCheckItemId == item.id {
+                    TextField("子任务内容", text: $editingCheckItemTitle, axis: .vertical)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineSpacing(2)
+                        .focused($isCheckItemEditing)
+                        .submitLabel(.done)
+                        .onSubmit {
                             commitCheckItemEdit(item)
                         }
+                        .onChange(of: isCheckItemEditing) { _, focused in
+                            if !focused {
+                                commitCheckItemEdit(item)
+                            }
+                        }
+                } else {
+                    Text(item.title)
+                        .font(.holoBody)
+                        .foregroundColor(item.isChecked || item.isWaiting ? .holoTextSecondary : .holoTextPrimary)
+                        .strikethrough(item.isChecked, color: .holoTextSecondary)
+                        .lineSpacing(2)
+                        .onTapGesture {
+                            startCheckItemEdit(item)
+                        }
+                }
+
+                // 等待徽章 + 提醒标记（2026-10-11 拆开瘦身）
+                if item.isWaiting && !item.isChecked {
+                    HStack(spacing: 6) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 10))
+                            Text(item.waitNote.map { String(localized: "等待中 · \($0)") } ?? String(localized: "等待中"))
+                        }
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.orange)
+                        if let remindAt = item.reviewRemindAt {
+                            HStack(spacing: 3) {
+                                Image(systemName: "bell")
+                                    .font(.system(size: 10))
+                                Text(verbatim: "\(remindAt.formatted(.dateTime.month().day().hour().minute())) 提醒")
+                            }
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoTextSecondary)
+                        }
                     }
-            } else {
-                Text(item.title)
-                    .font(.holoBody)
-                    .foregroundColor(item.isChecked ? .holoTextSecondary : .holoTextPrimary)
-                    .strikethrough(item.isChecked, color: .holoTextSecondary)
-                    .onTapGesture {
-                        startCheckItemEdit(item)
-                    }
+                }
             }
 
             Spacer()
 
-            Button {
-                deleteCheckItem(item)
+            Menu {
+                Button(item.isChecked ? String(localized: "还没做完") : String(localized: "做完了")) {
+                    toggleCheckItem(item)
+                }
+                if item.isWaiting {
+                    Button(String(localized: "等到了，接着做")) {
+                        resumeWaiting(item)
+                    }
+                } else {
+                    Button(String(localized: "先等等…")) {
+                        waitingCheckItem = item
+                    }
+                }
+                Button(String(localized: "改一下")) {
+                    startCheckItemEdit(item)
+                }
+                Button(role: .destructive) {
+                    deleteCheckItem(item)
+                } label: {
+                    Text("删除")
+                }
             } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .medium))
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.holoTextSecondary.opacity(0.55))
                     .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .accessibilityIdentifier("checkItemMenuButton")
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -1056,14 +1137,15 @@ struct TaskDetailView: View {
     private var addCheckItemRow: some View {
         let hasText = !newCheckItemTitle.trimmingCharacters(in: .whitespaces).isEmpty
 
-        return HStack(spacing: HoloSpacing.sm) {
+        return HStack(alignment: .top, spacing: HoloSpacing.sm) {
             Image(systemName: "plus.circle")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundColor(.holoPrimary)
 
-            TextField("添加子任务，输入后按回车", text: $newCheckItemTitle)
+            TextField("添加子任务，输入后按回车", text: $newCheckItemTitle, axis: .vertical)
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
+                .lineSpacing(2)
                 .focused($isAddingCheckItemFocused)
                 .submitLabel(.done)
                 .onSubmit {
@@ -1120,6 +1202,51 @@ struct TaskDetailView: View {
         newCheckItemTitle = ""
     }
 
+    // MARK: 拆成几步 / 先等等（2026-10-11 拆开瘦身）
+
+    /// 确认页「行，按这个来」：批量落库并出轻回执
+    private func applySplitDrafts(_ drafts: [TaskSplitStepDraft]) {
+        guard let task = existingTask else { return }
+        do {
+            let progressBeforeChange = checklistProgress
+            let items = try repository.addSplitSteps(drafts, to: task)
+            checkItems = ((task.checkItems?.allObjects as? [CheckItem]) ?? []).sorted { $0.order < $1.order }
+            applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
+            if !items.isEmpty {
+                splitToastText = String(localized: "拆好了，加了 \(items.count) 步")
+                HapticManager.light()
+            }
+        } catch {
+            Self.logger.error("拆解落库失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 「先放着，等我回来」：写等待态与明天提醒
+    private func applyWaiting(note: String, remindAt: Date?) {
+        guard let item = waitingCheckItem else { return }
+        do {
+            try repository.setCheckItemWaiting(item, note: note, remindAt: remindAt)
+            refreshCheckItems()
+        } catch {
+            Self.logger.error("标记等待失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 「等到了，接着做」：清等待标记与提醒
+    private func resumeWaiting(_ item: CheckItem) {
+        do {
+            try repository.resumeCheckItem(item)
+            refreshCheckItems()
+        } catch {
+            Self.logger.error("恢复推进失败：\(error.localizedDescription)")
+        }
+    }
+
+    private func refreshCheckItems() {
+        guard let task = existingTask else { return }
+        checkItems = ((task.checkItems?.allObjects as? [CheckItem]) ?? []).sorted { $0.order < $1.order }
+    }
+
     private func toggleCheckItem(_ item: CheckItem) {
         let progressBeforeChange = checklistProgress
         displayedChecklistProgress = progressBeforeChange
@@ -1134,14 +1261,10 @@ struct TaskDetailView: View {
 
                 // 与任务卡同一条联动规则：子任务全勾 → 自动完成主任务；
                 // 已完成任务出现未勾子任务 → 自动回未完成，避免「父完成 + 子未完成」矛盾状态
-                // 分步接管任务（executionSchemaVersion>=1）禁止清单全勾隐式完成根（规格 §8.4-2）
+                // （2026-10-11 拆开瘦身：等待项 = 未勾，天然不触发完成，无需特判）
                 let allChecked = !items.isEmpty && items.allSatisfy(\.isChecked)
-                if task.allowsChecklistAutoCompletion {
-                    if allChecked != task.completed {
-                        toggleCompletion(trigger: allChecked ? (checkItemID: item.id, wasChecked: wasChecked) : nil)
-                    }
-                } else if !allChecked && task.completed {
-                    toggleCompletion(trigger: nil)
+                if allChecked != task.completed {
+                    toggleCompletion(trigger: allChecked ? (checkItemID: item.id, wasChecked: wasChecked) : nil)
                 }
             }
             applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)

@@ -2,26 +2,47 @@
 //  PieChartView.swift
 //  Holo
 //
-//  环形饼图组件（用于类别 Tab）
+//  环形饼图组件（全项目标准通用件，2026-10-07 拍板）：输入通用扇区 PieChartSegment，
+//  财务类别 Tab 经旧签名便捷入口映射使用；其他模块（任务/习惯…）直接传扇区。
 //  使用 Canvas 自绘，支持选中扇区凸出效果
 //  标签：名称在环内 + 引导线 + 占比在环外
-//  点击负责选中，指针悬停/横向移动负责临时查看金额；纵向拖动交给页面滚动
+//  点击负责选中，指针悬停/横向移动负责临时查看数值；纵向拖动交给页面滚动
 //
 
 import SwiftUI
+
+// MARK: - 通用扇区输入
+
+/// 通用环形图扇区：weight 为扇区权重（>0），valueText 为选中时中心文案（金额/件数…），
+/// id 为稳定身份（去重合并键，也是选中态与回调的对账键）
+struct PieChartSegment: Identifiable, Equatable {
+    let id: String
+    let name: String
+    let weight: Double
+    let valueText: String
+
+    /// 引导线占比文案（与旧 formattedPercentage 同口径）
+    func percentageText(total: Double) -> String {
+        guard total > 0 else { return "0%" }
+        return String(format: "%.1f%%", weight / total * 100)
+    }
+}
 
 // MARK: - PieChartView
 
 /// 环形饼图视图
 struct PieChartView: View {
     var motion = HoloContinuousMotion()
-    let aggregations: [CategoryAggregation]
-    let selectedCategory: Category?
+    var segments: [PieChartSegment]
+    var selectedSegmentID: String?
     /// 外部传入的颜色数组（与图例共享同一调色板，保证颜色一致）
     var colors: [Color]
-    let onSelectCategory: ((Category?) -> Void)?
+    /// 未选中时中心汇总文案（如「¥1.2万」「23 件」）
+    var centerIdleText: String = ""
+    var emptyText: String = String(localized: "暂无数据，这就开始记一笔吧！")
+    var onSelectSegment: ((PieChartSegment?) -> Void)?
 
-    @State private var highlightedCategory: Category?
+    @State private var highlightedSegmentID: String?
 
     /// 出场扫开动画：nil = 停帧（播完/未播）。TimelineView 只在非 nil 的 0.5s 内逐帧驱动 Canvas，
     /// 播完置回 nil 恢复停帧，不引入常驻逐帧开销
@@ -30,11 +51,59 @@ struct PieChartView: View {
     /// 扇区扫开总时长（秒）
     private static let sweepDuration: Double = 0.45
 
+    init(
+        motion: HoloContinuousMotion = HoloContinuousMotion(),
+        segments: [PieChartSegment],
+        selectedSegmentID: String? = nil,
+        colors: [Color],
+        centerIdleText: String = "",
+        emptyText: String = String(localized: "暂无数据，这就开始记一笔吧！"),
+        onSelectSegment: ((PieChartSegment?) -> Void)? = nil
+    ) {
+        self.motion = motion
+        self.segments = segments
+        self.selectedSegmentID = selectedSegmentID
+        self.colors = colors
+        self.centerIdleText = centerIdleText
+        self.emptyText = emptyText
+        self.onSelectSegment = onSelectSegment
+    }
+
+    /// 财务旧签名便捷入口（类别 Tab 原调用零改动）：CategoryAggregation 映射为通用扇区
+    init(
+        aggregations: [CategoryAggregation],
+        selectedCategory: Category?,
+        colors: [Color],
+        onSelectCategory: ((Category?) -> Void)?
+    ) {
+        let positive = aggregations.filter { $0.amount > 0 }
+        self.init(
+            segments: positive.map { agg in
+                PieChartSegment(
+                    id: agg.category.id.uuidString,
+                    name: agg.category.name,
+                    weight: Double(truncating: agg.amount as NSDecimalNumber),
+                    valueText: agg.formattedCompactAmount
+                )
+            },
+            selectedSegmentID: selectedCategory?.id.uuidString,
+            colors: colors,
+            centerIdleText: NumberFormatter.compactCurrency(positive.reduce(0) { $0 + $1.amount }),
+            onSelectSegment: { segment in
+                guard let segment else {
+                    onSelectCategory?(nil)
+                    return
+                }
+                onSelectCategory?(positive.first { $0.category.id.uuidString == segment.id }?.category)
+            }
+        )
+    }
+
     // MARK: - 颜色分配
 
     /// 扇区颜色（使用外部传入的统一调色板）
     private var sectorColors: [Color] {
-        let count = nonZeroAggregations.count
+        let count = mergedSegments.count
         guard count > 0 else { return [] }
         if colors.count >= count { return colors }
         // 防御：颜色不足时用黄金角度补充
@@ -53,45 +122,40 @@ struct PieChartView: View {
     /// 引导线水平延伸距离
     private let labelHorizontalLength: CGFloat = 12
 
-    private var nonZeroAggregations: [CategoryAggregation] {
-        // 过滤零值并按 category.id 去重，合并金额
-        var merged: [UUID: CategoryAggregation] = [:]
-        var order: [UUID] = []
-        for agg in aggregations where agg.amount > 0 {
-            if let existing = merged[agg.category.id] {
-                merged[agg.category.id] = CategoryAggregation(
-                    category: existing.category,
-                    amount: existing.amount + agg.amount,
-                    percentage: existing.percentage + agg.percentage,
-                    transactionCount: existing.transactionCount + agg.transactionCount
+    private var mergedSegments: [PieChartSegment] {
+        // 过滤零值并按 id 去重，合并权重（延续旧 CategoryAggregation 合并行为）
+        var merged: [String: PieChartSegment] = [:]
+        var order: [String] = []
+        for segment in segments where segment.weight > 0 {
+            if let existing = merged[segment.id] {
+                merged[segment.id] = PieChartSegment(
+                    id: existing.id,
+                    name: existing.name,
+                    weight: existing.weight + segment.weight,
+                    valueText: existing.valueText
                 )
             } else {
-                merged[agg.category.id] = agg
-                order.append(agg.category.id)
+                merged[segment.id] = segment
+                order.append(segment.id)
             }
         }
         return order.compactMap { merged[$0] }
     }
 
-    /// 当前视觉焦点类别
-    private var effectiveCategory: Category? {
-        highlightedCategory ?? selectedCategory
+    /// 当前视觉焦点扇区
+    private var effectiveSegment: PieChartSegment? {
+        let id = highlightedSegmentID ?? selectedSegmentID
+        return mergedSegments.first { $0.id == id }
     }
 
-    /// 焦点聚合数据，未选中时返回 nil
-    private var focusedAggregation: CategoryAggregation? {
-        guard let category = effectiveCategory else { return nil }
-        return nonZeroAggregations.first { $0.category.id == category.id }
-    }
-
-    // 总金额
-    private var totalAmount: Decimal {
-        nonZeroAggregations.reduce(0) { $0 + $1.amount }
+    // 总权重
+    private var totalWeight: Double {
+        mergedSegments.reduce(0) { $0 + $1.weight }
     }
 
     var body: some View {
         VStack(spacing: HoloSpacing.md) {
-            if nonZeroAggregations.isEmpty {
+            if mergedSegments.isEmpty {
                 emptyChartView
             } else {
                 pieChartContent
@@ -115,32 +179,32 @@ struct PieChartView: View {
                 GeometryReader { geo in
                     DirectionalChartGestureOverlay(
                         onChanged: { location in
-                            let category = categoryAtPoint(location, canvasSize: geo.size)
-                            guard category?.id != highlightedCategory?.id else { return }
+                            let segment = segmentAtPoint(location, canvasSize: geo.size)
+                            guard segment?.id != highlightedSegmentID else { return }
                             withAnimation(motion.isActive ? HoloAnimation.quick : nil) {
-                                highlightedCategory = category
+                                highlightedSegmentID = segment?.id
                             }
                         },
                         onEnded: { _ in
-                            highlightedCategory = nil
+                            highlightedSegmentID = nil
                         },
                         onCancelled: {
-                            highlightedCategory = nil
+                            highlightedSegmentID = nil
                         },
                         onTap: { location in
-                            let category = categoryAtPoint(location, canvasSize: geo.size)
-                            onSelectCategory?(category)
+                            let segment = segmentAtPoint(location, canvasSize: geo.size)
+                            onSelectSegment?(segment)
                         }
                     )
                         .onContinuousHover { phase in
                             switch phase {
                             case .active(let location):
-                                let category = categoryAtPoint(location, canvasSize: geo.size)
+                                let segment = segmentAtPoint(location, canvasSize: geo.size)
                                 withAnimation(motion.isActive ? HoloAnimation.quick : nil) {
-                                    highlightedCategory = category
+                                    highlightedSegmentID = segment?.id
                                 }
                             case .ended:
-                                highlightedCategory = nil
+                                highlightedSegmentID = nil
                             }
                         }
                 }
@@ -156,20 +220,20 @@ struct PieChartView: View {
         .onChange(of: motion.isActive) { _, active in
             if !active { sweepStart = nil }
         }
-        // 切时间范围/收支类型等导致金额分布变化时重播扫开；纯交互（选中/悬停）不触发
-        .onChange(of: amountSignature) { _, _ in
+        // 切时间范围/期间等导致分布变化时重播扫开；纯交互（选中/悬停）不触发
+        .onChange(of: weightSignature) { _, _ in
             replaySweep()
         }
-        .onChange(of: aggregations.map(\.id)) { _, _ in
-            highlightedCategory = nil
+        .onChange(of: segments.map(\.id)) { _, _ in
+            highlightedSegmentID = nil
         }
     }
 
     // MARK: - 扫开动画
 
-    /// 金额序列指纹：分布变化（非交互）才重播出场扫开
-    private var amountSignature: [Double] {
-        nonZeroAggregations.map { Double(truncating: $0.amount as NSDecimalNumber) }
+    /// 权重序列指纹：分布变化（非交互）才重播出场扫开
+    private var weightSignature: [Double] {
+        mergedSegments.map(\.weight)
     }
 
     private func replaySweep() {
@@ -192,8 +256,8 @@ struct PieChartView: View {
 
     // MARK: - 触摸位置 → 扇区映射
 
-    /// 根据触摸点计算对应的分类（使用 SwiftUI 坐标系，与 Canvas 完全一致）
-    private func categoryAtPoint(_ point: CGPoint, canvasSize: CGSize) -> Category? {
+    /// 根据触摸点计算对应的扇区（使用 SwiftUI 坐标系，与 Canvas 完全一致）
+    private func segmentAtPoint(_ point: CGPoint, canvasSize: CGSize) -> PieChartSegment? {
         let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
         let dx = point.x - center.x
         let dy = point.y - center.y
@@ -209,18 +273,16 @@ struct PieChartView: View {
         // ★ 触摸角度（atan2 约定：0°=右，正值=下方，与 addArc / cos-sin 坐标系一致）
         let touchAngle = atan2(dy, dx) * 180 / .pi
 
-        let total = nonZeroAggregations.reduce(0.0) {
-            $0 + Double(truncating: $1.amount as NSDecimalNumber)
-        }
+        let total = totalWeight
         guard total > 0 else { return nil }
 
         // 遍历扇区，用角距离判断命中
-        for (index, agg) in nonZeroAggregations.enumerated() {
+        for (index, segment) in mergedSegments.enumerated() {
             let startDeg = Self.sectorStartAngle(
-                index: index, aggregations: nonZeroAggregations, total: total
+                index: index, segments: mergedSegments, total: total
             )
             let spanDeg = Self.sectorSpan(
-                index: index, aggregations: nonZeroAggregations, total: total
+                index: index, segments: mergedSegments, total: total
             )
 
             // 扇区在 addArc/atan2 坐标系中的中点角度 = -midDeg
@@ -233,7 +295,7 @@ struct PieChartView: View {
             while diff < -180 { diff += 360 }
 
             if abs(diff) <= spanDeg / 2 {
-                return agg.category
+                return segment
             }
         }
         return nil
@@ -248,18 +310,16 @@ struct PieChartView: View {
         let innerRadius = outerRadius * 0.5
         let insetAngle: CGFloat = 1.5
 
-        let total = nonZeroAggregations.reduce(0.0) {
-            $0 + Double(truncating: $1.amount as NSDecimalNumber)
-        }
+        let total = totalWeight
         guard total > 0 else { return }
 
-        for (index, agg) in nonZeroAggregations.enumerated() {
+        for (index, segment) in mergedSegments.enumerated() {
             // 出场扫开：各扇区自 12 点方向按最终占比同步展开（sweep 0→1）
             let rawStart = Self.sectorStartAngle(
-                index: index, aggregations: nonZeroAggregations, total: total
+                index: index, segments: mergedSegments, total: total
             )
             let rawSpan = Self.sectorSpan(
-                index: index, aggregations: nonZeroAggregations, total: total
+                index: index, segments: mergedSegments, total: total
             )
             let startDeg = -90.0 + (rawStart + 90.0) * sweep
             let spanDeg = rawSpan * sweep
@@ -267,8 +327,8 @@ struct PieChartView: View {
             // 使用 -midDeg 匹配 addArc 视觉坐标系（addArc 使用 -startDeg）
             let drawMidRad = -midDeg * .pi / 180
 
-            let isFocused = effectiveCategory?.id == agg.category.id
-            let hasFocusedCategory = effectiveCategory != nil
+            let isFocused = effectiveSegment?.id == segment.id
+            let hasFocusedSegment = effectiveSegment != nil
 
             // 选中扇区沿角平分线方向偏移（方向匹配视觉位置）
             let cosMid = CGFloat(cos(drawMidRad))
@@ -297,7 +357,7 @@ struct PieChartView: View {
                 path,
                 with: .color(color.opacity(PieChartInteractionStyle.sectorOpacity(
                     isFocused: isFocused,
-                    hasFocusedCategory: hasFocusedCategory
+                    hasFocusedCategory: hasFocusedSegment
                 )))
             )
 
@@ -321,16 +381,14 @@ struct PieChartView: View {
         let outerRadius = fullRadius * pieScaleFactor
         let innerRadius = outerRadius * 0.5
 
-        let total = nonZeroAggregations.reduce(0.0) {
-            $0 + Double(truncating: $1.amount as NSDecimalNumber)
-        }
+        let total = totalWeight
         guard total > 0 else { return }
 
         // MARK: Step 1 - 计算所有标签初始位置
 
         struct LabelLayout {
             let index: Int
-            let agg: CategoryAggregation
+            let segment: PieChartSegment
             let lineStart: CGPoint
             var bendY: CGFloat          // var：可被碰撞调整修改
             let bendX: CGFloat
@@ -344,12 +402,12 @@ struct PieChartView: View {
 
         var layouts: [LabelLayout] = []
 
-        for (index, agg) in nonZeroAggregations.enumerated() {
+        for (index, segment) in mergedSegments.enumerated() {
             let startDeg = Self.sectorStartAngle(
-                index: index, aggregations: nonZeroAggregations, total: total
+                index: index, segments: mergedSegments, total: total
             )
             let spanDeg = Self.sectorSpan(
-                index: index, aggregations: nonZeroAggregations, total: total
+                index: index, segments: mergedSegments, total: total
             )
             let midDeg = startDeg + spanDeg / 2
 
@@ -359,10 +417,10 @@ struct PieChartView: View {
             let cosMid = CGFloat(cos(drawMidRad))
             let sinMid = CGFloat(sin(drawMidRad))
 
-            let isFocused = effectiveCategory?.id == agg.category.id
+            let isFocused = effectiveSegment?.id == segment.id
             let labelOpacity = PieChartInteractionStyle.labelOpacity(
                 isFocused: isFocused,
-                hasFocusedCategory: effectiveCategory != nil
+                hasFocusedCategory: effectiveSegment != nil
             )
 
             let isSmallSector = spanDeg < 30
@@ -396,7 +454,7 @@ struct PieChartView: View {
 
             layouts.append(LabelLayout(
                 index: index,
-                agg: agg,
+                segment: segment,
                 lineStart: lineStart,
                 bendY: bendY,
                 bendX: bendX,
@@ -444,7 +502,7 @@ struct PieChartView: View {
         // MARK: Step 3 - 绘制所有标签
 
         for layout in layouts {
-            let agg = layout.agg
+            let segment = layout.segment
             let isRightSide = layout.isRightSide
             let isSmallSector = layout.isSmallSector
             let labelOpacity = layout.labelOpacity
@@ -452,7 +510,7 @@ struct PieChartView: View {
             // 大扇区：绘制内部名称
             if !isSmallSector, let namePoint = layout.namePoint {
                 context.draw(
-                    Text(agg.category.name)
+                    Text(segment.name)
                         .font(.system(size: layout.nameFontSize, weight: .medium))
                         .foregroundColor(.white.opacity(labelOpacity)),
                     at: namePoint
@@ -471,11 +529,12 @@ struct PieChartView: View {
                 y: layout.bendY
             )
 
+            let percentage = segment.percentageText(total: total)
             let label: Text = isSmallSector
-                ? Text("\(agg.category.name) \(agg.formattedPercentage)")
+                ? Text("\(segment.name) \(percentage)")
                     .font(.system(size: 9))
                     .foregroundColor(Color.holoToolTextSecondary.opacity(labelOpacity))
-                : Text(agg.formattedPercentage)
+                : Text(percentage)
                     .font(.system(size: 9))
                     .foregroundColor(Color.holoToolTextSecondary.opacity(labelOpacity))
 
@@ -524,53 +583,53 @@ struct PieChartView: View {
 
     private static func sectorStartAngle(
         index: Int,
-        aggregations: [CategoryAggregation],
+        segments: [PieChartSegment],
         total: Double
     ) -> Double {
         var angle = -90.0
         for i in 0..<index {
-            angle += (Double(truncating: aggregations[i].amount as NSDecimalNumber) / total) * 360
+            angle += (segments[i].weight / total) * 360
         }
         return angle
     }
 
     private static func sectorSpan(
         index: Int,
-        aggregations: [CategoryAggregation],
+        segments: [PieChartSegment],
         total: Double
     ) -> Double {
-        (Double(truncating: aggregations[index].amount as NSDecimalNumber) / total) * 360
+        (segments[index].weight / total) * 360
     }
 
     // MARK: - 中心信息
 
     private var centerInfo: some View {
         VStack(spacing: 2) {
-            if let agg = focusedAggregation {
-                Text(agg.category.name)
+            if let segment = effectiveSegment {
+                Text(segment.name)
                     .font(.holoCaption)
                     .foregroundColor(.holoToolText)
                     .lineLimit(1)
                     .transition(.opacity)
-                Text(agg.formattedCompactAmount)
+                Text(segment.valueText)
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(focusedColor(for: agg.category) ?? agg.category.swiftUIColor)
+                    .foregroundColor(focusedColor(for: segment) ?? .holoToolText)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
                     .transition(.scale.combined(with: .opacity))
             } else {
-                Text(NumberFormatter.compactCurrency(totalAmount))
+                Text(centerIdleText)
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.holoToolText)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
             }
         }
-        .animation(HoloAnimation.smooth, value: effectiveCategory?.id)
+        .animation(HoloAnimation.smooth, value: effectiveSegment?.id)
     }
 
-    private func focusedColor(for category: Category) -> Color? {
-        guard let index = nonZeroAggregations.firstIndex(where: { $0.category.id == category.id }),
+    private func focusedColor(for segment: PieChartSegment) -> Color? {
+        guard let index = mergedSegments.firstIndex(where: { $0.id == segment.id }),
               sectorColors.indices.contains(index) else {
             return nil
         }
@@ -584,7 +643,7 @@ struct PieChartView: View {
             Image(systemName: "chart.pie")
                 .font(.system(size: 60, weight: .light))
                 .foregroundColor(.holoToolTextSecondary.opacity(0.5))
-            Text("暂无数据，这就开始记一笔吧！")
+            Text(emptyText)
                 .font(.holoCaption)
                 .foregroundColor(.holoToolTextSecondary)
         }
@@ -628,13 +687,17 @@ private func SectorPath(
 #Preview("Pie Chart") {
     VStack {
         PieChartView(
-            aggregations: [],
-            selectedCategory: nil,
-            colors: []
-        ) { _ in }
+            segments: [
+                PieChartSegment(id: "a", name: "工作", weight: 12, valueText: "12 件"),
+                PieChartSegment(id: "b", name: "生活", weight: 6, valueText: "6 件"),
+                PieChartSegment(id: "c", name: "学习", weight: 3, valueText: "3 件")
+            ],
+            selectedSegmentID: nil,
+            colors: Color.holoChartColors(count: 3),
+            centerIdleText: "23 件"
+        )
         Spacer()
     }
     .padding()
     .background(Color.holoToolBackground)
 }
-

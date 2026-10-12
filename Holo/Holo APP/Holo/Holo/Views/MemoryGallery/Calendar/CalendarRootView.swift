@@ -282,15 +282,15 @@ struct CalendarRootView: View {
         }
     }
 
-    /// 轴档选日期按钮：与回正按钮同一胶囊语言，轻点打开日历
+    /// 轴档选日期按钮：工具操作用灰圆（2026-10-12 橙纪律：头部去橙），轻点打开日历
     private var datePickerButton: some View {
         Button(action: openScaleDatePicker) {
             Image(systemName: "calendar")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.holoPrimary)
-                .frame(width: 44, height: 44)
-                .background(Capsule().fill(Color.holoPrimary.opacity(0.10)))
-                .contentShape(Rectangle())
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.holoToolTextSecondary)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(Color.holoToolSurface))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "选择日期"))

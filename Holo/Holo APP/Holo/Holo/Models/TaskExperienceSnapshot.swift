@@ -12,6 +12,20 @@ import CoreData
 
 // MARK: - 单任务记录快照
 
+/// 任务已链接的事项事实（统计「按事项分组」用；ID 逻辑外键，不跨域建关系）
+nonisolated struct TaskMatterLinkFact: Equatable, Sendable {
+    let matterID: UUID
+    let title: String
+}
+
+/// 子任务纯值快照（任务行展开态：就地勾选与「加一步」的数据面）
+nonisolated struct CheckItemSnapshot: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let title: String
+    let isChecked: Bool
+    let order: Int16
+}
+
 nonisolated struct TaskRecordSnapshot: Identifiable, Equatable, Sendable {
     let id: UUID
     let title: String
@@ -37,12 +51,25 @@ nonisolated struct TaskRecordSnapshot: Identifiable, Equatable, Sendable {
     /// 是否有合法成对的计划时段（非法/半缺按未安排，方案 §6.3）
     let hasValidPlannedRange: Bool
     let priorityRaw: Int16
+    /// 子任务数（派生口径同 checkItems）
+    var checkItemCount: Int { checkItems.count }
+    /// 子任务全列表（按 order；任务行展开态渲染与勾选用）
+    let checkItems: [CheckItemSnapshot]
+    /// 已链接事项（entityID=本任务、linked 且未删；同一事项多行链接由读取端去重）
+    var matterLinks: [TaskMatterLinkFact] = []
 
     @MainActor
-    static func make(from task: TodoTask) -> TaskRecordSnapshot {
+    static func make(
+        from task: TodoTask,
+        matterLinks: [TaskMatterLinkFact] = []
+    ) -> TaskRecordSnapshot {
         let list = task.list
         // 已删除清单不再冒充有效归属：软删清单名不进快照（方案 §7.3）
         let listAvailable = list != nil && list!.deletedAt == nil
+        // 子任务快照（按 order 排序；进度环与展开态共用同一份数据）
+        let orderedCheckItems = (task.checkItems?.allObjects as? [CheckItem] ?? [])
+            .sorted { $0.order < $1.order }
+            .map { CheckItemSnapshot(id: $0.id, title: $0.title, isChecked: $0.isChecked, order: $0.order) }
         return TaskRecordSnapshot(
             id: task.id,
             title: task.title,
@@ -65,8 +92,18 @@ nonisolated struct TaskRecordSnapshot: Identifiable, Equatable, Sendable {
                 guard let start = task.plannedStart, let end = task.plannedEnd else { return false }
                 return TodoTask.isValidPlannedRange(start, end)
             }(),
-            priorityRaw: task.priority
+            priorityRaw: task.priority,
+            checkItems: orderedCheckItems,
+            matterLinks: matterLinks
         )
+    }
+}
+
+extension TaskRecordSnapshot {
+
+    /// 未完成子任务数（进度环与展开态共用派生口径）
+    var pendingCheckItemCount: Int {
+        checkItems.filter { !$0.isChecked }.count
     }
 }
 
@@ -154,7 +191,43 @@ nonisolated enum TaskSnapshotReader {
         let request = TodoTask.fetchRequest()
         let rows = try context.fetch(request)
         let unique = DuplicateRowFilter.deduplicatingCopies(rows)
-        return unique.map { TaskRecordSnapshot.make(from: $0) }
+        let mattersByTaskID = try readLinkedMatters(in: context)
+        return unique.map { task in
+            TaskRecordSnapshot.make(from: task, matterLinks: mattersByTaskID[task.id.uuidString] ?? [])
+        }
+    }
+
+    /// 已链接事项事实：entityType=todoTask、linked 且未删的 link 行，
+    /// 带事项当前标题；同一任务的同一事项多行链接去重（首见为准）。
+    @MainActor
+    private static func readLinkedMatters(in context: NSManagedObjectContext) throws -> [String: [TaskMatterLinkFact]] {
+        let linkRequest = NSFetchRequest<HoloMatterLink>(entityName: "HoloMatterLink")
+        linkRequest.predicate = NSPredicate(
+            format: "entityTypeRaw == %@ AND statusRaw == %@ AND deletedAt == nil",
+            HoloMatterLinkEntityType.todoTask.rawValue,
+            HoloMatterLinkStatus.linked.rawValue
+        )
+        let links = try context.fetch(linkRequest)
+        guard !links.isEmpty else { return [:] }
+
+        // 事项标题一次取齐（id 天然可重复，禁 uniqueKeysWithValues，首见为准）
+        var titles: [UUID: String] = [:]
+        let matterRequest = NSFetchRequest<HoloMatter>(entityName: "HoloMatter")
+        matterRequest.predicate = NSPredicate(format: "id IN %@", Array(Set(links.map(\.matterID))))
+        for matter in try context.fetch(matterRequest) where titles[matter.id] == nil {
+            titles[matter.id] = matter.title
+        }
+
+        var result: [String: [TaskMatterLinkFact]] = [:]
+        for link in links {
+            guard let title = titles[link.matterID],
+                  let entityID = UUID(uuidString: link.entityID) else { continue }
+            var facts = result[entityID.uuidString] ?? []
+            guard !facts.contains(where: { $0.matterID == link.matterID }) else { continue }
+            facts.append(TaskMatterLinkFact(matterID: link.matterID, title: title))
+            result[entityID.uuidString] = facts
+        }
+        return result
     }
 }
 

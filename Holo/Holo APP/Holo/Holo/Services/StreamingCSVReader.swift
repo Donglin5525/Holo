@@ -253,3 +253,4 @@ final class StreamingCSVReader {
         firstChunkDone = true
     }
 }
+

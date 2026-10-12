@@ -55,29 +55,6 @@ final class HoloTaskExecutionRevision: NSManagedObject, Identifiable {
         }
     }
 
-    /// 结果契约（解码失败返回 nil，由调用方按 needsReview 处理，不崩溃）
-    var outcomeContract: HoloTaskExecutionOutcomeContract? {
-        get {
-            guard let data = outcomeContractJSON?.data(using: .utf8) else { return nil }
-            return try? JSONDecoder().decode(HoloTaskExecutionOutcomeContract.self, from: data)
-        }
-        set {
-            outcomeContractJSON = newValue.flatMap { value in
-                try? String(data: JSONEncoder().encode(value), encoding: .utf8)
-            }
-        }
-    }
-
-    /// 拓扑（节点 ID、分组、顺序、必要/可选、依赖、覆盖关系）
-    var topology: HoloTaskExecutionTopology? {
-        get {
-            guard let data = topologyJSON?.data(using: .utf8) else { return nil }
-            return try? JSONDecoder().decode(HoloTaskExecutionTopology.self, from: data)
-        }
-        set {
-            topologyJSON = newValue.flatMap { value in
-                try? String(data: JSONEncoder().encode(value), encoding: .utf8)
-            }
-        }
-    }
+    // 2026-10-11 拆开瘦身：outcomeContract / topology 类型化访问器随执行机器退役删除；
+    // 存量行只作数据残留（迁移已把步骤转子任务），不再解码
 }

@@ -229,8 +229,8 @@ final class HoloBackendAIProvider: AIProvider {
         try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .matterReconciliation)
     }
 
-    /// 任务分步推进：后端注入 matter_execution_plan 系统 prompt（proposal/clarification/cannotHelp 契约）。
-    /// 输入为最小任务快照，输出由 HoloTaskExecutionProposalCoordinator 解析校验；采纳前零业务写入。
+    /// 任务拆解：后端注入 matter_execution_plan 系统 prompt（proposal/clarification/cannotHelp 契约）。
+    /// 输入为最小任务快照，输出由 TaskSplitService 解析校验；确认前零业务写入。
     func generateExecutionPlan(prompt: String, context: UserContext) async throws -> String {
         try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .matterExecutionPlan)
     }

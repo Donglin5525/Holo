@@ -15,7 +15,6 @@ enum TodoTab: String, CaseIterable {
     case stats
     case tasks
     case anniversary
-    case add
 
     /// Tab 显示文案
     var displayName: String {
@@ -23,7 +22,6 @@ enum TodoTab: String, CaseIterable {
         case .stats: return String(localized: "统计")
         case .tasks: return String(localized: "任务")
         case .anniversary: return String(localized: "纪念日")
-        case .add: return String(localized: "新增")
         }
     }
 
@@ -33,13 +31,7 @@ enum TodoTab: String, CaseIterable {
         case .stats: return "chart.bar.fill"
         case .tasks: return "checklist"
         case .anniversary: return "heart.text.square.fill"
-        case .add: return "plus"
         }
-    }
-
-    /// 是否是新增按钮（特殊样式）
-    var isAddButton: Bool {
-        self == .add
     }
 }
 
@@ -118,11 +110,13 @@ struct TasksView: View {
                     }
                 case .anniversary:
                     AnniversaryListView(onBack: { close() })
-                case .add:
-                    EmptyView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // 新增主行动（2026-10-12 视觉改版）：本模块唯一橙色焦点，
+            // 独立悬浮右下，不再作为第 4 槽嵌进底部 Tab 栏
+            addButtonFAB
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
         .onAppear { handleDeepLink() }
@@ -224,48 +218,28 @@ struct TasksView: View {
         HStack(spacing: 8) {
             ForEach(TodoTab.allCases, id: \.self) { tab in
                 Button {
-                    if tab.isAddButton {
-                        if selectedTab == .anniversary {
-                            NotificationCenter.default.post(name: .anniversaryRequestAdd, object: nil)
-                        } else {
-                            showAddTask = true
-                        }
-                    } else {
-                        withAnimation(HoloAnimation.quick) {
-                            selectedTab = tab
-                        }
+                    withAnimation(HoloAnimation.quick) {
+                        selectedTab = tab
                     }
                 } label: {
                     HStack(spacing: 6) {
-                        if tab.isAddButton {
-                            Image(systemName: "plus")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.white)
-                        } else {
-                            Image(systemName: tab.icon)
-                                .font(.system(size: 12, weight: .medium))
-                                .symbolEffect(.bounce, value: selectedTab == tab)
-                            Text(tab.displayName)
-                                .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
-                        }
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 12, weight: .medium))
+                            .symbolEffect(.bounce, value: selectedTab == tab)
+                        Text(tab.displayName)
+                            .font(.system(size: 13, weight: selectedTab == tab ? .semibold : .regular))
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background {
-                        if tab.isAddButton {
-                            Capsule().fill(Color.holoPrimary)
-                        } else if selectedTab == tab {
+                        if selectedTab == tab {
                             Capsule().fill(Color.holoPrimary.opacity(0.15))
                                 .matchedGeometryEffect(id: "todoTopTabCapsule", in: todoTabNamespace)
                         } else {
                             Capsule().fill(Color.holoCardBackground)
                         }
                     }
-                    .foregroundColor(
-                        tab.isAddButton
-                            ? .white
-                            : (selectedTab == tab ? .holoPrimary : .holoTextSecondary)
-                    )
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
                 }
                 .buttonStyle(PlainButtonStyle())
                 .holoHover()
@@ -280,48 +254,58 @@ struct TasksView: View {
     /// 统一的 Tab 按钮
     private func todoTabButton(_ tab: TodoTab) -> some View {
         Button {
-            if tab.isAddButton {
-                if selectedTab == .anniversary {
-                    // 纪念日 Tab：转发给纪念日页自带的新增 sheet（TasksView 若也挂 sheet
-                    // 会与子视图的 sheet 叠层，导致不可见层拦截触摸）
-                    NotificationCenter.default.post(name: .anniversaryRequestAdd, object: nil)
-                } else {
-                    showAddTask = true
-                }
-            } else {
-                withAnimation(HoloAnimation.quick) {
-                    selectedTab = tab
-                }
+            withAnimation(HoloAnimation.quick) {
+                selectedTab = tab
             }
         } label: {
             VStack(spacing: 4) {
-                // 顶部指示点（新增按钮不显示）
+                // 顶部指示点
                 Circle()
-                    .fill(selectedTab == tab && !tab.isAddButton ? Color.holoPrimary : Color.clear)
+                    .fill(selectedTab == tab ? Color.holoPrimary : Color.clear)
                     .frame(width: 4, height: 4)
 
-                // 图标
-                if tab.isAddButton {
-                    // 新增按钮特殊样式
-                    Image(systemName: tab.icon)
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
-                        .background(Color.holoPrimary)
-                        .clipShape(Circle())
-                } else {
-                    Image(systemName: tab.icon)
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
-                }
+                Image(systemName: tab.icon)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
 
-                // 标签
                 Text(tab.displayName)
                     .font(.holoTinyLabel)
-                    .foregroundColor(tab.isAddButton ? .holoPrimary : (selectedTab == tab ? .holoPrimary : .holoTextSecondary))
+                    .foregroundColor(selectedTab == tab ? .holoTextPrimary : .holoTextSecondary)
             }
             .frame(maxWidth: .infinity)
         }
+    }
+
+    /// 新增 FAB：模块内唯一橙色主行动。纪念日 Tab 下转发给纪念日页自带的新增 sheet
+    /// （TasksView 若也挂 sheet 会与子视图叠层，导致不可见层拦截触摸）。
+    private var addButtonFAB: some View {
+        Button {
+            if selectedTab == .anniversary {
+                NotificationCenter.default.post(name: .anniversaryRequestAdd, object: nil)
+            } else {
+                showAddTask = true
+            }
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 22, weight: .medium))
+                .foregroundColor(.white)
+                .frame(width: 54, height: 54)
+                .background(
+                    Circle().fill(
+                        LinearGradient(
+                            colors: [Color.holoPrimary, Color.holoPrimaryDark],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                    )
+                )
+                .shadow(color: Color.holoPrimary.opacity(0.35), radius: 14, y: 6)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("todoAddFAB")
+        .accessibilityLabel(Text("新增"))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+        .padding(.trailing, HoloSpacing.page)
+        .padding(.bottom, isExpandedWidth ? 28 : 16)
     }
 }
 

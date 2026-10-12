@@ -201,7 +201,8 @@ class TodoRepository: ObservableObject {
     // MARK: - List CRUD
 
     /// AI 收集任务的清单归属：按名匹配已有清单（精确 > 唯一双向包含）；
-    /// 无命中自动创建。清单是轻资源，宁可先归组也不让任务散在「全部」。
+    /// 无命中自动创建（一次性清单，做完自动归档退场）。清单是轻资源，
+    /// 宁可先归组也不让任务散在「全部」。
     /// 返回 nil 表示没有可用的清单名（调用方落默认位置）。
     @discardableResult
     func matchOrCreateList(named suggested: String) throws -> (list: TodoList, created: Bool)? {
@@ -212,7 +213,7 @@ class TodoRepository: ObservableObject {
         if let hit = matchList(for: resolution) {
             return (hit, false)
         }
-        let list = try createList(name: resolution.name)
+        let list = try createList(name: resolution.name, isEphemeral: true)
         return (list, true)
     }
 
@@ -242,9 +243,10 @@ class TodoRepository: ObservableObject {
     func createList(
         name: String,
         folder: TodoFolder? = nil,
-        color: String? = nil
+        color: String? = nil,
+        isEphemeral: Bool = false
     ) throws -> TodoList {
-        let list = TodoList.create(in: context, name: name, folder: folder, color: color)
+        let list = TodoList.create(in: context, name: name, folder: folder, color: color, isEphemeral: isEphemeral)
         try context.save()
         loadFolders()
         notifyDataChange()
@@ -257,10 +259,12 @@ class TodoRepository: ObservableObject {
         name: String? = nil,
         color: String? = nil,
         folder: TodoFolder? = nil,
+        isEphemeral: Bool? = nil,
         shouldUpdateFolder: Bool = false
     ) throws {
         if let name = name { list.name = name }
         if let color = color { list.color = color }
+        if let isEphemeral = isEphemeral { list.isEphemeral = isEphemeral }
         if shouldUpdateFolder { list.folder = folder }
         list.updatedAt = Date()
 
@@ -279,9 +283,11 @@ class TodoRepository: ObservableObject {
         notifyDataChange()
     }
 
-    /// 恢复归档的清单
+    /// 恢复归档的清单。恢复即转正：手动恢复是「这个清单还要继续用」的明确
+    /// 信号，一次性标记一并摘掉，防止恢复后仍无未完成任务、被退场扫描反复收走。
     func unarchiveList(_ list: TodoList) throws {
         list.archived = false
+        list.isEphemeral = false
         list.updatedAt = Date()
 
         try context.save()
@@ -598,8 +604,6 @@ class TodoRepository: ObservableObject {
         let taskId = task.id
         TodoNotificationService.shared.removeReminders(for: task)
         deleteAllAttachmentFiles(for: task)
-        // 分步推进数据随真实归属清理（规格 §9.3）
-        HoloTaskExecutionRepository(context: context).purgeExecutionData(taskID: taskId)
         context.delete(task)
         try context.save()
         loadActiveTasks()
@@ -689,10 +693,80 @@ class TodoRepository: ObservableObject {
     /// 切换子任务状态
     func toggleCheckItem(_ item: CheckItem) throws {
         item.isChecked.toggle()
+        // 勾掉即完成：等待态随动清空并撤等待提醒（等待与完成互斥）
+        if item.isChecked {
+            item.isWaiting = false
+            item.waitNote = nil
+            item.reviewRemindAt = nil
+            if let taskID = item.task?.id {
+                TodoNotificationService.shared.cancelCheckItemWaitingReminder(taskID: taskID, itemID: item.id)
+            }
+        }
         item.task?.updatedAt = Date()
         try context.save()
         loadActiveTasks()
         notifyDataChange()
+    }
+
+    // MARK: - 拆解落库与等待态（2026-10-11 拆开瘦身）
+
+    /// 「拆成几步」确认后批量落库：序号接续既有子任务，原子保存
+    @discardableResult
+    func addSplitSteps(_ drafts: [TaskSplitStepDraft], to task: TodoTask) throws -> [CheckItem] {
+        let existingMaxOrder = Int16((task.checkItems?.allObjects as? [CheckItem] ?? []).map(\.order).max() ?? -1)
+        var items: [CheckItem] = []
+        for (offset, draft) in drafts.enumerated() {
+            items.append(CheckItem.create(
+                in: context,
+                title: draft.title,
+                task: task,
+                order: existingMaxOrder + 1 + Int16(offset),
+                isWaiting: draft.isWaiting,
+                waitNote: draft.isWaiting && !draft.waitNote.isEmpty ? draft.waitNote : nil,
+                waitHints: draft.waitHints
+            ))
+        }
+        guard !items.isEmpty else { return [] }
+        task.updatedAt = Date()
+        try context.save()
+        loadActiveTasks()
+        notifyDataChange()
+        return items
+    }
+
+    /// 标记等待（note 可空；remindAt 非 nil 时排程本地提醒）
+    func setCheckItemWaiting(_ item: CheckItem, note: String, remindAt: Date?) throws {
+        item.isWaiting = true
+        item.waitNote = note.isEmpty ? nil : note
+        item.isChecked = false
+        item.reviewRemindAt = remindAt
+        item.task?.updatedAt = Date()
+        try context.save()
+        loadActiveTasks()
+        notifyDataChange()
+        if let remindAt, let taskID = item.task?.id {
+            Task {
+                await TodoNotificationService.shared.scheduleCheckItemWaitingReminder(
+                    taskID: taskID, itemID: item.id, fireAt: remindAt, note: note
+                )
+            }
+        } else if let taskID = item.task?.id {
+            TodoNotificationService.shared.cancelCheckItemWaitingReminder(taskID: taskID, itemID: item.id)
+        }
+    }
+
+    /// 等到了，接着做（清等待标记与提醒）
+    func resumeCheckItem(_ item: CheckItem) throws {
+        item.isWaiting = false
+        item.waitNote = nil
+        item.reviewRemindAt = nil
+        item.task?.updatedAt = Date()
+        try context.save()
+        loadActiveTasks()
+        notifyDataChange()
+        if let taskID = item.task?.id {
+            TodoNotificationService.shared.cancelCheckItemWaitingReminder(taskID: taskID, itemID: item.id)
+        }
     }
 
     /// 删除子任务
@@ -955,7 +1029,6 @@ class TodoRepository: ObservableObject {
         let trashed = getTrashedTasks()
         let taskIds = trashed.map { $0.id }
         for task in trashed {
-            HoloTaskExecutionRepository(context: context).purgeExecutionData(taskID: task.id)
             context.delete(task)
         }
         try context.save()
@@ -969,10 +1042,50 @@ class TodoRepository: ObservableObject {
 
     /// 发送数据变更通知
     func notifyDataChange(taskId: UUID? = nil) {
+        // 一次性清单退场统一收口：所有本地写入与云端同步刷新都经过这里，
+        // 顺带扫描一遍做完的一次性清单（详见 reconcileEphemeralLists）
+        if reconcileEphemeralLists() > 0 {
+            loadFolders()
+        }
         NotificationCenter.default.post(
             name: .todoDataDidChange,
             object: taskId
         )
+    }
+
+    // MARK: - 一次性清单自动退场
+
+    /// 一次性清单（AI 归组/事项推进自动创建）退场扫描：清单内已无未完成任务
+    /// （未删除、未归档、未完成）即自动归档。幂等；归档管理页可恢复，恢复即
+    /// 转长期（unarchiveList），不会被反复收走。
+    ///
+    /// 新建 10 分钟内的清单不收：AI 归组是「先建空清单、随后建任务」两步，
+    /// 不留窗口会把刚建的清单立即收走。
+    @discardableResult
+    func reconcileEphemeralLists(now: Date = Date()) -> Int {
+        let request = TodoList.fetchRequest()
+        let graceCutoff = now.addingTimeInterval(-600)
+        request.predicate = NSPredicate(
+            format: "isEphemeral == YES AND archived == NO AND deletedAt == nil AND createdAt < %@",
+            graceCutoff as CVarArg
+        )
+        let candidates = (try? context.fetch(request)) ?? []
+        var retired = 0
+        for list in candidates where !list.hasIncompleteTasks {
+            list.archived = true
+            list.updatedAt = now
+            retired += 1
+        }
+        guard retired > 0 else { return 0 }
+        do {
+            try context.save()
+            logger.log("一次性清单自动归档 \(retired) 个（做完的一次性清单退场）")
+        } catch {
+            context.rollback()
+            logger.error("一次性清单自动归档失败：\(error.localizedDescription)")
+            return 0
+        }
+        return retired
     }
 
     /// 类型化任务变更（Matter 关联实体联动用；object 携带 HoloTaskChange，禁止 nil 反猜）。

@@ -94,6 +94,15 @@ struct HabitModuleContainer: View {
                     // 明确路由交接：先收弹层，再开编辑（§9）
                     todayRecordTarget = nil
                     openSettingsAfterSheetDismiss(id)
+                },
+                onOpenReview: { id in
+                    // 「查看完整回顾」：先收弹层，转场落定后再切回顾（与 ··· 菜单同款节拍，
+                    // 避免dismissal中途叠转场把展示状态卡死——模拟器连击实锤过一次）
+                    todayRecordTarget = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        model.selectedTab = .review
+                        model.reviewRoute = .single(id)
+                    }
                 }
             )
         }

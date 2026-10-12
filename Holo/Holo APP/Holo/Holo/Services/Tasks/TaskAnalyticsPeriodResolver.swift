@@ -147,6 +147,50 @@ nonisolated enum TaskAnalyticsPeriodResolver {
         }
     }
 
+    // MARK: - 相对今天的位置（§7.2 修复：胶囊徽标）
+
+    /// 周期相对「今天所在周期」的位置：胶囊徽标的语言无关内核。
+    /// 未来周期被 nextAllowed 拦截，正常交互不可达。
+    nonisolated enum Position: Equatable, Sendable {
+        /// 当前期（本周/本月/本年；自定义恒为当前期）
+        case current
+        /// 上一期（上周/上月/去年）
+        case previous
+        /// 更早 n 期（N周前 / 月份名 / 年份）
+        case earlier(Int)
+    }
+
+    /// 锚定周期落在今天所在周期之前几期；与当前同周期（含今天）→ current
+    static func position(
+        of period: TaskAnalyticsPeriod,
+        asOf: Date,
+        calendar: Calendar
+    ) -> Position {
+        func fromOffset(_ offset: Int) -> Position {
+            if offset <= 0 { return .current }
+            if offset == 1 { return .previous }
+            return .earlier(offset)
+        }
+        switch period {
+        case .week(let anchorDay):
+            // 两个周一之差整除 7 得期数，跨年不漂移
+            let weekStart = bounds(of: .week(anchorDay: anchorDay), asOf: asOf, calendar: calendar).start
+            let currentWeekStart = bounds(of: .week(anchorDay: asOf), asOf: asOf, calendar: calendar).start
+            let weeks = (calendar.dateComponents([.day], from: weekStart, to: currentWeekStart).day ?? 0) / 7
+            return fromOffset(weeks)
+        case .month(let anchorDay):
+            let comps = calendar.dateComponents([.year, .month], from: anchorDay)
+            let now = calendar.dateComponents([.year, .month], from: asOf)
+            return fromOffset((now.year! - comps.year!) * 12 + (now.month! - comps.month!))
+        case .year(let anchorDay):
+            return fromOffset(
+                calendar.component(.year, from: asOf) - calendar.component(.year, from: anchorDay)
+            )
+        case .custom:
+            return .current
+        }
+    }
+
     /// 同等已过对比窗口（方案 §7.6）：
     /// 已结束周期 = 当前完整 vs 上期完整；未结束 = [start, asOf] vs
     /// 上期起点加相同自然日数 + asOf 的日内时刻（DST/闰年由日历处理）。
@@ -168,8 +212,10 @@ nonisolated enum TaskAnalyticsPeriodResolver {
         var previousEnd: Date
         var truncated = false
         if current.isOngoing {
-            // 从当前起点到 asOf 的完整自然日数 + 日内时刻，平移到上期起点
-            let elapsedDays = calendar.dateComponents([.day], from: current.start, to: currentEnd).day ?? 0
+            // 从当前起点到 asOf 的完整自然日数 + 日内时刻，平移到上期起点；
+            // 整段未来周期（start > asOf）已过天数为负 → 钳 0，上期窗口退化为起点当天，
+            // 恒保证 previousStart <= previousEnd（聚合层要拿它构造半开区间）
+            let elapsedDays = max(calendar.dateComponents([.day], from: current.start, to: currentEnd).day ?? 0, 0)
             let shifted = calendar.date(byAdding: .day, value: elapsedDays, to: prevBounds.start)!
             var comps = calendar.dateComponents([.hour, .minute, .second], from: currentEnd)
             comps.nanosecond = nil

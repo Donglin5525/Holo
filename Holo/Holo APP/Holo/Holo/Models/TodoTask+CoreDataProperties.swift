@@ -113,13 +113,7 @@ extension TodoTask {
         return max(0, Int(end.timeIntervalSince(start) / 60))
     }
 
-    // MARK: - Execution（分步推进便捷访问，字段声明在 TodoTask+CoreDataClass.swift）
-
-    /// 是否由分步执行模型接管（executionSchemaVersion >= 1）
-    var isExecutionManaged: Bool { executionSchemaVersion >= 1 }
-
-    /// 清单全勾是否允许隐式级联完成根任务（分步任务禁止，规格 §8.4-2）
-    var allowsChecklistAutoCompletion: Bool { !isExecutionManaged }
+    // MARK: - CheckItem 进度
 
     /// 检查清单完成进度
     var checkItemProgress: String {

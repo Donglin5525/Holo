@@ -40,8 +40,13 @@ struct TaskScopeSheet: View {
                                 Circle()
                                     .fill(Color(hex: list.color ?? "#007AFF"))
                                     .frame(width: 8, height: 8)
-                                Text(list.name)
-                                    .foregroundColor(.holoTextPrimary)
+                                HStack(spacing: 6) {
+                                    Text(list.name)
+                                        .foregroundColor(.holoTextPrimary)
+                                    if list.isEphemeral {
+                                        EphemeralListBadge()
+                                    }
+                                }
                                 Spacer()
                                 if case .list(let id) = scope, id == list.id {
                                     Image(systemName: "checkmark")

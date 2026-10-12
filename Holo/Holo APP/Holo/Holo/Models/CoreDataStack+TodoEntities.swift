@@ -105,6 +105,14 @@ extension CoreDataStack {
         listIsArchived.defaultValue = false
         todoListAttributes.append(listIsArchived)
 
+        // 一次性清单（AI 归组/事项推进自动创建）：任务全部完成后自动归档退场
+        let listIsEphemeral = NSAttributeDescription()
+        listIsEphemeral.name = "isEphemeral"
+        listIsEphemeral.attributeType = .booleanAttributeType
+        listIsEphemeral.isOptional = false
+        listIsEphemeral.defaultValue = false
+        todoListAttributes.append(listIsEphemeral)
+
         let listCreatedAt = NSAttributeDescription()
         listCreatedAt.name = "createdAt"
         listCreatedAt.attributeType = .dateAttributeType
@@ -433,6 +441,34 @@ extension CoreDataStack {
         checkItemCreatedAt.isOptional = false
         checkItemCreatedAt.defaultValue = Date()
         checkItemAttributes.append(checkItemCreatedAt)
+
+        // 等待态（2026-10-11 拆开瘦身：等待挂到子任务行上）
+        // CloudKit 增量演进：非可选字段带默认值，可选项可不带
+        let checkItemIsWaiting = NSAttributeDescription()
+        checkItemIsWaiting.name = "isWaiting"
+        checkItemIsWaiting.attributeType = .booleanAttributeType
+        checkItemIsWaiting.isOptional = false
+        checkItemIsWaiting.defaultValue = false
+        checkItemAttributes.append(checkItemIsWaiting)
+
+        let checkItemWaitNote = NSAttributeDescription()
+        checkItemWaitNote.name = "waitNote"
+        checkItemWaitNote.attributeType = .stringAttributeType
+        checkItemWaitNote.isOptional = true
+        checkItemAttributes.append(checkItemWaitNote)
+
+        let checkItemReviewRemindAt = NSAttributeDescription()
+        checkItemReviewRemindAt.name = "reviewRemindAt"
+        checkItemReviewRemindAt.attributeType = .dateAttributeType
+        checkItemReviewRemindAt.isOptional = true
+        checkItemAttributes.append(checkItemReviewRemindAt)
+
+        // AI 拆解时顺带生成的等待候选词（本地缓存，先等等弹层零调用直读）
+        let checkItemWaitHintsJSON = NSAttributeDescription()
+        checkItemWaitHintsJSON.name = "waitHintsJSON"
+        checkItemWaitHintsJSON.attributeType = .stringAttributeType
+        checkItemWaitHintsJSON.isOptional = true
+        checkItemAttributes.append(checkItemWaitHintsJSON)
 
         // MARK: - RepeatRule Entity
         // 重复规则实体
