@@ -55,8 +55,11 @@ export function createThoughtSemanticRelateService({
   const moduleConfig = config.thoughtSemanticRelate;
   const captureLogs = config.aiCallLogs.enabled;
 
-  function routeFor() {
+  function routeFor(schemaVersion) {
+    // 路由/预算/隐私挂靠始终用 v1 purpose（metadata_only 强制集、独立预算不变）；
+    // schema 3（2026-10-12 主题双通道）只换 Prompt 模板：类别候选走双规则判定。
     const purpose = "thought_semantic_relate_v1";
+    const promptPurpose = schemaVersion === 3 ? "thought_semantic_relate_v2" : "thought_semantic_relate_v1";
     const route = config.routes[purpose];
     if (!route) {
       throw new GatewayError("MODEL_UNAVAILABLE", `Route missing for ${purpose}`, 503);
@@ -65,7 +68,7 @@ export function createThoughtSemanticRelateService({
     if (!provider || typeof provider.complete !== "function") {
       throw new GatewayError("MODEL_UNAVAILABLE", `Provider unavailable: ${route.provider}`, 503);
     }
-    return { purpose, route, provider };
+    return { purpose, promptPurpose, route, provider };
   }
 
   /**
@@ -84,6 +87,7 @@ export function createThoughtSemanticRelateService({
     const estimateInputChars =
       parsed.target.text.length
       + parsed.candidates.reduce((sum, c) => sum + c.title.length + (c.summary?.length ?? 0)
+        + (c.definition?.length ?? 0)
         + c.representatives.reduce((s, r) => s + r.text.length, 0), 0);
     const estimateMicro = costMicroForUsage(
       Math.ceil(estimateInputChars * 0.75) + 600,
@@ -108,7 +112,8 @@ export function createThoughtSemanticRelateService({
       });
     }
 
-    const { purpose, route, provider } = routeFor();
+    const { purpose, promptPurpose, route, provider } = routeFor(parsed.schemaVersion);
+    const promptVersion = parsed.schemaVersion === 3 ? "v2" : "v1";
     const finalize = (status, actualMicro) => {
       budgetStore.settleOperation({
         operationId: parsed.operationId,
@@ -171,8 +176,8 @@ export function createThoughtSemanticRelateService({
           purpose,
           provider: route.provider,
           model: route.model,
-          promptType: purpose,
-          promptVersion: "v1",
+          promptType: promptPurpose,
+          promptVersion,
           stream: false,
           request: { contentLength: userContent.length, responseFormat: "json_object" },
         })
@@ -181,7 +186,7 @@ export function createThoughtSemanticRelateService({
     let content;
     let usage;
     try {
-      const serverPrompt = injectServerPrompt(purpose, [{ role: "user", content: userContent }]);
+      const serverPrompt = injectServerPrompt(promptPurpose, [{ role: "user", content: userContent }]);
       const result = await provider.complete({
         purpose,
         messages: serverPrompt.messages,

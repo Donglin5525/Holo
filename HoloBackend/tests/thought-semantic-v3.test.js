@@ -89,7 +89,8 @@ test("validateRelateRequest 接受合法请求并保留候选结构", () => {
 });
 
 test("validateRelateRequest 拒绝 schemaVersion/候选数/代表片段数/长度越界", () => {
-  assert.throws(() => validateRelateRequest(relateBody({ schemaVersion: 3 })));
+  // schema 3（主题双通道 2026-10-12）已合法；越界值仍拒绝
+  assert.throws(() => validateRelateRequest(relateBody({ schemaVersion: 9 })));
   assert.throws(() => validateRelateRequest(relateBody({
     candidates: [1, 2, 3, 4].map((i) => ({
       ref: `P${i}`, title: `主题${i}`, representatives: [{ ref: "R", text: "片段" }],
@@ -300,4 +301,89 @@ test("V2 空预设主题使用定义核对；旧协议仍拒绝空代表片段",
   const parsed = validateRelateRequest(relateBody({schemaVersion:2,candidates}));
   const d = {candidateRef:"P0", relation:"same_thread", quote:parsed.target.text.slice(0,7), rangeUTF16:[0,7], representativeRef:"definition", representativeQuote:"跑步训练", sharedSubject:"个人跑步"};
   assert.equal(validateRelateModelOutput({decisions:[d]}, parsed).decisions.length,1);
+});
+
+// ─────────────── schema 3 双通道（2026-10-12 主题双通道） ───────────────
+
+function relateBodyV3(extra = {}) {
+  return {
+    schemaVersion: 3,
+    operationId: "op-" + Math.random().toString(36).slice(2, 10),
+    textRevision: "r-1",
+    engineVersion: "thought_semantic_v3.2",
+    target: { ref: "T0", text: "工具顺手了，判断力反而要刻意练习，记一下这个感受。" },
+    candidates: [
+      {
+        ref: "P0",
+        title: "碎碎念",
+        kind: "category",
+        definition: "个人生活片段、即时感受、吐槽，以及由生活或工作触发的个人观察与反思。",
+        representatives: [{ ref: "R0", text: "食堂两个肉菜 53 块，这定价是认真的吗。" }],
+      },
+      {
+        ref: "P1",
+        title: "产品思考",
+        kind: "thread",
+        representatives: [{ ref: "R1", text: "Agent 时代的决策力：人还是拍板的人。" }],
+      },
+    ],
+    ...extra,
+  };
+}
+
+test("schema3 接受类别候选（kind/definition）并放宽候选数到 7", () => {
+  const parsed = validateRelateRequest(relateBodyV3({
+    candidates: [1, 2, 3, 4, 5, 6, 7].map((i) => ({
+      ref: `P${i - 1}`, title: `主题${i}`, kind: i === 1 ? "category" : "thread",
+      representatives: [{ ref: "R", text: "片段" }],
+    })),
+  }));
+  assert.equal(parsed.candidates.length, 7);
+  assert.equal(parsed.candidates[0].kind, "category");
+  assert.equal(parsed.candidates[0].definition, null);
+  assert.throws(() => validateRelateRequest(relateBodyV3({
+    candidates: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({
+      ref: `P${i - 1}`, title: `主题${i}`,
+      representatives: [{ ref: "R", text: "片段" }],
+    })),
+  })));
+  assert.throws(() => validateRelateRequest(relateBodyV3({
+    candidates: [{ ref: "P0", title: "X", kind: "weird", representatives: [{ ref: "R", text: "片段" }] }],
+  })));
+});
+
+test("schema3 fits_category：定义依据逐字可回源即通过，sharedSubject 非必填", () => {
+  const parsed = validateRelateRequest(relateBodyV3());
+  const out = validateRelateModelOutput({
+    decisions: [
+      { candidateRef: "P0", relation: "fits_category", quote: "判断力反而要刻意练习",
+        rangeUTF16: [6, 16], representativeRef: "definition", representativeQuote: "个人观察与反思" },
+      { candidateRef: "P1", relation: "none", quote: null, rangeUTF16: null },
+    ],
+  }, parsed);
+  assert.equal(out.malformed, undefined);
+  assert.equal(out.decisions[0].relation, "fits_category");
+  assert.equal(out.decisions[0].sharedSubject, undefined);
+});
+
+test("schema3 fits_category：依据不可回源降级 insufficient；same_thread 缺 sharedSubject 仍 malformed", () => {
+  const parsed = validateRelateRequest(relateBodyV3());
+  const downgraded = validateRelateModelOutput({
+    decisions: [
+      { candidateRef: "P0", relation: "fits_category", quote: "判断力反而要刻意练习",
+        rangeUTF16: [6, 16], representativeRef: "definition", representativeQuote: "不在定义里的字" },
+      { candidateRef: "P1", relation: "none", quote: null, rangeUTF16: null },
+    ],
+  }, parsed);
+  assert.equal(downgraded.decisions[0].relation, "insufficient");
+
+  const forged = validateRelateModelOutput({
+    decisions: [
+      { candidateRef: "P0", relation: "same_thread", quote: "判断力反而要刻意练习",
+        rangeUTF16: [6, 16], representativeRef: "definition", representativeQuote: "个人观察与反思" },
+      { candidateRef: "P1", relation: "none", quote: null, rangeUTF16: null },
+    ],
+  }, parsed);
+  assert.equal(forged.malformed, true);
+  assert.equal(forged.reason, "shared_subject_missing");
 });

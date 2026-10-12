@@ -33,6 +33,8 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   thought_organize_r: "thought_organize_r",
   thought_organize_b: "thought_organize_b",
   thought_semantic_relate_v1: "thought_semantic_relate_v1",
+  // schema 3 双通道判定（2026-10-12）：类别候选（fits_category）与脉络候选分别独立判断
+  thought_semantic_relate_v2: "thought_semantic_relate_v2",
   thought_topic_name_v1: "thought_topic_name_v1",
   thought_topic_summary_v1: "thought_topic_summary_v1",
   thought_insight_v1: "thought_insight_v1",
