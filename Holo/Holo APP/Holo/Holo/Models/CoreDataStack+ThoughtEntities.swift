@@ -422,6 +422,15 @@ extension CoreDataStack {
         topicSummary.isOptional = true
         topicAttributes.append(topicSummary)
 
+        // 用户类别定义（2026-10-12 主题双通道）：classification 主题「收什么/不收什么」
+        // 的用户口径，与 AI 内容摘要（summary）严格分开——语义关联按它做类别匹配，
+        // 用户可改，改动进目录指纹自然触发重评。
+        let topicCategoryDefinition = NSAttributeDescription()
+        topicCategoryDefinition.name = "categoryDefinition"
+        topicCategoryDefinition.attributeType = .stringAttributeType
+        topicCategoryDefinition.isOptional = true
+        topicAttributes.append(topicCategoryDefinition)
+
         let topicStatus = NSAttributeDescription()
         topicStatus.name = "status"
         topicStatus.attributeType = .stringAttributeType

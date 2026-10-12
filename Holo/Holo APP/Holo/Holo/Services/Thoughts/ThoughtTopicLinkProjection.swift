@@ -249,6 +249,18 @@ enum ThoughtTopicLinkProjection {
         }
     }
 
+    /// 类别候选代表例的取样排序（2026-10-12 主题双通道）：用户决定 > AI 高可信 >
+    /// 历史归集 > 非成员。定义类别边界时用户动作是最强证据（doc §3：避免 AI
+    /// 自己的历史选择成为类别定义）。
+    static func categorySampleRank(of thought: Thought, in topic: Topic) -> Int {
+        switch membershipSource(of: thought, in: topic) {
+        case .user: return 0
+        case .ai: return 1
+        case .legacy: return 2
+        case nil: return 3
+        }
+    }
+
     /// 主题的有效成员计数（P0-A 口径）：per-pair 裁决 + 排除已删/已归档想法
     /// （与 fetchThoughts(byTopic:) 默认口径一致）。deletedAt 走 KVC——
     /// 声明在 SoftDeletable 扩展，standalone 直编环境不带该文件。
@@ -386,5 +398,33 @@ enum ManagedObjectContextCompat {
     static func fetch<T: NSManagedObject>(_ request: NSFetchRequest<T>, in context: NSManagedObjectContext?) throws -> [T] {
         guard let context else { return [] }
         return try context.fetch(request)
+    }
+}
+
+// MARK: - 同 id 多行副本的有效行解析（读源统一，2026-10-12）
+
+/// 9-8 库迁事故后「同 id 多行副本」是长期库况。语义 V3 的候选召回、成员画像、
+/// 模型上下文与落库取主题必须共用同一解析入口，不得各自 fetch 后取 .first——
+/// 副本里抓到 merged/hidden 旧行时，候选会在 AI 调用前被静默丢弃
+/// （真机「碎碎念」漏归类的直接通道）。
+/// 放在本文件而非 Topic+CoreDataClass.swift：后者被小组件 target 共享，
+/// 不能引用仅主 App 编译的 DuplicateRowFilter。
+extension Topic {
+
+    /// 解析某 id 当前唯一的有效 Topic 行；无可见行返回 nil。
+    /// 规则：可见状态优先；多个可见副本取物理行号最小（与 DuplicateRowFilter 同规则）。
+    /// 须在 context 队列上调用（context.perform 内）。
+    static func resolveValid(id: UUID, in context: NSManagedObjectContext) -> Topic? {
+        let request = Topic.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
+        let rows = (try? context.fetch(request)) ?? []
+        return resolveValidRows(rows).first
+    }
+
+    /// 列表读路径的统一口径：先过滤可见行，再去重同 id 副本。
+    /// 顺序不可反——先去重会把行号更小的 merged/hidden 副本钉成幸存行，
+    /// 随后被可见过滤丢掉，等于把整个主题判不存在。
+    static func resolveValidRows(_ rows: [Topic]) -> [Topic] {
+        DuplicateRowFilter.deduplicatingCopies(rows.filter(\.isVisibleTopic))
     }
 }

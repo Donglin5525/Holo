@@ -181,6 +181,15 @@ final class TopicRepository {
         try context.save()
     }
 
+    /// 更新用户类别定义（主题双通道 2026-10-12）：定义随关联请求传给模型并进
+    /// 目录指纹——改动后受影响笔记按指纹变化自然重评，不需要额外触发器。
+    func updateCategoryDefinition(_ topic: Topic, definition: String?) throws {
+        let normalized = definition?.trimmingCharacters(in: .whitespacesAndNewlines)
+        topic.categoryDefinition = (normalized?.isEmpty ?? true) ? nil : normalized
+        topic.updatedAt = Date()
+        try context.save()
+    }
+
     /// 分类主题改名：只改 Topic 标题，不再连带改写用户的 `主题/子标签` 标签路径
     /// （2026-09-27 P0-D：主题操作与用户标签解耦——AI/主题永不改写用户 #标签；
     /// 存量同名路径保留为历史兼容，迁移报告另出，不批量改名）。

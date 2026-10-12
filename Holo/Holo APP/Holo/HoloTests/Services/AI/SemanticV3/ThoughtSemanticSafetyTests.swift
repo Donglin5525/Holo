@@ -82,6 +82,112 @@ final class ThoughtSemanticSafetyTests: XCTestCase {
         return (store, root)
     }
 
+    // MARK: - ④ 主题双通道候选召回（2026-10-12）
+
+    @discardableResult
+    private func insertSemanticTopic(_ ctx: NSManagedObjectContext, title: String, classification: Bool) throws -> Topic {
+        let topic = ctx.insertTestObject(Topic.self)
+        topic.id = UUID()
+        topic.title = title
+        topic.status = classification ? Topic.TopicStatus.classification.rawValue : Topic.TopicStatus.active.rawValue
+        topic.titleSource = "user"
+        topic.confidence = 0
+        topic.thoughtCount = 0
+        topic.createdAt = Date()
+        topic.updatedAt = Date()
+        topic.topicRevision = 1
+        try ctx.save()
+        return topic
+    }
+
+    /// 类别通道全量直达：classification 主题不经相似度竞争直接进候选（kind=category），
+    /// 脉络主题仍走原通道（无向量大目录 ≤3 走小目录兜底）；全程零网络调用。
+    func testRecallCategoryChannelFullAccessWithoutCompetition() async throws {
+        let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(ctx, ["Topic"])
+        try insertSemanticTopic(ctx, title: "碎碎念", classification: true)
+        try insertSemanticTopic(ctx, title: "工作与事业", classification: true)
+        let threadA = try insertSemanticTopic(ctx, title: "跑步训练", classification: false)
+        let threadB = try insertSemanticTopic(ctx, title: "产品思考", classification: false)
+
+        let (store, root) = try await makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let provider = HoloBackendAIProvider(baseURL: "https://mock.local",
+            apiClient: APIClient(urlSession: URLSession(configuration: .ephemeral)))
+        let vector = SemanticVectorMath.normalized((0..<1024).map { _ in Float.random(in: -1...1) })
+
+        let outcome = try await ThoughtTopicCandidateEngine.recall(
+            targetVector: vector, thoughtID: UUID(), store: store, index: nil,
+            context: ctx, calibration: .seed, provider: provider)
+
+        let categories = outcome.candidates.filter { $0.kind == "category" }
+        let threads = outcome.candidates.filter { $0.kind == "thread" }
+        XCTAssertEqual(Set(categories.map(\.topicTitle)), Set(["碎碎念", "工作与事业"]),
+                       "用户类别必须全量直达，不与脉络争名额")
+        XCTAssertEqual(Set(threads.map(\.topicID)), Set([threadA.id, threadB.id]),
+                       "脉络主题走原通道（小目录兜底）")
+        XCTAssertNil(outcome.reason)
+    }
+
+    /// 类别通道上限 4：请求体可控（脉络 ≤3 + 类别 ≤4 = 契约上限 7）。
+    func testRecallCategoryChannelCapsAtFour() async throws {
+        let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(ctx, ["Topic"])
+        for index in 0..<5 {
+            try insertSemanticTopic(ctx, title: "类别\(index)", classification: true)
+        }
+
+        let (store, root) = try await makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let provider = HoloBackendAIProvider(baseURL: "https://mock.local",
+            apiClient: APIClient(urlSession: URLSession(configuration: .ephemeral)))
+        let vector = SemanticVectorMath.normalized((0..<1024).map { _ in Float.random(in: -1...1) })
+
+        let outcome = try await ThoughtTopicCandidateEngine.recall(
+            targetVector: vector, thoughtID: UUID(), store: store, index: nil,
+            context: ctx, calibration: .seed, provider: provider)
+
+        XCTAssertEqual(outcome.candidates.filter { $0.kind == "category" }.count, 4)
+    }
+
+    /// 用户拒绝墓碑同样压制类别候选：手动移出过的主题，类别通道也不得再收。
+    func testRecallRejectedTombstoneSuppressesCategoryCandidate() async throws {
+        let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(ctx, ["Topic", "Thought", "ThoughtTopicLink"])
+        let thought = ctx.insertTestObject(Thought.self)
+        thought.id = UUID()
+        thought.content = "测试想法"
+        thought.createdAt = Date()
+        thought.updatedAt = Date()
+        thought.orderIndex = 0
+        thought.organizedStatus = "organized"
+        let topic = try insertSemanticTopic(ctx, title: "碎碎念", classification: true)
+        let link = ctx.insertTestObject(ThoughtTopicLink.self)
+        link.id = ThoughtTopicLink.deterministicID(thoughtID: thought.id, topicID: topic.id)
+        link.thought = thought
+        link.topic = topic
+        link.sourceEnum = .userManual
+        link.stateEnum = .rejected
+        link.visibilityEnum = .internalOnly
+        link.consentGeneration = 0
+        link.createdAt = Date()
+        link.updatedAt = Date()
+        try ctx.save()
+
+        let (store, root) = try await makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let provider = HoloBackendAIProvider(baseURL: "https://mock.local",
+            apiClient: APIClient(urlSession: URLSession(configuration: .ephemeral)))
+        let vector = SemanticVectorMath.normalized((0..<1024).map { _ in Float.random(in: -1...1) })
+
+        let outcome = try await ThoughtTopicCandidateEngine.recall(
+            targetVector: vector, thoughtID: thought.id, store: store, index: nil,
+            context: ctx, calibration: .seed, provider: provider)
+
+        XCTAssertTrue(outcome.candidates.isEmpty, "唯一类别被墓碑压制后不得有任何候选")
+        XCTAssertEqual(outcome.reason, "below_recall_threshold")
+    }
+
     func testIndexStatsDistinguishesPendingFailedAndUnavailable() async throws {
         let (store, root) = try await makeStore()
         defer { try? FileManager.default.removeItem(at: root) }
