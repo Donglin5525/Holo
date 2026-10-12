@@ -621,6 +621,11 @@ struct TopicDetailView: View {
                         // P1 校验补链：主题页是纠错的天然阵地——成员卡长按可「从这个主题移除」
                         //（卡片列表的主题行纠错是长按隐藏手势，这里给一个语境明确的可见兜底）
                         .contextMenu {
+                            Button {
+                                copyThoughtToPasteboard(thought)
+                            } label: {
+                                Label("复制", systemImage: "doc.on.doc")
+                            }
                             Button(role: .destructive) {
                                 removeMember(thought)
                             } label: {

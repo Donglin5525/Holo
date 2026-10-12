@@ -186,6 +186,9 @@ struct ThoughtCardView: View {
                         if let onNavigate {
                             Button(String(localized: "编辑")) { onNavigate() }
                         }
+                        Button(String(localized: "复制文字")) {
+                            copyThoughtToPasteboard(thought)
+                        }
                         Button(String(localized: "生成分享卡")) {
                             pendingMenuAction = .shareCard
                             showActionSheet = false

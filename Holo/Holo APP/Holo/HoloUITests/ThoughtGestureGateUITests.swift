@@ -397,6 +397,43 @@ final class ThoughtGestureGateUITests: XCTestCase {
             sidebarOpenButton().frame.minX, 100,
             "卡片展开态右滑只收按钮，不应同时拉出侧栏（防双动让位）")
     }
+
+    // MARK: - C 复制入口门禁（2026-10-12「想法模块没有复制功能」补齐后锁定；
+    // 口径本体（markdown 标记渲染掉/token 前缀保留/任务标记不输出）由
+    // MarkdownTextViewNodePipelineTests 的 visiblePlainText 系单测锁定，此处锁 UI 入口）
+
+    /// C1 卡片长按菜单含「复制」，点按后有「已复制」反馈
+    func test_c1_longPressMenuCopyEntry() throws {
+        _ = openThoughtModule()
+        XCTAssertTrue(ensureThoughtCardExists(), "前置：应有想法卡片（含现场种子）")
+
+        let card = anyElement(labelContains: ["想法内容"])
+        card.press(forDuration: 1.2)
+
+        let copyItem = app.buttons.matching(NSPredicate(format: "label == '复制'")).firstMatch
+        XCTAssertTrue(copyItem.waitForExistence(timeout: 5), "长按卡片应弹出含「复制」的菜单")
+        copyItem.tap()
+
+        XCTAssertTrue(
+            anyElement(labelContains: ["已复制"]).waitForExistence(timeout: 5),
+            "点「复制」后应有「已复制」反馈")
+    }
+
+    /// C2 卡片「…」更多操作菜单含「复制文字」。
+    /// confirmationDialog 的动作无法被合成事件触发（在档坑），只断言出现，不点按。
+    func test_c2_moreActionsMenuCopyTextEntry() throws {
+        _ = openThoughtModule()
+        XCTAssertTrue(ensureThoughtCardExists(), "前置：应有想法卡片（含现场种子）")
+
+        let more = button(labelContains: ["更多操作"])
+        XCTAssertTrue(more.waitForExistence(timeout: 5), "前置：应有「更多操作」按钮")
+        XCTAssertTrue(more.isHittable, "「更多操作」按钮应可交互")
+        more.tap()
+
+        XCTAssertTrue(
+            anyElement(labelContains: ["复制文字"]).waitForExistence(timeout: 5),
+            "「…」菜单应含「复制文字」")
+    }
 }
 
 // MARK: - V2 视觉迁移的真实入口回归

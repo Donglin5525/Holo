@@ -1739,6 +1739,12 @@ struct ThoughtListView: View {
                             )
                             .contextMenu {
                                 Button {
+                                    copyThoughtToPasteboard(thought)
+                                } label: {
+                                    Label("复制", systemImage: "doc.on.doc")
+                                }
+
+                                Button {
                                     askHoloAboutThought(thought)
                                 } label: {
                                     Label("问问 Holo", systemImage: "sparkles")

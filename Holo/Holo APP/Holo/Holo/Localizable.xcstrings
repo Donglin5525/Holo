@@ -34369,6 +34369,22 @@
         }
       }
     },
+    "复制文字" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Text"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製文字"
+          }
+        }
+      }
+    },
     "复制标签" : {
       "localizations" : {
         "en" : {

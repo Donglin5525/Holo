@@ -246,6 +246,29 @@ extension Thought {
     }
 }
 
+// MARK: - 整条想法复制
+
+extension Thought {
+    /// 整条想法的用户可见全文（复制口径）：Markdown 存储标记（`**`、`++` 等）渲染掉，
+    /// #标签/@引用 保留可读前缀，任务关系标记不输出——与编辑器内选中复制的
+    /// `visiblePlainText` 同源，复制到其他 App 不会带存储格式。
+    var visibleCopyText: String {
+        MarkdownTextView.visiblePlainText(from: RichContentSerializer.nodes(
+            richJSON: richContentJSON,
+            fallbackPlainText: content
+        ))
+    }
+}
+
+/// 复制整条想法到系统剪贴板并给出「已复制」反馈。
+/// 想法列表长按菜单、主题详情成员卡长按菜单、卡片「…」更多操作共用，避免口径漂移。
+@MainActor
+func copyThoughtToPasteboard(_ thought: Thought) {
+    UIPasteboard.general.string = thought.visibleCopyText
+    HapticManager.light()
+    HoloToastCenter.shared.show(String(localized: "已复制"), type: .success)
+}
+
 // MARK: - ThoughtTag 扩展
 
 extension ThoughtTag: Identifiable {}
