@@ -72,7 +72,7 @@ struct HoloProfileEditorView: View {
                         .background(
                             hasUnsavedChanges
                             ? Color.holoPrimary
-                            : Color.holoPrimary.opacity(0.3)
+                            : Color.holoTextSecondary.opacity(0.3)
                         )
                         .clipShape(Capsule())
                 }

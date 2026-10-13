@@ -555,7 +555,7 @@ struct TaskCreationSheet: View {
                 .padding(.vertical, 14)
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
-                        .fill(draft.canSave && !isSaving ? Color.holoPrimary : Color.holoPrimary.opacity(0.35))
+                        .fill(draft.canSave && !isSaving ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
                 )
         }
         .buttonStyle(.plain)

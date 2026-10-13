@@ -86,7 +86,7 @@ struct KanbanMoodSection: View {
                 .foregroundColor(.white)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 8)
-                .background(canSave ? Color.holoPrimary : Color.holoPrimary.opacity(0.4))
+                .background(canSave ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
                 .clipShape(Capsule())
         }
         .disabled(!canSave)

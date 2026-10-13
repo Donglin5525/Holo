@@ -273,7 +273,7 @@ struct TodayReliefSheet: View {
                         .font(.headline)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(clarificationAnswer.isEmpty ? Color.holoPrimary.opacity(0.4) : Color.holoPrimary))
+                        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(clarificationAnswer.isEmpty ? Color.holoTextSecondary.opacity(0.3) : Color.holoPrimary))
                 }
                 .buttonStyle(.plain)
                 .disabled(clarificationAnswer.isEmpty)
@@ -687,7 +687,7 @@ struct TodayReliefSheet: View {
                         .font(.headline)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(pendingAck > 0 ? Color.holoPrimary.opacity(0.4) : Color.holoPrimary))
+                        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(pendingAck > 0 ? Color.holoTextSecondary.opacity(0.3) : Color.holoPrimary))
                 }
                 .buttonStyle(.plain)
                 .disabled(pendingAck > 0)

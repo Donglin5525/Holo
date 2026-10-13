@@ -165,7 +165,7 @@ struct TaskTriageSheet: View {
                         .padding(.vertical, 14)
                         .background(
                             RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
-                                .fill(currentImportance == .unknown ? Color.holoPrimary.opacity(0.35) : Color.holoPrimary)
+                                .fill(currentImportance == .unknown ? Color.holoTextSecondary.opacity(0.3) : Color.holoPrimary)
                         )
                 }
                 .buttonStyle(.plain)
