@@ -40,8 +40,10 @@ struct HabitModuleContainer: View {
     @State private var retroactiveTarget: HabitRetroactiveSheetContext? = nil
     /// 「去今天记录」定位（回今天后滚动到该习惯）
     @State private var focusHabitId: UUID? = nil
-    /// 弹层发起的测量输入（弹层主动作 dismiss 后由这里接住开键盘，避免断链）
+    /// 弹层发起的测量输入：弹层收起（onDismiss 必回调）后确定性地接住开键盘。
+    /// 不用 asyncAfter 赌收起时长——固定延迟与收起动画竞态，偶发被吞（两轮实锤）
     @State private var measureSheetTarget: HabitRowSnapshot? = nil
+    @State private var pendingMeasureHabitId: UUID? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -88,7 +90,11 @@ struct HabitModuleContainer: View {
         .sheet(item: $editTarget) { habit in
             AddHabitSheet(editingHabit: habit)
         }
-        .sheet(item: todayRecordItemBinding) { item in
+        .sheet(item: todayRecordItemBinding, onDismiss: {
+            guard let id = pendingMeasureHabitId else { return }
+            pendingMeasureHabitId = nil
+            measureSheetTarget = model.todayRows.first { $0.id == id }
+        }) { item in
             HabitTodayRecordSheet(
                 habitId: item.id,
                 model: model,
@@ -102,16 +108,14 @@ struct HabitModuleContainer: View {
                     // 避免dismissal中途叠转场把展示状态卡死——模拟器连击实锤过一次）
                     todayRecordTarget = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        model.singleReviewEntryRange = .lastDays(30)
                         model.selectedTab = .review
                         model.reviewRoute = .single(id)
                     }
                 },
                 onRequestMeasureInput: { id in
-                    // 弹层主动作（计数/测量）收弹层后接住：开与今天页同一套测量输入；
-                    // 间隔须大于 sheet 收起动画，否则新 sheet 被 dismissal 吞掉（偶发实锤）
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                        measureSheetTarget = model.todayRows.first { $0.id == id }
-                    }
+                    // 只登记待接目标；sheet onDismiss（收起动画完成后必回调）统一交接开键盘
+                    pendingMeasureHabitId = id
                 }
             )
         }
@@ -173,6 +177,7 @@ struct HabitModuleContainer: View {
     private var reviewStack: some View {
         ZStack {
             HabitReviewView(model: model) { id in
+                model.singleReviewEntryRange = .month(model.overviewMonth)
                 model.reviewRoute = .single(id)
             }
             .allowsHitTesting(!isSingleReviewShown)

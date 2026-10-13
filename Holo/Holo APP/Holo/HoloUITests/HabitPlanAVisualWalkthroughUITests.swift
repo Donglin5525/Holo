@@ -128,11 +128,60 @@ final class HabitPlanAVisualWalkthroughUITests: XCTestCase {
         let review = button(containing: "查看长期回顾")
         XCTAssertTrue(review.waitForExistence(timeout: 4), "回顾入口消失")
         review.tap()
-        XCTAssertTrue(waitFor("habit.single.range", 8), "未进入单习惯回顾")
+        XCTAssertTrue(waitFor("habit.single.range.d30", 8), "未进入单习惯回顾（范围切换条缺失）")
         Thread.sleep(forTimeInterval: 1.4) // 等图表渲染稳定
         snap("shot-04-review-checkin")
         XCTAssertTrue(app.staticTexts["每周完成率"].firstMatch.exists
                       || app.staticTexts["每周天数"].firstMatch.exists, "打卡型缺每周走势块")
+
+        // 打卡型：每周走势与记录日历上下并存（东林拍板的原型屏C形态）
+        XCTAssertTrue(app.staticTexts["记录日历"].firstMatch.waitForExistence(timeout: 4),
+                      "打卡型缺常驻记录日历")
+        XCTAssertTrue(app.staticTexts["每周完成率"].firstMatch.exists
+                      || app.staticTexts["每周天数"].firstMatch.exists, "打卡型缺每周走势块")
+        snap("shot-04b-review-checkin-calendar")
+
+        // 内联范围切换：点「近30天」即切（不弹窗）
+        let d30 = app.buttons["habit.single.range.d30"].firstMatch
+        XCTAssertTrue(d30.waitForExistence(timeout: 4), "缺近30天档")
+        d30.tap()
+        Thread.sleep(forTimeInterval: 1.0)
+        snap("shot-04c-review-checkin-d30")
+
+        // 必点「全部」档：曾因 distantPast 死循环卡死闪退（真机实锤），10 秒内须完成渲染
+        let allChip = app.buttons["habit.single.range.all"].firstMatch
+        XCTAssertTrue(allChip.waitForExistence(timeout: 4), "缺全部档")
+        allChip.tap()
+        XCTAssertTrue(app.staticTexts["记录日历"].firstMatch.waitForExistence(timeout: 10),
+                      "点「全部」后页面未在 10 秒内完成渲染（卡死回归）")
+        Thread.sleep(forTimeInterval: 1.0)
+        snap("shot-04d-review-checkin-all")
+
+        // 稀疏态必测：只有 1 条记录的「拉伸」（图表须收缩形态而不是硬画残图）
+        if app.buttons["habit.single.back"].firstMatch.waitForExistence(timeout: 3) {
+            app.buttons["habit.single.back"].firstMatch.tap()
+        }
+        if app.buttons["habit.tab.today"].firstMatch.waitForExistence(timeout: 4) {
+            app.buttons["habit.tab.today"].firstMatch.tap()
+        }
+        let sparseRow = button(containing: "拉伸")
+        if sparseRow.waitForExistence(timeout: 5) {
+            sparseRow.tap()
+            if waitSheetOpened(5) {
+                Thread.sleep(forTimeInterval: 0.6)
+                app.swipeUp(velocity: .fast) // 内容滚到底：主按钮完整入镜
+                Thread.sleep(forTimeInterval: 0.4)
+                snap("shot-09-sparse-sheet")
+                let sparseReview = button(containing: "查看长期回顾")
+                if sparseReview.waitForExistence(timeout: 4) {
+                    sparseReview.tap()
+                    if waitFor("habit.single.range.d30", 8) {
+                        Thread.sleep(forTimeInterval: 1.2)
+                        snap("shot-10-sparse-review")
+                    }
+                }
+            }
+        }
     }
 
     func test02_创建表单后果行与测量型链路() throws {
@@ -166,6 +215,8 @@ final class HabitPlanAVisualWalkthroughUITests: XCTestCase {
         row.tap()
         XCTAssertTrue(waitSheetOpened(6), "Weight 弹层未打开")
         snap("shot-06-sheet-measure-empty")
+        app.swipeUp(velocity: .fast) // 弹层拉到 large：半高档位下主动作在屏外，坐标点击点不中
+        Thread.sleep(forTimeInterval: 0.4)
 
         // 主动作 → 测量输入 → 保存（identifier 精确定位：文案匹配会命中今天页行内同名按钮）
         let record = app.buttons["habit.todayrecord.primary"].firstMatch
@@ -204,7 +255,7 @@ final class HabitPlanAVisualWalkthroughUITests: XCTestCase {
                     let review = button(containing: "查看长期回顾")
                     if review.waitForExistence(timeout: 4) {
                         review.tap()
-                        if waitFor("habit.single.range", 8) {
+                        if waitFor("habit.single.range.d30", 8) {
                             Thread.sleep(forTimeInterval: 1.2)
                             snap("shot-08-review-measure")
                         }

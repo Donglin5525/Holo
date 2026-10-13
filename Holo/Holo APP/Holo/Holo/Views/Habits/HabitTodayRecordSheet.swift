@@ -68,7 +68,7 @@ struct HabitTodayRecordSheet: View {
                 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.sm)
-                .padding(.bottom, 30)
+                .padding(.bottom, 46)
             }
             .background(Color.holoToolBackground)
             .navigationTitle(row?.name ?? String(localized: "今天的记录"))
@@ -245,7 +245,7 @@ struct HabitTodayRecordSheet: View {
         case .checkIn:
             if !row.isBadHabit, let streak = row.streak, streak.value > 0 {
                 var parts: [String] = []
-                if let last = lastCheckInDateText {
+                if !row.today.isRecorded, let last = lastCheckInDateText {
                     parts.append(String(localized: "上次 \(last)"))
                 }
                 if !row.today.isRecorded {
@@ -255,9 +255,11 @@ struct HabitTodayRecordSheet: View {
                                    value: "\(streak.value) \(streak.unitName)",
                                    sub: parts.isEmpty ? statusText(row) : parts.joined(separator: " · "))
             }
+            let valueText = todayValueText(row)
+            let subText = subtitleText(row)
             return HeroContent(label: String(localized: "今天"),
-                               value: todayValueText(row),
-                               sub: subtitleText(row))
+                               value: valueText,
+                               sub: subText == valueText ? "" : subText)
         }
     }
 
@@ -321,7 +323,7 @@ struct HabitTodayRecordSheet: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.holoToolText)
                 Spacer()
-                if !dayRecords.isEmpty {
+                if dayRecords.count > 1 {
                     Text(String(localized: "\(dayRecords.count) 条"))
                         .font(.system(size: 11))
                         .foregroundColor(.holoToolTextSecondary)
@@ -449,17 +451,24 @@ struct HabitTodayRecordSheet: View {
     private func historyStitches(_ snapshot: HabitRangeSnapshot, accent: Color) -> some View {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: model.projectionNow)
+        let weekdaySymbols = ["日", "一", "二", "三", "四", "五", "六"]
         return HStack(spacing: 0) {
             ForEach(historyDays(snapshot), id: \.self) { day in
-                historyStitch(
-                    snapshot.day(day, today: model.projectionNow, calendar: calendar),
-                    accent: accent,
-                    isToday: calendar.isDate(day, inSameDayAs: today)
-                )
+                let isToday = calendar.isDate(day, inSameDayAs: today)
+                VStack(spacing: 5) {
+                    historyStitch(
+                        snapshot.day(day, today: model.projectionNow, calendar: calendar),
+                        accent: accent,
+                        isToday: isToday
+                    )
+                    .frame(height: 26)
+                    Text(weekdaySymbols[calendar.component(.weekday, from: day) - 1])
+                        .font(.system(size: 10, weight: isToday ? .semibold : .regular))
+                        .foregroundColor(isToday ? accent : .holoToolTextSecondary)
+                }
                 .frame(maxWidth: .infinity)
             }
         }
-        .frame(height: 26)
         .accessibilityHidden(true)
     }
 
@@ -503,10 +512,16 @@ struct HabitTodayRecordSheet: View {
 
     /// 点阵图例（第一版无图例，判读与用户都读不出标记含义）
     private func stitchLegend(accent: Color) -> some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             HStack(spacing: 4) {
                 Circle().fill(accent).frame(width: 7, height: 7)
                 Text(String(localized: "有记录"))
+            }
+            HStack(spacing: 4) {
+                Circle().fill(Color.holoToolSurface)
+                    .overlay(Circle().strokeBorder(accent, lineWidth: 1.5))
+                    .frame(width: 7, height: 7)
+                Text(String(localized: "补录"))
             }
             HStack(spacing: 4) {
                 Circle().strokeBorder(accent.opacity(0.75), lineWidth: 1.5)
@@ -517,6 +532,7 @@ struct HabitTodayRecordSheet: View {
         .font(.system(size: 10.5))
         .foregroundColor(.holoToolTextSecondary)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.top, 8)
     }
 
     private func historyDays(_ snapshot: HabitRangeSnapshot) -> [Date] {
@@ -555,6 +571,8 @@ struct HabitTodayRecordSheet: View {
     @ViewBuilder
     private func primaryAction(_ row: HabitRowSnapshot) -> some View {
         if row.lifecycle == .active {
+            // 取消打卡是毁连续的高危动作：红色样式警示，与记录行拉开间距
+            let isCancelAction = row.kind == .checkIn && row.today.isRecorded && !row.isBadHabit
             Button {
                 switch row.kind {
                 case .checkIn:
@@ -582,14 +600,17 @@ struct HabitTodayRecordSheet: View {
                     }
                 }
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(Color(hex: row.colorHex))
+                .foregroundColor(isCancelAction ? .holoError : Color(hex: row.colorHex))
                 .frame(maxWidth: .infinity, minHeight: 46)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color(hex: row.colorHex).opacity(0.12))
+                        .fill(isCancelAction
+                              ? Color.holoError.opacity(0.1)
+                              : Color(hex: row.colorHex).opacity(0.12))
                 )
             }
             .buttonStyle(HoloPressStyle())
+            .padding(.top, 6)
             .disabled(model.coordinator.savingHabitIds.contains(habitId))
             .accessibilityIdentifier("habit.todayrecord.primary")
         }
@@ -611,7 +632,7 @@ struct HabitTodayRecordSheet: View {
                     .font(.holoBody)
                     .foregroundColor(.holoToolText)
                 Spacer()
-                Text(String(localized: "目标、提醒、暂停与归档"))
+                Text(String(localized: "目标与提醒"))
                     .font(.system(size: 10))
                     .foregroundColor(.holoToolTextSecondary)
                 Image(systemName: "chevron.right")
@@ -640,9 +661,6 @@ struct HabitTodayRecordSheet: View {
                     .font(.holoBody)
                     .foregroundColor(.holoToolText)
                 Spacer()
-                Text(String(localized: "走势 · 对比 · 日历"))
-                    .font(.system(size: 10))
-                    .foregroundColor(.holoToolTextSecondary)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.holoToolTextSecondary.opacity(0.6))

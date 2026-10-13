@@ -122,13 +122,10 @@ struct HabitSingleReviewView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 headerHead(snapshot.info)
-                rangeControl
+                rangeChips
                 if let comparison {
                     periodCompareCard(comparison, info: snapshot.info)
                         .padding(.top, 14)
-                }
-                if snapshot.info.kind == .checkIn, let weeklyTrend {
-                    weeklyTrendSection(weeklyTrend, info: snapshot.info)
                 }
                 vizSection(snapshot)
                 if let day = selectedDay {
@@ -143,7 +140,7 @@ struct HabitSingleReviewView: View {
                 }
             }
             .padding(.horizontal, HoloSpacing.lg)
-            .padding(.top, HoloSpacing.xs)
+            .padding(.top, HoloSpacing.md)
             .padding(.bottom, 40)
         }
     }
@@ -173,7 +170,7 @@ struct HabitSingleReviewView: View {
                 Text(info.name)
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(.holoToolText)
-                Text(headerSubtitle(info))
+                headerSubtitle(info)
                     .font(.system(size: 12))
                     .foregroundColor(.holoToolTextSecondary)
             }
@@ -182,14 +179,16 @@ struct HabitSingleReviewView: View {
         .padding(.bottom, 14)
     }
 
-    private func headerSubtitle(_ info: HabitReviewHabitInfo) -> String {
+    /// 头部副行：只在状态需要说明时出现（暂停/归档），不占位念 slogan
+    @ViewBuilder
+    private func headerSubtitle(_ info: HabitReviewHabitInfo) -> some View {
         switch info.lifecycle {
-        case .paused: return String(localized: "当前已暂停 · 历史保留")
-        case .archived: return String(localized: "当前已归档 · 历史保留")
+        case .paused:
+            Text(String(localized: "已暂停 · 历史保留"))
+        case .archived:
+            Text(String(localized: "已归档 · 历史保留"))
         case .active:
-            return info.isBadHabit
-                ? String(localized: "按真实发生记录")
-                : String(localized: "每一次记录，都在这里")
+            EmptyView()
         }
     }
 
@@ -198,35 +197,99 @@ struct HabitSingleReviewView: View {
         return SnapshotIconBox(icon: info.icon, isCustomIcon: info.isCustomIcon, color: color)
     }
 
-    // MARK: 范围控制
+    // MARK: 范围切换（2026-10-13 整改：内联一排胶囊点一下即切，删掉弹窗滚轮）
 
-    private var rangeControl: some View {
-        Button {
-            rangeSheetShown = true
-        } label: {
-            HStack {
-                Text(selectedRange.label(now: model.projectionNow, calendar: .current))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.holoToolText)
-                Spacer()
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.holoToolTextSecondary)
-            }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 46)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(Color.holoToolBorder.opacity(0.7))
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("habit.single.range")
-        .accessibilityLabel(Text(String(localized: "时间范围")))
+    /// 快捷档（行首动态插入「过去月」胶囊：从回顾整体页带月份进来时不丢上下文）
+    private var quickRanges: [HabitReviewRange] {
+        [.month(currentMonthStart), .lastDays(30), .lastDays(90), .all]
     }
 
-    // MARK: 本期 vs 上期对比卡（方案A：替代旧摘要区，一进门先回答「有没有进步」）
+    private func isQuickRangeSelected(_ range: HabitReviewRange) -> Bool {
+        selectedRange == range
+    }
+
+    /// 从整体页继承的是过去月：行首插入该月胶囊（选中态），点快捷档即回
+    private var inheritedPastMonth: Date? {
+        if case .month(let monthStart) = selectedRange {
+            let calendar = Calendar.current
+            let current = calendar.date(from: calendar.dateComponents([.year, .month], from: Date())) ?? Date()
+            if !calendar.isDate(monthStart, equalTo: current, toGranularity: .month) {
+                return monthStart
+            }
+        }
+        return nil
+    }
+
+    private var rangeChips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if let pastMonth = inheritedPastMonth {
+                    rangeChip(monthText(pastMonth), selected: true) {
+                        rangeSheetShown = true
+                    }
+                    .accessibilityIdentifier("habit.single.range.past")
+                }
+                rangeChip(String(localized: "本月"), selected: isQuickRangeSelected(.month(currentMonthStart))) {
+                    applyRange(.month(currentMonthStart))
+                }
+                .accessibilityIdentifier("habit.single.range.month")
+                rangeChip(String(localized: "近30天"), selected: isQuickRangeSelected(.lastDays(30))) {
+                    applyRange(.lastDays(30))
+                }
+                .accessibilityIdentifier("habit.single.range.d30")
+                rangeChip(String(localized: "近90天"), selected: isQuickRangeSelected(.lastDays(90))) {
+                    applyRange(.lastDays(90))
+                }
+                .accessibilityIdentifier("habit.single.range.d90")
+                rangeChip(String(localized: "全部"), selected: isQuickRangeSelected(.all)) {
+                    applyRange(.all)
+                }
+                .accessibilityIdentifier("habit.single.range.all")
+                Button {
+                    rangeSheetShown = true
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.holoToolTextSecondary)
+                        .frame(width: 34, height: 34)
+                        .background(
+                            Capsule().strokeBorder(Color.holoToolBorder.opacity(0.7))
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(String(localized: "更多范围")))
+                .accessibilityIdentifier("habit.single.range.more")
+            }
+            .padding(.vertical, 2)
+        }
+        .padding(.top, 4)
+    }
+
+    private func rangeChip(_ text: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(text)
+                .font(.system(size: 12.5, weight: selected ? .semibold : .regular))
+                .foregroundColor(selected ? .holoPrimary : .holoToolTextSecondary)
+                .padding(.horizontal, 13)
+                .frame(minHeight: 34)
+                .background(
+                    Capsule().fill(selected ? Color.holoPrimary.opacity(0.14) : Color.holoToolInset)
+                )
+                .overlay(
+                    Capsule().strokeBorder(selected ? Color.holoPrimary.opacity(0.5) : .clear, lineWidth: 1)
+                )
+        }
+        .buttonStyle(HoloPressStyle())
+    }
+
+    private func monthText(_ month: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.setLocalizedDateFormatFromTemplate("yyyy年M月")
+        return formatter.string(from: month)
+    }
+
+    // MARK: 本期 vs 上期对比卡（2026-10-13 整改瘦身：两行结构，删装饰性迷你折线）
 
     private var summarySeparator: some View {
         Rectangle().fill(Color.holoToolBorder.opacity(0.5)).frame(height: 0.5)
@@ -234,84 +297,32 @@ struct HabitSingleReviewView: View {
 
     @ViewBuilder
     private func periodCompareCard(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> some View {
-        let accent = Color(hex: info.colorHex)
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(compareCaption(comparison, info: info))
-                    .font(.system(size: 10.5))
-                    .foregroundColor(.holoToolTextSecondary)
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(compareMainValue(comparison, info: info))
-                        .font(.system(size: 21, weight: .semibold).monospacedDigit())
-                        .foregroundColor(.holoToolText)
-                    if let delta = compareDelta(comparison, info: info) {
-                        Text(delta.text)
-                            .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundColor(delta.color)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Capsule().fill(delta.color.opacity(0.14)))
-                    }
+        VStack(alignment: .leading, spacing: 5) {
+            Text(compareCaption(comparison, info: info))
+                .font(.system(size: 10.5))
+                .foregroundColor(.holoToolTextSecondary)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(compareMainValue(comparison, info: info))
+                    .font(.system(size: 21, weight: .semibold).monospacedDigit())
+                    .foregroundColor(.holoToolText)
+                if let delta = compareDelta(comparison, info: info) {
+                    Text(delta.text)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundColor(delta.color)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(delta.color.opacity(0.14)))
                 }
+                Spacer(minLength: 4)
                 Text(compareSubline(comparison, info: info))
-                    .font(.system(size: 10.5))
+                    .font(.system(size: 11))
                     .foregroundColor(.holoToolTextSecondary)
             }
-            Spacer(minLength: 0)
-            compareSparkline(info: info, accent: accent)
-                .frame(width: 64, height: 52)
         }
-        .padding(13)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.holoToolInset.opacity(0.6))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.holoToolBorder.opacity(0.7))
-        )
+        .padding(.vertical, 14)
+        .overlay(alignment: .top) { summarySeparator }
+        .overlay(alignment: .bottom) { summarySeparator }
         .accessibilityElement(children: .combine)
-    }
-
-    /// 卡右侧的迷你走势（近期态势一眼；打卡型用周走势，数值型用日数值）
-    @ViewBuilder
-    private func compareSparkline(info: HabitReviewHabitInfo, accent: Color) -> some View {
-        let values = sparkValues(info: info)
-        if values.count >= 2, let first = values.first, let last = values.last {
-            let lo = min(values.min() ?? 0, first)
-            let hi = max(values.max() ?? 1, last)
-            let span = max(hi - lo, 0.0001)
-            GeometryReader { geo in
-                let w = geo.size.width, h = geo.size.height - 8
-                let points = values.enumerated().map { index, value in
-                    CGPoint(x: w * CGFloat(index) / CGFloat(values.count - 1),
-                            y: h - h * CGFloat((value - lo) / span))
-                }
-                ZStack(alignment: .bottomLeading) {
-                    Path { path in
-                        path.move(to: CGPoint(x: points[0].x, y: points[0].y))
-                        for point in points.dropFirst() { path.addLine(to: point) }
-                    }
-                    .stroke(accent, style: StrokeStyle(lineWidth: 2, lineCap: .round))
-                    Circle().fill(accent).frame(width: 6.4)
-                        .position(points[0])
-                        .opacity(0.45)
-                    Circle().fill(accent).frame(width: 6.4)
-                        .position(points[points.count - 1])
-                }
-            }
-        } else {
-            EmptyView()
-        }
-    }
-
-    private func sparkValues(info: HabitReviewHabitInfo) -> [Double] {
-        if info.kind == .checkIn {
-            let values = (weeklyTrend?.bars ?? []).compactMap(\.fraction)
-            return Array(values.suffix(10))
-        }
-        guard let snapshot else { return [] }
-        return Array(snapshot.dailyValues.suffix(30).map(\.value))
     }
 
     /// 标题行：「本月 vs 上月同期」/「最近 30 天 vs 前 30 天」
@@ -392,47 +403,30 @@ struct HabitSingleReviewView: View {
     /// 副行：完成率口径 / 上期值 / 上期均值
     private func compareSubline(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> String {
         guard let previous = comparison.previous else {
-            switch info.kind {
-            case .checkIn:
-                if info.frequency == .daily && !info.isBadHabit,
-                   let completion = comparison.current.completion {
-                    return String(localized: "完成率 \(Int((completion * 100).rounded()))%")
-                }
-                return String(localized: "更早还没有这个习惯的记录")
-            case .count, .measure:
-                return String(localized: "更早还没有这个习惯的记录")
-            }
+            return String(localized: "还没有更早的记录")
         }
         switch info.kind {
         case .checkIn:
             if info.frequency == .daily && !info.isBadHabit,
-               let cur = comparison.current.completion, let prev = previous.completion {
-                return String(localized: "完成率 \(Int((cur * 100).rounded()))% · 上期 \(Int((prev * 100).rounded()))%")
+               let cur = comparison.current.completion {
+                return String(localized: "完成率 \(Int((cur * 100).rounded()))%")
             }
             return String(localized: "上期\(info.isBadHabit ? "发生" : "记录") \(previous.recordedDays) \(String(localized: "天"))")
         case .count:
             let cur = dailyRate(comparison.current.countTotal ?? 0, days: comparison.current.validDays)
-            let prev = dailyRate(previous.countTotal ?? 0, days: previous.validDays)
             let curText = HabitPresentationProjector.formatValue(cur)
-            let prevText = HabitPresentationProjector.formatValue(prev)
-            return String(localized: "日均 \(curText) · 上期日均 \(prevText)")
+            return String(localized: "日均 \(curText)")
         case .measure:
             let prevText = HabitPresentationProjector.formatValue(previous.measureAverage ?? 0)
             return String(localized: "上期均值 \(prevText)\(info.unit.isEmpty ? "" : " \(info.unit)")")
         }
     }
 
-    // MARK: 打卡型每周走势（方案A：常驻块，与日历并存）
+    // MARK: 打卡型趋势视图（每周完成率/天数柱；柱顶标数值，不靠图注嘴补）
 
     @ViewBuilder
-    private func weeklyTrendSection(
-        _ trend: (mode: HabitWeeklyTrendMode, bars: [HabitWeeklyBar]),
-        info: HabitReviewHabitInfo
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(trend.mode.title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.holoToolText)
+    private func weeklyChartView(_ info: HabitReviewHabitInfo) -> some View {
+        if let trend = weeklyTrend {
             if trend.bars.isEmpty || trend.bars.allSatisfy({ $0.days == 0 }) {
                 Text(String(localized: "这个范围还没有可统计的周。"))
                     .font(.system(size: 12))
@@ -449,67 +443,86 @@ struct HabitSingleReviewView: View {
                     selectedWeek: $selectedWeek
                 )
                 .frame(height: 176)
-                Text(weeklyFootnote(trend.mode, info: info))
-                    .font(.system(size: 10))
-                    .foregroundColor(.holoToolTextSecondary)
             }
-        }
-        .padding(.top, 16)
-    }
-
-    private func weeklyFootnote(_ mode: HabitWeeklyTrendMode, info: HabitReviewHabitInfo) -> String {
-        switch mode {
-        case .completionRate:
-            return String(localized: "一根柱是一周的完成率（记录天数 ÷ 应打卡天数）。暂停日与创建前不计入。")
-        case .weeklyDays:
-            if info.isBadHabit {
-                return String(localized: "一根柱是一周的发生天数，往下走是好事。")
-            }
-            return String(localized: "一根柱是一周的记录天数。周/月习惯每周记 1 次即达成。")
         }
     }
 
     @State private var selectedWeek: Date?
 
-    // MARK: 可视化（一块主要图，互斥）
+    // MARK: 可视化（打卡型=每周走势+记录日历上下并存，东林认可的原型屏C形态；
+    // 数值型保留「趋势⇄日历」切换——体重看趋势、日历核对，二选一合理）
 
+    @ViewBuilder
     private func vizSection(_ snapshot: HabitRangeSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(vizTitle(snapshot.info))
+        if snapshot.info.kind == .checkIn {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(weeklyTrend?.mode.title ?? String(localized: "每周完成率"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.holoToolText)
-                Spacer()
-                if snapshot.info.kind != .checkIn {
+                    .padding(.top, 16)
+                weeklyChartView(snapshot.info)
+
+                Text(snapshot.info.isBadHabit
+                     ? String(localized: "发生日历")
+                     : String(localized: "记录日历"))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.holoToolText)
+                    .padding(.top, 8)
+                if vizMode == .dates {
+                    dateListView(snapshot)
+                } else {
+                    calendarView(snapshot)
+                }
+
+                // 窄屏/大字号或 VoiceOver 的日期列表入口（§7.2）
+                Button {
+                    withAnimation(HoloAnimation.quick) {
+                        vizMode = vizMode == .dates ? .calendar : .dates
+                    }
+                } label: {
+                    Text(vizMode == .dates ? String(localized: "返回日历") : String(localized: "按日期选择"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                        .frame(minHeight: 40)
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(vizTitle(snapshot.info))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoToolText)
+                    Spacer()
                     vizSwitch
                 }
-            }
-            .padding(.top, 16)
+                .padding(.top, 16)
 
-            switch vizMode {
-            case .calendar:
-                calendarView(snapshot)
-            case .trend:
-                trendView(snapshot)
-            case .dates:
-                dateListView(snapshot)
-            }
-
-            // 窄屏/大字号或 VoiceOver 的日期列表入口（§7.2：不把精确点选作唯一入口）
-            Button {
-                withAnimation(HoloAnimation.quick) {
-                    vizMode = vizMode == .dates
-                        ? (snapshot.info.kind == .checkIn ? .calendar : .trend)
-                        : .dates
+                switch vizMode {
+                case .calendar:
+                    calendarView(snapshot)
+                case .trend:
+                    trendView(snapshot)
+                case .dates:
+                    dateListView(snapshot)
                 }
-            } label: {
-                Text(vizMode == .dates ? String(localized: "返回图表") : String(localized: "按日期选择"))
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoPrimary)
-                    .frame(minHeight: 40)
+
+                if vizMode == .calendar || vizMode == .dates {
+                    Button {
+                        withAnimation(HoloAnimation.quick) {
+                            vizMode = vizMode == .dates ? .calendar : .dates
+                        }
+                    } label: {
+                        Text(vizMode == .dates ? String(localized: "返回日历") : String(localized: "按日期选择"))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.holoPrimary)
+                            .frame(minHeight: 40)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                }
             }
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity)
         }
     }
 
@@ -519,13 +532,16 @@ struct HabitSingleReviewView: View {
         case .calendar:
             return info.isBadHabit ? String(localized: "发生日历") : String(localized: "记录日历")
         case .trend:
+            if info.kind == .checkIn {
+                return weeklyTrend?.mode.title ?? String(localized: "每周完成率")
+            }
             return info.kind == .count
                 ? String(localized: "每天的累计量")
                 : String(localized: "每天的最新值")
         }
     }
 
-    /// 趋势 / 日历 互斥切换（数值型；打卡型固定日历）
+    /// 趋势 / 日历 互斥切换（所有类型；打卡型的趋势=每周完成率/天数柱）
     private var vizSwitch: some View {
         HStack(spacing: 2) {
             modeChip(String(localized: "趋势"), active: vizMode == .trend,
@@ -630,6 +646,10 @@ struct HabitSingleReviewView: View {
                 Text(String(localized: "补录"))
             }
             HStack(spacing: 4) {
+                Circle().fill(Color.holoToolBorder.opacity(0.7)).frame(width: 4, height: 4)
+                Text(String(localized: "未记录"))
+            }
+            HStack(spacing: 4) {
                 Rectangle().fill(Color.holoToolTextSecondary.opacity(0.45)).frame(width: 6, height: 1)
                 Text(String(localized: "暂停"))
             }
@@ -661,12 +681,6 @@ struct HabitSingleReviewView: View {
                 onSelectDay: { day in selectDay(day) }
             )
             .frame(height: 200)
-            Text(snapshot.info.kind == .count
-                 ? String(localized: "每根柱子是当天的累计量。点记录可核对明细。")
-                 : String(localized: "每个点是当天最后一次测量，缺失日不连线。点记录可核对明细。"))
-                .font(.system(size: 10))
-                .foregroundColor(.holoToolTextSecondary)
-                .padding(.top, 6)
         }
     }
 
@@ -855,30 +869,23 @@ struct HabitSingleReviewView: View {
         return record.formattedValue(unit: snapshot.info.unit)
     }
 
-    // MARK: 范围弹层
+    // MARK: 更多范围（上月 / 自定义；快捷档已内联在切换条里）
 
     private var rangeSheet: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(String(localized: "时间范围"))
+            Text(String(localized: "更多范围"))
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.holoToolText)
-            Text(String(localized: "摘要、图和明细使用同一个范围。这里改变范围，不会改动整体回顾的月份。"))
+            Text(String(localized: "摘要、图和明细使用同一个范围。"))
                 .font(.system(size: 12))
                 .foregroundColor(.holoToolTextSecondary)
                 .padding(.top, 4)
                 .padding(.bottom, 14)
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
-                rangeOption(String(localized: "本月"), for: .month(currentMonthStart))
-                if let prev = Calendar.current.date(byAdding: .month, value: -1, to: currentMonthStart) {
-                    rangeOption(String(localized: "上月"), for: .month(prev))
-                }
-                rangeOption(String(localized: "最近 7 天"), for: .lastDays(7))
-                rangeOption(String(localized: "最近 30 天"), for: .lastDays(30))
-                rangeOption(String(localized: "最近 90 天"), for: .lastDays(90))
-                rangeOption(String(localized: "全部记录"), for: .all)
+            if let prev = Calendar.current.date(byAdding: .month, value: -1, to: currentMonthStart) {
+                rangeOption(monthText(prev), for: .month(prev))
+                    .padding(.bottom, 12)
             }
-            .padding(.bottom, 16)
 
             ReviewCustomRangeForm { start, end in
                 applyRange(.custom(start: start, end: end))
@@ -887,7 +894,7 @@ struct HabitSingleReviewView: View {
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.top, HoloSpacing.md)
-        .presentationDetents([.large])
+        .presentationDetents([.height(360)])
     }
 
     private var currentMonthStart: Date {
@@ -917,11 +924,13 @@ struct HabitSingleReviewView: View {
         selectedRange = range
         selectedDay = nil
         rangeSheetShown = false
-        // 翻月状态归位到新范围（月范围显示月直接派生自范围，此赋值让切回
-        // 跨月范围时日历从范围首月起步，不停在无关月份）
+        // 翻月状态归位到新范围的「末月」（最近的月份）：.all 的范围首日是公元 1 年，
+        // 按首月归位会把日历翻到 0001/1 空白月（2026-10-13 判读实锤）；末月总是有意义的近期
         let calendar = Calendar.current
-        let rangeStart = range.dateInterval(now: model.projectionNow, calendar: calendar).start
-        calendarMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: rangeStart)) ?? calendarMonth
+        let rangeEnd = range.dateInterval(now: model.projectionNow, calendar: calendar).end
+        let endMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: rangeEnd))
+            ?? calendarMonth
+        calendarMonth = min(endMonth, currentMonthStart)
         rebuild()
     }
 
@@ -989,7 +998,12 @@ struct HabitSingleReviewView: View {
 
     private func initializeState() {
         guard let habit else { return }
-        selectedRange = .month(model.overviewMonth)
+        if let entryRange = model.singleReviewEntryRange {
+            selectedRange = entryRange
+            model.singleReviewEntryRange = nil
+        } else {
+            selectedRange = .month(model.overviewMonth)
+        }
         vizMode = habit.isCheckInType ? .calendar : .trend
         calendarMonth = model.overviewMonth
     }
@@ -1181,9 +1195,19 @@ struct WeeklyRateChart: View {
                 containerWidthPt: geometry.size.width,
                 pointCount: visibleBars.count
             )
-            chart(barWidthPt: ReviewTrendChartLayout.barWidthPt(
-                dayCount: visibleBars.count, slotWidthPt: slotWidthPt))
+            chart(barWidthPt: barWidth(dayCount: visibleBars.count, slotWidthPt: slotWidthPt))
         }
+        // 柱少时图域收到柱群宽度并居中（每桶至多约 84pt）：两三根火柴棍撒在
+        // 全宽图里八成留黑、孤零感来自槽距而不是柱宽（2026-10-13 东林实报）
+        .frame(maxWidth: CGFloat(max(visibleBars.count, 1)) * 84)
+        .frame(maxWidth: .infinity)
+    }
+
+    /// 柱宽按槽位比例分档封顶：柱越少越粗（≤4 桶 44pt / ≤8 桶 28pt / 更多 16pt），
+    /// 槽距与柱宽同源缩放，档位之间观感连续
+    private func barWidth(dayCount: Int, slotWidthPt: CGFloat) -> CGFloat {
+        let cap: CGFloat = dayCount <= 4 ? 44 : (dayCount <= 8 ? 28 : 16)
+        return max(min(slotWidthPt * 0.34, cap), 2)
     }
 
     private func chart(barWidthPt: CGFloat) -> some View {
@@ -1203,13 +1227,16 @@ struct WeeklyRateChart: View {
         // X 刻度自绘（与柱子同坐标系；不隐藏会叠出一套默认数字刻度——回顾趋势图同坑）
         .chartXAxis(.hidden)
         .chartYAxis {
-            AxisMarks(position: .trailing, values: yAxisValues) { value in
-                AxisGridLine().foregroundStyle(Color.holoToolBorder.opacity(0.4))
-                AxisValueLabel {
-                    if let v = value.as(Double.self) {
-                        Text(yAxisText(v))
-                            .font(.system(size: 9))
-                            .foregroundColor(.holoToolTextSecondary)
+            // 完成率：等差 0/50/100；天数模式：y 轴隐藏（柱顶数值自明，非等差刻度反而逼用户心算）
+            if mode == .completionRate {
+                AxisMarks(position: .trailing, values: [0, 50, 100]) { value in
+                    AxisGridLine().foregroundStyle(Color.holoToolBorder.opacity(0.4))
+                    AxisValueLabel {
+                        if let v = value.as(Double.self) {
+                            Text("\(Int(v))%")
+                                .font(.system(size: 9))
+                                .foregroundColor(.holoToolTextSecondary)
+                        }
                     }
                 }
             }
@@ -1227,6 +1254,19 @@ struct WeeklyRateChart: View {
                                 .font(.system(size: 9))
                                 .foregroundStyle(Color.holoToolTextSecondary)
                                 .position(x: plotFrame.minX + xPos, y: plotFrame.maxY + 10)
+                        }
+                    }
+
+                    // 柱顶数值：读图不心算（92% / 6 天直接标在柱顶）
+                    ForEach(Array(visibleBars.enumerated()), id: \.element.id) { index, bar in
+                        if let xPos = proxy.position(forX: Double(index)) {
+                            let yMax = yDomain.upperBound
+                            let ratio = max(0, min(1, barValue(bar) / yMax))
+                            Text(barTopLabel(bar))
+                                .font(.system(size: 9, weight: .bold).monospacedDigit())
+                                .foregroundColor(color.opacity(0.85))
+                                .position(x: plotFrame.minX + xPos,
+                                          y: max(plotFrame.minY + plotFrame.height * (1 - ratio) - 11, 8))
                         }
                     }
 
@@ -1275,15 +1315,15 @@ struct WeeklyRateChart: View {
     }
 
     private var yDomain: ClosedRange<Double> {
-        mode == .completionRate ? 0...100 : 0...7
+        // 顶部留 15% 呼吸位：满值柱的柱顶数值才能放在柱外上方，
+        // 否则被钳进柱体内部（橙字叠橙柱对比度差，2026-10-13 判读实锤）
+        mode == .completionRate ? 0...115 : 0...8
     }
 
-    private var yAxisValues: [Double] {
-        mode == .completionRate ? [0, 50, 100] : [0, 4, 7]
-    }
-
-    private func yAxisText(_ value: Double) -> String {
-        mode == .completionRate ? "\(Int(value))%" : "\(Int(value))"
+    private func barTopLabel(_ bar: HabitWeeklyBar) -> String {
+        mode == .completionRate
+            ? "\(Int(((bar.fraction ?? 0) * 100).rounded()))%"
+            : "\(bar.recordedDays)"
     }
 
     private func barValue(_ bar: HabitWeeklyBar) -> Double {
@@ -1402,9 +1442,10 @@ struct ReviewCalendarGrid: View {
                     .font(.system(size: 12, weight: isToday(day) ? .bold : .regular).monospacedDigit())
                     .foregroundColor(isToday(day) ? accent : .holoToolText)
                 if info.isPaused && !info.isRecorded {
-                    Text(String(localized: "休"))
-                        .font(.system(size: 8))
-                        .foregroundColor(.holoToolTextSecondary)
+                    // 暂停：小横线（与图例同语言；整排「休」字曾把月历下半打成死灰）
+                    Rectangle()
+                        .fill(Color.holoToolTextSecondary.opacity(0.45))
+                        .frame(width: 6, height: 1.5)
                         .frame(height: 5)
                 } else {
                     mark(info, accent: accent)
@@ -1440,7 +1481,8 @@ struct ReviewCalendarGrid: View {
             } else {
                 Circle().fill(accent).frame(width: 5, height: 5)
             }
-        } else {
+        } else if !info.isFuture && !info.isBeforeCreation {
+            // 真实未记录日才画灰点；未来与创建前留干净空格
             Circle().fill(Color.holoToolBorder.opacity(0.7)).frame(width: 4, height: 4)
         }
     }

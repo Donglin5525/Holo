@@ -1398,6 +1398,40 @@ enum HoloAppStoreScreenshotSeeder {
         walk.createdAt = historyStart
         sleep.createdAt = historyStart
 
+        // 稀疏态样本（验收必测：图表在数据少时必须收缩形态而不是硬画）
+        let stretch = Habit.create(
+            in: context,
+            name: "拉伸",
+            icon: "figure.flexibility",
+            color: "#1F9E9E",
+            type: .checkIn,
+            frequency: .daily,
+            targetCount: 1,
+            sortOrder: 3
+        )
+        let breathe = Habit.create(
+            in: context,
+            name: "深呼吸",
+            icon: "lungs.fill",
+            color: "#8063CE",
+            type: .checkIn,
+            frequency: .daily,
+            targetCount: 1,
+            sortOrder: 4
+        )
+        let todayOffset = Calendar.current.dateComponents(
+            [.day], from: startOfWeek, to: Date()).day ?? 0
+        stretch.createdAt = date(from: startOfWeek, dayOffset: todayOffset - 1, hour: 0, minute: 0)
+        let stretchRecord = HabitRecord.createCheckIn(in: context, habit: stretch)
+        stretchRecord.date = date(from: startOfWeek, dayOffset: todayOffset, hour: 8, minute: 5)
+        stretchRecord.createdAt = stretchRecord.date
+        breathe.createdAt = date(from: startOfWeek, dayOffset: todayOffset - 3, hour: 0, minute: 0)
+        for offset in [todayOffset - 1, todayOffset] {
+            let record = HabitRecord.createCheckIn(in: context, habit: breathe)
+            record.date = date(from: startOfWeek, dayOffset: offset, hour: 7, minute: 40)
+            record.createdAt = record.date
+        }
+
         for day in 0...4 {
             let record = HabitRecord.createCheckIn(in: context, habit: reading)
             record.date = date(from: startOfWeek, dayOffset: day, hour: 8, minute: 35)
@@ -1427,6 +1461,19 @@ enum HoloAppStoreScreenshotSeeder {
             let record = HabitRecord.createCheckIn(in: context, habit: sleep)
             record.date = date(from: startOfWeek, dayOffset: day, hour: 23, minute: 10)
             record.createdAt = record.date
+        }
+
+        // 播种时刻可能早于记录名义时刻（如凌晨跑测试时「今天 08:05」尚未到来）：
+        // 未来时刻记录会被投影层排除，造成「今天的记录在列表里、统计却算未记录」的自相矛盾。
+        // 只钳「今天之内、时刻未到」的记录；未来日期保持原样（isFuture 隔离即可，
+        // 钳了会全挤到今天造成同刻多条）。必须在全部习惯记录创建完之后执行。
+        let seededNow = Date()
+        for case let record as HabitRecord in context.insertedObjects {
+            if record.date > seededNow,
+               Calendar.current.isDate(record.date, inSameDayAs: seededNow) {
+                record.date = seededNow.addingTimeInterval(-60)
+                record.createdAt = record.date
+            }
         }
         return reading
     }

@@ -107,6 +107,9 @@ final class HabitModuleViewModel: ObservableObject {
         from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
     /// 回顾：整体 / 单习惯（返回整体恢复原月份与位置，V2 §9）
     @Published var reviewRoute: ReviewRoute = .overview
+    /// 单习惯回顾进入时的一次性默认范围（弹层「查看长期回顾」→ 近30天直接看走势，
+    /// 整体页点行 → 继承当月；消费即清空，返回再进不再复用）
+    var singleReviewEntryRange: HabitReviewRange? = nil
     /// 回顾整体月度快照
     @Published private(set) var reviewOverview: HabitReviewOverviewSnapshot?
     /// 记录查询失败（不能用空数据冒充「从未记录」，V2 §10）

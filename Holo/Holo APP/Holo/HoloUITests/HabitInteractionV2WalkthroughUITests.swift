@@ -169,8 +169,8 @@ final class HabitInteractionV2WalkthroughUITests: XCTestCase {
         anyRow.tap()
         sleep(2)
         shoot("V2_R02_single_trend")
-        XCTAssertTrue(app.otherElements["habit.single.range"].firstMatch.exists
-                      || app.buttons["habit.single.range"].firstMatch.exists, "缺范围控制")
+        XCTAssertTrue(app.otherElements["habit.single.range.d30"].firstMatch.exists
+                      || app.buttons["habit.single.range.d30"].firstMatch.exists, "缺范围切换条")
 
         // 切日历模式（仅数值型有切换；打卡型固定日历——存在才验证）
         let calendarChip = app.buttons["habit.single.viz.calendar"].firstMatch

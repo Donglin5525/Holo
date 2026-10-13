@@ -423,6 +423,52 @@ final class HabitReviewProjectionTests: XCTestCase {
         XCTAssertEqual(trend.bars.count, 12)
     }
 
+    // MARK: - 「全部」范围不卡死（2026-10-13 真机点「全部」闪退实锤，两闸门均漏）
+
+    /// 「全部」的范围首日是 distantPast：分桶必须被封底在 maxWeeks 周内，
+    /// 从公元逐周迭代会卡死主线程被 watchdog 杀掉
+    func test_周走势_全部范围封底12桶_不起死循环() {
+        let id = UUID()
+        let facts = [fact(id, now)]  // 只有今天一条
+        let data = buildData(facts)
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id), range: .all, data: data)
+        let started = Date()
+        let trend = HabitReviewProjector.weeklyTrend(snapshot: snapshot, data: data)
+        let elapsed = Date().timeIntervalSince(started)
+        XCTAssertLessThan(elapsed, 2.0, "全部范围分桶应在秒级完成")
+        XCTAssertLessThanOrEqual(trend.bars.count, 12)
+        XCTAssertFalse(trend.bars.isEmpty)
+        // 末桶=今天所在周（以当天零点起算）
+        let calendar = self.calendar
+        let today = calendar.startOfDay(for: now)
+        XCTAssertEqual(trend.bars.last?.weekStart,
+                       calendar.date(byAdding: .day, value: -((calendar.component(.weekday, from: today) + 5) % 7),
+                                     to: today))
+    }
+
+    /// 「全部」没有「再往前一段」的语义：不比上期；等长上期窗口（约74万天）逐日循环同样卡死
+    func test_上期对比_全部范围不比上期() {
+        let id = UUID()
+        let data = buildData([fact(id, now)])
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id), range: .all, data: data)
+        let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+        XCTAssertNil(comparison.previous)
+        XCTAssertNil(comparison.previousStart)
+    }
+
+    func test_上期对比_超长自定义范围钳制不比上期() {
+        let id = UUID()
+        let data = buildData([fact(id, now)])
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id),
+            range: .custom(start: day(2024, 1, 1), end: day(2026, 10, 6)),
+            data: data)
+        let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+        XCTAssertNil(comparison.previous)
+    }
+
     // MARK: - 本期 vs 上期对比（方案A：等长窗口 + 完成率归一）
 
     func test_上期对比_月范围上期为紧邻等长窗口() {
@@ -485,5 +531,83 @@ final class HabitReviewProjectionTests: XCTestCase {
         let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
         XCTAssertEqual(comparison.current.measureAverage ?? -1, 74.5, accuracy: 0.001)
         XCTAssertEqual(comparison.previous?.measureAverage ?? -1, 77.0, accuracy: 0.001)
+    }
+
+    // MARK: - 全范围×全类型矩阵（2026-10-13 东林「不想再发生下一次」总闸：任何组合不许卡死）
+
+    /// 六种习惯形态 × 六个范围档全部组合：统计计算须在时限内完成、结果有界。
+    /// 「点全部闪退」这类缺陷的根因是某个组合没被测过——此用例保证没有漏网组合。
+    func test_全范围全类型矩阵_计算有界不卡死() {
+        let calendar = self.calendar
+        // 记录铺开：昨天 / 7天前 / 40天前 / 100天前 / 300天前（覆盖所有范围的窗口）
+        let offsets = [1, 7, 40, 100, 300]
+        func fixtures(_ id: UUID, kind: HabitRowKind) -> [HabitRecordFact] {
+            offsets.compactMap { offset in
+                guard let day = calendar.date(byAdding: .day, value: -offset, to: now) else { return nil }
+                if kind == .checkIn {
+                    return fact(id, day)
+                }
+                return fact(id, day, completed: false, value: Double(offset % 9 + 1))
+            }
+        }
+
+        let ids = (
+            checkInDaily: UUID(), checkInDailyBad: UUID(), checkInWeekly: UUID(),
+            checkInMonthly: UUID(), count: UUID(), measure: UUID()
+        )
+        let habits: [(String, HabitReviewHabitInfo)] = [
+            ("打卡·每日·好", info(ids.checkInDaily)),
+            ("打卡·每日·坏", info(ids.checkInDailyBad, bad: true)),
+            ("打卡·每周", HabitReviewHabitInfo(id: ids.checkInWeekly, kind: .checkIn, frequency: .weekly)),
+            ("打卡·每月", HabitReviewHabitInfo(id: ids.checkInMonthly, kind: .checkIn, frequency: .monthly)),
+            ("计数", info(ids.count, kind: .count, unit: "次")),
+            ("测量", info(ids.measure, kind: .measure, unit: "kg")),
+        ]
+        let ranges: [(String, HabitReviewRange)] = [
+            ("本月", .month(oct)),
+            ("过去月", .month(sep)),
+            ("近30天", .lastDays(30)),
+            ("近90天", .lastDays(90)),
+            ("全部", .all),
+            ("超长自定义", .custom(start: day(2024, 1, 1), end: day(2026, 10, 6))),
+        ]
+
+        for (typeName, habitInfo) in habits {
+            let data = buildData(fixtures(habitInfo.id, kind: habitInfo.kind))
+            for (rangeName, range) in ranges {
+                let snapshot = HabitReviewProjector.rangeSnapshot(info: habitInfo, range: range, data: data)
+                let started = Date()
+                let trend = HabitReviewProjector.weeklyTrend(snapshot: snapshot, data: data)
+                let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+                let elapsed = Date().timeIntervalSince(started)
+                XCTAssertLessThan(elapsed, 1.0,
+                                  "\(typeName)×\(rangeName) 统计超时（\(elapsed)s）——卡死回归")
+                XCTAssertLessThanOrEqual(trend.bars.count, 12,
+                                          "\(typeName)×\(rangeName) 周桶超界")
+                if comparison.previous != nil {
+                    XCTAssertNotNil(comparison.previousLabel)
+                    XCTAssertFalse(comparison.previousLabel.isEmpty)
+                }
+            }
+        }
+    }
+
+    /// 空记录习惯 × 全范围：不崩、不出负数、不出荒谬完成率
+    func test_空记录习惯全范围_空态有界() {
+        let emptyId = UUID()
+        let data = buildData([])
+        for range in [HabitReviewRange.month(oct), .lastDays(30), .lastDays(90), .all,
+                      .custom(start: day(2024, 1, 1), end: day(2026, 10, 6))] {
+            let snapshot = HabitReviewProjector.rangeSnapshot(
+                info: info(emptyId), range: range, data: data)
+            let trend = HabitReviewProjector.weeklyTrend(snapshot: snapshot, data: data)
+            let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+            XCTAssertFalse(trend.bars.contains { ($0.fraction ?? 0) < 0 || ($0.fraction ?? 0) > 1 },
+                           "空记录出现越界完成率")
+            if let completion = comparison.current.completion {
+                XCTAssertGreaterThanOrEqual(completion, 0)
+                XCTAssertLessThanOrEqual(completion, 1)
+            }
+        }
     }
 }

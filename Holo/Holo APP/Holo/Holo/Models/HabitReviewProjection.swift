@@ -536,11 +536,18 @@ extension HabitReviewProjector {
             (snapshot.info.frequency == .daily && !snapshot.info.isBadHabit)
             ? .completionRate : .weeklyDays
 
-        // 首桶周一 = 范围首日所在周的周一（首周可能不足 7 天，如实画）
+        // 首桶周一 = 范围首日所在周的周一（首周可能不足 7 天，如实画）；
+        // 但必须被「末桶往回 maxWeeks 周」封底——「全部记录」的范围首日是 distantPast，
+        // 从那里逐周迭代到今天≈10万+次循环直接卡死主线程（2026-10-13 东林真机点「全部」闪退实锤）
         let firstDay = snapshot.interval.start
         let weekday = calendar.component(.weekday, from: firstDay)
         let mondayOffset = (weekday + 5) % 7  // 周日=0 → 6，周一=0
-        let firstMonday = calendar.date(byAdding: .day, value: -mondayOffset, to: firstDay) ?? firstDay
+        let rangeFirstMonday = calendar.date(byAdding: .day, value: -mondayOffset, to: firstDay) ?? firstDay
+        let lastDay = calendar.date(byAdding: .day, value: -1, to: snapshot.interval.end) ?? firstDay
+        let lastWeekday = calendar.component(.weekday, from: lastDay)
+        let lastMonday = calendar.date(byAdding: .day, value: -((lastWeekday + 5) % 7), to: lastDay) ?? lastDay
+        let floorMonday = calendar.date(byAdding: .day, value: -7 * (maxWeeks - 1), to: lastMonday) ?? lastMonday
+        let firstMonday = max(rangeFirstMonday, floorMonday)
 
         var bars: [HabitWeeklyBar] = []
         var weekStart = firstMonday
@@ -574,9 +581,21 @@ extension HabitReviewProjector {
         data: HabitProjectionData
     ) -> HabitPeriodComparison {
         let calendar = data.calendar
+        // 「全部记录」没有「再往前一段」的语义；超长窗口的等长上期（如 distantPast 起算
+        // 约 74 万天）逐日循环会卡死主线程——一律不比上期（2026-10-13 真机点「全部」闪退实锤）
+        if case .all = snapshot.range {
+            return HabitPeriodComparison(
+                current: side(of: snapshot, data: data),
+                previous: nil, previousStart: nil, previousLabel: "")
+        }
         let elapsedDays = max(
             calendar.dateComponents([.day], from: snapshot.interval.start, to: snapshot.interval.end).day ?? 0,
             1)
+        guard elapsedDays <= 366 else {
+            return HabitPeriodComparison(
+                current: side(of: snapshot, data: data),
+                previous: nil, previousStart: nil, previousLabel: "")
+        }
         let current = side(of: snapshot, data: data)
 
         // 上期窗口 [start - elapsed, start)
@@ -605,16 +624,23 @@ extension HabitReviewProjector {
         )
     }
 
-    /// 单侧窗口聚合：记录天数 / 有效天数 / 计数总量 / 测量均值
+    /// 单侧窗口聚合：记录天数 / 有效天数 / 计数总量 / 测量均值。
+    /// 逐日循环必须封底：从 max(范围首日, 创建日) 起且只回看 ≤397 天——
+    /// 「全部」的范围首日是公元 1 年，从那里空转到今天是「点全部卡死」的根源
+    /// （2026-10-13 矩阵测试实锤：修掉周分桶后这里仍以 7.8s 超时）。
     private static func side(of snapshot: HabitRangeSnapshot, data: HabitProjectionData) -> HabitPeriodSide {
+        let calendar = data.calendar
+        let creationDay = calendar.startOfDay(for: snapshot.info.createdAt)
+        let capFloor = calendar.date(byAdding: .day, value: -397, to: snapshot.interval.end)
+            ?? snapshot.interval.start
+        var day = max(max(snapshot.interval.start, creationDay), capFloor)
         var validDays = 0
-        var day = snapshot.interval.start
         while day < snapshot.interval.end {
-            let info = snapshot.day(day, today: data.now, calendar: data.calendar)
+            let info = snapshot.day(day, today: data.now, calendar: calendar)
             if !info.isBeforeCreation && !info.isPaused && !info.isFuture {
                 validDays += 1
             }
-            day = data.calendar.date(byAdding: .day, value: 1, to: day) ?? day
+            day = calendar.date(byAdding: .day, value: 1, to: day) ?? day
         }
         var measureAverage: Double?
         if snapshot.info.kind == .measure, !snapshot.dailyValues.isEmpty {
