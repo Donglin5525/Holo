@@ -485,6 +485,50 @@ final class ReceiptBookingCoordinator {
         return formatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
     }
 
+    // MARK: - 复核页分类学习写回（与聊天/手动记账同一闭环，2026-10-13）
+
+    /// 确认页用户显式改选科目后写回学习映射。
+    /// 口径与 ChatViewModel.recordCategoryLearningIfNeeded 一致：只有用户改过才学，
+    /// AI 建议被直接确认不学——防止模型猜测经确认反复自我强化。
+    /// candidate 锚点：AI 候选词优先，为空时用商户名（商户在小票上稳定复现，等价于
+    /// 聊天侧 candidate ?? note 的文本锚点）；两者皆空无锚点，跳过。
+    /// - Returns: 是否记录了学习（守卫/锚点任一不满足返回 false）
+    @discardableResult
+    static func recordCategoryLearningIfNeeded(
+        userSelectedCategoryID: UUID?,
+        categoryCandidate: String?,
+        merchant: String?,
+        typeIsIncome: Bool,
+        targetPrimary: String,
+        targetSub: String
+    ) -> Bool {
+        guard userSelectedCategoryID != nil,
+              !targetPrimary.isEmpty, !targetSub.isEmpty else { return false }
+        let anchor = [categoryCandidate, merchant]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+        guard let anchor else { return false }
+        let type: TransactionType = typeIsIncome ? .income : .expense
+        CategoryLearnedMapping.record(
+            candidate: anchor,
+            type: type,
+            targetPrimary: targetPrimary,
+            targetSub: targetSub
+        )
+        CategoryLearnedMapping.recordInductionSample(
+            candidate: anchor,
+            targetPrimary: targetPrimary,
+            targetSub: targetSub,
+            transactionType: type
+        )
+        CategoryLearnedMapping.tryTriggerInduction(
+            targetPrimary: targetPrimary,
+            targetSub: targetSub,
+            transactionType: type
+        )
+        return true
+    }
+
     private static func makeReviewSnapshot(
         understanding: HoloVisionUnderstanding,
         reasons: [ReceiptBookingReason],
