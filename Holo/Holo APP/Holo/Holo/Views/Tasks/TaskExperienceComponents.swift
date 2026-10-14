@@ -10,6 +10,13 @@ import SwiftUI
 
 // MARK: - 任务行
 
+enum TaskExperienceRowLayout {
+    static let horizontalInset: CGFloat = 14
+    static let gap: CGFloat = 14
+    static let actionSide: CGFloat = 44
+    static let textInset: CGFloat = horizontalInset + actionSide + gap
+}
+
 struct TaskExperienceRow: View {
     let member: TaskRecordSnapshot
     let calendar: Calendar
@@ -30,11 +37,12 @@ struct TaskExperienceRow: View {
     let onArchive: () -> Void
     let onDelete: () -> Void
     let onToggleCheckItem: (CheckItemSnapshot) -> Void
-    let onAddCheckItem: (String) -> Void
+    let onAddCheckItem: (String) -> Bool
 
     /// 展开态（点行就地展开子任务，无弹窗）；LazyVStack 里按行自身 id 保持
     @State private var isExpanded = false
     @State private var newStepTitle = ""
+    @State private var stepSaveFailed = false
     @FocusState private var isNewStepFocused: Bool
 
     private var isOverdueRow: Bool {
@@ -46,41 +54,52 @@ struct TaskExperienceRow: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .top, spacing: TaskExperienceRowLayout.gap) {
             // 进度环：点=完成/撤回整卡；弧=子任务进度（无子任务是细空环）
-            Button(action: onToggleCompletion) { progressRing }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "完成\(member.title)"))
-
-            // 行主体：点=就地展开/收起子任务
-            Button {
-                guard !member.checkItems.isEmpty else {
-                    onOpenDetail()
-                    return
-                }
-                withAnimation(HoloAnimation.snappy) { isExpanded.toggle() }
-            } label: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(member.title)
-                        .font(.system(size: 16.5, weight: .semibold))
-                        .foregroundColor(isCompleted ? .holoTextSecondary : .holoTextPrimary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-                        .strikethrough(isCompleted, color: .holoTextPlaceholder)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    // 唯一辅助信息：历史行报完成时间；进行中报截止（今天橙/逾期红）
-                    if let auxiliary = auxiliaryText {
-                        Text(auxiliary.text)
-                            .font(.system(size: 12))
-                            .foregroundColor(auxiliary.color)
-                    }
-
-                    if isExpanded { expandedContent }
-                }
+            Button(action: onToggleCompletion) {
+                progressRing.frame(width: TaskExperienceRowLayout.actionSide, height: TaskExperienceRowLayout.actionSide, alignment: .top)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .combine)
+                .buttonStyle(.plain)
+                .accessibilityLabel(isCompleted ? String(localized: "取消完成\(member.title)") : String(localized: "完成\(member.title)"))
+                .accessibilityIdentifier("task.completion.\(member.id.uuidString)")
+                .accessibilityValue(Text(isCompleting ? "等待完成" : (isCompleted ? "已完成" : "未完成")))
+
+            // 标题负责展开，子任务和输入框独立，避免 Button 内嵌 Button 吞掉操作。
+            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                Button {
+                    guard !member.checkItems.isEmpty else {
+                        onOpenDetail()
+                        return
+                    }
+                    withAnimation(HoloAnimation.snappy) { isExpanded.toggle() }
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(member.title)
+                            .holoText(.body)
+                            .fontWeight(.semibold)
+                            .foregroundColor(isCompleted ? .holoToolTextSecondary : .holoTextPrimary)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .strikethrough(isCompleted, color: .holoTextPlaceholder)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        // 唯一辅助信息：历史行报完成时间；进行中报截止（今天橙/逾期红）
+                        if let auxiliary = auxiliaryText {
+                            Text(auxiliary.text)
+                                .holoText(.metadata)
+                                .foregroundColor(auxiliary.color)
+                        }
+
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("task.row.\(member.id.uuidString)")
+                if isExpanded { expandedContent }
+            }
 
             if showsChevron {
                 // 展开箭头是真按钮（真机实报「点不动」：初版只当装饰画，点了没反应）
@@ -89,15 +108,15 @@ struct TaskExperienceRow: View {
                 } label: {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(isExpanded ? .holoTextSecondary : .holoTextPlaceholder)
-                        .frame(width: 34, height: 34)
+                        .foregroundColor(isExpanded ? .holoToolTextSecondary : .holoTextPlaceholder)
+                        .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(isExpanded ? String(localized: "收起子任务") : String(localized: "展开子任务"))
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, TaskExperienceRowLayout.horizontalInset)
         .padding(.vertical, 14)
         .contentShape(Rectangle())
         .contextMenu { rowActions }
@@ -111,7 +130,7 @@ struct TaskExperienceRow: View {
         let fraction = items.isEmpty ? 0 : Double(items.filter(\.isChecked).count) / Double(items.count)
         return ZStack {
             Circle()
-                .stroke(Color.holoTextSecondary.opacity(0.24), lineWidth: 1.2)
+                .stroke(Color.holoToolTextSecondary.opacity(0.24), lineWidth: 1.2)
             if !items.isEmpty {
                 // 至少留一粒起点弧：0 完成也能看出「这行有进度系统」
                 Circle()
@@ -143,7 +162,7 @@ struct TaskExperienceRow: View {
                     HStack(alignment: .top, spacing: 10) {
                         ZStack {
                             Circle()
-                                .strokeBorder(item.isChecked ? Color.holoTextSecondary : Color.holoTextPlaceholder,
+                                .strokeBorder(item.isChecked ? Color.holoToolTextSecondary : Color.holoTextPlaceholder,
                                               lineWidth: 1.5)
                                 .frame(width: 17, height: 17)
                             if item.isChecked {
@@ -155,8 +174,8 @@ struct TaskExperienceRow: View {
                         .frame(width: 17, height: 17)
                         .padding(.top, 1.5)
                         Text(item.title)
-                            .font(.system(size: 13.5))
-                            .foregroundColor(item.isChecked ? .holoTextPlaceholder : .holoTextSecondary)
+                            .holoText(.supporting)
+                            .foregroundColor(item.isChecked ? .holoTextPlaceholder : .holoToolTextSecondary)
                             .strikethrough(item.isChecked, color: .holoTextPlaceholder)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
@@ -166,6 +185,8 @@ struct TaskExperienceRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("task.step.\(item.id.uuidString)")
+                .accessibilityValue(Text(item.isChecked ? "已完成" : "未完成"))
             }
 
             // 加一步（行内输入，回车落库）
@@ -174,13 +195,17 @@ struct TaskExperienceRow: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.holoTextPlaceholder)
                 TextField(String(localized: "加一步，回车保存"), text: $newStepTitle)
-                    .font(.system(size: 13.5))
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
                     .focused($isNewStepFocused)
                     .submitLabel(.done)
                     .onSubmit(commitNewStep)
             }
             .padding(.top, 4)
+            if stepSaveFailed {
+                HoloInlineState(kind: .failure, message: String(localized: "这一步未保存，内容已保留，请重试。"),
+                                actionTitle: String(localized: "重试"), action: commitNewStep)
+            }
 
             // 注脚：清单名（收起态不上屏，展开态才出现）+ 详情入口
             HStack(spacing: 6) {
@@ -196,10 +221,14 @@ struct TaskExperienceRow: View {
     }
 
     private func commitNewStep() {
-        let trimmed = newStepTitle.trimmingCharacters(in: .whitespaces)
+        let trimmed = newStepTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        onAddCheckItem(trimmed)
-        newStepTitle = ""
+        if onAddCheckItem(trimmed) {
+            newStepTitle = ""
+            stepSaveFailed = false
+        } else {
+            stepSaveFailed = true
+        }
     }
 
     // MARK: 唯一辅助信息
@@ -208,19 +237,19 @@ struct TaskExperienceRow: View {
         if isHistoryRow {
             if let completedAt = member.completedAt {
                 return (String(localized: "完成于 ") + Self.historyTimeFormatter.string(from: completedAt),
-                        .holoTextSecondary)
+                        .holoToolTextSecondary)
             }
             return nil
         }
         guard let due = member.effectiveDue(calendar: calendar) else { return nil }
         let natural = Self.formatNatural(due, member: member, calendar: calendar)
         if isOverdueRow {
-            return (natural + String(localized: " · 已逾期"), .holoError)
+            return (natural + String(localized: " · 已逾期"), .holoToolError)
         }
         if calendar.isDateInToday(due) {
             return (natural, .holoPrimary)
         }
-        return (natural, .holoTextSecondary)
+        return (natural, .holoToolTextSecondary)
     }
 
     /// 清单名（展开态注脚显示）
@@ -479,7 +508,7 @@ struct TaskExperienceSearchView: View {
                             .foregroundColor(.holoTextPlaceholder)
                         Text("搜索全部任务")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                         Text("包含已完成和归档任务")
                             .font(.holoCaption)
                             .foregroundColor(.holoTextPlaceholder)
@@ -490,7 +519,7 @@ struct TaskExperienceSearchView: View {
                     VStack(spacing: HoloSpacing.md) {
                         Text("没有找到「\(keyword)」相关任务")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                         Button(String(localized: "清除搜索")) {
                             keyword = ""
                         }
@@ -546,7 +575,7 @@ struct TaskExperienceSearchView: View {
                     }
                     Text(statusDescription(snapshot))
                         .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 .contentShape(Rectangle())
             }
@@ -563,7 +592,7 @@ struct TaskExperienceSearchView: View {
         if snapshot.archived {
             Text("已归档")
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Capsule().fill(Color.holoBorder))

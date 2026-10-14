@@ -1,6 +1,518 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "重新读取进度" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload progress"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新讀取進度"
+          }
+        }
+      }
+    },
+    "这次规划已达到处理上限，可以重新开始。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This planning session has reached its limit. You can start again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這次規劃已達到處理上限，可以重新開始。"
+          }
+        }
+      }
+    },
+    "这次没有生成可用的结果，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No usable result was generated. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這次沒有產生可用的結果，請重試。"
+          }
+        }
+      }
+    },
+    "这份规划由较新版本的 Holo 创建，请更新 App 后继续。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This plan was created with a newer version of Holo. Update the app to continue."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這份規劃由較新版本的 Holo 建立，請更新 App 後繼續。"
+          }
+        }
+      }
+    },
+    "这份规划已无法继续，请重新开始。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This plan can no longer continue. Please start again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這份規劃已無法繼續，請重新開始。"
+          }
+        }
+      }
+    },
+    "这份未完成的规划将被删除，已有目标不受影响。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This unfinished plan will be deleted. Existing goals will be kept."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這份未完成的規劃將被刪除，已有目標不受影響。"
+          }
+        }
+      }
+    },
+    "这一步未保存，内容已保留，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This step was not saved. Your input is preserved. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這一步未儲存，內容已保留，請重試。"
+          }
+        }
+      }
+    },
+    "请先在「设置 → HoloAI 数据授权」开启授权，再回来继续。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable consent in Settings → HoloAI Data Consent, then return to continue."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先在「設定 → HoloAI 資料授權」開啟授權，再回來繼續。"
+          }
+        }
+      }
+    },
+    "规划进度已变化，请重新读取后继续。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planning progress has changed. Reload it to continue."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "規劃進度已變化，請重新讀取後繼續。"
+          }
+        }
+      }
+    },
+    "规划完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planning complete"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "規劃完成"
+          }
+        }
+      }
+    },
+    "等待完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending completion"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待完成"
+          }
+        }
+      }
+    },
+    "目标已保存，暂时无法读取规划进度。可关闭此页，在我的目标中查看。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your goal is saved. Planning progress cannot be loaded right now. Close this page and view it in My Goals."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標已儲存，暫時無法讀取規劃進度。可關閉此頁，在我的目標中查看。"
+          }
+        }
+      }
+    },
+    "没有匹配的分类，请换个关键词。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching categories. Try another keyword."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有符合的分類，請換個關鍵字。"
+          }
+        }
+      }
+    },
+    "步骤状态未保存，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The step status was not saved. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "步驟狀態未儲存，請重試。"
+          }
+        }
+      }
+    },
+    "正在起草，完成后会自动显示。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafting now. The result will appear automatically."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在起草，完成後會自動顯示。"
+          }
+        }
+      }
+    },
+    "正在清空回收站…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emptying Recently Deleted…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在清空最近刪除…"
+          }
+        }
+      }
+    },
+    "标记未完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark as incomplete"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標記未完成"
+          }
+        }
+      }
+    },
+    "服务暂时繁忙，请稍后继续。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The service is busy. Please continue later."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服務暫時繁忙，請稍後繼續。"
+          }
+        }
+      }
+    },
+    "暂时无法连接服务，请检查网络后重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to connect. Check your network and try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時無法連線服務，請檢查網路後重試。"
+          }
+        }
+      }
+    },
+    "暂时无法读取这份规划，原记录已保留。请稍后重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This plan cannot be loaded right now. The original record is preserved. Try again later."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時無法讀取這份規劃，原記錄已保留。請稍後重試。"
+          }
+        }
+      }
+    },
+    "暂时无法读取规划进度，原记录已保留。请稍后重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planning progress cannot be loaded. Your records are preserved. Try again later."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時無法讀取規劃進度，原記錄已保留。請稍後重試。"
+          }
+        }
+      }
+    },
+    "时间调整未保存，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The time change was not saved. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時間調整未儲存，請重試。"
+          }
+        }
+      }
+    },
+    "放弃这份规划？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard this plan?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放棄這份規劃？"
+          }
+        }
+      }
+    },
+    "放弃规划" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard plan"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放棄規劃"
+          }
+        }
+      }
+    },
+    "操作未完成，请稍后重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The action did not complete. Please try again later."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作未完成，請稍後重試。"
+          }
+        }
+      }
+    },
+    "提醒未保存，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The reminder was not saved. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒未儲存，請重試。"
+          }
+        }
+      }
+    },
+    "尚未发送的回答会丢失，已保存的规划进度会保留。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your unsent answer will be lost. Saved planning progress will be kept."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未傳送的回答會丟失，已儲存的規劃進度會保留。"
+          }
+        }
+      }
+    },
+    "后一天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next day"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "後一天"
+          }
+        }
+      }
+    },
+    "取消完成%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark %@ as incomplete"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消完成%@"
+          }
+        }
+      }
+    },
+    "发送回答" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send answer"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送回答"
+          }
+        }
+      }
+    },
+    "前一天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous day"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前一天"
+          }
+        }
+      }
+    },
+    "上一条还在处理，请稍等。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The previous request is still being processed. Please wait."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一條還在處理，請稍等。"
+          }
+        }
+      }
+    },
     "" : {
       "localizations" : {
         "en" : {

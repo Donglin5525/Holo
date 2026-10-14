@@ -104,7 +104,7 @@ struct GoalDetailView: View {
                 sourceUnavailableRow
             } else {
                 Text("\(progress.state.displayName) · \(progress.taskSummary) · \(progress.habitSummary)")
-                    .font(.system(size: 13))
+                    .holoText(.metadata)
                     .foregroundColor(.holoPrimary)
             }
             if let desiredOutcome = goal.desiredOutcome, !desiredOutcome.isEmpty {
@@ -127,14 +127,14 @@ struct GoalDetailView: View {
     private func infoLine(icon: String, label: String, value: String) -> some View {
         HStack(alignment: .top, spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 12))
+                .holoText(.metadata)
                 .foregroundColor(.holoToolTextSecondary)
                 .frame(width: 16)
             Text("\(label)：")
-                .font(.system(size: 13))
+                .holoText(.metadata)
                 .foregroundColor(.holoToolTextSecondary)
             Text(value)
-                .font(.system(size: 13))
+                .holoText(.metadata)
                 .foregroundColor(.holoToolText)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -254,7 +254,7 @@ struct GoalDetailView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 14))
+                            .holoText(.supporting)
                         Text("记一笔")
                             .holoText(.body)
                             .fontWeight(.semibold)
@@ -321,9 +321,9 @@ struct GoalDetailView: View {
     private func forecastLabel(icon: String, color: Color, text: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.system(size: 13))
+                .holoText(.metadata)
             Text(text)
-                .font(.system(size: 13))
+                .holoText(.metadata)
         }
         .foregroundColor(color)
     }
@@ -357,13 +357,13 @@ struct GoalDetailView: View {
     private func sourceLabelRow(text: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "link")
-                .font(.system(size: 12))
+                .holoText(.metadata)
             Text(text)
-                .font(.system(size: 13))
+                .holoText(.metadata)
                 .foregroundColor(.holoToolTextSecondary)
             Spacer(minLength: 0)
             Image(systemName: "chevron.right")
-                .font(.system(size: 11))
+                .holoText(.metadata)
                 .foregroundColor(.holoToolTextSecondary.opacity(0.6))
         }
     }
@@ -375,16 +375,16 @@ struct GoalDetailView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 13))
-                    .foregroundColor(.orange)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolWarning)
                 Text("数据源习惯已删除或归档，进度暂停计算，点此重新选择")
-                    .font(.system(size: 13))
+                    .holoText(.metadata)
                     .foregroundColor(.holoToolText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .padding(HoloSpacing.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.orange.opacity(0.08))
+            .background(Color.holoToolWarning.opacity(0.08))
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
         }
         .buttonStyle(HoloPressStyle())
@@ -444,7 +444,7 @@ struct GoalDetailView: View {
                 perform { try repository.deleteMetricLog(log, for: goal) }
             } label: {
                 Image(systemName: "trash")
-                    .font(.system(size: 13))
+                    .holoText(.metadata)
                     .foregroundColor(.holoToolTextSecondary.opacity(0.6))
             }
             .buttonStyle(HoloPressStyle())

@@ -427,7 +427,7 @@ struct ThoughtKnowledgeTreeView: View {
         HStack(spacing: HoloSpacing.sm) {
             Image(systemName: icon)
                 .font(.system(size: 14))
-                .foregroundColor(.holoAI)
+                .foregroundColor(.holoToolAI)
             Text(text)
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
@@ -653,7 +653,7 @@ struct ThoughtKnowledgeTreeView: View {
         HStack(spacing: HoloSpacing.md) {
             Image(systemName: "sparkles")
                 .font(.system(size: 15))
-                .foregroundColor(.holoAI)
+                .foregroundColor(.holoToolAI)
                 .frame(width: 34, height: 34)
                 .background(Color.holoAI.opacity(0.1))
                 .cornerRadius(HoloRadius.md)
@@ -717,7 +717,7 @@ struct ThoughtKnowledgeTreeView: View {
             HStack(spacing: HoloSpacing.md) {
                 Image(systemName: "sparkle.magnifyingglass")
                     .font(.system(size: 17))
-                    .foregroundColor(.holoAI)
+                    .foregroundColor(.holoToolAI)
                     .frame(width: 38, height: 38)
                     .background(Color.holoAI.opacity(0.12))
                     .cornerRadius(HoloRadius.md)

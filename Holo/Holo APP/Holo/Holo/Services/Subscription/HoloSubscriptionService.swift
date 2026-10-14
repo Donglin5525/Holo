@@ -16,6 +16,7 @@ final class HoloSubscriptionService: ObservableObject {
     @Published private(set) var products: [Product] = []
     @Published private(set) var isLoadingProducts = false
     @Published private(set) var isPurchasing = false
+    @Published private(set) var isRestoring = false
 
     private let entitlementState: HoloEntitlementState
     private let baseURL: String
@@ -100,6 +101,7 @@ final class HoloSubscriptionService: ObservableObject {
     }
 
     func purchase(_ product: Product) async {
+        guard !isPurchasing, !isRestoring else { return }
         isPurchasing = true
         defer { isPurchasing = false }
 
@@ -146,6 +148,9 @@ final class HoloSubscriptionService: ObservableObject {
     }
 
     func restorePurchases() async {
+        guard !isPurchasing, !isRestoring else { return }
+        isRestoring = true
+        defer { isRestoring = false }
         do {
             try await AppStore.sync()
             // AppStore.sync 之后必须把 Apple 侧有效凭证逐笔回传服务器：

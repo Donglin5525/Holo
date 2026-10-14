@@ -131,6 +131,150 @@ final class GoalWorkshopCoordinatorTests: XCTestCase {
         GoalWorkshopCoordinator(service: service, store: store)
     }
 
+    // MARK: - 页面操作闭环回归（2026-10-14）
+
+    private func makeFlowModel() -> GoalWorkshopFlowModel {
+        let model = GoalWorkshopFlowModel(coordinator: makeCoordinator(), store: store)
+        CoreDataTestSupport.retain(model)
+        return model
+    }
+
+    func testFlowResumeFailureKeepsCandidatesAndShowsError() async throws {
+        service.enqueue(.okEcho { Self.questionJSON(sessionID: $0, revision: $1) })
+        let session = try await makeCoordinator().start(seedText: "保留原规划")
+        let model = makeFlowModel()
+        await model.bootstrap(.new(seedText: nil))
+        XCTAssertEqual(model.resumeCandidates.map(\.id), [session.id])
+        await model.resume(UUID())
+        XCTAssertEqual(model.resumeCandidates.map(\.id), [session.id], "失败不能提前清空恢复入口")
+        XCTAssertNotNil(model.errorText)
+        XCTAssertFalse(model.isBusy)
+    }
+
+    func testFlowBackConflictKeepsLastContentAndCanReload() async throws {
+        service.enqueue(.okEcho { Self.optionsJSON(sessionID: $0, revision: $1) })
+        let started = try await makeCoordinator().start(seedText: "学习英语")
+        let chosen = try await makeCoordinator().choose(sessionID: started.id, optionID: "route-1")
+        let model = makeFlowModel()
+        await model.resume(chosen.id)
+        var newer = chosen
+        newer.revision += 2
+        try store.saveIfRevisionMatches(newer)
+        await model.goBack()
+        XCTAssertEqual(model.session?.phase, .choosing)
+        XCTAssertEqual(model.session?.revision, chosen.revision, "冲突不清掉当前画面")
+        XCTAssertTrue(model.needsReload)
+        await model.reloadCurrent()
+        XCTAssertEqual(model.session?.revision, newer.revision)
+        XCTAssertNil(model.errorText)
+        XCTAssertFalse(model.needsReload)
+    }
+
+    func testFlowFailedReplyKeepsDraftAndSuccessfulRetryClearsIt() async throws {
+        service.enqueue(.okEcho { Self.questionJSON(sessionID: $0, revision: $1) })
+        let model = makeFlowModel()
+        await model.bootstrap(.new(seedText: "多读书"))
+        let sessionID = try XCTUnwrap(model.session?.id)
+        model.replyDraft = "每周读两次"
+        service.enqueue(.fail(URLError(.notConnectedToInternet)))
+        await model.reply(model.replyDraft)
+        XCTAssertEqual(model.replyDraft, "每周读两次")
+        XCTAssertEqual(model.session?.id, sessionID)
+        XCTAssertNotNil(model.errorText)
+        service.enqueue(.okEcho { Self.optionsJSON(sessionID: $0, revision: $1) })
+        await model.reply(model.replyDraft)
+        XCTAssertEqual(model.session?.phase, .exploring)
+        XCTAssertEqual(model.replyDraft, "")
+        XCTAssertNil(model.errorText)
+    }
+
+    func testFlowFailedDiscardDoesNotRemoveCandidateOrStartNewRequest() async throws {
+        service.enqueue(.okEcho { Self.questionJSON(sessionID: $0, revision: $1) })
+        let session = try await makeCoordinator().start(seedText: "保留候选")
+        let model = makeFlowModel()
+        await model.bootstrap(.new(seedText: nil))
+        try store.discard(id: session.id)
+        let calls = service.callCount
+        await model.discard(session.id)
+        XCTAssertEqual(model.resumeCandidates.map(\.id), [session.id])
+        XCTAssertEqual(service.callCount, calls, "放弃失败不能静默创建新规划")
+        XCTAssertNotNil(model.errorText)
+    }
+
+    func testFlowUsesAtomicReceiptWithoutSecondSave() async throws {
+        let coordinator = makeCoordinator()
+        service.enqueue(.okEcho { Self.optionsJSON(sessionID: $0, revision: $1) })
+        let started = try await coordinator.start(seedText: "学习英语")
+        _ = try await coordinator.choose(sessionID: started.id, optionID: "route-1")
+        service.enqueue(.okEcho { Self.planJSON(sessionID: $0, revision: $1) })
+        let reviewing = try await coordinator.generatePlan(sessionID: started.id)
+        let model = makeFlowModel()
+        await model.resume(reviewing.id)
+        let goalID = UUID()
+        GoalWorkshopCommitService.applySessionReceipt(sessionID: reviewing.id, goalID: goalID, in: context)
+        try context.save()
+        await model.finishAfterSave(goalID: goalID)
+        XCTAssertEqual(model.session?.phase, .saved)
+        XCTAssertEqual(model.session?.appliedGoalID, goalID)
+        XCTAssertEqual(try store.load(id: reviewing.id)?.revision, reviewing.revision, "完成页不得额外推进或补写一次保存")
+        XCTAssertTrue(try store.listResumable().isEmpty)
+    }
+
+    func testFlowReceiptReadFailureStillShowsSavedAndBlocksResubmission() async throws {
+        service.enqueue(.okEcho { Self.optionsJSON(sessionID: $0, revision: $1) })
+        let model = makeFlowModel()
+        await model.bootstrap(.new(seedText: "规划"))
+        await model.choose("route-1")
+        service.enqueue(.okEcho { Self.planJSON(sessionID: $0, revision: $1) })
+        await model.generatePlan()
+        let id = try XCTUnwrap(model.session?.id)
+        try store.discard(id: id)
+        let goalID = UUID()
+        await model.finishAfterSave(goalID: goalID)
+        XCTAssertEqual(model.session?.phase, .saved)
+        XCTAssertEqual(model.session?.appliedGoalID, goalID)
+        XCTAssertNotNil(model.errorText, "回读失败与真实目标保存结果分别表达")
+    }
+
+    func testExplicitActionFailureDoesNotPublishSuccessAndCanRetry() async {
+        let action = HoloAsyncActionState()
+        CoreDataTestSupport.retain(action)
+        var successFeedbackCount = 0
+        let failed = await action.run {
+            throw URLError(.cannotWriteToFile)
+        }
+        if failed { successFeedbackCount += 1 }
+        XCTAssertEqual(successFeedbackCount, 0)
+        XCTAssertNotNil(action.errorMessage)
+        XCTAssertFalse(action.isRunning)
+        let succeeded = await action.run {}
+        if succeeded { successFeedbackCount += 1 }
+        XCTAssertEqual(successFeedbackCount, 1)
+        XCTAssertNil(action.errorMessage)
+    }
+
+    func testExplicitActionRejectsDuplicateWhileRunning() async {
+        let action = HoloAsyncActionState()
+        CoreDataTestSupport.retain(action)
+        let started = expectation(description: "操作已开始")
+        var continuation: CheckedContinuation<Void, Never>?
+        var calls = 0
+        let first = Task { @MainActor in
+            await action.run {
+                calls += 1
+                await withCheckedContinuation { continuation = $0; started.fulfill() }
+            }
+        }
+        await fulfillment(of: [started], timeout: 3)
+        let duplicate = await action.run { calls += 1 }
+        XCTAssertFalse(duplicate)
+        XCTAssertEqual(calls, 1)
+        continuation?.resume()
+        let firstSucceeded = await first.value
+        XCTAssertTrue(firstSucceeded)
+        XCTAssertFalse(action.isRunning)
+    }
+
     // MARK: - 用例
 
     func testZeroQuestionDirectPathToReviewing() async throws {

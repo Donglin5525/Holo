@@ -23,7 +23,7 @@ struct TaskSplitEntryRow: View {
         HStack(spacing: 8) {
             Image(systemName: "wand.and.stars")
                 .font(.caption)
-                .foregroundStyle(Color.holoAI)
+                .foregroundStyle(Color.holoToolAI)
             Text(existingStepCount == 0
                  ? String(localized: "不知道从哪儿下手？拆成小步慢慢来")
                  : String(localized: "再拆一拆，看看还缺哪几步"))
@@ -338,7 +338,7 @@ struct TaskSplitSheet: View {
         VStack(spacing: 14) {
             Image(systemName: "sparkles")
                 .font(.title2)
-                .foregroundStyle(Color.holoAI)
+                .foregroundStyle(Color.holoToolAI)
             Text(reason)
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)

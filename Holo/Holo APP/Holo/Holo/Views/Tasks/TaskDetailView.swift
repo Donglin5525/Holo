@@ -1144,7 +1144,8 @@ struct TaskDetailView: View {
                 .font(.system(size: 18, weight: .medium))
                 .foregroundColor(.holoPrimary)
 
-            TextField("添加子任务，输入后按回车", text: $newCheckItemTitle, axis: .vertical)
+            TextField("添加子任务，输入后按回车", text: $newCheckItemTitle)
+                .accessibilityIdentifier("task.detail.addStep")
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
                 .lineSpacing(2)
@@ -1159,7 +1160,7 @@ struct TaskDetailView: View {
                 }
                 .onChange(of: isAddingCheckItemFocused) { _, focused in
                     // 失焦时若框内仍有未提交内容，自动入列，避免切走丢字
-                    if !focused {
+                    if !focused && !showSaveErrorAlert {
                         addCheckItem()
                     }
                 }
@@ -1177,6 +1178,7 @@ struct TaskDetailView: View {
             }
             .buttonStyle(.plain)
             .disabled(!hasText)
+            .accessibilityIdentifier("task.detail.addStep.confirm")
             .animation(HoloAnimation.quick, value: hasText)
         }
         .padding(.horizontal, 12)
@@ -1184,7 +1186,7 @@ struct TaskDetailView: View {
     }
 
     private func addCheckItem() {
-        let trimmed = newCheckItemTitle.trimmingCharacters(in: .whitespaces)
+        let trimmed = newCheckItemTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
         if let task = existingTask {
@@ -1197,6 +1199,9 @@ struct TaskDetailView: View {
                 applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
             } catch {
                 Self.logger.error("添加子任务失败：\(error.localizedDescription)")
+                saveErrorMessage = String(localized: "这一步未保存，内容已保留，请重试。")
+                showSaveErrorAlert = true
+                return
             }
         } else {
             pendingCheckItems.append(PendingCheckItem(title: trimmed))

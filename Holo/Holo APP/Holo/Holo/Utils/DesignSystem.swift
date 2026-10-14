@@ -673,6 +673,12 @@ extension Color {
     static let holoToolBorder = Color("ToolBorder")
     static let holoToolAction = Color("ToolAction")
     static let holoToolOnAction = Color("ToolOnAction")
+    /// 业务文字/图标状态色：亮暗分别取可读档，不改用户数据和图表系列颜色。
+    static let holoToolWarning = Color("ToolWarning")
+    static let holoToolSuccess = Color("ToolSuccess")
+    static let holoToolError = Color("ToolError")
+    static let holoToolInfo = Color("ToolInfo")
+    static let holoToolAI = Color("ToolAI")
 }
 
 extension HoloSpacing {
@@ -786,16 +792,18 @@ struct HoloActionStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
                     .strokeBorder(role == .secondary ? Color.holoToolBorder : Color.clear, lineWidth: 0.5)
             }
-            .opacity(isEnabled ? (configuration.isPressed ? 0.82 : 1) : 0.5)
+            .opacity(isEnabled && configuration.isPressed ? 0.82 : 1)
             .scaleEffect(configuration.isPressed && motionEnabled && !reduceMotion ? HoloAnimation.pressScale : 1)
             .animation(reduceMotion || !motionEnabled ? nil : HoloAnimation.quick, value: configuration.isPressed)
     }
 
     private var foreground: Color {
-        role == .secondary ? .holoToolText : (role == .destructive ? .white : .holoToolOnAction)
+        if !isEnabled { return .holoToolTextSecondary }
+        return role == .secondary ? .holoToolText : (role == .destructive ? .white : .holoToolOnAction)
     }
 
     private var background: Color {
+        if !isEnabled { return .holoToolInset }
         switch role {
         case .primary: return .holoToolAction
         case .secondary: return .holoToolSurface
@@ -819,7 +827,7 @@ struct HoloInlineState: View {
                     ProgressView().tint(Color.holoToolAction)
                 } else {
                     Image(systemName: kind == .failure ? "exclamationmark.circle" : "tray")
-                        .foregroundStyle(kind == .failure ? Color.holoError : Color.holoToolTextSecondary)
+                        .foregroundStyle(kind == .failure ? Color.holoToolError : Color.holoToolTextSecondary)
                         .accessibilityHidden(true)
                 }
                 Text(message)

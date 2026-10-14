@@ -684,7 +684,14 @@ class TodoRepository: ObservableObject {
     @discardableResult
     func addCheckItem(title: String, to task: TodoTask, order: Int16) throws -> CheckItem {
         let item = CheckItem.create(in: context, title: title, task: task, order: order)
-        try context.save()
+        do {
+            try context.save()
+        } catch {
+            // 本次未保存的新条目不留在关系中，重试不重复；保留别处的未保存编辑。
+            item.task = nil
+            context.delete(item)
+            throw error
+        }
         loadActiveTasks()
         notifyDataChange()
         return item
@@ -692,18 +699,33 @@ class TodoRepository: ObservableObject {
 
     /// 切换子任务状态
     func toggleCheckItem(_ item: CheckItem) throws {
+        let oldChecked = item.isChecked
+        let oldWaiting = item.isWaiting
+        let oldNote = item.waitNote
+        let oldReviewDate = item.reviewRemindAt
+        let task = item.task
+        let oldUpdatedAt = task?.updatedAt
         item.isChecked.toggle()
         // 勾掉即完成：等待态随动清空并撤等待提醒（等待与完成互斥）
         if item.isChecked {
             item.isWaiting = false
             item.waitNote = nil
             item.reviewRemindAt = nil
-            if let taskID = item.task?.id {
-                TodoNotificationService.shared.cancelCheckItemWaitingReminder(taskID: taskID, itemID: item.id)
-            }
         }
         item.task?.updatedAt = Date()
-        try context.save()
+        do {
+            try context.save()
+        } catch {
+            item.isChecked = oldChecked
+            item.isWaiting = oldWaiting
+            item.waitNote = oldNote
+            item.reviewRemindAt = oldReviewDate
+            if let oldUpdatedAt { task?.updatedAt = oldUpdatedAt }
+            throw error
+        }
+        if item.isChecked, let taskID = task?.id {
+            TodoNotificationService.shared.cancelCheckItemWaitingReminder(taskID: taskID, itemID: item.id)
+        }
         loadActiveTasks()
         notifyDataChange()
     }

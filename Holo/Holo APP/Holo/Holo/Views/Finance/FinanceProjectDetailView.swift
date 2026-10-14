@@ -45,13 +45,13 @@ struct FinanceProjectDetailView: View {
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.xs)
         }
-        .background(Color.holoBackground.ignoresSafeArea())
+        .background(Color.holoToolBackground.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear.frame(height: 24)
         }
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Color.holoBackground, for: .navigationBar)
+        .toolbarBackground(Color.holoToolBackground, for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -115,7 +115,7 @@ struct FinanceProjectDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                 }
                 .accessibilityLabel("项目操作菜单")
                 .accessibilityIdentifier("projectDetail.menu")
@@ -179,13 +179,13 @@ struct FinanceProjectDetailView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(project.name)
                         .font(.system(size: 17, weight: .bold))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .lineLimit(1)
                     HStack(spacing: 6) {
                         if let range = FinanceProjectListView.dateRangeLabel(for: project) {
                             Text(range)
-                                .font(.system(size: 11))
-                                .foregroundColor(.holoTextSecondary)
+                                .holoText(.metadata)
+                                .foregroundColor(.holoToolTextSecondary)
                         }
                         if project.statusEnum == .completed {
                             statusCapsule("已完结")
@@ -199,16 +199,16 @@ struct FinanceProjectDetailView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(netAmount >= 0 ? "净投入（支出−收入）" : "净收益（收入−支出）")
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
                 Text("¥\(AccountCardFormat.amount(abs(netAmount)))")
                     .font(.system(size: 30, weight: .heavy, design: .rounded))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                 Text("\(expenseCount) 笔支出 · 日均 ¥\(AccountCardFormat.amount(dailyAverage))")
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -225,7 +225,7 @@ struct FinanceProjectDetailView: View {
             }
         }
         .padding(16)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
@@ -237,10 +237,10 @@ struct FinanceProjectDetailView: View {
         VStack(spacing: 2) {
             Text(title)
                 .font(.system(size: 10.5))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Text(value)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
         }
@@ -267,8 +267,8 @@ struct FinanceProjectDetailView: View {
             Text(ratio >= 1
                  ? "已超支 ¥\(AccountCardFormat.amount(-remaining))"
                  : "剩余 ¥\(AccountCardFormat.amount(remaining)) · \(Int((ratio * 100).rounded()))%")
-                .font(.system(size: 11))
-                .foregroundColor(ratio >= 1 ? .holoError : .holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(ratio >= 1 ? .holoError : .holoToolTextSecondary)
         }
     }
 
@@ -282,7 +282,7 @@ struct FinanceProjectDetailView: View {
     private func statusCapsule(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 9.5, weight: .semibold))
-            .foregroundColor(.holoTextSecondary)
+            .foregroundColor(.holoToolTextSecondary)
             .padding(.horizontal, 7)
             .padding(.vertical, 1.5)
             .background(Capsule().fill(Color.holoGlassBackground))
@@ -296,7 +296,7 @@ struct FinanceProjectDetailView: View {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                 Text("分类构成")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 VStack(spacing: 0) {
                     ForEach(categoryAggregations, id: \.category.id) { aggregation in
@@ -308,7 +308,7 @@ struct FinanceProjectDetailView: View {
                         }
                     }
                 }
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: HoloRadius.lg)
@@ -335,17 +335,17 @@ struct FinanceProjectDetailView: View {
 
                     Text(aggregation.category.name)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .lineLimit(1)
 
                     Spacer()
 
                     Text("¥\(AccountCardFormat.amount(aggregation.amount))")
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     Text(String(format: "%.0f%%", aggregation.percentage))
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                         .frame(width: 34, alignment: .trailing)
                 }
 
@@ -383,7 +383,7 @@ struct FinanceProjectDetailView: View {
             HStack {
                 Text("交易记录 · \(visibleTransactions.count) 笔")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 if categoryFilter != nil {
                     Button {
                         withAnimation(HoloAnimation.quick) { categoryFilter = nil }
@@ -391,7 +391,7 @@ struct FinanceProjectDetailView: View {
                         HStack(spacing: 3) {
                             Text(categoryFilter?.name ?? "")
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 10))
+                                .holoText(.metadata)
                         }
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.holoPrimary)
@@ -405,17 +405,17 @@ struct FinanceProjectDetailView: View {
                 VStack(spacing: HoloSpacing.md) {
                     Image(systemName: "receipt")
                         .font(.system(size: 32))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     Text("暂无交易记录")
                         .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     Text("点右上角菜单，记一笔或从历史补挂")
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary.opacity(0.8))
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(HoloSpacing.xl)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             } else {
                 let grouped = groupByDate(visibleTransactions)
@@ -424,7 +424,7 @@ struct FinanceProjectDetailView: View {
                         VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                             Text(Self.dateFormatter.string(from: date))
                                 .font(.holoCaption)
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                                 .padding(.leading, HoloSpacing.sm)
 
                             ForEach(dayTransactions, id: \.objectID) { tx in
@@ -512,13 +512,13 @@ struct ProjectHistoryPickerSheet: View {
                     VStack(spacing: HoloSpacing.md) {
                         Image(systemName: "clock.arrow.circlepath")
                             .font(.system(size: 40, weight: .light))
-                            .foregroundColor(.holoTextSecondary.opacity(0.5))
+                            .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                         Text("近期没有可补挂的支出")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                         Text("已挂到其他项目的交易不会出现在这里")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary.opacity(0.8))
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
@@ -532,18 +532,18 @@ struct ProjectHistoryPickerSheet: View {
                     }
                 }
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle("选择交易")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { dismiss() }
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("挂到项目 (\(selectedIds.count))") { attachSelected() }
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(selectedIds.isEmpty ? .holoTextSecondary : .holoPrimary)
+                        .foregroundColor(selectedIds.isEmpty ? .holoToolTextSecondary : .holoPrimary)
                         .disabled(selectedIds.isEmpty)
                 }
             }
@@ -566,7 +566,7 @@ struct ProjectHistoryPickerSheet: View {
             HStack(spacing: 10) {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 18))
-                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary.opacity(0.5))
+                    .foregroundColor(isSelected ? .holoPrimary : .holoToolTextSecondary.opacity(0.5))
 
                 TransactionRowView(transaction: tx, showsDate: true) {}
             }

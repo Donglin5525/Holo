@@ -92,6 +92,7 @@ struct HabitDetailView: View {
     /// 打卡提醒（仅打卡型；改动即保存）
     @State private var reminderMode: HabitReminderMode = .follow
     @State private var reminderTime: Date = Date()
+    @State private var reminderSaveError: String?
     /// 暂停弹层（Plus 功能，非 Plus 走统一付费墙）
     @State private var showPauseSheet: Bool = false
     /// 测量记录输入（详情内直接记录）
@@ -655,10 +656,14 @@ struct HabitDetailView: View {
             || newTime.hour != Int(habit.reminderHour)
             || newTime.minute != Int(habit.reminderMinute) else { return }
 
-        try? HabitRepository.shared.updateHabit(habit, updates: HabitUpdates(
-            reminderMode: reminderMode,
-            reminderTime: newTime
-        ))
+        reminderSaveError = nil
+        do {
+            try HabitReminderCommit.apply(habit, mode: reminderMode, time: newTime) { habit, updates in
+                try HabitRepository.shared.updateHabit(habit, updates: updates)
+            }
+        } catch {
+            reminderSaveError = String(localized: "提醒未保存，请重试。")
+        }
     }
 
     /// 应用归属目标选择：nil 表示移除关联；落库后刷新头部快照
@@ -1074,6 +1079,10 @@ struct HabitDetailView: View {
                 .onChange(of: reminderTime) { _, _ in
                     saveReminderSettings()
                 }
+            if let reminderSaveError {
+                HoloInlineState(kind: .failure, message: reminderSaveError,
+                                actionTitle: String(localized: "重试"), action: saveReminderSettings)
+            }
         }
     }
 

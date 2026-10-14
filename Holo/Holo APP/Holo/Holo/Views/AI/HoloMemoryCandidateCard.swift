@@ -14,25 +14,34 @@ struct HoloMemoryCandidateCard: View {
     let onReject: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack {
                 Image(systemName: "lightbulb")
-                    .font(.system(size: 14))
+                    .holoText(.supporting)
                     .foregroundColor(.holoPrimary)
                 Text(memory.title)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
+                    .holoText(.supporting)
+                    .fontWeight(.medium)
+                    .foregroundColor(.holoToolText)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer()
-                semanticTypeBadge(memory.semanticType)
-                if memory.sensitivity != .normal {
-                    sensitivityBadge
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: HoloSpacing.sm) {
+                    semanticTypeBadge(memory.semanticType)
+                    if memory.sensitivity != .normal { sensitivityBadge }
+                }
+                .fixedSize(horizontal: true, vertical: false)
+                VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                    semanticTypeBadge(memory.semanticType)
+                    if memory.sensitivity != .normal { sensitivityBadge }
                 }
             }
 
             Text(memory.displaySummary)
-                .font(.system(size: 13))
-                .foregroundColor(.holoTextSecondary)
-                .lineLimit(3)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             if !memory.evidence.isEmpty {
                 evidencePreview
@@ -43,25 +52,17 @@ struct HoloMemoryCandidateCard: View {
                     onReject()
                 } label: {
                     Text("忽略")
-                        .font(.system(size: 13))
-                        .foregroundColor(.holoTextSecondary)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 6)
-                        .background(Color.holoTextSecondary.opacity(0.1))
-                        .cornerRadius(8)
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(HoloActionStyle(role: .secondary))
 
                 Button {
                     onConfirm()
                 } label: {
                     Text("记住")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 6)
-                        .background(Color.holoPrimary)
-                        .cornerRadius(8)
+                        .frame(maxWidth: .infinity)
                 }
+                .buttonStyle(HoloActionStyle(role: .primary))
             }
             .padding(.top, 4)
         }
@@ -72,11 +73,11 @@ struct HoloMemoryCandidateCard: View {
 
     private var sensitivityBadge: some View {
         Text(memory.sensitivity == .sensitive ? String(localized: "敏感") : String(localized: "高影响"))
-            .font(.system(size: 11))
-            .foregroundColor(.orange)
+            .holoText(.metadata)
+            .foregroundColor(.holoToolWarning)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Color.orange.opacity(0.1))
+            .background(Color.holoToolWarning.opacity(0.1))
             .cornerRadius(4)
     }
 
@@ -84,7 +85,7 @@ struct HoloMemoryCandidateCard: View {
 
     private func semanticTypeBadge(_ type: HoloMemorySemanticType) -> some View {
         Text(semanticTypeDisplayName(type))
-            .font(.system(size: 11))
+            .holoText(.metadata)
             .foregroundColor(.holoPrimary)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
@@ -112,15 +113,15 @@ struct HoloMemoryCandidateCard: View {
                         .fill(Color.holoPrimary.opacity(0.3))
                         .frame(width: 4, height: 4)
                     Text(ev.excerpt)
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(1)
                 }
             }
             if memory.evidence.count > 2 {
                 Text("还有 \(memory.evidence.count - 2) 条证据")
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
             }
         }
     }

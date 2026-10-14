@@ -37,8 +37,8 @@ struct ImportPreviewSheet: View {
                         ProgressView()
                             .scaleEffect(1.2)
                         Text("正在扫描文件...")
-                            .font(.system(size: 14))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.supporting)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let summary = viewModel.scanSummary {
@@ -80,8 +80,8 @@ struct ImportPreviewSheet: View {
                     VStack(spacing: HoloSpacing.md) {
                         ProgressView()
                         Text("准备中...")
-                            .font(.system(size: 14))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.supporting)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -89,7 +89,7 @@ struct ImportPreviewSheet: View {
                 // 底部按钮
                 bottomActions
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationBarHidden(true)
         }
         .presentationDetents([.large])
@@ -122,9 +122,9 @@ struct ImportPreviewSheet: View {
             Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(width: 32, height: 32)
-                    .background(Color.holoBackground)
+                    .background(Color.holoToolBackground)
                     .clipShape(Circle())
             }
 
@@ -132,7 +132,7 @@ struct ImportPreviewSheet: View {
 
             Text("导入预览")
                 .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             Spacer()
 
@@ -152,7 +152,7 @@ struct ImportPreviewSheet: View {
                     .foregroundColor(.holoPrimary)
                 Text("检测结果")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             VStack(spacing: 8) {
@@ -175,7 +175,7 @@ struct ImportPreviewSheet: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
@@ -184,12 +184,12 @@ struct ImportPreviewSheet: View {
     private func infoRow(label: String, value: String) -> some View {
         HStack {
             Text(label)
-                .font(.system(size: 13))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
             Spacer()
             Text(value)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
         }
     }
 
@@ -203,7 +203,7 @@ struct ImportPreviewSheet: View {
                     .foregroundColor(.holoPrimary)
                 Text("字段映射")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 Spacer()
 
@@ -227,7 +227,7 @@ struct ImportPreviewSheet: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
@@ -236,13 +236,13 @@ struct ImportPreviewSheet: View {
     private func mappingRow(_ holoField: String, index: Int?, headers: [String]) -> some View {
         HStack {
             Text(holoField)
-                .font(.system(size: 13))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
                 .frame(width: 60, alignment: .leading)
 
             Image(systemName: "arrow.right")
-                .font(.system(size: 10))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             if let idx = index, idx < headers.count {
                 Text(headers[idx])
@@ -254,8 +254,8 @@ struct ImportPreviewSheet: View {
                     .clipShape(Capsule())
             } else {
                 Text("未映射")
-                    .font(.system(size: 13))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                     .italic()
             }
 
@@ -270,13 +270,13 @@ struct ImportPreviewSheet: View {
             ForEach($viewModel.parseWarnings) { $warning in
                 HStack(spacing: 8) {
                     Image(systemName: warning.isBlocking ? "exclamationmark.triangle.fill" : "info.circle")
-                        .font(.system(size: 14))
+                        .holoText(.supporting)
                         .foregroundColor(warning.isBlocking ? .red : .orange)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(warning.message)
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolText)
 
                         if warning.isBlocking && !warning.isConfirmed {
                             Button {
@@ -295,7 +295,7 @@ struct ImportPreviewSheet: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.orange.opacity(0.06))
+        .background(Color.holoToolWarning.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
@@ -310,7 +310,7 @@ struct ImportPreviewSheet: View {
                     .foregroundColor(.holoPrimary)
                 Text("科目导入计划")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             // 导入统计
@@ -325,19 +325,19 @@ struct ImportPreviewSheet: View {
             if !primaries.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("将新建的一级分类")
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                     ForEach(Array(primaries.enumerated()), id: \.offset) { _, desc in
                         HStack(spacing: 4) {
                             Image(systemName: "questionmark.folder.fill")
-                                .font(.system(size: 12))
+                                .holoText(.metadata)
                                 .foregroundColor(.blue)
                             Text(desc.normalizedPrimaryName)
-                                .font(.system(size: 13))
-                                .foregroundColor(.holoTextPrimary)
+                                .holoText(.metadata)
+                                .foregroundColor(.holoToolText)
                             Text("（\(typeLabel(desc.typeRaw))）")
-                                .font(.system(size: 11))
-                                .foregroundColor(.holoTextSecondary)
+                                .holoText(.metadata)
+                                .foregroundColor(.holoToolTextSecondary)
                         }
                     }
                 }
@@ -348,23 +348,23 @@ struct ImportPreviewSheet: View {
             if !subs.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("将新建的二级分类")
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                     ForEach(Array(subs.enumerated()), id: \.offset) { _, desc in
                         HStack(spacing: 4) {
                             Image(systemName: "questionmark.circle.fill")
-                                .font(.system(size: 12))
-                                .foregroundColor(.orange)
+                                .holoText(.metadata)
+                                .foregroundColor(.holoToolWarning)
                             Text("\(desc.normalizedPrimaryName) / \(desc.normalizedSubName ?? "")")
-                                .font(.system(size: 13))
-                                .foregroundColor(.holoTextPrimary)
+                                .holoText(.metadata)
+                                .foregroundColor(.holoToolText)
                         }
                     }
                 }
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
@@ -376,8 +376,8 @@ struct ImportPreviewSheet: View {
                 .fill(color)
                 .frame(width: 6, height: 6)
             Text("\(label) \(count)")
-                .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
         }
     }
 
@@ -396,7 +396,7 @@ struct ImportPreviewSheet: View {
                     .foregroundColor(.holoPrimary)
                 Text("数据预览（前 \(summary.sampleRows.count) 条）")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             // 横向可滚动的数据表
@@ -407,13 +407,13 @@ struct ImportPreviewSheet: View {
                         ForEach(summary.headers.indices, id: \.self) { i in
                             Text(summary.headers[i])
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                                 .frame(width: 80, alignment: .leading)
                                 .padding(.vertical, 6)
                                 .padding(.horizontal, 4)
                         }
                     }
-                    .background(Color.holoBackground)
+                    .background(Color.holoToolBackground)
 
                     Divider()
 
@@ -422,8 +422,8 @@ struct ImportPreviewSheet: View {
                         HStack(spacing: 0) {
                             ForEach(row.indices, id: \.self) { j in
                                 Text(row[j])
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.holoTextPrimary)
+                                    .holoText(.metadata)
+                                    .foregroundColor(.holoToolText)
                                     .frame(width: 80, alignment: .leading)
                                     .padding(.vertical, 4)
                                     .padding(.horizontal, 4)
@@ -436,7 +436,7 @@ struct ImportPreviewSheet: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
@@ -448,27 +448,27 @@ struct ImportPreviewSheet: View {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.orange)
+                    .foregroundColor(.holoToolWarning)
                 Text("\(viewModel.failedCount) 条记录将被跳过")
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.orange)
+                    .foregroundColor(.holoToolWarning)
             }
 
             // 最多展示前 5 条错误
             ForEach(Array(viewModel.topFailures.prefix(5).enumerated()), id: \.offset) { _, failure in
                 Text("第 \(failure.index) 行：\(failure.error)")
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             if viewModel.topFailures.count > 5 {
                 Text("...还有 \(viewModel.topFailures.count - 5) 条")
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.orange.opacity(0.06))
+        .background(Color.holoToolWarning.opacity(0.06))
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
@@ -483,10 +483,10 @@ struct ImportPreviewSheet: View {
                 Button { dismiss() } label: {
                     Text("取消")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
                         .overlay(
                             RoundedRectangle(cornerRadius: HoloRadius.lg)
@@ -508,7 +508,7 @@ struct ImportPreviewSheet: View {
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 48)
-                    .background(viewModel.canImport ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
+                    .background(viewModel.canImport ? Color.holoPrimary : Color.holoToolTextSecondary.opacity(0.3))
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
                 }
                 .disabled(!viewModel.canImport)
@@ -516,6 +516,6 @@ struct ImportPreviewSheet: View {
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.vertical, HoloSpacing.md)
         }
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
     }
 }

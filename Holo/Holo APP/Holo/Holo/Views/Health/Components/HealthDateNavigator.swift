@@ -15,15 +15,7 @@ struct HealthDateNavigator: View {
     @State private var showCalendar = false
 
     var body: some View {
-        ZStack {
-            HStack {
-                Spacer()
-
-                if !Calendar.current.isDateInToday(selectedDate) {
-                    todayButton
-                }
-            }
-
+        VStack(spacing: HoloSpacing.xs) {
             HStack(spacing: HoloSpacing.sm) {
                 navigationButton(systemName: "chevron.left", isDisabled: false) {
                     navigateDate(-1)
@@ -46,6 +38,10 @@ struct HealthDateNavigator: View {
                 Capsule()
                     .stroke(Color.holoToolBorder.opacity(0.7), lineWidth: 1)
             )
+            if !Calendar.current.isDateInToday(selectedDate) {
+                todayButton
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
         }
         .sheet(isPresented: $showCalendar) {
             HealthDatePickerSheet(selectedDate: $selectedDate)
@@ -68,10 +64,11 @@ struct HealthDateNavigator: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
             }
-            .frame(minWidth: 118)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(HoloPressStyle())
+        .accessibilityIdentifier("health.datePicker")
     }
 
     private func navigationButton(
@@ -85,11 +82,13 @@ struct HealthDateNavigator: View {
             Image(systemName: systemName)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(isDisabled ? .holoToolTextSecondary.opacity(0.32) : .holoToolTextSecondary)
-                .frame(width: 28, height: 28)
-                .contentShape(Circle())
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(HoloPressStyle())
         .disabled(isDisabled)
+        .accessibilityLabel(Text(systemName == "chevron.left" ? "前一天" : "后一天"))
+        .accessibilityIdentifier(systemName == "chevron.left" ? "health.previousDay" : "health.nextDay")
     }
 
     private var todayButton: some View {
@@ -105,12 +104,16 @@ struct HealthDateNavigator: View {
                 .padding(.vertical, 6)
                 .background(Color.holoPrimary.opacity(0.1))
                 .clipShape(Capsule())
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(HoloPressStyle())
+        .accessibilityIdentifier("health.returnToToday")
     }
 
     private var dateDisplayText: String {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
         let calendar = Calendar.current
 
         formatter.setLocalizedDateFormatFromTemplate("MMMd")
@@ -200,7 +203,8 @@ private struct HealthDatePickerSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(400)])
+        .holoSheetShell()
+        .presentationDetents([.height(400), .large])
         .presentationDragIndicator(.visible)
     }
 }

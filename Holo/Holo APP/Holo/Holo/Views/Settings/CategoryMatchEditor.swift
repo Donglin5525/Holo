@@ -42,6 +42,10 @@ struct CategoryMatchEditor: View {
                 // 分类列表
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 0) {
+                        if filteredCategories.isEmpty {
+                            HoloInlineState(kind: .empty, message: String(localized: "没有匹配的分类，请换个关键词。"))
+                                .padding(HoloSpacing.md)
+                        }
                         ForEach(filteredCategories, id: \.id) { category in
                             categoryRow(category)
                         }
@@ -54,9 +58,10 @@ struct CategoryMatchEditor: View {
                     confirmCreateNewButton
                 }
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationBarHidden(true)
         }
+        .holoSheetShell()
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
@@ -67,52 +72,52 @@ struct CategoryMatchEditor: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text("原始分类")
-                    .font(.system(size: 13))
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Spacer()
 
                 Text(matchResult.type.rawValue)
-                    .font(.system(size: 11))
-                    .foregroundColor(.white)
+                    .holoText(.metadata)
+                    .foregroundColor(matchResult.type == .expense ? .holoToolError : .holoToolSuccess)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(matchResult.type == .expense ? Color.orange : Color.green)
+                    .background((matchResult.type == .expense ? Color.holoToolError : Color.holoToolSuccess).opacity(0.1))
                     .clipShape(Capsule())
             }
 
             HStack(spacing: 4) {
                 Text(matchResult.originalPrimary)
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                 if matchResult.originalPrimary != matchResult.originalSub {
                     Text("/")
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     Text(matchResult.originalSub)
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                 }
             }
 
             if let matched = matchResult.matchedCategory {
                 HStack(spacing: 4) {
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 10))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                     Text("当前匹配：")
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                     Text(matched.name)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(matchResult.primaryCategoryMatched ? .green : .orange)
+                        .foregroundColor(matchResult.primaryCategoryMatched ? .holoToolSuccess : .holoToolWarning)
                     Text("(\(String(format: "%.0f%%", matchResult.confidence * 100)))")
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
     }
 
     // MARK: - 搜索框
@@ -120,14 +125,14 @@ struct CategoryMatchEditor: View {
     private var searchBar: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 14))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
 
             TextField("搜索分类", text: $searchText)
-                .font(.system(size: 14))
+                .holoText(.supporting)
         }
         .padding(HoloSpacing.sm)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
@@ -145,13 +150,13 @@ struct CategoryMatchEditor: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(category.name)
-                        .font(.system(size: 14))
-                        .foregroundColor(.holoTextPrimary)
+                        .holoText(.supporting)
+                        .foregroundColor(.holoToolText)
 
                     if let parent = parentName(of: category) {
                         Text(parent)
-                            .font(.system(size: 11))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
 
@@ -166,7 +171,7 @@ struct CategoryMatchEditor: View {
             }
             .padding(.horizontal, HoloSpacing.md)
             .padding(.vertical, 10)
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
         }
     }
 

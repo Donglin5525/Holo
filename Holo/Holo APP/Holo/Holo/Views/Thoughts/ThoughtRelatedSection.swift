@@ -97,7 +97,7 @@ struct ThoughtRelatedSection: View {
                     Label("你之前也写过", systemImage: "sparkle.magnifyingglass")
                         .font(.holoLabel)
                         .fontWeight(.semibold)
-                        .foregroundColor(.holoAI)
+                        .foregroundColor(.holoToolAI)
 
                     ForEach(items) { item in
                         relatedRow(item)
@@ -227,7 +227,7 @@ struct ThoughtInsightButton: View {
             Label("帮我想想", systemImage: "lightbulb.max")
                 .font(.holoCaption)
                 .fontWeight(.semibold)
-                .foregroundColor(.holoAI)
+                .foregroundColor(.holoToolAI)
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, 9)
                 .background(Capsule().fill(Color.holoAI.opacity(0.08)))

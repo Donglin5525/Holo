@@ -561,10 +561,17 @@ final class HoloMotionInteractionUITests: XCTestCase {
         XCTAssertTrue(tasks.waitForExistence(timeout: 20))
         tasks.tap()
         // 生活故事夹具的任务不一定到期于今天，明确进入全部清单，避免依赖当天日期和上次筛选。
-        let allTasks = app.buttons.matching(NSPredicate(format: "label == '全部'")).firstMatch
-        XCTAssertTrue(allTasks.waitForExistence(timeout: 10))
+        let scope = app.buttons["tasks.scope"]
+        XCTAssertTrue(scope.waitForExistence(timeout: 10))
+        scope.tap()
+        let allTasks = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '全部未完成'")).firstMatch
+        XCTAssertTrue(allTasks.waitForExistence(timeout: 8))
         allTasks.tap()
-        let completion = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.completion.' AND label BEGINSWITH '完成：'")).firstMatch
+        let scopeClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
+                                                   object: app.navigationBars["查看范围"])
+        XCTAssertEqual(XCTWaiter.wait(for: [scopeClosed], timeout: 5), .completed,
+                       "点选整行后必须真正关闭范围弹层，不能继续点击背后的幽灵元素")
+        let completion = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.completion.' AND label BEGINSWITH '完成'")).firstMatch
         // 远期任务按产品规则默认折叠，测试通过分组按钮展开真实记录。
         for title in ["本周", "稍后", "未安排"] where !completion.exists {
             let group = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title + "、")).firstMatch
@@ -573,14 +580,84 @@ final class HoloMotionInteractionUITests: XCTestCase {
         XCTAssertTrue(completion.waitForExistence(timeout: 15), "应能找到真实任务完成入口")
         let identifier = completion.identifier
         let originalLabel = completion.label
-        completion.tap()
-        let undo = app.buttons.matching(NSPredicate(format: "label == '撤回'")).firstMatch
+        // iOS 26 的局部元素查询可能给出错误 hittable；用完整快照坐标实际触摸，
+        // 最终仍必须看到撤回并验证真实状态恢复，不能以坐标发送成功代替业务成功。
+        guard let target = app.buttons.allElementsBoundByIndex.first(where: { $0.identifier == identifier }) else {
+            return XCTFail("完成入口应存在")
+        }
+        let rect = target.frame
+        XCTAssertGreaterThanOrEqual(rect.width, 44)
+        XCTAssertGreaterThanOrEqual(rect.height, 44)
+        XCTAssertTrue(app.frame.intersects(rect))
+        app.coordinate(withNormalizedOffset: CGVector(dx: rect.midX / app.frame.width,
+                                                      dy: rect.midY / app.frame.height)).tap()
+        let undo = app.buttons["holo.undo"]
         XCTAssertTrue(undo.waitForExistence(timeout: 2), "动画开启或关闭时都必须可撤回")
         undo.tap()
         let restored = app.buttons[identifier]
-        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", originalLabel), object: restored)
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@ AND value == '未完成'", originalLabel), object: restored)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, "撤回后必须恢复未完成，不得残留完成状态")
         app.terminate()
+    }
+
+    func testExpandedStepControlsRemainIndependent() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "life-flow"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "home"
+        app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
+        app.launch()
+        let tasks = app.buttons["任务"].firstMatch
+        XCTAssertTrue(tasks.waitForExistence(timeout: 20))
+        tasks.tap()
+        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.row.'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        let rowID = row.identifier
+        row.tap()
+        let detailLink = app.buttons["详情 ›"].firstMatch
+        if detailLink.exists { detailLink.tap() }
+        let detailInput = app.textFields["task.detail.addStep"].exists ? app.textFields["task.detail.addStep"] : app.textViews["task.detail.addStep"]
+        XCTAssertTrue(detailInput.waitForExistence(timeout: 8))
+        for _ in 0..<4 where !detailInput.isHittable { app.swipeUp() }
+        let initialStepCount = app.buttons.matching(identifier: "checkItemMenuButton").count
+        detailInput.tap()
+        detailInput.typeText("polish step A\n")
+        let firstStepAdded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count >= %d", initialStepCount + 1),
+                                                      object: app.buttons.matching(identifier: "checkItemMenuButton"))
+        XCTAssertEqual(XCTWaiter.wait(for: [firstStepAdded], timeout: 5), .completed)
+        detailInput.typeText("polish step B\n")
+        let secondStepAdded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count >= %d", initialStepCount + 2),
+                                                       object: app.buttons.matching(identifier: "checkItemMenuButton"))
+        XCTAssertEqual(XCTWaiter.wait(for: [secondStepAdded], timeout: 5), .completed)
+        let detailShot = XCTAttachment(screenshot: app.screenshot())
+        detailShot.name = "精修-任务详情-连续添加步骤"
+        detailShot.lifetime = .keepAlways
+        add(detailShot)
+        app.navigationBars.buttons.firstMatch.tap()
+        let detailClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: detailInput)
+        XCTAssertEqual(XCTWaiter.wait(for: [detailClosed], timeout: 5), .completed)
+        XCTAssertTrue(app.buttons[rowID].waitForExistence(timeout: 8))
+        if !app.textFields["加一步，回车保存"].exists { app.buttons[rowID].tap() }
+        let step = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.step.' AND value == '未完成'")).firstMatch
+        XCTAssertTrue(step.waitForExistence(timeout: 5))
+        let stepID = step.identifier
+        step.tap()
+        let checked = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '已完成'"), object: app.buttons[stepID])
+        XCTAssertEqual(XCTWaiter.wait(for: [checked], timeout: 5), .completed)
+        let inlineInput = app.textFields["加一步，回车保存"]
+        XCTAssertTrue(inlineInput.exists, "勾子任务不得触发标题按钮收起整行")
+        let inlineStepCount = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.step.'")).count
+        inlineInput.tap()
+        inlineInput.typeText("polish step C\n")
+        let thirdStepAdded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count >= %d", inlineStepCount + 1),
+                                                      object: app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.step.'")))
+        XCTAssertEqual(XCTWaiter.wait(for: [thirdStepAdded], timeout: 5), .completed,
+                       "展开态输入必须独立接收并真实保存")
+        let expandedShot = XCTAttachment(screenshot: app.screenshot())
+        expandedShot.name = "精修-任务展开-独立操作"
+        expandedShot.lifetime = .keepAlways
+        add(expandedShot)
     }
 
     func testCompletionCanBeUndoneWithMotion() {

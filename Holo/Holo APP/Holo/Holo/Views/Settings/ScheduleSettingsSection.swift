@@ -9,7 +9,7 @@ import SwiftUI
 import EventKit
 
 struct ScheduleSettingsSection: View {
-    @StateObject private var store = ScheduleStore.shared
+    @ObservedObject private var store = ScheduleStore.shared
     private let syncEngine = ScheduleSyncEngine.shared
     @State private var isRequestingPermission = false
     @State private var showPicker = false
@@ -24,7 +24,7 @@ struct ScheduleSettingsSection: View {
                 Text("日历")
                     .font(.holoBody)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 Spacer()
 
@@ -43,6 +43,7 @@ struct ScheduleSettingsSection: View {
                 .toggleStyle(.switch)
                 .tint(.holoPrimary)
                 .labelsHidden()
+                .accessibilityLabel(Text("启用日历"))
             }
 
             if store.isEnabled {
@@ -61,7 +62,7 @@ struct ScheduleSettingsSection: View {
                         calendarSummaryRow
                     }
                 }
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
                 .navigationDestination(isPresented: $showPicker) {
                     CalendarSourcePickerView()
@@ -97,10 +98,10 @@ struct ScheduleSettingsSection: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("任务同步到日历")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                         Text("带时间段的任务自动写入专属「Holo」日历，手表和系统日历可见；改动双向同步")
-                            .font(.system(size: 11))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
             }
@@ -122,10 +123,10 @@ struct ScheduleSettingsSection: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("日历权限")
                         .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     Text("已授权，可读取日程")
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 Spacer()
             }
@@ -133,6 +134,7 @@ struct ScheduleSettingsSection: View {
 
         case .notDetermined:
             Button {
+                guard !isRequestingPermission else { return }
                 isRequestingPermission = true
                 Task {
                     await store.requestAccessAgain()
@@ -144,24 +146,25 @@ struct ScheduleSettingsSection: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("申请日历权限")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                         Text("需要「完全访问」权限以读取日程")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                     Spacer()
                     if isRequestingPermission {
                         ProgressView()
                     } else {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
                 .padding(HoloSpacing.md)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .disabled(isRequestingPermission)
 
         case .denied, .restricted:
             Button {
@@ -172,14 +175,14 @@ struct ScheduleSettingsSection: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("日历权限被拒绝")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                         Text("iOS 不再重复弹窗，点击前往系统设置开启")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                     Spacer()
                     Image(systemName: "arrow.up.right")
-                        .font(.system(size: 12))
+                        .holoText(.metadata)
                         .foregroundColor(.holoPrimary)
                 }
                 .padding(HoloSpacing.md)
@@ -217,7 +220,7 @@ struct ScheduleSettingsSection: View {
             HStack(spacing: HoloSpacing.md) {
                 ZStack {
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .fill(Color.blue.opacity(0.1))
+                        .fill(Color.holoToolInfo.opacity(0.1))
                         .frame(width: 40, height: 40)
                     Image(systemName: "eye")
                         .font(.system(size: 16, weight: .medium))
@@ -227,21 +230,21 @@ struct ScheduleSettingsSection: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("显示的日历")
                         .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     Text("勾选后才在 Holo 展示、供 AI 读取")
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
 
                 Spacer()
 
                 Text("已选 \(store.availableCalendars.filter(\.isSelected).count)/\(store.availableCalendars.count)")
-                    .font(.system(size: 13))
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .padding(HoloSpacing.md)
             .contentShape(Rectangle())

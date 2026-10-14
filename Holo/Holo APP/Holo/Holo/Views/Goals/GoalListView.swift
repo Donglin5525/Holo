@@ -165,7 +165,11 @@ struct GoalListView: View {
     /// 入口显隐 + 恢复条状态统一刷新（onAppear/开关广播/共创页关闭三处共用）
     private func refreshEntryState() {
         workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
-        resumableSession = (try? GoalWorkshopStore.shared.listResumable())?.first
+        do {
+            resumableSession = try GoalWorkshopStore.shared.listResumable().first
+        } catch {
+            operationError = String(localized: "暂时无法读取规划进度，原记录已保留。请稍后重试。")
+        }
     }
 
     /// 进行中共创会话恢复条：「进度已保存」在目标页的可见出口

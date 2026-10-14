@@ -733,11 +733,7 @@ struct TimelineReplayView: View {
     private func commitResize(_ task: TodoTask) {
         guard let preview = resizePreview[task.id] else { return }
         resizePreview[task.id] = nil
-        try? TodoRepository.shared.updateTask(
-            task,
-            plannedTime: .set(start: preview.start, end: preview.end)
-        )
-        HapticManager.medium()
+        commitPlannedTime(task, start: preview.start, end: preview.end)
     }
 
     // MARK: - 整体移动（长按悬停后拖到其他时间）
@@ -760,11 +756,19 @@ struct TimelineReplayView: View {
     private func commitMove(_ task: TodoTask) {
         guard let preview = movePreview[task.id] else { return }
         movePreview[task.id] = nil
-        try? TodoRepository.shared.updateTask(
-            task,
-            plannedTime: .set(start: preview.start, end: preview.end)
-        )
-        HapticManager.medium()
+        commitPlannedTime(task, start: preview.start, end: preview.end)
+    }
+
+    private func commitPlannedTime(_ task: TodoTask, start: Date, end: Date) {
+        do {
+            try TaskPlannedTimeCommit.apply(task, start: start, end: end) { task, update in
+                try TodoRepository.shared.updateTask(task, plannedTime: update)
+            }
+            HapticManager.medium()
+        } catch {
+            HapticManager.error()
+            HoloToastCenter.shared.show(String(localized: "时间调整未保存，请重试。"), type: .error)
+        }
     }
 
     private func openTask(_ task: TodoTask) {

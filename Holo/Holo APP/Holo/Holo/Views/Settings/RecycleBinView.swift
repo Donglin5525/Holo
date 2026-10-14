@@ -11,6 +11,13 @@
 
 import SwiftUI
 
+private let recycleBinDateFormatter: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "zh_CN")
+    formatter.dateFormat = "yyyy年M月d日 HH:mm"
+    return formatter
+}()
+
 // MARK: - 回收站主页（事件列表）
 
 struct RecycleBinView: View {
@@ -20,11 +27,23 @@ struct RecycleBinView: View {
 
     @State private var selectedBatch: RecycleBinBatchInfo?
     @State private var showPurgeAllAlert = false
-    @State private var isPurgingAll = false
+    @StateObject private var purgeAction = HoloAsyncActionState()
 
     var body: some View {
         NavigationStack {
-            Group {
+            VStack(spacing: HoloSpacing.md) {
+                if let error = purgeAction.errorMessage {
+                    HoloInlineState(kind: .failure,
+                                    message: String(localized: "清空失败：\(error)"),
+                                    actionTitle: String(localized: "重试")) {
+                        showPurgeAllAlert = true
+                    }
+                    .padding(.horizontal, HoloSpacing.page)
+                }
+                if purgeAction.isRunning {
+                    HoloInlineState(kind: .loading, message: String(localized: "正在清空回收站…"))
+                        .padding(.horizontal, HoloSpacing.page)
+                }
                 if recycleBin.batches.isEmpty {
                     emptyState
                 } else {
@@ -37,23 +56,26 @@ struct RecycleBinView: View {
                                     batchCard(batch)
                                 }
                                 .buttonStyle(PlainButtonStyle())
+                                .disabled(purgeAction.isRunning)
                             }
                         }
                         .padding(HoloSpacing.lg)
                     }
                 }
             }
-            .background(Color.holoBackground.ignoresSafeArea())
+            .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle("最近删除")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
+                        .disabled(purgeAction.isRunning)
                 }
                 ToolbarItem(placement: .destructiveAction) {
                     if !recycleBin.batches.isEmpty {
                         Button("清空回收站") { showPurgeAllAlert = true }
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
+                            .disabled(purgeAction.isRunning)
                     }
                 }
             }
@@ -61,6 +83,7 @@ struct RecycleBinView: View {
         .task {
             await recycleBin.reloadBatches()
         }
+        .interactiveDismissDisabled(purgeAction.isRunning)
         .alert("清空回收站", isPresented: $showPurgeAllAlert) {
             Button("取消", role: .cancel) {}
             Button("彻底删除", role: .destructive) {
@@ -77,13 +100,13 @@ struct RecycleBinView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "trash.slash")
                 .font(.system(size: 40))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Text("回收站是空的")
                 .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Text("清空模块数据后，30 天内可在这里恢复")
-                .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -95,30 +118,29 @@ struct RecycleBinView: View {
                     .font(.system(size: 16))
                     .foregroundColor(.holoPrimary)
 
-                Text(batch.createdAt.formatted(.dateTime.year().month().day().hour().minute()))
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                Text(recycleBinDateFormatter.string(from: batch.createdAt))
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolText)
 
                 Spacer()
 
                 Text("还剩 \(batch.daysRemaining) 天")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(batch.daysRemaining <= 3 ? .holoError : .holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(batch.daysRemaining <= 3 ? .holoToolError : .holoToolTextSecondary)
             }
 
             Text(batch.summary ?? (batch.isGlobalScope ? String(localized: "清空所有数据") : String(localized: "清空数据")))
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.body)
+                .foregroundColor(.holoToolText)
 
-            HStack(spacing: HoloSpacing.sm) {
+            FlowLayout(spacing: HoloSpacing.sm, constrainsSubviewWidth: true) {
                 ForEach(batch.modules) { module in
                     moduleChip(module, count: batch.moduleCounts[module] ?? 0)
                 }
-                Spacer()
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .contentShape(Rectangle())
     }
@@ -126,11 +148,14 @@ struct RecycleBinView: View {
     private func moduleChip(_ module: RecycleBinModule, count: Int) -> some View {
         HStack(spacing: 4) {
             Text(module.displayName)
+                .lineLimit(1)
+                .truncationMode(.tail)
             Text("·\(count)")
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
+                .fixedSize()
         }
-        .font(.system(size: 11, weight: .medium))
-        .foregroundColor(.holoTextPrimary.opacity(0.8))
+        .holoText(.metadata)
+        .foregroundColor(.holoToolText)
         .padding(.horizontal, 8)
         .padding(.vertical, 3)
         .background(Capsule().fill(Color.holoPrimary.opacity(0.08)))
@@ -139,11 +164,10 @@ struct RecycleBinView: View {
     // MARK: - 逻辑
 
     private func purgeAll() async {
-        guard !isPurgingAll else { return }
-        isPurgingAll = true
-        defer { isPurgingAll = false }
-        try? await recycleBin.purgeAll()
-        HoloToastCenter.shared.show(String(localized: "回收站已清空"), type: .success)
+        await purgeAction.run {
+            try await recycleBin.purgeAll()
+            HoloToastCenter.shared.show(String(localized: "回收站已清空"), type: .success)
+        }
     }
 }
 
@@ -162,6 +186,7 @@ struct RecycleBinBatchDetailView: View {
     @State private var restorePreview: RestorePreviewReport?
     @State private var showConflictSheet = false
     @State private var isRestoring = false
+    @State private var isPurging = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -175,8 +200,8 @@ struct RecycleBinBatchDetailView: View {
 
                 if let errorMessage {
                     Text(errorMessage)
-                        .font(.system(size: 13))
-                        .foregroundColor(.holoError)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolError)
                 }
 
                 HStack(spacing: HoloSpacing.md) {
@@ -186,7 +211,7 @@ struct RecycleBinBatchDetailView: View {
             }
             .padding(HoloSpacing.lg)
         }
-        .background(Color.holoBackground.ignoresSafeArea())
+        .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle("删除事件")
         .navigationBarTitleDisplayMode(.inline)
         .alert("恢复数据", isPresented: $showRestoreConfirm) {
@@ -219,6 +244,8 @@ struct RecycleBinBatchDetailView: View {
                 }
             }
         }
+        .navigationBarBackButtonHidden(isRestoring || isPurging)
+        .interactiveDismissDisabled(isRestoring || isPurging)
     }
 
     // MARK: - 子视图
@@ -229,19 +256,19 @@ struct RecycleBinBatchDetailView: View {
                 Text(batch.summary ?? String(localized: "清空数据"))
                     .font(.holoBody)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                 Spacer()
                 Text("还剩 \(batch.daysRemaining) 天")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(batch.daysRemaining <= 3 ? .holoError : .holoTextSecondary)
+                    .foregroundColor(batch.daysRemaining <= 3 ? .holoError : .holoToolTextSecondary)
             }
-            Text(batch.createdAt.formatted(.dateTime.year().month().day().hour().minute()))
-                .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary)
+            Text(recycleBinDateFormatter.string(from: batch.createdAt))
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .padding(HoloSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
@@ -249,14 +276,14 @@ struct RecycleBinBatchDetailView: View {
         HStack {
             Text(module.displayName)
                 .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
             Spacer()
             Text("\(count) 条")
-                .font(.system(size: 13))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
@@ -266,41 +293,44 @@ struct RecycleBinBatchDetailView: View {
         } label: {
             Group {
                 if isPreparingRestore {
-                    ProgressView().tint(.white)
+                    ProgressView().tint(.holoToolOnAction)
                 } else {
                     Text("恢复此批次").font(.holoBody).fontWeight(.semibold)
                 }
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(Color.holoPrimary)
-            .foregroundColor(.white)
+            .background(Color.holoToolAction)
+            .foregroundColor(.holoToolOnAction)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
         .buttonStyle(PlainButtonStyle())
-        .disabled(isPreparingRestore || isRestoring)
+        .disabled(isPreparingRestore || isRestoring || isPurging)
     }
 
     private var purgeButton: some View {
         Button {
             showPurgeAlert = true
         } label: {
-            Text("立即清除")
+            HStack(spacing: HoloSpacing.sm) {
+                if isPurging { ProgressView().tint(.holoToolError) }
+                Text("立即清除")
+            }
                 .font(.holoBody)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
                 .background(Color.holoError.opacity(0.1))
-                .foregroundColor(.holoError)
+                .foregroundColor(.holoToolError)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
         .buttonStyle(PlainButtonStyle())
-        .disabled(isRestoring)
+        .disabled(isPreparingRestore || isRestoring || isPurging)
     }
 
     // MARK: - 逻辑
 
     private func prepareRestore() async {
-        guard !isPreparingRestore else { return }
+        guard !isPreparingRestore, !isRestoring, !isPurging else { return }
         isPreparingRestore = true
         errorMessage = nil
         defer { isPreparingRestore = false }
@@ -320,7 +350,7 @@ struct RecycleBinBatchDetailView: View {
     }
 
     private func performRestore(skipIds: Set<UUID>) async {
-        guard !isRestoring else { return }
+        guard !isRestoring, !isPurging else { return }
         isRestoring = true
         errorMessage = nil
         defer { isRestoring = false }
@@ -338,6 +368,10 @@ struct RecycleBinBatchDetailView: View {
     }
 
     private func performPurge() async {
+        guard !isRestoring, !isPreparingRestore, !isPurging else { return }
+        isPurging = true
+        errorMessage = nil
+        defer { isPurging = false }
         do {
             try await recycleBin.purgeBatch(batch.id)
             HoloToastCenter.shared.show(String(localized: "已彻底删除"), type: .info)
@@ -367,8 +401,8 @@ struct RestoreConflictSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.md) {
                     Text("检测到 \(preview.conflicts.count) 条数据与清空后新产生的数据疑似重复（同日同额/同名等）。默认跳过这些条目、保留现有数据；如确认要恢复，请单独勾选。")
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     if preview.restorableCount > 0 {
@@ -377,18 +411,18 @@ struct RestoreConflictSheet: View {
                                 .foregroundColor(.holoPrimary)
                             Text("\(preview.restorableCount) 条无冲突，将直接恢复")
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.holoTextPrimary)
+                                .foregroundColor(.holoToolText)
                         }
                         .padding(HoloSpacing.md)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.holoCardBackground)
+                        .background(Color.holoToolSurface)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                     }
 
                     Text("疑似重复（默认跳过）")
                         .font(.holoBody)
                         .fontWeight(.semibold)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
 
                     ForEach(preview.conflicts) { conflict in
                         conflictRow(conflict)
@@ -396,7 +430,7 @@ struct RestoreConflictSheet: View {
                 }
                 .padding(HoloSpacing.lg)
             }
-            .background(Color.holoBackground.ignoresSafeArea())
+            .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle("恢复预览")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -427,7 +461,7 @@ struct RestoreConflictSheet: View {
                 }
                 .buttonStyle(PlainButtonStyle())
                 .padding(HoloSpacing.lg)
-                .background(Color.holoBackground)
+                .background(Color.holoToolBackground)
             }
         }
     }
@@ -444,20 +478,20 @@ struct RestoreConflictSheet: View {
             HStack(spacing: HoloSpacing.md) {
                 Image(systemName: isForced ? "checkmark.square.fill" : "square")
                     .font(.system(size: 20))
-                    .foregroundColor(isForced ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(isForced ? .holoPrimary : .holoToolTextSecondary)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(conflict.title)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .lineLimit(1)
                     // 拼一行会折出 1-2 字悬挂尾行，两侧信息各占一行
                     Text(conflict.detail)
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(1)
                     Text(conflict.existingDetail)
-                        .font(.system(size: 11))
+                        .holoText(.metadata)
                         .foregroundColor(.holoTextPlaceholder)
                         .lineLimit(1)
                 }
@@ -466,10 +500,10 @@ struct RestoreConflictSheet: View {
 
                 Text(isForced ? String(localized: "将恢复") : String(localized: "跳过"))
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(isForced ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(isForced ? .holoPrimary : .holoToolTextSecondary)
             }
             .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             .contentShape(Rectangle())
         }

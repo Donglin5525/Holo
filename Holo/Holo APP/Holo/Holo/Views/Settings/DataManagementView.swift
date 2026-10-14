@@ -36,7 +36,7 @@ struct DataManagementView: View {
                 }
                 .padding(HoloSpacing.lg)
             }
-            .background(Color.holoBackground.ignoresSafeArea())
+            .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle("数据管理")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -80,7 +80,7 @@ struct DataManagementView: View {
                 Text("数据概览")
                     .font(.holoBody)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             if isLoadingCounts {
@@ -90,7 +90,7 @@ struct DataManagementView: View {
                         .padding(.vertical, 20)
                     Spacer()
                 }
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             } else {
                 VStack(spacing: 0) {
@@ -101,7 +101,7 @@ struct DataManagementView: View {
                         receiptStorageRow(receiptStorageText)
                     }
                 }
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             }
         }
@@ -110,12 +110,12 @@ struct DataManagementView: View {
     private func moduleCountRow(_ module: RecycleBinModule) -> some View {
         HStack {
             Text(module.displayName)
-                .font(.system(size: 15))
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolText)
             Spacer()
             Text("\(moduleCounts[module] ?? 0) 条")
-                .font(.system(size: 13))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 11)
@@ -131,12 +131,12 @@ struct DataManagementView: View {
     private func receiptStorageRow(_ text: String) -> some View {
         HStack {
             Text(String(localized: "票根照片"))
-                .font(.system(size: 15))
-                .foregroundColor(.holoTextPrimary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolText)
             Spacer()
             Text(text)
-                .font(.system(size: 13))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 11)
@@ -159,10 +159,10 @@ struct DataManagementView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("最近删除")
                         .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     Text("清空的数据保留 30 天，期间可恢复")
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
 
                 Spacer()
@@ -178,10 +178,10 @@ struct DataManagementView: View {
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             .contentShape(Rectangle())
         }
@@ -193,11 +193,11 @@ struct DataManagementView: View {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "trash")
                     .font(.system(size: 18))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                 Text("危险操作")
                     .font(.holoBody)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
             }
 
             // 清理导入分类：文字行入口（从分类管理页右上角迁入，D2）
@@ -207,20 +207,20 @@ struct DataManagementView: View {
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {
                         RoundedRectangle(cornerRadius: HoloRadius.sm)
-                            .fill(Color.orange.opacity(0.1))
+                            .fill(Color.holoToolWarning.opacity(0.1))
                             .frame(width: 40, height: 40)
                         Image(systemName: "square.and.arrow.down.on.square")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.orange)
+                            .foregroundColor(.holoToolWarning)
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("清理导入分类")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                         Text("删除导入账单时自动创建的空分类，被使用的会保留")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -231,11 +231,11 @@ struct DataManagementView: View {
                     } else {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                 .contentShape(Rectangle())
             }
@@ -251,16 +251,16 @@ struct DataManagementView: View {
                             .frame(width: 40, height: 40)
                         Image(systemName: "trash.slash")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("清空所有数据")
                             .font(.holoBody)
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                         Text("全部模块数据进入 30 天回收站；不影响账号、订阅与设置")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -268,18 +268,18 @@ struct DataManagementView: View {
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                 .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
 
             Text("与「删除账号」的区别：清空所有数据不注销账号，登录状态、Holo Plus 订阅与偏好设置都会保留；健康数据来自系统健康 App，不受影响。")
-                .font(.system(size: 11))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -343,15 +343,15 @@ struct ClearAllDataConfirmSheet: View {
 
                     if let errorMessage {
                         Text(errorMessage)
-                            .font(.system(size: 13))
-                            .foregroundColor(.holoError)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolError)
                     }
 
                     confirmButton
                 }
                 .padding(HoloSpacing.lg)
             }
-            .background(Color.holoBackground.ignoresSafeArea())
+            .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle("清空所有数据")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -373,11 +373,11 @@ struct ClearAllDataConfirmSheet: View {
                     .font(.holoBody)
                     .fontWeight(.semibold)
             }
-            .foregroundColor(.holoError)
+            .foregroundColor(.holoToolError)
 
             Text("以下数据将全部进入 30 天回收站，到期自动彻底删除。账号、订阅、登录状态与偏好设置不受影响；健康数据不受影响。")
-                .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(HoloSpacing.md)
@@ -391,24 +391,24 @@ struct ClearAllDataConfirmSheet: View {
             Text("将清空的数据（共 \(totalAffected) 条）")
                 .font(.holoBody)
                 .fontWeight(.semibold)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             VStack(spacing: 0) {
                 ForEach(RecycleBinModule.allCases) { module in
                     HStack {
                         Text(module.displayName)
-                            .font(.system(size: 14))
-                            .foregroundColor(.holoTextPrimary)
+                            .holoText(.supporting)
+                            .foregroundColor(.holoToolText)
                         Spacer()
                         Text("\(moduleCounts[module] ?? 0) 条")
-                            .font(.system(size: 13))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                     .padding(.horizontal, HoloSpacing.md)
                     .padding(.vertical, 10)
                 }
             }
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
     }
@@ -418,12 +418,12 @@ struct ClearAllDataConfirmSheet: View {
             Text("请输入「清空」以确认")
                 .font(.holoBody)
                 .fontWeight(.semibold)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             TextField("清空", text: $confirmText)
                 .font(.holoBody)
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                 .overlay(
                     RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -448,7 +448,7 @@ struct ClearAllDataConfirmSheet: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
-            .background(isTextConfirmed ? Color.holoError : Color.holoTextSecondary.opacity(0.4))
+            .background(isTextConfirmed ? Color.holoError : Color.holoToolTextSecondary.opacity(0.4))
             .foregroundColor(.white)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }

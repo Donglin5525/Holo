@@ -36,15 +36,15 @@ struct HoloEpisodicMemoryDetailView: View {
                         ForEach(memory.evidence) { ev in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(ev.excerpt)
-                                    .font(.system(size: 14))
+                                    .holoText(.supporting)
                                 HStack {
                                     Text("来源：\(ev.source.displayName)")
                                     if let date = formattedDate(ev.observedAt) {
                                         Text(date)
                                     }
                                 }
-                                .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
+                                .holoText(.metadata)
+                                .foregroundColor(.holoToolTextSecondary)
                             }
                             .padding(.vertical, 4)
                         }
@@ -102,7 +102,7 @@ struct HoloEpisodicMemoryDetailView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle(memory.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -78,10 +78,10 @@ struct ScheduleOnboardingBar: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("接入系统日历")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                         Text("日程进入 Holo，AI 规划自动避开会议")
-                            .font(.system(size: 11))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     Spacer(minLength: 8)
@@ -105,7 +105,7 @@ struct ScheduleOnboardingBar: View {
 
             dismissButton
         }
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
 
@@ -120,16 +120,16 @@ struct ScheduleOnboardingBar: View {
                     VStack(alignment: .leading, spacing: 1) {
                         Text("日历权限被拒绝")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                         Text("点击前往系统设置开启后即可使用")
-                            .font(.system(size: 11))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     Spacer(minLength: 8)
 
                     Image(systemName: "arrow.up.right")
-                        .font(.system(size: 12))
+                        .holoText(.metadata)
                         .foregroundColor(.holoPrimary)
                 }
                 .padding(.horizontal, HoloSpacing.md)
@@ -140,7 +140,7 @@ struct ScheduleOnboardingBar: View {
 
             dismissButton
         }
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
 
@@ -150,7 +150,7 @@ struct ScheduleOnboardingBar: View {
         } label: {
             Image(systemName: "xmark")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.holoTextSecondary.opacity(0.7))
+                .foregroundColor(.holoToolTextSecondary)
                 .frame(width: 36, height: 44)
                 .contentShape(Rectangle())
         }
@@ -225,12 +225,12 @@ struct TodayScheduleBar: View {
 
                     Text(barText)
                         .font(.holoLabel)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .lineLimit(1)
 
                     Text(isOngoing ? String(localized: "进行中") : timeText)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(isOngoing ? .holoSuccess : .holoTextSecondary)
+                        .foregroundColor(isOngoing ? .holoSuccess : .holoToolTextSecondary)
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
@@ -272,11 +272,11 @@ struct ScheduleSectionCard: View {
                     Text("今日日程")
                         .font(.holoBody)
                         .fontWeight(.semibold)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     if completedCount > 0 {
                         Text("\(completedCount)/\(timedItems.count)")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                     Spacer()
                 }
@@ -298,7 +298,7 @@ struct ScheduleSectionCard: View {
                         }
                     }
                 }
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
         }
@@ -312,14 +312,14 @@ struct ScheduleSectionCard: View {
                 .frame(width: 8, height: 8)
             Text(item.title)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Spacer()
             Text("全天")
-                .font(.system(size: 10))
-                .foregroundColor(.holoTextSecondary.opacity(0.7))
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(Capsule().fill(Color.holoTextSecondary.opacity(0.08)))
+                .background(Capsule().fill(Color.holoToolTextSecondary.opacity(0.08)))
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 8)
@@ -350,9 +350,12 @@ struct ScheduleRowCard: View {
             } label: {
                 Image(systemName: store.isCompleted(item) ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(store.isCompleted(item) ? .holoSuccess : .holoTextSecondary.opacity(0.6))
+                    .foregroundColor(store.isCompleted(item) ? .holoSuccess : .holoToolTextSecondary.opacity(0.6))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(Text(store.isCompleted(item) ? "标记未完成" : "标记完成"))
 
             // 日历色条
             RoundedRectangle(cornerRadius: 2)
@@ -362,18 +365,18 @@ struct ScheduleRowCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.title)
                     .font(.holoBody)
-                    .foregroundColor(store.isCompleted(item) ? .holoTextSecondary : .holoTextPrimary)
-                    .strikethrough(store.isCompleted(item), color: .holoTextSecondary)
+                    .foregroundColor(store.isCompleted(item) ? .holoToolTextSecondary : .holoToolText)
+                    .strikethrough(store.isCompleted(item), color: .holoToolTextSecondary)
                     .lineLimit(1)
 
                 HStack(spacing: 4) {
                     Text(timeRangeText)
                         .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     if let location = item.location, !location.isEmpty {
                         Text("· \(location)")
                             .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary.opacity(0.8))
+                            .foregroundColor(.holoToolTextSecondary)
                             .lineLimit(1)
                     }
                 }
@@ -382,8 +385,8 @@ struct ScheduleRowCard: View {
             Spacer(minLength: 4)
 
             Text(item.calendarTitle)
-                .font(.system(size: 10))
-                .foregroundColor(.holoTextSecondary.opacity(0.7))
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
                 .lineLimit(1)
         }
         .padding(.horizontal, HoloSpacing.md)
@@ -424,7 +427,7 @@ struct ScheduleDetailSheet: View {
                     detailRow(icon: "calendar", title: item.calendarTitle, value: "") {
                         HStack {
                             Circle().fill(item.calendarColor).frame(width: 10, height: 10)
-                            Text(item.calendarTitle).font(.holoBody).foregroundColor(.holoTextPrimary)
+                            Text(item.calendarTitle).font(.holoBody).foregroundColor(.holoToolText)
                             Spacer()
                         }
                     }
@@ -433,7 +436,7 @@ struct ScheduleDetailSheet: View {
 
                     detailRow(icon: "clock", title: timeText, value: "") {
                         HStack {
-                            Text(timeText).font(.holoBody).foregroundColor(.holoTextPrimary)
+                            Text(timeText).font(.holoBody).foregroundColor(.holoToolText)
                             Spacer()
                         }
                     }
@@ -442,7 +445,7 @@ struct ScheduleDetailSheet: View {
                         Divider().padding(.horizontal, HoloSpacing.md)
                         detailRow(icon: "mappin.and.ellipse", title: location, value: "") {
                             HStack {
-                                Text(location).font(.holoBody).foregroundColor(.holoTextPrimary)
+                                Text(location).font(.holoBody).foregroundColor(.holoToolText)
                                 Spacer()
                             }
                         }
@@ -461,10 +464,10 @@ struct ScheduleDetailSheet: View {
                     } label: {
                         HStack {
                             Image(systemName: store.isCompleted(item) ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(store.isCompleted(item) ? .holoSuccess : .holoTextSecondary)
+                                .foregroundColor(store.isCompleted(item) ? .holoSuccess : .holoToolTextSecondary)
                             Text(store.isCompleted(item) ? String(localized: "已标记完成（点按取消）") : String(localized: "标记完成"))
                                 .font(.holoBody)
-                                .foregroundColor(.holoTextPrimary)
+                                .foregroundColor(.holoToolText)
                             Spacer()
                         }
                         .padding(.horizontal, HoloSpacing.md)
@@ -473,7 +476,7 @@ struct ScheduleDetailSheet: View {
                     }
                     .buttonStyle(.plain)
                 }
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
 
                 // 转跟进任务：预填标题/来源描述/时间段（非全天）
@@ -501,10 +504,10 @@ struct ScheduleDetailSheet: View {
                         Text("在系统日历中查看 / 编辑")
                             .font(.holoBody)
                     }
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
-                    .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoTextSecondary.opacity(0.08)))
+                    .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoToolTextSecondary.opacity(0.08)))
                 }
                 .buttonStyle(.plain)
 
@@ -517,7 +520,7 @@ struct ScheduleDetailSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
             .sheet(isPresented: $showsOriginalEvent) {
@@ -552,7 +555,7 @@ struct ScheduleDetailSheet: View {
     private func detailRow(icon: String, title: String, value: String, content: () -> some View) -> some View {
         HStack(spacing: HoloSpacing.md) {
             Image(systemName: icon)
-                .font(.system(size: 15))
+                .holoText(.supporting)
                 .foregroundColor(.holoPrimary)
                 .frame(width: 24)
             content()

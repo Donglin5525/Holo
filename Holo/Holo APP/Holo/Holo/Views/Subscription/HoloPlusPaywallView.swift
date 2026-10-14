@@ -392,7 +392,7 @@ struct HoloPlusPaywallView: View {
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(subscriptionService.isPurchasing)
+        .disabled(subscriptionService.isPurchasing || subscriptionService.isRestoring)
         .accessibilityLabel("\(plan.name) \(plan.priceText)\(plan.periodText)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -453,7 +453,7 @@ struct HoloPlusPaywallView: View {
                 .shadow(color: Color.holoPrimary.opacity(0.32), radius: 14, x: 0, y: 8)
             }
             .buttonStyle(.plain)
-            .disabled(subscriptionService.isPurchasing)
+            .disabled(subscriptionService.isPurchasing || subscriptionService.isRestoring)
 
             Text(subline)
                 .font(.system(size: 12))
@@ -512,12 +512,18 @@ struct HoloPlusPaywallView: View {
     }
 
     private var restoreButton: some View {
-        Button("恢复购买") {
+        Button {
             Task { await subscriptionService.restorePurchases() }
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                if subscriptionService.isRestoring { ProgressView() }
+                Text("恢复购买")
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
         }
         .font(.holoCaption)
-        .foregroundColor(.holoTextSecondary)
-        .frame(maxWidth: .infinity)
+        .foregroundColor(.holoToolTextSecondary)
+        .disabled(subscriptionService.isPurchasing || subscriptionService.isRestoring)
     }
 
     private var legalLinks: some View {

@@ -48,7 +48,7 @@ struct GoalEditForm: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("目标类型")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Picker("目标类型", selection: $draft.goalKind) {
                     ForEach(GoalKind.allCases) { kind in
                         Text(kind.displayName).tag(kind)
@@ -57,7 +57,7 @@ struct GoalEditForm: View {
                 .pickerStyle(.segmented)
                 Text(draft.goalKind.descriptor)
                     .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
 
                 if draft.isQuantitative {
                     metricFields
@@ -75,12 +75,12 @@ struct GoalEditForm: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("标题")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 TextField("目标标题", text: $draft.title)
                     .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .padding(HoloSpacing.sm)
-                    .background(Color.holoBackground)
+                    .background(Color.holoToolBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
             }
 
@@ -88,7 +88,7 @@ struct GoalEditForm: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("领域")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Picker("领域", selection: $draft.domain) {
                     ForEach(GoalDomain.allCases) { domain in
                         HStack(spacing: 6) {
@@ -112,23 +112,23 @@ struct GoalEditForm: View {
                             .frame(width: 40, height: 40)
                             .background(
                                 RoundedRectangle(cornerRadius: HoloRadius.md)
-                                    .fill(Color.holoBackground)
+                                    .fill(Color.holoToolBackground)
                             )
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("图标")
                                 .font(.holoBody)
-                                .foregroundColor(.holoTextPrimary)
+                                .foregroundColor(.holoToolText)
                             Text(draft.iconEmoji == nil ? String(localized: "默认（按领域）") : String(localized: "已自定义"))
                                 .font(.holoCaption)
-                                .foregroundColor(.holoTextSecondary)
+                                .foregroundColor(.holoToolTextSecondary)
                         }
 
                         Spacer()
 
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
                 .buttonStyle(.plain)
@@ -153,16 +153,16 @@ struct GoalEditForm: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("说明")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 TextField("目标说明（可选）", text: Binding(
                     get: { draft.summary ?? "" },
                     set: { draft.summary = $0.isEmpty ? nil : $0 }
                 ), axis: .vertical)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(2...4)
                 .padding(HoloSpacing.sm)
-                .background(Color.holoBackground)
+                .background(Color.holoToolBackground)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
             }
 
@@ -170,16 +170,16 @@ struct GoalEditForm: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("期望结果")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 TextField("达成后是什么样", text: Binding(
                     get: { draft.desiredOutcome ?? "" },
                     set: { draft.desiredOutcome = $0.isEmpty ? nil : $0 }
                 ), axis: .vertical)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(2...4)
                 .padding(HoloSpacing.sm)
-                .background(Color.holoBackground)
+                .background(Color.holoToolBackground)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
             }
 
@@ -187,16 +187,16 @@ struct GoalEditForm: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("动机")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 TextField("为什么要这个目标", text: Binding(
                     get: { draft.motivation ?? "" },
                     set: { draft.motivation = $0.isEmpty ? nil : $0 }
                 ), axis: .vertical)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(2...4)
                 .padding(HoloSpacing.sm)
-                .background(Color.holoBackground)
+                .background(Color.holoToolBackground)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
             }
 
@@ -204,7 +204,7 @@ struct GoalEditForm: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("截止日期")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 DatePicker(
                     "截止日期",
                     selection: $deadlineDate,
@@ -220,7 +220,7 @@ struct GoalEditForm: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -240,13 +240,13 @@ struct GoalEditForm: View {
                 VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                     Text(draft.goalKind == .target ? String(localized: "目标值") : String(localized: "目标总量"))
                         .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     TextField(draft.goalKind == .target ? String(localized: "如 70") : String(localized: "如 300"), text: $metricTargetText)
                         .keyboardType(.decimalPad)
                         .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .padding(HoloSpacing.sm)
-                        .background(Color.holoBackground)
+                        .background(Color.holoToolBackground)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
                         .onChange(of: metricTargetText) { _, newText in
                             draft.metricTargetValue = Double(newText)
@@ -256,15 +256,15 @@ struct GoalEditForm: View {
                 VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                     Text("单位")
                         .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     TextField("km / kg / 元", text: Binding(
                         get: { draft.metricUnit ?? "" },
                         set: { draft.metricUnit = $0.isEmpty ? nil : $0 }
                     ))
                         .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .padding(HoloSpacing.sm)
-                        .background(Color.holoBackground)
+                        .background(Color.holoToolBackground)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
                 }
             }
@@ -273,27 +273,27 @@ struct GoalEditForm: View {
                 VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                     Text("当前值（基线）")
                         .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     TextField("如 75", text: $metricBaselineText)
                         .keyboardType(.decimalPad)
                         .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                         .padding(HoloSpacing.sm)
-                        .background(Color.holoBackground)
+                        .background(Color.holoToolBackground)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
                         .onChange(of: metricBaselineText) { _, newText in
                             draft.metricBaselineValue = Double(newText)
                         }
                     Text("以现在为起点，之后记录当前水平，进度按「已变多少 / 共需变多少」计算")
                         .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
 
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("数据来源")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Picker("数据来源", selection: $draft.metricSource) {
                     ForEach(GoalMetricSource.selectable(for: draft.goalKind)) { source in
                         Text(source.displayName).tag(source)
@@ -306,7 +306,7 @@ struct GoalEditForm: View {
                 } else if draft.metricSource == .ledger {
                     Text("按全账本净结余计算（含信用卡负债）")
                         .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
         }
@@ -329,7 +329,7 @@ struct GoalEditForm: View {
             if numericHabits.isEmpty {
                 Text("还没有数值型习惯，先到习惯模块创建一个再来挂载")
                     .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
             } else {
                 Picker("源习惯", selection: $draft.sourceHabitId) {
                     Text("请选择").tag(UUID?.none)
@@ -385,7 +385,7 @@ struct GoalEditForm: View {
 
             Text(title)
                 .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             Spacer()
         }

@@ -42,7 +42,7 @@ struct TaskScopeSheet: View {
                                     .frame(width: 8, height: 8)
                                 HStack(spacing: 6) {
                                     Text(list.name)
-                                        .foregroundColor(.holoTextPrimary)
+                                        .foregroundColor(.holoToolText)
                                     if list.isEphemeral {
                                         EphemeralListBadge()
                                     }
@@ -53,6 +53,8 @@ struct TaskScopeSheet: View {
                                         .foregroundColor(.holoPrimary)
                                 }
                             }
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
@@ -64,7 +66,7 @@ struct TaskScopeSheet: View {
                         showArchiveManagement = true
                     } label: {
                         Label(String(localized: "归档管理"), systemImage: "archivebox")
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                     }
                 }
                 Section {
@@ -72,7 +74,7 @@ struct TaskScopeSheet: View {
                         showNewListAlert = true
                     } label: {
                         Label(String(localized: "新建清单"), systemImage: "plus.folder")
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                     }
                 }
             }
@@ -115,18 +117,20 @@ struct TaskScopeSheet: View {
         } label: {
             HStack {
                 Text(value.title)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                 Spacer()
                 if let count = scopeCounts[value] {
                     Text("\(count)")
                         .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 if scope == value {
                     Image(systemName: "checkmark")
                         .foregroundColor(.holoPrimary)
                 }
             }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

@@ -21,7 +21,7 @@ struct HealthView: View {
     @Environment(\.holoDismiss) private var holoDismiss
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
-    @StateObject private var repository = HealthRepository.shared
+    @ObservedObject private var repository = HealthRepository.shared
     @State private var selectedMetric: HealthMetricType?
     @State private var showVitals = false
     @State private var weeklySleepData: [DailyHealthData] = []
@@ -201,26 +201,17 @@ struct HealthView: View {
 
     private var healthFootnote: some View {
         Text("健康数据由 AI 分析，仅供参考")
-            .font(.system(size: 11))
-            .foregroundColor(.holoToolTextSecondary.opacity(0.7))
+            .holoText(.metadata)
+            .foregroundColor(.holoToolTextSecondary)
             .frame(maxWidth: .infinity, alignment: .center)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     /// 返回首页按钮（对齐全局 fullScreenCover 模块约定，复用于各分支）
     private var backButton: some View {
-        Button {
+        HoloIconButton(systemName: "chevron.left", title: "返回", showsSurface: true) {
             close()
-        } label: {
-            Image(systemName: "chevron.left")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.holoToolText)
-                .frame(width: 40, height: 40)
-                .background(Color.holoToolSurface)
-                .clipShape(Circle())
-                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         }
-        .buttonStyle(.plain)
     }
 
     /// 权限引导 / 不可用兜底分支的固定返回栏

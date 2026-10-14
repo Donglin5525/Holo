@@ -274,3 +274,82 @@ final class HealthPhase2WalkthroughUITests: XCTestCase {
         )
     }
 }
+
+/// 精修专项：隔离数据下验证真实热区、日期布局与稀疏/空态入口。
+final class HoloPolishHealthUITests: XCTestCase {
+    private func launch(dark: Bool = false, large: Bool = false, points: Int? = nil) -> XCUIApplication {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "life-flow"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "home"
+        if let points { app.launchEnvironment["HOLO_POLISH_VITALS_POINTS"] = String(points) }
+        app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN",
+                               "-darkModeSetting", dark ? "dark" : "light"]
+        if large { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+        app.launch()
+        XCTAssertTrue(app.buttons["健康"].firstMatch.waitForExistence(timeout: 20))
+        app.buttons["健康"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["health.previousDay"].waitForExistence(timeout: 10))
+        return app
+    }
+
+    private func capture(_ app: XCUIApplication, _ name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func realButton(_ id: String, in app: XCUIApplication) throws -> XCUIElement {
+        try XCTUnwrap(app.buttons.allElementsBoundByIndex.first { $0.identifier == id })
+    }
+
+    private func verifyDateNavigator(dark: Bool, large: Bool) throws {
+        let app = launch(dark: dark, large: large)
+        let previous = try realButton("health.previousDay", in: app)
+        XCTAssertGreaterThanOrEqual(previous.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(previous.frame.height, 44)
+        previous.tap()
+        XCTAssertTrue(app.buttons["health.returnToToday"].waitForExistence(timeout: 8))
+        let date = try realButton("health.datePicker", in: app)
+        let today = try realButton("health.returnToToday", in: app)
+        capture(app, "精修-健康日期-\(dark ? "深色" : "浅色")-\(large ? "大字号" : "默认字号")")
+        XCTAssertFalse(date.frame.intersects(today.frame), "日期与回到今天按钮不能重叠")
+        XCTAssertGreaterThanOrEqual(today.frame.height, 44)
+        today.tap()
+        XCTAssertFalse(app.buttons["health.returnToToday"].exists)
+        XCTAssertFalse(app.buttons["health.nextDay"].isEnabled, "不能浏览未来健康日期")
+    }
+
+    func testDateNavigatorLight() throws { try verifyDateNavigator(dark: false, large: false) }
+    func testDateNavigatorDarkAccessibilitySize() throws { try verifyDateNavigator(dark: true, large: true) }
+
+    func testSparseVitalsHasReadableUnitAndRealPointCount() throws {
+        let app = launch(points: 1)
+        let entry = app.buttons.matching(NSPredicate(format: "label CONTAINS '身体状态'")).firstMatch
+        if !entry.isHittable { app.swipeUp() }
+        XCTAssertTrue(entry.waitForExistence(timeout: 8))
+        entry.tap()
+        XCTAssertTrue(app.staticTexts["静息心率"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'bpm'")).firstMatch.exists,
+                      "最新值必须连同单位展示")
+        let trend = app.descendants(matching: .any).matching(identifier: "health.vitals.trend").firstMatch
+        XCTAssertTrue(trend.waitForExistence(timeout: 5))
+        capture(app, "精修-身体状态-单点稀疏态")
+        XCTAssertEqual(trend.value as? String, "1 条记录", "最稀疏状态保留真实单点，不填零或伪造基线")
+    }
+
+    func testEmptyVitalsShowsAuthorizationExit() throws {
+        let app = launch(points: 0)
+        let entry = app.buttons.matching(NSPredicate(format: "label CONTAINS '身体状态'")).firstMatch
+        if !entry.isHittable { app.swipeUp() }
+        entry.tap()
+        XCTAssertTrue(app.staticTexts["暂无体征数据"].waitForExistence(timeout: 10))
+        let authorize = app.buttons["重新授权健康数据"]
+        XCTAssertTrue(authorize.exists)
+        XCTAssertTrue(authorize.isHittable)
+        capture(app, "精修-身体状态-空态")
+        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label CONTAINS '0 bpm'")).firstMatch.exists)
+    }
+}

@@ -73,7 +73,7 @@ struct CheckItemWaitSheet: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "sparkles")
                                     .font(.holoTinyLabel)
-                                    .foregroundStyle(Color.holoAI)
+                                    .foregroundStyle(Color.holoToolAI)
                                 Text("AI 拆解时猜你在等：")
                                     .font(.holoTinyLabel)
                                     .foregroundColor(.holoTextSecondary)

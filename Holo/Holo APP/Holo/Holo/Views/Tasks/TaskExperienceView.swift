@@ -282,11 +282,12 @@ struct TaskExperienceView: View {
                 }
                 .foregroundColor(.holoTextSecondary)
                 .padding(.vertical, 6)
-                .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(String(localized: "查看范围，当前\(model.scopeTitle)"))
+            .accessibilityIdentifier("tasks.scope")
             .padding(.horizontal, HoloSpacing.page)
             .padding(.bottom, HoloSpacing.xs)
         }
@@ -498,7 +499,7 @@ struct TaskExperienceView: View {
                     Rectangle()
                         .fill(Color.holoDivider.opacity(0.5))
                         .frame(height: 0.5)
-                        .padding(.leading, 54)
+                        .padding(.leading, TaskExperienceRowLayout.textInset)
                 }
             }
         }
@@ -589,17 +590,20 @@ struct TaskExperienceView: View {
             HapticManager.light()
         } catch {
             Self.logger.error("列表勾选子任务失败：\(error.localizedDescription)")
+            HoloToastCenter.shared.show(String(localized: "步骤状态未保存，请重试。"), type: .error)
         }
     }
 
     /// 展开态「加一步」：行内输入回车落库
-    private func addCheckItem(member: TaskRecordSnapshot, title: String) {
-        guard let task = repository.findTask(by: member.id) else { return }
+    private func addCheckItem(member: TaskRecordSnapshot, title: String) -> Bool {
+        guard let task = repository.findTask(by: member.id) else { return false }
         do {
             let order = Int16(task.checkItems?.count ?? 0)
             try repository.addCheckItem(title: title, to: task, order: order)
+            return true
         } catch {
             Self.logger.error("列表加一步失败：\(error.localizedDescription)")
+            return false
         }
     }
 

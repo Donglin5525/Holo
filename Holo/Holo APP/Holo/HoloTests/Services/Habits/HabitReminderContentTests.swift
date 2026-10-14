@@ -8,6 +8,7 @@
 //
 
 import XCTest
+import CoreData
 @testable import Holo
 
 @MainActor
@@ -15,6 +16,48 @@ final class HabitReminderContentTests: XCTestCase {
 
     private func habit(_ name: String, streak: Int) -> (name: String, streak: Int) {
         (name: name, streak: streak)
+    }
+
+    // MARK: - 提醒保存失败与重试（2026-10-14）
+
+    private func makeReminderHabit() throws -> (Habit, NSManagedObjectContext) {
+        let context = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(context, ["HabitRecord", "Habit"])
+        let habit = Habit.create(in: context, name: "提醒测试", icon: "book.fill", color: "#F46D38", type: .checkIn, frequency: .daily, targetCount: 1)
+        try context.save()
+        return (habit, context)
+    }
+
+    func testReminderSaveFailureRestoresOnlyReminderFields() throws {
+        let (habit, _) = try makeReminderHabit()
+        let oldMode = habit.habitReminderMode
+        let oldTime = habit.reminderTime
+        let oldUpdatedAt = habit.updatedAt
+        habit.name = "其他未保存编辑"
+        XCTAssertThrowsError(try HabitReminderCommit.apply(habit, mode: .solo, time: (21, 30)) { habit, updates in
+            habit.habitReminderMode = updates.reminderMode ?? .follow
+            habit.reminderTime = updates.reminderTime ?? (9, 0)
+            habit.updatedAt = Date()
+            throw URLError(.cannotWriteToFile)
+        })
+        XCTAssertEqual(habit.habitReminderMode, oldMode)
+        XCTAssertEqual(habit.reminderTime.hour, oldTime.hour)
+        XCTAssertEqual(habit.reminderTime.minute, oldTime.minute)
+        XCTAssertEqual(habit.updatedAt, oldUpdatedAt)
+        XCTAssertEqual(habit.name, "其他未保存编辑")
+    }
+
+    func testReminderSuccessfulRetryPersistsSelectedTime() throws {
+        let (habit, context) = try makeReminderHabit()
+        try HabitReminderCommit.apply(habit, mode: .solo, time: (21, 30)) { habit, updates in
+            habit.habitReminderMode = updates.reminderMode ?? .follow
+            habit.reminderTime = updates.reminderTime ?? (9, 0)
+            try context.save()
+        }
+        context.refresh(habit, mergeChanges: false)
+        XCTAssertEqual(habit.habitReminderMode, .solo)
+        XCTAssertEqual(habit.reminderTime.hour, 21)
+        XCTAssertEqual(habit.reminderTime.minute, 30)
     }
 
     // MARK: - 空与单习惯

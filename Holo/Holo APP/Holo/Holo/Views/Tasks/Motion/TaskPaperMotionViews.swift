@@ -173,23 +173,25 @@ struct HoloUndoToast: View {
                 .foregroundColor(.holoPrimary)
 
             Text(message)
-                .font(.holoCaption)
-                .foregroundColor(.holoTextPrimary)
-                .lineLimit(1)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolText)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 8)
 
             Button(action: onUndo) {
                 Text(String(localized: "撤回"))
                     .font(.holoBody.weight(.semibold))
-                    .foregroundColor(.holoPrimary)
+                    .foregroundColor(.holoToolAction)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("holo.undo")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .holoCard()
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(message)，\(String(localized: "撤回"))")
+        .accessibilityElement(children: .contain)
     }
 }

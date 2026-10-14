@@ -15,7 +15,7 @@ import Charts
 
 struct VitalsView: View {
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var repository = HealthRepository.shared
+    @ObservedObject private var repository = HealthRepository.shared
     @State private var vitals: [DailyVitals] = []
     @State private var isLoading = true
 
@@ -34,7 +34,7 @@ struct VitalsView: View {
                         emptyState
                     }
                 }
-                .padding(HoloSpacing.md)
+                .padding(HoloSpacing.page)
                 .holoContentColumn(paintsBackground: false)
             }
         }
@@ -57,18 +57,9 @@ struct VitalsView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(alignment: .top, spacing: HoloSpacing.md) {
-                Button {
+                HoloIconButton(systemName: "chevron.left", title: "返回", showsSurface: true) {
                     dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.holoToolText)
-                        .frame(width: 40, height: 40)
-                        .background(Color.holoToolSurface)
-                        .clipShape(Circle())
-                        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
                 }
-                .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("身体状态")
@@ -81,7 +72,7 @@ struct VitalsView: View {
                 Spacer()
             }
         }
-        .padding(.horizontal, HoloSpacing.md)
+        .padding(.horizontal, HoloSpacing.page)
         .padding(.top, HoloSpacing.sm)
         .padding(.bottom, HoloSpacing.sm)
     }
@@ -110,7 +101,7 @@ struct VitalsView: View {
             )
 
             Text("心率偏高与 HRV 偏低同时出现，常与疲劳或恢复不足相关，可适当降低训练强度。均与自己的基线比较；趋势观察，非医疗建议。数据来自 Apple Watch。")
-                .font(.holoTinyLabel)
+                .holoText(.metadata)
                 .foregroundColor(.holoToolTextSecondary)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -122,73 +113,41 @@ struct VitalsView: View {
     }
 
     private func vitalRow(title: String, subtitle: String, unit: String, values: [(date: Date, value: Double)]) -> some View {
-        HStack(spacing: HoloSpacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: HoloSpacing.sm) {
                 Text(title)
-                    .holoText(.metadata)
+                    .holoText(.body)
                     .foregroundColor(.holoToolText)
-                Text(subtitle)
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .lineLimit(2)
-            }
-            .frame(width: 118, alignment: .leading)
-
-            sparkline(values: values)
-
-            VStack(alignment: .trailing, spacing: 2) {
+                Spacer(minLength: HoloSpacing.sm)
                 if let latest = values.last {
-                    Text(String(format: "%.0f", latest.value))
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                    Text("\(String(format: "%.0f", latest.value)) \(unit)")
+                        .holoText(.body)
+                        .fontWeight(.semibold)
+                        .monospacedDigit()
                         .foregroundColor(.holoToolText)
-                    deviationText(latest: latest.value, baseline: baseline(values))
-                        .font(.system(size: 10, weight: .semibold))
+                        .layoutPriority(1)
                 } else {
                     Text("—")
-                        .font(.system(size: 17, weight: .bold, design: .rounded))
-                        .foregroundColor(.holoToolTextSecondary)
-                    Text("无数据")
-                        .font(.system(size: 10))
+                        .holoText(.body)
                         .foregroundColor(.holoToolTextSecondary)
                 }
             }
-            .frame(width: 72, alignment: .trailing)
+            Text(subtitle)
+                .holoText(.metadata)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let latest = values.last {
+                VitalsTrendChart(values: values, unit: unit, baseline: baseline(values))
+                deviationText(latest: latest.value, baseline: baseline(values))
+                    .holoText(.metadata)
+            } else {
+                Text("无数据")
+                    .holoText(.metadata)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+            }
         }
         .padding(HoloSpacing.md)
         .holoSurface()
-    }
-
-    private func sparkline(values: [(date: Date, value: Double)]) -> some View {
-        Chart(values, id: \.date) { point in
-            LineMark(
-                x: .value("日期", point.date, unit: .day),
-                y: .value("值", point.value)
-            )
-            .foregroundStyle(Color.holoChart4.gradient)
-            .interpolationMethod(.catmullRom)
-            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
-        }
-        // 显式固定 y 域，与基线虚线的 overlay 换算共用同一 domain，保证虚线位置成比例
-        .chartYScale(domain: chartDomain(values))
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
-        .overlay(alignment: .center) {
-            if let baseline = baseline(values) {
-                GeometryReader { proxy in
-                    // 基线参考虚线：按值域换算 y 位置
-                    let domain = chartDomain(values)
-                    let ratio = (baseline - domain.lowerBound) / max(domain.upperBound - domain.lowerBound, 0.001)
-                    let y = proxy.size.height * (1 - ratio)
-                    Path { path in
-                        path.move(to: CGPoint(x: 0, y: y))
-                        path.addLine(to: CGPoint(x: proxy.size.width, y: y))
-                    }
-                    .stroke(Color.holoToolTextSecondary.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                }
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 44)
     }
 
     private func deviationText(latest: Double, baseline: Double?) -> some View {
@@ -228,14 +187,6 @@ struct VitalsView: View {
         return String(format: "%.0f", baseline)
     }
 
-    private func chartDomain(_ values: [(date: Date, value: Double)]) -> ClosedRange<Double> {
-        let numbers = values.map(\.value)
-        let minVal = numbers.min() ?? 0
-        let maxVal = numbers.max() ?? 1
-        let padding = max((maxVal - minVal) * 0.15, 0.5)
-        return (minVal - padding)...(maxVal + padding)
-    }
-
     // MARK: - 空态
 
     private var emptyState: some View {
@@ -252,21 +203,16 @@ struct VitalsView: View {
                 .holoText(.supporting)
                 .foregroundColor(.holoToolTextSecondary)
                 .lineSpacing(3)
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
 
             Button {
                 repository.requestAuthorization()
             } label: {
                 Text("重新授权健康数据")
-                    .holoText(.metadata)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, HoloSpacing.lg)
-                    .padding(.vertical, 10)
-                    .background(Color.holoChart4)
-                    .clipShape(Capsule())
+                    .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(HoloActionStyle(role: .primary))
         }
         .padding(.top, 40)
         .padding(.horizontal, HoloSpacing.xl)
@@ -277,6 +223,14 @@ struct VitalsView: View {
         let today = calendar.startOfDay(for: Date())
         let start = calendar.date(byAdding: .day, value: -(HealthThresholds.vitalsWindowDays - 1), to: today) ?? today
         vitals = await repository.fetchVitalsRange(from: start, to: today)
+        #if DEBUG && targetEnvironment(simulator)
+        // 仅隔离截图/验收模式裁剪模拟数据，验证空态与最稀疏状态；不写健康库。
+        let env = ProcessInfo.processInfo.environment
+        if env["HOLO_APP_STORE_SCREENSHOT_MODE"] == "1",
+           let text = env["HOLO_POLISH_VITALS_POINTS"], let count = Int(text), (0...3).contains(count) {
+            vitals = Array(vitals.suffix(count))
+        }
+        #endif
         isLoading = false
     }
 

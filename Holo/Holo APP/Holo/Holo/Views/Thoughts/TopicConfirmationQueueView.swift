@@ -169,10 +169,10 @@ struct TopicConfirmationQueueView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 10))
-                        .foregroundColor(.holoAI)
+                        .foregroundColor(.holoToolAI)
                     Text("AI 建议")
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoAI)
+                        .foregroundColor(.holoToolAI)
                 }
             }
 

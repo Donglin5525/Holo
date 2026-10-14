@@ -14,7 +14,7 @@ struct HealthDetailView: View {
     @Binding var selectedDate: Date
 
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var repository = HealthRepository.shared
+    @ObservedObject private var repository = HealthRepository.shared
     @State private var weeklyData: [DailyHealthData] = []
     @State private var isLoading = true
     /// 日/周加载共享代数（R10，2026-10-04 体检）：快速切天时过期请求不发布、不提前关加载态
@@ -165,7 +165,7 @@ struct HealthDetailView: View {
 
             HealthDateNavigator(selectedDate: $selectedDate)
         }
-        .padding(.horizontal, HoloSpacing.md)
+        .padding(.horizontal, HoloSpacing.page)
         .padding(.top, HoloSpacing.sm)
         .padding(.bottom, HoloSpacing.sm)
     }
@@ -198,18 +198,9 @@ struct HealthDetailView: View {
 
     /// 返回按钮（对齐全局 fullScreenCover 模块约定，复用 HealthView 样式）
     private var backButton: some View {
-        Button {
+        HoloIconButton(systemName: "chevron.left", title: "返回", showsSurface: true) {
             dismiss()
-        } label: {
-            Image(systemName: "chevron.left")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.holoToolText)
-                .frame(width: 40, height: 40)
-                .background(Color.holoToolSurface)
-                .clipShape(Circle())
-                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         }
-        .buttonStyle(.plain)
     }
 
     private var bigRingCard: some View {

@@ -36,6 +36,84 @@ final class TodoTaskPlannedTimeRangeTests: XCTestCase {
         return Calendar.current.date(from: c) ?? Date()
     }
 
+    // MARK: - 长廊拖动提交失败必须还原画面（2026-10-14）
+
+    @MainActor
+    func testPlannedCommitFailureRestoresOnlyPlannedFields() throws {
+        let (repo, _) = try makeRepo()
+        let start = makeDate(2026, 10, 14, hour: 9)
+        let end = makeDate(2026, 10, 14, hour: 10)
+        let task = try repo.createTask(title: "原任务", plannedStart: start, plannedEnd: end)
+        let oldUpdatedAt = task.updatedAt
+        task.title = "其他尚未保存的编辑"
+        XCTAssertThrowsError(try TaskPlannedTimeCommit.apply(task, start: start.addingTimeInterval(3600), end: end.addingTimeInterval(3600)) { task, update in
+            if case .set(let newStart, let newEnd) = update {
+                task.plannedStart = newStart
+                task.plannedEnd = newEnd
+                task.updatedAt = Date()
+            }
+            throw URLError(.cannotWriteToFile)
+        })
+        XCTAssertEqual(task.plannedStart, start)
+        XCTAssertEqual(task.plannedEnd, end)
+        XCTAssertEqual(task.updatedAt, oldUpdatedAt)
+        XCTAssertEqual(task.title, "其他尚未保存的编辑", "不能通过全局 rollback 丢掉别处编辑")
+    }
+
+    @MainActor
+    func testPlannedCommitSuccessPersistsRequestedRange() throws {
+        let (repo, context) = try makeRepo()
+        let task = try repo.createTask(title: "拖动测试")
+        let start = makeDate(2026, 10, 14, hour: 11)
+        let end = makeDate(2026, 10, 14, hour: 12)
+        var calls = 0
+        try TaskPlannedTimeCommit.apply(task, start: start, end: end) { task, update in
+            calls += 1
+            try repo.updateTask(task, plannedTime: update)
+        }
+        XCTAssertEqual(calls, 1)
+        context.refresh(task, mergeChanges: false)
+        XCTAssertEqual(task.plannedStart, start)
+        XCTAssertEqual(task.plannedEnd, end)
+    }
+
+    @MainActor
+    func testFailedStepInsertionDoesNotLeaveDuplicateForRetry() throws {
+        let (repo, context) = try makeRepo()
+        let task = try repo.createTask(title: "步骤插入失败测试")
+        // 必填字段置空制造真实 Core Data 保存失败，只在独立内存库执行。
+        task.setValue(nil, forKey: "title")
+        XCTAssertThrowsError(try repo.addCheckItem(title: "同一步", to: task, order: 0))
+        XCTAssertEqual(task.checkItems?.count ?? 0, 0)
+        task.title = "恢复有效标题"
+        _ = try repo.addCheckItem(title: "同一步", to: task, order: 0)
+        XCTAssertEqual(task.checkItems?.count, 1)
+        XCTAssertFalse(context.hasChanges)
+    }
+
+    @MainActor
+    func testFailedStepToggleKeepsWaitingStateAndReminderFields() throws {
+        let (repo, _) = try makeRepo()
+        let task = try repo.createTask(title: "步骤状态失败测试")
+        let item = try repo.addCheckItem(title: "等待回复", to: task, order: 0)
+        item.isWaiting = true
+        item.waitNote = "等反馈"
+        item.reviewRemindAt = Date(timeIntervalSinceNow: 3600)
+        let reviewDate = item.reviewRemindAt
+        let updatedAt = task.updatedAt
+        task.setValue(nil, forKey: "title")
+        XCTAssertThrowsError(try repo.toggleCheckItem(item))
+        XCTAssertFalse(item.isChecked)
+        XCTAssertTrue(item.isWaiting)
+        XCTAssertEqual(item.waitNote, "等反馈")
+        XCTAssertEqual(item.reviewRemindAt, reviewDate)
+        XCTAssertEqual(task.updatedAt, updatedAt)
+        task.title = "恢复有效标题"
+        try repo.toggleCheckItem(item)
+        XCTAssertTrue(item.isChecked)
+        XCTAssertFalse(item.isWaiting)
+    }
+
     // MARK: - isValidPlannedRange 纯函数
 
     func test_合法区间_同天且开始早于结束() {

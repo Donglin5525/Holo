@@ -37,7 +37,7 @@ struct AnniversaryListView: View {
 
     var body: some View {
         ZStack {
-            Color.holoBackground.ignoresSafeArea()
+            Color.holoToolBackground.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 headerView
@@ -108,26 +108,18 @@ struct AnniversaryListView: View {
 
     private var headerView: some View {
         HStack {
-            Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(width: 34, height: 34)
-                    .background(Circle().fill(Color.holoNestedCardBackground))
-                    .contentShape(Circle())
-            }
-            .accessibilityLabel(Text("返回"))
+            HoloIconButton(systemName: "chevron.left", title: "返回", showsSurface: true, action: onBack)
 
             Spacer()
 
             Text("纪念日")
                 .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             Spacer()
 
             // 右下 FAB 已承担新增（含纪念日语境）；头部不再放第二个创建入口
-            Color.clear.frame(width: 34, height: 34)
+            Color.clear.frame(width: 44, height: 44)
         }
         .padding(.horizontal, HoloSpacing.page)
         .padding(.top, 8)
@@ -215,7 +207,7 @@ struct AnniversaryListView: View {
                 Text(title)
                     .font(.system(size: 11.5, weight: .heavy))
                     .kerning(1)
-                    .foregroundColor(Color.holoTextSecondary)
+                    .foregroundColor(Color.holoToolTextSecondary)
                 Rectangle()
                     .fill(Color.holoBorder)
                     .frame(height: 0.7)
@@ -303,11 +295,11 @@ struct AnniversaryListView: View {
             VStack(spacing: HoloSpacing.sm) {
                 Text("点亮第一个重要的日子")
                     .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 Text("生日、纪念日、倒数日……\n每点亮一个日子，等待本身就开始发光")
                     .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
             }
@@ -319,7 +311,7 @@ struct AnniversaryListView: View {
                     Text("点亮一个日子")
                 }
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.sm + 4)
                 .background(Capsule().strokeBorder(Color.holoDivider, lineWidth: 1))

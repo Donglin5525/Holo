@@ -17,13 +17,23 @@ struct GoalMetricLogSheet: View {
     @State private var date = Date()
     @State private var isSaving = false
     @State private var saveError: String?
+    @State private var showDismissAlert = false
 
     private var unitText: String { goal.metricUnitText }
 
     private var isTargetKind: Bool { goal.goalKindEnum == .target }
 
     private var canSave: Bool {
-        !isSaving && Double(valueText) != nil
+        !isSaving && Double(valueText)?.isFinite == true
+    }
+
+    private var hasUnsavedChanges: Bool {
+        !valueText.isEmpty || !note.isEmpty
+    }
+
+    private func requestDismiss() {
+        guard !isSaving else { return }
+        if hasUnsavedChanges { showDismissAlert = true } else { dismiss() }
     }
 
     var body: some View {
@@ -34,32 +44,32 @@ struct GoalMetricLogSheet: View {
                     VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                         Text(isTargetKind ? String(localized: "当前值\(unitSuffix)") : String(localized: "本次数值\(unitSuffix)"))
                             .font(.holoLabel)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                         TextField(isTargetKind ? String(localized: "如 72.5") : String(localized: "如 5"), text: $valueText)
                             .keyboardType(.decimalPad)
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                             .padding(HoloSpacing.sm)
-                            .background(Color.holoBackground)
+                            .background(Color.holoToolBackground)
                             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
                         Text(isTargetKind
                              ? String(localized: "记录当前水平，进度取最新一条计算")
                              : String(localized: "记录每次的量，会自动累加到目标进度"))
                             .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     // 备注
                     VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                         Text("备注")
                             .font(.holoLabel)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                         TextField("选填", text: $note, axis: .vertical)
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                             .lineLimit(1...2)
                             .padding(HoloSpacing.sm)
-                            .background(Color.holoBackground)
+                            .background(Color.holoToolBackground)
                             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
                     }
 
@@ -67,7 +77,7 @@ struct GoalMetricLogSheet: View {
                     VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                         Text("日期")
                             .font(.holoLabel)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                         DatePicker(
                             "日期",
                             selection: $date,
@@ -80,12 +90,13 @@ struct GoalMetricLogSheet: View {
                 }
                 .padding(HoloSpacing.lg)
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle(isTargetKind ? String(localized: "记当前水平") : String(localized: "记一笔"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消", action: requestDismiss)
+                        .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isSaving ? String(localized: "保存中") : String(localized: "保存")) { save() }
@@ -98,17 +109,13 @@ struct GoalMetricLogSheet: View {
                     save()
                 } label: {
                     Text(isSaving ? String(localized: "保存中") : String(localized: "保存"))
-                        .font(.holoBody)
-                        .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(canSave ? Color.holoPrimary : Color.gray.opacity(0.3))
-                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                 }
+                .buttonStyle(HoloActionStyle(role: .primary))
                 .disabled(!canSave)
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: -2)
             }
             .alert("保存失败", isPresented: Binding(
@@ -120,7 +127,12 @@ struct GoalMetricLogSheet: View {
                 Text(saveError ?? "")
             }
         }
+        .holoSheetShell()
+        .interactiveDismissDisabled(hasUnsavedChanges || isSaving)
+        .sheetDismissGuard(onAttempt: requestDismiss)
+        .unsavedChangesAlert(isPresented: $showDismissAlert) { dismiss() }
         .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
     private var unitSuffix: String {
@@ -128,7 +140,7 @@ struct GoalMetricLogSheet: View {
     }
 
     private func save() {
-        guard let value = Double(valueText) else { return }
+        guard !isSaving, let value = Double(valueText), value.isFinite else { return }
         isSaving = true
         DispatchQueue.main.async {
             do {

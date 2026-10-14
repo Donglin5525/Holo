@@ -298,7 +298,7 @@ struct TopicDetailView: View {
                     HStack(spacing: 5) {
                         Image(systemName: "sparkles")
                             .font(.holoTinyLabel)
-                            .foregroundColor(.holoAI)
+                            .foregroundColor(.holoToolAI)
                         Text("这个主题收什么")
                             .font(.holoTinyLabel)
                             .foregroundColor(.holoTextSecondary)
