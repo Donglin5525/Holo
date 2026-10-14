@@ -345,7 +345,11 @@ struct HoloApp: App {
                     // 图片快捷记账确认页必达（2026-09-22）：回前台统一兜底——存在
                     // 未自动弹过的待复核草案就直接弹复核页。用户从横幅/图标/多任务
                     // 任何一路回到 Holo 都命中这里，不再依赖快捷指令拉起或通知点击。
-                    ReceiptBookingForegroundPresenter.presentIfNeeded()
+                    // 2026-10-14 结果播报必达：确认页没弹（无待复核草案/非刚识别）时，
+                    // 拒识/失败等结果改由悬浮 toast 交代「这笔没入账」，不再只依赖通知权限。
+                    if !ReceiptBookingForegroundPresenter.presentIfNeeded() {
+                        ReceiptBookingResultSurfacer.surfaceIfNeeded()
+                    }
                     // 想法整理：断网期间回退 pending 的条目，回前台有网时续做（幂等）
                     ThoughtOrganizationQueue.shared.appWillEnterForeground()
                 Task { await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts(); await ThoughtSemanticPipeline.shared.kickQueue() }

@@ -78,6 +78,10 @@ struct FinanceView: View {
     @State private var deepLinkedTransaction: Transaction?
     /// 图片自动记账深链（§25.3）：待复核直达 / 最近结果
     @State private var receiptReviewDeepLink: ReceiptReviewDeepLinkID?
+    /// 复核 sheet 当前是否真的呈现着（onAppear/onDismiss 维护）。
+    /// 呈现请求被其他弹层挡掉时 item 有值但 sheet 没弹出——用这个标志区分
+    /// 「开着不用动」与「上次没弹成需要强制重呈」（2026-10-14 确认页必达）。
+    @State private var isReviewSheetVisible = false
     @State private var showReceiptBookingSettings = false
     /// 结转回执通知 Deep Link → 预算详情页
     @State private var showBudgetDetail = false
@@ -214,11 +218,20 @@ struct FinanceView: View {
         }
         // 图片自动记账：待复核直达（§25.3）与最近结果
         .sheet(item: $receiptReviewDeepLink, onDismiss: {
+            isReviewSheetVisible = false
             // 复核弹层整体关闭后兜底广播：确保账本/账户汇总与最新入账一致
             NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
         }) { link in
             ReceiptReviewListView(initialDraftID: link.id)
                 .holoSheetWidth(.form)
+                // 换草案时重建视图：ack 跟着新草案走
+                .id(link.id)
+                .onAppear {
+                    isReviewSheetVisible = true
+                    // 确认页真正到达才落「已自动弹出」去重标记（2026-10-14）：
+                    // 被挡没弹成就不落，下次回前台仍会重试
+                    ReceiptBookingForegroundPresenter.acknowledge(draftID: link.id)
+                }
         }
         .sheet(isPresented: $showReceiptBookingSettings) {
             NavigationStack {
@@ -263,20 +276,73 @@ struct FinanceView: View {
         case .receiptReview(let draftID):
             // 草案可能已被处理/过期：不存在时明确提示，不开空页
             if ReceiptBookingResultStore.shared.loadDrafts().contains(where: { $0.id == draftID }) {
-                receiptReviewDeepLink = ReceiptReviewDeepLinkID(id: draftID)
+                presentReviewSheet(for: draftID)
             } else {
                 HoloToastCenter.shared.show(String(localized: "这条待复核已处理或已过期"), type: .info)
             }
             deepLinkState.pendingTarget = nil
         case .receiptBookingResult(let resultID):
             if ReceiptBookingResultStore.shared.loadResults().contains(where: { $0.id == resultID }) {
-                showReceiptBookingSettings = true
+                presentResultSettingsSheet()
             } else {
                 HoloToastCenter.shared.show(String(localized: "这条结果已过期清理"), type: .info)
             }
             deepLinkState.pendingTarget = nil
         default:
             return
+        }
+    }
+
+    /// 弹出复核 sheet（2026-10-14 确认页必达）。
+    /// 自家开着的 sheet（记一笔/交易编辑/预算详情/识图设置）会把复核页挡掉：
+    /// 先收再弹，且同视图 sheet 换防必须等 dismissal 落定，直接换会被静默吞。
+    private func presentReviewSheet(for draftID: UUID) {
+        let target = ReceiptReviewDeepLinkID(id: draftID)
+        // 复核页已开着：同一草案不动；不同草案原位换内容（.id 重建 + onAppear 重落 ack）
+        if isReviewSheetVisible {
+            if receiptReviewDeepLink != target {
+                receiptReviewDeepLink = target
+            }
+            return
+        }
+        var hadConflict = false
+        if showAddTransaction { showAddTransaction = false; hadConflict = true }
+        if deepLinkedTransaction != nil { deepLinkedTransaction = nil; hadConflict = true }
+        if showBudgetDetail { showBudgetDetail = false; hadConflict = true }
+        if showReceiptBookingSettings { showReceiptBookingSettings = false; hadConflict = true }
+        if hadConflict {
+            // 先清空旧 item（可能残留上次被挡未呈现的值），落定后再设回
+            receiptReviewDeepLink = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                receiptReviewDeepLink = target
+            }
+        } else if receiptReviewDeepLink != nil {
+            // 无自家冲突但 item 有残留 = 上次呈现被外部弹层（HomeView 层）挡掉的
+            // 典型现场（HomeView 重派深链后到达这里）：清空后异步设回强制重新呈现
+            receiptReviewDeepLink = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                receiptReviewDeepLink = target
+            }
+        } else {
+            receiptReviewDeepLink = target
+        }
+    }
+
+    /// 弹出识图记账设置 sheet（最近结果深链落点），同样先收掉自家冲突弹层。
+    private func presentResultSettingsSheet() {
+        var hadConflict = false
+        if showAddTransaction { showAddTransaction = false; hadConflict = true }
+        if deepLinkedTransaction != nil { deepLinkedTransaction = nil; hadConflict = true }
+        if showBudgetDetail { showBudgetDetail = false; hadConflict = true }
+        if receiptReviewDeepLink != nil { receiptReviewDeepLink = nil; hadConflict = true }
+        if hadConflict {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { showReceiptBookingSettings = true }
+        } else if showReceiptBookingSettings {
+            // 布尔 sheet 被挡时 binding 残留 true：先复位再设回才会重新呈现
+            showReceiptBookingSettings = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { showReceiptBookingSettings = true }
+        } else {
+            showReceiptBookingSettings = true
         }
     }
     

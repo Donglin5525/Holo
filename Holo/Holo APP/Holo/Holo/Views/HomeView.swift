@@ -1264,6 +1264,19 @@ struct HomeView: View {
     
     // MARK: - Deep Link 处理
 
+    /// 识图记账深链专用清场：收掉会挡住财务模块 sheet 的输入/浏览弹层。
+    /// onboarding/付费墙/导入这类系统级流程不在此列（不该被记账结果打断）。
+    /// - Returns: 是否收掉了任何弹层
+    private func dismissReceiptBlockingPresentations() -> Bool {
+        var dismissedAny = false
+        if showThoughtEditor { showThoughtEditor = false; dismissedAny = true }
+        if showAddTaskSheet { showAddTaskSheet = false; dismissedAny = true }
+        if showAddTransactionSheet { showAddTransactionSheet = false; dismissedAny = true }
+        if showMatterList { showMatterList = false; dismissedAny = true }
+        if matterDetailTarget != nil { matterDetailTarget = nil; dismissedAny = true }
+        return dismissedAny
+    }
+
     /// 处理 Deep Link 跳转
     /// 由 .onAppear（冷启动）和 .onChange（热启动/后台）触发
     ///
@@ -1277,6 +1290,8 @@ struct HomeView: View {
         // 下方 navigateToScreen 只切常驻栈，导航发生在覆盖层下面时用户看到的
         // 还是原界面（点小组件拉起后停在个人页不动的根因）。目标自身要开的层
         // （看板、各编辑器 sheet、goalDetail 的个人页）在各 case 里再开。
+        let hadCoverPresentation = showPersonalView || showSettingsView
+            || showPersonalPage || showSettingsPage || showDailyKanban
         showPersonalView = false
         showSettingsView = false
         showPersonalPage = false
@@ -1344,8 +1359,23 @@ struct HomeView: View {
             pendingFinanceEvidenceReviewDeepLink = link
             navigateToScreen(.finance)
         case .receiptReview, .receiptBookingResult:
-            // 图片自动记账：先开财务模块，pendingTarget 由 FinanceView 消费弹复核/结果
+            // 图片自动记账：先开财务模块，pendingTarget 由 FinanceView 消费弹复核/结果。
+            // 2026-10-14 清场：财务模块的复核/结果 sheet 会被任何还开着的弹层静默
+            // 挡住（SwiftUI 同窗同时刻只呈现一个 sheet，被挡的呈现直接丢弃且无回执）
+            // ——东林实锤「Holo 打开了其他页面就不会立马跳到记账确认页」。这里把
+            // HomeView 层的输入/浏览弹层一并收掉；有弹层在收时延迟重派一次深链，
+            // 等 dismissal 落定后 FinanceView 再消费，确认页必达。
+            let hadBlockingPresentation = hadCoverPresentation
+                || dismissReceiptBlockingPresentations()
             navigateToScreen(.finance)
+            if hadBlockingPresentation {
+                // navigate 对相同目标先清空再异步设置，onChange 必再触发；
+                // 弹层 dismissal 动画约 0.4s，0.6s 后重派时已落定
+                let current = target
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    deepLinkState.navigate(to: current)
+                }
+            }
         case .addTransaction:
             showAddTransactionSheet = true
             deepLinkState.pendingTarget = nil

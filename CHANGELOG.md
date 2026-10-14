@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-10-14] 快捷识图记账双通道必达——其他页面/弹层开着确认页照弹 + 拒识「这笔没有入账」App 内悬浮横幅兜底
+
+> 东林报两问题：①Holo 开着其他页面时，快捷指令识别完回 App 不会立马跳到记账确认页；②转账截图等被拒识的图什么都不提示，用户不知道这笔没入账。根因①：确认页深链到达时 HomeView 只收了个人/设置/看板三类覆盖层，漏收想法编辑器/记一笔/加任务等五类弹层——SwiftUI 同窗同时刻只呈现一个 sheet，财务模块的复核 sheet 被挡掉是静默失败无回执；且去重标记在「派发导航」时就落，被挡一次后永远不再弹。根因②（东林二次澄清后修正）：通知权限是开着的，真凶是快捷指令跑完 Holo 被拉到前台——App 在前台时系统横幅不可依赖（送达被塞进通知中心、屏幕上不展示），通知权限未授权是另一条旁支静默路径，两条都要兜。
+
+- **确认页必达①（HomeView 清场）**：`.receiptReview/.receiptBookingResult` 深链到达时补收五类挡道弹层（想法编辑器 cover/记一笔/加任务/Matter 列表/Matter 详情），有弹层在收时 0.6s 后重派一次深链（navigate 对同目标先清空再异步设置，onChange 必再触发），等 dismissal 落定后财务模块才消费，复核 sheet 不再被静默吞掉
+- **确认页必达②（FinanceView 清自家）**：presentReviewSheet 弹复核页前先收自家冲突 sheet（记一笔/交易编辑/预算详情/识图设置），同视图 sheet 换防等 dismissal 落定再设值；「item 残留但 sheet 没弹出」的现场用清空+异步设回强制重呈现；复核页已开着时不同草案原位换内容不重弹。结果设置 sheet（receiptBookingResult 深链落点）同款处理
+- **确认页必达③（去重标记改「真弹出才落」）**：present() 只导航不再写标记，新增 acknowledge(draftID) 由复核 sheet 内容 onAppear 调用（.id(link.id) 换草案重建视图让标记跟着走）——被挡没弹出就不落标记，下次回前台仍会重试；用户关掉复核页=暂不处理、不再自动弹的口径不变。presentIfNeeded 返回是否派发供结果播报避让
+- **拒识反馈必达（新 ReceiptBookingResultSurfacer）**：把「刚产生的识别结果」当回前台必须交代的账——悬浮窗 toast（OverlayWindowController 独立窗口，盖在一切页面与弹层之上，不依赖通知权限与前台横幅展示）播报：拒识=「这笔没有入账：这是转账/还款，属于资金流转，不计入收支」等（与通知/快捷指令结果文字同一份既有词条拼接，零新增 xcstrings）；失败=「记账没有成功：截图仍在照片里，可稍后重试」（限流单独文案）；重复=「这张图已经记过」。接线三处：回前台（确认页没弹时才播，HoloApp scenePhase，快捷指令拉起 Holo 的场景正命中这条）、快捷指令前台运行当场播（Intent perform）、每条结果只播一次（UserDefaults 按 resultID 去重）。不播的：needsReview（复核页通道负责）、用户自己撤销/删除的留痕、10 分钟外历史结果
+- **双通道不打架**：Intent 跑完时 App 已在前台 → 只播应用内 toast、系统通知一并省去（避免 toast+横幅双响）；App 在后台 → 系统通知为主通道（人不在 App 时横幅可见），之后无论拉起还是手动回到 Holo，scenePhase 钩子的 toast 再兜一层（此时通知即使被前台切换吞掉也不影响感知）
+- **验证**：构建绿；单测 22 条全绿（surfacer 新 13 条：文案口径/三闸判定/窗口边界，presenter 更新 9 条锁 ack 新语义）；专用无头模拟器双路径实拍——拒识结果注入回前台 toast 触发（log 实锤+截图判读，toast 与顶栏重叠为全 App toast 既有形态）；想法编辑器 cover 开着注入新草案回前台，编辑器被收掉、复核页弹出（AX 实锤「待复核/确认这笔账/¥128.50」）、ack 标记更新到新草案。测试文件 ReceiptBookingResultSurfacerTests.swift 已按四锚点挂 pbxproj（plutil 过）
+- 纯客户端无后端发版；改动 6 文件 +2 新增（surfacer+测试）/pbxproj 四锚点/CHANGELOG；并行会话在途文件（Coordinator/DetailView/KernelTests/xcstrings）零触碰。模拟器注入坑：本工具链模拟器构建带 AppGroup 授权，识图数据须注入 `Shared/AppGroup/<UUID>/ReceiptBooking/` 而非 Application Support 回落路径（旧记忆已过时）
+
+---
+
 ## [2026-10-14] 删除记账闪退第三次复发根治——「删除广播唤醒视图访问已死对象」全库统一保险丝
 
 > 东林报「删除一笔记账闪退，一而再再而三」。真机 .ips 符号化实锤（10:48:59 崩溃、构建产物 UUID 匹配）：崩点不在删除入口，而在交易列表行「已退 ¥X」退款徽章的广播刷新——仓库 deleteTransaction 最后一行发 financeDataDidChange 广播，同屏退场动画/他处屏幕上的 TransactionRowView 收到通知起 Task 读已删交易，getRefunds(for:) 读 original.id 抛 "could not fulfill a fault"（SIGTRAP）。为什么反复复发：病根（视图持有 Core Data 对象 + 删除保存即销毁 + 异步访问无防护）每次在新功能里重新长出——8 月修删除入口调用方、习惯详情页各修各的、票根 reload 各自加过 isDeleted 守卫，9-28 1.0.9 退款徽章上线时又裸奔，修法从未沉淀成统一防护。

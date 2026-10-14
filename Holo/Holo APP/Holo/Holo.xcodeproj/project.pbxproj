@@ -404,6 +404,7 @@
 		F1AC090900000000000000A1 /* SuanTangFeiNiuCategoryReproTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090900000000000000A2 /* SuanTangFeiNiuCategoryReproTests.swift */; };
 		F1AC090900000000000000B1 /* MatchCategoryResilienceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090900000000000000B2 /* MatchCategoryResilienceTests.swift */; };
 		F1AC090A0000000000000001 /* ReceiptBookingForegroundPresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090A0000000000000002 /* ReceiptBookingForegroundPresenterTests.swift */; };
+		F1AC0AC20000000000000001 /* ReceiptBookingResultSurfacerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC0AC2000000000000002 /* ReceiptBookingResultSurfacerTests.swift */; };
 		F1AC090B0000000000000002 /* InstallmentImportStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090B0000000000000001 /* InstallmentImportStandaloneTests.swift */; };
 		F1E0A1B2C3D4E5F607182932 /* FlexibleQueryDateRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */; };
 		F1E0A1B2C3D4E5F607182934 /* FlexibleQueryResultConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */; };
@@ -873,6 +874,7 @@
 		F1AC090900000000000000A2 /* SuanTangFeiNiuCategoryReproTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuanTangFeiNiuCategoryReproTests.swift; sourceTree = "<group>"; };
 		F1AC090900000000000000B2 /* MatchCategoryResilienceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MatchCategoryResilienceTests.swift; sourceTree = "<group>"; };
 		F1AC090A0000000000000002 /* ReceiptBookingForegroundPresenterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptBookingForegroundPresenterTests.swift; sourceTree = "<group>"; };
+		F1AC0AC2000000000000002 /* ReceiptBookingResultSurfacerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptBookingResultSurfacerTests.swift; sourceTree = "<group>"; };
 		F1AC090B0000000000000001 /* InstallmentImportStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InstallmentImportStandaloneTests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryDateRangeTests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryResultConsistencyTests.swift; sourceTree = "<group>"; };
@@ -1605,6 +1607,7 @@
 				F1AC090900000000000000A2 /* SuanTangFeiNiuCategoryReproTests.swift */,
 				F1AC090900000000000000B2 /* MatchCategoryResilienceTests.swift */,
 				F1AC090A0000000000000002 /* ReceiptBookingForegroundPresenterTests.swift */,
+				F1AC0AC2000000000000002 /* ReceiptBookingResultSurfacerTests.swift */,
 				01FEFE4BD64B0BA4926A551E /* AI */,
 				F18A001B2C3D4E5F60718295 /* BillImport */,
 				C07E22030000000000000001 /* Calendar */,
@@ -2081,6 +2084,7 @@
 				F1AC090900000000000000A1 /* SuanTangFeiNiuCategoryReproTests.swift in Sources */,
 				F1AC090900000000000000B1 /* MatchCategoryResilienceTests.swift in Sources */,
 				F1AC090A0000000000000001 /* ReceiptBookingForegroundPresenterTests.swift in Sources */,
+				F1AC0AC20000000000000001 /* ReceiptBookingResultSurfacerTests.swift in Sources */,
 				F40EF4AD4070679E31983D42 /* HoloAgentAnswerPresentationStandaloneTests.swift in Sources */,
 				C3B396F1371E49388FFE1755 /* HoloMetricSemanticStandaloneTests.swift in Sources */,
 				7A3F91E2B4C605D8A1F2E934 /* HoloDeterministicAnswerComposerStandaloneTests.swift in Sources */,
