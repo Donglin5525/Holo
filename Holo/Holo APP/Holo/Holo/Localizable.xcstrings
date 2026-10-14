@@ -59046,22 +59046,6 @@
         }
       }
     },
-    "更换头像或昵称" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Change avatar or nickname"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更換頭像或暱稱"
-          }
-        }
-      }
-    },
     "更改主题…" : {
       "localizations" : {
         "en" : {

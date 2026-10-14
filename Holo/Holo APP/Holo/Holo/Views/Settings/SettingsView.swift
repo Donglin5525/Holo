@@ -20,14 +20,13 @@ struct SettingsView: View {
 
     /// 设置分组：与单列滚动的 section 一一对应，双栏左列的导航项
     private enum SettingsSection: String, CaseIterable, Identifiable {
-        case nickname, darkMode, iCloudSync, calendar, aiOrganization, aiPlayback
+        case darkMode, iCloudSync, calendar, aiOrganization, aiPlayback
         case storage, privacySecurity, legal, accountData, other
 
         var id: String { rawValue }
 
         var title: String {
             switch self {
-            case .nickname: return String(localized: "个人资料")
             case .darkMode: return String(localized: "外观")
             case .iCloudSync: return String(localized: "iCloud 同步")
             case .calendar: return String(localized: "日历")
@@ -43,7 +42,6 @@ struct SettingsView: View {
 
         var icon: String {
             switch self {
-            case .nickname: return "person.crop.circle"
             case .darkMode: return "moon.fill"
             case .iCloudSync: return "icloud.fill"
             case .calendar: return "calendar"
@@ -146,7 +144,7 @@ struct SettingsView: View {
     @State private var showUserProfileEditor = false
 
     // 宽屏双栏：当前选中的分组
-    @State private var selectedSection: SettingsSection = .nickname
+    @State private var selectedSection: SettingsSection = .darkMode
     @Environment(\.holoContentWidth) private var settingsWindowWidth
     private var isWideLayout: Bool { HoloAdaptiveLayout.isExpandedWidth(settingsWindowWidth) }
 
@@ -225,11 +223,8 @@ struct SettingsView: View {
     private var settingsScroll: some View {
         ScrollView {
             VStack(spacing: HoloSpacing.lg) {
-                // 用户信息卡片
+                // 用户信息卡片（头像 + 昵称 + 账号状态；点头像区改资料）
                 userInfoCard
-
-                // 个人资料（头像 + 昵称，随 iCloud 同步）
-                nicknameSection
 
                 // 深色模式设置
                 darkModeSection
@@ -331,7 +326,6 @@ struct SettingsView: View {
     @ViewBuilder
     private func sectionBody(_ section: SettingsSection) -> some View {
         switch section {
-        case .nickname: nicknameSection
         case .darkMode: darkModeSection
         case .iCloudSync: iCloudSyncSection
         case .calendar: ScheduleSettingsSection()
@@ -345,35 +339,27 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 个人资料
+    // MARK: - 用户信息卡片
 
-    private var nicknameSection: some View {
+    /// 全设置页唯一的头像：头像 + 昵称 + 账号状态一行可点进「个人资料」编辑器，
+    /// 卡片下方仍是登录/退出（原「个人资料」卡片与其合并，不再出现第二个头像）
+    private var userInfoCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "person.crop.circle")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoPrimary)
-
-                Text("个人资料")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-            }
-
             Button {
                 showUserProfileEditor = true
             } label: {
                 HStack(spacing: HoloSpacing.md) {
                     UserAvatarView(size: 56, showsSignedInBadge: authService.isSignedIn)
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(UserDisplayNameSettings.displayOrPlaceholder(userName))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(authService.session?.displayName ?? UserDisplayNameSettings.displayOrPlaceholder(userName))
                             .holoText(.body)
                             .foregroundColor(.holoToolText)
 
-                        Text("更换头像或昵称")
+                        Text(accountStatusSubtitle)
                             .holoText(.supporting)
                             .foregroundColor(.holoToolTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Spacer()
@@ -382,36 +368,10 @@ struct SettingsView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                 }
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.vertical, 12)
-                .background(Color.holoToolSurface)
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
-        }
-    }
-
-    // MARK: - 用户信息卡片
-
-    private var userInfoCard: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.md) {
-                UserAvatarView(size: 56, showsSignedInBadge: authService.isSignedIn)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(authService.session?.displayName ?? UserDisplayNameSettings.displayOrPlaceholder(userName))
-                        .holoText(.body)
-                        .foregroundColor(.holoToolText)
-
-                    Text(accountStatusSubtitle)
-                        .holoText(.supporting)
-                        .foregroundColor(.holoToolTextSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer()
-            }
 
             if let errorMessage = authService.errorMessage {
                 Text(errorMessage)
