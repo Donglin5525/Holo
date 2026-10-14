@@ -209,9 +209,7 @@
         }
       }
     },
-    " · 已逾期" : {
-
-    },
+    " · 已逾期" : {},
     " · 无项目" : {
       "localizations" : {
         "en" : {
@@ -948,22 +946,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "(必選)"
-          }
-        }
-      }
-    },
-    "（截至" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " (as of "
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "（截至"
           }
         }
       }
@@ -2692,22 +2674,6 @@
         }
       }
     },
-    "%@ 为本次新建，从 ¥0 起算（账单不含余额列，无法自动核对）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ is newly created and starts from ¥0 (the bill has no balance column, so automatic reconciliation is not possible)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 為本次新建，從 ¥0 起算（帳單不含餘額列，無法自動核對）"
-          }
-        }
-      }
-    },
     "%@ 习惯完成 %lld%%" : {
       "localizations" : {
         "en" : {
@@ -4122,44 +4088,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld / %lld"
-          }
-        }
-      }
-    },
-    "%lld / %lld 项到期完成" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld / %lld due completed"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld / %lld 項到期完成"
-          }
-        }
-      }
-    },
-    "%lld / %lld 项按时完成" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld / %2$lld done on time"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld / %2$lld 项按时完成"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld / %2$lld 項按時完成"
           }
         }
       }
@@ -8177,9 +8105,7 @@
         }
       }
     },
-    "AI 拆解时猜你在等：" : {
-
-    },
+    "AI 拆解时猜你在等：" : {},
     "AI 摘要 · 可重建" : {
       "localizations" : {
         "en" : {
@@ -12586,9 +12512,7 @@
         }
       }
     },
-    "不对就改，缺了就加" : {
-
-    },
+    "不对就改，缺了就加" : {},
     "不开通知也不影响记账：快捷指令运行完会直接显示结果。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -12782,9 +12706,7 @@
         }
       }
     },
-    "不知道从哪儿下手？拆成小步慢慢来" : {
-
-    },
+    "不知道从哪儿下手？拆成小步慢慢来" : {},
     "不知道怎么做，和 Holo 讨论" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14059,9 +13981,7 @@
         }
       }
     },
-    "也可以自己写一句" : {
-
-    },
+    "也可以自己写一句" : {},
     "习" : {
       "localizations" : {
         "en" : {
@@ -16927,9 +16847,7 @@
         }
       }
     },
-    "今日处理次数已达上限" : {
-
-    },
+    "今日处理次数已达上限" : {},
     "今日完成" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -20948,9 +20866,7 @@
         }
       }
     },
-    "做完了" : {
-
-    },
+    "做完了" : {},
     "停止" : {
       "localizations" : {
         "en" : {
@@ -21787,9 +21703,7 @@
         }
       }
     },
-    "先放着，等我回来" : {
-
-    },
+    "先放着，等我回来" : {},
     "先看其他事" : {
       "localizations" : {
         "en" : {
@@ -21840,9 +21754,7 @@
         }
       }
     },
-    "先等等…" : {
-
-    },
+    "先等等…" : {},
     "先继续做着" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -21860,9 +21772,7 @@
         }
       }
     },
-    "先自己加" : {
-
-    },
+    "先自己加" : {},
     "先自由记录，Holo 会留意反复出现的方向，攒够同类想法后建议你建主题。\n你的分类体系，由你的想法塑造。" : {
       "localizations" : {
         "en" : {
@@ -21927,9 +21837,7 @@
         }
       }
     },
-    "先问一句" : {
-
-    },
+    "先问一句" : {},
     "免费" : {
       "localizations" : {
         "en" : {
@@ -22336,9 +22244,7 @@
         }
       }
     },
-    "全部完成" : {
-
-    },
+    "全部完成" : {},
     "全部想法" : {
       "localizations" : {
         "en" : {
@@ -23576,9 +23482,7 @@
         }
       }
     },
-    "再拆一拆，看看还缺哪几步" : {
-
-    },
+    "再拆一拆，看看还缺哪几步" : {},
     "再等等" : {
       "localizations" : {
         "en" : {
@@ -27300,9 +27204,7 @@
         }
       }
     },
-    "删除这步" : {
-
-    },
+    "删除这步" : {},
     "删除这笔交易" : {
       "localizations" : {
         "en" : {
@@ -27550,9 +27452,7 @@
         }
       }
     },
-    "别的步骤不受影响" : {
-
-    },
+    "别的步骤不受影响" : {},
     "到指定日期" : {
       "localizations" : {
         "en" : {
@@ -27585,9 +27485,7 @@
         }
       }
     },
-    "到时候推给你：之前在等的事，看看有没有进展" : {
-
-    },
+    "到时候推给你：之前在等的事，看看有没有进展" : {},
     "到期" : {
       "localizations" : {
         "en" : {
@@ -27991,12 +27889,8 @@
         }
       }
     },
-    "加一步" : {
-
-    },
-    "加一步，回车保存" : {
-
-    },
+    "加一步" : {},
+    "加一步，回车保存" : {},
     "加入「进行中的事」" : {
       "localizations" : {
         "en" : {
@@ -36013,9 +35907,7 @@
         }
       }
     },
-    "完成数" : {
-
-    },
+    "完成数" : {},
     "完成时刻分布" : {
       "localizations" : {
         "en" : {
@@ -37995,9 +37887,7 @@
         }
       }
     },
-    "展开子任务" : {
-
-    },
+    "展开子任务" : {},
     "展开更多分析" : {
       "localizations" : {
         "en" : {
@@ -39686,9 +39576,7 @@
         }
       }
     },
-    "已帮你填好标题和描述，可调整" : {
-
-    },
+    "已帮你填好标题和描述，可调整" : {},
     "已延期 %d 次" : {
       "localizations" : {
         "en" : {
@@ -39737,9 +39625,7 @@
         }
       }
     },
-    "已建立智能索引" : {
-
-    },
+    "已建立智能索引" : {},
     "已开启" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -42408,9 +42294,7 @@
         }
       }
     },
-    "带时钟的是天生要等的步骤（AI 标的），点一下可去掉或补标" : {
-
-    },
+    "带时钟的是天生要等的步骤（AI 标的），点一下可去掉或补标" : {},
     "带时间段的任务自动写入专属「Holo」日历，手表和系统日历可见；改动双向同步" : {
       "localizations" : {
         "en" : {
@@ -44901,9 +44785,7 @@
         }
       }
     },
-    "录音并将识别结果拆成标题和描述" : {
-
-    },
+    "录音并将识别结果拆成标题和描述" : {},
     "录音并将识别结果插入到任务描述" : {
       "localizations" : {
         "en" : {
@@ -48875,9 +48757,7 @@
         }
       }
     },
-    "打开详情" : {
-
-    },
+    "打开详情" : {},
     "打开详情，确认或拒绝 AI 给这条想法打的标签" : {
       "localizations" : {
         "en" : {
@@ -49280,9 +49160,7 @@
         }
       }
     },
-    "把这一步标为等待" : {
-
-    },
+    "把这一步标为等待" : {},
     "把这件事拆成一步步可做的小动作，卡住了可以调整" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -49562,9 +49440,7 @@
         }
       }
     },
-    "拆好了，加了 %lld 步" : {
-
-    },
+    "拆好了，加了 %lld 步" : {},
     "拆小一点" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -49598,12 +49474,8 @@
         }
       }
     },
-    "拆成几步" : {
-
-    },
-    "拆成这 %lld 步" : {
-
-    },
+    "拆成几步" : {},
+    "拆成这 %lld 步" : {},
     "拉伸" : {
       "localizations" : {
         "en" : {
@@ -53244,9 +53116,7 @@
         }
       }
     },
-    "收起子任务" : {
-
-    },
+    "收起子任务" : {},
     "收起引用" : {
       "localizations" : {
         "en" : {
@@ -53317,9 +53187,7 @@
         }
       }
     },
-    "改一下" : {
-
-    },
+    "改一下" : {},
     "改个名字" : {
       "localizations" : {
         "en" : {
@@ -54366,9 +54234,7 @@
         }
       }
     },
-    "整理待整理任务" : {
-
-    },
+    "整理待整理任务" : {},
     "整理状态" : {
       "localizations" : {
         "en" : {
@@ -56462,9 +56328,7 @@
         }
       }
     },
-    "时刻" : {
-
-    },
+    "时刻" : {},
     "时段需要同一天且开始早于结束" : {
       "localizations" : {
         "en" : {
@@ -56753,9 +56617,7 @@
         }
       }
     },
-    "明天上午 9:00 提醒我" : {
-
-    },
+    "明天上午 9:00 提醒我" : {},
     "明天提醒我看一眼" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -59055,22 +58917,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有 %lld 筆帳目的收支類型與分類不一致（舊資料異常），請先在帳目中修復後再刪除"
-          }
-        }
-      }
-    },
-    "有 %lld 项已完成任务缺少完成时间，未计入期间完成统计。无法归属具体期间，点击查看。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld completed tasks lack completion times and aren't counted in period stats. Tap to view."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "有 %lld 項已完成任務缺少完成時間，未計入期間完成統計。無法歸屬具體期間，點擊查看。"
           }
         }
       }
@@ -61997,22 +61843,6 @@
         }
       }
     },
-    "本期无已到期任务" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No overdue tasks this period"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "本期無已到期任務"
-          }
-        }
-      }
-    },
     "本期无支出" : {
       "localizations" : {
         "en" : {
@@ -64394,9 +64224,7 @@
         }
       }
     },
-    "槽位" : {
-
-    },
+    "槽位" : {},
     "模型" : {
       "localizations" : {
         "en" : {
@@ -67220,9 +67048,7 @@
         }
       }
     },
-    "没拆出来，网络或服务开小差了" : {
-
-    },
+    "没拆出来，网络或服务开小差了" : {},
     "没有保存成功" : {
       "localizations" : {
         "en" : {
@@ -68936,9 +68762,7 @@
         }
       }
     },
-    "清单：%@" : {
-
-    },
+    "清单：%@" : {},
     "清单会从各入口收起，可在「归档管理」随时恢复；清单里未完成的任务仍会保留在任务列表中。" : {
       "localizations" : {
         "en" : {
@@ -70680,9 +70504,7 @@
         }
       }
     },
-    "琢磨怎么拆…" : {
-
-    },
+    "琢磨怎么拆…" : {},
     "瑜伽" : {
       "localizations" : {
         "en" : {
@@ -72621,9 +72443,7 @@
         }
       }
     },
-    "看看这个任务该怎么一步步走" : {
-
-    },
+    "看看这个任务该怎么一步步走" : {},
     "看这份追问报告" : {
       "localizations" : {
         "en" : {
@@ -74815,22 +74635,6 @@
         }
       }
     },
-    "第 %lld 行起余额列不连续，账单可能缺行（如同秒交易只导出一笔）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "From line %lld, the balance column is discontinuous; the bill may be missing rows (e.g., same-second transactions only exported once)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "第 %lld 行起餘額列不連續，帳單可能缺行（如同秒交易只匯出一筆）"
-          }
-        }
-      }
-    },
     "第 3 个周年" : {
       "localizations" : {
         "en" : {
@@ -75089,9 +74893,7 @@
         }
       }
     },
-    "等到了，接着做" : {
-
-    },
+    "等到了，接着做" : {},
     "等到了这一天" : {
       "localizations" : {
         "en" : {
@@ -75174,9 +74976,7 @@
         }
       }
     },
-    "等待中 · %@" : {
-
-    },
+    "等待中 · %@" : {},
     "等待云端数据超时（10 分钟）。已收到的数据保留在本机；可以稍后再试一次拉取，或恢复拉取前的备份。" : {
       "localizations" : {
         "en" : {
@@ -76068,22 +75868,6 @@
         }
       }
     },
-    "纳入依据：截止日期在本期间内且已到期（排除缺少完成时间的记录）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Included by: due within this period and overdue (excluding records without completion times)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "納入依據：截止日期在本期間內且已到期（排除缺少完成時間的記錄）"
-          }
-        }
-      }
-    },
     "紫罗兰" : {
       "localizations" : {
         "en" : {
@@ -76264,9 +76048,7 @@
         }
       }
     },
-    "结合已有 %lld 步，看看还缺什么" : {
-
-    },
+    "结合已有 %lld 步，看看还缺什么" : {},
     "结婚纪念日" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -78415,9 +78197,7 @@
         }
       }
     },
-    "至少留一步" : {
-
-    },
+    "至少留一步" : {},
     "舞蹈" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -78787,9 +78567,7 @@
         }
       }
     },
-    "行，按这个来（%lld 步）" : {
-
-    },
+    "行，按这个来（%lld 步）" : {},
     "行动、往来与想法，在这一天交织成一段生活。" : {
       "localizations" : {
         "en" : {
@@ -78979,22 +78757,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "補簽 / 補記"
-          }
-        }
-      }
-    },
-    "补签/补记的记录会带「补」标记，与当日实时打卡如实区分 · 免费次数每月 1 日重置" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Retroactive check-ins/entries are marked with \"Makeup\" to distinguish them from real-time check-ins. Free quota resets on the 1st of each month."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "補簽/補記的記錄會帶「補」標記，與當日實時打卡如實區分 · 免費次數每月 1 日重置"
           }
         }
       }
@@ -82222,9 +81984,7 @@
         }
       }
     },
-    "详情 ›" : {
-
-    },
+    "详情 ›" : {},
     "详细描述" : {
       "localizations" : {
         "en" : {
@@ -87013,9 +86773,7 @@
         }
       }
     },
-    "还剩 %lld 步" : {
-
-    },
+    "还剩 %lld 步" : {},
     "还原总结" : {
       "localizations" : {
         "en" : {
@@ -87439,9 +87197,7 @@
         }
       }
     },
-    "还没做完" : {
-
-    },
+    "还没做完" : {},
     "还没填任务名称，退出后这次填写的内容不会被保存。" : {
       "localizations" : {
         "en" : {
@@ -88182,12 +87938,8 @@
         }
       }
     },
-    "这一步做什么" : {
-
-    },
-    "这一步在等什么？" : {
-
-    },
+    "这一步做什么" : {},
+    "这一步在等什么？" : {},
     "这不是有效的压缩包文件" : {
       "localizations" : {
         "en" : {
@@ -90373,9 +90125,7 @@
         }
       }
     },
-    "这步已标为等待，点一下去掉" : {
-
-    },
+    "这步已标为等待，点一下去掉" : {},
     "这步还是太大" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -96452,8 +96202,8 @@
         }
       }
     },
-  "这个主题收什么" : {
-    "localizations" : {
+    "这个主题收什么" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96466,10 +96216,10 @@
             "value" : "這個主題收什麼"
           }
         }
-    }
-  },
-  "写一句「收什么、不收什么」，AI 会按它归类；不写也可以，AI 按你的用法慢慢学" : {
-    "localizations" : {
+      }
+    },
+    "写一句「收什么、不收什么」，AI 会按它归类；不写也可以，AI 按你的用法慢慢学" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96482,10 +96232,10 @@
             "value" : "寫一句「收什麼、不收什麼」，AI 會按它歸類；不寫也可以，AI 按你的用法慢慢學"
           }
         }
-    }
-  },
-  "AI 根据你放进来的笔记代写 · 点开可改；不改它，它也只跟着你的动作学" : {
-    "localizations" : {
+      }
+    },
+    "AI 根据你放进来的笔记代写 · 点开可改；不改它，它也只跟着你的动作学" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96498,10 +96248,10 @@
             "value" : "AI 根據你放進來的筆記代寫 · 點開可改；不改它，它也只跟著你的動作學"
           }
         }
-    }
-  },
-  "这行话就是 AI 的归类依据。改了它，相关笔记会自动重新归类；不写也可以，AI 按你放进来的笔记用法判定。" : {
-    "localizations" : {
+      }
+    },
+    "这行话就是 AI 的归类依据。改了它，相关笔记会自动重新归类；不写也可以，AI 按你放进来的笔记用法判定。" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96514,10 +96264,10 @@
             "value" : "這行話就是 AI 的歸類依據。改了它，相關筆記會自動重新歸類；不寫也可以，AI 按你放進來的筆記用法判定。"
           }
         }
-    }
-  },
-  "主题定义，点按编辑" : {
-    "localizations" : {
+      }
+    },
+    "主题定义，点按编辑" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96530,10 +96280,10 @@
             "value" : "主題定義，點按編輯"
           }
         }
-    }
-  },
-  "早期整理归入" : {
-    "localizations" : {
+      }
+    },
+    "早期整理归入" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96546,10 +96296,10 @@
             "value" : "早期整理歸入"
           }
         }
-    }
-  },
-  "查看主题" : {
-    "localizations" : {
+      }
+    },
+    "查看主题" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96562,10 +96312,10 @@
             "value" : "查看主題"
           }
         }
-    }
-  },
-  "为什么归这里？" : {
-    "localizations" : {
+      }
+    },
+    "为什么归这里？" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96578,10 +96328,10 @@
             "value" : "為什麼歸這裡？"
           }
         }
-    }
-  },
-  "为什么归这里" : {
-    "localizations" : {
+      }
+    },
+    "为什么归这里" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96594,10 +96344,10 @@
             "value" : "為什麼歸這裡"
           }
         }
-    }
-  },
-  "类别理解" : {
-    "localizations" : {
+      }
+    },
+    "类别理解" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96610,10 +96360,10 @@
             "value" : "類別理解"
           }
         }
-    }
-  },
-  "符合「%@」这个类别的定义" : {
-    "localizations" : {
+      }
+    },
+    "符合「%@」这个类别的定义" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96626,10 +96376,10 @@
             "value" : "符合「%@」這個類別的定義"
           }
         }
-    }
-  },
-  "和「%@」谈论同一件事" : {
-    "localizations" : {
+      }
+    },
+    "和「%@」谈论同一件事" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96642,10 +96392,10 @@
             "value" : "和「%@」談論同一件事"
           }
         }
-    }
-  },
-  "判定引擎 %@" : {
-    "localizations" : {
+      }
+    },
+    "判定引擎 %@" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96658,10 +96408,10 @@
             "value" : "判定引擎 %@"
           }
         }
-    }
-  },
-  "不想要这个归属：长按徽章「从这条移除」，移出会成为 AI 的反例，同类内容以后不会再收进来。" : {
-    "localizations" : {
+      }
+    },
+    "不想要这个归属：长按徽章「从这条移除」，移出会成为 AI 的反例，同类内容以后不会再收进来。" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96674,10 +96424,10 @@
             "value" : "不想要這個歸屬：長按徽章「從這條移除」，移出會成為 AI 的反例，同類內容以後不會再收進來。"
           }
         }
-    }
-  },
-  "待起草（分类主题攒够 5 条笔记后自动开始）" : {
-    "localizations" : {
+      }
+    },
+    "待起草（分类主题攒够 5 条笔记后自动开始）" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96690,10 +96440,10 @@
             "value" : "待起草（分類主題攢夠 5 條筆記後自動開始）"
           }
         }
-    }
-  },
-  " 个主题已代写" : {
-    "localizations" : {
+      }
+    },
+    " 个主题已代写" : {
+      "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -96706,8 +96456,195 @@
             "value" : " 個主題已代寫"
           }
         }
+      }
+    },
+    "%@ 为本次新建，从 ¥0 起算" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is newly created and starts from ¥0"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 為本次新建，從 ¥0 起算"
+          }
+        }
+      }
+    },
+    "%lld/%lld 到期完成" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld due completed"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld 到期完成"
+          }
+        }
+      }
+    },
+    "%lld/%lld 按时完成" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld on time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld 按時完成"
+          }
+        }
+      }
+    },
+    "免费次数每月 1 日重置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free quota resets on the 1st of each month"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免費次數每月 1 日重置"
+          }
+        }
+      }
+    },
+    "如同秒交易只导出一笔" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g., same-second transactions only exported once"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如同秒交易只匯出一筆"
+          }
+        }
+      }
+    },
+    "暂无到期任务" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tasks due yet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無到期任務"
+          }
+        }
+      }
+    },
+    "有 %lld 项已完成任务缺少完成时间，未计入统计，点击查看" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld completed tasks lack completion times and aren't counted in stats. Tap to view."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 %lld 項已完成任務缺少完成時間，未計入統計，點擊查看。"
+          }
+        }
+      }
+    },
+    "第 %lld 行起余额列不连续，账单可能缺行" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From line %lld, the balance column is discontinuous; the bill may be missing rows"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 行起餘額列不連續，帳單可能缺行"
+          }
+        }
+      }
+    },
+    "纳入依据：本期已到期任务（排除缺完成时间）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Included by: due and overdue this period (excluding records without completion times)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "納入依據：本期已到期任務（排除缺完成時間）"
+          }
+        }
+      }
+    },
+    "补签/补记的记录会带「补」标记，与当日实时打卡如实区分" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retroactive check-ins/entries are marked with \"Makeup\" to distinguish them from real-time check-ins"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "補簽/補記的記錄會帶「補」標記，與當日實時打卡如實區分"
+          }
+        }
+      }
+    },
+    "账单不含余额列，无法自动核对" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The bill has no balance column, so automatic reconciliation is not possible"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帳單不含餘額列，無法自動核對"
+          }
+        }
+      }
     }
-  }
   },
   "version" : "1.0"
 }

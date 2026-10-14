@@ -1074,13 +1074,15 @@ struct TaskDetailView: View {
                         }
                 }
 
-                // 等待徽章 + 提醒标记（2026-10-11 拆开瘦身）
+                // 等待徽章 + 提醒标记（2026-10-11 拆开瘦身）；备注为用户输入不限长，锁单行截断防chip错位
                 if item.isWaiting && !item.isChecked {
                     HStack(spacing: 6) {
                         HStack(spacing: 3) {
                             Image(systemName: "clock")
                                 .font(.system(size: 10))
                             Text(item.waitNote.map { String(localized: "等待中 · \($0)") } ?? String(localized: "等待中"))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
                         }
                         .font(.holoTinyLabel)
                         .foregroundColor(.orange)

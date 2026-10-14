@@ -216,7 +216,8 @@ final class TaskStatsViewModel: ObservableObject {
 
     // MARK: - 展示格式
 
-    /// 完整日期范围（「2026年10月5日—10月11日」，跨年时终点带年份；进行中补「截至…」，§7.2）
+    /// 完整日期范围（「2026年10月5日—10月11日」，跨年时终点带年份；§7.2）
+    /// 「截至」信息独立为 asOfTitle 分层展示，避免长串括号混排不受控折行出孤行
     var rangeTitle: String {
         guard let analytics else { return "" }
         let calendar = TaskAnalyticsPeriod.makeCalendar()
@@ -228,14 +229,16 @@ final class TaskStatsViewModel: ObservableObject {
         let sameYear = calendar.component(.year, from: analytics.start)
             == calendar.component(.year, from: analytics.endExclusive.addingTimeInterval(-1))
         endFormatter.dateFormat = sameYear ? "M月d日" : "yyyy年M月d日"
-        var title = "\(startFormatter.string(from: analytics.start))—\(endFormatter.string(from: analytics.endExclusive.addingTimeInterval(-1)))"
-        if analytics.isOngoing {
-            let asOfFormatter = DateFormatter()
-            asOfFormatter.locale = Locale(identifier: "zh_CN")
-            asOfFormatter.dateFormat = "M月d日 HH:mm"
-            title += String(localized: "（截至") + asOfFormatter.string(from: analytics.asOf) + String(localized: "）")
-        }
-        return title
+        return "\(startFormatter.string(from: analytics.start))—\(endFormatter.string(from: analytics.endExclusive.addingTimeInterval(-1)))"
+    }
+
+    /// 进行中期间的统计时点（「截至10月14日 01:20」）；已完结期间为 nil（§7.2）
+    var asOfTitle: String? {
+        guard let analytics, analytics.isOngoing else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 HH:mm"
+        return String(localized: "截至\(formatter.string(from: analytics.asOf))")
     }
 
     /// 胶囊徽标：当前看的是哪一期（本周/上周/2周前…）；档位下拉菜单仍用 kind.title（§7.2 修复）

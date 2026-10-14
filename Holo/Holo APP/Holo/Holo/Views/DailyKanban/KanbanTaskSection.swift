@@ -206,6 +206,8 @@ struct KanbanTaskSection: View {
                             }
                         }
                     }
+                    // 清单名/目标名偏长时内部折行会与相邻徽章底边参差，整行锁单行截断
+                    .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 

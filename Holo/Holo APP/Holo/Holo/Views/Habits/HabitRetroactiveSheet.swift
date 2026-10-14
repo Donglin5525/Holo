@@ -331,10 +331,16 @@ struct HabitRetroactiveSheet: View {
 
                 Spacer(minLength: 0)
 
-                Text("补签/补记的记录会带「补」标记，与当日实时打卡如实区分 · 免费次数每月 1 日重置")
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // 单行长串会折出「1 日重置」悬挂孤行，按语义拆两层
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("补签/补记的记录会带「补」标记，与当日实时打卡如实区分")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                    Text("免费次数每月 1 日重置")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextPlaceholder)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 // 主按钮（导航栏之外给一个大按钮，符合原型确认卡样式）
                 Button {

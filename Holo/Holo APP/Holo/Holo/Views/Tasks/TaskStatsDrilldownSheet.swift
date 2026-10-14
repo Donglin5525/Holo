@@ -52,7 +52,7 @@ struct TaskStatsDrilldownSheet: View {
         case .completed:
             return String(localized: "纳入依据：完成时间在本期间内")
         case .onTimeDenominator:
-            return String(localized: "纳入依据：截止日期在本期间内且已到期（排除缺少完成时间的记录）")
+            return String(localized: "纳入依据：本期已到期任务（排除缺完成时间）")
         case .missingTime:
             return String(localized: "全部未删除、已完成但缺少完成时间的记录；无法归属到具体期间")
         case .attentionOverdue:
@@ -203,6 +203,7 @@ struct TaskStatsDrilldownSheet: View {
                     Text("\(model.rangeTitle) · 共 \(rows.count) 项")
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoTextPlaceholder)
+                        .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, HoloSpacing.lg)
@@ -474,6 +475,7 @@ struct TaskStatsTrendDrilldownSheet: View {
                     Text("\(model.rangeTitle) · 共 \(analytics.createdCount) 新增 / \(analytics.completedCount) 完成")
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoTextPlaceholder)
+                        .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, HoloSpacing.lg)

@@ -169,11 +169,18 @@ struct TaskExperienceStatsView: View {
                 periodArrow(direction: .next)
             }
 
-            // 具体日期范围始终可见（§7.1）
-            Text(model.rangeTitle)
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // 具体日期范围始终可见（§7.1）；进行中期的「截至」次信息独立成行，长串混排会折出孤行
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.rangeTitle)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                if let asOf = model.asOfTitle {
+                    Text(asOf)
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextPlaceholder)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             if model.kind == .custom {
                 customPickers
@@ -289,20 +296,20 @@ struct TaskExperienceStatsView: View {
         return "\(Int((rate * 100).rounded()))%"
     }
 
-    /// 完成率副文案：到期的事里完成了几成（按时 + 迟到）
+    /// 完成率副文案：到期的事里完成了几成（按时 + 迟到）；窄列文案锁 6-8 字宽，长版会折出「任务」孤字
     private func dueCompletionSubText(_ analytics: TaskAnalyticsSnapshot) -> String {
         guard analytics.onTime.denominatorCount > 0 else {
-            return String(localized: "本期无已到期任务")
+            return String(localized: "暂无到期任务")
         }
         let dueDone = analytics.onTime.onTimeCount + analytics.onTime.lateCount
-        return String(localized: "\(dueDone) / \(analytics.onTime.denominatorCount) 项到期完成")
+        return String(localized: "\(dueDone)/\(analytics.onTime.denominatorCount) 到期完成")
     }
 
     private func onTimeSub(_ analytics: TaskAnalyticsSnapshot) -> String {
         guard analytics.onTime.denominatorCount > 0 else {
-            return String(localized: "本期无已到期任务")
+            return String(localized: "暂无到期任务")
         }
-        return String(localized: "\(analytics.onTime.onTimeCount) / \(analytics.onTime.denominatorCount) 项按时完成")
+        return String(localized: "\(analytics.onTime.onTimeCount)/\(analytics.onTime.denominatorCount) 按时完成")
     }
 
     private func statBlock(
@@ -326,7 +333,8 @@ struct TaskExperienceStatsView: View {
                     Text(sub)
                         .font(.system(size: 10.5))
                         .foregroundColor(.holoTextPlaceholder)
-                        .lineLimit(2)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
                         .multilineTextAlignment(.center)
                     if let delta {
                         Text(delta.text)
@@ -844,10 +852,11 @@ struct TaskExperienceStatsView: View {
                 Button {
                     drilldown = .missingTime
                 } label: {
-                    Text(String(localized: "有 \(analytics.missingCompletedAtIDs.count) 项已完成任务缺少完成时间，未计入期间完成统计。无法归属具体期间，点击查看。"))
+                    Text(String(localized: "有 \(analytics.missingCompletedAtIDs.count) 项已完成任务缺少完成时间，未计入统计，点击查看"))
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoTextSecondary)
                         .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.plain)

@@ -313,11 +313,15 @@ struct TaskClassificationLeverEditor: View {
             Text("「\(previewQuadrant.displayTitle)」")
                 .font(.holoCaption.weight(.semibold))
                 .foregroundColor(previewQuadrant.tintColor)
+            // 引导语放不下时整体缩字，不许折行出孤字
             Text("· \(previewQuadrant.guidance)")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
             Spacer(minLength: 0)
         }
+        .lineLimit(1)
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
         .background(

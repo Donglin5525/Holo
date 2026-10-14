@@ -451,10 +451,15 @@ struct RestoreConflictSheet: View {
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
-                    Text("\(conflict.detail) · \(conflict.existingDetail)")
+                    // 拼一行会折出 1-2 字悬挂尾行，两侧信息各占一行
+                    Text(conflict.detail)
                         .font(.system(size: 11))
                         .foregroundColor(.holoTextSecondary)
-                        .lineLimit(2)
+                        .lineLimit(1)
+                    Text(conflict.existingDetail)
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoTextPlaceholder)
+                        .lineLimit(1)
                 }
 
                 Spacer()
