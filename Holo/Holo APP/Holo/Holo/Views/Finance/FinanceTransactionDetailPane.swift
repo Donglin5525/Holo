@@ -58,8 +58,10 @@ struct FinanceTransactionDetailPane: View {
 
     /// 原交易的退款汇总（非支出交易不查）
     private func loadRefundSummary() async {
-        guard let tx = transaction,
-              tx.transactionType == .expense,
+        // 交易被删除后广播仍会触发本刷新：已死对象不得访问属性也不得写 @State（body 读已死属性同样闪退），
+        // 直接返回，由父级数据源重取后清空选中态
+        guard let tx = transaction, !tx.isInvalidated else { return }
+        guard tx.transactionType == .expense,
               !tx.isRefund else {
             refundSummary = nil
             return

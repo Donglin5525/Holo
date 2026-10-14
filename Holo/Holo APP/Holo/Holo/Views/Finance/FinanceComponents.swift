@@ -208,6 +208,9 @@ struct TransactionRowView: View {
 
     /// 支出原交易的退款累计查询（列表行懒加载内跑，索引查询；退款增删靠通知刷新）
     private func refreshRefundBadge() async {
+        // 刚删除的交易：行还在退场动画或他处屏幕上时收到删除完成广播，不得访问已死对象，
+        // 也不得写 refundedTotal（@State 写入会重算 body，body 读已死属性同样闪退）
+        guard !transaction.isInvalidated else { return }
         guard transaction.transactionType == .expense, !transaction.isRefund else {
             refundedTotal = nil
             return

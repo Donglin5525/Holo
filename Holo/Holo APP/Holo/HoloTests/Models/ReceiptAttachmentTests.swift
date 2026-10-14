@@ -117,6 +117,23 @@ final class ReceiptAttachmentTests: XCTestCase {
 
     // MARK: - 生命周期
 
+    /// 删除闪退守卫的语义根基：异步刷新通道靠 isInvalidated 挡已死对象
+    /// （delete+save 后任何持久属性访问都抛 "could not fulfill a fault"）。
+    func testIsInvalidatedSemantics() async throws {
+        let alive = try await makeTransaction()
+        XCTAssertFalse(alive.isInvalidated, "正常对象不死")
+
+        let deletedUnsaved = try await makeTransaction()
+        context.delete(deletedUnsaved)
+        XCTAssertTrue(deletedUnsaved.isInvalidated, "delete 未 save 即已死（属性访问已不安全）")
+
+        let deletedSaved = try await makeTransaction()
+        context.delete(deletedSaved)
+        try context.save()
+        XCTAssertTrue(deletedSaved.isInvalidated, "delete+save 后上下文注销（删除完成广播到达时行视图看到的状态）")
+        XCTAssertTrue(deletedSaved.managedObjectContext == nil || deletedSaved.isDeleted)
+    }
+
     func testCascadeDeleteWithTransaction() async throws {
         let tx = try await makeTransaction()
         let attachment = try await repo.attachReceipt(to: tx, imageData: try makeImageData(), source: .camera)

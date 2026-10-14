@@ -553,7 +553,7 @@ struct TransactionReceiptDetailSection: View {
     }
 
     private func reload() {
-        guard !transaction.isDeleted else {
+        guard !transaction.isInvalidated else {
             items = []
             return
         }

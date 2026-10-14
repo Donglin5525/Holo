@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-10-14] 删除记账闪退第三次复发根治——「删除广播唤醒视图访问已死对象」全库统一保险丝
+
+> 东林报「删除一笔记账闪退，一而再再而三」。真机 .ips 符号化实锤（10:48:59 崩溃、构建产物 UUID 匹配）：崩点不在删除入口，而在交易列表行「已退 ¥X」退款徽章的广播刷新——仓库 deleteTransaction 最后一行发 financeDataDidChange 广播，同屏退场动画/他处屏幕上的 TransactionRowView 收到通知起 Task 读已删交易，getRefunds(for:) 读 original.id 抛 "could not fulfill a fault"（SIGTRAP）。为什么反复复发：病根（视图持有 Core Data 对象 + 删除保存即销毁 + 异步访问无防护）每次在新功能里重新长出——8 月修删除入口调用方、习惯详情页各修各的、票根 reload 各自加过 isDeleted 守卫，9-28 1.0.9 退款徽章上线时又裸奔，修法从未沉淀成统一防护。
+
+- **统一保险丝**：新增 `NSManagedObject.isInvalidated`（`managedObjectContext == nil || isDeleted`，纯元数据访问不触发 faulting，对已死对象调用安全）；凡「监听数据变化广播 / task 异步回调」访问持有对象的入口，一律先 `guard !obj.isInvalidated else { return }`
+- **守卫分支禁写 @State**：@State 写入会重算 body，body 读已死属性同样闪退——直接返回，由父级数据源重取后视图自然退场。此细节也是本次崩在 getRefunds 而非函数首行的原因：已死对象的已加载属性可返回缓存值侥幸通过判断，未加载的 id 才抛 fault——守卫必须用元数据判断，不能指望属性访问碰运气
+- **修 3 处**：FinanceComponents.TransactionRowView.refreshRefundBadge（本次崩点）、FinanceTransactionDetailPane.loadRefundSummary（同款结构无守卫，iPad 双栏/详情页场景）、TransactionReceiptViews.reload（收敛旧 isDeleted 守卫到统一语义）
+- **全库同族排查**（finance/anniversary/todo/habit/goal/thought/TodayPlan 八广播 30+ 订阅点全过筛）：安全范本=HabitDetailView（cachedHabitId 比较+isDeletingOrArchiving 完全不碰对象）、MatterDetailView（reloadToken+按 matterID 重查）、TopicDetailView（按 topicId 重 fetch）；其余均为重 fetch 型安全；AnniversaryDetailView 同步读 isSoftDeleted 依赖软删模型（对象不死）暂安全。新写监听数据变化的视图照安全范本写，坑档案已更新防第四次复发
+- **验证**：构建绿；新增 ReceiptAttachmentTests.testIsInvalidatedSemantics 锁语义（活对象 false / delete 未 save true / delete+save true），该测试类 8 项全过；崩溃根因有真机 .ips 符号化堆栈实锤非猜测
+- 纯客户端无后端发版；改动 5 文件（1 新增扩展 + 3 视图守卫 + 1 测试）；并行会话在途改动经临时索引手术零卷入零扰动
+
+---
+
+
 ## [2026-10-14] 全模块精细化首批：真实反馈、整行命中与可读性
 
 - 回收站清空失败不再提示成功，增加失败重试和执行中反馈；目标规划恢复、返回、纠正失败保留当前内容，确认保存只读取同事务回执，不再补写第二次保存。
