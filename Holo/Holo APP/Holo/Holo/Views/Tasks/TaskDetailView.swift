@@ -2403,19 +2403,14 @@ struct TaskDetailView: View {
 
     // MARK: - 日期与时间弹窗
 
+    /// 日期与时间弹窗（草稿制：弹窗内改草稿，「确定」才写回这些 binding；
+    /// 关「全天」的垫时刻规则已收进弹窗，新建与详情共用同一套）
     private var dateTimeSheet: some View {
         TaskDatePickerSheet(
             dueDate: $dueDate,
             isAllDay: Binding(
                 get: { !hasTime },
-                set: { allDay in
-                    hasTime = !allDay
-                    // 新建任务默认落「当天 00:00」；直接关掉全天使任务瞬间过期。
-                    // 此刻把时刻垫到「当前时间向上取整到 15 分钟」，跨天则落 23:59。
-                    if !allDay, dueDate == Calendar.current.startOfDay(for: dueDate) {
-                        dueDate = TaskDetailTimeDefault.timedDate(from: dueDate)
-                    }
-                }
+                set: { hasTime = !$0 }
             ),
             hasDueDate: $hasDueDate,
             selectedReminders: $selectedReminders,
@@ -2438,44 +2433,6 @@ struct TaskDetailView: View {
 private extension TaskPriority {
     var shortTitle: String {
         self == .urgent ? String(localized: "紧急") : displayTitle
-    }
-}
-
-// MARK: - 关「全天」时的默认时刻规则
-
-/// 新建任务默认落「当天 00:00（全天）」；用户关掉全天的瞬间，00:00 已是过去时，
-/// 任务会立即显示「已过期」。这里把整点日期值垫成有意义的时刻：
-/// 当前时钟向上取整到下一个 15 分钟；若已越过午夜则落回当天 23:59。
-/// 非 00:00 的时刻说明用户或流程已显式选过时间，保持不动。
-enum TaskDetailTimeDefault {
-    static func timedDate(
-        from allDayDate: Date,
-        now: Date = Date(),
-        calendar: Calendar = .current
-    ) -> Date {
-        guard allDayDate == calendar.startOfDay(for: allDayDate) else { return allDayDate }
-
-        var minute = calendar.component(.minute, from: now)
-        var hour = calendar.component(.hour, from: now)
-        let remainder = minute % 15
-        if remainder == 0 && calendar.component(.second, from: now) == 0 {
-            // 恰好整 15 分钟倍数：直接用当前时刻
-        } else {
-            minute += 15 - remainder
-            if minute >= 60 {
-                minute -= 60
-                hour += 1
-            }
-        }
-        if hour >= 24 {
-            hour = 23
-            minute = 59
-        }
-
-        var components = calendar.dateComponents([.year, .month, .day], from: allDayDate)
-        components.hour = hour
-        components.minute = minute
-        return calendar.date(from: components) ?? allDayDate
     }
 }
 

@@ -2,8 +2,14 @@
 //  TaskDatePickerSheet.swift
 //  Holo
 //
-//  任务日期选择弹窗
-//  整合日期选择、全天/定时切换、提醒设置、重复设置
+//  任务「日期与时间」弹窗（任务详情与新建任务共用）
+//  2026-10-14 重设计（契约见 task-datetime-redesign-prototype.html，东林拍板 1:1 落实）：
+//  - 草稿确认制：打开弹窗拷一份草稿，一切改动先落草稿；「确定」整体写回，
+//    「取消」/下滑关闭整体丢弃——取消是真回滚，不再是只关窗。
+//  - 紧凑滚轮日历替代 320pt 大月历：全天 = 单列日期；关「全天」= 日期+时+分三列，
+//    同一张卡不换区；关全天的瞬间把 00:00 垫成「下一个整 15 分钟」（跨午夜落 23:59）。
+//  - 提醒区交互（行级确认制 / 按时刻去重）由 TaskReminderEditor 承担，绑草稿。
+//  - 重复区保持原有交互，同样绑草稿。
 //
 
 import SwiftUI
@@ -12,12 +18,11 @@ import SwiftUI
 struct TaskDatePickerSheet: View {
     @Environment(\.dismiss) var dismiss
 
-    // MARK: - Bindings
+    // MARK: - Bindings（只在「确定」时写回；init 时拷入草稿）
 
     @Binding var dueDate: Date
     @Binding var isAllDay: Bool
     @Binding var hasDueDate: Bool
-
     @Binding var selectedReminders: Set<TaskReminder>
     @Binding var hasRepeat: Bool
     @Binding var repeatType: RepeatType
@@ -30,9 +35,71 @@ struct TaskDatePickerSheet: View {
     @Binding var repeatEndDate: Date?
     @Binding var repeatEndCount: Int
 
-    // MARK: - Local State
+    // MARK: - 草稿 State（弹窗内的一切改动只落这里）
+
+    @State private var draftDueDate: Date
+    @State private var draftIsAllDay: Bool
+    @State private var draftHasDueDate: Bool
+    @State private var draftReminders: Set<TaskReminder>
+    @State private var draftHasRepeat: Bool
+    @State private var draftRepeatType: RepeatType
+    @State private var draftSelectedWeekdays: Set<Weekday>
+    @State private var draftMonthDay: Int
+    @State private var draftMonthWeekOrdinal: Int
+    @State private var draftMonthWeekday: Weekday?
+    @State private var draftMonthlyRepeatMode: MonthlyRepeatMode
+    @State private var draftEndConditionType: EndConditionType
+    @State private var draftRepeatEndDate: Date?
+    @State private var draftRepeatEndCount: Int
 
     @State private var showEndDatePicker = false
+
+    init(
+        dueDate: Binding<Date>,
+        isAllDay: Binding<Bool>,
+        hasDueDate: Binding<Bool>,
+        selectedReminders: Binding<Set<TaskReminder>>,
+        hasRepeat: Binding<Bool>,
+        repeatType: Binding<RepeatType>,
+        selectedWeekdays: Binding<Set<Weekday>>,
+        monthDay: Binding<Int>,
+        monthWeekOrdinal: Binding<Int>,
+        monthWeekday: Binding<Weekday?>,
+        monthlyRepeatMode: Binding<MonthlyRepeatMode>,
+        endConditionType: Binding<EndConditionType>,
+        repeatEndDate: Binding<Date?>,
+        repeatEndCount: Binding<Int>
+    ) {
+        self._dueDate = dueDate
+        self._isAllDay = isAllDay
+        self._hasDueDate = hasDueDate
+        self._selectedReminders = selectedReminders
+        self._hasRepeat = hasRepeat
+        self._repeatType = repeatType
+        self._selectedWeekdays = selectedWeekdays
+        self._monthDay = monthDay
+        self._monthWeekOrdinal = monthWeekOrdinal
+        self._monthWeekday = monthWeekday
+        self._monthlyRepeatMode = monthlyRepeatMode
+        self._endConditionType = endConditionType
+        self._repeatEndDate = repeatEndDate
+        self._repeatEndCount = repeatEndCount
+
+        self._draftDueDate = State(initialValue: dueDate.wrappedValue)
+        self._draftIsAllDay = State(initialValue: isAllDay.wrappedValue)
+        self._draftHasDueDate = State(initialValue: hasDueDate.wrappedValue)
+        self._draftReminders = State(initialValue: selectedReminders.wrappedValue)
+        self._draftHasRepeat = State(initialValue: hasRepeat.wrappedValue)
+        self._draftRepeatType = State(initialValue: repeatType.wrappedValue)
+        self._draftSelectedWeekdays = State(initialValue: selectedWeekdays.wrappedValue)
+        self._draftMonthDay = State(initialValue: monthDay.wrappedValue)
+        self._draftMonthWeekOrdinal = State(initialValue: monthWeekOrdinal.wrappedValue)
+        self._draftMonthWeekday = State(initialValue: monthWeekday.wrappedValue)
+        self._draftMonthlyRepeatMode = State(initialValue: monthlyRepeatMode.wrappedValue)
+        self._draftEndConditionType = State(initialValue: endConditionType.wrappedValue)
+        self._draftRepeatEndDate = State(initialValue: repeatEndDate.wrappedValue)
+        self._draftRepeatEndCount = State(initialValue: repeatEndCount.wrappedValue)
+    }
 
     // MARK: - Body
 
@@ -43,19 +110,17 @@ struct TaskDatePickerSheet: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: HoloSpacing.lg) {
-                        dueDateToggleSection
+                        dateSection
 
-                        if hasDueDate {
-                            quickDateSection
-                            compactDateSection
-                            timeSection
+                        if draftHasDueDate {
+                            allDaySection
                         }
 
                         // 提醒：有截止日时用相对预设，无截止日时选绝对提醒时刻
                         reminderSection
 
                         // 重复：需要截止日
-                        if hasDueDate {
+                        if draftHasDueDate {
                             repeatSection
                         }
                     }
@@ -76,77 +141,53 @@ struct TaskDatePickerSheet: View {
 
                 ToolbarItem(placement: .confirmationAction) {
                     Button("确定") {
-                        dismiss()
+                        commitAndDismiss()
                     }
                     .foregroundColor(.holoPrimary)
                     .fontWeight(.semibold)
                 }
             }
         }
-        .presentationDetents([.height(560), .large])
+        .presentationDetents([.height(720), .large])
         .presentationDragIndicator(.visible)
-        .onChange(of: hasDueDate) { _, isOn in
+        .onChange(of: draftHasDueDate) { _, isOn in
             // 关闭截止日时，清理无效的相对提醒（只保留绝对提醒）
             if !isOn {
-                selectedReminders = selectedReminders.filter { $0.isAbsolute }
-                hasRepeat = false
+                draftReminders = draftReminders.filter { $0.isAbsolute }
+                draftHasRepeat = false
+            }
+        }
+        .onChange(of: draftIsAllDay) { _, allDay in
+            // 关「全天」的瞬间垫时刻：00:00 已是过去时，任务会立即显示「已过期」。
+            // 非 00:00 的时刻说明用户或流程已显式选过时间，保持不动。
+            if !allDay, draftDueDate == Calendar.current.startOfDay(for: draftDueDate) {
+                draftDueDate = TaskDetailTimeDefault.timedDate(from: draftDueDate)
             }
         }
     }
 
-    // MARK: - Compact Date-Time Sections
-
-    private var dueDateToggleSection: some View {
-        HStack(spacing: HoloSpacing.sm) {
-            Image(systemName: "calendar.badge.clock")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
-                .frame(width: 22)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("截止日期")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-
-                Text(hasDueDate ? formattedDueDateSummary : String(localized: "未设置"))
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-            }
-
-            Spacer()
-
-            Toggle("", isOn: $hasDueDate)
-                .labelsHidden()
-                .tint(.holoPrimary)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.sm)
+    /// 「确定」：草稿一次性写回宿主（「取消」/下滑关闭不经过这里 = 零影响）
+    private func commitAndDismiss() {
+        dueDate = draftDueDate
+        isAllDay = draftIsAllDay
+        hasDueDate = draftHasDueDate
+        selectedReminders = draftReminders
+        hasRepeat = draftHasRepeat
+        repeatType = draftRepeatType
+        selectedWeekdays = draftSelectedWeekdays
+        monthDay = draftMonthDay
+        monthWeekOrdinal = draftMonthWeekOrdinal
+        monthWeekday = draftMonthWeekday
+        monthlyRepeatMode = draftMonthlyRepeatMode
+        endConditionType = draftEndConditionType
+        repeatEndDate = draftRepeatEndDate
+        repeatEndCount = draftRepeatEndCount
+        dismiss()
     }
 
-    private var quickDateSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("快速选择")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+    // MARK: - 日期卡（截止开关 + 快速选择 + 紧凑滚轮日历）
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: HoloSpacing.sm) {
-                    quickDateButton(title: String(localized: "今天"), daysFromToday: 0)
-                    quickDateButton(title: String(localized: "明天"), daysFromToday: 1)
-                    quickDateButton(title: String(localized: "本周末"), targetDate: upcomingWeekendDate)
-                    quickDateButton(title: String(localized: "下周"), daysFromToday: 7)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.sm)
-    }
-
-    private var compactDateSection: some View {
+    private var dateSection: some View {
         VStack(spacing: HoloSpacing.sm) {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "calendar")
@@ -154,223 +195,82 @@ struct TaskDatePickerSheet: View {
                     .foregroundColor(.holoTextSecondary)
                     .frame(width: 22)
 
-                Text("选择日期")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-
-                Spacer()
-            }
-
-            DatePicker(
-                "",
-                selection: $dueDate,
-                displayedComponents: .date
-            )
-            .datePickerStyle(.graphical)
-            .environment(\.locale, Locale(identifier: "zh_CN"))
-            .labelsHidden()
-            .frame(minHeight: 320)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.sm)
-    }
-
-    private var timeSection: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "clock")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(width: 22)
-
-                Text("全天")
+                Text("日期")
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
 
                 Spacer()
 
-                Toggle("", isOn: $isAllDay)
+                Toggle("", isOn: $draftHasDueDate)
                     .labelsHidden()
                     .tint(.holoPrimary)
             }
             .frame(minHeight: 44)
 
-            if !isAllDay {
-                Divider()
-                    .padding(.vertical, HoloSpacing.xs)
-
-                HStack(spacing: HoloSpacing.sm) {
-                    Image(systemName: "timer")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                        .frame(width: 22)
-
-                    Text("具体时间")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-
-                    Spacer()
-
-                    DatePicker("", selection: $dueDate, displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.compact)
-                        .environment(\.locale, Locale(identifier: "zh_CN"))
-                        .labelsHidden()
-                        .tint(.holoPrimary)
+            if draftHasDueDate {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: HoloSpacing.sm) {
+                        quickDateButton(title: String(localized: "今天"), daysFromToday: 0)
+                        quickDateButton(title: String(localized: "明天"), daysFromToday: 1)
+                        quickDateButton(title: String(localized: "本周末"), targetDate: upcomingWeekendDate)
+                        quickDateButton(title: String(localized: "下周"), daysFromToday: 7)
+                    }
                 }
-                .frame(minHeight: 44)
+
+                // 紧凑滚轮日历：全天 = 单列日期；关「全天」= 日期+时+分三列，同一张卡
+                DatePicker(
+                    "",
+                    selection: $draftDueDate,
+                    displayedComponents: draftIsAllDay ? .date : [.date, .hourAndMinute]
+                )
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .environment(\.locale, Locale(identifier: "zh_CN"))
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
         .background(Color.holoCardBackground)
         .cornerRadius(HoloRadius.sm)
     }
 
-    private func quickDateButton(title: String, daysFromToday: Int) -> some View {
-        let targetDate = Calendar.current.date(byAdding: .day, value: daysFromToday, to: Date()) ?? Date()
-        return quickDateButton(title: title, targetDate: targetDate)
-    }
+    // MARK: - 全天卡
 
-    private func quickDateButton(title: String, targetDate: Date) -> some View {
-        Button {
-            selectDatePreservingTime(targetDate)
-        } label: {
-            Text(title)
-                .font(.holoCaption)
-                .foregroundColor(isSameDay(dueDate, targetDate) ? .white : .holoPrimary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(
-                    Capsule()
-                        .fill(isSameDay(dueDate, targetDate) ? Color.holoPrimary : Color.holoPrimary.opacity(0.14))
-                )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func selectDatePreservingTime(_ date: Date) {
-        let calendar = Calendar.current
-        let timeComponents = calendar.dateComponents([.hour, .minute, .second], from: dueDate)
-        var targetComponents = calendar.dateComponents([.year, .month, .day], from: date)
-        targetComponents.hour = timeComponents.hour
-        targetComponents.minute = timeComponents.minute
-        targetComponents.second = timeComponents.second
-        dueDate = calendar.date(from: targetComponents) ?? date
-    }
-
-    private func isSameDay(_ lhs: Date, _ rhs: Date) -> Bool {
-        Calendar.current.isDate(lhs, inSameDayAs: rhs)
-    }
-
-    private var upcomingWeekendDate: Date {
-        let calendar = Calendar.current
-        let today = Date()
-        let weekday = calendar.component(.weekday, from: today)
-        let daysUntilSaturday = (7 - weekday + 7) % 7
-        return calendar.date(byAdding: .day, value: daysUntilSaturday, to: today) ?? today
-    }
-
-    private var formattedDueDateSummary: String {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate(isAllDay ? "MMMdE" : "MMMdEHHmm")
-        return formatter.string(from: dueDate)
-    }
-
-    // MARK: - Date Picker Section
-
-    private var datePickerSection: some View {
-        VStack(spacing: HoloSpacing.sm) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-
-                Text("选择日期")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-            }
-
-            DatePicker(
-                "",
-                selection: $dueDate,
-                displayedComponents: isAllDay ? .date : [.date, .hourAndMinute]
-            )
-            .datePickerStyle(.graphical)
-            .environment(\.locale, Locale(identifier: "zh_CN"))
-            .frame(minHeight: 320)
-        }
-        .padding(.horizontal, HoloSpacing.sm)
-        .padding(.vertical, HoloSpacing.sm)
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.sm)
-    }
-
-    // MARK: - All Day Toggle Section
-
-    private var allDayToggleSection: some View {
+    private var allDaySection: some View {
         HStack(spacing: HoloSpacing.sm) {
             Image(systemName: "clock")
                 .font(.system(size: 16, weight: .medium))
                 .foregroundColor(.holoTextSecondary)
+                .frame(width: 22)
 
-            Text("时间类型")
+            Text("全天")
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
 
             Spacer()
 
-            HStack(spacing: 0) {
-                Button {
-                    withAnimation(HoloAnimation.quick) {
-                        isAllDay = true
-                    }
-                } label: {
-                    Text("全天")
-                        .font(.holoCaption)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(isAllDay ? Color.holoPrimary : Color.clear)
-                        .foregroundColor(isAllDay ? .white : .holoTextSecondary)
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    withAnimation(HoloAnimation.quick) {
-                        isAllDay = false
-                    }
-                } label: {
-                    Text("定时")
-                        .font(.holoCaption)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(!isAllDay ? Color.holoPrimary : Color.clear)
-                        .foregroundColor(!isAllDay ? .white : .holoTextSecondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .fixedSize()
-            .background(Capsule().fill(Color.holoPrimary.opacity(0.1)))
-            .clipShape(Capsule())
+            Toggle("", isOn: $draftIsAllDay)
+                .labelsHidden()
+                .tint(.holoPrimary)
         }
+        .frame(minHeight: 44)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(Color.holoCardBackground)
         .cornerRadius(HoloRadius.sm)
     }
 
-    // MARK: - Reminder Section
+    // MARK: - 提醒卡
 
-    /// 提醒区：共用 TaskReminderEditor。
+    /// 提醒区：共用 TaskReminderEditor（行级确认制 + 按时刻去重），绑草稿。
     /// 带时刻 → 相对预设 chips；全天 → 锚定任务日的绝对档位（当天 09:00 等，与确认卡一致）；
     /// 无截止日 → 绝对时刻自由添加。全天任务不给「提前15分钟」chips——全天没有截止时刻，
     /// 「提前15分钟」等于提醒在 00:00 前几分钟，语义不成立。
     private var reminderSection: some View {
         TaskReminderEditor(
-            mode: (hasDueDate && !isAllDay) ? .relative : .absolute,
-            anchorDate: (hasDueDate && isAllDay) ? dueDate : nil,
-            reminders: $selectedReminders
+            mode: (draftHasDueDate && !draftIsAllDay) ? .relative : .absolute,
+            anchorDate: (draftHasDueDate && draftIsAllDay) ? draftDueDate : nil,
+            reminders: $draftReminders
         )
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -378,7 +278,7 @@ struct TaskDatePickerSheet: View {
         .cornerRadius(HoloRadius.sm)
     }
 
-    // MARK: - Repeat Section
+    // MARK: - 重复卡（内部交互保持原样，绑草稿）
 
     private var repeatSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
@@ -392,8 +292,8 @@ struct TaskDatePickerSheet: View {
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
 
-                if hasRepeat {
-                    Text(repeatType.displayTitle)
+                if draftHasRepeat {
+                    Text(draftRepeatType.displayTitle)
                         .font(.holoCaption)
                         .foregroundColor(.white)
                         .padding(.horizontal, 6)
@@ -404,24 +304,24 @@ struct TaskDatePickerSheet: View {
 
                 Spacer()
 
-                Toggle("", isOn: $hasRepeat)
+                Toggle("", isOn: $draftHasRepeat)
                     .labelsHidden()
                     .tint(.holoPrimary)
             }
 
-            if hasRepeat {
+            if draftHasRepeat {
                 // 重复类型选择
                 repeatTypeSelector
                     .padding(.top, HoloSpacing.xs)
 
                 // 自定义选项
-                if repeatType == .custom {
+                if draftRepeatType == .custom {
                     customOptionsView
                         .padding(.top, HoloSpacing.sm)
                 }
 
                 // 每月选项
-                if repeatType == .monthly {
+                if draftRepeatType == .monthly {
                     monthlyOptionsView
                         .padding(.top, HoloSpacing.sm)
                 }
@@ -442,12 +342,12 @@ struct TaskDatePickerSheet: View {
             ForEach([RepeatType.daily, .weekly, .monthly, .yearly, .custom], id: \.self) { type in
                 RepeatTypeChip(
                     type: type,
-                    isSelected: repeatType == type,
+                    isSelected: draftRepeatType == type,
                     onTap: {
                         withAnimation(HoloAnimation.quick) {
-                            repeatType = type
-                            if type == .custom && selectedWeekdays.isEmpty {
-                                selectedWeekdays = [.monday, .tuesday, .wednesday, .thursday, .friday]
+                            draftRepeatType = type
+                            if type == .custom && draftSelectedWeekdays.isEmpty {
+                                draftSelectedWeekdays = [.monday, .tuesday, .wednesday, .thursday, .friday]
                             }
                         }
                     }
@@ -462,10 +362,10 @@ struct TaskDatePickerSheet: View {
             Button {
                 withAnimation(HoloAnimation.quick) {
                     let workdays: Set<Weekday> = [.monday, .tuesday, .wednesday, .thursday, .friday]
-                    if selectedWeekdays == workdays {
-                        selectedWeekdays = []
+                    if draftSelectedWeekdays == workdays {
+                        draftSelectedWeekdays = []
                     } else {
-                        selectedWeekdays = workdays
+                        draftSelectedWeekdays = workdays
                     }
                 }
             } label: {
@@ -490,13 +390,13 @@ struct TaskDatePickerSheet: View {
                 ForEach(weekdayOrder, id: \.self) { weekday in
                     WeekdayChip(
                         weekday: weekday,
-                        isSelected: selectedWeekdays.contains(weekday),
+                        isSelected: draftSelectedWeekdays.contains(weekday),
                         onTap: {
                             withAnimation(HoloAnimation.quick) {
-                                if selectedWeekdays.contains(weekday) {
-                                    selectedWeekdays.remove(weekday)
+                                if draftSelectedWeekdays.contains(weekday) {
+                                    draftSelectedWeekdays.remove(weekday)
                                 } else {
-                                    selectedWeekdays.insert(weekday)
+                                    draftSelectedWeekdays.insert(weekday)
                                 }
                             }
                         }
@@ -512,7 +412,7 @@ struct TaskDatePickerSheet: View {
 
     private var isWorkdaysSelected: Bool {
         let workdays: Set<Weekday> = [.monday, .tuesday, .wednesday, .thursday, .friday]
-        return selectedWeekdays == workdays
+        return draftSelectedWeekdays == workdays
     }
 
     private var monthlyOptionsView: some View {
@@ -522,20 +422,20 @@ struct TaskDatePickerSheet: View {
                 ForEach([MonthlyRepeatMode.dayOfMonth, .nthWeekday], id: \.self) { mode in
                     Button {
                         withAnimation(HoloAnimation.quick) {
-                            monthlyRepeatMode = mode
-                            if mode == .nthWeekday && monthWeekday == nil {
-                                monthWeekday = .thursday
+                            draftMonthlyRepeatMode = mode
+                            if mode == .nthWeekday && draftMonthWeekday == nil {
+                                draftMonthWeekday = .thursday
                             }
                         }
                     } label: {
                         Text(mode.displayTitle)
                             .font(.holoCaption)
-                            .foregroundColor(monthlyRepeatMode == mode ? .white : .holoTextPrimary)
+                            .foregroundColor(draftMonthlyRepeatMode == mode ? .white : .holoTextPrimary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(
                                 Capsule()
-                                    .fill(monthlyRepeatMode == mode ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.15))
+                                    .fill(draftMonthlyRepeatMode == mode ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.15))
                             )
                     }
                     .buttonStyle(.plain)
@@ -543,13 +443,13 @@ struct TaskDatePickerSheet: View {
             }
 
             // 固定日期选择
-            if monthlyRepeatMode == .dayOfMonth {
+            if draftMonthlyRepeatMode == .dayOfMonth {
                 HStack(spacing: HoloSpacing.xs) {
                     Text("每月")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
 
-                    Picker("", selection: $monthDay) {
+                    Picker("", selection: $draftMonthDay) {
                         ForEach(1...31, id: \.self) { day in
                             Text("\(day)").tag(day)
                         }
@@ -564,13 +464,13 @@ struct TaskDatePickerSheet: View {
             }
 
             // 第 N 个周 X 选择
-            if monthlyRepeatMode == .nthWeekday {
+            if draftMonthlyRepeatMode == .nthWeekday {
                 HStack(spacing: HoloSpacing.xs) {
                     Text("每月第")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
 
-                    Picker("", selection: $monthWeekOrdinal) {
+                    Picker("", selection: $draftMonthWeekOrdinal) {
                         ForEach(1...5, id: \.self) { ordinal in
                             Text(ordinalText(ordinal)).tag(ordinal)
                         }
@@ -578,7 +478,7 @@ struct TaskDatePickerSheet: View {
                     .pickerStyle(.menu)
                     .tint(.holoPrimary)
 
-                    Picker("", selection: $monthWeekday) {
+                    Picker("", selection: $draftMonthWeekday) {
                         ForEach(weekdayOrder, id: \.self) { weekday in
                             Text(weekday.displayTitle).tag(weekday as Weekday?)
                         }
@@ -605,20 +505,20 @@ struct TaskDatePickerSheet: View {
                 ForEach([EndConditionType.never, .onDate, .afterCount], id: \.self) { type in
                     Button {
                         withAnimation(HoloAnimation.quick) {
-                            endConditionType = type
-                            if type == .onDate && repeatEndDate == nil {
-                                repeatEndDate = Calendar.current.date(byAdding: .month, value: 1, to: Date())
+                            draftEndConditionType = type
+                            if type == .onDate && draftRepeatEndDate == nil {
+                                draftRepeatEndDate = Calendar.current.date(byAdding: .month, value: 1, to: Date())
                             }
                         }
                     } label: {
                         Text(type.displayTitle)
                             .font(.holoCaption)
-                            .foregroundColor(endConditionType == type ? .white : .holoTextPrimary)
+                            .foregroundColor(draftEndConditionType == type ? .white : .holoTextPrimary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(
                                 Capsule()
-                                    .fill(endConditionType == type ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.15))
+                                    .fill(draftEndConditionType == type ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.15))
                             )
                     }
                     .buttonStyle(.plain)
@@ -626,7 +526,7 @@ struct TaskDatePickerSheet: View {
             }
 
             // 指定日期
-            if endConditionType == .onDate {
+            if draftEndConditionType == .onDate {
                 HStack {
                     Text(formattedEndDate)
                         .font(.holoCaption)
@@ -653,13 +553,13 @@ struct TaskDatePickerSheet: View {
             }
 
             // 重复次数
-            if endConditionType == .afterCount {
+            if draftEndConditionType == .afterCount {
                 HStack {
                     Text("重复")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
 
-                    Picker("", selection: $repeatEndCount) {
+                    Picker("", selection: $draftRepeatEndCount) {
                         ForEach(1...100, id: \.self) { count in
                             Text("\(count)").tag(count)
                         }
@@ -675,8 +575,54 @@ struct TaskDatePickerSheet: View {
         }
     }
 
+    // MARK: - 快速日期与结束日期
+
+    private func quickDateButton(title: String, daysFromToday: Int) -> some View {
+        let targetDate = Calendar.current.date(byAdding: .day, value: daysFromToday, to: Date()) ?? Date()
+        return quickDateButton(title: title, targetDate: targetDate)
+    }
+
+    private func quickDateButton(title: String, targetDate: Date) -> some View {
+        Button {
+            selectDatePreservingTime(targetDate)
+        } label: {
+            Text(title)
+                .font(.holoCaption)
+                .foregroundColor(isSameDay(draftDueDate, targetDate) ? .white : .holoPrimary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(
+                    Capsule()
+                        .fill(isSameDay(draftDueDate, targetDate) ? Color.holoPrimary : Color.holoPrimary.opacity(0.14))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func selectDatePreservingTime(_ date: Date) {
+        let calendar = Calendar.current
+        let timeComponents = calendar.dateComponents([.hour, .minute, .second], from: draftDueDate)
+        var targetComponents = calendar.dateComponents([.year, .month, .day], from: date)
+        targetComponents.hour = timeComponents.hour
+        targetComponents.minute = timeComponents.minute
+        targetComponents.second = timeComponents.second
+        draftDueDate = calendar.date(from: targetComponents) ?? date
+    }
+
+    private func isSameDay(_ lhs: Date, _ rhs: Date) -> Bool {
+        Calendar.current.isDate(lhs, inSameDayAs: rhs)
+    }
+
+    private var upcomingWeekendDate: Date {
+        let calendar = Calendar.current
+        let today = Date()
+        let weekday = calendar.component(.weekday, from: today)
+        let daysUntilSaturday = (7 - weekday + 7) % 7
+        return calendar.date(byAdding: .day, value: daysUntilSaturday, to: today) ?? today
+    }
+
     private var formattedEndDate: String {
-        guard let date = repeatEndDate else {
+        guard let date = draftRepeatEndDate else {
             return String(localized: "未选择")
         }
         let formatter = DateFormatter()
@@ -692,8 +638,8 @@ struct TaskDatePickerSheet: View {
                 DatePicker(
                     "",
                     selection: Binding(
-                        get: { repeatEndDate ?? Date() },
-                        set: { repeatEndDate = $0 }
+                        get: { draftRepeatEndDate ?? Date() },
+                        set: { draftRepeatEndDate = $0 }
                     ),
                     displayedComponents: .date
                 )
@@ -722,6 +668,44 @@ struct TaskDatePickerSheet: View {
         }
         .presentationDetents([.height(400)])
         .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - 关「全天」时的默认时刻规则（新建与详情共用，随弹窗走）
+
+/// 新建任务默认落「当天 00:00（全天）」；用户关掉全天的瞬间，00:00 已是过去时，
+/// 任务会立即显示「已过期」。这里把整点日期值垫成有意义的时刻：
+/// 当前时钟向上取整到下一个 15 分钟；若已越过午夜则落回当天 23:59。
+/// 非 00:00 的时刻说明用户或流程已显式选过时间，保持不动。
+enum TaskDetailTimeDefault {
+    static func timedDate(
+        from allDayDate: Date,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Date {
+        guard allDayDate == calendar.startOfDay(for: allDayDate) else { return allDayDate }
+
+        var minute = calendar.component(.minute, from: now)
+        var hour = calendar.component(.hour, from: now)
+        let remainder = minute % 15
+        if remainder == 0 && calendar.component(.second, from: now) == 0 {
+            // 恰好整 15 分钟倍数：直接用当前时刻
+        } else {
+            minute += 15 - remainder
+            if minute >= 60 {
+                minute -= 60
+                hour += 1
+            }
+        }
+        if hour >= 24 {
+            hour = 23
+            minute = 59
+        }
+
+        var components = calendar.dateComponents([.year, .month, .day], from: allDayDate)
+        components.hour = hour
+        components.minute = minute
+        return calendar.date(from: components) ?? allDayDate
     }
 }
 
