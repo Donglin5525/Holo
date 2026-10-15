@@ -721,6 +721,19 @@ export function insightMaxTokensFor(periodType, baseMaxTokens) {
 
 export function loadConfig(overrides = {}) {
   return {
+    // 后台维护止损预算，采用高于当前 Flash 账单价的保守费率；不是会员展示额度。
+    backgroundCost: {
+      dailyCNY: Number(process.env.HOLO_BACKGROUND_DAILY_CNY ?? 0.30),
+      monthlyCNY: Number(process.env.HOLO_BACKGROUND_MONTHLY_CNY ?? 2),
+      globalDailyCNY: Number(process.env.HOLO_BACKGROUND_GLOBAL_DAILY_CNY ?? 3),
+      globalMonthlyCNY: Number(process.env.HOLO_BACKGROUND_GLOBAL_MONTHLY_CNY ?? 60),
+      maxInputBytes: Number(process.env.HOLO_BACKGROUND_MAX_INPUT_BYTES ?? 98304),
+      minBuild: Number(process.env.HOLO_BACKGROUND_MIN_BUILD ?? 32),
+      inputPerMillionCNY: Number(process.env.HOLO_BACKGROUND_INPUT_PRICE ?? 3),
+      outputPerMillionCNY: Number(process.env.HOLO_BACKGROUND_OUTPUT_PRICE ?? 9),
+      cachedPerMillionCNY: Number(process.env.HOLO_BACKGROUND_CACHED_PRICE ?? 0.1),
+      ...overrides.backgroundCost,
+    },
     auth: {
       ...DEFAULT_CONFIG.auth,
       ...overrides.auth,

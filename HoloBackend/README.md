@@ -121,6 +121,26 @@ http://localhost:8787/admin/prompts
 
 ## 测试
 
+### 后台成本保护（2026-10-15）
+
+记忆萃取/核验/融合、想法自动整理/关联/类别理解/主题命名摘要共用持久费用台账。
+默认每个已验证原始订阅交易每天 0.30 元、每月 2 元；无订阅时按设备。全站每天 3 元、每月 60 元兜底。
+预算按北京时间自然日/月刷新，自部署启用时开始记账，不追溯上线前费用。
+主动聊天、用户发起的分析/想法洞察、语音、向量和内容审核费用不在此预算内，因此这不是总账单上限。
+
+- 已知 Holo 构建号低于 32 的后台请求返回 426；缺少构建号仍受实际输入和预算检查。
+- 请求体及注入系统 Prompt 后的模型输入各限 96 KiB，不静默截断用户数据。
+- 每次模型调用前原子预留最大费用，并发不能各自重复使用同一余额。结束后按 usage 结算；无 usage、超时和崩溃保留预留。
+- 预算费率默认输入/输出/缓存每百万 token 3/9/0.1 元，是保守内部计价；更换模型时必须核对 `HOLO_BACKGROUND_*_PRICE`。推理 token 不重复计费。
+- 同一类别的无效输出冷却 24 小时，暂时故障冷却 1 小时；更改 operationId 不会解除冷却。真实证据、服务端 Prompt 版本或模型变化后可以重新尝试。
+- 预算不足返回 `BACKGROUND_BUDGET_EXCEEDED`（429）及 `error.resetAt`；当前客户端可能仍发 HTTP 重试，但不会因此继续调用大模型。整理可能推迟到次日/次月，已有记录不变。
+- 新表仅存哈希主体/证据指纹、日期、用途及费用，不保存笔记正文。费用台账保留 90 天，过期冷却记录启动时清理。
+
+配置项见 `deploy/env.production.example`；没有配置时启用以上安全默认值，非正数配置拒绝启动。
+回归测试：`node --test tests/backgroundCostGuard.test.js tests/aiCallLogsUsage.test.js tests/thought-category-brief.test.js`。
+
+### 完整测试
+
 ```bash
 cd /Users/tangyuxuan/Desktop/Claude/HOLO/HoloBackend
 npm test

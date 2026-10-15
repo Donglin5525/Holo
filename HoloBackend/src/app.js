@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { createErrorResponse, GatewayError, publicMessage } from "./errors.js";
 import { createInMemoryUsageStore } from "./usage/inMemoryUsageStore.js";
 import { createSqliteUsageStore } from "./usage/sqliteUsageStore.js";
+import { createBackgroundCostGuard, backgroundSubject, BACKGROUND_PATHS, BACKGROUND_PURPOSES } from "./usage/backgroundCostGuard.js";
 import { createMockChatProvider } from "./providers/mockChatProvider.js";
 import { createOpenAICompatibleProvider } from "./providers/openAICompatibleProvider.js";
 import { createMockAsrProvider } from "./providers/mockAsrProvider.js";
@@ -206,7 +207,8 @@ export function createApp(overrides = {}) {
       config.agentStepIdempotencyCleanupIntervalMs,
     );
   }
-  const providers = createProviders(config);
+  const backgroundCostGuard = createBackgroundCostGuard(database.db, config.backgroundCost);
+  const providers = backgroundCostGuard.wrapProviders(createProviders(config));
   const asrProvider = createAsrProvider(config);
   // 云端执行器（M2a）：store 启用且 agent_loop route 可用时创建；
   // 执行采用进程内 fire-and-forget + 启动扫描 queued 孤儿（单实例，无队列基建）。
@@ -343,6 +345,7 @@ export function createApp(overrides = {}) {
     adminLogStore,
     budgetStore: thoughtOrganizeBudgetStore,
     contentModeration,
+    backgroundCostGuard,
   });
 
   // 主题命名/摘要 V3（方案 §4.4/§4.5）：同预算记账类，两端点共享独立预算池
@@ -368,6 +371,24 @@ export function createApp(overrides = {}) {
   app.use('*', requestLogger.middleware);
   requestLogger.startFlushTimer();
   requestLogger.cleanupOld();
+
+  // 后台调用统一建立可信预算主体，入口先挡旧版/超长内容，再在模型调用处原子预留。
+  app.use("/v1/*", async (context, next) => {
+    if (context.req.method !== "POST") return next();
+    const pathPurpose = BACKGROUND_PATHS[context.req.path];
+    if (!pathPurpose && context.req.path !== "/v1/ai/chat/completions") return next();
+    try {
+      const body = await readJson(context);
+      const purpose = pathPurpose ?? body?.purpose;
+      if (!BACKGROUND_PURPOSES.has(purpose)) return next();
+      const deviceId = await getDeviceId(context, config);
+      const subject = backgroundSubject(deviceId, entitlementStore.get(deviceId));
+      backgroundCostGuard.checkIngress({ subject, userAgent: context.req.header("user-agent"), body });
+      return await backgroundCostGuard.run(subject, next);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
 
   const runAdminTestChat = createAdminTestChatRunner({
     config,

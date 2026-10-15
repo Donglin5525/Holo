@@ -150,10 +150,10 @@ export function createAdminLogStore(options = {}) {
           error_message = ?,
           response_summary = ?,
           asr_result_length = ?,
-          prompt_tokens = ?,
-          completion_tokens = ?,
-          cached_tokens = ?,
-          reasoning_tokens = ?
+          prompt_tokens = COALESCE(?, prompt_tokens),
+          completion_tokens = COALESCE(?, completion_tokens),
+          cached_tokens = COALESCE(?, cached_tokens),
+          reasoning_tokens = COALESCE(?, reasoning_tokens)
         WHERE rowid = ?
       `),
       listLogs: db.prepare(`
@@ -265,7 +265,10 @@ export function createAdminLogStore(options = {}) {
     // { prompt_tokens, completion_tokens, prompt_tokens_details:{cached_tokens}, completion_tokens_details:{reasoning_tokens} }
     // 截断的响应摘要拿不到 usage，这里必须在流结束时从内存里传进来才不丢。
     const usage = normalizeUsage(result.usage);
-    if (usage) entry.usage = usage;
+    if (usage) entry.usage = {
+      ...usage, ...entry.usage,
+      ...Object.fromEntries(Object.entries(usage).filter(([, value]) => value != null)),
+    };
 
     // SQLite 更新
     const s = getStmts();
@@ -310,7 +313,7 @@ export function createAdminLogStore(options = {}) {
   }
 
   function positiveInt(value) {
-    return Number.isFinite(value) && value > 0 ? Math.round(value) : null;
+    return Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
   }
 
   function list() {

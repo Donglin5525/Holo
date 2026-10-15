@@ -2,6 +2,7 @@ import { GatewayError } from "../errors.js";
 import { injectServerPrompt } from "../prompts/serverPromptPolicy.js";
 import { validateBriefRequest, validateBriefModelOutput } from "./categoryBriefSchema.js";
 import { parseModelJSON } from "./organizeSchema.js";
+import { getPrompt } from "../prompts/promptRegistry.js";
 
 /**
  * 归档类别理解器编排服务（2026-10-12 主题双通道·零打扰）。
@@ -47,6 +48,7 @@ export function createThoughtCategoryBriefService({
   adminLogStore,
   budgetStore,
   contentModeration,
+  backgroundCostGuard,
 }) {
   const moduleConfig = config.thoughtSemanticRelate;
   const captureLogs = config.aiCallLogs.enabled;
@@ -220,13 +222,17 @@ export function createThoughtCategoryBriefService({
     usageTotal.outputTokens += usage.outputTokens;
     committedMicro += costMicroForUsage(usage.inputTokens, usage.outputTokens, moduleConfig.pricing);
 
-    const validated = validateBriefModelOutput(parseModelJSON(content), parsed);
+    let validated;
+    try {
+      validated = validateBriefModelOutput(parseModelJSON(content), parsed);
+    } catch {
+      validated = { malformed: true, reason: "invalid_json" };
+    }
     if (validated.malformed) {
       if (captureLogs && logId) {
         adminLogStore.finishAiCall(logId, {
           status: "error",
           error: { code: `MODEL_OUTPUT_INVALID/${validated.reason}`, status: 502 },
-          usage: { prompt_tokens: usage.inputTokens, completion_tokens: usage.outputTokens },
         });
       }
       finalize("failed", committedMicro + moderationFeeMicro());
@@ -243,5 +249,15 @@ export function createThoughtCategoryBriefService({
     };
   }
 
-  return { brief };
+  return {
+    brief: backgroundCostGuard ? (args) => {
+      const parsed = validateBriefRequest(args.body);
+      const { route } = routeFor();
+      // operationId 每次重试都会变；只按实际证据及服务端模型/Prompt 版本判定同一任务。
+      const key = [args.subjectId, route.provider, route.model,
+        getPrompt("thought_category_brief_v1")?.version,
+        parsed.schemaVersion, parsed.topic, parsed.members, parsed.removals];
+      return backgroundCostGuard.briefAttempt(key, () => brief(args));
+    } : brief,
+  };
 }

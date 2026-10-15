@@ -56,6 +56,11 @@ export function publicMessage(code) {
     RATE_LIMITED: "今天的 AI 使用次数已达上限，稍后再试",
     REPORT_RATE_LIMITED: "举报提交过于频繁，请稍后再试",
     QUOTA_EXCEEDED: "当前会员额度已用完",
+    BACKGROUND_BUDGET_EXCEEDED: "后台整理额度已用完，将在额度恢复后继续，不影响已有记录和主动聊天",
+    BACKGROUND_CLIENT_UPDATE_REQUIRED: "请更新 App 以继续后台整理，已有记录不受影响",
+    BACKGROUND_INPUT_TOO_LARGE: "本次后台整理内容过多，请更新 App 后重试",
+    BACKGROUND_RETRY_DEFERRED: "这批内容暂时无法整理，已暂停重复尝试",
+    BACKGROUND_CONTEXT_REQUIRED: "后台整理暂不可用，请稍后重试",
     ASR_DURATION_EXCEEDED: "本次录音超过当前会员可识别时长",
 
     // 订阅与验收

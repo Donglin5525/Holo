@@ -16,6 +16,19 @@ function makeStore() {
   return { store, db: database.db };
 }
 
+test("模型返回后校验失败仍保留缓存和零推理用量", () => {
+  const { store, db } = makeStore();
+  const id = store.startAiCall({ deviceId: "d1", purpose: "thought_category_brief_v1", provider: "deepseek", model: "flash" });
+  store.finishAiCall(id, { status: "success", usage: { prompt_tokens: 100, completion_tokens: 20,
+    prompt_tokens_details: { cached_tokens: 80 }, completion_tokens_details: { reasoning_tokens: 0 } } });
+  store.finishAiCall(id, { status: "error", error: { code: "MODEL_OUTPUT_INVALID" },
+    usage: { prompt_tokens: 100, completion_tokens: 20 } });
+  store.finishAiCall(id, { status: "error", error: { code: "MODEL_OUTPUT_INVALID" } });
+  assert.deepEqual(db.prepare("SELECT prompt_tokens, completion_tokens, cached_tokens, reasoning_tokens FROM ai_call_logs").get(),
+    { prompt_tokens: 100, completion_tokens: 20, cached_tokens: 80, reasoning_tokens: 0 });
+  assert.equal(store.get(id).usage.cachedTokens, 80);
+});
+
 test("finishAiCall 把上游 usage 落到独立 token 列", () => {
   const { store, db } = makeStore();
 
