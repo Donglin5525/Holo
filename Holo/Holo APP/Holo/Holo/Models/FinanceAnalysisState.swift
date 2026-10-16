@@ -146,11 +146,6 @@ class FinanceAnalysisState: ObservableObject {
         return max(components.day ?? 1, 1)
     }
 
-    /// 当前图表粒度
-    var chartGranularity: ChartGranularity {
-        .from(dayCount: dayCount)
-    }
-
     /// 是否处于下钻模式
     var isDrillingDown: Bool {
         selectedTopCategory != nil

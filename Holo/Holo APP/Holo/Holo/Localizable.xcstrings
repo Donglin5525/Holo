@@ -74307,6 +74307,22 @@
         }
       }
     },
+    "科目构成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subcategories"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "科目構成"
+          }
+        }
+      }
+    },
     "移入主题" : {
       "localizations" : {
         "en" : {

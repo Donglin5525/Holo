@@ -24,24 +24,6 @@ private enum DetailTabFormatters {
         df.setLocalizedDateFormatFromTemplate("MMMdEEEE")
         return df
     }()
-
-    static let periodHour: DateFormatter = {
-        let df = DateFormatter()
-        df.setLocalizedDateFormatFromTemplate("MMMdHH")
-        return df
-    }()
-
-    static let periodDay: DateFormatter = {
-        let df = DateFormatter()
-        df.setLocalizedDateFormatFromTemplate("MMMd")
-        return df
-    }()
-
-    static let periodMonth: DateFormatter = {
-        let df = DateFormatter()
-        df.setLocalizedDateFormatFromTemplate("yMMM")
-        return df
-    }()
 }
 
 // MARK: - DetailTabView
@@ -49,6 +31,8 @@ private enum DetailTabFormatters {
 /// 明细 Tab 视图
 struct DetailTabView: View {
     @ObservedObject var state: FinanceAnalysisState
+    /// push 覆盖层模式：外层已带返回栏与分类标题，分类筛选横幅不在本页重复出现
+    var isPushed: Bool = false
     @State private var editingTransaction: Transaction?
     @State private var selectedTrendType: TransactionType = .expense
     @State private var sortOrder: FinanceDetailSortOrder = .timeDescending
@@ -111,7 +95,10 @@ struct DetailTabView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
+        // 单一滚动流：趋势图与交易列表同容器。旧结构是外层 ScrollView 嵌一个
+        // 固定高度的内层列表 ScrollView，两层滚动手势顶牛——内层滚到底后
+        // 同一次拖拽不会交棒给外层，用户手感即「往下滑卡住」（2026-10-16 东林实报）。
+        ScrollViewReader { listProxy in
             ScrollView {
                 VStack(spacing: 0) {
                     trendSection
@@ -123,15 +110,21 @@ struct DetailTabView: View {
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.bottom, HoloSpacing.xs)
 
-                    transactionListViewport(
-                        height: max(geometry.size.height - 56, 320)
-                    )
+                    transactionListContent
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.bottom, HoloSpacing.lg)
                 }
             }
             .scrollIndicators(.hidden)
             .background(Color.holoToolBackground)
+            .onChange(of: listScrollRequestID) { _, _ in
+                guard let target = listScrollTarget else { return }
+
+                // 排序模式切换与列表重建发生在同一轮更新，下一帧再定位可确保锚点已存在。
+                DispatchQueue.main.async {
+                    listProxy.scrollTo(target, anchor: .top)
+                }
+            }
         }
         .sheet(item: $editingTransaction) { transaction in
             AddTransactionSheet(editingTransaction: transaction) { _ in
@@ -145,7 +138,7 @@ struct DetailTabView: View {
 
     private var trendSection: some View {
         VStack(spacing: HoloSpacing.lg) {
-            if let category = state.selectedDetailCategory {
+            if !isPushed, let category = state.selectedDetailCategory {
                 categoryFilterBanner(category)
             }
 
@@ -184,25 +177,6 @@ struct DetailTabView: View {
         listScrollRequestID &+= 1
     }
 
-    private func transactionListViewport(height: CGFloat) -> some View {
-        ScrollViewReader { listProxy in
-            ScrollView {
-                transactionListContent
-                    .padding(.top, 2)
-            }
-            .scrollIndicators(.hidden)
-            .frame(height: height)
-            .onChange(of: listScrollRequestID) { _, _ in
-                guard let target = listScrollTarget else { return }
-
-                // 排序模式切换与列表重建发生在同一轮更新，下一帧再定位可确保锚点已存在。
-                DispatchQueue.main.async {
-                    listProxy.scrollTo(target, anchor: .top)
-                }
-            }
-        }
-    }
-
     private func amount(for point: ChartDataPoint, type: TransactionType) -> Decimal {
         switch type {
         case .expense:
@@ -218,146 +192,6 @@ struct DetailTabView: View {
             date: transaction.date,
             amount: transaction.amount.decimalValue
         )
-    }
-
-    // MARK: - 选中时间段的交易列表（根据粒度显示）
-
-    private func selectedPeriodTransactionsView(_ date: Date) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // 标题栏
-            HStack {
-                Text(periodTitle(for: date))
-                    .holoText(.sectionTitle)
-                    .foregroundColor(.holoToolText)
-
-                Spacer()
-
-                Button {
-                    state.selectChartDate(nil)
-                } label: {
-                    Text("查看全部")
-                        .holoText(.supporting)
-                        .foregroundColor(.holoPrimary)
-                }
-            }
-
-            // 时间段统计
-            periodSummary(for: date)
-
-            // 交易列表
-            let periodTransactions = transactionsForPeriod(date)
-
-            if periodTransactions.isEmpty {
-                emptyTransactionState
-            } else {
-                ForEach(periodTransactions, id: \.self) { tx in
-                    TransactionRowView(transaction: tx) {
-                        editingTransaction = tx
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - 时间段标题
-
-    private func periodTitle(for date: Date) -> String {
-        switch state.chartGranularity {
-        case .hour:
-            return DetailTabFormatters.periodHour.string(from: date) + ":00" + String(localized: " 时段")
-
-        case .day:
-            return DetailTabFormatters.periodDay.string(from: date)
-
-        case .week:
-            let weekStart = date.startOfWeek
-            guard let weekEnd = Calendar.current.date(byAdding: .day, value: 6, to: weekStart) else {
-                return String(localized: "本周")
-            }
-            return "\(DetailTabFormatters.periodDay.string(from: weekStart)) - \(DetailTabFormatters.periodDay.string(from: weekEnd))"
-
-        case .month:
-            return DetailTabFormatters.periodMonth.string(from: date)
-        }
-    }
-
-    // MARK: - 时间段统计
-
-    private func periodSummary(for date: Date) -> some View {
-        let periodTxns = transactionsForPeriod(date)
-        let expense = periodTxns
-            .filter { $0.statisticsType == .expense }
-            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
-        let income = periodTxns
-            .filter { $0.statisticsType == .income }
-            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
-
-        return HStack(spacing: HoloSpacing.lg) {
-            HStack(spacing: HoloSpacing.xs) {
-                Text("支出")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoToolTextSecondary)
-                Text(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "¥0")
-                    .holoText(.body)
-                    .foregroundColor(.holoError)
-            }
-
-            HStack(spacing: HoloSpacing.xs) {
-                Text("收入")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoToolTextSecondary)
-                Text(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "¥0")
-                    .holoText(.body)
-                    .foregroundColor(.holoSuccess)
-            }
-
-            Spacer()
-
-            Text("\(periodTxns.count) 笔")
-                .holoText(.supporting)
-                .foregroundColor(.holoToolTextSecondary)
-        }
-        .padding(HoloSpacing.sm)
-        .background(Color.holoToolBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-    }
-
-    // MARK: - 获取时间段内的交易
-
-    private func transactionsForPeriod(_ date: Date) -> [Transaction] {
-        let calendar = Calendar.current
-
-        switch state.chartGranularity {
-        case .hour:
-            // 该小时的交易
-            let hourStart = calendar.date(bySettingHour: calendar.component(.hour, from: date), minute: 0, second: 0, of: date) ?? date
-            guard let hourEnd = calendar.date(byAdding: .hour, value: 1, to: hourStart) else { return [] }
-            return filteredTransactions.filter { tx in
-                tx.date >= hourStart && tx.date < hourEnd
-            }
-
-        case .day:
-            // 该天的交易
-            return filteredTransactions.filter { tx in
-                calendar.isDate(tx.date, inSameDayAs: date)
-            }
-
-        case .week:
-            // 该周的交易
-            let weekStart = date.startOfWeek
-            guard let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) else { return [] }
-            return filteredTransactions.filter { tx in
-                tx.date >= weekStart && tx.date < weekEnd
-            }
-
-        case .month:
-            // 该月的交易
-            let monthStart = date.startOfMonth
-            guard let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else { return [] }
-            return filteredTransactions.filter { tx in
-                tx.date >= monthStart && tx.date < monthEnd
-            }
-        }
     }
 
     // MARK: - 分类筛选
