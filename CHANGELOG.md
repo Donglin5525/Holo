@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-10-16] 截图记账掉帧根治——图片压缩/票根入库/证据读取三处主线程重活全部下沉
+
+> 东林实报「使用截图记账之后明显卡顿掉帧」。定位三处主线程重活：①入口压缩（原图全尺寸解码+重绘+多轮 JPEG 编码，快捷指令跑完 App 被拉到前台那一刻直接顶掉转场动画帧）；②票根归档把全尺寸图+缩略图几 MB 的 BLOB 在主线程 viewContext 写 SQLite，撞上确认/保存动画窗口；③逐笔归档时主线程同步读证据文件。
+
+- **入口压缩后台化**：`HoloVisionImagePipeline` 新增 `compressedJPEGInBackground`（Task.detached，压缩参数与产物字节与同步版完全一致，幂等基准不受影响）；快捷指令 `book`、聊天识图 `prepareVisionExtraction`、聊天发图缩略图三处调用点全部改为后台压缩。聊天路径顺带根治「同一张图压两遍」——规范化 JPEG 压缩一次同时作上传与幂等基准，识别等待期间主线程完全空闲
+- **票根 BLOB 入库下主线程**：`attachReceipt` 重写为后台上下文落库（挂实例 coordinator，测试注入的内存栈同样工作；跨上下文只传 objectID），保存后在 viewContext 按 id 重新物化返回——后台托管对象不出后台线程。手动挂图保持既有广播；识图复核页逐笔批量归档改为不逐笔广播，由确认页整批完成后的统一收尾广播驱动，一次多笔入账 `.financeDataDidChange` 从 N+1 次收敛到 1 次（全项目 36 处财务观察者不再在收起动画窗口里多跑 N 轮全量刷新）
+- **证据读取后台化**：`archiveEvidenceIfNeeded` 改 async，证据文件读取挪后台；await 时序保证读文件先于草案证据删除
+- **验证**：Debug 构建绿；88 测试全绿（ReceiptAttachment 8 + ReceiptBookingKernel 42 + VisionStandalone 8 + DataExportReceipts 7 + FinanceReconciliation 23）。过程实锤一坑：测试容器 viewContext 未开 `automaticallyMergesChangesFromParent`，票根后台保存挪了交易版本后须显式 `context.refresh` 对齐，否则下一个写操作撞乐观锁（NSCocoaErrorDomain 133020）——生产容器有自动合并兜底，显式 refresh 使两侧行为一致
+- 纯客户端无后端发版；改动 6 文件；待东林真机验收（三时点对比：快捷指令回前台转场、确认页弹出、点确认后弹层收起）
+
+---
+
 ## [2026-10-16] 任务多视图——日历/四象限/列表三视图切换，日历月览+单日日程安排计划时段，四象限矩阵拖动归类，列表改清单分组
 
 > 按 docs/todo/plans/2026-10-16-任务多视图 方案冻结稿（02-GLM完整实施方案 V1.1 + 交互原型）全量实施。任务模块顶部新增「日历 / 四象限 / 列表」三段切换，新模块会话默认日历、会话内保留手动选择；同一份范围与任务快照三个观察角度，计划/截止/分类/Today/完成撤回与同步链路全部复用既有契约。

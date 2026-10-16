@@ -775,11 +775,13 @@ final class ChatViewModel: ObservableObject {
         let caption = rawCaption.trimmingCharacters(in: .whitespacesAndNewlines)
         errorMessage = nil
 
-        // 1. 用户消息（内容=附言，无附言落占位）+ 确定性路径缩略图（拍板 5，不进 Core Data）
+        // 1. 压缩先行（后台线程，重活不占主线程）：完成后再落用户消息+缩略图，
+        //    保持「缩略图先于气泡渲染存在」的既有时序（气泡探测不到文件=不显示图）
+        let thumbnailJPEG = await HoloVisionImagePipeline.compressedJPEGInBackground(from: rawImageData)
         let displayText = caption.isEmpty ? String(localized: "[图片]") : caption
         let userMessageId = chatRepo.addMessage(role: "user", content: displayText)
-        if let jpeg = HoloVisionImagePipeline.compressedJPEG(from: rawImageData) {
-            VisionImageStore.save(jpeg, messageID: userMessageId)
+        if let thumbnailJPEG {
+            VisionImageStore.save(thumbnailJPEG, messageID: userMessageId)
         }
 
         // 2. AI 占位 + 流式状态（停止键/watchdog 复用既有机制）

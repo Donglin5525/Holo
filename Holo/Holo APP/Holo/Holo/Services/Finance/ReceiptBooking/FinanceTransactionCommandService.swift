@@ -85,19 +85,24 @@ final class FinanceTransactionCommandService {
     }
 
     /// 复核确认落账后按设置开关转存证据图为票根（一图多笔逐笔调用、每笔都挂）。
-    /// 证据 Data 在本方法同步读入——调用方随后删除证据文件不影响转存；
-    /// 压缩与落库在后台完成，失败只记日志，不阻断落账主流程。
-    func archiveEvidenceIfNeeded(draftID: UUID, transactionID: UUID) {
+    /// 证据文件读取、图片压缩与 BLOB 落库全在后台完成；调用方 await 本方法，
+    /// 保证读文件先于草案证据删除（confirm 循环后的 discardDraftFiles）。
+    /// 不广播 financeDataDidChange：确认页整批完成后有统一收尾广播，逐笔广播
+    /// 会让全部财务观察者在收起动画窗口里多跑 N 轮全量刷新。
+    func archiveEvidenceIfNeeded(draftID: UUID, transactionID: UUID) async {
         guard ReceiptBookingArchivePolicy.isAutoArchiveEnabled,
-              let url = ReceiptBookingResultStore.evidenceImageURL(for: draftID),
-              let data = try? Data(contentsOf: url),
+              let url = ReceiptBookingResultStore.evidenceImageURL(for: draftID) else { return }
+        let evidenceData = await Task.detached(priority: .userInitiated) {
+            try? Data(contentsOf: url)
+        }.value
+        guard let evidenceData,
               let transaction = FinanceRepository.shared.findTransaction(by: transactionID) else { return }
-        Task {
-            do {
-                _ = try await FinanceRepository.shared.attachReceipt(to: transaction, imageData: data, source: .receiptBooking)
-            } catch {
-                logger.error("识图凭证归档票根失败（draft \(draftID, privacy: .public)）：\(error.localizedDescription)")
-            }
+        do {
+            _ = try await FinanceRepository.shared.attachReceipt(
+                to: transaction, imageData: evidenceData, source: .receiptBooking, postNotification: false
+            )
+        } catch {
+            logger.error("识图凭证归档票根失败（draft \(draftID, privacy: .public)）：\(error.localizedDescription)")
         }
     }
 }

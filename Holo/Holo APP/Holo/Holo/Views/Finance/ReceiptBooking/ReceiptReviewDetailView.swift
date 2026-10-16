@@ -755,8 +755,9 @@ struct ReceiptReviewDetailView: View {
                     if result.created {
                         // 只有本次新建的笔才有撤销权；幂等命中的是账本里已存在的交易，不能撤
                         committedIDs.append(result.transactionID)
-                        // 一图多笔：每笔都挂证据票根（开关关时方法内直接返回）
-                        FinanceTransactionCommandService.shared.archiveEvidenceIfNeeded(
+                        // 一图多笔：每笔都挂证据票根（开关关时方法内直接返回；
+                        // await 保证读证据文件先于循环后的草案删除）
+                        await FinanceTransactionCommandService.shared.archiveEvidenceIfNeeded(
                             draftID: draft.id,
                             transactionID: result.transactionID
                         )

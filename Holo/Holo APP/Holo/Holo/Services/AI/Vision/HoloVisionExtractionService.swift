@@ -154,6 +154,15 @@ enum HoloVisionImagePipeline {
         }
         return best
     }
+
+    /// 后台压缩：原图解码/重绘/JPEG 编码是几百毫秒级的 CPU 重活，同步跑在调用方
+    /// 线程（识图/聊天入口都是 MainActor）会直接顶掉系统转场与弹层动画帧；
+    /// 挪后台后主线程只做纯值编排。压缩参数与同步版完全一致，产物字节不变。
+    static func compressedJPEGInBackground(from rawData: Data, aggressive: Bool = false) async -> Data? {
+        await Task.detached(priority: .userInitiated) {
+            compressedJPEG(from: rawData, aggressive: aggressive)
+        }.value
+    }
 }
 
 // MARK: - 聊天图片缩略图存储（拍板 5：聊天里存缩略图）
@@ -290,8 +299,14 @@ final class HoloVisionExtractionService {
         precompressedJPEG: Data?,
         aggressive: Bool
     ) async throws -> ExtractionOutcome {
-        guard let jpeg = precompressedJPEG ?? HoloVisionImagePipeline.compressedJPEG(from: rawImageData, aggressive: aggressive) else {
-            throw VisionError(userMessage: String(localized: "图片读取失败，请换一张试试"))
+        let jpeg: Data
+        if let precompressedJPEG {
+            jpeg = precompressedJPEG
+        } else {
+            guard let compressed = await HoloVisionImagePipeline.compressedJPEGInBackground(from: rawImageData, aggressive: aggressive) else {
+                throw VisionError(userMessage: String(localized: "图片读取失败，请换一张试试"))
+            }
+            jpeg = compressed
         }
 
         let request = APIRequest(

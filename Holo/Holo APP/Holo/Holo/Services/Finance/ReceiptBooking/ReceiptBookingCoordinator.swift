@@ -41,12 +41,15 @@ final class ReceiptBookingCoordinator {
         rawImageData: Data,
         caption: String?
     ) async throws -> VisionPreparation {
+        // 压缩+摘要先行（后台线程）：规范化 JPEG 同时作为上传与幂等基准，
+        // 上传复用同一产物（聊天路径原来 extract 内部再压一遍，同图压两次全占主线程）
+        let jpeg = await HoloVisionImagePipeline.compressedJPEGInBackground(from: rawImageData)
+        let sourceKey = jpeg.map { ReceiptBookingIdempotency.sourceKey(forNormalizedJPEG: $0) } ?? ""
         let outcome = try await HoloVisionExtractionService.shared.extract(
             rawImageData: rawImageData,
-            caption: caption
+            caption: caption,
+            precompressedJPEG: jpeg
         )
-        let jpeg = HoloVisionImagePipeline.compressedJPEG(from: rawImageData)
-        let sourceKey = jpeg.map { ReceiptBookingIdempotency.sourceKey(forNormalizedJPEG: $0) } ?? ""
 
         let resolution = FinanceTransactionDraftResolver.shared.resolveAccount(
             channel: outcome.understanding.paymentChannel,
@@ -78,8 +81,10 @@ final class ReceiptBookingCoordinator {
     /// 完整识别记账链（方案 §23.4）。M1 阶段 autoCommit 决策被灰度开关拦成复核；
     /// 聊天入口固定 alwaysReview（铁律 10）。所有结果写本地结果存储（§22.1 第 5 步）。
     func book(_ request: ReceiptBookingRequest) async -> ReceiptBookingOutcome {
-        // 压缩 + 摘要先行：幂等基准 = 实际上传的规范化 JPEG（同一原图同参数压缩结果确定一致）
-        let jpeg = HoloVisionImagePipeline.compressedJPEG(from: request.rawImageData)
+        // 压缩 + 摘要先行（后台线程：快捷指令跑完 App 被拉到前台的那一刻，
+        // 原图解码+多轮 JPEG 编码占主线程会直接顶掉回前台转场动画帧）。
+        // 幂等基准 = 实际上传的规范化 JPEG（同一原图同参数压缩结果确定一致）
+        let jpeg = await HoloVisionImagePipeline.compressedJPEGInBackground(from: request.rawImageData)
         let sourceKey = jpeg.map { ReceiptBookingIdempotency.sourceKey(forNormalizedJPEG: $0) } ?? ""
         let outcome = await runBooking(request, jpeg: jpeg, sourceKey: sourceKey)
         await persist(outcome, request: request, sourceKey: sourceKey, evidenceJPEG: jpeg)

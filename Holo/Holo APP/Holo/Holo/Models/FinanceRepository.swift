@@ -1011,32 +1011,63 @@ class FinanceRepository {
 
     /// 给交易贴一张票根：压缩管线产出 2048px 原图 + 300px 缩略图，纯二进制双存，
     /// 随 CoreData/CloudKit 同步（对齐 ThoughtAttachment 已验证模式，不落沙盒文件）
+    /// 挂票根。图片压缩与 BLOB 落库全在后台：全尺寸图+缩略图几 MB 写进 viewContext
+    /// （主线程）会在确认/保存动画窗口里写 SQLite 造成掉帧。后台上下文挂同一
+    /// coordinator（测试注入的内存栈同样工作），保存后经 viewContext 的
+    /// automaticallyMergesChangesFromParent 自动并回 UI 侧。
+    /// - Parameter postNotification: 手动挂图保持广播；识图复核页逐笔批量归档传
+    ///   false——确认页整批完成后已有统一收尾广播，逐笔广播会让全部财务观察者
+    ///   在收起动画窗口里多跑 N 轮全量刷新。
     func attachReceipt(
         to transaction: Transaction,
         imageData rawData: Data,
-        source: TransactionAttachment.AttachmentSource
+        source: TransactionAttachment.AttachmentSource,
+        postNotification: Bool = true
     ) async throws -> TransactionAttachment {
-        guard transaction.receiptAttachments.count < Transaction.maxReceiptCount else {
-            throw FinanceError.receiptLimitReached(maxCount: Transaction.maxReceiptCount)
-        }
         let attachmentId = UUID()
         guard let processed = await AttachmentFileManager.processRawImageData(rawData, attachmentId: attachmentId) else {
             throw FinanceError.receiptImageProcessingFailed
         }
-        let attachment = TransactionAttachment(context: context)
-        attachment.id = attachmentId
-        attachment.fileName = processed.fileName
-        attachment.thumbnailFileName = processed.thumbnailFileName
-        attachment.sortOrder = (transaction.receiptAttachments.map(\.sortOrder).max() ?? -1) + 1
-        attachment.sourceType = source.rawValue
-        attachment.createdAt = Date()
-        attachment.imageData = processed.imageData
-        attachment.thumbnailData = processed.thumbnailData
-        attachment.transaction = transaction
-        transaction.updatedAt = Date()
-        try context.save()
-        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
-        return attachment
+        // 跨上下文只传 objectID，NSManagedObject 不出本上下文（跨线程访问崩）
+        let txID = transaction.objectID
+        let bgContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+        bgContext.persistentStoreCoordinator = context.persistentStoreCoordinator
+        try await bgContext.perform {
+            guard let tx = try bgContext.existingObject(with: txID) as? Transaction else {
+                throw FinanceError.notFound
+            }
+            guard tx.receiptAttachments.count < Transaction.maxReceiptCount else {
+                throw FinanceError.receiptLimitReached(maxCount: Transaction.maxReceiptCount)
+            }
+            let attachment = TransactionAttachment(context: bgContext)
+            attachment.id = attachmentId
+            attachment.fileName = processed.fileName
+            attachment.thumbnailFileName = processed.thumbnailFileName
+            attachment.sortOrder = (tx.receiptAttachments.map(\.sortOrder).max() ?? -1) + 1
+            attachment.sourceType = source.rawValue
+            attachment.createdAt = Date()
+            attachment.imageData = processed.imageData
+            attachment.thumbnailData = processed.thumbnailData
+            attachment.transaction = tx
+            tx.updatedAt = Date()
+            try bgContext.save()
+        }
+        // 后台保存把交易的 updatedAt 挪了版本；显式 refresh 让 viewContext 的快照
+        // 对齐 store，后续主线程写操作（删除/再保存）不再撞乐观锁（133020）。
+        // 生产有 automaticallyMergesChangesFromParent 兜底，测试容器没开该开关，
+        // 必须显式做——两侧行为就此一致。
+        context.refresh(transaction, mergeChanges: true)
+        // 后台对象不能送回主线程：在 viewContext 按 id 重新物化返回
+        let fetch = TransactionAttachment.fetchRequest()
+        fetch.predicate = NSPredicate(format: "id == %@", attachmentId as CVarArg)
+        fetch.fetchLimit = 1
+        guard let saved = try context.fetch(fetch).first else {
+            throw FinanceError.notFound
+        }
+        if postNotification {
+            NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+        }
+        return saved
     }
 
     /// 撕掉一张票根（附件删除即净，宿主交易保留）
