@@ -196,15 +196,23 @@ struct TaskQuadrantBoardView: View {
                 Text(quadrant.emptyGuidance)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 120, alignment: .center)
+                    .frame(maxWidth: .infinity, minHeight: 88, alignment: .top)
+                    .padding(.top, 14)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(members.prefix(2)) { member in
+                    ForEach(Array(members.prefix(2).enumerated()), id: \.element.id) { index, member in
+                        if index > 0 {
+                            Rectangle()
+                                .fill(Color.holoDivider.opacity(0.5))
+                                .frame(height: 0.5)
+                                .padding(.leading, 42)
+                        }
                         previewRow(member, quadrant: quadrant)
                     }
                 }
+                .padding(.bottom, 6)
                 if members.count > 2 {
                     Button {
                         expandedQuadrant = quadrant
@@ -224,7 +232,9 @@ struct TaskQuadrantBoardView: View {
                 }
             }
         }
-        .frame(minHeight: usesSingleColumn ? 0 : 244, alignment: .top)
+        // 高度自适应但同行等高：cell 撑满行高、内容顶对齐——四格边缘对齐恢复矩阵观感，
+        // 又不回到 244 强制最小高的大空白（东林挑刺两轮的平衡点）
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
@@ -294,11 +304,11 @@ struct TaskQuadrantBoardView: View {
                         } else if let plan {
                             previewSlot(text: plan, icon: "clock", color: .holoTextSecondary)
                         }
-                        // 槽2 执行事实：计划未占槽1时放计划，否则清单名纯文字兜底（无图标）
+                        // 槽2 执行事实：计划未占槽1时放计划，否则清单名兜底（无图标）
                         if let plan, due != nil {
                             previewSlot(text: plan, icon: "clock", color: .holoTextSecondary)
                         } else {
-                            previewSlot(text: TaskExperienceRow.listLabel(for: member), icon: nil, color: .holoTextPlaceholder)
+                            previewSlot(text: TaskExperienceRow.listLabel(for: member), icon: nil, color: .holoTextSecondary)
                         }
                     }
                 }
@@ -325,14 +335,15 @@ struct TaskQuadrantBoardView: View {
     }
 
     /// 迷你进度环（口径同 TaskExperienceRow.progressRing，缩到 20pt）：
-    /// 无子任务是 1.5pt 细空环；有子任务画 2pt 进度弧（至少留 5% 起点弧、-90° 起始）；
+    /// 无子任务是 1.5pt 细空环（极浅描边——深灰空环在彩色格子里像窟窿，东林挑刺后淡化）；
+    /// 有子任务画 2pt 进度弧（至少留 5% 起点弧、-90° 起始）；
     /// 完成/待确认叠对勾。点击行为仍是完成/撤回。
     private func miniProgressRing(_ member: TaskRecordSnapshot, isDone: Bool) -> some View {
         let items = member.checkItems
         let fraction = items.isEmpty ? 0 : Double(items.filter(\.isChecked).count) / Double(items.count)
         return ZStack {
             Circle()
-                .stroke(Color.holoToolTextSecondary.opacity(0.5), lineWidth: 1.5)
+                .stroke(Color.holoToolTextSecondary.opacity(0.3), lineWidth: 1.5)
             if !items.isEmpty {
                 Circle()
                     .trim(from: 0, to: max(fraction, 0.05))
