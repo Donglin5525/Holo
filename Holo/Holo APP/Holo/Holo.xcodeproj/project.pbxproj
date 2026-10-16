@@ -264,6 +264,10 @@
 		A7B100000000000000000006 /* TaskAnalyticsAggregatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B100000000000000000005 /* TaskAnalyticsAggregatorTests.swift */; };
 		A7B100000000000000000008 /* TaskAnalyticsPeriodResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B100000000000000000007 /* TaskAnalyticsPeriodResolverTests.swift */; };
 		A7B100000000000000000042 /* TaskSplitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B100000000000000000041 /* TaskSplitTests.swift */; };
+		A7B100000000000000000102 /* TaskCalendarProjectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B100000000000000000101 /* TaskCalendarProjectionTests.swift */; };
+		A7B100000000000000000104 /* TaskTimelineLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B100000000000000000103 /* TaskTimelineLayoutTests.swift */; };
+		A7B100000000000000000106 /* TaskQuadrantMovePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B100000000000000000105 /* TaskQuadrantMovePolicyTests.swift */; };
+		A7B100000000000000000108 /* TaskPresentationStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7B100000000000000000107 /* TaskPresentationStateTests.swift */; };
 		A7C200000000000000000002 /* Services/Today/TodayPlanMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C200000000000000000001 /* Services/Today/TodayPlanMigrationTests.swift */; };
 		A7C200000000000000000004 /* Services/Today/TodayPlanServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C200000000000000000003 /* Services/Today/TodayPlanServiceTests.swift */; };
 		A7C200000000000000000006 /* Services/Today/TodayReliefCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C200000000000000000005 /* Services/Today/TodayReliefCoordinatorTests.swift */; };
@@ -761,6 +765,10 @@
 		A7B100000000000000000003 /* TaskClassificationMigrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskClassificationMigrationTests.swift; sourceTree = "<group>"; };
 		A7B100000000000000000005 /* TaskAnalyticsAggregatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskAnalyticsAggregatorTests.swift; sourceTree = "<group>"; };
 		A7B100000000000000000007 /* TaskAnalyticsPeriodResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskAnalyticsPeriodResolverTests.swift; sourceTree = "<group>"; };
+		A7B100000000000000000101 /* TaskCalendarProjectionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskCalendarProjectionTests.swift; sourceTree = "<group>"; };
+		A7B100000000000000000103 /* TaskTimelineLayoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskTimelineLayoutTests.swift; sourceTree = "<group>"; };
+		A7B100000000000000000105 /* TaskQuadrantMovePolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskQuadrantMovePolicyTests.swift; sourceTree = "<group>"; };
+		A7B100000000000000000107 /* TaskPresentationStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskPresentationStateTests.swift; sourceTree = "<group>"; };
 		A7B100000000000000000041 /* TaskSplitTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskSplitTests.swift; sourceTree = "<group>"; };
 		A7C200000000000000000001 /* Services/Today/TodayPlanMigrationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Today/TodayPlanMigrationTests.swift; sourceTree = "<group>"; };
 		A7C200000000000000000003 /* Services/Today/TodayPlanServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Services/Today/TodayPlanServiceTests.swift; sourceTree = "<group>"; };
@@ -1483,6 +1491,10 @@
 				A7B100000000000000000041 /* TaskSplitTests.swift */,
 				A7B100000000000000000005 /* TaskAnalyticsAggregatorTests.swift */,
 				A7B100000000000000000007 /* TaskAnalyticsPeriodResolverTests.swift */,
+				A7B100000000000000000101 /* TaskCalendarProjectionTests.swift */,
+				A7B100000000000000000103 /* TaskTimelineLayoutTests.swift */,
+				A7B100000000000000000105 /* TaskQuadrantMovePolicyTests.swift */,
+				A7B100000000000000000107 /* TaskPresentationStateTests.swift */,
 			);
 			path = Tasks;
 			sourceTree = "<group>";
@@ -1996,6 +2008,10 @@
 				A7B100000000000000000042 /* TaskSplitTests.swift in Sources */,
 				A7B100000000000000000006 /* TaskAnalyticsAggregatorTests.swift in Sources */,
 				A7B100000000000000000008 /* TaskAnalyticsPeriodResolverTests.swift in Sources */,
+				A7B100000000000000000102 /* TaskCalendarProjectionTests.swift in Sources */,
+				A7B100000000000000000104 /* TaskTimelineLayoutTests.swift in Sources */,
+				A7B100000000000000000106 /* TaskQuadrantMovePolicyTests.swift in Sources */,
+				A7B100000000000000000108 /* TaskPresentationStateTests.swift in Sources */,
 				A7C200000000000000000002 /* Services/Today/TodayPlanMigrationTests.swift in Sources */,
 				A7C200000000000000000004 /* Services/Today/TodayPlanServiceTests.swift in Sources */,
 				A7C200000000000000000006 /* Services/Today/TodayReliefCoordinatorTests.swift in Sources */,

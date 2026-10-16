@@ -305,6 +305,54 @@
         }
       }
     },
+    "暂时未能保存，修改仍保留在这里，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not saved; your edits are kept here. Try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時未能保存，修改仍保留在這裡，請重試。"
+          }
+        }
+      }
+    },
+    "暂时未能保存，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not saved, try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時未能保存，請重試。"
+          }
+        }
+      }
+    },
+    "暂时没有这类任务\n点 ＋ 添加任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing here right now\nTap + to add"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時沒有這類任務\n點 ＋ 添加任務"
+          }
+        }
+      }
+    },
     "暂时无法读取这份规划，原记录已保留。请稍后重试。" : {
       "localizations" : {
         "en" : {
@@ -4133,6 +4181,22 @@
         }
       }
     },
+    "%@截止" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "due %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@截止"
+          }
+        }
+      }
+    },
     "%@提醒" : {
       "localizations" : {
         "en" : {
@@ -6057,6 +6121,22 @@
         }
       }
     },
+    "%lld 项任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld tasks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 項任務"
+          }
+        }
+      }
+    },
     "%lld 项固定支出" : {
       "localizations" : {
         "en" : {
@@ -6133,6 +6213,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 項提醒"
+          }
+        }
+      }
+    },
+    "%lld 项有时间安排" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld with time slots"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 項有時間安排"
           }
         }
       }
@@ -6422,6 +6518,22 @@
         }
       }
     },
+    "%lld小时%lld分钟" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldh %lldm"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld小時%lld分鐘"
+          }
+        }
+      }
+    },
     "%lld年" : {
       "localizations" : {
         "en" : {
@@ -6434,6 +6546,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld年"
+          }
+        }
+      }
+    },
+    "%lld年%lld月" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld年%lld月"
           }
         }
       }
@@ -6486,6 +6614,38 @@
         }
       }
     },
+    "%lld月%lld日" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld月%lld日"
+          }
+        }
+      }
+    },
+    "%lld月%lld日，%lld项任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/%lld, %lld tasks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld月%lld日，%lld項任務"
+          }
+        }
+      }
+    },
     "%lld月—%lld月" : {
       "localizations" : {
         "en" : {
@@ -6530,6 +6690,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld次"
+          }
+        }
+      }
+    },
+    "%lld项任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld tasks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld項任務"
+          }
+        }
+      }
+    },
+    "%lld项重叠安排" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld overlapping"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld項重疊安排"
           }
         }
       }
@@ -11943,6 +12135,22 @@
         }
       }
     },
+    "上一周" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last week"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一週"
+          }
+        }
+      }
+    },
     "上一周期" : {
       "localizations" : {
         "en" : {
@@ -11955,6 +12163,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上一週期"
+          }
+        }
+      }
+    },
+    "上一月" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous month"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一月"
           }
         }
       }
@@ -12560,6 +12784,22 @@
         }
       }
     },
+    "下一周" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next week"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一週"
+          }
+        }
+      }
+    },
     "下一周期" : {
       "localizations" : {
         "en" : {
@@ -12572,6 +12812,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下一週期"
+          }
+        }
+      }
+    },
+    "下一月" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next month"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下一月"
           }
         }
       }
@@ -13394,6 +13650,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不需要處理"
+          }
+        }
+      }
+    },
+    "与%lld项任务时间重叠" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overlaps %lld tasks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與%lld項任務時間重疊"
           }
         }
       }
@@ -15169,6 +15441,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "瞭解我們如何保護你的資料"
+          }
+        }
+      }
+    },
+    "了解象限规则" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About quadrant rules"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "瞭解象限規則"
           }
         }
       }
@@ -17972,6 +18260,22 @@
         }
       }
     },
+    "从待安排中选择" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick from unscheduled"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從待安排中選擇"
+          }
+        }
+      }
+    },
     "从清晨到夜晚，这一天留下了完整的生活轨迹。" : {
       "localizations" : {
         "en" : {
@@ -18566,6 +18870,38 @@
         }
       }
     },
+    "任务已发生变化，请关闭后重新查看。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task changed. Close and reopen."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任務已發生變化，請關閉後重新查看。"
+          }
+        }
+      }
+    },
+    "任务已发生变化，请重新查看" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task changed, please reopen"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任務已發生變化，請重新查看"
+          }
+        }
+      }
+    },
     "任务已完成" : {
       "localizations" : {
         "en" : {
@@ -18578,6 +18914,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "任務已完成"
+          }
+        }
+      }
+    },
+    "任务已更新，无法撤回这次修改" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task updated; can't undo this change"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任務已更新，無法撤回這次修改"
+          }
+        }
+      }
+    },
+    "任务已更新，无法撤回这次移动" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task updated; can't undo this move"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任務已更新，無法撤回這次移動"
           }
         }
       }
@@ -22102,6 +22470,22 @@
         }
       }
     },
+    "先判断重要性，再决定放在哪里" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rate importance first, then place it"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先判斷重要性，再決定放在哪裡"
+          }
+        }
+      }
+    },
     "先創建一個習慣，今天就能留下第一條記錄。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -22543,6 +22927,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "全天任務延期後仍是全天；已設定的提醒會自動跟隨新日期。"
+          }
+        }
+      }
+    },
+    "全天截止" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All-day due"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全天截止"
           }
         }
       }
@@ -31167,6 +31567,22 @@
         }
       }
     },
+    "可以继续查看其他日期或范围。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try other dates or scopes."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可以繼續查看其他日期或範圍。"
+          }
+        }
+      }
+    },
     "可以返回继续查看其他记录。" : {
       "localizations" : {
         "en" : {
@@ -31583,6 +31999,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "合計"
+          }
+        }
+      }
+    },
+    "同一时间安排了多项任务，点击查看各自详情。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Multiple tasks share this time. Tap to view each."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同一時間安排了多項任務，點擊查看各自詳情。"
           }
         }
       }
@@ -32872,6 +33304,38 @@
         }
       }
     },
+    "四象限" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quadrants"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "四象限"
+          }
+        }
+      }
+    },
+    "四象限沿用 Holo 现有判断，不修改旧任务分类。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quadrants reuse Holo's current rules; existing classifications stay."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "四象限沿用 Holo 現有判斷，不修改舊任務分類。"
+          }
+        }
+      }
+    },
     "四道门通过，可进入融合候选" : {
       "localizations" : {
         "en" : {
@@ -33954,6 +34418,38 @@
         }
       }
     },
+    "在%@中新增任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New task in %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在%@中新增任務"
+          }
+        }
+      }
+    },
+    "在%@新增任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New task on %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在%@新增任務"
+          }
+        }
+      }
+    },
     "在%@模块打开" : {
       "localizations" : {
         "en" : {
@@ -33966,6 +34462,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在%@模組開啟"
+          }
+        }
+      }
+    },
+    "在%lld点创建任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Create task at %lld:00"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在%lld點創建任務"
           }
         }
       }
@@ -36063,6 +36575,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "安排執行時段"
+          }
+        }
+      }
+    },
+    "安排时间" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schedule time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安排時間"
           }
         }
       }
@@ -38952,6 +39480,22 @@
         }
       }
     },
+    "已切回全部未完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switched back to All Open"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已切回全部未完成"
+          }
+        }
+      }
+    },
     "已创建 " : {
       "localizations" : {
         "en" : {
@@ -39334,6 +39878,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已匹配 %lld 個交易對方（高置信 %lld）"
+          }
+        }
+      }
+    },
+    "已占用 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Busy %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已佔用 %@"
           }
         }
       }
@@ -40509,6 +41069,22 @@
         }
       }
     },
+    "已按大字号展开" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expanded for larger text"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已按大字號展開"
+          }
+        }
+      }
+    },
     "已授权，可读取日程" : {
       "localizations" : {
         "en" : {
@@ -40804,6 +41380,38 @@
         }
       }
     },
+    "已新增任务，已加入待安排" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task added to Unscheduled"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已新增任務，已加入待安排"
+          }
+        }
+      }
+    },
+    "已新增，当前范围不包含此任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added; not in current scope"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已新增，當前範圍不包含此任務"
+          }
+        }
+      }
+    },
     "已暂停" : {
       "localizations" : {
         "en" : {
@@ -41026,6 +41634,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已更新紀念日"
+          }
+        }
+      }
+    },
+    "已更新计划时间，截止未改变" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plan updated; due date unchanged"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已更新計劃時間，截止未改變"
           }
         }
       }
@@ -41482,6 +42106,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已移至「%@」"
+          }
+        }
+      }
+    },
+    "已移至「%@」，时间未改变" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved to \"%@\"; time unchanged"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已移至「%@」，時間未改變"
+          }
+        }
+      }
+    },
+    "已移除计划，截止未改变" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plan removed; due date unchanged"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已移除計劃，截止未改變"
           }
         }
       }
@@ -42561,6 +43217,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已選「%@」"
+          }
+        }
+      }
+    },
+    "已选中" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "selected"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已選中"
           }
         }
       }
@@ -44944,6 +45616,22 @@
         }
       }
     },
+    "当前范围内已过截止时间的任务，与选中日期无关。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overdue tasks in this scope, regardless of the selected day."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當前範圍內已過截止時間的任務，與選中日期無關。"
+          }
+        }
+      }
+    },
     "当前范围：%@" : {
       "localizations" : {
         "en" : {
@@ -45524,6 +46212,54 @@
         }
       }
     },
+    "待安排" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unscheduled"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待安排"
+          }
+        }
+      }
+    },
+    "待安排 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unscheduled · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待安排 · %@"
+          }
+        }
+      }
+    },
+    "待安排，%lld项" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unscheduled, %lld tasks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待安排，%lld項"
+          }
+        }
+      }
+    },
     "待授权" : {
       "localizations" : {
         "en" : {
@@ -45569,6 +46305,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "待整理 %lld 項"
+          }
+        }
+      }
+    },
+    "待整理，%lld项" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Triage, %lld tasks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待整理，%lld項"
           }
         }
       }
@@ -46685,6 +47437,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "恢復"
+          }
+        }
+      }
+    },
+    "恢复%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uncomplete %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復%@"
           }
         }
       }
@@ -48252,6 +49020,22 @@
         }
       }
     },
+    "截止" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "due"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截止"
+          }
+        }
+      }
+    },
     "截止 " : {
       "localizations" : {
         "en" : {
@@ -48280,6 +49064,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "截止 %@"
+          }
+        }
+      }
+    },
+    "截止事项 · 未占用时间段" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Due today · no time slot"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截止事項 · 未佔用時間段"
           }
         }
       }
@@ -49706,6 +50506,22 @@
         }
       }
     },
+    "把零碎小事集中处理\n点 ＋ 添加任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch small items here\nTap + to add"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把零碎小事集中處理\n點 ＋ 添加任務"
+          }
+        }
+      }
+    },
     "投入" : {
       "localizations" : {
         "en" : {
@@ -50939,6 +51755,22 @@
         }
       }
     },
+    "按清单查看任务，包含未安排与待判断重要性的任务。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tasks grouped by list, including unscheduled and unclassified ones."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按清單查看任務，包含未安排與待判斷重要性的任務。"
+          }
+        }
+      }
+    },
     "按真实发生记录" : {
       "localizations" : {
         "en" : {
@@ -51000,6 +51832,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按自己設定的時間單獨提醒"
+          }
+        }
+      }
+    },
+    "按计划与截止显示" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By plan & due"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按計劃與截止顯示"
           }
         }
       }
@@ -52530,6 +53378,22 @@
         }
       }
     },
+    "撤回未保存，请重试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo failed, try again"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤回未保存，請重試"
+          }
+        }
+      }
+    },
     "撤回此次导入" : {
       "localizations" : {
         "en" : {
@@ -54048,6 +54912,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "數值型別"
+          }
+        }
+      }
+    },
+    "数字为当天任务数（去重）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Count = tasks that day (deduped)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "數字為當天任務數（去重）"
           }
         }
       }
@@ -56518,6 +57398,22 @@
         }
       }
     },
+    "日程" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Day"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日程"
+          }
+        }
+      }
+    },
     "日期不在项目周期内" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -57081,6 +57977,22 @@
         }
       }
     },
+    "时间重叠" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overlap"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時間重疊"
+          }
+        }
+      }
+    },
     "时间门" : {
       "localizations" : {
         "en" : {
@@ -57335,6 +58247,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "顯示 Holo 品牌尾註"
+          }
+        }
+      }
+    },
+    "显示已完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show completed"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示已完成"
           }
         }
       }
@@ -59304,6 +60232,22 @@
         }
       }
     },
+    "月览" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Month"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "月覽"
+          }
+        }
+      }
+    },
     "月订阅" : {
       "localizations" : {
         "en" : {
@@ -60978,6 +61922,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未記錄是記錄篩選，不代表任務未完成。"
+          }
+        }
+      }
+    },
+    "未设截止" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No due date"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設截止"
           }
         }
       }
@@ -63118,6 +64078,22 @@
         }
       }
     },
+    "来自日历 · 已预填%@的计划时间，可调整。截止时间尚未设置。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From calendar · prefilled %@ plan, adjustable. No due date yet."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來自日曆 · 已預填%@的計劃時間，可調整。截止時間尚未設置。"
+          }
+        }
+      }
+    },
     "来自纪念日「%@」" : {
       "localizations" : {
         "en" : {
@@ -63243,6 +64219,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "查看%@今天的記錄"
+          }
+        }
+      }
+    },
+    "查看%@全部%lld项" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View all %lld in %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看%@全部%lld項"
           }
         }
       }
@@ -63612,6 +64604,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "查看歸檔習慣"
+          }
+        }
+      }
+    },
+    "查看当前范围逾期任务 %lld 项" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View %lld overdue in this scope"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看當前範圍逾期任務 %lld 項"
           }
         }
       }
@@ -66133,6 +67141,22 @@
         }
       }
     },
+    "此次只调整计划，截止时间保持为：%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This only changes the plan; due date stays: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此次只調整計劃，截止時間保持為：%@"
+          }
+        }
+      }
+    },
     "此账户已对过账：修改期初会使对账基准失效，建议保存后再对一次账" : {
       "localizations" : {
         "en" : {
@@ -67817,6 +68841,22 @@
         }
       }
     },
+    "没有待整理任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing to triage"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有待整理任務"
+          }
+        }
+      }
+    },
     "没有截止日时，设置一个具体的提醒时刻" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -67990,6 +69030,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有站立資料時，HOLO 用活動分鐘替代站立環來估算久坐風險。"
+          }
+        }
+      }
+    },
+    "没有计划时段的任务，包括已设截止的任务。选择任务后可安排到当前选中日。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tasks without a planned slot, including those with due dates. Pick one to schedule on the selected day."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有計劃時段的任務，包括已設截止的任務。選擇任務後可安排到當前選中日。"
           }
         }
       }
@@ -70399,6 +71455,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "點選檢視全文"
+          }
+        }
+      }
+    },
+    "点击查看全部时间与任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to see all times and tasks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點擊查看全部時間與任務"
           }
         }
       }
@@ -73052,6 +74124,22 @@
         }
       }
     },
+    "眼前没有急事\n点 ＋ 添加任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing urgent right now\nTap + to add"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "眼前沒有急事\n點 ＋ 添加任務"
+          }
+        }
+      }
+    },
     "睡前一分钟，完成今天的打卡" : {
       "localizations" : {
         "en" : {
@@ -74387,6 +75475,86 @@
         }
       }
     },
+    "移动到%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動到%@"
+          }
+        }
+      }
+    },
+    "移动到象限" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to quadrant"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動到象限"
+          }
+        }
+      }
+    },
+    "移动后会调整重要性与紧急性，紧急性改为手动判断；计划、截止和提醒保持原值。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moving adjusts importance & urgency (urgency becomes manual); plan, due date and reminders stay."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動後會調整重要性與緊急性，緊急性改為手動判斷；計劃、截止和提醒保持原值。"
+          }
+        }
+      }
+    },
+    "移动未保存，请重试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move not saved, try again"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動未保存，請重試"
+          }
+        }
+      }
+    },
+    "移动象限后紧急性变为手动判断。可在任务详情「轻重缓急」里恢复「按截止日期自动判断」。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After moving, urgency becomes manual. Restore \"By due date\" in task details."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動象限後緊急性變為手動判斷。可在任務詳情「輕重緩急」裡恢復「按截止日期自動判斷」。"
+          }
+        }
+      }
+    },
     "移除" : {
       "localizations" : {
         "en" : {
@@ -74543,6 +75711,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "移除篩選 %@"
+          }
+        }
+      }
+    },
+    "移除计划时间" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove plan time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除計劃時間"
           }
         }
       }
@@ -76642,6 +77826,22 @@
         }
       }
     },
+    "结束时间需晚于开始时间，且安排在同一天。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End must be later than start, on the same day."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結束時間需晚於開始時間，且安排在同一天。"
+          }
+        }
+      }
+    },
     "结束条件" : {
       "localizations" : {
         "en" : {
@@ -76898,6 +78098,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "給重點科目單獨設預算，如餐飲、購物"
+          }
+        }
+      }
+    },
+    "给重要的事留一点时间\n点 ＋ 添加任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set aside time for what matters\nTap + to add"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "給重要的事留一點時間\n點 ＋ 添加任務"
           }
         }
       }
@@ -79919,6 +81135,22 @@
         }
       }
     },
+    "计划 / 截止均计入" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plan / due both counted"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計劃 / 截止均計入"
+          }
+        }
+      }
+    },
     "计划不存在" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -79952,6 +81184,38 @@
         }
       }
     },
+    "计划日期" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plan date"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計劃日期"
+          }
+        }
+      }
+    },
+    "计划时间" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plan time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計劃時間"
+          }
+        }
+      }
+    },
     "计划时间段" : {
       "localizations" : {
         "en" : {
@@ -79964,6 +81228,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "計劃時間段"
+          }
+        }
+      }
+    },
+    "计划晚于截止，截止时间不会改变" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plan is after due; due won't change"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計劃晚於截止，截止時間不會改變"
           }
         }
       }
@@ -83781,6 +85061,22 @@
         }
       }
     },
+    "调整计划时间" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adjust plan time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調整計劃時間"
+          }
+        }
+      }
+    },
     "调整轻重缓急" : {
       "localizations" : {
         "en" : {
@@ -83793,6 +85089,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "調整輕重緩急"
+          }
+        }
+      }
+    },
+    "象限规则" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quadrant rules"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "象限規則"
           }
         }
       }
@@ -89592,6 +90904,38 @@
         }
       }
     },
+    "这天还没有安排" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing planned this day"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這天還沒有安排"
+          }
+        }
+      }
+    },
+    "这天还没有安排，点击时间轴空白处创建任务。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing planned; tap an empty hour to create."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這天還沒有安排，點擊時間軸空白處創建任務。"
+          }
+        }
+      }
+    },
     "这张图不适合记账，未入账。" : {
       "localizations" : {
         "en" : {
@@ -90926,6 +92270,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這裡顯示你今天最值得推進的事、正在進行的事和整體安排。Holo 每天在這裡幫你收個尾。"
+          }
+        }
+      }
+    },
+    "这里暂时没有任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing here yet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這裡暫時沒有任務"
           }
         }
       }
@@ -92961,6 +94321,22 @@
         }
       }
     },
+    "逾期任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overdue tasks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "逾期任務"
+          }
+        }
+      }
+    },
     "遇到问题时，一张截图最能说明情况；图片会自动去除位置信息" : {
       "localizations" : {
         "en" : {
@@ -93297,6 +94673,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "里程碑"
+          }
+        }
+      }
+    },
+    "重叠安排" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overlaps"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重疊安排"
           }
         }
       }
@@ -93929,6 +95321,22 @@
         }
       }
     },
+    "重要不紧急" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Important, not urgent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重要不緊急"
+          }
+        }
+      }
+    },
     "重要不紧急程度：不重要、不紧急" : {
       "localizations" : {
         "en" : {
@@ -93993,6 +95401,22 @@
         }
       }
     },
+    "重要且紧急" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Important & urgent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重要且緊急"
+          }
+        }
+      }
+    },
     "重要但未安排时段" : {
       "localizations" : {
         "en" : {
@@ -94025,6 +95449,38 @@
         }
       }
     },
+    "重要性 P1 在重要侧，P2 / P3 在非重要侧。\n紧急性 P1 为紧急，P2 / P3 为非紧急。\n自动：逾期、今天 / 明天 / 后天截止 → P1；3–7 天 → P2；更远或无截止 → P3。\n重要性未判断的任务在待整理，仍保留逾期提示。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importance P1 sits on the important side; P2 / P3 on the other. Urgency P1 = urgent. Auto: overdue or due today/tomorrow/day after → P1; 3–7 days → P2; later or none → P3. Unjudged tasks stay in triage with overdue hints."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重要性 P1 在重要側，P2 / P3 在非重要側。\n緊急性 P1 為緊急，P2 / P3 為非緊急。\n自動：逾期、今天 / 明天 / 後天截止 → P1；3–7 天 → P2；更遠或無截止 → P3。\n重要性未判斷的任務在待整理，仍保留逾期提示。"
+          }
+        }
+      }
+    },
+    "重要性决定取舍，紧急性决定先后。按住任务可拖动归类，也可以在详情中移动。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importance decides what; urgency decides when. Press and hold a task to drag it, or move it from details."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重要性決定取捨，緊急性決定先後。按住任務可拖動歸類，也可以在詳情中移動。"
+          }
+        }
+      }
+    },
     "重要性尚未判断" : {
       "localizations" : {
         "en" : {
@@ -94037,6 +95493,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重要性尚未判斷"
+          }
+        }
+      }
+    },
+    "重要性未判断" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importance unset"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重要性未判斷"
           }
         }
       }
@@ -95504,6 +96976,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "非賬單圖片"
+          }
+        }
+      }
+    },
+    "非重要不紧急" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not important, not urgent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "非重要不緊急"
+          }
+        }
+      }
+    },
+    "非重要且紧急" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not important, urgent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "非重要且緊急"
           }
         }
       }

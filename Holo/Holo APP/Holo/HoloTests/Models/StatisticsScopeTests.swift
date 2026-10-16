@@ -293,61 +293,8 @@ final class StatisticsScopeTests: XCTestCase {
         XCTAssertEqual(all.first { $0.category.id == diningId }?.amount, 120, "全量口径不受筛选影响")
     }
 
-    /// 子视图流水筛选状态机：一级含二级归并、二级精确匹配、chip 文案、复位
-    func test_scopeCategoryFilterModel_topThenSubFiltering() async throws {
-        let transport = Holo.Category.create(
-            in: context, name: "交通", icon: "airplane", color: "#5856D6",
-            type: TransactionType.expense.rawValue
-        )
-        let flight = Holo.Category.create(
-            in: context, name: "机票", icon: "airplane", color: "#5856D6",
-            type: TransactionType.expense.rawValue, parentId: transport.id
-        )
-        let train = Holo.Category.create(
-            in: context, name: "火车", icon: "tram.fill", color: "#5856D6",
-            type: TransactionType.expense.rawValue, parentId: transport.id
-        )
-        try? context.save()
-
-        let t1 = try await repo.addTransaction(
-            amount: 100, type: .expense, category: flight,
-            account: cashAccount, date: Date(), note: nil
-        )
-        let t2 = try await repo.addTransaction(
-            amount: 30, type: .expense, category: train,
-            account: cashAccount, date: Date(), note: nil
-        )
-        let t3 = try await repo.addTransaction(
-            amount: 20, type: .expense, category: lunchCategory,
-            account: cashAccount, date: Date(), note: nil
-        )
-
-        let w = window
-        let model = ScopeCategoryFilterModel(
-            scope: StatisticsScope(accountId: nil, financeProjectId: UUID()),
-            dateRange: { w },
-            repository: repo
-        )
-
-        // 无筛选：全量
-        XCTAssertEqual(model.filter([t1, t2, t3]).map { $0.id }, [t1.id, t2.id, t3.id])
-        XCTAssertFalse(model.hasFilter)
-
-        // 点一级「交通」：含旗下机票 + 火车（二级归并一级）
-        model.tapTop(CategoryAggregation(category: transport, amount: 130, percentage: 100, transactionCount: 2))
-        XCTAssertEqual(model.filter([t1, t2, t3]).map { $0.id }, [t1.id, t2.id])
-        XCTAssertEqual(model.filterLabelText, "交通")
-
-        // 点二级「机票」：精确匹配
-        model.tapSub(CategoryAggregation(category: flight, amount: 100, percentage: 77, transactionCount: 1))
-        XCTAssertEqual(model.filter([t1, t2, t3]).map { $0.id }, [t1.id])
-        XCTAssertEqual(model.filterLabelText, "交通 · 机票")
-
-        // 复位（chip 的 ×）
-        model.reset()
-        XCTAssertEqual(model.filter([t1, t2, t3]).map { $0.id }, [t1.id, t2.id, t3.id])
-        XCTAssertNil(model.filterLabelText)
-    }
+    // 788d05361 将 ScopeCategoryFilterModel 从主 target 移除（统计四交互重构），
+    // 此处原 test_scopeCategoryFilterModel_topThenSubFiltering 随类型一并退役，保持测试 target 可编译。
 
     // MARK: - 账户维度余额线起点
 

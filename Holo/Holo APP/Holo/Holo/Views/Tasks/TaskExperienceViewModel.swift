@@ -18,6 +18,8 @@ extension Notification.Name {
     /// 任务创建成功回执（userInfo: id=UUID, quadrant=TaskQuadrant）：
     /// 首页展开定位、容器切回任务页（底部+/统计页入口同样生效）
     static let taskExperienceCreated = Notification.Name("taskExperienceCreated")
+    /// 外层 FAB 请求按当前视图上下文新建（多视图方案 §7.1；任务页在场时消费）
+    static let taskExperienceRequestCreation = Notification.Name("taskExperienceRequestCreation")
 }
 
 @MainActor
@@ -90,6 +92,17 @@ final class TaskExperienceViewModel: ObservableObject {
 
         // 前台恢复兜底（§9.3）
         NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.reload() }
+            .store(in: &cancellables)
+
+        // 显著时间变化（运营商时间同步/跨时区旅行）与时区切换：
+        // today、逾期、自动紧急、月索引按新时刻重算（多视图方案 §8）
+        NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.reload() }
+            .store(in: &cancellables)
+        NotificationCenter.default.publisher(for: NSNotification.Name.NSSystemTimeZoneDidChange)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.reload() }
             .store(in: &cancellables)
@@ -258,6 +271,96 @@ final class TaskExperienceViewModel: ObservableObject {
             .sorted { TaskRecordSnapshot.defaultOrder($0, $1, now: now, calendar: calendar) }
     }
 
+    // MARK: - 清单分组（新版列表组织层，多视图方案 §3.4）
+
+    struct TaskListGroup: Identifiable, Equatable {
+        /// nil = 收件箱
+        let listID: UUID?
+        let title: String
+        let members: [TaskRecordSnapshot]
+        var id: String { listID?.uuidString ?? "inbox" }
+    }
+
+    /// 按清单组织当前范围活动任务：收件箱置首，其余按清单现有顺序，
+    /// 失效归属桶置末；0 项清单隐藏；组内复用 defaultOrder；
+    /// 指定清单范围省略重复组标题（showsHeader=false 由视图按范围判断）。
+    var listGroups: [TaskListGroup] {
+        let members = activeMembers
+        guard !members.isEmpty else { return [] }
+
+        func sortedGroup(_ title: String, _ subset: [TaskRecordSnapshot]) -> TaskListGroup {
+            TaskListGroup(
+                listID: nil,
+                title: title,
+                members: subset.sorted {
+                    TaskRecordSnapshot.defaultOrder($0, $1, now: now, calendar: calendar)
+                }
+            )
+        }
+
+        // 指定清单范围：只列其成员（收件箱范围同样单组）
+        switch scope {
+        case .inbox:
+            return [sortedGroup(String(localized: "收件箱"), members.filter { $0.listID == nil })]
+                .filter { !$0.members.isEmpty }
+        case .list(let listID):
+            // 指定清单范围：单组、省略与范围名重复的组标题（视图层按范围判断）
+            return [TaskListGroup(
+                listID: listID,
+                title: "",
+                members: members.sorted {
+                    TaskRecordSnapshot.defaultOrder($0, $1, now: now, calendar: calendar)
+                }
+            )]
+        default:
+            break
+        }
+
+        var groups: [TaskListGroup] = []
+        let inbox = members.filter { $0.listID == nil }
+        if !inbox.isEmpty {
+            groups.append(sortedGroup(String(localized: "收件箱"), inbox))
+        }
+        // 有效清单依现有清单顺序（allActiveLists 顺序 = unfiled + folders）
+        for list in repository.allActiveLists() {
+            let subset = members.filter { $0.listID == list.id }
+            if !subset.isEmpty {
+                groups.append(TaskListGroup(
+                    listID: list.id,
+                    title: list.name,
+                    members: subset.sorted {
+                        TaskRecordSnapshot.defaultOrder($0, $1, now: now, calendar: calendar)
+                    }
+                ))
+            }
+        }
+        // 失效归属桶置末（清单已删除/失效的成员，原删除契约）
+        let orphanStart = groups.reduce(into: Set<UUID>()) { set, group in
+            group.members.forEach { set.insert($0.id) }
+        }
+        let orphans = members.filter { !orphanStart.contains($0.id) }
+        if !orphans.isEmpty {
+            groups.append(sortedGroup(String(localized: "未归属清单"), orphans))
+        }
+        return groups
+    }
+
+    // MARK: - 日历投影成员（多视图方案 §3.3/§4.2）
+
+    /// 日历投影用的成员：活动范围集合 +（开启显示已完成时）同范围完成任务
+    /// 与 pending 完成任务（显示为完成待确认）；范围徽章仍用 activeMembers 口径
+    func calendarMembers(showsCompleted: Bool) -> [TaskRecordSnapshot] {
+        var members = activeMembers
+        guard showsCompleted else { return members }
+        let completed = scope.completedMembersInScope(from: snapshots, now: now, calendar: calendar)
+        members.append(contentsOf: completed)
+        if let pendingID = pendingCompletionTaskID,
+           let pending = snapshots.first(where: { $0.id == pendingID && !$0.deleted && !$0.archived }) {
+            members.append(pending)
+        }
+        return members
+    }
+
     // MARK: - 范围数量提示（范围菜单用）
 
     var scopeCounts: [TaskExperienceScope: Int] {
@@ -288,21 +391,27 @@ final class TaskExperienceViewModel: ObservableObject {
         unclassifiedMembers
     }
 
-    // MARK: - 新增定位（§5.4）
+    // MARK: - 新增定位（§5.4/§7.2）
+
+    /// 创建成功后不在当前范围的任务（View 据此给「已新增，当前范围不包含此任务」
+    /// + 查看 提示；不自动切范围、不改截止迁就筛选）
+    @Published var createdOutOfScopeTaskID: UUID? = nil
 
     func handleCreated(taskID: UUID, quadrant: TaskQuadrant) {
         reload()
-        // 新任务不属于当前范围时切到全部（§5.4）
+        // 新任务不属于当前范围：如实标记，切范围交给用户的「查看」动作（§7.1）
         let inScope = scope.activeMembers(from: snapshots, now: now, calendar: calendar)
             .contains { $0.id == taskID }
-        if !inScope {
-            scope = .allUncompleted
-        }
-        if let selected = selectedQuadrant, selected != quadrant {
-            selectedQuadrant = nil
-        }
-        // 展开相应任务组并定位（避免前三项截断不可见）
-        expandedGroups.insert(quadrant)
+        createdOutOfScopeTaskID = inScope ? nil : taskID
+        // 清单/矩阵定位共用：滚动到新任务行（列表按实际清单定位，§7.2）
+        locateTaskID = taskID
+    }
+
+    /// 「查看」范围外新任务：切到全部未完成
+    func revealOutOfScopeTask() {
+        guard let taskID = createdOutOfScopeTaskID else { return }
+        scope = .allUncompleted
+        createdOutOfScopeTaskID = nil
         locateTaskID = taskID
     }
 

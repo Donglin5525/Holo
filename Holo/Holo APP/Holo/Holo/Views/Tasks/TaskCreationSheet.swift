@@ -83,6 +83,9 @@ struct TaskCreationSheet: View {
                     if draft.context.sourceQuadrant != nil {
                         sourceBanner
                     }
+                    if draft.context.plannedStart != nil {
+                        calendarSourceBanner
+                    }
                     contentCard
                     scheduleCard
                     classificationCard
@@ -214,6 +217,24 @@ struct TaskCreationSheet: View {
             Text(String(localized: "来自「\(draft.context.sourceQuadrant?.displayTitle ?? "")」，已预填分类，可调整"))
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoPrimary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous))
+    }
+
+    /// 来自日历的来源提示（§7.1：已预填计划时段、截止尚未设置）
+    private var calendarSourceBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "calendar")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.holoPrimary)
+            Text("来自日历 · 已预填\(Self.formatPlanRange(draft.plannedStart, draft.plannedEnd))的计划时间，可调整。截止时间尚未设置。")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -429,7 +450,9 @@ struct TaskCreationSheet: View {
         }
     }
 
-    // MARK: - 安排卡：时间＋清单（时间前移：先设日期，紧急分自动折算立刻有依据）
+    // MARK: - 安排卡：时间＋计划时段＋清单（多视图 §7.2：计划摘要入口）
+
+    @State private var isPlanExpanded = false
 
     private var scheduleCard: some View {
         VStack(spacing: 0) {
@@ -439,6 +462,11 @@ struct TaskCreationSheet: View {
                 valueProminent: draft.hasDueDate
             ) {
                 showTimeSheet = true
+            }
+            Rectangle().fill(Color.holoDivider).frame(height: 0.5).padding(.leading, HoloSpacing.md)
+            planRow
+            if isPlanExpanded && draft.hasPlannedRange {
+                planEditor
             }
             Rectangle().fill(Color.holoDivider).frame(height: 0.5).padding(.leading, HoloSpacing.md)
             scheduleRow(
@@ -451,6 +479,114 @@ struct TaskCreationSheet: View {
         }
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+    }
+
+    /// 计划时间行：打算什么时候做（与截止语义分离，§7.1/§7.2）
+    private var planRow: some View {
+        Button {
+            HapticManager.selection()
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
+                if draft.hasPlannedRange {
+                    isPlanExpanded.toggle()
+                } else {
+                    draft.hasPlannedRange = true
+                    isPlanExpanded = true
+                }
+                draft.markEdited()
+            }
+        } label: {
+            HStack {
+                Text("计划时间")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                Spacer()
+                Text(planSummary)
+                    .font(.holoCaption)
+                    .foregroundColor(draft.hasPlannedRange ? .holoPrimary : .holoTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                if draft.hasPlannedRange {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextPlaceholder)
+                        .rotationEffect(.degrees(isPlanExpanded ? 180 : 0))
+                } else {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextPlaceholder)
+                }
+            }
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 计划编辑：日期 + 开始 + 结束；非法时段字段下报错（§5.4 同规则）
+    private var planEditor: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            DatePicker(String(localized: "计划日期"), selection: planDateBinding, displayedComponents: [.date])
+                .environment(\.locale, Locale(identifier: "zh_CN"))
+            HStack(spacing: HoloSpacing.md) {
+                DatePicker(String(localized: "开始"), selection: $draft.plannedStart, displayedComponents: [.hourAndMinute])
+                    .environment(\.locale, Locale(identifier: "zh_CN"))
+                DatePicker(String(localized: "结束"), selection: $draft.plannedEnd, displayedComponents: [.hourAndMinute])
+                    .environment(\.locale, Locale(identifier: "zh_CN"))
+            }
+            if !draft.isPlannedRangeValid {
+                Label(String(localized: "结束时间需晚于开始时间，且安排在同一天。"), systemImage: "exclamationmark.triangle")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoError)
+            }
+            Button(role: .destructive) {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
+                    draft.hasPlannedRange = false
+                    isPlanExpanded = false
+                    draft.markEdited()
+                }
+            } label: {
+                Text("移除计划时间")
+                    .font(.holoCaption)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(HoloSpacing.md)
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    /// 计划日期改天时起止跟随（保持同日合法性由校验兜底）
+    private var planDateBinding: Binding<Date> {
+        Binding(
+            get: {
+                TaskAnalyticsPeriod.makeCalendar().startOfDay(for: draft.plannedStart)
+            },
+            set: { newDay in
+                let calendar = TaskAnalyticsPeriod.makeCalendar()
+                let hour = calendar.component(.hour, from: draft.plannedStart)
+                let minute = calendar.component(.minute, from: draft.plannedStart)
+                draft.plannedStart = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: newDay) ?? newDay
+                draft.plannedEnd = calendar.date(bySettingHour: calendar.component(.hour, from: draft.plannedEnd),
+                                                 minute: calendar.component(.minute, from: draft.plannedEnd),
+                                                 second: 0, of: newDay) ?? newDay
+                draft.markEdited()
+            }
+        )
+    }
+
+    private var planSummary: String {
+        guard draft.hasPlannedRange else { return String(localized: "未安排") }
+        return Self.formatPlanRange(draft.plannedStart, draft.plannedEnd)
+    }
+
+    static func formatPlanRange(_ start: Date, _ end: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("M月d日 HH:mm")
+        let day = DateFormatter()
+        day.locale = Locale(identifier: "zh_CN")
+        day.dateFormat = "HH:mm"
+        return formatter.string(from: start) + "–" + day.string(from: end)
     }
 
     private func scheduleRow(
@@ -643,12 +779,12 @@ struct TaskCreationSheet: View {
     }
 
     private func save() {
-        guard let title = draft.submitTitle, !isSaving else { return }
+        guard let title = draft.submitTitle, draft.isPlannedRangeValid, !isSaving else { return }
         isSaving = true
         let quadrant = draft.previewQuadrant
         Task { @MainActor in
             do {
-                // 主任务 + 检查清单同一次保存（原子）。
+                // 主任务 + 检查清单 + 计划时段同一次保存（原子，§7.2：不先创建后 update）。
                 // 重试续跑：首次已建成则不再重建（避免失败重试产生重复任务，R11）
                 let task: TodoTask
                 if let createdTask {
@@ -663,7 +799,9 @@ struct TaskCreationSheet: View {
                         dueDate: draft.hasDueDate ? draft.dueDate : nil,
                         isAllDay: draft.hasDueDate && draft.dueIsAllDay,
                         reminders: selectedReminders.isEmpty ? nil : selectedReminders,
-                        checkItemTitles: checkItemTitles.isEmpty ? nil : checkItemTitles
+                        checkItemTitles: checkItemTitles.isEmpty ? nil : checkItemTitles,
+                        plannedStart: draft.hasPlannedRange ? draft.plannedStart : nil,
+                        plannedEnd: draft.hasPlannedRange ? draft.plannedEnd : nil
                     )
                     createdTask = task
                 }

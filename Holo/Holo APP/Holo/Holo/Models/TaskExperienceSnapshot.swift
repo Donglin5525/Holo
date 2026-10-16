@@ -50,6 +50,11 @@ nonisolated struct TaskRecordSnapshot: Identifiable, Equatable, Sendable {
     let listIsArchived: Bool
     /// 是否有合法成对的计划时段（非法/半缺按未安排，方案 §6.3）
     let hasValidPlannedRange: Bool
+    /// 计划时段原值（非法/半缺时仍有值，合法性看 hasValidPlannedRange；
+    /// 日历投影只从快照取值，不反查 Core Data——多视图方案 §4.1。
+    /// var + 默认值与 matterLinks 同法：旧构造入口免改）
+    var plannedStart: Date? = nil
+    var plannedEnd: Date? = nil
     let priorityRaw: Int16
     /// 子任务数（派生口径同 checkItems）
     var checkItemCount: Int { checkItems.count }
@@ -92,6 +97,8 @@ nonisolated struct TaskRecordSnapshot: Identifiable, Equatable, Sendable {
                 guard let start = task.plannedStart, let end = task.plannedEnd else { return false }
                 return TodoTask.isValidPlannedRange(start, end)
             }(),
+            plannedStart: task.plannedStart,
+            plannedEnd: task.plannedEnd,
             priorityRaw: task.priority,
             checkItems: orderedCheckItems,
             matterLinks: matterLinks
@@ -290,6 +297,34 @@ nonisolated enum TaskExperienceScope: Equatable, Hashable {
             return active.filter { $0.listID == nil }
         case .list(let listID):
             return active.filter { $0.listID == listID }
+        case .completed, .archived:
+            return []
+        }
+    }
+
+    /// 同范围已完成成员（日历「显示已完成」用，多视图方案 §3.3/§4.2）：
+    /// 同一范围条件补入完成任务，不取全库完成项混进具体清单；
+    /// 归档/删除仍排除；逾期范围不补（已完成不再属于当前逾期事实）。
+    func completedMembersInScope(
+        from snapshots: [TaskRecordSnapshot],
+        now: Date,
+        calendar: Calendar
+    ) -> [TaskRecordSnapshot] {
+        let done = snapshots.filter { !$0.deleted && !$0.archived && $0.completed }
+        switch self {
+        case .allUncompleted:
+            return done
+        case .todayDue:
+            return done.filter { snapshot in
+                guard let due = snapshot.effectiveDue(calendar: calendar) else { return false }
+                return calendar.isDate(due, inSameDayAs: now)
+            }
+        case .overdue:
+            return []
+        case .inbox:
+            return done.filter { $0.listID == nil }
+        case .list(let listID):
+            return done.filter { $0.listID == listID }
         case .completed, .archived:
             return []
         }

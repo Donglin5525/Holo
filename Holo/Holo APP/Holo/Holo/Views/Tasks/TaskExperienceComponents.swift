@@ -395,61 +395,117 @@ struct TaskDueQuickEditSheet: View {
     }
 }
 
-// MARK: - 执行时段快捷编辑（成对保存或成对清空，§6.3）
+// MARK: - 计划时间弹层（多视图方案 §5.4：安排/调整/移除，失败保留草稿）
 
+/// 计划时段编辑：标题「安排时间/调整计划时间」；顶部任务名与「截止保持为…」；
+/// 非法输入保留并报错；冲突/晚于截止为非阻断提示；已有计划可移除；
+/// 保存走 TaskPresentationActionCoordinator（失败限定字段恢复+草稿保留）。
 struct TaskPlannedRangeQuickSheet: View {
     @ObservedObject var repository: TodoRepository
     let snapshot: TaskRecordSnapshot
-    let onDone: () -> Void
+    /// 新安排的默认日期（日历待安排入口传当前选中日，§5.3；nil=今天）
+    var defaultDay: Date? = nil
+    /// 保存成功回执（携带新计划日；调用方据此定位日历）
+    var onApplied: ((Date?) -> Void)? = nil
+    /// 旧兼容回调（成功后 reload）
+    var onDone: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
-    @State private var hasRange: Bool
     @State private var start: Date
     @State private var end: Date
     @State private var errorMessage: String?
+    @State private var unavailableMessage: String?
+    @ObservedObject private var actionCoordinator = TaskPresentationActionCoordinator.shared
 
-    init(repository: TodoRepository, snapshot: TaskRecordSnapshot, onDone: @escaping () -> Void) {
+    private let calendar = TaskAnalyticsPeriod.makeCalendar()
+
+    init(
+        repository: TodoRepository,
+        snapshot: TaskRecordSnapshot,
+        defaultDay: Date? = nil,
+        onApplied: ((Date?) -> Void)? = nil,
+        onDone: (() -> Void)? = nil
+    ) {
         self.repository = repository
         self.snapshot = snapshot
+        self.defaultDay = defaultDay
+        self.onApplied = onApplied
         self.onDone = onDone
-        _hasRange = State(initialValue: snapshot.hasValidPlannedRange)
-        _start = State(initialValue: snapshot.hasValidPlannedRange
-            ? (repository.findTask(by: snapshot.id)?.plannedStart ?? Date())
-            : Date())
-        _end = State(initialValue: snapshot.hasValidPlannedRange
-            ? (repository.findTask(by: snapshot.id)?.plannedEnd ?? Date().addingTimeInterval(3600))
-            : Date().addingTimeInterval(3600))
+        // 有现成计划默认原日期；新安排默认选中日（无则今天）的默认时段（§5.3）
+        if snapshot.hasValidPlannedRange,
+           let taskStart = repository.findTask(by: snapshot.id)?.plannedStart,
+           let taskEnd = repository.findTask(by: snapshot.id)?.plannedEnd {
+            _start = State(initialValue: taskStart)
+            _end = State(initialValue: taskEnd)
+        } else {
+            let anchor = defaultDay ?? Date()
+            let range = TaskPlannedTimeDefaults.defaultRange(on: anchor, from: Date(), calendar: TaskAnalyticsPeriod.makeCalendar())
+            _start = State(initialValue: range.start)
+            _end = State(initialValue: range.end)
+        }
     }
 
+    private var hasExistingPlan: Bool {
+        snapshot.hasValidPlannedRange
+    }
+
+    /// 同日且结束晚于开始（§5.4；非法保留输入、字段下明确报错）
     private var isValid: Bool {
-        !hasRange || TodoTask.isValidPlannedRange(start, end)
+        TodoTask.isValidPlannedRange(start, end, calendar: calendar)
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Toggle(String(localized: "安排执行时段"), isOn: $hasRange)
-                if hasRange {
-                    DatePicker(String(localized: "日期"), selection: $start, displayedComponents: [.date])
+                Section {
+                    Text("\(snapshot.title)")
+                        .font(.holoBody.weight(.medium))
+                        .foregroundColor(.holoTextPrimary)
+                    Text("此次只调整计划，截止时间保持为：\(dueSummary)")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                Section {
+                    DatePicker(String(localized: "计划日期"), selection: dateBinding, displayedComponents: [.date])
                         .environment(\.locale, Locale(identifier: "zh_CN"))
                     DatePicker(String(localized: "开始"), selection: $start, displayedComponents: [.hourAndMinute])
                         .environment(\.locale, Locale(identifier: "zh_CN"))
                     DatePicker(String(localized: "结束"), selection: $end, displayedComponents: [.hourAndMinute])
                         .environment(\.locale, Locale(identifier: "zh_CN"))
+                    if !isValid {
+                        Label(String(localized: "结束时间需晚于开始时间，且安排在同一天。"), systemImage: "exclamationmark.triangle")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoError)
+                    }
+                    if let unavailableMessage {
+                        Label(unavailableMessage, systemImage: "exclamationmark.triangle")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoError)
+                    }
                 }
-                // 非法时段在字段附近解释，不闪退（§6.3）
-                if hasRange && !isValid {
-                    Label(String(localized: "时段需要同一天且开始早于结束"), systemImage: "exclamationmark.triangle")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                if let warning = warningsText {
+                    Section {
+                        Text(warning)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                    }
                 }
                 if let errorMessage {
-                    Text(errorMessage)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                    Section {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoError)
+                    }
+                }
+                if hasExistingPlan {
+                    Section {
+                        Button(role: .destructive, action: clearPlan) {
+                            Text("移除计划时间")
+                        }
+                    }
                 }
             }
-            .navigationTitle(String(localized: "执行时段"))
+            .navigationTitle(hasExistingPlan ? String(localized: "调整计划时间") : String(localized: "安排时间"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -461,23 +517,106 @@ struct TaskPlannedRangeQuickSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+    }
+
+    /// 日期改变时把起止跟随到同一天（默认时段），避免日期与时刻跨日错位
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: { calendar.startOfDay(for: start) },
+            set: { newDay in
+                let oldDay = calendar.startOfDay(for: start)
+                guard !calendar.isDate(newDay, inSameDayAs: oldDay) else { return }
+                let hour = calendar.component(.hour, from: start)
+                let minute = calendar.component(.minute, from: start)
+                let newStart = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: newDay) ?? newDay
+                let newEnd = calendar.date(bySettingHour: calendar.component(.hour, from: end),
+                                           minute: calendar.component(.minute, from: end),
+                                           second: 0, of: newDay) ?? newDay
+                start = newStart
+                end = newEnd
+            }
+        )
+    }
+
+    private var dueSummary: String {
+        guard let due = snapshot.effectiveDue(calendar: calendar) else {
+            return String(localized: "未设截止")
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate(snapshot.isAllDay ? "M月d日" : "M月d日 HH:mm")
+        return formatter.string(from: due)
+    }
+
+    /// 非阻断提示：与 n 项任务时间重叠 / 计划晚于截止（§5.4）
+    private var warningsText: String? {
+        var warnings: [String] = []
+        let overlaps = overlappingTaskCount()
+        if overlaps > 0 {
+            warnings.append(String(localized: "与\(overlaps)项任务时间重叠"))
+        }
+        if let due = snapshot.effectiveDue(calendar: calendar), end > due {
+            warnings.append(String(localized: "计划晚于截止，截止时间不会改变"))
+        }
+        return warnings.isEmpty ? nil : warnings.joined(separator: "\n")
+    }
+
+    private func overlappingTaskCount() -> Int {
+        // 与当日已有计划时段相交的其他任务数（读快照投影口径）
+        guard let all = try? TaskSnapshotReader.readAllSnapshots(in: repository.context) else { return 0 }
+        var count = 0
+        for other in all {
+            guard other.id != snapshot.id,
+                  other.hasValidPlannedRange,
+                  let otherStart = other.plannedStart,
+                  let otherEnd = other.plannedEnd,
+                  otherStart < end, otherEnd > start else { continue }
+            count += 1
+        }
+        return count
     }
 
     private func save() {
-        guard let task = repository.findTask(by: snapshot.id) else {
+        guard isValid else { return }
+        errorMessage = nil
+        unavailableMessage = nil
+        switch actionCoordinator.commitPlannedRange(
+            taskID: snapshot.id,
+            update: .set(start: start, end: end),
+            repository: repository
+        ) {
+        case .applied:
             dismiss()
-            return
+            let plannedDay = calendar.startOfDay(for: start)
+            onApplied?(plannedDay)
+            onDone?()
+        case .noOp:
+            dismiss()
+        case .taskUnavailable:
+            unavailableMessage = String(localized: "任务已发生变化，请关闭后重新查看。")
+        case .saveFailed:
+            // 草稿保留在弹层，字段已恢复原值（不显示成功提示，§5.4）
+            errorMessage = String(localized: "暂时未能保存，修改仍保留在这里，请重试。")
         }
-        do {
-            try repository.updateTask(
-                task,
-                plannedTime: hasRange ? .set(start: start, end: end) : .clear
-            )
+    }
+
+    private func clearPlan() {
+        errorMessage = nil
+        unavailableMessage = nil
+        switch actionCoordinator.commitPlannedRange(
+            taskID: snapshot.id,
+            update: .clear,
+            repository: repository
+        ) {
+        case .applied:
             dismiss()
-            onDone()
-        } catch {
-            errorMessage = String(localized: "保存失败，请重试")
+            onApplied?(nil)
+            onDone?()
+        case .noOp, .taskUnavailable:
+            dismiss()
+        case .saveFailed:
+            errorMessage = String(localized: "暂时未能保存，请重试。")
         }
     }
 }

@@ -78,6 +78,10 @@ struct TasksView: View {
     /// V2 范围上下文（首页把当前范围/象限传给新增入口预填）
     @State private var v2CreationContext: TaskCreationContext = TaskCreationContext()
 
+    /// 多视图会话（多视图方案 §3.2）：模块内 Tab 往返不销毁，
+    /// 从首页新进入/冷启动才新建（默认日历）
+    @StateObject private var presentationSession = TaskPresentationSession()
+
     // MARK: - Body
 
     var body: some View {
@@ -97,7 +101,8 @@ struct TasksView: View {
                         TaskExperienceView(
                             repository: repository,
                             onBack: { close() },
-                            searchTrigger: searchTrigger
+                            searchTrigger: searchTrigger,
+                            session: presentationSession
                         )
                     } else {
                         TaskListView(
@@ -278,10 +283,14 @@ struct TasksView: View {
 
     /// 新增 FAB：模块内唯一橙色主行动。纪念日 Tab 下转发给纪念日页自带的新增 sheet
     /// （TasksView 若也挂 sheet 会与子视图叠层，导致不可见层拦截触摸）。
+    /// 任务 Tab（V2）转发给任务页按当前视图组装创建上下文（多视图方案 §7.1：
+    /// 日历 FAB 预填选中日计划且不预填截止；四象限/列表保留原范围行为）。
     private var addButtonFAB: some View {
         Button {
             if selectedTab == .anniversary {
                 NotificationCenter.default.post(name: .anniversaryRequestAdd, object: nil)
+            } else if selectedTab == .tasks && taskExperienceV2Enabled {
+                NotificationCenter.default.post(name: .taskExperienceRequestCreation, object: nil)
             } else {
                 showAddTask = true
             }

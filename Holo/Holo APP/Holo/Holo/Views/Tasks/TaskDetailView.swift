@@ -147,6 +147,8 @@ struct TaskDetailView: View {
     @State private var classificationImportance: TaskImportance = .unknown
     @State private var classificationUrgencyMode: TaskUrgencyMode = .auto
     @State private var showClassificationSheet = false
+    /// 移动到象限弹层（多视图方案 §6.3-10）
+    @State private var showMoveToQuadrantSheet = false
     /// 新建模式从轻量弹层预填的两轴（保存时随 createTask 一次写入）
     var prefilledImportance: TaskImportance? = nil
     var prefilledUrgencyMode: TaskUrgencyMode? = nil
@@ -388,6 +390,19 @@ struct TaskDetailView: View {
                 plannedEnd: $plannedEnd,
                 defaultDay: hasDueDate ? dueDate : nil
             )
+        }
+        .sheet(isPresented: $showMoveToQuadrantSheet) {
+            // 移动到象限（多视图 §6.3-10）：提交走统一动作协调器；
+            // 关闭时重读两轴同步本页草稿显示
+            if let task = existingTask {
+                TaskQuadrantMoveSheet(
+                    snapshot: TaskRecordSnapshot.make(from: task),
+                    repository: repository,
+                    now: Date(),
+                    calendar: TaskAnalyticsPeriod.makeCalendar(),
+                    onDone: { syncClassificationDraftFromTask() }
+                )
+            }
         }
         .sheet(isPresented: $showActualDurationSheet) {
             if let task = existingTask {
@@ -1736,6 +1751,38 @@ struct TaskDetailView: View {
             }
             .buttonStyle(.plain)
 
+            // 移动到象限（多视图方案 §7/§6.3-10：非拖动的完整等价路径）
+            if existingTask != nil {
+                Divider().padding(.horizontal, 12)
+                Button {
+                    showMoveToQuadrantSheet = true
+                } label: {
+                    HStack(spacing: HoloSpacing.sm) {
+                        rowIcon("arrow.up.and.down.and.sparkles")
+
+                        Text("移动到象限")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Spacer(minLength: HoloSpacing.md)
+
+                        Text(currentQuadrantLabel)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                            .multilineTextAlignment(.trailing)
+
+                        rowChevron
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+            }
+
 
             // 状态（编辑模式）
             if existingTask != nil {
@@ -1762,9 +1809,30 @@ struct TaskDetailView: View {
         return Calendar.current.isDateInToday(dueDate) ? .holoPrimary : .holoTextPrimary
     }
 
-    /// 轻重缓急行摘要：P 档 · 紧急分 · 去向（未判断=待整理）（2026-10-07 紧急分体系）
-    private var classificationSummaryText: String {
+    /// 移动到象限行摘要：当前实时解析格（未判断=待整理，多视图 §7）
+    private var currentQuadrantLabel: String {
         let effectiveDue = TodoTaskDatePolicy.effectiveDueDate(
+            dueDate: hasDueDate ? dueDate : nil,
+            isAllDay: !hasTime
+        )
+        return TaskQuadrantResolver.quadrant(
+            importance: classificationImportance,
+            mode: classificationUrgencyMode,
+            effectiveDue: effectiveDue,
+            now: Date(),
+            calendar: TaskAnalyticsPeriod.makeCalendar()
+        ).displayTitle
+    }
+
+    /// 象限移动提交后重读两轴，同步本页草稿与摘要显示
+    private func syncClassificationDraftFromTask() {
+        guard let task = existingTask else { return }
+        classificationImportance = task.importance
+        classificationUrgencyMode = task.urgencyMode
+    }
+
+    /// 轻重缓急行摘要：P 档 · 紧急分 · 去向（未判断=待整理）（2026-10-07 紧急分体系）
+    private var classificationSummaryText: String {        let effectiveDue = TodoTaskDatePolicy.effectiveDueDate(
             dueDate: hasDueDate ? dueDate : nil,
             isAllDay: !hasTime
         )

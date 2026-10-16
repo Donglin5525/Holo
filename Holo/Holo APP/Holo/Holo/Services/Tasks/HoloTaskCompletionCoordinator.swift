@@ -34,6 +34,8 @@ final class HoloTaskCompletionCoordinator: ObservableObject {
             case taskDetail
             case todayAgenda
             case todayTaskSection
+            /// 多视图矩阵格预览行（多视图方案 §8：同一完成契约）
+            case taskMatrix
         }
 
         /// 发起入口（banner 语义用）
