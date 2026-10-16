@@ -23,6 +23,7 @@ struct TaskCalendarView: View {
 
     @State private var showUnplannedSheet = false
     @State private var showOverdueSheet = false
+    @ObservedObject private var completionCoordinator = HoloTaskCompletionCoordinator.shared
 
     private var calendar: Calendar { model.calendar }
 
@@ -54,6 +55,10 @@ struct TaskCalendarView: View {
                 members: TaskCalendarProjection.unplannedMembers(from: model.activeMembers, now: model.now, calendar: calendar),
                 model: model,
                 actions: actions,
+                onUndoCompletion: {
+                    completionCoordinator.undo(in: repository)
+                    HapticManager.light()
+                },
                 footnote: String(localized: "没有计划时段的任务，包括已设截止的任务。选择任务后可安排到当前选中日。")
             )
         }
@@ -63,6 +68,10 @@ struct TaskCalendarView: View {
                 members: TaskCalendarProjection.overdueMembers(from: model.activeMembers, asOf: model.now, calendar: calendar),
                 model: model,
                 actions: actions,
+                onUndoCompletion: {
+                    completionCoordinator.undo(in: repository)
+                    HapticManager.light()
+                },
                 footnote: String(localized: "当前范围内已过截止时间的任务，与选中日期无关。")
             )
         }

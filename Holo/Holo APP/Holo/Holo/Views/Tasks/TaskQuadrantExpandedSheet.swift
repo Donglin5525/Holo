@@ -31,6 +31,9 @@ struct TaskQuadrantExpandedSheet: View {
     let actions: TaskRowActionHandlers
     let onCreateInQuadrant: (TaskQuadrant) -> Void
 
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var completionCoordinator = HoloTaskCompletionCoordinator.shared
+
     init(
         quadrant: TaskQuadrant,
         model: TaskExperienceViewModel,
@@ -113,6 +116,9 @@ struct TaskQuadrantExpandedSheet: View {
             .navigationTitle(quadrant.displayTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(String(localized: "关闭")) { dismiss() }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         onCreateInQuadrant(quadrant)
@@ -123,6 +129,21 @@ struct TaskQuadrantExpandedSheet: View {
                             .contentShape(Rectangle())
                     }
                     .accessibilityLabel(String(localized: "在\(quadrant.displayTitle)中新增任务"))
+                }
+            }
+            // 弹层会盖住主页面的撤回 banner：pending 期间在弹层内就地显示撤回条（§8）
+            .overlay(alignment: .bottom) {
+                if completionCoordinator.pending != nil {
+                    HoloUndoToast(
+                        message: String(localized: "已完成 · \(Int(HoloTaskCompletionCoordinator.confirmDelay)) 秒内可撤回"),
+                        onUndo: {
+                            completionCoordinator.undo(in: repository)
+                            HapticManager.light()
+                        }
+                    )
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.bottom, 12)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         }

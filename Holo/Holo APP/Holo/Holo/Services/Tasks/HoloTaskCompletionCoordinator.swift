@@ -115,6 +115,7 @@ final class HoloTaskCompletionCoordinator: ObservableObject {
         trigger: (checkItemID: UUID, wasChecked: Bool)? = nil,
         in repo: TodoRepository
     ) {
+        logger.log("完成请求入口：任务 \(taskID.uuidString, privacy: .public) source=\(source.rawValue, privacy: .public)")
         if let current = pending {
             if current.taskID == taskID {
                 // 同一任务已在窗口内：幂等忽略，不重复开窗
@@ -148,6 +149,7 @@ final class HoloTaskCompletionCoordinator: ObservableObject {
     /// 撤回当前窗口：取消计时，不落库；恢复触发子任务的原勾选状态，其他已勾子项不动。
     func undo(in repo: TodoRepository) {
         guard let current = pending else { return }
+        logger.log("撤回窗口 undo 执行：任务 \(current.taskID.uuidString, privacy: .public)")
         cancelTimer()
 
         if let triggerID = current.triggerCheckItemID,

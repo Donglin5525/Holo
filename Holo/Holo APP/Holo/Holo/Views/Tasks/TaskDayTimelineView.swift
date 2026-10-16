@@ -23,6 +23,7 @@ struct TaskDayTimelineView: View {
     let onCreateAtHour: (Int) -> Void
 
     @State private var conflictGroup: [TaskRecordSnapshot]?
+    @ObservedObject private var completionCoordinator = HoloTaskCompletionCoordinator.shared
 
     private let hourHeight: CGFloat = 64
     private let timeColumnWidth: CGFloat = 40
@@ -45,6 +46,10 @@ struct TaskDayTimelineView: View {
                 members: item.members,
                 model: model,
                 actions: actions,
+                onUndoCompletion: {
+                    completionCoordinator.undo(in: repository)
+                    HapticManager.light()
+                },
                 footnote: String(localized: "同一时间安排了多项任务，点击查看各自详情。")
             )
         }

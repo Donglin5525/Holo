@@ -139,6 +139,8 @@ struct TaskQuadrantBoardView: View {
     private func quadrantCell(_ quadrant: TaskQuadrant, members: [TaskRecordSnapshot]) -> some View {
         VStack(spacing: 0) {
             // 淡底标题区：上色线 + 标题/总数/副标题 + 44pt 新增热区（§9.2）
+            // 标题按钮必须撑满剩余宽度——HStack 里放 Spacer 会把它压缩到
+            // 文字不断行的最小宽度（走查实锤 73pt：副标题折行、与＋错位）
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Button {
@@ -149,6 +151,7 @@ struct TaskQuadrantBoardView: View {
                                 Text(quadrant.displayTitle)
                                     .font(.system(size: 15, weight: .semibold))
                                     .foregroundColor(quadrant.tintColor)
+                                    .lineLimit(1)
                                 Text(verbatim: "\(members.count)")
                                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                                     .foregroundColor(quadrant.tintColor.opacity(0.75))
@@ -156,14 +159,15 @@ struct TaskQuadrantBoardView: View {
                             Text(quadrant.subtitleText)
                                 .font(.system(size: 11))
                                 .foregroundColor(quadrant.tintColor.opacity(0.8))
+                                .lineLimit(2)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        .frame(minHeight: 44, alignment: .leading)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(String(localized: "\(quadrant.displayTitle)，\(quadrant.subtitleText)，\(members.count)项"))
 
-                    Spacer(minLength: 0)
                     Button {
                         onCreateInQuadrant(quadrant)
                     } label: {
@@ -265,7 +269,7 @@ struct TaskQuadrantBoardView: View {
                     }
                 }
                 .frame(width: 20, height: 20)
-                .frame(minWidth: 44, minHeight: 44, alignment: .topLeading)
+                .frame(minWidth: 44, minHeight: 44, alignment: .top)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
