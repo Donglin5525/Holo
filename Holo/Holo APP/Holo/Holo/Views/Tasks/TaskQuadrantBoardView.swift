@@ -57,6 +57,12 @@ struct TaskQuadrantBoardView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.holoContentWidth) private var contentWidth
 
+    /// 预览行字号（方案 B 图标槽位）：随动态字号缩放——
+    /// 标题基准 14 / subheadline，槽位文字 11、图标 9 / caption2
+    @ScaledMetric(relativeTo: .subheadline) private var previewTitleSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .caption2) private var previewSlotTextSize: CGFloat = 11
+    @ScaledMetric(relativeTo: .caption2) private var previewSlotIconSize: CGFloat = 9
+
     /// §9.4：375pt 默认字体仍 2×2；字号达 accessibility 或有效内容宽 <350 才单列
     private var usesSingleColumn: Bool {
         dynamicTypeSize.isAccessibilitySize || (contentWidth ?? 430) < 350
@@ -245,11 +251,14 @@ struct TaskQuadrantBoardView: View {
         }
     }
 
-    // MARK: - 预览行（完成圆圈 + 两行标题 + 一行清单/截止；长按正文拖动）
+    // MARK: - 预览行（方案 B 图标槽位：迷你进度环 + 标题 + 截止/计划两行槽位；长按正文拖动）
 
     private func previewRow(_ member: TaskRecordSnapshot, quadrant: TaskQuadrant) -> some View {
         let isPending = model.pendingCompletionTaskID == member.id
-        return HStack(alignment: .top, spacing: 4) {
+        let isDone = isPending || member.completed
+        let due = dueFact(member)
+        let plan = planText(member)
+        return HStack(alignment: .top, spacing: 8) {
             Button {
                 if isPending {
                     completionCoordinator.undo(in: repository)
@@ -259,21 +268,12 @@ struct TaskQuadrantBoardView: View {
                     HapticManager.taskCompletion()
                 }
             } label: {
-                ZStack {
-                    Circle()
-                        .strokeBorder(Color.holoToolTextSecondary.opacity(0.5), lineWidth: 1.5)
-                    if isPending || member.completed {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(.holoTextPrimary)
-                    }
-                }
-                .frame(width: 20, height: 20)
-                .frame(minWidth: 44, minHeight: 44, alignment: .top)
-                .contentShape(Rectangle())
+                miniProgressRing(member, isDone: isDone)
+                    .frame(width: 32, height: 44, alignment: .top)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(isPending || member.completed
+            .accessibilityLabel(isDone
                 ? String(localized: "恢复\(member.title)")
                 : String(localized: "完成\(member.title)"))
 
@@ -282,21 +282,32 @@ struct TaskQuadrantBoardView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(member.title)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(isPending || member.completed ? .holoToolTextSecondary : .holoTextPrimary)
+                        .font(.system(size: previewTitleSize, weight: .medium, design: .default))
+                        .foregroundColor(isDone ? .holoToolTextSecondary : .holoTextPrimary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-                        .strikethrough(isPending || member.completed, color: .holoTextPlaceholder)
-                    Text(previewMeta(member))
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary)
-                        .lineLimit(1)
+                        .strikethrough(isDone, color: .holoTextPlaceholder)
+                    VStack(alignment: .leading, spacing: 2) {
+                        // 槽1 时间事实：有截止 → calendar + 三态色；无截止但有计划 → clock + 计划时段上移
+                        if let due {
+                            previewSlot(text: due.text, icon: "calendar", color: due.color)
+                        } else if let plan {
+                            previewSlot(text: plan, icon: "clock", color: .holoTextSecondary)
+                        }
+                        // 槽2 执行事实：计划未占槽1时放计划，否则清单名纯文字兜底（无图标）
+                        if let plan, due != nil {
+                            previewSlot(text: plan, icon: "clock", color: .holoTextSecondary)
+                        } else {
+                            previewSlot(text: TaskExperienceRow.listLabel(for: member), icon: nil, color: .holoTextPlaceholder)
+                        }
+                    }
                 }
-                .frame(maxWidth: .infinity, minHeight: 68, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
+            .accessibilityLabel(previewVoiceOverLabel(member))
             .accessibilityAction(named: Text("移动到象限")) {
                 moveSheetTask = member
             }
@@ -308,19 +319,111 @@ struct TaskQuadrantBoardView: View {
                 TaskQuadrantDragPreview(member: member, quadrant: quadrant)
             }
         }
-        .padding(.horizontal, 6)
-        .opacity(isPending ? 0.55 : 1)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .opacity(isDone ? 0.55 : 1)
     }
 
-    private func previewMeta(_ member: TaskRecordSnapshot) -> String {
-        var parts = [TaskExperienceRow.listLabel(for: member)]
-        if let due = member.effectiveDue(calendar: model.calendar) {
-            parts.append(TaskExperienceRow.formatNatural(due, member: member, calendar: model.calendar) + String(localized: "截止"))
-        } else {
-            parts.append(String(localized: "未设截止"))
+    /// 迷你进度环（口径同 TaskExperienceRow.progressRing，缩到 20pt）：
+    /// 无子任务是 1.5pt 细空环；有子任务画 2pt 进度弧（至少留 5% 起点弧、-90° 起始）；
+    /// 完成/待确认叠对勾。点击行为仍是完成/撤回。
+    private func miniProgressRing(_ member: TaskRecordSnapshot, isDone: Bool) -> some View {
+        let items = member.checkItems
+        let fraction = items.isEmpty ? 0 : Double(items.filter(\.isChecked).count) / Double(items.count)
+        return ZStack {
+            Circle()
+                .stroke(Color.holoToolTextSecondary.opacity(0.5), lineWidth: 1.5)
+            if !items.isEmpty {
+                Circle()
+                    .trim(from: 0, to: max(fraction, 0.05))
+                    .stroke(Color.holoTextPrimary,
+                            style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(HoloAnimation.snappy, value: fraction)
+            }
+            if isDone {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.holoTextPrimary)
+            }
         }
-        return parts.joined(separator: " · ")
+        .frame(width: 20, height: 20)
     }
+
+    /// 图标槽位行：图标与文字同色、单行尾截断（方案 B：每槽只放一个字段，永不拼接）
+    private func previewSlot(text: String, icon: String?, color: Color) -> some View {
+        HStack(spacing: 3) {
+            if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: previewSlotIconSize))
+                    .foregroundColor(color)
+            }
+            Text(text)
+                .font(.system(size: previewSlotTextSize))
+                .foregroundColor(color)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+    }
+
+    /// 槽1 截止文案与三态色：逾期红 / 今天主色 / 其他次级。
+    /// 逾期非今天「M月d日 · 已逾期」；逾期且今天「今天 HH:mm · 已逾期」；
+    /// 未逾期复用 formatNatural 口径 +「截止」后缀（全天不含时刻）。
+    private func dueFact(_ member: TaskRecordSnapshot) -> (text: String, color: Color)? {
+        guard let due = member.effectiveDue(calendar: model.calendar) else { return nil }
+        if member.isOverdue(asOf: model.now, calendar: model.calendar) {
+            if model.calendar.isDateInToday(due) {
+                let time = member.isAllDay ? "" : " " + Self.slotTimeFormatter.string(from: due)
+                return (String(localized: "今天") + time + String(localized: " · 已逾期"), .holoToolError)
+            }
+            return (Self.slotDateFormatter.string(from: due) + String(localized: " · 已逾期"), .holoToolError)
+        }
+        let text = TaskExperienceRow.formatNatural(due, member: member, calendar: model.calendar) + String(localized: " 截止")
+        if model.calendar.isDateInToday(due) { return (text, .holoPrimary) }
+        return (text, .holoTextSecondary)
+    }
+
+    /// 计划时段文案：今天「HH:mm–HH:mm」；明天「明天 HH:mm–HH:mm」；更远「M月d日 HH:mm」（舍结束时刻）
+    private func planText(_ member: TaskRecordSnapshot) -> String? {
+        guard member.hasValidPlannedRange,
+              let start = member.plannedStart,
+              let end = member.plannedEnd else { return nil }
+        let range = "\(Self.slotTimeFormatter.string(from: start))–\(Self.slotTimeFormatter.string(from: end))"
+        if model.calendar.isDateInToday(start) { return range }
+        if model.calendar.isDateInTomorrow(start) { return String(localized: "明天") + " " + range }
+        return Self.slotDateFormatter.string(from: start) + " " + Self.slotTimeFormatter.string(from: start)
+    }
+
+    /// VoiceOver 合并朗读：标题 + 截止状态 + 计划时段 + 子任务 x/y
+    private func previewVoiceOverLabel(_ member: TaskRecordSnapshot) -> String {
+        var parts = [member.title]
+        if let due = dueFact(member) {
+            parts.append(due.text)
+        }
+        if let plan = planText(member) {
+            parts.append(String(localized: "计划 \(plan)"))
+        }
+        if !member.checkItems.isEmpty {
+            let done = member.checkItems.filter(\.isChecked).count
+            parts.append(String(localized: "子任务 \(done)/\(member.checkItems.count)"))
+        }
+        return parts.joined(separator: "，")
+    }
+
+    /// 槽位格式化器（与 TaskExperienceRow.formatNatural 同口径）
+    private static let slotDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("M月d日")
+        return formatter
+    }()
+
+    private static let slotTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
 
     // MARK: - 待整理与规则
 
