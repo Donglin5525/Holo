@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-10-17] 后端运维——关停阿里云「AI安全护栏」按次审核计费（env 总开关，无发版）
+
+> 东林查看阿里云账单发现「AI安全护栏」条目，问用途并拍板去掉。
+
+- **账单来源实锤**：不是 qwen 模型调用——是后端自建审核模块 `src/moderation/contentModerationService.js` 调阿里云文本审核增强版 textModerationPlus（服务 `chat_detection_pro`，接入点 `green-cip.cn-shanghai.aliyuncs.com`），账单归「AI安全护栏」产品线按次计费（文本审核高级 15元/万次）。当初为 App Store Guideline 1.2 合规而建，挂在 chat 输入/输出、想法洞察/分类简报/语义关联/主题洞察/自动整理、caption 等几乎所有 AI 链路按次调用；生产密钥已配且总开关未设（config 默认开）故持续计费。qwen/DashScope 调用链未传 `X-DashScope-DataInspection` 头，模型调用本身不产生此账单。
+- **关停操作**：ECS `deploy/.env.production` 追加 `HOLO_MODERATION_ENABLED=false`（先备份 `.env.production.bak.moderation-off-20261017`）+ `docker compose up -d --force-recreate holo-backend`；容器内 loadConfig 核验 `moderation.enabled=false`，本机/公网 health 绿，真实流量正常。纯 env 改动无发版、客户端零动作；回滚=删该行 env 重建。
+- **代码零改动**：模块保留休眠（enabled=false 时 fail-open 直接放行，审核服务异常时也放行不阻断 AI），合规能力一行 env 可恢复；`deploy/env.production.example` 补审核配置块文档（纯 ASCII 注释，守 .env 中文注释坑纪律）。
+- **顺带排除**：关停后冒烟看到的 `thought_semantic_relate` BACKGROUND_BUDGET_EXCEEDED 重试风暴系每日后台预算池用满的老现象（ai_call_logs UTC 时间戳换算核对，重启前已持续多日、次日零点自愈、零成本），与本次关停无因果；后台预算池日日打满是否调整待拍板。
+
+---
+
 ## [2026-10-17] 全页面设计挑刺三轮审查修复——10 项 P0/P1 + 深色七类通病 + AI 专属紫 + 弹层口径收敛（方案与规范）
 
 > 依据 docs/_common/notes/2026-10-17-全页面设计挑刺三轮审查报告.md（82 截图 + 10 评审代理 + 源码核证）。第一梯队 10 项 + 专项 B/C 全部实施并过模拟器判读验收（15/15 点 PASS）；专项 A 完成规范落档（设计规范新增 §8.8 弹层脚手架与返回/关闭语言）+ 通用组件 HoloSheetScaffold + 习惯打卡弹层贴底修复，逐页替换清单（P1 主流程 13 处 / P2 15 处）已列待后续轮次。
