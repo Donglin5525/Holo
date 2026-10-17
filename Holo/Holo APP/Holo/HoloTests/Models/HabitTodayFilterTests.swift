@@ -103,7 +103,7 @@ final class HabitHapticPolicyTests: XCTestCase {
         HabitActionReceipt(
             operationID: UUID(), habitId: UUID(), kind: .toggleCheckIn,
             recordId: nil, previousCheckInState: nil, newCheckInState: newState,
-            recordFingerprint: nil, isTodayFirstCompletion: firstCompletion
+            isTodayFirstCompletion: firstCompletion
         )
     }
 
@@ -119,7 +119,7 @@ final class HabitHapticPolicyTests: XCTestCase {
         XCTAssertEqual(HabitHapticPolicy.haptic(for: .increment(amount: 1), result: .confirmed(receipt(firstCompletion: false))), .light)
     }
 
-    func test_撤销补录与明细操作_恒light() {
+    func test_计数撤回与补录明细操作_恒light() {
         XCTAssertEqual(HabitHapticPolicy.haptic(for: .removeLatestNumeric, result: .confirmed(receipt())), .light)
         XCTAssertEqual(HabitHapticPolicy.haptic(for: .retroactive(mode: .sign, day: Date(), value: nil), result: .confirmed(receipt())), .light)
         XCTAssertEqual(HabitHapticPolicy.haptic(for: .updateRecord(recordId: UUID(), value: nil, note: nil), result: .confirmed(receipt())), .light)

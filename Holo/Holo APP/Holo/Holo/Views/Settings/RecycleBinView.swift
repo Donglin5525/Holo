@@ -101,7 +101,7 @@ struct RecycleBinView: View {
             Image(systemName: "trash.slash")
                 .font(.system(size: 40))
                 .foregroundColor(.holoToolTextSecondary)
-            Text("回收站是空的")
+            Text(String(localized: "最近删除是空的"))
                 .font(.holoBody)
                 .foregroundColor(.holoToolTextSecondary)
             Text("清空模块数据后，30 天内可在这里恢复")

@@ -180,19 +180,17 @@ enum HabitActionKind: Equatable {
     case deleteRecord(recordId: UUID)
 }
 
-/// 动作回执：scoped undo 的事实底账（方案 §11.3）
+/// 动作回执：记录动作的事实底账（原 scoped undo 底账，撤销通道 2026-10-17 退役后仍承载触觉/里程碑判定）
 struct HabitActionReceipt: Equatable {
     let operationID: UUID
     let habitId: UUID
     let kind: HabitActionKind
     /// 本次实际写入/修改的记录 ID（打卡可能复用既有行）
     let recordId: UUID?
-    /// 打卡翻转前状态（撤销恢复用）
+    /// 打卡翻转前状态
     let previousCheckInState: Bool?
     /// 打卡翻转后状态
     let newCheckInState: Bool?
-    /// 数值记录内容指纹（撤销前校验记录未被后续修改）
-    let recordFingerprint: String?
     /// 好习惯当天首次有效记录（决定暖光；Motion 中心另有当天去重）
     let isTodayFirstCompletion: Bool
 }

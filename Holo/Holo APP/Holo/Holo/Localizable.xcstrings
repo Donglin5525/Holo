@@ -1,6 +1,38 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "最近删除是空的" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently deleted is empty"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近刪除是空的"
+          }
+        }
+      }
+    },
+    "%lld 项已设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld set"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 項已設置"
+          }
+        }
+      }
+    },
     "" : {
       "localizations" : {
         "en" : {

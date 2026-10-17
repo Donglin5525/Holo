@@ -121,7 +121,7 @@ struct HabitTodayRecordSheet: View {
                 Text(lifecycleConfirmMessage)
             }
         }
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.medium])
         .onAppear { reloadRecords() }
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
             reloadRecords()

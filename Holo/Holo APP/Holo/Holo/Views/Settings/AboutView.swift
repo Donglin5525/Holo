@@ -33,6 +33,18 @@ struct AboutView: View {
         .background(Color.holoBackground)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            // sheet 自带 NavigationStack 且无系统返回键，没有关闭钮用户就退不出去
+            // （2026-10-17 设计走查实锤：只能靠重启 App 脱身）；对齐 §8.8 左上关闭惯例
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+                .accessibilityLabel(String(localized: "关闭"))
+            }
             ToolbarItem(placement: .principal) {
                 Text("关于 Holo")
                     .font(.holoHeading)

@@ -3,8 +3,8 @@
 //  HoloTests
 //
 //  2026-10-07 坏习惯超限提示恢复（交互重构 V1 未移植的回归）：
-//  投影层 HabitTodayProgress.isOverLimit 口径 + 记录成功后的警告条路由
-//  （旧磁贴版「已超当日限额」提示的 V1 接续，形态=底部反馈条警告态）。
+//  投影层 HabitTodayProgress.isOverLimit 口径 + 记录成功后的警告路由
+//  （旧磁贴版「已超当日限额」提示的 V1 接续；撤销条退役后形态=全局警告 toast）。
 //
 
 import XCTest
@@ -131,9 +131,9 @@ final class HabitOverLimitHintTests: XCTestCase {
         XCTAssertFalse(row.today.isOverLimit, "未设上限不判定超限")
     }
 
-    // MARK: 记录后警告条路由（VM 全链）
+    // MARK: 记录后超限警告路由（VM 全链；撤销条 2026-10-17 退役后警告走全局 toast）
 
-    func test_记录路由_超上限弹警告形态_未超弹普通形态() async throws {
+    func test_记录路由_超限弹警告toast_未超与好习惯超目标不弹() async throws {
         let repo = try makeStack()
         let context = try XCTUnwrap(ctx)
         let bad = try makeNumericHabit(in: context, name: "抽烟", isBadHabit: true, targetValue: 3)
@@ -146,25 +146,28 @@ final class HabitOverLimitHintTests: XCTestCase {
             coordinator: HabitActionCoordinator(repository: repo)
         )
 
-        // 坏习惯记到上限内（3）：普通「已记录」形态
+        // 坏习惯记到上限内（3）：不弹警告
         for _ in 0..<3 {
             await model.record(kind: .increment(amount: 1), habitId: bad.id)
         }
-        XCTAssertEqual(model.undoHint?.style, .recorded, "SUM=3 未超上限应普通形态")
+        XCTAssertNil(HoloToastCenter.shared.current, "SUM=3 未超上限不弹警告")
 
-        // 第 4 次超限：警告形态
+        // 第 4 次超限：警告 toast
         await model.record(kind: .increment(amount: 1), habitId: bad.id)
-        XCTAssertEqual(model.undoHint?.style, .overLimit, "SUM=4 > 上限 3 应警告形态")
-        XCTAssertEqual(model.undoHint?.text, String(localized: "已超当日限额，请注意控制"))
+        XCTAssertEqual(HoloToastCenter.shared.current?.text, String(localized: "已超当日限额，请注意控制"))
+        XCTAssertEqual(HoloToastCenter.shared.current?.type, .warning)
 
         // 好习惯超过目标值：不误报警告
+        HoloToastCenter.shared.current = nil
         for _ in 0..<9 {
             await model.record(kind: .increment(amount: 1), habitId: good.id)
         }
-        XCTAssertEqual(model.undoHint?.style, .recorded, "好习惯超目标不触发警告")
+        XCTAssertNil(HoloToastCenter.shared.current, "好习惯超目标不触发警告")
 
         // 行内超限状态随投影刷新
         let badRow = model.todayRows.first { $0.id == bad.id }
         XCTAssertTrue(badRow?.today.isOverLimit == true)
+
+        HoloToastCenter.shared.current = nil
     }
 }

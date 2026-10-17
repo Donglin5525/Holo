@@ -368,7 +368,7 @@ struct NotificationSettingsView: View {
         entryRow(
             icon: "bell.fill",
             title: String(localized: "任务提醒"),
-            summary: String(localized: "\(taskReminderCount) 条已设置"),
+            summary: String(localized: "\(taskReminderCount) 项已设置"),
             note: .tasks,
             noteText: String(localized: "各任务的提醒在对应任务的详情页设置：打开任务模块，点开任务后选择「提醒」。")
         )

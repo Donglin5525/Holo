@@ -105,18 +105,6 @@ struct HabitTodayView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { reorder.cancelDrag() }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            // 页面内撤销提示（底部导航之上；导航由容器层提供 inset）
-            if let hint = model.undoHint {
-                HabitRecordFeedbackView(hint: hint) {
-                    Task { await model.undoLast() }
-                } onExpire: {
-                    model.expireUndoHint()
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.easeOut(duration: 0.2), value: model.undoHint)
         .sheet(item: $measureInputTarget) { snapshot in
             HabitMeasureInputSheet(snapshot: snapshot) { value, note in
                 Task { await model.record(kind: .addNumeric(value: value), habitId: snapshot.id, note: note) }

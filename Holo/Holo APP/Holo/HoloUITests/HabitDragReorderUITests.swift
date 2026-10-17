@@ -108,8 +108,8 @@ final class HabitDragReorderUITests: XCTestCase {
             throw XCTSkip("当前库无数值型习惯行，无法验证超限警告条")
         }
 
-        // 连续点按直到警告条出现（上限 12 次防御：正常播种上限 3 支内触发）。
-        // 反馈条容器是 contain 模式（label 不聚合文本），文案断言走内部 staticText
+        // 连续点按直到警告出现（上限 12 次防御：正常播种上限 3 支内触发）。
+        // 撤销条退役后警告走全局 toast（overlay window），文案断言走 staticText
         let warningText = app.staticTexts["已超当日限额，请注意控制"].firstMatch
         var shown = false
         for _ in 0..<12 where !shown {
@@ -117,10 +117,7 @@ final class HabitDragReorderUITests: XCTestCase {
             shown = warningText.waitForExistence(timeout: 2)
         }
 
-        XCTAssertTrue(shown, "点按后未出现超限警告条文案")
-        XCTAssertTrue(app.otherElements["habit.feedback.container"].firstMatch.exists
-                      || app.buttons["habit.feedback.undo"].firstMatch.exists,
-                      "警告条容器/撤销按钮应存在")
+        XCTAssertTrue(shown, "点按后未出现超限警告 toast 文案")
 
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "over-limit-warning"

@@ -86,6 +86,8 @@
 		5A202607180000000000000007 /* TriggerDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607180000000000000008 /* TriggerDetectorTests.swift */; };
 		5A202607180000000000000009 /* ThoughtRichContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A20260718000000000000000A /* ThoughtRichContentTests.swift */; };
 		5A202607190000000000000011 /* LightweightOnboardingSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607190000000000000012 /* LightweightOnboardingSettingsTests.swift */; };
+		5D0ECA0000000000000000B1 /* MozeMergeRehearsalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000B2 /* MozeMergeRehearsalTests.swift */; };
+		5D0ECA0000000000000000C1 /* FinanceSemanticsUnificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000C2 /* FinanceSemanticsUnificationTests.swift */; };
 		5E3E2DB2A86C4845A1576752 /* EmojiCatalogSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DACE68F96BC4189A35FF7C0 /* EmojiCatalogSearchTests.swift */; };
 		5E7A2C92B4D3F0A8E6C10002 /* AppLockManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */; };
 		5E7A2C92B4D3F0A8E6C20002 /* BudgetCarryoverNotificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A2C91B4D3F0A8E6C20001 /* BudgetCarryoverNotificationServiceTests.swift */; };
@@ -399,8 +401,6 @@
 		F03D65A27A93D49503AC5E87 /* ThoughtRepositoryCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E74F0933584105B92897765 /* ThoughtRepositoryCalendarTests.swift */; };
 		F1121D5A8B37409D81782302 /* HoloAgentPersistenceStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08747A667360E9485FB9443 /* HoloAgentPersistenceStoreTests.swift */; };
 		F18A001B2C3D4E5F60718293 /* FinanceBillImportMatrixStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */; };
-		5D0ECA0000000000000000B1 /* MozeMergeRehearsalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000B2 /* MozeMergeRehearsalTests.swift */; };
-		5D0ECA0000000000000000C1 /* FinanceSemanticsUnificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000C2 /* FinanceSemanticsUnificationTests.swift */; };
 		F1AC00000000000000000FB2 /* FinanceProjectRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */; };
 		F1AC00000000000000000FB3 /* ReceiptAttachmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FA2 /* ReceiptAttachmentTests.swift */; };
 		F1AC00000000000000000FC2 /* StatisticsScopeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FC1 /* StatisticsScopeTests.swift */; };
@@ -574,6 +574,8 @@
 		5BD7196A9CD6BFA044B77449 /* HoloAgentResultRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentResultRendererTests.swift; sourceTree = "<group>"; };
 		5C8D2A1F9E3B4760B2D8F1A3 /* HoloDeterministicAnswerComposerStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloDeterministicAnswerComposerStandaloneTests.swift; sourceTree = "<group>"; };
 		5CCB941D00AFDF85C22A3EE1 /* GoalWorkshopModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GoalWorkshopModels.swift; path = Holo/Models/GoalWorkshopModels.swift; sourceTree = "<group>"; };
+		5D0ECA0000000000000000B2 /* MozeMergeRehearsalTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MozeMergeRehearsalTests.swift; sourceTree = "<group>"; };
+		5D0ECA0000000000000000C2 /* FinanceSemanticsUnificationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceSemanticsUnificationTests.swift; sourceTree = "<group>"; };
 		5D3A4266B8E20BFB85AAB16E /* InstallmentNoteSanitizerStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InstallmentNoteSanitizerStandaloneTests.swift; sourceTree = "<group>"; };
 		5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLockManagerTests.swift; sourceTree = "<group>"; };
 		5E7A2C91B4D3F0A8E6C20001 /* BudgetCarryoverNotificationServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BudgetCarryoverNotificationServiceTests.swift; sourceTree = "<group>"; };
@@ -874,8 +876,6 @@
 		EA77E10C0DE0000000000DD01 /* HoloMatterPlanLaunchTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMatterPlanLaunchTests.swift; sourceTree = "<group>"; };
 		EC3C97A9EBFDA416A105D738 /* CalendarEventProviderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarEventProviderTests.swift; sourceTree = "<group>"; };
 		F18A001B2C3D4E5F60718294 /* FinanceBillImportMatrixStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceBillImportMatrixStandaloneTests.swift; sourceTree = "<group>"; };
-		5D0ECA0000000000000000B2 /* MozeMergeRehearsalTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MozeMergeRehearsalTests.swift; sourceTree = "<group>"; };
-		5D0ECA0000000000000000C2 /* FinanceSemanticsUnificationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceSemanticsUnificationTests.swift; sourceTree = "<group>"; };
 		F1AAC3F4348C6ED22FB50C53 /* HealthInsightCacheTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightCacheTests.swift; sourceTree = "<group>"; };
 		F1AC00000000000000000FA1 /* FinanceProjectRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceProjectRepositoryTests.swift; sourceTree = "<group>"; };
 		F1AC00000000000000000FA2 /* ReceiptAttachmentTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptAttachmentTests.swift; sourceTree = "<group>"; };
