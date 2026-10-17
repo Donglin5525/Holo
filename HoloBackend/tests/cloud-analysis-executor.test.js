@@ -1771,3 +1771,90 @@ test("时间窗解析员：旧客户端(无 answerTask)同样触发解析", asyn
   const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
   assert.equal(result.taskRange.start, startSec, "旧客户端问句时间同样冻结");
 });
+
+// —— S2 融合版：确定性台账（financeEvidenceLedger）注入与核验（2026-10-18）——
+
+const LEDGER_SNAPSHOT = {
+  ...SNAPSHOT,
+  financeEvidenceLedger: "【窗口】本期 2026-04-21 ~ 2026-10-17；上期 2025-10-23 ~ 2026-04-20。\n总支出从上期的 170289.12 元变为本期的 185275.70 元（增加 14986.58 元，+8.8%）。\n【分期承诺全景】\n  60期×2533.33元/期：在库60行（合同本金与利率未提供，不得假设利息成本）。\n【已确认事实与已知风险】\n  1. 预算数据未进本台账：不得宣称超预算或达成预算。",
+};
+
+test("S2台账：快照带台账→首轮system注入<finance_evidence_ledger>；老快照不注入", async () => {
+  const provider = makeProvider([agentJson("final_claims", { claims: [] })]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-ledger", question: "分析我的支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(LEDGER_SNAPSHOT) });
+  await executor.run(task.id);
+
+  const system0 = provider.calls[0].messages.find((m) => m.role === "system");
+  assert.ok(system0.content.includes("<finance_evidence_ledger>\n【窗口】本期 2026-04-21"), "带台账快照必须注入台账段（内容级断言：v26提示词本身提及标签名，不能只查标签）");
+  assert.ok(system0.content.includes("185275.70"), "台账数字必须在 system 消息里");
+
+  // 老客户端回归：无字段不注入
+  const provider2 = makeProvider([agentJson("final_claims", { claims: [] })]);
+  const { store: store2, executor: executor2 } = makeExecutor(provider2);
+  const task2 = store2.create({ deviceId: "device-old", question: "分析我的支出" });
+  store2.attachSnapshot({ id: task2.id, snapshot: JSON.stringify(SNAPSHOT) });
+  await executor2.run(task2.id);
+  const systemOld = provider2.calls[0].messages.find((m) => m.role === "system");
+  assert.ok(!systemOld.content.includes("【窗口】本期 2026-04-21"), "老快照不得注入台账内容");
+});
+
+test("S2台账：claim直接引用台账数字（无工具断言）不被误撤——台账数字=已核验来源", async () => {
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      title: "支出微增但结余承压",
+      narrativeSummary: "总支出本期 185275.70 元，比上期多 14986.58 元。",
+      claims: [{
+        summary: "总支出对比",
+        displayText: "总支出从上期的 170289.12 元变为本期的 185275.70 元（增加 14986.58 元）",
+        metricAssertions: [],
+        evidenceIDs: [],
+        type: "change",
+        confidence: 0.8,
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-ledger2", question: "最近支出怎么样" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(LEDGER_SNAPSHOT) });
+  const status = await executor.run(task.id);
+  assert.equal(status, "completed");
+  const fetched = store.getDecrypted(task.id, ["result"]);
+  const result = JSON.parse(fetched.result);
+  assert.equal(result.claims.length, 1, "引用台账数字的 claim 不应被 NUMERIC_CLAIM_UNVERIFIED 撤回");
+  assert.ok(result.title.includes("结余"), "叙事字段数字来自台账不应被清空");
+});
+
+test("S2台账：输出混入自我对话→claim撤回+触发修复轮，修复后干净交付", async () => {
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "餐饮支出 102 元。等等，让我重新核对一下这个数字对不对",
+        metricAssertions: [],
+        evidenceIDs: [],
+        type: "observation",
+      }],
+    }),
+    agentJson("final_claims", {
+      title: "餐饮平稳",
+      claims: [{
+        displayText: "本期没有发现值得调整的异常",
+        metricAssertions: [],
+        evidenceIDs: [],
+        type: "observation",
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-selftalk", question: "分析支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+  const status = await executor.run(task.id);
+  assert.equal(status, "completed");
+  const fetched = store.getDecrypted(task.id, ["result"]);
+  const result = JSON.parse(fetched.result);
+  assert.equal(result.claims.length, 1);
+  assert.ok(!result.claims[0].displayText.includes("等等"), "污染 claim 不得交付");
+  // 修复轮被触发过（第二轮模型调用收到撤回原因）
+  assert.ok(provider.calls.length >= 2, "污染必须触发修复轮");
+});

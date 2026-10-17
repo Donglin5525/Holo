@@ -249,7 +249,11 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts,
     // 合成复现实锤空数据 + 编造「本月支出 99999 元」可穿透防线交付 completed。
     // 现在无论台账是否有数，数字结论必须挂得上断言/引用，挂不上就剥离；
     // 全部剥空走既有诚实失败路径（修复轮 → 仍空 → failed）。
-    if (!hasAssertion && !hasEvidence && extractCheckableNumbers(text).length > 0) {
+    const claimNums = extractCheckableNumbers(text);
+    const ledgerSupported = claimNums.length > 0
+      && financeLedgerNumbers.length > 0
+      && claimNums.every((n) => numberMatchesAllowed(n, financeLedgerNumbers));
+    if (!hasAssertion && !hasEvidence && claimNums.length > 0 && !ledgerSupported) {
       warnings.push(`NUMERIC_CLAIM_UNVERIFIED:${sanitized.id ?? "claim"}`);
       dropped.push({ id: sanitized.id ?? null, reason: "数字既无断言也无引用支撑", excerpt: text.slice(0, 60) });
       continue;
