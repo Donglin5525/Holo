@@ -134,7 +134,7 @@ struct VoiceRecognitionSettingsView: View {
                 case .failure(let message):
                     Label(message, systemImage: "xmark.circle.fill")
                         .font(.caption)
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                 }
             }
         } header: {

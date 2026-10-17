@@ -55,9 +55,6 @@ struct HabitTodayRecordSheet: View {
                         todaySummary(row)
                         historySection(row)
                         recordsSection(row)
-                        primaryAction(row)
-                        reviewEntry(row)
-                        settingsEntry(row)
                     } else {
                         Text(String(localized: "这个习惯已不可用"))
                             .holoText(.body)
@@ -68,9 +65,21 @@ struct HabitTodayRecordSheet: View {
                 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.sm)
-                .padding(.bottom, 46)
+                .padding(.bottom, HoloSpacing.md)
+                // 补签直达挂本节点（···菜单入口，2026-10-15）：与 pauseTarget /
+                // editingRecord 分属三个节点，同链多 sheet 会互吞
+                .sheet(item: $retroTarget) { context in
+                    HabitRetroactiveSheet(context: context)
+                }
             }
             .background(Color.holoToolBackground)
+            // 主操作贴底（§8.7 定式 9 / §8.8 规则 2）：打卡按钮固定在弹层底部
+            // 安全区，无数据时不再悬在屏中、下方留大片空白
+            .safeAreaInset(edge: .bottom) {
+                if let row {
+                    primaryAction(row)
+                }
+            }
             .navigationTitle(row?.name ?? String(localized: "今天的记录"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -121,7 +130,7 @@ struct HabitTodayRecordSheet: View {
             if let record = findRecord(target.recordId) {
                 HabitRecordEditSheet(
                     record: record,
-                    isCountType: row?.kind == .count,
+                    kind: row?.kind ?? .checkIn,
                     unit: row?.target?.unit
                 ) { value, note in
                     Task {
@@ -181,6 +190,8 @@ struct HabitTodayRecordSheet: View {
     }
 
     // MARK: 大数字区（今天优先；今天无记录时给历史锚点）
+    // 2026-10-15 P2 收敛：底部「查看长期回顾/习惯设置」两行撤光，「看进度」
+    // 并进本区右侧——点整个数字卡直达单习惯回顾（设置只在 ··· 菜单）
 
     /// 大数字区内容：label（小字定性）/ value（大数字）/ sub（次行说明）
     private struct HeroContent {
@@ -191,22 +202,47 @@ struct HabitTodayRecordSheet: View {
 
     private func todaySummary(_ row: HabitRowSnapshot) -> some View {
         let content = hero(row)
-        return VStack(alignment: .leading, spacing: 4) {
-            Text(content.label)
-                .font(.system(size: 11))
-                .foregroundColor(.holoToolTextSecondary)
-            Text(content.value)
-                .font(.system(size: 25, weight: .semibold).monospacedDigit())
-                .foregroundColor(.holoToolText)
-            Text(content.sub)
-                .font(.system(size: 12))
-                .foregroundColor(.holoToolTextSecondary)
+        return Button {
+            dismiss()
+            onOpenReview(habitId)
+        } label: {
+            HStack(alignment: .center, spacing: HoloSpacing.md) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(content.label)
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoToolTextSecondary)
+                    Text(content.value)
+                        .font(.system(size: 25, weight: .semibold).monospacedDigit())
+                        .foregroundColor(.holoToolText)
+                    Text(content.sub)
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+                Spacer(minLength: 0)
+                VStack(spacing: 3) {
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundColor(Color(hex: row.colorHex))
+                    HStack(spacing: 2) {
+                        Text(String(localized: "看进度"))
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundColor(Color(hex: row.colorHex))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundColor(Color(hex: row.colorHex).opacity(0.6))
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 10)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.holoToolInset.opacity(0.4)))
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 14)
-        .overlay(alignment: .top) { separatorLine }
-        .overlay(alignment: .bottom) { separatorLine }
+        .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
+        .accessibilityHint(Text(String(localized: "查看这个习惯的进度与走势")))
     }
 
     private func hero(_ row: HabitRowSnapshot) -> HeroContent {
@@ -610,70 +646,16 @@ struct HabitTodayRecordSheet: View {
                 )
             }
             .buttonStyle(HoloPressStyle())
-            .padding(.top, 6)
+            .padding(.top, HoloSpacing.sm)
+            .padding(.bottom, HoloSpacing.sm)
+            .padding(.horizontal, HoloSpacing.lg)
+            .background(.ultraThinMaterial)
             .disabled(model.coordinator.savingHabitIds.contains(habitId))
             .accessibilityIdentifier("habit.todayrecord.primary")
         }
     }
 
-    // MARK: 习惯设置入口
-
-    private func settingsEntry(_ row: HabitRowSnapshot) -> some View {
-        Button {
-            dismiss()
-            onOpenSettings(habitId)
-        } label: {
-            HStack(spacing: HoloSpacing.md) {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.system(size: 15))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .frame(width: 26)
-                Text(String(localized: "习惯设置"))
-                    .font(.holoBody)
-                    .foregroundColor(.holoToolText)
-                Spacer()
-                Text(String(localized: "目标与提醒"))
-                    .font(.system(size: 10))
-                    .foregroundColor(.holoToolTextSecondary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoToolTextSecondary.opacity(0.6))
-            }
-            .frame(minHeight: 52)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: 查看长期回顾（方案A：入口保留，文案设定正确预期——进去是走势与对比，不是同一张图）
-
-    private func reviewEntry(_ row: HabitRowSnapshot) -> some View {
-        Button {
-            dismiss()
-            onOpenReview(habitId)
-        } label: {
-            HStack(spacing: HoloSpacing.md) {
-                Image(systemName: "chart.line.uptrend.xyaxis")
-                    .font(.system(size: 15))
-                    .foregroundColor(Color(hex: row.colorHex))
-                    .frame(width: 26)
-                Text(String(localized: "查看长期回顾"))
-                    .font(.holoBody)
-                    .foregroundColor(.holoToolText)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoToolTextSecondary.opacity(0.6))
-            }
-            .frame(minHeight: 52)
-            .contentShape(Rectangle())
-            .overlay(alignment: .top) { separatorLine }
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("habit.todayrecord.review")
-    }
-
-    // MARK: ··· 管理菜单（设置/暂停/归档/删除一手可达；动作按生命周期动态出）
+    // MARK: ··· 管理菜单（设置/补签/暂停/归档/删除一手可达；动作按生命周期动态出）
 
     private var lifecycleMenu: some View {
         Menu {
@@ -682,6 +664,18 @@ struct HabitTodayRecordSheet: View {
                 onOpenSettings(habitId)
             } label: {
                 Label(String(localized: "习惯设置"), systemImage: "slider.horizontal.3")
+            }
+            if row?.kind == .checkIn, row?.lifecycle == .active,
+               let habit = HabitRepository.shared.findHabit(by: habitId) {
+                Button {
+                    retroTarget = HabitRetroactiveSheetContext(
+                        habit: habit,
+                        preselectedDay: nil,
+                        mode: .sign
+                    )
+                } label: {
+                    Label(String(localized: "补签"), systemImage: "clock.arrow.circlepath")
+                }
             }
             Divider()
             switch row?.lifecycle ?? .active {
@@ -785,6 +779,8 @@ struct HabitTodayRecordSheet: View {
     @State private var editingRecord: EditTarget?
     @State private var pendingDeleteRecordId: UUID?
     @State private var showDeleteConfirm = false
+    /// ··· 菜单直达补签（窗口内漏卡日自选；无可补日弹层内有空态说明）
+    @State private var retroTarget: HabitRetroactiveSheetContext? = nil
 
     /// 计数/测量主输入通道（容器侧挂 HabitMeasureInputSheet）
     var onRequestMeasureInput: ((UUID) -> Void)? = nil

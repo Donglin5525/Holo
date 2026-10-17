@@ -1339,11 +1339,19 @@ extension ChatCardData: Sendable {}
 extension ChatCardData {
     /// 待确认类卡片：写操作还没经用户拍板。多卡汇总话术据此区分
     /// 「已处理」与「待确认」，不再对未确认的卡片说「已为你处理」。
+    /// 必须覆盖全部带确认流程的卡片（交易/任务/预算/纪念日/目标选择）：
+    /// 任何一类被排除，汇总计数就会与下方卡片真实状态对不上。
     var isPendingConfirmation: Bool {
         switch self {
         case .transaction(let data):
             return ["pending", "confirming"].contains(data.confirmationStatus ?? "")
         case .task(let data):
+            return data.requiresConfirmation
+        case .budget(let data):
+            return data.requiresConfirmation
+        case .anniversary(let data):
+            return data.requiresConfirmation
+        case .goalChoice(let data):
             return data.requiresConfirmation
         default:
             return false

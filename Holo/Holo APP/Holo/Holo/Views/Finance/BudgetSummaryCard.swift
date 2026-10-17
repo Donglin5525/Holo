@@ -43,28 +43,7 @@ struct BudgetSummaryCard: View {
                 }
 
                 // 进度条
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(Color.holoBorder.opacity(0.3))
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(
-                                LinearGradient(
-                                    colors: gradientColors(for: summary.progress),
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(width: geo.size.width * min(CGFloat(summary.progress), 1.0))
-                            .overlay {
-                                if summary.isOverBudget {
-                                    OverBudgetStripeOverlay()
-                                        .clipShape(RoundedRectangle(cornerRadius: 3))
-                                }
-                            }
-                    }
-                }
-                .frame(height: 6)
+                HoloProgress(value: summary.progress, color: budgetProgressColor(summary.progress), lineWidth: 6)
 
                 Text(summary.isOverBudget
                      ? String(localized: "超支 \(NumberFormatter.compactCurrency(summary.totalSpentAmount - summary.totalBudgetAmount))")
@@ -98,12 +77,6 @@ struct BudgetSummaryCard: View {
 
     // MARK: - Helpers
 
-    private func gradientColors(for progress: Double) -> [Color] {
-        // 与看板 KanbanBudgetSection 预算色阶口径一致：超支红 / 80%+ 主橙 / 60%+ 主橙 / 安全线绿
-        if progress >= 1.0 { return [.holoError, .holoErrorDark] }
-        else if progress >= 0.8 { return [.holoPrimary, .holoPrimaryDark] }
-        else if progress >= 0.6 { return [.holoPrimary, .holoPrimaryDark] }
-        else { return [.holoSuccess, .holoSuccessDark] }
-    }
+
 
 }

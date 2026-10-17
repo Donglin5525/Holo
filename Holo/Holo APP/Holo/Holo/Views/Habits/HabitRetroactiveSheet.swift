@@ -274,7 +274,7 @@ struct HabitRetroactiveSheet: View {
 
                 Text("漏卡")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
                     .background(Color.holoError.opacity(0.1))

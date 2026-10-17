@@ -114,7 +114,7 @@ struct FieldMappingEditor: View {
                 if required && !isAmountSelected {
                     Text("(必选)")
                         .font(.system(size: 11))
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                 }
             }
 

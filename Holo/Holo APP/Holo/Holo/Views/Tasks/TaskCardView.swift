@@ -93,7 +93,7 @@ struct TaskCardView: View {
                 Button(action: toggleCompletion) {
                     Image(systemName: showsCompleted ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 22, weight: .medium))
-                        .foregroundColor(showsCompleted ? .holoPrimary : .holoTextSecondary)
+                        .foregroundColor(showsCompleted ? .holoPrimary : .holoToolTextSecondary)
                         .symbolEffect(.bounce, value: showsCompleted)
                         // 固定网格宽：子任务勾选框按此宽居中对齐，保证上下文字同线
                         .frame(width: 22, height: 22)

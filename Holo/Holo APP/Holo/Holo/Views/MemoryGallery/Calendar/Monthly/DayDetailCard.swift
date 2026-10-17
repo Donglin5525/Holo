@@ -102,9 +102,10 @@ struct DayDetailCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .background(Color.holoCardBackground.opacity(0.32))
+            // 深色下虚线描边隐身：改完整 ToolBorder（深色档比 Border 亮一档）
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .stroke(Color.holoBorder.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .stroke(Color.holoToolBorder, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
             )
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }

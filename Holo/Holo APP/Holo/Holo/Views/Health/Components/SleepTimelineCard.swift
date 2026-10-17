@@ -84,28 +84,24 @@ struct SleepTimelineCard: View {
     // MARK: - 时间轴主体（真实比例定位，空隙留白）
 
     private func timelineBar(span: TimeInterval) -> some View {
-        let nightStart = timeline.nightStart!
         let segments = Self.displaySegments(from: timeline.segments)
-        return GeometryReader { proxy in
-            let width = proxy.size.width
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.holoNestedCardBackground)
-                    .frame(maxWidth: .infinity)
-                ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
-                    let ratio = segment.start.timeIntervalSince(nightStart) / span
-                    let widthRatio = segment.duration / span
-                    Rectangle()
-                        .fill(Self.color(for: segment.stage))
-                        .frame(width: min(max(widthRatio * width + 0.5, 1), width))
-                        .offset(x: ratio * width)
-                }
-            }
-            .frame(height: 24)
-            .clipShape(Capsule())
-            .position(x: width / 2, y: proxy.size.height / 2)
+        return HoloRangeTimeline(start: timeline.nightStart ?? detail.date,
+                                 end: timeline.nightEnd ?? detail.date,
+                                 segments: segments.enumerated().map { index, segment in
+            HoloTimelineSegment(id: String(index), start: segment.start, end: segment.end,
+                                label: Self.stageLabel(segment.stage), color: Self.color(for: segment.stage))
+        })
+    }
+
+    private static func stageLabel(_ stage: HealthSleepSegment.Stage) -> String {
+        switch stage {
+        case .asleepDeep: return "深睡"
+        case .asleepCore: return "核心睡眠"
+        case .asleepREM: return "REM"
+        case .awake: return "清醒"
+        case .inBedAwake: return "在床"
+        case .asleepUnspecified: return "睡眠"
         }
-        .frame(height: 28)
     }
 
     // MARK: - 整点刻度

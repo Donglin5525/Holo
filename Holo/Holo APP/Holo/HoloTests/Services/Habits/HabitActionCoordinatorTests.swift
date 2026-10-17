@@ -135,6 +135,26 @@ final class HabitActionCoordinatorTests: XCTestCase {
 
     // MARK: - 数值与撤销
 
+    func test_打卡记录编辑忽略数值只改备注() async throws {
+        let (actionCoordinator, repo, context) = try makeStack()
+        let habit = try makeHabit(in: context)
+        try context.save()
+
+        _ = try repo.toggleCheckIn(for: habit, note: nil)
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(format: "habitId == %@ AND deletedAt == nil", habit.id as CVarArg)
+        request.fetchLimit = 1
+        let record = try XCTUnwrap(try context.fetch(request).first)
+
+        _ = await actionCoordinator.perform(
+            .updateRecord(recordId: record.id, value: 5, note: "补个备注"),
+            habitId: habit.id
+        )
+
+        XCTAssertNil(record.valueDouble, "打卡记录只有「做了/没做」语义，编辑不得写入 value")
+        XCTAssertEqual(record.note, "补个备注")
+    }
+
     func test_测量保存0是有效记录() async throws {
         let (actionCoordinator, repo, context) = try makeStack()
         let habit = try makeHabit(in: context, type: .numeric, aggregation: .latest, unit: "kg")

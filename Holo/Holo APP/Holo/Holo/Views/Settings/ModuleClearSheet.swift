@@ -82,7 +82,7 @@ struct ModuleClearSheet: View {
                     if let errorMessage {
                         Text(errorMessage)
                             .font(.system(size: 13))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
 
                     clearButton
@@ -118,7 +118,7 @@ struct ModuleClearSheet: View {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: module.icon)
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                 Text("将清空\(module.displayName)模块的全部记录")
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)

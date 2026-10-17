@@ -45,7 +45,7 @@ struct HoloMemoryRecordDetailView: View {
                 if let errorMessage {
                     Label(errorMessage, systemImage: "exclamationmark.circle")
                         .font(.holoCaption)
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                 }
             }
             .padding(HoloSpacing.lg)

@@ -48,6 +48,9 @@ struct TaskCalendarView: View {
             } else {
                 daySection
             }
+
+            // 右下浮动「新增」让位：滚动到底时最后一行的入口与 chevron 不被浮钮压住
+            Color.clear.frame(height: 140)
         }
         .sheet(isPresented: $showUnplannedSheet) {
             TaskPresentationListSheet(
@@ -303,7 +306,7 @@ struct TaskCalendarView: View {
             } label: {
                 Text("查看当前范围逾期任务 \(overdueCount) 项")
                     .font(.system(size: 13))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .background(
                         RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)

@@ -120,10 +120,10 @@ struct ImportResultSheet: View {
                         if !result.saveSucceeded {
                             HStack(spacing: 8) {
                                 Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.red)
+                                    .foregroundColor(.holoToolError)
                                 Text("部分数据可能未保存成功，建议重新导入")
                                     .font(.system(size: 13))
-                                    .foregroundColor(.red)
+                                    .foregroundColor(.holoToolError)
                             }
                             .padding(12)
                             .background(Color.red.opacity(0.08))
@@ -173,7 +173,7 @@ struct ImportResultSheet: View {
                                 Text("撤回此次导入")
                             }
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.red)
+                            .foregroundColor(.holoToolError)
                             .frame(maxWidth: .infinity)
                             .frame(height: 44)
                             .background(Color.red.opacity(0.08))

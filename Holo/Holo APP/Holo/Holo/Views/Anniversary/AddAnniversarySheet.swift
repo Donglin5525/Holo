@@ -588,10 +588,10 @@ struct AddAnniversarySheet: View {
                         Text(String(localized: "删除这个纪念日"))
                     }
                     .font(.holoBody)
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, HoloSpacing.md)
-                    .background(Color.holoErrorLight)
+                    .background(Color.holoError.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                 }
             }

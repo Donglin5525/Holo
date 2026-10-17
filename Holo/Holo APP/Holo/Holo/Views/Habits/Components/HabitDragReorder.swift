@@ -95,9 +95,14 @@ final class HabitListReorderModel: ObservableObject {
     /// 「习惯记录点击不动」即会话状态永久卡死后被全页 guard 静默吞点击。
     private var lastGestureActivity: Date?
 
-    /// 会话陈旧窗口：超过即视为手势已死、自愈为非交互态。长于正常拖拽里
-    /// 最长的无手指移动间隙（按住停住/边缘慢慢滚），短到用户无感知。
-    private static let sessionStaleWindow: TimeInterval = 8
+    /// 会话陈旧窗口：超过即视为手势已死。它同时是「onEnded 丢失后点击被吞的
+    /// 最大时长」——2026-10-15 东林真机复报「拖完换序后点打卡间歇性不动」，
+    /// iOS 26 长按序列手势正常完成也可能丢 onEnded（速查表实锤不可全信），
+    /// 8s 吞点击窗口太长。正常拖拽中 dragMoved 手指动 1pt 就刷新、边缘按住
+    /// 时自动滚动 0.09s 步进刷新，都远在窗口内续命；只有「按住完全不动」
+    /// 超窗，而超窗不清会话（手指可能仍在屏上），仅由 admitInteraction
+    /// 在点击时刻校验放行。
+    private static let sessionStaleWindow: TimeInterval = 2
 
     /// isLifting 延迟解锁的代数令牌：新会话开始时递增，作废上一会话挂起的
     /// 解锁闭包（陈旧清场后立即重开新会话时防误清）
@@ -112,9 +117,25 @@ final class HabitListReorderModel: ObservableObject {
     /// 松手且顺序有变化时同步回调（视图层负责落库；draggedId 供失败提示定位）
     var onCommit: ((HabitReorderSection, [UUID], UUID) -> Void)?
 
+    /// 相邻换位前置校验（视图注入）。今天页 P2 分节渲染后，全局顺序数组里
+    /// 相邻两行可能分属不同节——跨节换位会打乱节内顺序且视觉无反馈，
+    /// 视图注入「同节才可换」的谓词；nil = 不限制（排序弹层等平面列表）。
+    var canSwapAdjacent: ((UUID, UUID) -> Bool)?
+
     var isInteracting: Bool {
         guard isLifting || draggingId != nil else { return false }
         return !isSessionStale
+    }
+
+    /// 行内按钮点击时刻的放行校验（视图层 guard 一律走它，不直接读 isInteracting）：
+    /// 会话陈旧 = 手势回调已丢失、手指早已离屏 —— 就地清场残留会话并放行本次
+    /// 点击，不等陈旧窗口被动走完（吞点击窗口从「等满窗口」缩到「点一下即愈」）；
+    /// 会话活跃 = 手指大概率仍在屏上 —— 拒绝，防拖拽误触行内按钮。
+    func admitInteraction() -> Bool {
+        guard isLifting || draggingId != nil else { return true }
+        guard isSessionStale else { return false }
+        cancelDrag()
+        return true
     }
 
     /// 测试专用：把会话活动时刻回拨（模拟手势回调彻底丢失后的时间流逝）
@@ -167,15 +188,17 @@ final class HabitListReorderModel: ObservableObject {
         s.liveTranslation = translationY
         lastGestureActivity = Date()
 
-        // 跨行换位：位移越过相邻行（实测高度 + 间距）的一半
+        // 跨行换位：位移越过相邻行（实测高度 + 间距）的一半；跨节不换（分节渲染）
         if var order = orders[s.section] {
             let d = translationY - s.anchorShift
             let rowHeight = { [weak self] (id: UUID) -> CGFloat in
                 self?.rowHeights[id] ?? HabitReorderFeel.fallbackRowHeight
             }
             if d > 0, s.currentIndex < order.count - 1 {
-                let step = rowHeight(order[s.currentIndex + 1]) + s.spacing
-                if d > step / 2 {
+                let nextId = order[s.currentIndex + 1]
+                let canSwap = canSwapAdjacent?(order[s.currentIndex], nextId) ?? true
+                let step = rowHeight(nextId) + s.spacing
+                if canSwap, d > step / 2 {
                     order.swapAt(s.currentIndex, s.currentIndex + 1)
                     orders[s.section] = order
                     s.anchorShift += step
@@ -183,8 +206,10 @@ final class HabitListReorderModel: ObservableObject {
                     HabitReorderFeel.swapHaptic()
                 }
             } else if d < 0, s.currentIndex > 0 {
-                let step = rowHeight(order[s.currentIndex - 1]) + s.spacing
-                if -d > step / 2 {
+                let prevId = order[s.currentIndex - 1]
+                let canSwap = canSwapAdjacent?(order[s.currentIndex], prevId) ?? true
+                let step = rowHeight(prevId) + s.spacing
+                if canSwap, -d > step / 2 {
                     order.swapAt(s.currentIndex - 1, s.currentIndex)
                     orders[s.section] = order
                     s.anchorShift -= step

@@ -33,10 +33,10 @@ struct TaskSplitEntryRow: View {
             Button(action: action) {
                 Text("拆成几步")
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(Color.holoPrimary)
+                    .foregroundStyle(Color.holoToolAI)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(Capsule().fill(Color.holoPrimary.opacity(0.1)))
+                    .background(Capsule().fill(Color.holoToolAI.opacity(0.1)))
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("taskSplitEntryButton")

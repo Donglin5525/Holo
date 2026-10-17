@@ -2,8 +2,9 @@
 //  OnboardingCapabilitiesPage.swift
 //  Holo
 //
-//  轻量新人引导第二页：三个核心使用动作（记录 / 查询 / 回看）。
-//  仅静态说明，不发送消息或创建数据。
+//  轻量新人引导第二页：一屏讲清「Holo 是什么」。
+//  功能深讲已移到预置欢迎笔记（完成引导后深链直达），本页只留最小认知；
+//  底部一句预告让用户对即将打开的欢迎笔记有预期，不被自动跳转搞懵。
 //
 
 import SwiftUI
@@ -17,41 +18,42 @@ struct OnboardingCapabilitiesPage: View {
         ZStack {
             Color.holoBackground.ignoresSafeArea()
 
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: HoloSpacing.lg) {
-                    Spacer().frame(height: HoloSpacing.xl)
+            VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+                Spacer()
+                Spacer()
 
-                    Text("你可以这样使用 Holo")
-                        .font(.holoTitle)
-                        .foregroundColor(.holoTextPrimary)
+                Text("Holo 是什么")
+                    .font(.holoTitle)
+                    .foregroundColor(.holoTextPrimary)
 
-                    OnboardingCapabilityCard(
+                Text(String(localized: "一个把生活记录在一起的地方——念头、账单、待办、习惯，时间久了，汇成你的记忆。"))
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                    capabilityRow(
                         icon: "square.and.pencil",
-                        title: String(localized: "一句话记录"),
-                        description: String(localized: "不用先找入口，直接告诉 Holo 发生了什么。"),
-                        example: String(localized: "“午饭花了 35 元”"),
-                        footnote: String(localized: "还可以创建待办、记录想法、习惯打卡。")
-                    )
-
-                    OnboardingCapabilityCard(
+                        text: String(localized: "一句话记录，不用先找入口"))
+                    capabilityRow(
                         icon: "bubble.left.and.text.bubble.right",
-                        title: String(localized: "直接问自己的数据"),
-                        description: String(localized: "想知道最近的情况，直接用自然语言提问。"),
-                        example: String(localized: "“这个月餐饮花了多少？”"),
-                        footnote: nil
-                    )
-
-                    OnboardingCapabilityCard(
+                        text: String(localized: "像聊天一样，直接问自己的数据"))
+                    capabilityRow(
                         icon: "book.closed",
-                        title: String(localized: "回看生活变化"),
-                        description: String(localized: "记忆长廊会把不同模块的记录串成时间线，方便回看。"),
-                        example: String(localized: "财务、待办、习惯和想法会出现在同一段生活轨迹中。"),
-                        footnote: nil
-                    )
+                        text: String(localized: "生活轨迹串成时间线，方便回看"))
                 }
-                .padding(.horizontal, HoloSpacing.xl)
-                .padding(.bottom, HoloSpacing.xxl)
+                .padding(.top, HoloSpacing.sm)
+
+                Spacer()
+                Spacer()
+
+                Text(String(localized: "进入后有一篇欢迎笔记，带你逛完各个模块"))
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, HoloSpacing.md)
             }
+            .padding(.horizontal, HoloSpacing.xl)
         }
         .safeAreaInset(edge: .bottom) {
             OnboardingPrimaryButton(title: String(localized: "下一步")) { onNext() }
@@ -61,61 +63,21 @@ struct OnboardingCapabilitiesPage: View {
                 .background(Color.holoBackground)
         }
     }
-}
 
-// MARK: - 能力卡
+    /// 轻要点行：图标 + 一句话（能力卡已随深讲移至欢迎笔记，这里不留卡片）
+    private func capabilityRow(icon: String, text: String) -> some View {
+        HStack(spacing: HoloSpacing.md) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundColor(.holoPrimary)
+                .frame(width: 32, height: 32)
+                .background(Color.holoPrimaryLight.opacity(0.5))
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
 
-/// 能力卡：图标 + 标题 + 说明 + 示例（引文样式）+ 可选补充小字。
-struct OnboardingCapabilityCard: View {
-    let icon: String
-    let title: String
-    let description: String
-    let example: String
-    let footnote: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack(spacing: HoloSpacing.md) {
-                Image(systemName: icon)
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 40, height: 40)
-                    .background(Color.holoPrimaryLight.opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-
-                Text(title)
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
-            }
-
-            Text(description)
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(example)
+            Text(text)
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, HoloSpacing.md)
-                .overlay(alignment: .leading) {
-                    Rectangle()
-                        .fill(Color.holoPrimary.opacity(0.4))
-                        .frame(width: 3)
-                }
-
-            if let footnote {
-                Text(footnote)
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
-        .padding(HoloSpacing.lg)
-        .background(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .fill(Color.holoCardBackground)
-        )
         .accessibilityElement(children: .combine)
     }
 }

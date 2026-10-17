@@ -45,7 +45,7 @@ struct RepeatRuleView: View {
 
                         if selectedWeekdays.isEmpty {
                             Text("请至少选择一个星期几")
-                                .foregroundColor(.red)
+                                .foregroundColor(.holoToolError)
                                 .font(.caption)
                         }
                     }

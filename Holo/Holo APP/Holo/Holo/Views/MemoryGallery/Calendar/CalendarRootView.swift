@@ -335,8 +335,9 @@ struct CalendarRootView: View {
                     }
                 }
                 .overlay(
+                    // 深色下选中块贴轨道色（Surface 比 Inset 轨道还暗一档）：描边改 token 灰兜出边界
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .stroke(isSelected ? Color.holoPrimary.opacity(0.16) : Color.clear, lineWidth: 1)
+                        .strokeBorder(isSelected ? Color.holoToolBorder : Color.clear, lineWidth: 1)
                 )
                 .contentShape(Rectangle())
         }
@@ -405,7 +406,7 @@ struct CalendarRootView: View {
         HStack(spacing: HoloSpacing.xs) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 12))
-                .foregroundColor(.holoError)
+                .foregroundColor(.holoToolError)
             Text("部分数据暂未载入")
                 .holoText(.supporting)
                 .foregroundColor(.holoToolTextSecondary)
@@ -421,7 +422,8 @@ struct CalendarRootView: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
-        .background(Color.holoErrorLight.opacity(0.5))
+        // 深色下固定浅红底会糊成脏粉：改自染低透明红底（两模式自然）
+        .background(Color.holoError.opacity(0.12))
     }
 }
 

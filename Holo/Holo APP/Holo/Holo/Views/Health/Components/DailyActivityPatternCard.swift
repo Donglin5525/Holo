@@ -21,8 +21,6 @@ struct DailyActivityPatternCard: View {
     }
 
     private var bars: [Double] { Array(hourly.hourly.prefix(24)) }
-    private var maxSteps: Double { bars.max() ?? 0 }
-    private var totalSteps: Double { bars.reduce(0, +) }
 
     /// 白天窗内最长连续安静小时区间；达到最短标注时长才值得展示
     private var longestSedentaryRange: Range<Int>? {
@@ -71,45 +69,13 @@ struct DailyActivityPatternCard: View {
 
     // MARK: - 24 柱图（自绘，静坐区间高亮）
 
+    @State private var selection: String?
+
     private var chart: some View {
-        VStack(spacing: 4) {
-            GeometryReader { proxy in
-                let barWidth = (proxy.size.width - 23 * 2) / 24
-                ZStack(alignment: .bottomLeading) {
-                    if let sedentary = longestSedentaryRange {
-                        // 高亮带覆盖 [lowerBound 柱左缘, 末柱右缘]，左右各留 1pt 呼吸；
-                        // HStack 柱间距为 2，中心 x = 首柱左缘 + 带宽/2
-                        let bandWidth = CGFloat(sedentary.count) * barWidth + CGFloat(sedentary.count - 1) * 2 + 2
-                        let bandCenter = CGFloat(sedentary.lowerBound) * (barWidth + 2) + bandWidth / 2
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.holoChart4.opacity(0.5), lineWidth: 1)
-                            .background(Color.holoChart4.opacity(0.06).cornerRadius(6))
-                            .frame(width: bandWidth, height: proxy.size.height)
-                            .position(x: bandCenter, y: proxy.size.height / 2)
-                    }
-
-                    HStack(alignment: .bottom, spacing: 2) {
-                        ForEach(0..<bars.count, id: \.self) { hour in
-                            let isQuiet = hour >= 8 && hour < 22 && bars[hour] < 100 && totalSteps > 0
-                            Capsule()
-                                .fill(isQuiet ? Color.holoToolTextSecondary.opacity(0.3) : Color.holoChart6)
-                                .frame(width: barWidth,
-                                       height: maxSteps > 0 ? max(3, bars[hour] / maxSteps * proxy.size.height) : 3)
-                        }
-                    }
-                }
-            }
-            .frame(height: 96)
-
-            HStack(spacing: 0) {
-                ForEach([0, 6, 12, 18, 23], id: \.self) { hour in
-                    Text("\(hour)")
-                        .font(.system(size: 9))
-                        .foregroundColor(.holoToolTextSecondary)
-                        .frame(maxWidth: hour == 0 || hour == 23 ? .infinity : .infinity, alignment: hour == 0 ? .leading : (hour == 23 ? .trailing : .center))
-                }
-            }
-        }
+        HoloBarChart(buckets: bars.enumerated().map { hour, value in
+            HoloChartBucket(id: String(hour), label: "\(hour)时", values: [value])
+        }, series: [.init(id: "steps", title: "步数", color: .holoChart6)],
+           selection: $selection, height: 110, valueText: { "\(Int($0)) 步" })
     }
 
     private var summaryRow: some View {

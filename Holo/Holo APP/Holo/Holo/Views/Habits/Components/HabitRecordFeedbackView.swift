@@ -68,7 +68,7 @@ struct HabitRecordFeedbackView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(warningTextParts.title)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                     Text(subtitle)
                         .font(.system(size: 12))
                         .foregroundColor(.holoToolTextSecondary)

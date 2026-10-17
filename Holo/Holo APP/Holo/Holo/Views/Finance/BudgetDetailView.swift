@@ -194,7 +194,7 @@ struct BudgetDetailView: View {
                     if data.isOver {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 14))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
                     Text(data.isOver
                          ? NumberFormatter.currency.string(from: NSDecimalNumber(decimal: data.over)) ?? "¥0"
@@ -224,28 +224,11 @@ struct BudgetDetailView: View {
     private var compositionBar: some View {
         if let data = overview {
             VStack(alignment: .trailing, spacing: 4) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.holoDivider)
-                            .frame(height: 6)
-                        Capsule()
-                            .fill(budgetProgressColor(data.progress))
-                            .frame(width: max(geo.size.width * min(data.progress, 1.0), 0), height: 6)
-                            .overlay {
-                                if data.isOver {
-                                    OverBudgetStripeOverlay()
-                                        .clipShape(Capsule())
-                                }
-                            }
-                            .animation(.spring(response: 0.5), value: data.progress)
-                    }
-                }
-                .frame(height: 6)
+                HoloProgress(value: data.progress, color: budgetProgressColor(data.progress), lineWidth: 6)
                 if data.isOver {
                     Text(String(localized: "超支 \(max(1, Int(ceil((data.progress - 1.0) * 100))))%"))
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
             }
         }
@@ -404,17 +387,7 @@ struct BudgetDetailView: View {
                         }
                     }
 
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.holoBorder.opacity(0.3))
-                                .frame(height: 4)
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(budgetProgressColor(overview.progress))
-                                .frame(width: geo.size.width * min(CGFloat(overview.progress), 1.0), height: 4)
-                        }
-                    }
-                    .frame(height: 4)
+                    HoloProgress(value: overview.progress, color: budgetProgressColor(overview.progress), lineWidth: 4)
                 }
 
                 Spacer()
@@ -426,7 +399,7 @@ struct BudgetDetailView: View {
                     if overview.isOverBudget {
                         Text(String(localized: "超支 \(formatAmount(overview.totalRemainingAmount))"))
                             .font(.system(size: 10))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     } else {
                         Text(String(localized: "剩余 \(formatAmount(overview.totalRemainingAmount))"))
                             .font(.system(size: 10))

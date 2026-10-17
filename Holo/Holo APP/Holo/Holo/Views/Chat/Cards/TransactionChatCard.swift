@@ -16,67 +16,209 @@ struct TransactionChatCard: View {
     var onCancel: (() -> Void)?
     var onModifyCategory: (() -> Void)?
 
+    /// 金额主字号走 .amount 角色 token，随动态字体缩放（¥ 符号按 0.62 倍派生）
+    @ScaledMetric(relativeTo: .largeTitle) private var heroAmountSize = HoloTextRole.amount.size
+
     var body: some View {
         // 已取消的记账没有关联实体，可点但无动作等于假交互：与待确认态一并禁点
         ChatCardView(isDeleted: isDeleted, onTap: data.requiresConfirmation || data.isCancelled ? nil : onTap) {
-            CardHeaderView(
-                icon: data.requiresConfirmation ? "yensign.circle" : data.categoryIcon,
-                title: headerTitle,
-                badge: badge,
-                subtitle: headerSubtitle,
-                isDeleted: isDeleted
-            )
-
-            // 金额
-            Text(formattedAmount)
-                .holoText(.amount)
-                .monospacedDigit()
-                .foregroundColor(.holoToolText)
-                .minimumScaleFactor(0.75)
-                .lineLimit(1)
-                .strikethrough(isDeleted || data.isCancelled)
-
-            // 备注
-            if let note = data.note, !note.isEmpty {
-                Text(note)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .strikethrough(isDeleted)
-            }
-
-            // 分类 + 记录日期
-            categoryDateRow
-
-            // 退款关联信息（确认后冲减原支出）
-            if data.isRefundCandidate, data.requiresConfirmation {
-                refundCandidateInfo
-            }
-
-            // 分期信息
-            if data.isInstallment, data.requiresConfirmation {
-                installmentInfo
-            }
-
-            if data.requiresConfirmation {
-                if !data.isInstallment && !data.isConfirming {
-                    modifyCategoryLink
-                }
-                pendingActions
-            } else if data.isCancelled {
-                cancelledInfo
-            } else if data.isFailed {
-                failedInfo
+            if isConfirmed {
+                confirmedCard
             } else {
-                HStack {
-                    Label(String(localized: "已记入财务"), systemImage: "checkmark.circle")
-                        .holoText(.metadata)
-                        .foregroundStyle(Color.holoToolTextSecondary)
-                    Spacer()
+                CardHeaderView(
+                    icon: data.requiresConfirmation ? "yensign.circle" : data.categoryIcon,
+                    title: headerTitle,
+                    badge: badge,
+                    subtitle: headerSubtitle,
+                    isDeleted: isDeleted
+                )
+
+                // 金额
+                Text(formattedAmount)
+                    .holoText(.amount)
+                    .monospacedDigit()
+                    .foregroundColor(.holoToolText)
+                    .minimumScaleFactor(0.75)
+                    .lineLimit(1)
+                    .strikethrough(isDeleted || data.isCancelled)
+
+                // 备注
+                if let note = data.note, !note.isEmpty {
+                    Text(note)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoToolTextSecondary)
+                        .strikethrough(isDeleted)
                 }
-                CardFooterView(timeText: String(localized: "查看明细"), isDeleted: isDeleted)
+
+                // 分类 + 记录日期
+                categoryDateRow
+
+                // 退款关联信息（确认后冲减原支出）
+                if data.isRefundCandidate, data.requiresConfirmation {
+                    refundCandidateInfo
+                }
+
+                // 分期信息
+                if data.isInstallment, data.requiresConfirmation {
+                    installmentInfo
+                }
+
+                if data.requiresConfirmation {
+                    if !data.isInstallment && !data.isConfirming {
+                        modifyCategoryLink
+                    }
+                    pendingActions
+                } else if data.isCancelled {
+                    cancelledInfo
+                } else if data.isFailed {
+                    failedInfo
+                }
             }
         }
-        .accessibilityLabel(String(localized: "记账卡片：\(data.displayTitle)，\(data.isExpense ? "支出" : "收入")\(data.amount)元"))
+        .accessibilityLabel(accessibilityText)
+    }
+
+    // MARK: - Confirmed（已入账终态：金额主角卡）
+
+    /// 已入账终态：正常确认完成（待确认 / 已取消 / 失败态走原有布局）
+    private var isConfirmed: Bool {
+        !data.requiresConfirmation && !data.isCancelled && !data.isFailed
+    }
+
+    /// 金额主角卡：金额做主视觉，标题与分类合并一行，底部日期 + 状态胶囊。
+    /// 整卡可点进详情（外层 ChatCardView 的 Button 已覆盖），不再单独渲染「查看明细」入口。
+    private var confirmedCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Hero 行：金额左对齐 + 分类图标右上角
+            HStack(alignment: .top) {
+                heroAmount
+                Spacer(minLength: 12)
+                categoryIconGlyph(data.categoryIcon, size: 11, color: .holoPrimary)
+                    .frame(width: 24, height: 24)
+                    .background(Color.holoPrimary.opacity(0.12))
+                    .clipShape(Circle())
+            }
+
+            // 标题 · 分类（与金额行间距 4pt）
+            metadataRow
+                .padding(.top, 4)
+
+            // hairline 分隔线
+            Rectangle()
+                .fill(Color.holoDivider.opacity(0.6))
+                .frame(height: 0.5)
+                .padding(.top, 12)
+
+            // 底行：记账日期 + 状态胶囊
+            bottomRow
+                .padding(.top, 12)
+        }
+    }
+
+    /// 金额主视觉：¥ 符号缩至 0.62 倍字号、与数字 baseline 对齐；
+    /// fixedSize + lineLimit 保证「-¥12,345.67」级样例单行不换行不裁切（金额不靠缩字号适配）
+    private var heroAmount: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Text(data.isExpense ? "-" : "+")
+            Text("¥")
+                .font(.system(size: heroAmountSize * 0.62, weight: .semibold))
+            Text(data.amount)
+                .monospacedDigit()
+        }
+        .font(.system(size: heroAmountSize, weight: .semibold))
+        .foregroundColor(.holoToolText)
+        .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
+        .strikethrough(isDeleted)
+    }
+
+    /// 「标题 · 分类」单行：空间不足时优先保分类完整（layoutPriority 给分类，先截标题尾部）
+    private var metadataRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(metadataTitle)
+                .holoText(.supporting)
+                .fontWeight(.medium)
+                .foregroundColor(.holoToolText)
+                .lineLimit(1)
+                .strikethrough(isDeleted)
+
+            if let category = data.categoryPath {
+                Text("·")
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
+                Text(category)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+            }
+        }
+    }
+
+    /// 标题位文本：备注与派生标题同文（常态，displayTitle 即备注）时直接用标题；
+    /// 不同文时用备注顶标题位，避免信息丢失
+    private var metadataTitle: String {
+        if let note = data.note, !note.isEmpty, note != data.displayTitle {
+            return note
+        }
+        return data.displayTitle
+    }
+
+    /// 底行：左记账日期（沿用 relativeDateText 友好口径，今天补既有「今天」词条）+ 右状态胶囊
+    private var bottomRow: some View {
+        HStack {
+            HStack(spacing: 4) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 11))
+                Text(confirmedDateText)
+                    .holoText(.metadata)
+                    .fontWeight(.medium)
+                    .strikethrough(isDeleted)
+            }
+            .foregroundColor(.holoToolTextSecondary)
+
+            Spacer()
+
+            statusCapsule
+        }
+    }
+
+    /// 终态卡日期：relativeDateText 今天返回 nil（旧口径为省空间不占位），
+    /// 终态卡日期有专属槽位，用项目既有「今天」词条补齐
+    private var confirmedDateText: String {
+        relativeDateText ?? String(localized: "今天")
+    }
+
+    /// 右端状态胶囊：已删除回溯态沿用「已删除」灰胶囊，正常态「已入账」绿胶囊
+    @ViewBuilder private var statusCapsule: some View {
+        if isDeleted {
+            Text("已删除")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(.holoToolTextSecondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(Capsule().fill(Color.holoToolTextSecondary.opacity(0.12)))
+        } else {
+            HStack(spacing: 3) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 10))
+                Text(String(localized: "已入账"))
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundColor(.holoToolSuccess)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(Color.holoSuccess.opacity(0.1)))
+        }
+    }
+
+    /// 无障碍朗读：终态完整读出金额、标题、分类、日期、已入账；其余分支维持原口径
+    private var accessibilityText: String {
+        if isConfirmed {
+            let category = data.categoryPath ?? String(localized: "未分类")
+            return String(localized: "记账卡片：\(data.displayTitle)，\(data.isExpense ? "支出" : "收入")\(data.amount)元，分类\(category)，\(confirmedDateText)，已入账")
+        }
+        return String(localized: "记账卡片：\(data.displayTitle)，\(data.isExpense ? "支出" : "收入")\(data.amount)元")
     }
 
     // MARK: - Header
@@ -238,7 +380,7 @@ struct TransactionChatCard: View {
             if let error = data.confirmationError, !error.isEmpty {
                 Text(error)
                     .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
 
             HStack {

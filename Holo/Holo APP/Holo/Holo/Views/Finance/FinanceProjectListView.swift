@@ -105,15 +105,7 @@ struct FinanceProjectListView: View {
             }
 
             if summary.totalBudget > 0 {
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.holoDivider.opacity(0.5))
-                        Capsule()
-                            .fill(overallProgressColor)
-                            .frame(width: proxy.size.width * overallProgress)
-                    }
-                }
-                .frame(height: 4)
+                HoloProgress(value: Double(overallProgress), color: overallProgressColor, lineWidth: 4)
             }
         }
         .padding(16)
@@ -274,15 +266,7 @@ struct FinanceProjectListView: View {
                             .foregroundColor(.holoToolTextSecondary)
                     }
                     if let progress = item.budgetProgress {
-                        GeometryReader { proxy in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Color.holoDivider.opacity(0.5))
-                                Capsule()
-                                    .fill(progressColor(ratio: progress))
-                                    .frame(width: proxy.size.width * CGFloat(progress))
-                            }
-                        }
-                        .frame(height: 3)
+                        HoloProgress(value: Double(progress), color: progressColor(ratio: progress), lineWidth: 3)
                     }
                 }
 

@@ -744,4 +744,38 @@ final class ReceiptBookingKernelTests: XCTestCase {
         XCTAssertEqual(hit?.primary, "餐饮")
         XCTAssertEqual(hit?.sub, "饮品")
     }
+
+    /// 失败分类（10-15 qwen 密钥失效事故）：后端故障必须归 failureServer 报
+    /// 「服务暂时不可用」，不得误报「网络不可用」误导用户排查自己的网络
+    func testFailureClassifierSeparatesConnectivityFromServerFault() {
+        // 连接层失败（设备没网/超时）→ 网络类
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: APIError.networkUnavailable), .failureNetwork)
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: APIError.timeout), .failureNetwork)
+        XCTAssertEqual(
+            ReceiptBookingFailureClassifier.reason(for: URLError(.notConnectedToInternet)),
+            .failureNetwork
+        )
+
+        // 后端/上游故障（上游密钥失效时后端返回 503）→ 服务类
+        XCTAssertEqual(
+            ReceiptBookingFailureClassifier.reason(for: APIError.httpError(statusCode: 503, message: "upstream")),
+            .failureServer
+        )
+        XCTAssertEqual(
+            ReceiptBookingFailureClassifier.reason(for: APIError.backendError(statusCode: 503, code: "UPSTREAM_AUTH_FAILED", message: "upstream", requestId: nil)),
+            .failureServer
+        )
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: APIError.serverError("upstream")), .failureServer)
+
+        // 限流/取消各归其类
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: APIError.rateLimited(nil)), .failureRateLimited)
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: APIError.cancelled), .failureCancelled)
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: CancellationError()), .failureCancelled)
+
+        // 展示层口径：服务类失败不得出现「网络不可用」文案
+        let serverFailure = RecognizeAndBookReceiptIntent.text(for: .failed(ReceiptBookingFailure(
+            reason: .failureServer, retryable: true, userMessage: "")))
+        XCTAssertFalse(serverFailure.contains("网络不可用"), "服务端故障不得报网络不可用：\(serverFailure)")
+        XCTAssertTrue(serverFailure.contains("服务暂时不可用"), "服务端故障必须说明服务暂不可用：\(serverFailure)")
+    }
 }

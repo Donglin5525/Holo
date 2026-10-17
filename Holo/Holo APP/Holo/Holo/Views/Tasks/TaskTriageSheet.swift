@@ -146,7 +146,7 @@ struct TaskTriageSheet: View {
                 if let itemError {
                     Text(itemError)
                         .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
             }
             .padding(.horizontal, HoloSpacing.lg)

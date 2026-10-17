@@ -128,7 +128,7 @@ struct HealthDetailView: View {
     /// 近 7 天趋势（图内自带标题与均值行，外层不再重复标题）
     private var trendSection: some View {
         ZStack(alignment: .topTrailing) {
-            HealthTrendChart(data: weeklyData, type: type)
+            HealthTrendChart(data: weeklyData, type: type, endingOn: selectedDate)
             if isLoading {
                 ProgressView()
                     .scaleEffect(0.75)
@@ -206,19 +206,9 @@ struct HealthDetailView: View {
     private var bigRingCard: some View {
         HStack(spacing: HoloSpacing.md) {
             ZStack {
-                Circle()
-                    .stroke(Color.holoDivider, lineWidth: 18)
+                HoloProgress(value: metric.availability == .available ? metric.progress : nil,
+                             color: type.color, shape: .ring, lineWidth: 18)
                     .frame(width: 152, height: 152)
-
-                Circle()
-                    .trim(from: 0, to: metric.progress)
-                    .stroke(
-                        type.color,
-                        style: StrokeStyle(lineWidth: 18, lineCap: .round)
-                    )
-                    .frame(width: 152, height: 152)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.45), value: metric.progress)
 
                 VStack(spacing: 2) {
                     Text(metric.valueText)
@@ -544,7 +534,7 @@ struct HealthDetailView: View {
         detailLoadGeneration += 1
         let generation = detailLoadGeneration
         isLoading = true
-        let data = await repository.fetchWeeklyData(for: type, endingOn: date)
+        let data = await repository.fetchChartWeeklyData(for: type, endingOn: date)
         // R10：过期请求不发布，也不替新请求提前关掉加载态
         guard generation == detailLoadGeneration else { return }
         weeklyData = data

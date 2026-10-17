@@ -1314,10 +1314,14 @@ class ThoughtRepository {
         let request = Thought.fetchRequest()
         // 不按 createdDeviceId 过滤：批量整理是本地补标签操作，
         // 老想法（createdDeviceId 为 nil 或旧 deviceId）都应纳入；已 organized 的无论哪台设备都会被排除，不会重复
-        request.predicate = NSPredicate(
-            format: "NOT (organizedStatus IN %@) AND deletedAt == nil AND isArchived == NO",
-            Self.terminalOrganizedStatuses as CVarArg
-        )
+        // 预置欢迎笔记不算待整理内容（disabled 本就在批量范围内，这里显式排除防误捞）
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "NOT (organizedStatus IN %@) AND deletedAt == nil AND isArchived == NO",
+                Self.terminalOrganizedStatuses as CVarArg
+            ),
+            WelcomeNoteSeed.exclusionPredicate
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
 
         return try context.fetch(request).map { $0.id }
@@ -1327,10 +1331,13 @@ class ThoughtRepository {
     /// - Returns: 未整理数量
     func countUnprocessed() throws -> Int {
         let request = Thought.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "NOT (organizedStatus IN %@) AND deletedAt == nil AND isArchived == NO",
-            Self.terminalOrganizedStatuses as CVarArg
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "NOT (organizedStatus IN %@) AND deletedAt == nil AND isArchived == NO",
+                Self.terminalOrganizedStatuses as CVarArg
+            ),
+            WelcomeNoteSeed.exclusionPredicate
+        ])
 
         return try context.count(for: request)
     }
@@ -1461,7 +1468,9 @@ class ThoughtRepository {
     /// 构建 base predicate（排除已删除/归档，可选日期范围）
     private func basePredicate(from startDate: Date?, to endDate: Date?) -> NSPredicate {
         var predicates: [NSPredicate] = [
-            NSPredicate(format: "deletedAt == nil AND isArchived == NO")
+            NSPredicate(format: "deletedAt == nil AND isArchived == NO"),
+            // 预置欢迎笔记不进任何统计聚合（计数/心情分布/热门标签/原文截取）
+            WelcomeNoteSeed.exclusionPredicate
         ]
         if let start = startDate {
             predicates.append(NSPredicate(format: "createdAt >= %@", start as CVarArg))

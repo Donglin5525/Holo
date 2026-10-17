@@ -160,7 +160,7 @@ struct ChatInputView: View {
                     } label: {
                         Image(systemName: "stop.circle.fill")
                             .font(.system(size: 28))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                             .frame(width: 44, height: 44)
                     }
                     .keyboardShortcut(".", modifiers: .command)

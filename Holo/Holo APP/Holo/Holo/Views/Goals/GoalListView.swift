@@ -392,16 +392,15 @@ struct GoalManualCreateSheet: View {
             .navigationTitle("创建目标")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
                         onCancel()
                         dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoToolTextSecondary)
                     }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isSaving ? String(localized: "保存中") : String(localized: "保存")) { save() }
-                        .disabled(!canSave)
-                        .fontWeight(.semibold)
                 }
             }
             .safeAreaInset(edge: .bottom) {
@@ -456,44 +455,25 @@ struct GoalManualCreateSheet: View {
     }
 
     private var bottomActions: some View {
-        HStack(spacing: HoloSpacing.md) {
-            Button {
-                onCancel()
-                dismiss()
-            } label: {
-                Text("取消")
-                    .holoText(.body)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.holoToolSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: HoloRadius.md)
-                            .stroke(Color.holoToolBorder, lineWidth: 1)
-                    )
-            }
-
-            Button {
-                save()
-            } label: {
-                HStack(spacing: 6) {
-                    if isSaving {
-                        ProgressView()
-                            .scaleEffect(0.8)
-                            .tint(.white)
-                    }
-                    Text(isSaving ? String(localized: "保存中") : String(localized: "创建目标"))
-                        .holoText(.body)
-                        .foregroundColor(.white)
+        Button {
+            save()
+        } label: {
+            HStack(spacing: 6) {
+                if isSaving {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .tint(.white)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(canSave ? Color.holoPrimary : Color.gray.opacity(0.3))
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                Text(isSaving ? String(localized: "保存中") : String(localized: "创建目标"))
+                    .holoText(.body)
+                    .foregroundColor(.white)
             }
-            .disabled(!canSave)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(canSave ? Color.holoPrimary : Color.gray.opacity(0.3))
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
+        .disabled(!canSave)
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.md)
         .background(Color.holoToolSurface)

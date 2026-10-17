@@ -423,16 +423,7 @@ struct HealthView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.holoDivider)
-                    Capsule()
-                        .fill(metric.type.color)
-                        .frame(width: proxy.size.width * metric.progress)
-                }
-            }
-            .frame(height: 5)
+            HoloProgress(value: metric.availability == .available ? metric.progress : nil, color: metric.type.color, lineWidth: 5)
 
             Text(metric.targetText)
                 .font(.holoTinyLabel)
@@ -512,7 +503,7 @@ struct HealthView: View {
             iconText: "✦",
             title: core.title,
             detail: core.detail,
-            color: .holoPrimary
+            color: .holoAI
         )
         .contentShape(Rectangle())
         .onTapGesture {
@@ -651,7 +642,7 @@ struct HealthView: View {
                 .buttonStyle(.plain)
             }
 
-            HealthTrendChart(data: trendData, type: trendMetric)
+            HealthTrendChart(data: trendData, type: trendMetric, endingOn: selectedDate)
         }
         .padding(HoloSpacing.md)
         .holoSurface()
@@ -669,8 +660,12 @@ struct HealthView: View {
                         .foregroundColor(trendMetric == metric ? metric.color : .holoToolTextSecondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(trendMetric == metric ? metric.color.opacity(0.12) : Color.clear)
+                        .background(trendMetric == metric ? Color.holoToolInset : Color.clear)
                         .clipShape(Capsule())
+                        .overlay(
+                            // 深色下彩色淡底与卡底难分：选中 chip 嵌套底 + 细描边兜边界
+                            Capsule().strokeBorder(trendMetric == metric ? Color.holoToolBorder : Color.clear, lineWidth: 0.5)
+                        )
                 }
                 .buttonStyle(.plain)
             }
@@ -710,11 +705,11 @@ struct HealthView: View {
             Spacer(minLength: 0)
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoPrimary.opacity(0.08))
+        .background(Color.holoToolAI.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoPrimary.opacity(0.18), lineWidth: 1)
+                .stroke(Color.holoToolAI.opacity(0.18), lineWidth: 1)
         )
     }
 
@@ -784,9 +779,9 @@ struct HealthView: View {
         dateLoadGeneration += 1
         let generation = dateLoadGeneration
         let day = await repository.fetchDayData(for: date)
-        let sleep = await repository.fetchWeeklyData(for: .sleep, endingOn: date)
-        let steps = await repository.fetchWeeklyData(for: .steps, endingOn: date)
-        let workout = await repository.fetchWeeklyData(for: .workout, endingOn: date)
+        let sleep = await repository.fetchChartWeeklyData(for: .sleep, endingOn: date)
+        let steps = await repository.fetchChartWeeklyData(for: .steps, endingOn: date)
+        let workout = await repository.fetchChartWeeklyData(for: .workout, endingOn: date)
         guard generation == dateLoadGeneration else { return }
         dayData = day
         weeklySleepData = sleep

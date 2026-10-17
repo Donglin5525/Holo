@@ -2460,8 +2460,10 @@ final class ChatViewModel: ObservableObject {
     private static func confirmedFinalText(from items: [AIExecutionItem]) -> String {
         guard !items.isEmpty else { return String(localized: "已处理") }
         if items.count == 1 { return items[0].summaryText }
-        // 与真实状态对齐：还有未确认项时不说「已处理」
-        let pendingCount = items.filter { $0.status == .skipped }.count
+        // 与真实状态对齐：还有未确认项时不说「已处理」。
+        // 待确认口径与卡片渲染同源（ChatCardData.isPendingConfirmation）：
+        // 已取消的项 status 仍是 skipped，但卡片已显示「已取消」，不能再计入「待确认」
+        let pendingCount = items.filter { ChatCardData.from(executionItem: $0)?.isPendingConfirmation == true }.count
         let body = items.enumerated().map { index, item in
             "\(index + 1). \(item.summaryText)"
         }.joined(separator: "\n")

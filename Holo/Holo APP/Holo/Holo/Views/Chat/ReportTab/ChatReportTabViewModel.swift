@@ -106,7 +106,7 @@ final class ChatReportTabViewModel: ObservableObject {
         async let fresh = repository.loadReportArchiveAsync(limit: pageSize, offset: 0)
         async let favorites = repository.countFavoriteReportsAsync()
         let (reports, count) = await (fresh, favorites)
-        entries = reports
+        entries = Self.deduplicatedReplays(reports)
         favoritesCount = count
         hasLoadedOnce = true
         reachedEnd = reports.count < pageSize
@@ -120,7 +120,26 @@ final class ChatReportTabViewModel: ObservableObject {
         let more = await repository.loadReportArchiveAsync(limit: pageSize, offset: entries.count)
         reachedEnd = more.count < pageSize
         let knownIDs = Set(entries.map(\.id))
-        entries += more.filter { !knownIDs.contains($0.id) }
+        let knownReplayKeys = Set(entries.compactMap(\.replayDedupeKey))
+        entries += Self.deduplicatedReplays(
+            more.filter { !knownIDs.contains($0.id) },
+            excludingReplayKeys: knownReplayKeys
+        )
+    }
+
+    /// 同类型+同起止日期的回放报告去重（如「本月」与「自定义」跑了同一段日期）：
+    /// 档案只展示最新一份。列表按时间倒序，先见先留；跨页重复用已知键排除。
+    private static func deduplicatedReplays(
+        _ reports: [ReportArchiveDTO],
+        excludingReplayKeys knownKeys: Set<String> = []
+    ) -> [ReportArchiveDTO] {
+        var seenKeys = knownKeys
+        return reports.filter { entry in
+            guard let key = entry.replayDedupeKey else { return true }
+            guard !seenKeys.contains(key) else { return false }
+            seenKeys.insert(key)
+            return true
+        }
     }
 
     // MARK: - 场景筛选

@@ -66,7 +66,7 @@ struct ReceiptReviewDetailView: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.footnote)
-                        .foregroundStyle(Color.red)
+                        .foregroundStyle(Color.holoToolError)
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
@@ -433,7 +433,7 @@ struct ReceiptReviewDetailView: View {
                 } label: {
                     Text("删除草稿")
                         .font(.subheadline)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.holoToolError)
                 }
                 .disabled(isCommitting)
             }

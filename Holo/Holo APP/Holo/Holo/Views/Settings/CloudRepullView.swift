@@ -136,7 +136,7 @@ struct CloudRepullView: View {
                 Label(String(localized: "拉取未完成"), systemImage: "exclamationmark.triangle.fill")
                     .font(.holoBody)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                 Text(message)
                     .font(.system(size: 13))
                     .foregroundColor(.holoTextSecondary)

@@ -44,7 +44,11 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         let effectiveRange = resolved.effectiveRange
         let end = effectiveRange?.end ?? (calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) ?? Date())
         let start = effectiveRange?.start ?? (calendar.date(byAdding: .day, value: -30, to: end) ?? end)
-        guard let transactions = try? await FinanceRepository.shared.getTransactions(from: start, to: end) else { return [] }
+        // 统计口径读源：排除对账调整流水（T01 财务语义统一，2026-10-17）。
+        // 该行源同时供云端快照 finance.transactions、本地财务工具与发现工具做
+        // 消费统计对比——调整不是行为变化，混入会把修正余额当消费突变。
+        // 对账调整的合法去处是余额视图（balanceDiagnosis 走 getAllTransactions）与明细列表。
+        guard let transactions = try? await FinanceRepository.shared.getStatisticsTransactions(from: start, to: end) else { return [] }
         // 项目名映射一次性取好，避免逐行查库
         let projectNames = await MainActor.run { () -> [UUID: String] in
             FinanceProjectRepository.shared.allProjects().reduce(into: [:]) { map, project in

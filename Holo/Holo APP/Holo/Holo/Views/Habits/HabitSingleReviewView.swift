@@ -9,7 +9,6 @@
 //
 
 import SwiftUI
-import Charts
 import CoreData
 
 struct HabitSingleReviewView: View {
@@ -82,7 +81,7 @@ struct HabitSingleReviewView: View {
             if let record = findRecord(target.recordId) {
                 HabitRecordEditSheet(
                     record: record,
-                    isCountType: snapshot?.info.kind == .count,
+                    kind: snapshot?.info.kind ?? .checkIn,
                     unit: snapshot?.info.unit
                 ) { value, note in
                     Task {
@@ -442,7 +441,7 @@ struct HabitSingleReviewView: View {
                     today: model.projectionNow,
                     selectedWeek: $selectedWeek
                 )
-                .frame(height: 176)
+                .frame(minHeight: 220)
             }
         }
     }
@@ -680,7 +679,7 @@ struct HabitSingleReviewView: View {
                 selectedDay: selectedDay,
                 onSelectDay: { day in selectDay(day) }
             )
-            .frame(height: 200)
+            .frame(minHeight: 230)
         }
     }
 
@@ -983,9 +982,6 @@ struct HabitSingleReviewView: View {
         if info.isPaused { return String(localized: "暂停日不算漏签") }
         guard let habit else { return nil }
         if habit.isBadHabit { return String(localized: "这个减少的习惯不支持补录") }
-        if habit.isCheckInType, habit.habitFrequency != .daily {
-            return String(localized: "周/月习惯按周期记录，不补每日漏签")
-        }
         return nil
     }
 
@@ -1137,7 +1133,7 @@ private struct ReviewCustomRangeForm: View {
             if let errorMessage {
                 Text(errorMessage)
                     .font(.system(size: 11))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
             Button {
                 let calendar = Calendar.current
@@ -1169,199 +1165,26 @@ private struct ReviewCustomRangeForm: View {
 /// 与 ReviewTrendChart 同一套几何与交互规则（ReviewTrendChartLayout 复用）：
 /// 柱宽同参封顶、X 刻度 chartOverlay 自绘、横向拖动/点按沿途选中、气泡跟随。
 struct WeeklyRateChart: View {
-
     let bars: [HabitWeeklyBar]
     let mode: HabitWeeklyTrendMode
     let color: Color
     let isBadHabit: Bool
     let today: Date
     @Binding var selectedWeek: Date?
-
-    private var calendar: Calendar { .current }
-
-    /// 展示柱（分母为 0 的周如实跳过，不画 0% 假柱）
-    private var visibleBars: [HabitWeeklyBar] {
-        bars.filter { $0.days > 0 }
-    }
-
-    private var selectedSlot: Int? {
-        guard let week = selectedWeek else { return nil }
-        return visibleBars.firstIndex { calendar.isDate($0.weekStart, inSameDayAs: week) }
-    }
+    @State private var selection: String?
 
     var body: some View {
-        GeometryReader { geometry in
-            let slotWidthPt = ChartBarPairLayout.estimatedSlotWidthPt(
-                containerWidthPt: geometry.size.width,
-                pointCount: visibleBars.count
-            )
-            chart(barWidthPt: barWidth(dayCount: visibleBars.count, slotWidthPt: slotWidthPt))
-        }
-        // 柱少时图域收到柱群宽度并居中（每桶至多约 84pt）：两三根火柴棍撒在
-        // 全宽图里八成留黑、孤零感来自槽距而不是柱宽（2026-10-13 东林实报）
-        .frame(maxWidth: CGFloat(max(visibleBars.count, 1)) * 84)
-        .frame(maxWidth: .infinity)
-    }
-
-    /// 柱宽按槽位比例分档封顶：柱越少越粗（≤4 桶 44pt / ≤8 桶 28pt / 更多 16pt），
-    /// 槽距与柱宽同源缩放，档位之间观感连续
-    private func barWidth(dayCount: Int, slotWidthPt: CGFloat) -> CGFloat {
-        let cap: CGFloat = dayCount <= 4 ? 44 : (dayCount <= 8 ? 28 : 16)
-        return max(min(slotWidthPt * 0.34, cap), 2)
-    }
-
-    private func chart(barWidthPt: CGFloat) -> some View {
-        Chart {
-            ForEach(Array(visibleBars.enumerated()), id: \.element.id) { index, bar in
-                BarMark(
-                    x: .value("周", Double(index)),
-                    y: .value("值", barValue(bar)),
-                    width: .fixed(barWidthPt)
-                )
-                .foregroundStyle(color.opacity(bar.weekStart == selectedWeek ? 1.0 : 0.62))
-                .cornerRadius(3)
-            }
-        }
-        .chartXScale(domain: ReviewTrendChartLayout.xDomain(dayCount: visibleBars.count))
-        .chartYScale(domain: yDomain)
-        // X 刻度自绘（与柱子同坐标系；不隐藏会叠出一套默认数字刻度——回顾趋势图同坑）
-        .chartXAxis(.hidden)
-        .chartYAxis {
-            // 完成率：等差 0/50/100；天数模式：y 轴隐藏（柱顶数值自明，非等差刻度反而逼用户心算）
-            if mode == .completionRate {
-                AxisMarks(position: .trailing, values: [0, 50, 100]) { value in
-                    AxisGridLine().foregroundStyle(Color.holoToolBorder.opacity(0.4))
-                    AxisValueLabel {
-                        if let v = value.as(Double.self) {
-                            Text("\(Int(v))%")
-                                .font(.system(size: 9))
-                                .foregroundColor(.holoToolTextSecondary)
-                        }
-                    }
-                }
-            }
-        }
-        .chartPlotStyle { plotArea in
-            plotArea.padding(.leading, 2).padding(.trailing, 2)
-        }
-        .chartOverlay { proxy in
-            GeometryReader { geometry in
-                let plotFrame = proxy.plotFrame.map { geometry[$0] }
-                if let plotFrame {
-                    ForEach(ReviewTrendChartLayout.tickSlots(dayCount: visibleBars.count), id: \.self) { slot in
-                        if let xPos = proxy.position(forX: Double(slot)) {
-                            Text(axisLabel(slot: slot))
-                                .font(.system(size: 9))
-                                .foregroundStyle(Color.holoToolTextSecondary)
-                                .position(x: plotFrame.minX + xPos, y: plotFrame.maxY + 10)
-                        }
-                    }
-
-                    // 柱顶数值：读图不心算（92% / 6 天直接标在柱顶）
-                    ForEach(Array(visibleBars.enumerated()), id: \.element.id) { index, bar in
-                        if let xPos = proxy.position(forX: Double(index)) {
-                            let yMax = yDomain.upperBound
-                            let ratio = max(0, min(1, barValue(bar) / yMax))
-                            Text(barTopLabel(bar))
-                                .font(.system(size: 9, weight: .bold).monospacedDigit())
-                                .foregroundColor(color.opacity(0.85))
-                                .position(x: plotFrame.minX + xPos,
-                                          y: max(plotFrame.minY + plotFrame.height * (1 - ratio) - 11, 8))
-                        }
-                    }
-
-                    if let slot = selectedSlot,
-                       let xPos = proxy.position(forX: Double(slot)) {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.holoToolText.opacity(0.05))
-                            .frame(width: plotFrame.width / CGFloat(max(visibleBars.count, 1)),
-                                   height: plotFrame.height)
-                            .position(x: plotFrame.minX + xPos, y: plotFrame.midY)
-
-                        let detail = bubbleDetail(slot: slot)
-                        VStack(spacing: 2) {
-                            Text(detail.caption)
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundColor(.holoToolTextSecondary)
-                            Text(detail.value)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(color)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.holoToolSurface)
-                                .shadow(color: .black.opacity(0.1), radius: 3, y: 1)
-                        )
-                        .fixedSize()
-                        .position(x: min(max(plotFrame.minX + xPos, 66), geometry.size.width - 66),
-                                  y: min(max(plotFrame.minY + plotFrame.height * 0.14, 16), geometry.size.height - 16))
-                    }
-
-                    DirectionalChartGestureOverlay(
-                        onChanged: { location in
-                            selectNearest(location, proxy: proxy, plotFrame: plotFrame)
-                        },
-                        onEnded: { _ in },
-                        onCancelled: {},
-                        onTap: { location in
-                            selectNearest(location, proxy: proxy, plotFrame: plotFrame)
-                        }
-                    )
-                }
-            }
-        }
-    }
-
-    private var yDomain: ClosedRange<Double> {
-        // 顶部留 15% 呼吸位：满值柱的柱顶数值才能放在柱外上方，
-        // 否则被钳进柱体内部（橙字叠橙柱对比度差，2026-10-13 判读实锤）
-        mode == .completionRate ? 0...115 : 0...8
-    }
-
-    private func barTopLabel(_ bar: HabitWeeklyBar) -> String {
-        mode == .completionRate
-            ? "\(Int(((bar.fraction ?? 0) * 100).rounded()))%"
-            : "\(bar.recordedDays)"
-    }
-
-    private func barValue(_ bar: HabitWeeklyBar) -> Double {
-        mode == .completionRate ? (bar.fraction ?? 0) * 100 : Double(bar.recordedDays)
-    }
-
-    private func selectNearest(_ location: CGPoint, proxy: ChartProxy, plotFrame: CGRect?) {
-        guard let plotFrame,
-              let slot = ReviewTrendChartLayout.touchedSlot(
-                  touchXInPlot: location.x - plotFrame.minX,
-                  plotWidth: plotFrame.width,
-                  dayCount: visibleBars.count),
-              slot < visibleBars.count else { return }
-        selectedWeek = visibleBars[slot].weekStart
-    }
-
-    private func bubbleDetail(slot: Int) -> (caption: String, value: String) {
-        let bar = visibleBars[slot]
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.setLocalizedDateFormatFromTemplate("M/d")
-        let caption = formatter.string(from: bar.weekStart) + String(localized: " 起")
-        switch mode {
-        case .completionRate:
-            let percent = Int(((bar.fraction ?? 0) * 100).rounded())
-            return (caption, "\(percent)%（\(bar.recordedDays)/\(bar.days) 天）")
-        case .weeklyDays:
-            let noun = isBadHabit ? String(localized: "发生") : String(localized: "记录")
-            return (caption, "\(noun) \(bar.recordedDays) 天")
-        }
-    }
-
-    private func axisLabel(slot: Int) -> String {
-        guard slot < visibleBars.count else { return "" }
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.setLocalizedDateFormatFromTemplate("M/d")
-        return formatter.string(from: visibleBars[slot].weekStart)
+        HoloBarChart(buckets: bars.map { bar in
+            HoloChartBucket(id: String(bar.weekStart.timeIntervalSince1970),
+                            label: HoloChartFormat.date(bar.weekStart),
+                            detail: HoloChartFormat.date(bar.weekStart) + " 起",
+                            values: [mode == .completionRate ? bar.fraction.map { $0 * 100 } : (bar.days > 0 ? Double(bar.recordedDays) : nil)],
+                            isFuture: bar.weekStart > today)
+        }, series: [.init(id: "habit", title: mode == .completionRate ? "完成率" : (isBadHabit ? "发生天数" : "记录天数"), color: color)],
+           selection: $selection, height: 140, yDomain: mode == .completionRate ? 0...100 : 0...8,
+           valueText: { mode == .completionRate ? "\(HoloChartFormat.number($0))%" : "\(Int($0)) 天" },
+           onInspect: { bucket in selectedWeek = bars.first { String($0.weekStart.timeIntervalSince1970) == bucket.id }?.weekStart })
+        .onChange(of: mode) { _, _ in selection = nil; selectedWeek = nil }
     }
 }
 
@@ -1540,9 +1363,7 @@ enum ReviewTrendChartLayout {
 
     /// 触摸点（绘图区坐标）→ 槽位下标（钳到两端；拖动沿途连续选中）
     static func touchedSlot(touchXInPlot: CGFloat, plotWidth: CGFloat, dayCount: Int) -> Int? {
-        guard dayCount > 0, plotWidth > 0 else { return nil }
-        let slot = Int((touchXInPlot / plotWidth * CGFloat(dayCount)).rounded(.down))
-        return min(max(slot, 0), dayCount - 1)
+        HoloChartGeometry.bucketIndex(x: touchXInPlot, width: plotWidth, count: dayCount, clamped: true)
     }
 
     /// 刻度槽位：≤10 天逐日标注；更长走财务同款稀疏节奏（5 格均匀 + 末日）
@@ -1599,269 +1420,38 @@ enum ReviewTrendChartLayout {
 // MARK: - 回顾趋势图（计数柱 / 测量分段点线；拖动沿途选中）
 
 struct ReviewTrendChart: View {
-
     let values: [HabitDailyNumericValue]
     let kind: HabitRowKind
     let color: Color
     let unit: String
-    /// 图表覆盖的完整范围（柱子按真实日期落位，缺失日留空槽）
     let interval: DateInterval
-    /// 当前时刻（域终点钳到今天，未来日不占槽）
     let today: Date
     let selectedDay: Date?
     var onSelectDay: (Date) -> Void
-    /// 稀疏收敛（概览弹层用）：记录跨度 ≤6 天时图域收敛到首末记录日，
-    /// 避免 30 槽里一根孤柱/孤点；默认 false 保持回顾页「空槽如实留白」语义
-    var sparseCollapse: Bool = false
+    var sparseCollapse = false
+    @State private var selection: String?
 
-    private struct SlotValue: Identifiable {
-        let slot: Int
-        let date: Date
-        let value: Double
-        var id: Int { slot }
+    private var buckets: [HoloChartBucket] {
+        let range = ReviewTrendChartLayout.chartRange(interval: interval, today: today, values: values,
+                                                    calendar: .current, sparseCollapse: sparseCollapse)
+        let end = Calendar.current.date(byAdding: .day, value: range.dayCount - 1, to: range.start) ?? range.start
+        return HoloChartFormat.days(from: range.start, through: end, values: values.map { ($0.date, $0.value) })
     }
-
-    private struct Segment: Identifiable {
-        let id: Int
-        let points: [SlotValue]
+    private var series: [HoloChartSeries] { [.init(id: "habit", title: kind == .count ? "记录量" : "测量值", color: color)] }
+    private func format(_ value: Double) -> String { HabitPresentationProjector.formatValue(value) + (unit.isEmpty ? "" : " \(unit)") }
+    private func inspect(_ bucket: HoloChartBucket) {
+        if let timestamp = Double(bucket.id) { onSelectDay(Date(timeIntervalSince1970: timestamp)) }
     }
-
-    private var calendar: Calendar { .current }
-
-    private var chartRange: (start: Date, dayCount: Int) {
-        ReviewTrendChartLayout.chartRange(interval: interval, today: today,
-                                          values: values, calendar: calendar,
-                                          sparseCollapse: sparseCollapse)
-    }
-
-    private func slotValues(range: (start: Date, dayCount: Int)) -> [SlotValue] {
-        values.compactMap { item in
-            guard let slot = ReviewTrendChartLayout.slotIndex(
-                of: item.date, rangeStart: range.start, dayCount: range.dayCount, calendar: calendar)
-            else { return nil }
-            return SlotValue(slot: slot, date: item.date, value: item.value)
-        }
-    }
-
-    /// 测量折线分段：相邻槽位间隔 >1 天即断段（缺失日不连线）
-    private func segments(of points: [SlotValue]) -> [Segment] {
-        var segments: [[SlotValue]] = []
-        var current: [SlotValue] = []
-        for item in points {
-            if let last = current.last, item.slot - last.slot > 1 {
-                segments.append(current)
-                current = [item]
-            } else {
-                current.append(item)
-            }
-        }
-        if !current.isEmpty { segments.append(current) }
-        return segments.enumerated().map { Segment(id: $0.offset, points: $0.element) }
-    }
-
-    private var normalizedSelected: Date? {
-        selectedDay.map { calendar.startOfDay(for: $0) }
-    }
-
-    private var yDomain: ClosedRange<Double> {
-        let nums = values.map(\.value)
-        let minVal = nums.min() ?? 0
-        let maxVal = nums.max() ?? 1
-        if kind == .count {
-            // 计数柱顶留 ~20% 呼吸位（向上取整保轴刻度整数）：
-            // 单日满值柱会整根顶到绘图区上缘，观感差（2026-10-11 东林实报）
-            let ceiling = (maxVal * 1.2).rounded(.up)
-            return 0...max(ceiling, 1)
-        }
-        if maxVal == minVal {
-            return max(minVal - 1, 0)...(maxVal + 1)
-        }
-        let pad = (maxVal - minVal) * 0.2
-        return max(minVal - pad, 0)...(maxVal + pad)
-    }
-
-    // MARK: Body
-
     var body: some View {
-        GeometryReader { geometry in
-            let range = chartRange
-            let slotWidthPt = ChartBarPairLayout.estimatedSlotWidthPt(
-                containerWidthPt: geometry.size.width,
-                pointCount: range.dayCount
-            )
-            chart(range: range,
-                  barWidthPt: ReviewTrendChartLayout.barWidthPt(dayCount: range.dayCount, slotWidthPt: slotWidthPt))
-        }
-    }
-
-    private func chart(range: (start: Date, dayCount: Int), barWidthPt: CGFloat) -> some View {
-        Chart {
+        Group {
             if kind == .count {
-                countMarks(range: range, barWidthPt: barWidthPt)
+                HoloBarChart(buckets: buckets, series: series, selection: $selection, height: 150,
+                             valueText: format, onInspect: inspect)
             } else {
-                measureMarks(range: range)
+                HoloLineChart(buckets: buckets, series: series, selection: $selection, height: 150,
+                              valueText: format, onInspect: inspect)
             }
         }
-        .chartXScale(domain: ReviewTrendChartLayout.xDomain(dayCount: range.dayCount))
-        .chartYScale(domain: yDomain)
-        // X 刻度已由 chartOverlay 自绘（与柱子同一坐标系）；必须显式隐藏默认轴——
-        // 不提供 chartXAxis 时 Charts 会自画一套数字刻度（0...N-1），与自绘日期
-        // 同位叠加，真机上呈「日期重叠乱码」（2026-10-07 东林真机实锤）
-        .chartXAxis(.hidden)
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
-                AxisGridLine().foregroundStyle(Color.holoToolBorder.opacity(0.4))
-                AxisValueLabel {
-                    if let v = value.as(Double.self) {
-                        Text(HabitPresentationProjector.formatValue(v))
-                            .font(.system(size: 9))
-                            .foregroundColor(.holoToolTextSecondary)
-                    }
-                }
-            }
-        }
-        .chartPlotStyle { plotArea in
-            plotArea.padding(.leading, 2)
-                .padding(.trailing, 2)
-        }
-        .chartOverlay { proxy in
-            GeometryReader { geometry in
-                let plotFrame = proxy.plotFrame.map { geometry[$0] }
-
-                if let plotFrame {
-                    // —— X 轴刻度自绘：与柱子/高亮带共用 position(forX:) 同一坐标系，
-                    //    位置即数据点位置（财务 2026-10-07 同款修法）——
-                    ForEach(ReviewTrendChartLayout.tickSlots(dayCount: range.dayCount), id: \.self) { slot in
-                        if let xPos = proxy.position(forX: Double(slot)) {
-                            Text(axisLabel(slot: slot, rangeStart: range.start))
-                                .font(.system(size: 9))
-                                .foregroundStyle(Color.holoToolTextSecondary)
-                                .position(x: plotFrame.minX + xPos, y: plotFrame.maxY + 10)
-                        }
-                    }
-
-                    // —— 选中日：柱后淡色高亮带 + 数值气泡（拖动沿途实时跟随）——
-                    if let slot = selectedSlot(range: range),
-                       let xPos = proxy.position(forX: Double(slot)) {
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(Color.holoToolText.opacity(0.05))
-                            .frame(width: plotFrame.width / CGFloat(range.dayCount), height: plotFrame.height)
-                            .position(x: plotFrame.minX + xPos, y: plotFrame.midY)
-
-                        let detail = tooltipDetail(slot: slot, range: range)
-                        VStack(spacing: 2) {
-                            Text(detail.date)
-                                .font(.system(size: 9, weight: .medium))
-                                .foregroundColor(.holoToolTextSecondary)
-                            Text(detail.value)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(color)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(Color.holoToolSurface)
-                                .shadow(color: .black.opacity(0.1), radius: 3, y: 1)
-                        )
-                        .fixedSize()
-                        .position(x: min(max(plotFrame.minX + xPos, 60), geometry.size.width - 60),
-                                  y: min(max(plotFrame.minY + plotFrame.height * 0.14, 16), geometry.size.height - 16))
-                    }
-
-                    // —— 手势：横向拖动/点按选中当天，纵向交还页面滚动（财务同款组件）——
-                    DirectionalChartGestureOverlay(
-                        onChanged: { location in
-                            selectNearest(location, proxy: proxy, plotFrame: plotFrame, range: range)
-                        },
-                        onEnded: { _ in },
-                        onCancelled: {},
-                        onTap: { location in
-                            selectNearest(location, proxy: proxy, plotFrame: plotFrame, range: range)
-                        }
-                    )
-                }
-            }
-        }
-    }
-
-    @ChartContentBuilder
-    private func countMarks(range: (start: Date, dayCount: Int), barWidthPt: CGFloat) -> some ChartContent {
-        ForEach(slotValues(range: range)) { item in
-            BarMark(
-                x: .value("日期", Double(item.slot)),
-                y: .value("值", item.value),
-                width: .fixed(barWidthPt)
-            )
-            .foregroundStyle(color.opacity(item.date == normalizedSelected ? 1.0 : 0.65))
-            .cornerRadius(3)
-        }
-    }
-
-    @ChartContentBuilder
-    private func measureMarks(range: (start: Date, dayCount: Int)) -> some ChartContent {
-        let points = slotValues(range: range)
-        ForEach(segments(of: points)) { segment in
-            ForEach(segment.points) { item in
-                LineMark(
-                    x: .value("日期", Double(item.slot)),
-                    y: .value("值", item.value)
-                )
-                .foregroundStyle(color)
-                .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
-            }
-        }
-        ForEach(points) { item in
-            PointMark(
-                x: .value("日期", Double(item.slot)),
-                y: .value("值", item.value)
-            )
-            .foregroundStyle(color)
-            .symbolSize(item.date == normalizedSelected ? 60 : 30)
-        }
-    }
-
-    // MARK: 选中与命中
-
-    private func selectedSlot(range: (start: Date, dayCount: Int)) -> Int? {
-        guard let day = normalizedSelected else { return nil }
-        return ReviewTrendChartLayout.slotIndex(of: day, rangeStart: range.start,
-                                                dayCount: range.dayCount, calendar: calendar)
-    }
-
-    private func selectNearest(_ location: CGPoint, proxy: ChartProxy, plotFrame: CGRect?,
-                               range: (start: Date, dayCount: Int)) {
-        guard let plotFrame,
-              let slot = ReviewTrendChartLayout.touchedSlot(
-                  touchXInPlot: location.x - plotFrame.minX,
-                  plotWidth: plotFrame.width,
-                  dayCount: range.dayCount),
-              let day = calendar.date(byAdding: .day, value: slot, to: range.start)
-        else { return }
-        onSelectDay(day)
-    }
-
-    /// 气泡文案：当天有值显示数值，无值如实说无记录
-    private func tooltipDetail(slot: Int, range: (start: Date, dayCount: Int)) -> (date: String, value: String) {
-        let day = calendar.date(byAdding: .day, value: slot, to: range.start) ?? range.start
-        let dayStart = calendar.startOfDay(for: day)
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.setLocalizedDateFormatFromTemplate("M月d日")
-        let valueText: String
-        if let value = values.first(where: { calendar.startOfDay(for: $0.date) == dayStart })?.value {
-            let formatted = HabitPresentationProjector.formatValue(value)
-            valueText = unit.isEmpty ? formatted : "\(formatted) \(unit)"
-        } else {
-            valueText = String(localized: "无记录")
-        }
-        return (formatter.string(from: day), valueText)
-    }
-
-    private func axisLabel(slot: Int, rangeStart: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "M/d"
-        let day = calendar.date(byAdding: .day, value: slot, to: rangeStart) ?? rangeStart
-        return formatter.string(from: day)
+        .onChange(of: selectedDay) { _, day in selection = day.map { String(Calendar.current.startOfDay(for: $0).timeIntervalSince1970) } }
     }
 }

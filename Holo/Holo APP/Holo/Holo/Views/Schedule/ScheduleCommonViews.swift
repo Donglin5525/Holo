@@ -115,7 +115,7 @@ struct ScheduleOnboardingBar: View {
                 HStack(spacing: HoloSpacing.sm) {
                     Image(systemName: "exclamationmark.shield.fill")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
 
                     VStack(alignment: .leading, spacing: 1) {
                         Text("日历权限被拒绝")

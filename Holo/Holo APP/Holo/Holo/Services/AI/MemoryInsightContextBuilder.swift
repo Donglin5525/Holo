@@ -258,17 +258,12 @@ struct MemoryInsightContextBuilder {
         }
         let averageEfficiency = average(efficiencyValues)
         // 就寝时刻跨午夜（23:00 与 01:00 算术平均会得 12:00）：凌晨 0-6 点折算成
-        // 「前一天 24 点 + N」再平均，均值还原到一天内分钟；白天就寝样本（小睡）不参与
-        let bedtimeMinutes = detailNights.compactMap { detail -> Int? in
-            guard let bedtime = detail.bedtime else { return nil }
-            let components = calendar.dateComponents([.hour, .minute], from: bedtime)
-            let minuteOfDay = (components.hour ?? 0) * 60 + (components.minute ?? 0)
-            guard minuteOfDay >= 6 * 60, minuteOfDay < 18 * 60 else {
-                return minuteOfDay < 6 * 60 ? minuteOfDay + 1440 : minuteOfDay
-            }
-            return nil
-        }
-        let averageBedtime = average(bedtimeMinutes.map(Double.init)).map { Int($0.rounded()) % 1440 }
+        // 「前一天 24 点 + N」再平均；白天就寝样本（小睡）不参与
+        let bedtimeMinutes = Self.bedtimeFoldMinutes(from: detailNights, calendar: calendar)
+        // 均值保留折算口径（1080-2159，凌晨 1:00=1500）：不做 %1440 还原——还原后值域
+        // 压回 0-1439，lateBedtime 信号（>1500）恒假永不触发，且与解读模板
+        // 「凌晨 1:00=1500」的口径分裂（10-14 东林实锤天天 1 点后睡无解读）
+        let averageBedtime = average(bedtimeMinutes.map(Double.init)).map { Int($0.rounded()) }
         let wakeMinutes = detailNights.compactMap { detail -> Int? in
             guard let wakeTime = detail.wakeTime else { return nil }
             let components = calendar.dateComponents([.hour, .minute], from: wakeTime)
@@ -320,13 +315,8 @@ struct MemoryInsightContextBuilder {
             ))
         }
 
-        if let averageBedtime, averageBedtime > 1_500 {
-            signals.append(HealthSignal(
-                type: "lateBedtime",
-                severity: "info",
-                title: "就寝偏晚",
-                evidence: ["平均就寝约 \(averageBedtime / 60 % 24) 点\(averageBedtime % 60) 分"]
-            ))
+        if let signal = Self.lateBedtimeSignal(averageBedtimeMinutes: averageBedtime) {
+            signals.append(signal)
         }
 
         if let averageEfficiency, efficiencyValues.count >= 3, averageEfficiency < 75 {
@@ -388,6 +378,32 @@ struct MemoryInsightContextBuilder {
         let positiveValues = values.filter { $0 > 0 }
         guard !positiveValues.isEmpty else { return nil }
         return positiveValues.reduce(0, +) / Double(positiveValues.count)
+    }
+
+    /// 就寝时刻折算（供跨午夜平均）：凌晨 0-6 点折成「前一天 24 点 + N」，
+    /// 白天就寝样本（小睡）剔除。返回值为一天内分钟，凌晨样本落在 1440-1799。
+    nonisolated static func bedtimeFoldMinutes(from details: [HealthSleepDetail], calendar: Calendar) -> [Int] {
+        details.compactMap { detail -> Int? in
+            guard let bedtime = detail.bedtime else { return nil }
+            let components = calendar.dateComponents([.hour, .minute], from: bedtime)
+            let minuteOfDay = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+            guard minuteOfDay >= 6 * 60, minuteOfDay < 18 * 60 else {
+                return minuteOfDay < 6 * 60 ? minuteOfDay + 1440 : minuteOfDay
+            }
+            return nil
+        }
+    }
+
+    /// 就寝偏晚信号：折算口径均值晚于凌晨 1 点（1500）触发。
+    /// 均值必须是折算值——曾因 %1440 还原后与 1500 比较恒假，信号从未触发过。
+    nonisolated static func lateBedtimeSignal(averageBedtimeMinutes: Int?) -> HealthSignal? {
+        guard let averageBedtimeMinutes, averageBedtimeMinutes > 1_500 else { return nil }
+        return HealthSignal(
+            type: "lateBedtime",
+            severity: "info",
+            title: "就寝偏晚",
+            evidence: ["平均就寝约 \(averageBedtimeMinutes / 60 % 24) 点\(averageBedtimeMinutes % 60) 分"]
+        )
     }
 
     private func buildExpressionDecisionContext(

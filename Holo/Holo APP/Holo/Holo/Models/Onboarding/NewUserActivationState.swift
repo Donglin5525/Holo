@@ -17,7 +17,11 @@ enum NewUserActivationState {
 
     /// 用户是否已产生任何一条记录（任一实体存在未软删行即 true）
     static func hasAnyRecord(context: NSManagedObjectContext = CoreDataStack.shared.viewContext) -> Bool {
-        trackedEntities.contains { activeCount($0, limit: 1, context: context) > 0 }
+        trackedEntities.contains { entityName in
+            // 预置欢迎笔记不算用户的激活记录，否则行动卡/首录庆祝被它误判已激活
+            let excludingThoughtID = entityName == "Thought" ? WelcomeNoteSeed.noteId : nil
+            return activeCount(entityName, limit: 1, context: context, excludingID: excludingThoughtID) > 0
+        }
     }
 
     /// 当前库中未软删交易是否恰好只有一条（= 人生第一笔刚落库）
@@ -25,9 +29,18 @@ enum NewUserActivationState {
         activeCount("Transaction", limit: 2, context: context) == 1
     }
 
-    private static func activeCount(_ entityName: String, limit: Int, context: NSManagedObjectContext) -> Int {
+    private static func activeCount(
+        _ entityName: String,
+        limit: Int,
+        context: NSManagedObjectContext,
+        excludingID: UUID? = nil
+    ) -> Int {
         let request = NSFetchRequest<NSFetchRequestResult>(entityName: entityName)
-        request.predicate = NSPredicate(format: "deletedAt == nil")
+        if let excludingID {
+            request.predicate = NSPredicate(format: "deletedAt == nil AND id != %@", excludingID as CVarArg)
+        } else {
+            request.predicate = NSPredicate(format: "deletedAt == nil")
+        }
         request.fetchLimit = limit
         return (try? context.count(for: request)) ?? 0
     }

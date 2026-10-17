@@ -517,7 +517,7 @@ struct HoloCountBadge: View {
         Text(verbatim: "\(count)")
             .font(.system(size: 12, weight: .semibold, design: .rounded))
             .monospacedDigit()
-            .foregroundColor(.holoTextSecondary)
+            .foregroundColor(.holoToolTextSecondary)
             .padding(.horizontal, 6)
             .frame(minWidth: 20, minHeight: 20)
             .background(

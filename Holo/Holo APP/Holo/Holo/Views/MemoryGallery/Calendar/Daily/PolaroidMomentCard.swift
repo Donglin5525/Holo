@@ -142,7 +142,8 @@ struct PolaroidMomentCard: View {
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
                 .stroke(style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
-                .foregroundColor(moment.module.color.opacity(0.28))
+                // 深色下剪报虚线隐身：模块色浓度提到 0.5
+                .foregroundColor(moment.module.color.opacity(0.5))
         )
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
         .onTapGesture(perform: onSelect)

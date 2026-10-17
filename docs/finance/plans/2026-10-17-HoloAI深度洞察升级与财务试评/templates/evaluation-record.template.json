@@ -1,0 +1,61 @@
+{
+  "templateVersion": "financial_insight_trial_v1",
+  "status": "not_run",
+  "runID": null,
+  "caseID": null,
+  "condition": null,
+  "repeatIndex": null,
+  "question": null,
+  "datasetHash": null,
+  "evidenceLedgerHash": null,
+  "situationBriefHash": null,
+  "promptSource": null,
+  "promptVersion": null,
+  "promptDigest": null,
+  "model": null,
+  "provider": null,
+  "parameters": {},
+  "runtimePath": null,
+  "executionStatus": "not_started",
+  "hardGate": {
+    "status": "not_evaluated",
+    "issues": []
+  },
+  "quality": {
+    "answerRelevance": null,
+    "usefulUnderstanding": null,
+    "explanationQuality": null,
+    "situationFit": null,
+    "decisionValue": null,
+    "naturalness": null,
+    "notApplicableReasons": {},
+    "reviewer": null,
+    "reviewNotes": []
+  },
+  "comparison": {
+    "pairedRunID": null,
+    "blindOrder": null,
+    "preference": null,
+    "reason": null
+  },
+  "usage": {
+    "upstreamCalls": null,
+    "retries": null,
+    "inputTokens": null,
+    "cachedInputTokens": null,
+    "outputTokens": null,
+    "reasoningTokensSubset": null,
+    "durationMs": null,
+    "estimatedFeeCNY": null,
+    "billingVerified": false,
+    "unknownUsage": null
+  },
+  "userValue": {
+    "changedUnderstanding": null,
+    "changedDecision": null,
+    "adopted": null,
+    "executed": null,
+    "followUpHelpfulness": null
+  },
+  "nextDecision": null
+}

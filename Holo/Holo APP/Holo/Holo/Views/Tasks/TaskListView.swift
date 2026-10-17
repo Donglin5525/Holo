@@ -602,7 +602,7 @@ struct TaskListView: View {
 
                         if overdueCount > 0 {
                             Text("\(overdueCount) 项已过期")
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
                                 .fontWeight(.semibold)
                         }
                     }
@@ -1764,7 +1764,7 @@ private struct TaskSortSheet: View {
         } label: {
             Text("恢复默认排序")
                 .font(.holoBody)
-                .foregroundColor(.holoError)
+                .foregroundColor(.holoToolError)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
         }

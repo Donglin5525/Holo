@@ -1034,7 +1034,7 @@ private struct ChatContentColumn: View {
                     .padding(.vertical, 6)
                     .frame(maxWidth: .infinity)
                     .background(.ultraThinMaterial, in: Capsule())
-                    .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
+                    .overlay(Capsule().stroke(Color.holoToolAI.opacity(0.2)))
                     .padding(.horizontal, 16)
                     .padding(.bottom, 4)
                     .transition(.opacity)
@@ -1049,11 +1049,11 @@ private struct ChatContentColumn: View {
                     Text("将按「\(scenarioTitle)」场景分析 · 可改写问句，确认后发送")
                         .font(.system(size: 11, weight: .medium))
                 }
-                .foregroundColor(Color.holoPrimary.opacity(0.95))
+                .foregroundColor(Color.holoToolAI.opacity(0.95))
                 .padding(.horizontal, 11)
                 .padding(.vertical, 5)
-                .background(Color.holoPrimary.opacity(0.08), in: Capsule())
-                .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.22), lineWidth: 0.8))
+                .background(Color.holoToolAI.opacity(0.08), in: Capsule())
+                .overlay(Capsule().stroke(Color.holoToolAI.opacity(0.22), lineWidth: 0.8))
                 .padding(.horizontal, 16)
                 .padding(.bottom, 4)
                 .transition(.opacity)
@@ -1242,171 +1242,7 @@ private struct ChatMessageListPane: View {
                 }
 
                 ForEach(viewModel.messages, id: \.id) { message in
-                    if message.showsTimestampSeparator {
-                        ChatTimeStampSeparator(date: message.timestamp)
-                    }
-
-                    MessageBubbleView(
-                        message: message,
-                        streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
-                        goalDraftForReview: viewModel.goalDraftForReview,
-                        latestGoalPlanningAssistantMessageID: viewModel.latestGoalPlanningAssistantMessageID,
-                        onIntentTagTap: { msg in
-                            actions.onIntentTagTap(msg)
-                        },
-                        onCardTap: { message, cardData in
-                            actions.onCardTap(message, cardData)
-                        },
-                        onFlexibleQueryTransactionTap: { transactionId in
-                            actions.onOpenTransaction(transactionId)
-                        },
-                        onFlexibleQueryViewAllTap: { queryData in
-                            actions.onOpenFlexibleQuery(queryData)
-                        },
-                        onViewLog: internalLogAction,
-                        onCompactAnalysisTap: {
-                            guard message.metadataState == .loaded,
-                                  message.analysisContext != nil else { return }
-                            actions.presentSheet(.analysisDetail(message))
-                        },
-                        onAgentDeepAnalysisTap: {
-                            guard message.agentResult != nil else { return }
-                            actions.onAgentDetail(message)
-                        },
-                        onAgentScopeChange: { preset in
-                            guard let result = message.agentResult else { return }
-                            Task { await viewModel.changeAnalysisScope(from: result, preset: preset) }
-                        },
-                        onAgentResumePaused: {
-                            viewModel.resumePausedAgentJobs(sourceMessageID: message.id)
-                        },
-                        onPeriodReplayExpansionChanged: { message, isExpanded in
-                            // 收起方向：内容变短可能让偏移越过新边界，交给底层 UIScrollView 校正。
-                            guard !isExpanded else {
-                                // 展开方向：内容只增不减，偏移天然合法；把被点击卡片柔和带回可视区，
-                                // 避免展开后的长内容把操作入口瞬间推离屏幕。
-                                Task { @MainActor in
-                                    await Task.yield()
-                                    withAnimation(HoloAnimation.standard) {
-                                        proxy.scrollTo(message.id, anchor: .bottom)
-                                    }
-                                }
-                                return
-                            }
-                            scrollController.requestOffsetClamp()
-                        },
-                        onGoalDraftCardTap: {
-                            viewModel.showGoalDraftReview = true
-                        },
-                        onOpenMatter: { matterID in
-                            actions.presentSheet(.matterDetail(matterID))
-                        },
-                        onOpenTask: { taskID in
-                            actions.presentSheet(.taskDetail(taskID))
-                        },
-                        onSavedGoalCardTap: { goalId in
-                            DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
-                        },
-                        onRetry: {
-                            Task { await viewModel.retryMessage(message) }
-                        },
-                        onLearnPlus: {
-                            actions.onShowMembership()
-                        },
-                        onCardDelete: { msg, entityId, category, description in
-                            actions.onPendingCardDelete(PendingCardDelete(
-                                category: category,
-                                entityId: entityId,
-                                description: description
-                            ))
-                        },
-                        onTaskConfirm: { msg, taskData in
-                            viewModel.confirmPendingTask(from: msg, itemID: taskData.itemID)
-                        },
-                        onTaskCancel: { msg, taskData in
-                            viewModel.cancelPendingTask(from: msg, itemID: taskData.itemID)
-                        },
-                        onTaskFollowUp: { msg, taskData in
-                            viewModel.startTaskFollowUp(taskData)
-                        },
-                        onTaskEditDueDate: { msg, taskData in
-                            actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .dueDate))
-                        },
-                        onTaskEditReminders: { msg, taskData in
-                            actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .reminders))
-                        },
-                        onTaskEditList: { msg, taskData in
-                            actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .list))
-                        },
-                        onTaskEditContent: { msg, taskData in
-                            actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .content))
-                        },
-                        onTransactionConfirm: { msg, txData in
-                            viewModel.confirmPendingTransaction(from: msg, itemID: txData.itemID)
-                        },
-                        onTransactionCancel: { msg, txData in
-                            viewModel.cancelPendingTransaction(from: msg, itemID: txData.itemID)
-                        },
-                        onTransactionModifyCategory: { msg, txData in
-                            // 按 itemID 定位被点击卡片的待确认项；确认进行中的项不允许再改分类
-                            guard let pending = viewModel.pendingFinanceItem(in: msg, itemID: txData.itemID),
-                                  let renderData = pending.renderData else { return }
-                            let type: TransactionType = pending.intent == .recordIncome ? .income : .expense
-                            let prefill = PendingTransactionPrefill(
-                                amount: renderData["amount"] ?? "0",
-                                note: renderData["note"] ?? renderData["categoryCandidate"],
-                                type: type,
-                                category: nil,
-                                date: TransactionDateResolver.resolve(from: renderData)
-                            )
-                            actions.onCategoryEditPrefill(msg, pending.id, prefill)
-                        },
-                        onBudgetConfirm: { msg, budgetData in
-                            viewModel.confirmPendingBudget(from: msg, itemID: budgetData.itemID)
-                        },
-                        onBudgetCancel: { msg, budgetData in
-                            viewModel.cancelPendingBudget(from: msg, itemID: budgetData.itemID)
-                        },
-                        onAnniversaryConfirm: { msg, anniversaryData in
-                            viewModel.confirmPendingAnniversary(from: msg, itemID: anniversaryData.itemID)
-                        },
-                        onAnniversaryCancel: { msg, anniversaryData in
-                            viewModel.cancelPendingAnniversary(from: msg, itemID: anniversaryData.itemID)
-                        },
-                        onGoalChoiceSelect: { msg, choiceData, candidate in
-                            viewModel.confirmPendingGoalChoice(
-                                from: msg,
-                                itemID: choiceData.itemID,
-                                goalId: candidate.goalId
-                            )
-                        },
-                        onGoalChoiceCancel: { msg, choiceData in
-                            viewModel.cancelPendingGoalChoice(from: msg, itemID: choiceData.itemID)
-                        },
-                        onReport: { msg in
-                            actions.onReport(msg)
-                        },
-                        lifePlanSnapshotProvider: { msg in
-                            viewModel.lifePlanSnapshot(for: msg)
-                        },
-                        lifePlanUndoPlanID: viewModel.lastPlanUndo?.planID,
-                        onLifePlanOpenReview: { snapshot in
-                            viewModel.openLifePlanReview(snapshot)
-                        },
-                        onLifePlanUndo: { snapshot in
-                            if let undo = viewModel.lastPlanUndo, undo.planID == snapshot.id {
-                                viewModel.undoLifePlanConfirm(planID: undo.planID, token: undo.token)
-                            }
-                        },
-                        onPlanningRunCancel: { msg in
-                            viewModel.cancelPlanningRun(msg.id)
-                        }
-                    )
-                    .equatable()
-                    .id(message.id)
-                    .onAppear {
-                        viewModel.loadMetadataIfNeeded(for: message.id)
-                    }
+                    messageRow(for: message, proxy: proxy)
                 }
             }
             .padding(.horizontal, 16)
@@ -1469,6 +1305,223 @@ private struct ChatMessageListPane: View {
         }
         }
         }
+    }
+
+    // MARK: - Message Row
+
+    /// 单条消息行（时间分隔条 + 消息气泡）。
+    /// 从 body 原样拆出：ChatMessageListPane 的 body 表达式已在类型检查上限边缘，
+    /// 往 ForEach 内联的巨型初始化里再加参数会触发 "unable to type-check in reasonable time"。
+    @ViewBuilder
+    private func messageRow(for message: ChatMessageViewData, proxy: ScrollViewProxy) -> some View {
+        if message.showsTimestampSeparator {
+            ChatTimeStampSeparator(date: message.timestamp)
+        }
+
+        MessageBubbleView(
+            message: message,
+            streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
+            goalDraftForReview: viewModel.goalDraftForReview,
+            latestGoalPlanningAssistantMessageID: viewModel.latestGoalPlanningAssistantMessageID,
+            showsAIHeader: aiHeaderMessageIDs.contains(message.id),
+            onIntentTagTap: { msg in
+                actions.onIntentTagTap(msg)
+            },
+            onCardTap: { message, cardData in
+                actions.onCardTap(message, cardData)
+            },
+            onFlexibleQueryTransactionTap: { transactionId in
+                actions.onOpenTransaction(transactionId)
+            },
+            onFlexibleQueryViewAllTap: { queryData in
+                actions.onOpenFlexibleQuery(queryData)
+            },
+            onViewLog: internalLogAction,
+            onCompactAnalysisTap: {
+                guard message.metadataState == .loaded,
+                      message.analysisContext != nil else { return }
+                actions.presentSheet(.analysisDetail(message))
+            },
+            onAgentDeepAnalysisTap: {
+                guard message.agentResult != nil else { return }
+                actions.onAgentDetail(message)
+            },
+            onAgentScopeChange: { preset in
+                guard let result = message.agentResult else { return }
+                Task { await viewModel.changeAnalysisScope(from: result, preset: preset) }
+            },
+            onAgentResumePaused: {
+                viewModel.resumePausedAgentJobs(sourceMessageID: message.id)
+            },
+            onPeriodReplayExpansionChanged: { message, isExpanded in
+                // 收起方向：内容变短可能让偏移越过新边界，交给底层 UIScrollView 校正。
+                guard !isExpanded else {
+                    // 展开方向：内容只增不减，偏移天然合法；把被点击卡片柔和带回可视区，
+                    // 避免展开后的长内容把操作入口瞬间推离屏幕。
+                    Task { @MainActor in
+                        await Task.yield()
+                        withAnimation(HoloAnimation.standard) {
+                            proxy.scrollTo(message.id, anchor: .bottom)
+                        }
+                    }
+                    return
+                }
+                scrollController.requestOffsetClamp()
+            },
+            onGoalDraftCardTap: {
+                viewModel.showGoalDraftReview = true
+            },
+            onOpenMatter: { matterID in
+                actions.presentSheet(.matterDetail(matterID))
+            },
+            onOpenTask: { taskID in
+                actions.presentSheet(.taskDetail(taskID))
+            },
+            onSavedGoalCardTap: { goalId in
+                DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
+            },
+            onRetry: {
+                Task { await viewModel.retryMessage(message) }
+            },
+            onLearnPlus: {
+                actions.onShowMembership()
+            },
+            onCardDelete: { msg, entityId, category, description in
+                actions.onPendingCardDelete(PendingCardDelete(
+                    category: category,
+                    entityId: entityId,
+                    description: description
+                ))
+            },
+            onTaskConfirm: { msg, taskData in
+                viewModel.confirmPendingTask(from: msg, itemID: taskData.itemID)
+            },
+            onTaskCancel: { msg, taskData in
+                viewModel.cancelPendingTask(from: msg, itemID: taskData.itemID)
+            },
+            onTaskFollowUp: { msg, taskData in
+                viewModel.startTaskFollowUp(taskData)
+            },
+            onTaskEditDueDate: { msg, taskData in
+                actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .dueDate))
+            },
+            onTaskEditReminders: { msg, taskData in
+                actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .reminders))
+            },
+            onTaskEditList: { msg, taskData in
+                actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .list))
+            },
+            onTaskEditContent: { msg, taskData in
+                actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .content))
+            },
+            onTransactionConfirm: { msg, txData in
+                viewModel.confirmPendingTransaction(from: msg, itemID: txData.itemID)
+            },
+            onTransactionCancel: { msg, txData in
+                viewModel.cancelPendingTransaction(from: msg, itemID: txData.itemID)
+            },
+            onTransactionModifyCategory: { msg, txData in
+                // 按 itemID 定位被点击卡片的待确认项；确认进行中的项不允许再改分类
+                guard let pending = viewModel.pendingFinanceItem(in: msg, itemID: txData.itemID),
+                      let renderData = pending.renderData else { return }
+                let type: TransactionType = pending.intent == .recordIncome ? .income : .expense
+                let prefill = PendingTransactionPrefill(
+                    amount: renderData["amount"] ?? "0",
+                    note: renderData["note"] ?? renderData["categoryCandidate"],
+                    type: type,
+                    category: nil,
+                    date: TransactionDateResolver.resolve(from: renderData)
+                )
+                actions.onCategoryEditPrefill(msg, pending.id, prefill)
+            },
+            onBudgetConfirm: { msg, budgetData in
+                viewModel.confirmPendingBudget(from: msg, itemID: budgetData.itemID)
+            },
+            onBudgetCancel: { msg, budgetData in
+                viewModel.cancelPendingBudget(from: msg, itemID: budgetData.itemID)
+            },
+            onAnniversaryConfirm: { msg, anniversaryData in
+                viewModel.confirmPendingAnniversary(from: msg, itemID: anniversaryData.itemID)
+            },
+            onAnniversaryCancel: { msg, anniversaryData in
+                viewModel.cancelPendingAnniversary(from: msg, itemID: anniversaryData.itemID)
+            },
+            onGoalChoiceSelect: { msg, choiceData, candidate in
+                viewModel.confirmPendingGoalChoice(
+                    from: msg,
+                    itemID: choiceData.itemID,
+                    goalId: candidate.goalId
+                )
+            },
+            onGoalChoiceCancel: { msg, choiceData in
+                viewModel.cancelPendingGoalChoice(from: msg, itemID: choiceData.itemID)
+            },
+            onReport: { msg in
+                actions.onReport(msg)
+            },
+            lifePlanSnapshotProvider: { msg in
+                viewModel.lifePlanSnapshot(for: msg)
+            },
+            lifePlanUndoPlanID: viewModel.lastPlanUndo?.planID,
+            onLifePlanOpenReview: { snapshot in
+                viewModel.openLifePlanReview(snapshot)
+            },
+            onLifePlanUndo: { snapshot in
+                if let undo = viewModel.lastPlanUndo, undo.planID == snapshot.id {
+                    viewModel.undoLifePlanConfirm(planID: undo.planID, token: undo.token)
+                }
+            },
+            onPlanningRunCancel: { msg in
+                viewModel.cancelPlanningRun(msg.id)
+            }
+        )
+        .equatable()
+        .id(message.id)
+        .onAppear {
+            viewModel.loadMetadataIfNeeded(for: message.id)
+        }
+    }
+
+    // MARK: - AI 名头分组
+
+    /// 当前消息列表中需要显示「Holo + AI」名头行的消息集合（各组组首）。
+    /// 声明为计算属性而非 body 内局部 let：ChatMessageListPane 的 body 表达式已接近
+    /// 类型检查上限，再往 ViewBuilder 里加语句会触发 "unable to type-check in reasonable time"。
+    private var aiHeaderMessageIDs: Set<UUID> {
+        Self.computeAIHeaderMessageIDs(in: viewModel.messages)
+    }
+
+    /// 计算需要显示「Holo + AI」名头行的消息集合（各组组首）：
+    /// 连续 Holo 普通消息并入同组，仅组首显示名头行（iMessage/微信分组惯例）。
+    /// 打断并重起分组的条件：上一条不是可并组的 Holo 消息（用户消息/独立类型卡），
+    /// 或本条上方有时间分隔条、本条自身是独立类型卡。
+    private static func computeAIHeaderMessageIDs(in messages: [ChatMessageViewData]) -> Set<UUID> {
+        var ids = Set<UUID>()
+        var previousContinuesGroup = false
+        for message in messages {
+            let isAI = message.role != "user"
+            let standalone = isStandaloneCardMessage(message)
+            if isAI && (!previousContinuesGroup || message.showsTimestampSeparator || standalone) {
+                ids.insert(message.id)
+            }
+            previousContinuesGroup = isAI && !standalone
+        }
+        return ids
+    }
+
+    /// 独立类型卡消息：分析 / 回放 / 方案 / 额度等整卡形态自成视觉单元，
+    /// 前后都不并入名头分组（其自身与下一条消息都会重起名头）。
+    private static func isStandaloneCardMessage(_ message: ChatMessageViewData) -> Bool {
+        message.messageType == .periodReplay
+            || message.messageType == .quotaExhausted
+            || message.messageType == .lifePlan
+            || message.messageType == .contextPlan
+            || message.messageType == .todayRelief
+            || message.messageType == .goalPlanning
+            || message.savedGoalCard != nil
+            || message.isQueryAnalysis
+            || !message.analysisCards.isEmpty
+            || message.flexibleQueryCard != nil
     }
 
     // MARK: - IM Scroll Behavior
@@ -1814,6 +1867,12 @@ private struct ChatPageTabBar: View {
                     if isSelected {
                         Capsule().fill(Color.holoToolSurface)
                             .matchedGeometryEffect(id: "chatPageTabCapsule", in: pageTabNamespace)
+                    }
+                }
+                .overlay {
+                    // 深色下选中胶囊贴轨道底色：细描边兜出选中边界
+                    if isSelected {
+                        Capsule().strokeBorder(Color.holoToolBorder, lineWidth: 0.5)
                     }
                 }
                 .overlay(alignment: .topTrailing) {

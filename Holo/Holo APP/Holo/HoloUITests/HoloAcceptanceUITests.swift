@@ -203,3 +203,112 @@ final class HoloListDarkMode: XCTestCase {
         XCTAssertTrue(searchBtn.isHittable, "财务搜索页右滑未关闭")
     }
 }
+
+
+/// 直接验证公共图表的真实触摸链路，不依赖业务种子数据或截图推断。
+final class HoloChartInteractionUITests: XCTestCase {
+    private struct PlotCoordinates {
+        let app: XCUIApplication
+        func waitForExistence(timeout: TimeInterval) -> Bool {
+            let metadata = app.staticTexts["chart.gallery.geometry"]
+            let ready = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+                metadata.exists && frame.width > 0 && frame.height > 0
+            }, object: nil)
+            let success = XCTWaiter.wait(for: [ready], timeout: timeout) == .completed
+            if !success { print("图表布局尚未就绪：\(app.debugDescription)") }
+            return success
+        }
+        var frame: CGRect {
+            let raw = app.staticTexts["chart.gallery.geometry"].value as? String ?? ""
+            let values = raw.split(separator: "|").compactMap { Double($0) }
+            guard values.count == 4 else { return .zero }
+            return CGRect(x: values[0], y: values[1], width: values[2], height: values[3])
+        }
+        func coordinate(withNormalizedOffset vector: CGVector) -> XCUICoordinate {
+            let current = frame
+            return app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(
+                dx: current.minX + current.width * vector.dx, dy: current.minY + current.height * vector.dy))
+        }
+    }
+
+    private func launch(largeType: Bool = false) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += ["-HoloChartGallery"]
+        if largeType { app.launchArguments += ["-HoloChartGalleryLargeType", "-HoloChartGalleryDark"] }
+        app.launch()
+        XCTAssertTrue(app.staticTexts["chart.gallery.selection"].waitForExistence(timeout: 15))
+        return app
+    }
+
+    func testBarCentersEdgesPersistenceAndReset() {
+        let app = launch()
+        let plot = PlotCoordinates(app: app)
+        XCTAssertTrue(plot.waitForExistence(timeout: 10))
+        let result = app.staticTexts["chart.gallery.selection"]
+        for index in [0, 1, 2, 5, 10] {
+            for fraction in [0.1, 0.5, 0.9] {
+                plot.coordinate(withNormalizedOffset: CGVector(dx: (Double(index) + fraction) / 12, dy: 0.5)).tap()
+                XCTAssertEqual(result.label, "slot-\(index)")
+            }
+        }
+        plot.coordinate(withNormalizedOffset: CGVector(dx: 0.5 / 12, dy: 0.6))
+            .press(forDuration: 0.05, thenDragTo: plot.coordinate(withNormalizedOffset: CGVector(dx: 8.5 / 12, dy: 0.6)))
+        XCTAssertEqual(result.label, "slot-8", "松手后保留最后一格")
+        plot.coordinate(withNormalizedOffset: CGVector(dx: 11.5 / 12, dy: 0.5)).tap()
+        XCTAssertEqual(result.label, "slot-8", "未来日期不应被选中")
+        app.buttons["chart.gallery.reset"].tap()
+        XCTAssertEqual(result.label, "未选中")
+    }
+
+    func testMissingDayDoesNotJumpAndVerticalPanScrolls() {
+        let app = launch()
+        app.buttons["折线"].tap()
+        let plot = PlotCoordinates(app: app)
+        XCTAssertTrue(plot.waitForExistence(timeout: 10))
+        plot.coordinate(withNormalizedOffset: CGVector(dx: 2.5 / 12, dy: 0.5)).tap()
+        XCTAssertEqual(app.staticTexts["chart.gallery.selection"].label, "slot-2")
+        plot.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.8))
+            .press(forDuration: 0.01, thenDragTo: plot.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.05)))
+        XCTAssertEqual(app.staticTexts["chart.gallery.selection"].label, "slot-2", "纵滑不能被图表接管")
+        app.scrollViews.firstMatch.swipeUp()
+        XCTAssertTrue(app.staticTexts["chart.gallery.footer"].isHittable)
+    }
+
+    func testHeatmapTwoDimensionalScrubAndTinyCategoryList() {
+        let app = launch()
+        app.buttons["格子"].tap()
+        let grid = app.descendants(matching: .any)["holo.heatmap.grid"].firstMatch
+        XCTAssertTrue(grid.waitForExistence(timeout: 10))
+        grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5 / 12, dy: 0.5 / 7)).tap()
+        XCTAssertEqual(app.staticTexts["chart.gallery.selection"].label, "heat-0")
+        grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5 / 12, dy: 0.5 / 7))
+            .press(forDuration: 0.35, thenDragTo: grid.coordinate(withNormalizedOffset: CGVector(dx: 3.5 / 12, dy: 4.5 / 7)))
+        XCTAssertEqual(app.staticTexts["chart.gallery.selection"].label, "heat-25")
+        app.buttons["占比"].tap()
+        let tiny = app.buttons["holo.donut.segment.tiny"]
+        if !tiny.isHittable { app.scrollViews.firstMatch.swipeUp() }
+        tiny.tap()
+        XCTAssertEqual(app.staticTexts["chart.gallery.selection"].label, "tiny")
+    }
+
+    func testLargeTypeDarkModeAndWideRotationRemainSelectable() {
+        let app = launch(largeType: true)
+        let wide = app.frame.width > 600
+        if wide { XCUIDevice.shared.orientation = .landscapeLeft }
+        defer { if wide { XCUIDevice.shared.orientation = .portrait } }
+        let plot = PlotCoordinates(app: app)
+        XCTAssertTrue(plot.waitForExistence(timeout: 10))
+        for _ in 0..<3 where plot.frame.maxY > app.frame.maxY - 25 {
+            let scroll = app.scrollViews.firstMatch
+            scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.8))
+                .press(forDuration: 0.01, thenDragTo: scroll.coordinate(withNormalizedOffset: CGVector(dx: 0.8, dy: 0.5)))
+        }
+        XCTAssertGreaterThan(plot.frame.width, 150)
+        XCTAssertLessThan(plot.frame.maxY, app.frame.maxY)
+        plot.coordinate(withNormalizedOffset: CGVector(dx: 5.5 / 12, dy: 0.5)).tap()
+        XCTAssertEqual(app.staticTexts["chart.gallery.selection"].label, "slot-5")
+        let readout = app.otherElements["holo.chart.readout"].firstMatch
+        if readout.exists { XCTAssertLessThanOrEqual(readout.frame.maxY, plot.frame.minY + 1) }
+    }
+
+}

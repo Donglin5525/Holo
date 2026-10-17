@@ -132,17 +132,7 @@ struct SleepStagesCard: View {
     }
 
     private func proportionBar(for stage: StageItem) -> some View {
-        GeometryReader { proxy in
-            let ratio = proportion(of: stage.hours)
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.holoDivider)
-                Capsule()
-                    .fill(stage.color)
-                    .frame(width: proxy.size.width * ratio)
-            }
-        }
-        .frame(width: 72, height: 6)
+        HoloProgress(value: detail.totalHours > 0 ? Double(proportion(of: stage.hours)) : nil, color: stage.color, lineWidth: 6).frame(width: 72)
     }
 
     /// 阶段时长占总睡眠时长的比例（清醒时间也按总睡眠归一，避免超过 100%）

@@ -522,7 +522,8 @@ struct ThoughtCardView: View {
 
                 Text("AI")
                     .font(.system(size: 8, weight: .semibold))
-                    .foregroundColor(.holoToolTextSecondary.opacity(0.6))
+                    // 8pt 微标不做半透明降档：深色下会跌破可读线
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)

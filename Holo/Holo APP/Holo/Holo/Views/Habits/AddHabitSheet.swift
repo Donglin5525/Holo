@@ -46,7 +46,7 @@ struct AddHabitSheet: View {
     @State private var targetValue: String = ""
     @State private var unit: String = ""
     @State private var selectedAggregationType: HabitAggregationType = .sum
-    @State private var isBadHabit: Bool? = nil
+    @State private var isBadHabit = false
 
     // 打卡提醒（仅打卡型；solo 模式的时刻，默认 09:00）
     @State private var reminderMode: HabitReminderMode = .follow
@@ -65,7 +65,6 @@ struct AddHabitSheet: View {
     @State private var expandedGoalsFrequency = false
     @State private var expandedReminderGoal = false
     @State private var expandedIconColor = false
-    @State private var expandedNature = false
 
     // 保存失败：表单内错误 + 保留草稿重试（方案 §8.3/§11.4）
     @State private var saveErrorMessage: String? = nil
@@ -123,12 +122,6 @@ struct AddHabitSheet: View {
                         iconColorSection
                     }
 
-                    configSection(title: String(localized: "习惯性质"),
-                                  summary: natureSummaryText,
-                                  isExpanded: $expandedNature) {
-                        habitNatureSection
-                    }
-
                     // 保存失败：表单内显示原因与重试，输入不清空不关闭（方案 §8.3）
                     if let saveErrorMessage {
                         HStack(alignment: .top, spacing: 6) {
@@ -137,7 +130,7 @@ struct AddHabitSheet: View {
                             Text(saveErrorMessage)
                         }
                         .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(
@@ -236,7 +229,7 @@ struct AddHabitSheet: View {
             if let lifecycleError {
                 Text(lifecycleError)
                     .font(.system(size: 12))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                     .padding(.bottom, 6)
             }
 
@@ -444,7 +437,7 @@ struct AddHabitSheet: View {
             selectedColor = habit.color
             selectedFrequency = habit.habitFrequency
             selectedAggregationType = habit.habitAggregationType
-            isBadHabit = habit.isBadHabit ? true : nil
+            isBadHabit = habit.isBadHabit
 
             if let tc = habit.targetCountValue {
                 targetCount = String(tc)
@@ -473,7 +466,6 @@ struct AddHabitSheet: View {
             expandedGoalsFrequency = true
             expandedReminderGoal = true
             expandedIconColor = false
-            expandedNature = false
         } else if let draft = prefill {
             name = draft.name
             selectedIcon = draft.icon
@@ -565,33 +557,61 @@ struct AddHabitSheet: View {
         }
     }
     
-    // MARK: - 记录方式（三卡，方案 §8.1：先名称后方式，两个必要决定）
+    // MARK: - 记录方式（三卡，P2 白话化：技术词翻译成用户动词，2026-10-15 东林拍板）
 
     private var methodSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("记录方式")
+            Text(String(localized: "你每天要记什么？"))
                 .font(.holoLabel)
                 .foregroundColor(.holoToolTextSecondary)
 
             VStack(spacing: 8) {
                 methodCard(.checkIn, .sum,
-                           title: String(localized: "打卡"),
-                           subtitle: String(localized: "做了以后留一个勾"),
-                           outcome: String(localized: "看连续天数 · 每周完成率 · 日历"),
+                           title: String(localized: "做了没"),
+                           subtitle: String(localized: "要么做了，要么没做，一下就行 · 例：冥想、跑步、吃维生素"),
+                           outcome: String(localized: "以后看「连续多少天」"),
                            outcomeColor: Color(hex: "#2FA360"),
                            icon: "checkmark.circle")
                 methodCard(.numeric, .sum,
-                           title: String(localized: "计数"),
-                           subtitle: String(localized: "一次次累加，例如喝水、练习次数"),
-                           outcome: String(localized: "看每天次数 · 累计走势"),
+                           title: String(localized: "数几次"),
+                           subtitle: String(localized: "做了就 +1，一天累计几次 · 例：喝水 8 杯、俯卧撑 3 组"),
+                           outcome: String(localized: "以后看「每天几次」的走势"),
                            outcomeColor: Color(hex: "#D9662C"),
                            icon: "number")
                 methodCard(.numeric, .latest,
-                           title: String(localized: "测量"),
-                           subtitle: String(localized: "记下每次的数值，例如体重、时长"),
-                           outcome: String(localized: "看数值曲线 · 前后对比"),
+                           title: String(localized: "记一个数"),
+                           subtitle: String(localized: "每天记下一个数字 · 例：体重 75、睡眠 7.5 小时"),
+                           outcome: String(localized: "以后看这个数的变化曲线"),
                            outcomeColor: Color(hex: "#3B76C9"),
                            icon: "scalemass")
+            }
+
+            // 坏习惯：P2 白话化——从三态选择降为一行小开关，不占决策位
+            HStack(spacing: 8) {
+                Text(String(localized: "这是想减少的事（坏习惯）"))
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoToolTextSecondary)
+                Spacer()
+                Toggle("", isOn: $isBadHabit)
+                    .labelsHidden()
+                    .tint(Color.holoError)
+                    .scaleEffect(0.82)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                    .fill(Color.holoToolSurface.opacity(0.6))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                    .stroke(style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .foregroundColor(Color.holoToolBorder.opacity(0.6))
+            )
+            if isBadHabit {
+                Text(String(localized: "记录「发生了」，超过目标会提醒你控制"))
+                    .font(.system(size: 10.5))
+                    .foregroundColor(.holoToolTextSecondary)
             }
 
             // 编辑模式且类型有改动：预告历史记录的转换方式（复用既有幂等桥接）
@@ -739,14 +759,6 @@ struct AddHabitSheet: View {
         return parts.joined(separator: " · ")
     }
 
-    private var natureSummaryText: String {
-        switch isBadHabit {
-        case .some(false): return String(localized: "好习惯")
-        case .some(true): return String(localized: "坏习惯")
-        case .none: return String(localized: "好习惯")
-        }
-    }
-
     // MARK: - 关联目标（真实 Goal 关系，方案 §6.3/§8.2）
 
     private var goalLinkSection: some View {
@@ -784,66 +796,6 @@ struct AddHabitSheet: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("habit.edit.goal")
-        }
-    }
-
-    // MARK: - 习惯类型（旧 segmented 保留兼容引用；新 UI 走 methodSection）
-    
-    private var typeSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("习惯类型")
-                .font(.holoLabel)
-                .foregroundColor(.holoToolTextSecondary)
-            
-            Picker("习惯类型", selection: $selectedType) {
-                ForEach(HabitType.allCases) { type in
-                    Text(type.displayName).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Text(selectedType.description)
-                .font(.holoCaption)
-                .foregroundColor(.holoToolTextSecondary)
-
-            // 编辑模式且类型有改动：预告历史记录的转换方式
-            if let habit = editingHabit, selectedType != habit.habitType {
-                HStack(alignment: .top, spacing: 6) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 12))
-                    Text(typeChangeHint)
-                }
-                .font(.holoCaption)
-                .foregroundColor(.holoPrimary)
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .fill(Color.holoPrimary.opacity(0.08))
-                )
-            }
-        }
-    }
-
-    
-    // MARK: - 聚合类型选择（数值型）
-
-    private var aggregationTypeSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("数值类型")
-                .font(.holoLabel)
-                .foregroundColor(.holoToolTextSecondary)
-
-            Picker("数值类型", selection: $selectedAggregationType) {
-                ForEach(HabitAggregationType.allCases) { type in
-                    Text(type.displayName).tag(type)
-                }
-            }
-            .pickerStyle(.segmented)
-
-            Text(selectedAggregationType.description)
-                .font(.holoCaption)
-                .foregroundColor(.holoToolTextSecondary)
         }
     }
 
@@ -946,68 +898,6 @@ struct AddHabitSheet: View {
         }
     }
 
-    // MARK: - 习惯性质选择
-
-    private var habitNatureSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("习惯性质（可选）")
-                .font(.holoLabel)
-                .foregroundColor(.holoToolTextSecondary)
-
-            HStack(spacing: 8) {
-                Button {
-                    isBadHabit = isBadHabit == false ? nil : false
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 12))
-                        Text("好习惯")
-                            .font(.holoCaption)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .foregroundColor(isBadHabit == false ? .white : .holoToolText)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: HoloRadius.sm)
-                            .fill(isBadHabit == false ? Color.holoPrimary : Color.holoToolSurface)
-                    )
-                }
-
-                Button {
-                    isBadHabit = isBadHabit == true ? nil : true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 12))
-                        Text("坏习惯")
-                            .font(.holoCaption)
-                    }
-                    .frame(maxWidth: .infinity)
-                    .foregroundColor(isBadHabit == true ? .white : .holoToolText)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: HoloRadius.sm)
-                            .fill(isBadHabit == true ? Color.holoError : Color.holoToolSurface)
-                    )
-                }
-            }
-
-            Text(natureDescriptionText)
-                .font(.holoCaption)
-                .foregroundColor(.holoToolTextSecondary)
-        }
-    }
-
-    /// 习惯性质描述文案
-    private var natureDescriptionText: String {
-        if isBadHabit == true {
-            return String(localized: "超过目标值时将以红色标记并提醒控制")
-        } else if isBadHabit == false {
-            return String(localized: "培养积极的好习惯，目标达成时给予正向反馈")
-        } else {
-            return String(localized: "选择后可启用对应的提醒策略")
-        }
-    }
     
     // MARK: - 保存习惯
     
@@ -1020,7 +910,7 @@ struct AddHabitSheet: View {
         let tc = targetEnabled ? Int(targetCount) : nil
         let tv = targetEnabled ? Double(targetValue) : nil
         let u = targetEnabled && !unit.isEmpty ? unit : nil
-        let badHabit = isBadHabit ?? false
+        let badHabit = isBadHabit
         let calendar = Calendar.current
         // 打卡提醒仅打卡型有意义；数值型不参与提醒（方案 §6.3）
         let isCheckIn = selectedType == .checkIn

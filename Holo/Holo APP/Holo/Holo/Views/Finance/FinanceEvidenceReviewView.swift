@@ -139,7 +139,7 @@ struct FinanceEvidenceReviewView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 32, weight: .medium))
-                .foregroundColor(.holoError)
+                .foregroundColor(.holoToolError)
             Text(message)
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)

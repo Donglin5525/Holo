@@ -278,7 +278,7 @@ struct AddAccountSheet: View {
                         if hasReconciliationAnchor {
                             Text("此账户已对过账：修改期初会使对账基准失效，建议保存后再对一次账")
                                 .font(.system(size: 12))
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
                         }
                     }
                 } else {

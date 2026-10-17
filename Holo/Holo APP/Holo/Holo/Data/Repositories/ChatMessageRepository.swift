@@ -1584,6 +1584,9 @@ final class ChatMessageRepository: ObservableObject {
         let summary: String?
         /// 深度分析的查询范围文案；回放为周期文案
         let scopeLabel: String?
+        /// 回放报告去重键（起始日|结束日，天粒度）：同一日期范围重复生成的回放
+        /// 档案只展示最新一份（如「本月」与「自定义」跑了同一段日期）；深度分析为 nil
+        let replayDedupeKey: String?
         let observationCount: Int
         let evidenceCount: Int
         /// 正常完成但结论为空的提示文案；有结论时为 nil。
@@ -1616,9 +1619,11 @@ final class ChatMessageRepository: ObservableObject {
                         "extractedDataJSON", "content", "favoritedAt"
                     ]
                     request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        // 回放只收 assistant 报告消息：用户的请求气泡（「查看X回放」）
+                        // 也是 periodReplay 类型，不排除会以「自定义范围」身份混进档案
                         NSPredicate(
-                            format: "((intent == %@ AND agentResultJSON != nil) OR messageType == %@) AND isStreaming == NO",
-                            queryAnalysisIntent, replayType
+                            format: "((intent == %@ AND agentResultJSON != nil) OR (messageType == %@ AND role == %@)) AND isStreaming == NO",
+                            queryAnalysisIntent, replayType, "assistant"
                         ),
                         NSPredicate(format: "deletedAt == nil")
                     ])
@@ -1659,9 +1664,10 @@ final class ChatMessageRepository: ObservableObject {
                 let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
                 request.resultType = .countResultType
                 request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                    // 与档案列表同口径：回放只数 assistant 报告消息，用户请求气泡不计入
                     NSPredicate(
-                        format: "favoritedAt != nil AND ((intent == %@ AND agentResultJSON != nil) OR messageType == %@) AND isStreaming == NO",
-                        queryAnalysisIntent, replayType
+                        format: "favoritedAt != nil AND ((intent == %@ AND agentResultJSON != nil) OR (messageType == %@ AND role == %@)) AND isStreaming == NO",
+                        queryAnalysisIntent, replayType, "assistant"
                     ),
                     NSPredicate(format: "deletedAt == nil")
                 ])
@@ -1698,8 +1704,9 @@ final class ChatMessageRepository: ObservableObject {
                         "extractedDataJSON", "content", "favoritedAt"
                     ]
                     request.predicate = NSPredicate(
-                        format: "favoritedAt != nil AND ((intent == %@ AND agentResultJSON != nil) OR messageType == %@) AND isStreaming == NO",
-                        queryAnalysisIntent, replayType
+                        // 与档案列表同口径：回放只收 assistant 报告消息，用户请求气泡不入收藏
+                        format: "favoritedAt != nil AND ((intent == %@ AND agentResultJSON != nil) OR (messageType == %@ AND role == %@)) AND isStreaming == NO",
+                        queryAnalysisIntent, replayType, "assistant"
                     )
                     request.sortDescriptors = [NSSortDescriptor(key: "favoritedAt", ascending: false)]
                     request.fetchLimit = 200
@@ -1866,6 +1873,7 @@ final class ChatMessageRepository: ObservableObject {
             question: question,
             summary: summary?.isEmpty == true ? nil : summary,
             scopeLabel: rendered.scope?.displayLabel,
+            replayDedupeKey: nil,
             observationCount: rendered.sections.count,
             evidenceCount: rendered.evidenceReferences.count,
             issueText: rendered.emptyReason.map(Self.emptyReasonText),
@@ -1896,6 +1904,7 @@ final class ChatMessageRepository: ObservableObject {
         let summary = content?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .isEmpty == true ? nil : content
+        let job = HoloPeriodReplayJob(json: jobJSON)
         return ReportArchiveDTO(
             id: id,
             kind: .periodReplay,
@@ -1904,7 +1913,8 @@ final class ChatMessageRepository: ObservableObject {
             title: "周期回放",
             question: nil,
             summary: summary,
-            scopeLabel: HoloPeriodReplayJob(json: jobJSON).map { Self.replayPeriodLabel($0) },
+            scopeLabel: job.map { Self.replayPeriodLabel($0) },
+            replayDedupeKey: job.map { Self.replayDedupeKey($0) },
             observationCount: 0,
             evidenceCount: 0,
             issueText: nil,
@@ -1960,8 +1970,9 @@ final class ChatMessageRepository: ObservableObject {
                     ]
                     request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
                         NSPredicate(
-                            format: "((intent == %@ AND agentResultJSON CONTAINS[C] %@) OR (messageType == %@ AND content CONTAINS[C] %@)) AND isStreaming == NO",
-                            queryAnalysisIntent, trimmed, replayType, trimmed
+                            // 与档案列表同口径：回放只搜 assistant 报告消息，用户请求气泡不命中
+                            format: "((intent == %@ AND agentResultJSON CONTAINS[C] %@) OR (messageType == %@ AND content CONTAINS[C] %@ AND role == %@)) AND isStreaming == NO",
+                            queryAnalysisIntent, trimmed, replayType, trimmed, "assistant"
                         ),
                         NSPredicate(format: "deletedAt == nil")
                     ])
@@ -2013,17 +2024,59 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// 回放档案卡称谓：按真实起止日期生成相对词，不再按 periodType 套固定标签——
+    /// 旧逻辑对任何 monthly 回放都说「上月」，10 月看「上月 · 10/1–10/8」自相矛盾。
     private static func replayPeriodLabel(_ job: HoloPeriodReplayJob) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "M/d"
         let range = "\(formatter.string(from: job.periodStart))–\(formatter.string(from: job.periodEnd))"
+
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: job.periodStart)
+        let end = calendar.startOfDay(for: job.periodEnd)
+
+        // 完全落在当前自然月：按起止日给旬称谓（1-10 上旬 / 11-20 中旬 / 21-末 下旬），跨旬带具体日期
+        if let currentMonth = calendar.dateInterval(of: .month, for: Date()),
+           currentMonth.contains(start), currentMonth.contains(end) {
+            let startDay = calendar.component(.day, from: start)
+            let endDay = calendar.component(.day, from: end)
+            if endDay <= 10 {
+                return String(localized: "本月上旬")
+            }
+            if startDay >= 11 && endDay <= 20 {
+                return String(localized: "本月中旬")
+            }
+            if startDay >= 21 {
+                return String(localized: "本月下旬")
+            }
+            return String(localized: "本月 · \(range)")
+        }
+        // 完全落在上一自然月才叫「上月」
+        if let previousMonth = calendar.date(byAdding: .month, value: -1, to: Date())
+            .flatMap({ calendar.dateInterval(of: .month, for: $0) }),
+           previousMonth.contains(start), previousMonth.contains(end) {
+            return String(localized: "上月 · \(range)")
+        }
         switch job.periodType {
-        case .daily: return "日回放 · \(range)"
-        case .weekly: return "上周 · \(range)"
-        case .monthly: return "上月 · \(range)"
-        case .quarterly: return "上季度 · \(range)"
+        case .daily: return String(localized: "日回放 · \(range)")
+        case .weekly: return String(localized: "回放 · \(range)")
+        case .monthly: return String(localized: "回放 · \(range)")
+        case .quarterly: return String(localized: "上季度 · \(range)")
         case .custom: return range
         }
+    }
+
+    /// 回放去重键的天粒度日期格式（POSIX 固定格式，避免随系统语言漂移）
+    private static let replayDayKeyFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    /// 回放去重键：起始日|结束日（天粒度），同键报告在档案列表只展示最新一份
+    private static func replayDedupeKey(_ job: HoloPeriodReplayJob) -> String {
+        "\(replayDayKeyFormatter.string(from: job.periodStart))|\(replayDayKeyFormatter.string(from: job.periodEnd))"
     }
 
     private static func emptyReasonText(_ reason: HoloAgentEmptyReason) -> String {

@@ -843,12 +843,13 @@ struct FinanceLedgerView: View {
     private func operationToast(_ message: OperationMessage) -> some View {
         Label(message.text, systemImage: message.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
             .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(message.isError ? .holoError : .holoSuccess)
+            .foregroundColor(message.isError ? .holoToolError : .holoToolSuccess)
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(
                 Capsule()
-                    .fill(message.isError ? Color.holoErrorLight : Color.holoSuccessLight)
+                    // 深色下固定浅红/浅绿底糊成脏色：改自染低透明底（两模式自然）
+                    .fill(message.isError ? Color.holoError.opacity(0.12) : Color.holoSuccess.opacity(0.12))
                     .shadow(color: Color.black.opacity(0.08), radius: 10, x: 0, y: 4)
             )
     }

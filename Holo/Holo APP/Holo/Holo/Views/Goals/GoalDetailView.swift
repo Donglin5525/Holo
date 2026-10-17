@@ -536,17 +536,7 @@ private struct GoalMetricRingView: View {
 
     var body: some View {
         ZStack {
-            Circle()
-                .stroke(Color.holoDivider, lineWidth: 10)
-
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(
-                    Color.holoPrimary,
-                    style: StrokeStyle(lineWidth: 10, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .animation(reduceMotion ? nil : HoloAnimation.grounded, value: progress)
+            HoloProgress(value: progress, color: .holoPrimary, shape: .ring, lineWidth: 10)
 
             Text("\(Int((progress * 100).rounded()))%")
                 .font(.system(size: 15, weight: .bold, design: .rounded))
@@ -594,20 +584,21 @@ struct GoalEditSheet: View {
             .navigationTitle("编辑目标")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isSaving ? String(localized: "保存中") : String(localized: "保存")) { save() }
-                        .disabled(!canSave)
-                        .fontWeight(.semibold)
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoToolTextSecondary)
+                    }
                 }
             }
             .safeAreaInset(edge: .bottom) {
                 Button {
                     save()
                 } label: {
-                    Text(isSaving ? String(localized: "保存中") : String(localized: "保存修改"))
+                    Text(isSaving ? String(localized: "保存中") : String(localized: "保存"))
                         .holoText(.body)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)

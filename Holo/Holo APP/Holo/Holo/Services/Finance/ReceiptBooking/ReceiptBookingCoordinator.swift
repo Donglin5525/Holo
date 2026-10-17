@@ -294,7 +294,7 @@ final class ReceiptBookingCoordinator {
             ))
         } catch {
             return .failed(ReceiptBookingFailure(
-                reason: .failureNetwork,
+                reason: ReceiptBookingFailureClassifier.reason(for: error),
                 retryable: true,
                 userMessage: HoloAIUserErrorMapper.message(for: error)
             ))

@@ -109,13 +109,14 @@ struct TaskCalendarMonthGrid: View {
                 Text(verbatim: count > 0 ? String(format: "%d项", count) : " ")
                     .font(.system(size: 10))
                     .monospacedDigit()
-                    .foregroundColor(inMonth ? Color.holoTextSecondary : Color.holoTextSecondary.opacity(0.5))
+                    .foregroundColor(inMonth ? Color.holoToolTextSecondary : Color.holoToolTextSecondary.opacity(0.5))
                     .frame(height: 11)
             }
             .frame(maxWidth: .infinity, minHeight: 52)
             .background(
+                // 深色下 4% 白洗底不可见：选中日用嵌套卡底（两模式均有底、浅色观感不变）
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.primary.opacity(0.04) : Color.clear)
+                    .fill(isSelected ? Color.holoNestedCardBackground : Color.clear)
             )
             .contentShape(Rectangle())
         }
@@ -189,7 +190,7 @@ struct TaskCalendarWeekStrip: View {
                 Text(verbatim: count > 0 ? String(format: "%d项", count) : " ")
                     .font(.system(size: 10))
                     .monospacedDigit()
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(height: 11)
             }
             .frame(maxWidth: .infinity, minHeight: 68)

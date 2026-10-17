@@ -115,7 +115,7 @@ struct BudgetSettingsSheet: View {
                         if !amountString.isEmpty && !isAmountFormatValid {
                             Text("请输入有效的金额")
                                 .font(.holoCaption)
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
                         }
                     }
 
@@ -169,7 +169,7 @@ struct BudgetSettingsSheet: View {
                                 Text("删除预算")
                             }
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                             .frame(maxWidth: .infinity)
                             .padding(HoloSpacing.md)
                             .background(Color.holoError.opacity(0.1))

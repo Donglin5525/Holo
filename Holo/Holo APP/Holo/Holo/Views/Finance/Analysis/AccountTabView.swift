@@ -145,16 +145,7 @@ struct AccountTabView: View {
 
                     // 占比横条（无支出账户不画）
                     if let spent = aggregation?.expense, spent > 0, totalSpent > 0 {
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color.holoDivider.opacity(0.4))
-                                Capsule()
-                                    .fill(account.swiftUIColor.opacity(0.75))
-                                    .frame(width: max(4, geo.size.width * min(max(Double(truncating: (spent / totalSpent) as NSDecimalNumber), 0), 1)))
-                            }
-                        }
-                        .frame(height: 5)
+                        HoloProgress(value: Double(truncating: (spent / totalSpent) as NSDecimalNumber), color: account.swiftUIColor, lineWidth: 5)
                     } else {
                         Color.clear.frame(height: 5)
                     }

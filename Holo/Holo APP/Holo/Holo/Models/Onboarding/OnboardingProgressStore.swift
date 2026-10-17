@@ -23,6 +23,9 @@ enum OnboardingProgressStore {
     /// 首次记录庆祝已展示（一次即封，老用户不触发）
     static let firstRecordCelebrationShownKey = "holo_first_record_celebration_shown_v1"
 
+    /// 预置欢迎笔记跳转待送达（完成引导时落下，编辑器真正打开才清；读写见 WelcomeNoteSeed）
+    static let welcomeNotePendingKey = "holo_welcome_note_presentation_pending_v1"
+
     static func hasSeen(_ key: String, defaults: UserDefaults = .standard) -> Bool {
         defaults.bool(forKey: key)
     }

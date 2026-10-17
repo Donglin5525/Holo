@@ -463,6 +463,11 @@ struct TaskExperienceView: View {
                     .fill(isSelected ? Color.holoCardBackground : Color.clear)
                     .shadow(color: isSelected ? HoloShadow.card : .clear, radius: 2, y: 1)
             )
+            .overlay(
+                // 深色下选中块贴轨道底色：细描边兜出选中边界（浅色下近似隐形）
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(isSelected ? Color.holoToolBorder : Color.clear, lineWidth: 0.5)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -511,7 +516,7 @@ struct TaskExperienceView: View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 13))
-                .foregroundColor(.holoError)
+                .foregroundColor(.holoToolError)
             Text("更新失败，以下为上次数据")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
@@ -731,7 +736,7 @@ struct TaskExperienceView: View {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 13))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                 Text(failure)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)

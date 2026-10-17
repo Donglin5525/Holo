@@ -94,10 +94,10 @@ struct PromptTestSheet: View {
             } else if let error = testError {
                 HStack(spacing: HoloSpacing.sm) {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                     Text(error)
                         .font(.system(size: 13))
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                 }
                 .padding(HoloSpacing.md)
                 .frame(maxWidth: .infinity, alignment: .leading)

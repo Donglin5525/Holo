@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import Charts
 
 extension TaskAnalyticsBucketStat: Identifiable {
     var id: Date { start }
@@ -553,467 +552,53 @@ struct TaskStatsListDrilldownSheet: View {
 // 双模式：数量（新增/完成双柱）⇄ 完成率（到期完成率折线，0–100%）
 
 struct TaskStatsTrendChart: View {
-    enum Mode: Hashable {
-        /// 新增/完成双柱
-        case counts
-        /// 到期完成率折线（（按时+迟到）÷ 到期分母）
-        case dueCompletionRate
-    }
-
+    enum Mode: Hashable { case counts, dueCompletionRate }
     let buckets: [TaskAnalyticsBucketStat]
     var mode: Mode = .counts
     let onTapBucket: (TaskAnalyticsBucketStat) -> Void
-
-    @State private var hoveredIndex: Int?
-
-    private struct Point: Identifiable {
-        let id: Int
-        /// 紧凑槽位（未来桶剔除后重排）
-        let index: Int
-        let label: String
-        let created: Int
-        let completed: Int
-        let rate: Double?
-        let isPartialToday: Bool
-        let bucket: TaskAnalyticsBucketStat
-    }
-
-    private var points: [Point] {
-        var result: [Point] = []
-        for (offset, bucket) in buckets.enumerated() where !bucket.isFuture {
-            result.append(Point(
-                id: offset,
-                index: result.count,
-                label: bucketLabel(bucket),
-                created: bucket.createdIDs.count,
-                completed: bucket.completedIDs.count,
-                rate: bucket.dueCompletionRate,
-                isPartialToday: bucket.isPartialToday,
-                bucket: bucket
-            ))
+    @State private var selection: String?
+    private var visible: [TaskAnalyticsBucketStat] { buckets.filter { !$0.isFuture } }
+    private var chartBuckets: [HoloChartBucket] {
+        visible.map { bucket in
+            HoloChartBucket(id: String(bucket.start.timeIntervalSince1970),
+                            label: HoloChartFormat.date(bucket.start),
+                            detail: HoloChartFormat.date(bucket.start, template: "yMMMd"),
+                            values: mode == .counts
+                                ? [Double(bucket.createdIDs.count), Double(bucket.completedIDs.count)]
+                                : [bucket.dueCompletionRate.map { $0 * 100 }])
         }
-        return result
     }
-
-    /// 完成率模式是否有可画数据（无到期桶时给占位说明，不出空图）
-    private var hasRatedPoints: Bool {
-        points.contains { $0.rate != nil }
-    }
-
-    private func bucketLabel(_ bucket: TaskAnalyticsBucketStat) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        // 日桶「d日」；月桶「M月」
-        if Calendar.current.isDate(bucket.start, equalTo: bucket.endExclusive.addingTimeInterval(-1), toGranularity: .day) {
-            formatter.setLocalizedDateFormatFromTemplate("d")
-        } else {
-            formatter.setLocalizedDateFormatFromTemplate("M月")
-        }
-        return formatter.string(from: bucket.start)
-    }
-
     var body: some View {
-        if mode == .dueCompletionRate && !hasRatedPoints {
-            VStack(spacing: HoloSpacing.sm) {
-                Text("本期暂无已到期任务，可切回「数量」查看新增与完成")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(height: 180)
-            .frame(maxWidth: .infinity)
-        } else {
-            GeometryReader { geometry in
-                let slotWidthPt = ChartBarPairLayout.estimatedSlotWidthPt(
-                    containerWidthPt: geometry.size.width,
-                    pointCount: points.count
-                )
-                chart(slotWidthPt: slotWidthPt)
-            }
-            .frame(height: 180)
-            .accessibilityElement()
-            .accessibilityLabel(chartAccessibilitySummary)
-        }
-    }
-
-    // MARK: 图表组装
-
-    private func chart(slotWidthPt: CGFloat) -> some View {
-        Chart {
+        Group {
             if mode == .counts {
-                ForEach(points) { point in
-                    barPair(point, slotWidthPt: slotWidthPt)
-                }
+                HoloBarChart(buckets: chartBuckets,
+                             series: [.init(id: "created", title: "新增", color: .holoPrimary),
+                                      .init(id: "completed", title: "完成", color: .holoSuccess)],
+                             selection: $selection, height: 160, valueText: { "\(Int($0)) 件" }, onOpenDetail: open)
             } else {
-                rateMarks
+                HoloLineChart(buckets: chartBuckets,
+                              series: [.init(id: "rate", title: "到期完成率", color: .holoPrimary)],
+                              selection: $selection, height: 160, yDomain: 0...100,
+                              valueText: { "\(HoloChartFormat.number($0))%" }, onOpenDetail: open)
             }
         }
-        .chartXScale(domain: xDomain)
-        .chartYScale(domain: 0...yDomainMax)
-        // X 刻度已由 chartOverlay 自绘（规范硬规则 1），必须显式隐藏默认轴
-        .chartXAxis(.hidden)
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: yTickValues) { value in
-                AxisGridLine()
-                    .foregroundStyle(Color.holoDivider.opacity(0.32))
-                AxisValueLabel {
-                    if let axisValue = value.as(Double.self) {
-                        Text(yAxisLabel(axisValue))
-                            .font(.system(size: 10))
-                            .foregroundColor(.holoTextSecondary)
-                            .frame(width: 40, alignment: .trailing)
-                    }
-                }
-            }
-        }
-        .chartOverlay { proxy in
-            GeometryReader { geometry in
-                let overlayFrame = geometry.frame(in: .local)
-                let plotFrame = proxy.plotFrame.map { geometry[$0] }
-
-                // —— X 轴刻度自绘（含末位）：与柱子同一 position(forX:) 坐标系 ——
-                if let plotFrame {
-                    ForEach(axisTicks, id: \.index) { tick in
-                        if let xPos = proxy.position(forX: Double(tick.index)) {
-                            Text(tick.label)
-                                .font(.system(size: 10))
-                                .foregroundStyle(Color.holoToolTextSecondary)
-                                .position(x: plotFrame.minX + xPos, y: plotFrame.maxY + 10)
-                        }
-                    }
-                }
-
-                // —— 触摸桶高亮带 + tooltip（position(forX:) 补 plotFrame 偏移，硬规则 4）——
-                if let hoveredIndex,
-                   let point = points.first(where: { $0.index == hoveredIndex }),
-                   let slotXPos = proxy.position(forX: Double(hoveredIndex)), let plotFrame {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.holoToolText.opacity(0.05))
-                        .frame(
-                            width: plotFrame.width / CGFloat(max(points.count, 1)),
-                            height: plotFrame.height
-                        )
-                        .position(x: plotFrame.minX + slotXPos, y: plotFrame.midY)
-                    tooltip(
-                        point: point,
-                        x: min(max(plotFrame.minX + slotXPos, 60), overlayFrame.width - 60),
-                        y: min(max(plotFrame.minY + plotFrame.height * 0.14, 16), overlayFrame.height - 16)
-                    )
-                }
-
-                // —— 手势仲裁：横滑选桶、纵滑交还页面滚动、点按下钻 ——
-                DirectionalChartGestureOverlay(
-                    onChanged: { location in
-                        hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame) ?? hoveredIndex
-                    },
-                    onEnded: { _ in
-                        hoveredIndex = nil
-                    },
-                    onCancelled: {
-                        hoveredIndex = nil
-                    },
-                    onTap: { location in
-                        guard let touched = touchedIndex(location, proxy: proxy, plotFrame: plotFrame),
-                              let point = points.first(where: { $0.index == touched }) else { return }
-                        onTapBucket(point.bucket)
-                    }
-                )
-            }
-        }
+        .onChange(of: mode) { _, _ in selection = nil }
     }
-
-    // MARK: 图形本体
-
-    /// 新增/完成双柱（新增低饱和暖橙、完成低饱和绿，§7.7；柱宽 pt 封顶，硬规则 2）
-    @ChartContentBuilder
-    private func barPair(_ point: Point, slotWidthPt: CGFloat) -> some ChartContent {
-        let offset = ChartBarPairLayout.barOffsetUnits(pointCount: points.count, slotWidthPt: slotWidthPt)
-        if point.created > 0 {
-            BarMark(
-                x: .value("槽位", Double(point.index) - offset),
-                yStart: .value("起点", 0.0),
-                yEnd: .value("新增", Double(point.created)),
-                width: .fixed(barWidthPt)
-            )
-            .cornerRadius(3)
-            .foregroundStyle(Color.holoPrimary.opacity(0.75))
-        }
-        if point.completed > 0 {
-            BarMark(
-                x: .value("槽位", Double(point.index) + offset),
-                yStart: .value("起点", 0.0),
-                yEnd: .value("完成", Double(point.completed)),
-                width: .fixed(barWidthPt)
-            )
-            .cornerRadius(3)
-            .foregroundStyle(Color.holoSuccess.opacity(0.75))
-        }
-    }
-
-    /// 到期完成率折线 + 面积（仅画有到期数据的桶；同 series 连成一条线）
-    @ChartContentBuilder
-    private var rateMarks: some ChartContent {
-        let rated = points.filter { $0.rate != nil }
-        ForEach(rated) { point in
-            AreaMark(
-                x: .value("槽位", Double(point.index)),
-                yStart: .value("起点", 0.0),
-                yEnd: .value("完成率", (point.rate ?? 0) * 100),
-                series: .value("完成率", "完成率")
-            )
-            .foregroundStyle(
-                LinearGradient(
-                    colors: [Color.holoSuccess.opacity(0.14), Color.holoSuccess.opacity(0.005)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .interpolationMethod(.catmullRom)
-        }
-        ForEach(rated) { point in
-            LineMark(
-                x: .value("槽位", Double(point.index)),
-                y: .value("完成率", (point.rate ?? 0) * 100),
-                series: .value("完成率", "完成率")
-            )
-            .foregroundStyle(Color.holoSuccess)
-            .lineStyle(StrokeStyle(lineWidth: 2.25, lineCap: .round, lineJoin: .round))
-            .interpolationMethod(.catmullRom)
-        }
-    }
-
-    // MARK: 几何与刻度
-
-    private var barWidthPt: CGFloat {
-        ChartBarPairLayout.barWidth(pointCount: points.count)
-    }
-
-    /// 索引域：槽位 0…count-1 各占一槽，两侧各留半槽（硬规则 3）
-    private var xDomain: ClosedRange<Double> {
-        let upper = Double(max(points.count - 1, 0)) + 0.5
-        return -0.5...upper
-    }
-
-    /// Y 轴上限：数量模式小值保底 4（单根 1~2 的柱子不该顶满整格，10-7 反馈），
-    /// 其余按数据最大值向上取第一个严格更大的整齐步进（1.5/2/3/4/5/6/8/10 ×10ᵏ）；
-    /// 完成率模式恒 0–100%
-    private var yDomainMax: Double {
-        guard mode == .counts else { return 100 }
-        let maxValue = points.reduce(0.0) { max($0, Double(max($1.created, $1.completed))) }
-        let magnitude = pow(10, floor(log10(max(maxValue, 1))))
-        for step in [1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0] where step * magnitude > maxValue {
-            return max(step * magnitude, 4)
-        }
-        return 10 * magnitude
-    }
-
-    private var yTickValues: [Double] {
-        mode == .counts
-            ? [0, (yDomainMax / 2).rounded(), yDomainMax]
-            : [0, 50, 100]
-    }
-
-    private func yAxisLabel(_ value: Double) -> String {
-        mode == .counts ? "\(Int(value))" : "\(Int(value))%"
-    }
-
-    /// X 刻度稀疏：≤10 桶全画，>10 桶按约 8 格稀疏
-    private var axisTicks: [(index: Int, label: String)] {
-        let count = points.count
-        guard count > 1 else { return [] }
-        guard count > 10 else { return (0..<count).map { ($0, points[$0].label) } }
-        let step = Int((Double(count) / 8).rounded(.up))
-        return stride(from: 0, to: count, by: step).map { ($0, points[$0].label) }
-    }
-
-    private func touchedIndex(_ location: CGPoint, proxy: ChartProxy, plotFrame: CGRect?) -> Int? {
-        guard !points.isEmpty, let plotFrame else { return nil }
-        let touchXInPlot = location.x - plotFrame.minX
-        let pointPositions = points.compactMap { proxy.position(forX: Double($0.index)) }
-        guard pointPositions.count == points.count else { return nil }
-        return ChartTouchSelection.nearestPointIndex(
-            touchXInPlot: touchXInPlot,
-            plotWidth: plotFrame.width,
-            pointXPositions: pointPositions
-        )
-    }
-
-    // MARK: Tooltip（规范 §6：圆角 4 + 卡面底色 + 轻阴影 + clamp 防溢出）
-
-    private func tooltip(point: Point, x: CGFloat, y: CGFloat) -> some View {
-        VStack(spacing: 2) {
-            Text(point.label)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundColor(.holoToolTextSecondary)
-            if mode == .counts {
-                HStack(spacing: 6) {
-                    Text(String(localized: "新增 \(point.created)"))
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.holoPrimary)
-                    Text(String(localized: "完成 \(point.completed)"))
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.holoSuccess)
-                }
-            } else if let rate = point.rate {
-                Text(String(localized: "完成率 \(Int((rate * 100).rounded()))%"))
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.holoSuccess)
-            }
-        }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(Color.holoToolSurface)
-                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
-        )
-        .fixedSize()
-        .position(x: x, y: y)
-    }
-
-    private var chartAccessibilitySummary: String {
-        let created = buckets.reduce(0) { $0 + $1.createdIDs.count }
-        let completed = buckets.reduce(0) { $0 + $1.completedIDs.count }
-        return String(localized: "趋势图：新增 \(created) 项，完成 \(completed) 项，可通过「查看趋势明细」逐日核对")
+    private func open(_ bucket: HoloChartBucket) {
+        if let original = visible.first(where: { String($0.start.timeIntervalSince1970) == bucket.id }) { onTapBucket(original) }
     }
 }
 
 // MARK: - 完成时刻分布柱状图（P2；同图表规范画法：索引域全槽 + X 刻度自绘 + 柱宽 pt 封顶 + 手势仲裁）
 
 struct TaskHourlyDistributionChart: View {
-    /// 0–23 时完成计数（24 桶，空桶如实留白）
     let counts: [Int]
-
-    @State private var hoveredIndex: Int?
-
-    private var barWidthPt: CGFloat {
-        ChartBarPairLayout.barWidth(pointCount: max(counts.count, 24))
-    }
-
-    private var xDomain: ClosedRange<Double> { -0.5...23.5 }
-
-    /// 小值保底 4，与趋势图同款整齐步进取整
-    private var yDomainMax: Double {
-        let maxValue = Double(counts.max() ?? 0)
-        let magnitude = pow(10, floor(log10(max(maxValue, 1))))
-        for step in [1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0] where step * magnitude > maxValue {
-            return max(step * magnitude, 4)
-        }
-        return 10 * magnitude
-    }
-
-    /// 稀疏时刻刻度：0/6/12/18/23 时
-    private var tickHours: [Int] { [0, 6, 12, 18, 23] }
-
+    @State private var selection: String?
     var body: some View {
-        Chart {
-            ForEach(Array(counts.enumerated()), id: \.offset) { hour, count in
-                if count > 0 {
-                    BarMark(
-                        x: .value("时刻", Double(hour)),
-                        yStart: .value("起点", 0.0),
-                        yEnd: .value("完成数", Double(count)),
-                        width: .fixed(barWidthPt)
-                    )
-                    .cornerRadius(2)
-                    .foregroundStyle(Color.holoPrimary.opacity(0.8))
-                }
-            }
-        }
-        .chartXScale(domain: xDomain)
-        .chartYScale(domain: 0...yDomainMax)
-        // X 刻度自绘（规范硬规则 1），默认轴显式隐藏
-        .chartXAxis(.hidden)
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: [0.0, (yDomainMax / 2).rounded(), yDomainMax]) { value in
-                AxisGridLine()
-                    .foregroundStyle(Color.holoDivider.opacity(0.32))
-                AxisValueLabel {
-                    if let axisValue = value.as(Double.self) {
-                        Text("\(Int(axisValue))")
-                            .font(.system(size: 10))
-                            .foregroundColor(.holoTextSecondary)
-                            .frame(width: 40, alignment: .trailing)
-                    }
-                }
-            }
-        }
-        .chartOverlay { proxy in
-            GeometryReader { geometry in
-                let overlayFrame = geometry.frame(in: .local)
-                let plotFrame = proxy.plotFrame.map { geometry[$0] }
-
-                // —— X 轴刻度自绘：与柱子同一 position(forX:) 坐标系 ——
-                if let plotFrame {
-                    ForEach(tickHours, id: \.self) { hour in
-                        if let xPos = proxy.position(forX: Double(hour)) {
-                            Text("\(hour)时")
-                                .font(.system(size: 10))
-                                .foregroundStyle(Color.holoToolTextSecondary)
-                                .position(x: plotFrame.minX + xPos, y: plotFrame.maxY + 10)
-                        }
-                    }
-                }
-
-                // —— 触摸高亮 + tooltip（硬规则 4：补 plotFrame 偏移）——
-                if let hoveredIndex,
-                   let slotXPos = proxy.position(forX: Double(hoveredIndex)), let plotFrame {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.holoToolText.opacity(0.05))
-                        .frame(width: plotFrame.width / 24, height: plotFrame.height)
-                        .position(x: plotFrame.minX + slotXPos, y: plotFrame.midY)
-                    tooltip(
-                        hour: hoveredIndex,
-                        count: counts.indices.contains(hoveredIndex) ? counts[hoveredIndex] : 0,
-                        x: min(max(plotFrame.minX + slotXPos, 70), overlayFrame.width - 70),
-                        y: min(max(plotFrame.minY + plotFrame.height * 0.12, 14), overlayFrame.height - 14)
-                    )
-                }
-
-                // —— 手势仲裁：横滑选时、纵滑交还页面滚动 ——
-                DirectionalChartGestureOverlay(
-                    onChanged: { location in
-                        hoveredIndex = touchedIndex(location, proxy: proxy, plotFrame: plotFrame) ?? hoveredIndex
-                    },
-                    onEnded: { _ in
-                        hoveredIndex = nil
-                    },
-                    onCancelled: {
-                        hoveredIndex = nil
-                    }
-                )
-            }
-        }
-        .frame(height: 120)
-        .accessibilityElement()
-        .accessibilityLabel(String(localized: "完成时刻分布图：横滑查看各小时完成数"))
-    }
-
-    private func touchedIndex(_ location: CGPoint, proxy: ChartProxy, plotFrame: CGRect?) -> Int? {
-        guard counts.count == 24, let plotFrame else { return nil }
-        let touchXInPlot = location.x - plotFrame.minX
-        let positions = (0..<24).compactMap { proxy.position(forX: Double($0)) }
-        guard positions.count == 24 else { return nil }
-        return ChartTouchSelection.nearestPointIndex(
-            touchXInPlot: touchXInPlot,
-            plotWidth: plotFrame.width,
-            pointXPositions: positions
-        )
-    }
-
-    private func tooltip(hour: Int, count: Int, x: CGFloat, y: CGFloat) -> some View {
-        Text(String(localized: "\(hour)时 · 完成 \(count) 件"))
-            .font(.system(size: 10, weight: .bold))
-            .foregroundColor(.holoPrimary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
-            .background(
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.holoToolSurface)
-                    .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
-            )
-            .fixedSize()
-            .position(x: x, y: y)
+        HoloBarChart(buckets: counts.enumerated().map { hour, count in
+            HoloChartBucket(id: String(hour), label: "\(hour)时", values: [Double(count)])
+        }, series: [.init(id: "count", title: "完成", color: .holoPrimary)],
+           selection: $selection, height: 120, valueText: { "\(Int($0)) 件" })
     }
 }
 

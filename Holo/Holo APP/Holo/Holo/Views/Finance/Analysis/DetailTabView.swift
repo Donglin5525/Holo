@@ -54,12 +54,6 @@ struct DetailTabView: View {
         }
     }
 
-    private var dailySelectionPoints: [ChartDataPoint] {
-        dailyChartDataPoints.filter { point in
-            amount(for: point, type: selectedTrendType) > 0
-        }
-    }
-
     private var dailyChartDataPoints: [ChartDataPoint] {
         let calendar = Calendar.current
         let grouped = Dictionary(grouping: filteredTransactions) { tx in
@@ -147,7 +141,6 @@ struct DetailTabView: View {
                 selectedDate: state.selectedChartDate,
                 displayedType: selectedTrendType,
                 displayedTypeSelection: $selectedTrendType,
-                selectionDataPoints: dailySelectionPoints,
                 onScrubDate: selectChartDateAndScroll,
                 onSelectDate: { date in
                     guard let date else {
@@ -164,8 +157,8 @@ struct DetailTabView: View {
     /// 时间定位与金额排序语义冲突时自动回到“时间从新到旧”，避免日期锚点失真。
     private func selectChartDateAndScroll(_ date: Date) {
         let day = Calendar.current.startOfDay(for: date)
-        guard dailySelectionPoints.contains(where: {
-            Calendar.current.isDate($0.date, inSameDayAs: day)
+        guard dailyChartDataPoints.contains(where: {
+            $0.hasTransactions && Calendar.current.isDate($0.date, inSameDayAs: day)
         }) else {
             return
         }
@@ -338,7 +331,7 @@ struct DetailTabView: View {
             if expense > 0 {
                 Text("-\(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "")")
                     .font(.system(size: 12))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
             if income > 0 {
                 Text("+\(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "")")

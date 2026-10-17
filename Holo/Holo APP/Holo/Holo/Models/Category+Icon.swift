@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - Category Icon View Builder
 
@@ -30,7 +31,7 @@ func transactionCategoryIcon(_ category: Category, size: CGFloat) -> some View {
 
 @ViewBuilder
 func categoryIconGlyph(_ iconName: String, size: CGFloat, color: Color) -> some View {
-    if EmojiCatalog.isEmojiIcon(iconName) {
+    if isEmojiIconName(iconName) {
         // 用户手选的 emoji 图标：彩色文本渲染，不跟随科目色
         Text(iconName)
             .font(.system(size: size))
@@ -44,10 +45,25 @@ func categoryIconGlyph(_ iconName: String, size: CGFloat, color: Color) -> some 
     } else if CategoryIconCatalog.isCustomIcon(iconName) {
         HoloFallbackCategoryIcon(kind: iconName, size: size)
             .foregroundColor(color)
-    } else {
+    } else if UIImage(systemName: iconName) != nil {
         Image(systemName: iconName)
             .font(.system(size: size, weight: .medium))
             .foregroundColor(color)
+    } else {
+        // icon 字段是既非 SF Symbol/资产名/emoji 的脏数据（如「¥4」）：回退通用图标，不渲染成文字
+        Image(systemName: "tag.fill")
+            .font(.system(size: size, weight: .medium))
+            .foregroundColor(color)
+    }
+}
+
+/// icon 字段是否为可作图标渲染的 emoji 文本。
+/// EmojiCatalog.isEmojiIcon 只要求「含任一非 ASCII 标量」，会把混入全角/货币符号的
+/// 脏数据（如「¥4」）也判成 emoji 而被渲染成文字；这里收紧为「含 emoji 呈现标量或
+/// emoji 变体选择符」——图标库里的 emoji 必满足其一（彩面 emoji 自带呈现标量，☺️/1️⃣ 带 FE0F）。
+private func isEmojiIconName(_ name: String) -> Bool {
+    name.unicodeScalars.contains {
+        $0.properties.isEmojiPresentation || $0.value == 0xFE0F
     }
 }
 

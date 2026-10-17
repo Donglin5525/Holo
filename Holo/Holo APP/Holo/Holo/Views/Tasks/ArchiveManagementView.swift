@@ -99,12 +99,12 @@ struct ArchiveManagementView: View {
                                     .frame(width: 40, height: 40)
                                 Image(systemName: "trash.circle")
                                     .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(.holoError)
+                                    .foregroundColor(.holoToolError)
                             }
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("清空所有任务")
                                     .font(.holoBody)
-                                    .foregroundColor(.holoError)
+                                    .foregroundColor(.holoToolError)
                                 Text("30 天内可在 设置 → 数据管理 → 最近删除 恢复")
                                     .font(.system(size: 12))
                                     .foregroundColor(.holoTextSecondary)
@@ -391,7 +391,7 @@ private struct ArchivedListRow: View {
                 Button(action: onDelete) {
                     Text("删除")
                         .font(.holoCaption)
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(Color.red.opacity(0.1))
@@ -444,7 +444,7 @@ private struct ArchivedTaskRow: View {
                 Button(action: onDelete) {
                     Text("删除")
                         .font(.holoCaption)
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(Color.red.opacity(0.1))

@@ -64,7 +64,7 @@ struct GoalDraftReviewView: View {
                         } icon: {
                             Image(systemName: "exclamationmark.triangle.fill")
                         }
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }

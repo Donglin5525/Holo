@@ -359,7 +359,7 @@ struct TaskDueQuickEditSheet: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
             }
             .navigationTitle(String(localized: "截止日期"))
@@ -475,12 +475,12 @@ struct TaskPlannedRangeQuickSheet: View {
                     if !isValid {
                         Label(String(localized: "结束时间需晚于开始时间，且安排在同一天。"), systemImage: "exclamationmark.triangle")
                             .font(.holoCaption)
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
                     if let unavailableMessage {
                         Label(unavailableMessage, systemImage: "exclamationmark.triangle")
                             .font(.holoCaption)
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
                 }
                 if let warning = warningsText {
@@ -494,7 +494,7 @@ struct TaskPlannedRangeQuickSheet: View {
                     Section {
                         Label(errorMessage, systemImage: "exclamationmark.triangle")
                             .font(.holoCaption)
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
                 }
                 if hasExistingPlan {

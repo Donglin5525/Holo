@@ -21,6 +21,9 @@ struct MessageBubbleView: View {
     /// 草案卡只允许落在最新一条 AI 规划消息上：否则草案就绪期间（含恢复场景）
     /// 历史追问消息会全部渲染成草案卡
     var latestGoalPlanningAssistantMessageID: UUID? = nil
+    /// 名头分组（iMessage/微信惯例）：连续 Holo 消息仅组首显示「Holo + AI」名头行，
+    /// 由上层按相邻消息预计算传入；默认 true 保持独立渲染场景不变
+    var showsAIHeader: Bool = true
     var onIntentTagTap: ((ChatMessageViewData) -> Void)? = nil
     var onCardTap: ((ChatMessageViewData, ChatCardData) -> Void)? = nil
     var onFlexibleQueryTransactionTap: ((UUID) -> Void)? = nil
@@ -142,7 +145,9 @@ struct MessageBubbleView: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    aiHeader
+                    if showsAIHeader {
+                        aiHeader
+                    }
                     if showsPlanningBadge {
                         planningBadge
                     }
@@ -438,12 +443,12 @@ struct MessageBubbleView: View {
 
     private var aiAvatar: some View {
         Circle()
-            .fill(Color.holoPrimary.opacity(0.15))
+            .fill(Color.holoToolAI.opacity(0.15))
             .frame(width: 32, height: 32)
             .overlay {
                 Image(systemName: "sparkles")
                     .font(.system(size: 14))
-                    .foregroundColor(.holoPrimary)
+                    .foregroundColor(.holoToolAI)
             }
     }
 
@@ -457,10 +462,10 @@ struct MessageBubbleView: View {
 
             Text("AI")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.holoPrimary)
+                .foregroundColor(.holoToolAI)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(Color.holoPrimary.opacity(0.12))
+                .background(Color.holoToolAI.opacity(0.12))
                 .clipShape(Capsule())
 
             Spacer(minLength: 0)
@@ -698,6 +703,7 @@ extension MessageBubbleView: Equatable {
         lhs.message == rhs.message
             && lhs.streamingText == rhs.streamingText
             && lhs.goalDraftForReview == rhs.goalDraftForReview
+            && lhs.showsAIHeader == rhs.showsAIHeader
     }
 }
 

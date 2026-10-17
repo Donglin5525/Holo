@@ -150,7 +150,7 @@ struct CategoryDetailSheet: View {
             if expense > 0 {
                 Text("-\(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "")")
                     .font(.system(size: 12))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
             if income > 0 {
                 Text("+\(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "")")

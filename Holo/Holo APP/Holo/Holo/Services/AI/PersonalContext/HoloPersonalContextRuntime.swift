@@ -29,7 +29,11 @@ extension ThoughtRepository {
         limit: Int
     ) throws -> [Thought] {
         let request = Thought.fetchRequest()
-        var predicates = [NSPredicate(format: "deletedAt == nil AND isArchived == NO")]
+        // 预置欢迎笔记不进情境萃取（预置内容不冒充用户生活素材）
+        var predicates = [
+            NSPredicate(format: "deletedAt == nil AND isArchived == NO"),
+            WelcomeNoteSeed.exclusionPredicate
+        ]
         if let afterUpdatedAt {
             predicates.append(NSPredicate(format: "updatedAt >= %@", afterUpdatedAt as NSDate))
         }

@@ -461,7 +461,7 @@ struct MemoryGalleryView: View {
 
                 Text(item.section.displayLabel)
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoPrimary)
+                    .foregroundColor(.holoToolWarning)
                     .padding(.horizontal, HoloSpacing.xs)
                     .padding(.vertical, 2)
                     .background(Color.holoPrimary.opacity(0.1))

@@ -338,7 +338,7 @@ struct HabitReviewView: View {
             } label: {
                 Text(String(localized: "去今天记录"))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(.holoToolOnAction)
                     .padding(.horizontal, 18)
                     .frame(minHeight: 44)
                     .background(Capsule().fill(Color.holoToolAction))
@@ -362,7 +362,7 @@ struct HabitReviewView: View {
             } label: {
                 Text(String(localized: "重试"))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(.holoToolOnAction)
                     .padding(.horizontal, 18)
                     .frame(minHeight: 44)
                     .background(Capsule().fill(Color.holoToolAction))

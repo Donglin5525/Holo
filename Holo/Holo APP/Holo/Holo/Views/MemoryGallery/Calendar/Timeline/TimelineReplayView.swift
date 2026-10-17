@@ -616,7 +616,7 @@ struct TimelineReplayView: View {
                        let planned = task.plannedDurationMinutes, actual != planned {
                         Text("实际\(ActualDurationSheet.durationText(actual))")
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
                 }
             }

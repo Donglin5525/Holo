@@ -556,8 +556,9 @@ private struct DailyReplayEmptyDayContent: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 18)
                 .background(Color.holoToolSurface.opacity(0.32))
+                // 深色下虚线描边隐身：去掉半透明降档，用完整 ToolBorder
                 .overlay(RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .stroke(Color.holoToolBorder.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+                    .stroke(Color.holoToolBorder, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.top, HoloSpacing.sm)

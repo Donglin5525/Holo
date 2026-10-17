@@ -188,7 +188,7 @@ struct SpendingProjectDetailView: View {
                 }
                 .listRowBackground(Color.holoCardBackground)
             }
-            if let errorMessage { Section { Text(errorMessage).foregroundColor(.red) }.listRowBackground(Color.holoCardBackground) }
+            if let errorMessage { Section { Text(errorMessage).foregroundColor(.holoToolError) }.listRowBackground(Color.holoCardBackground) }
         }
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
@@ -273,7 +273,7 @@ struct SpendingProjectEndConditionSheet: View {
                 Picker("结束条件", selection: $mode) { ForEach(SpendingProjectEndMode.allCases, id: \.self) { Text($0.title).tag($0) } }
                 if mode == .endDate { DatePicker(String(localized: "结束日期"), selection: $endDate, in: project.startDate..., displayedComponents: .date) }
                 if mode == .occurrenceCount { TextField("总周期数", text: $totalOccurrences).keyboardType(.numberPad).focused($focusedField, equals: .occurrences) }
-                if let errorMessage { Text(errorMessage).foregroundColor(.red) }
+                if let errorMessage { Text(errorMessage).foregroundColor(.holoToolError) }
             }
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)
@@ -354,7 +354,7 @@ struct SpendingProjectOneOffEditorSheet: View {
                         .foregroundColor(.holoTextSecondary)
                 }
                 .listRowBackground(Color.holoCardBackground)
-                if let errorMessage { Section { Text(errorMessage).foregroundColor(.holoError) }.listRowBackground(Color.holoCardBackground) }
+                if let errorMessage { Section { Text(errorMessage).foregroundColor(.holoToolError) }.listRowBackground(Color.holoCardBackground) }
             }
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)
@@ -437,7 +437,7 @@ struct AddSpendingProjectSheet: View {
                     }
                 }
                 .listRowBackground(Color.holoCardBackground)
-                if let errorMessage { Text(errorMessage).foregroundColor(.holoError).listRowBackground(Color.holoCardBackground) }
+                if let errorMessage { Text(errorMessage).foregroundColor(.holoToolError).listRowBackground(Color.holoCardBackground) }
             }
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)

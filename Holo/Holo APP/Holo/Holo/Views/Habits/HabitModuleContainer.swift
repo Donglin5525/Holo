@@ -250,7 +250,7 @@ struct HabitModuleContainer: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.holoToolOnAction)
                             .frame(width: 38, height: 38)
                             .background(Circle().fill(Color.holoToolAction))
                     }

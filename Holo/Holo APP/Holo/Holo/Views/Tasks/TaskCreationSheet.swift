@@ -537,7 +537,7 @@ struct TaskCreationSheet: View {
             if !draft.isPlannedRangeValid {
                 Label(String(localized: "结束时间需晚于开始时间，且安排在同一天。"), systemImage: "exclamationmark.triangle")
                     .font(.holoCaption)
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
             Button(role: .destructive) {
                 withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {

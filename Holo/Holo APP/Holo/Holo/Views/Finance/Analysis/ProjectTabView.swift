@@ -187,16 +187,7 @@ struct ProjectTabView: View {
                     }
 
                     if let budget = project.budgetDecimal, budget > 0, let spent {
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color.holoDivider.opacity(0.4))
-                                Capsule()
-                                    .fill(spent > budget ? Color.holoError.opacity(0.8) : Color(hex: project.color).opacity(0.75))
-                                    .frame(width: max(4, geo.size.width * min(max(Double(truncating: (spent / budget) as NSDecimalNumber), 0), 1)))
-                            }
-                        }
-                        .frame(width: 76, height: 5)
+                        HoloProgress(value: Double(truncating: (spent / budget) as NSDecimalNumber), color: spent > budget ? .holoError : Color(hex: project.color), lineWidth: 5).frame(width: 76)
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true)

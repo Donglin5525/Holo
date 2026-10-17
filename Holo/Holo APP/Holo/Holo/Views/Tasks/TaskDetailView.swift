@@ -722,11 +722,11 @@ struct TaskDetailView: View {
             } label: {
                 Image(systemName: smartSummaryEnabled ? "sparkles" : "sparkle")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(smartSummaryEnabled ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(smartSummaryEnabled ? .holoToolAI : .holoTextSecondary)
                     .frame(width: 28, height: 28)
                     .background(
                         Circle()
-                            .fill(smartSummaryEnabled ? Color.holoPrimary.opacity(0.12) : Color.holoCardBackground)
+                            .fill(smartSummaryEnabled ? Color.holoToolAI.opacity(0.12) : Color.holoCardBackground)
                     )
             }
             .buttonStyle(.plain)

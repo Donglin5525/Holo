@@ -865,13 +865,12 @@ struct AgentDeepAnalysisDetailSheet: View {
     @ViewBuilder
     private var trendSection: some View {
         if !trendCharts.isEmpty {
-            let isWeekly = trendWindowSpansWeeks
             VStack(alignment: .leading, spacing: 12) {
                 Text("趋势速览")
                     .font(.system(size: 17, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
                 ForEach(Array(trendCharts.enumerated()), id: \.offset) { _, series in
-                    ReportTrendChart(series: series, weeklyAggregated: isWeekly)
+                    ReportTrendChart(series: series)
                 }
             }
         }

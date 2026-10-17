@@ -120,6 +120,8 @@ struct HoloApp: App {
                 // 测试宿主不渲染业务 UI：HomeView 等界面的 .task 会启动
                 // HomeScheduleService/各 ViewModel 刷新，同样会与测试并发交互导致崩溃。
                 Color.clear.ignoresSafeArea()
+            } else if HoloChartGalleryView.isRequested {
+                HoloChartGalleryView()
             } else {
                 // 应用锁闸门层与业务根视图同帧渲染：锁定时首帧即锁屏，无内容闪现；
                 // 热回时由 AppLockManager 的系统级窗口盖住浮层（fullScreenCover/sheet）
@@ -246,6 +248,10 @@ struct HoloApp: App {
 
                 // 统一领域记忆链是唯一写入口；旧 JSON 仅保留一个版本用于迁移回滚。
                 FinanceRepository.shared.setup()
+                // 预置欢迎笔记：新用户首启种进想法模块（物理空表才种；重装误种由
+                // SeedRevivalRepair 铁证清理）。与财务种子同链：库就绪即种，
+                // 引导完成后 HomeView 深链直达。
+                WelcomeNoteSeed.seedIfNeeded(context: CoreDataStack.shared.viewContext)
                 #if DEBUG
                 // 财务图表/账本模拟器纵向验收合成数据（-FinanceDemoSeed 启动参数触发，幂等）
                 await FinanceDemoSeed.seedIfNeeded()

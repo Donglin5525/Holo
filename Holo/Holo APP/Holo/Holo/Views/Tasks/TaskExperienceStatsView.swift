@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import Charts
 
 struct TaskExperienceStatsView: View {
 
@@ -28,6 +27,7 @@ struct TaskExperienceStatsView: View {
     /// 事项完成明细弹层（P2）
     @State private var matterDrilldown: TaskMatterBreakdownStat? = nil
     /// 热力图选中日（P2；nil=未选）
+    @State private var selectedListSegmentID: String?
     @State private var selectedHeatDay: CalendarHeatmapGridView.Day? = nil
 
     @Environment(\.colorScheme) private var colorScheme
@@ -60,9 +60,14 @@ struct TaskExperienceStatsView: View {
                         overviewCard(analytics)
                         trendCard(analytics)
                         heatCard(analytics)
-                        hourCard(analytics)
-                        listBreakdownCard(analytics)
-                        matterCard(analytics)
+                        if analytics.completedCount == 0 {
+                            // 时刻/清单/事项三卡同空：合并成一张空态卡，不再三张同句空卡
+                            completedEmptyCard
+                        } else {
+                            hourCard(analytics)
+                            listBreakdownCard(analytics)
+                            matterCard(analytics)
+                        }
                         todayPlanCard()
                         attentionCard(analytics)
                         footnotes(analytics)
@@ -75,12 +80,19 @@ struct TaskExperienceStatsView: View {
                 .padding(.horizontal, HoloSpacing.page)
                 .padding(.top, HoloSpacing.md)
                 .padding(.bottom, 100)
+
+                // 右下浮动「新增」让位：expanded 宽无底部栏时浮钮整体更高，末卡需额外 96pt 才不被压住
+                Color.clear.frame(height: 96)
             }
         }
         .background(Color.holoBackground)
         .task {
             await CoreDataStack.shared.waitUntilReady()
             model.reload()
+        }
+        .onChange(of: model.period) { _, _ in
+            selectedListSegmentID = nil
+            selectedHeatDay = nil
         }
         .sheet(item: $drilldown) { kind in
             TaskStatsDrilldownSheet(model: model, kind: kind, repository: repository)
@@ -224,7 +236,7 @@ struct TaskExperienceStatsView: View {
             if let message = model.customValidationMessage {
                 Text(message)
                     .font(.holoCaption)
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -251,7 +263,7 @@ struct TaskExperienceStatsView: View {
                     title: String(localized: "完成率"),
                     value: rateText(analytics.onTime.completionRate),
                     sub: dueCompletionSubText(analytics),
-                    delta: model.rateDeltaPercentage(
+                    delta: rateDeltaText(
                         analytics.onTime.completionRate,
                         analytics.comparison.previousDueCompletionRate
                     )
@@ -269,7 +281,7 @@ struct TaskExperienceStatsView: View {
                     title: String(localized: "按时率"),
                     value: rateText(analytics.onTime.rate),
                     sub: onTimeSub(analytics),
-                    delta: model.rateDeltaPercentage(
+                    delta: rateDeltaText(
                         analytics.onTime.rate,
                         analytics.comparison.previousOnTimeRate
                     )
@@ -296,6 +308,24 @@ struct TaskExperienceStatsView: View {
         return "\(Int((rate * 100).rounded()))%"
     }
 
+    /// 率差文案：上期基线为 0（或无数据）、或本期值本身就是 0 时，涨跌百分比无意义
+    ///（0 完成的一周渲染「-100%」纯属红警噪音，下滑信号已由「较上期少 N 项」承担），
+    /// 改显示中性「—」；基线与本期都有效才显示百分点差
+    private func rateDeltaText(_ current: Double?, _ previous: Double?) -> (text: String, positive: Bool?)? {
+        guard let current else { return nil }
+        guard (previous ?? 0) > 0 else { return ("—", nil) }
+        guard current > 0 else { return ("—", nil) }
+        guard let delta = model.rateDeltaPercentage(current, previous) else { return nil }
+        return (delta.text, delta.positive)
+    }
+
+    /// 率差颜色：positive 为 nil 时是基线无效的中性「—」，不染红绿
+    private func deltaTextColor(_ positive: Bool?) -> Color {
+        if positive == true { return .holoSuccess }
+        if positive == false { return .holoError }
+        return .holoTextPlaceholder
+    }
+
     /// 完成率副文案：到期的事里完成了几成（按时 + 迟到）；窄列文案锁 6-8 字宽，长版会折出「任务」孤字
     private func dueCompletionSubText(_ analytics: TaskAnalyticsSnapshot) -> String {
         guard analytics.onTime.denominatorCount > 0 else {
@@ -316,7 +346,7 @@ struct TaskExperienceStatsView: View {
         title: String,
         value: String,
         sub: String,
-        delta: (text: String, positive: Bool)? = nil,
+        delta: (text: String, positive: Bool?)? = nil,
         onTap: @escaping () -> Void
     ) -> some View {
         Button(action: onTap) {
@@ -339,7 +369,7 @@ struct TaskExperienceStatsView: View {
                     if let delta {
                         Text(delta.text)
                             .font(.system(size: 10.5, weight: .semibold))
-                            .foregroundColor(delta.positive ? .holoSuccess : .holoError)
+                            .foregroundColor(deltaTextColor(delta.positive))
                             .lineLimit(1)
                     }
                 }
@@ -371,23 +401,29 @@ struct TaskExperienceStatsView: View {
                 .frame(width: 136)
             }
 
-            if trendMode == .counts {
-                trendLegend
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            if isTrendEmpty(analytics) {
+                trendEmptyState
+            } else {
+                if trendMode == .counts {
+                    trendLegend
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                TaskStatsTrendChart(buckets: analytics.buckets, mode: trendMode) { bucket in
+                    bucketDrilldown = bucket
+                }
             }
 
-            TaskStatsTrendChart(buckets: analytics.buckets, mode: trendMode) { bucket in
-                bucketDrilldown = bucket
+            if !isTrendEmpty(analytics) {
+                Button {
+                    showTrendDrilldown = true
+                } label: {
+                    Label(String(localized: "查看趋势明细"), systemImage: "list.bullet")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoPrimary)
+                }
+                .buttonStyle(.plain)
             }
-
-            Button {
-                showTrendDrilldown = true
-            } label: {
-                Label(String(localized: "查看趋势明细"), systemImage: "list.bullet")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoPrimary)
-            }
-            .buttonStyle(.plain)
         }
         .padding(HoloSpacing.md)
         .background(Color.holoCardBackground)
@@ -407,6 +443,24 @@ struct TaskExperienceStatsView: View {
         }
     }
 
+    /// 趋势是否全空（无桶，或所有桶新增/完成均为 0）：空图不绘坐标轴，避免孤立刻度标签（如「1」）
+    private func isTrendEmpty(_ analytics: TaskAnalyticsSnapshot) -> Bool {
+        analytics.buckets.allSatisfy { $0.createdIDs.isEmpty && $0.completedIDs.isEmpty }
+    }
+
+    /// 趋势空态：整块绘图区换成居中提示（占位高度对齐图表 160pt，数据出现/消失时卡片不跳动）
+    private var trendEmptyState: some View {
+        VStack(spacing: 6) {
+            Text(String(localized: "本期还没有完成记录"))
+                .font(.holoBody)
+                .foregroundColor(.holoTextSecondary)
+            Text(String(localized: "完成的任务会画成趋势图"))
+                .font(.holoCaption)
+                .foregroundColor(.holoToolTextSecondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 160)
+    }
+
     // MARK: - 完成节奏热力图（P2：固定近 12 个自然周，不随档位）
 
     private func heatCard(_ analytics: TaskAnalyticsSnapshot) -> some View {
@@ -423,7 +477,8 @@ struct TaskExperienceStatsView: View {
                 days: heatDays(analytics),
                 weekdayLabels: [String(localized: "一"), "", String(localized: "三"), "", String(localized: "五"), "", ""],
                 showsMonthAxis: true,
-                palette: .warm
+                palette: .warm,
+                selectedDate: selectedHeatDay?.date
             ) { day in
                 selectedHeatDay = day
             }
@@ -529,12 +584,11 @@ struct TaskExperienceStatsView: View {
                 }
                 PieChartView(
                     segments: segments,
+                    selectedSegmentID: selectedListSegmentID,
                     colors: colors,
                     centerIdleText: String(localized: "\(analytics.completedCount) 件")
                 ) { segment in
-                    guard let segment,
-                          let stat = analytics.listBreakdown.first(where: { $0.id == segment.id }) else { return }
-                    listDrilldown = stat
+                    selectedListSegmentID = segment?.id
                 }
 
                 ForEach(Array(analytics.listBreakdown.enumerated()), id: \.element.id) { index, stat in
@@ -608,15 +662,7 @@ struct TaskExperienceStatsView: View {
                                     .font(.holoCaption.weight(.semibold))
                                     .foregroundColor(.holoTextSecondary)
                             }
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    Capsule().fill(Color.holoBorder)
-                                    Capsule()
-                                        .fill(Color.holoPrimary.opacity(0.55))
-                                        .frame(width: geo.size.width * CGFloat(stat.count) / CGFloat(max(maxCount, 1)))
-                                }
-                            }
-                            .frame(height: 6)
+                            HoloProgress(value: Double(stat.count) / Double(max(maxCount, 1)), color: .holoPrimary, lineWidth: 6)
                         }
                         .contentShape(Rectangle())
                     }
@@ -639,6 +685,18 @@ struct TaskExperienceStatsView: View {
         .padding(HoloSpacing.md)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+    }
+
+    // MARK: - 合并空态（时刻/清单/事项三卡同空时替三张同句空卡）
+
+    private var completedEmptyCard: some View {
+        Text(String(localized: "本期还没有完成记录，完成后这里会显示时刻分布、清单与事项"))
+            .font(.holoCaption)
+            .foregroundColor(.holoTextSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(HoloSpacing.md)
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
     }
 
     // MARK: - Today 计划达成（P2：仅周档，逐日计划 vs 完成）
@@ -676,15 +734,7 @@ struct TaskExperienceStatsView: View {
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextPlaceholder)
             if let day {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.holoBorder)
-                        Capsule()
-                            .fill(Color.holoSuccess.opacity(0.85))
-                            .frame(width: geo.size.width * CGFloat(day.done) / CGFloat(max(day.planned, 1)))
-                    }
-                }
-                .frame(height: 5)
+                HoloProgress(value: Double(day.done) / Double(max(day.planned, 1)), color: .holoSuccess, lineWidth: 5)
                 Text("\(day.done)/\(day.planned)")
                     .font(.system(size: 10))
                     .monospacedDigit()
@@ -776,7 +826,6 @@ struct TaskExperienceStatsView: View {
     /// 按时率分段条：按时（绿）/ 迟到（橙）/ 未完成（底色留白）+ 图例行
     private func onTimeBand(_ analytics: TaskAnalyticsSnapshot) -> some View {
         let onTime = analytics.onTime
-        let total = max(onTime.denominatorCount, 1)
         return VStack(spacing: HoloSpacing.xs) {
             HStack {
                 Text("按时率")
@@ -787,20 +836,11 @@ struct TaskExperienceStatsView: View {
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundColor(.holoTextPrimary)
             }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.holoBorder)
-                    HStack(spacing: 0) {
-                        Capsule()
-                            .fill(Color.holoSuccess.opacity(0.85))
-                            .frame(width: geo.size.width * CGFloat(onTime.onTimeCount) / CGFloat(total))
-                        Capsule()
-                            .fill(Color.holoPrimary.opacity(0.85))
-                            .frame(width: geo.size.width * CGFloat(onTime.lateCount) / CGFloat(total))
-                    }
-                }
-            }
-            .frame(height: 8)
+            HoloProportionBar(segments: [
+                .init(id: "on-time", label: "按时", weight: Double(onTime.onTimeCount), color: .holoSuccess),
+                .init(id: "late", label: "迟到", weight: Double(onTime.lateCount), color: .holoPrimary),
+                .init(id: "unfinished", label: "未完成", weight: Double(onTime.unfinishedCount), color: .holoToolBorder)
+            ], height: 8)
             HStack(spacing: 12) {
                 onTimeLegendDot(color: .holoSuccess.opacity(0.85), label: String(localized: "按时"), count: onTime.onTimeCount)
                 onTimeLegendDot(color: .holoPrimary.opacity(0.85), label: String(localized: "迟到"), count: onTime.lateCount)
@@ -884,7 +924,7 @@ struct TaskExperienceStatsView: View {
         HStack(spacing: 8) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 13))
-                .foregroundColor(.holoError)
+                .foregroundColor(.holoToolError)
             Text("更新失败，以下为上次数据")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)

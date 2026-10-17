@@ -184,10 +184,10 @@ struct KanbanTaskSection: View {
                         if let list = task.list {
                             Text(list.name)
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.holoPrimaryDark)
+                                .foregroundColor(.holoToolWarning)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 1)
-                                .background(Color.holoPrimaryLight)
+                                .background(Color.holoToolInset)
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
                         if let goal = task.goal {
@@ -202,7 +202,7 @@ struct KanbanTaskSection: View {
                                 // 逾期任务：红色提示
                                 Text("已逾期 · \(formatDate(dueDate))")
                                     .font(.holoTinyLabel)
-                                    .foregroundColor(.holoError)
+                                    .foregroundColor(.holoToolError)
                             }
                         }
                     }
@@ -318,10 +318,10 @@ struct KanbanTaskSection: View {
                         if let list = task.list {
                             Text(list.name)
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.holoPrimaryDark)
+                                .foregroundColor(.holoToolWarning)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 1)
-                                .background(Color.holoPrimaryLight)
+                                .background(Color.holoToolInset)
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
                         if let goal = task.goal {
@@ -330,7 +330,7 @@ struct KanbanTaskSection: View {
                         if let dueDate = task.dueDate {
                             Text(formatDate(dueDate))
                                 .font(.holoTinyLabel)
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
                         } else {
                             Text("无截止日期")
                                 .font(.holoTinyLabel)
@@ -347,10 +347,10 @@ struct KanbanTaskSection: View {
             } label: {
                 Text("加入今日")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoPrimary)
+                    .foregroundColor(.holoToolWarning)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(Color.holoPrimaryLight)
+                    .background(Color.holoToolInset)
                     .clipShape(Capsule())
             }
             .buttonStyle(.plain)

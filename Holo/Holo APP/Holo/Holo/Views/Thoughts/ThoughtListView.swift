@@ -1063,9 +1063,21 @@ struct ThoughtListView: View {
     @ViewBuilder
     private var headerView: some View {
         if let onOpenSidebar {
-            // 侧栏形态：左上菜单 + 当前范围标题（点标题也可开侧栏）+ 右上独立返回 Holo
-            // 左缘右滑沿用全 App 的返回手势；侧栏由菜单或标题打开。
+            // 侧栏形态：左上返回 Holo + 菜单 + 当前范围标题（点标题也可开侧栏）
+            // 返回与其他根模块（财务/习惯/任务/长廊）同位最左；左缘右滑沿用全 App 返回手势。
             HStack(spacing: 0) {
+                Button {
+                    onBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.holoToolText)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.holoToolSurface))
+                        .contentShape(Circle())
+                }
+                .accessibilityLabel(String(localized: "返回 Holo"))
+
                 Button {
                     onOpenSidebar()
                 } label: {
@@ -1125,19 +1137,6 @@ struct ThoughtListView: View {
                 }
                 .accessibilityLabel("想法设置")
                 .accessibilityIdentifier("thoughts.settings.open")
-
-                // 返回用左箭头：与全 App 返回语言一致，也消除与标题下拉箭头的重复观感
-                Button {
-                    onBack()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.holoToolText)
-                        .frame(width: 34, height: 34)
-                        .background(Circle().fill(Color.holoToolSurface))
-                        .contentShape(Circle())
-                }
-                .accessibilityLabel(String(localized: "返回 Holo"))
             }
             .padding(.horizontal, HoloSpacing.page)
             .padding(.vertical, HoloSpacing.sm)

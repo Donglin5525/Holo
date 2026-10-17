@@ -185,7 +185,7 @@ struct AIReadableResponseView: View {
                 Button(action: onRetry) {
                     Label("重新发送", systemImage: "arrow.clockwise")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint(String(localized: "重新发送上一条消息"))

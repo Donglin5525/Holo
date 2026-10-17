@@ -212,16 +212,7 @@ struct ScopeCategoryDrillDownView: View {
                 .lineLimit(1)
                 .frame(width: 68, alignment: .leading)
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.holoDivider.opacity(0.3))
-                    Capsule()
-                        .fill(Color.holoPrimary.opacity(0.45))
-                        .frame(width: barWidth(total: geo.size.width, amount: item.amount, maxAmount: maxAmount))
-                }
-            }
-            .frame(height: 4)
+            HoloProgress(value: maxAmount > 0 ? Double(truncating: (item.amount / maxAmount) as NSDecimalNumber) : 0, color: .holoPrimary, lineWidth: 4)
 
             Text("\(item.formattedCompactAmount) · \(item.formattedPercentage)")
                 .font(.system(size: 9.5, design: .rounded))
@@ -300,7 +291,7 @@ struct ScopeCategoryDrillDownView: View {
             if expense > 0 {
                 Text("-\(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "")")
                     .font(.system(size: 12))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
             if income > 0 {
                 Text("+\(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "")")
@@ -324,11 +315,7 @@ struct ScopeCategoryDrillDownView: View {
         .padding(.vertical, HoloSpacing.xl)
     }
 
-    private func barWidth(total: CGFloat, amount: Decimal, maxAmount: Decimal) -> CGFloat {
-        guard maxAmount > 0 else { return 4 }
-        let ratio = Double(truncating: (amount / maxAmount) as NSDecimalNumber)
-        return max(4, total * min(max(ratio, 0), 1))
-    }
+
 }
 
 // MARK: - 分类构成横条区
@@ -365,16 +352,7 @@ struct ScopeCategoryBars: View {
                 .lineLimit(1)
                 .frame(width: 68, alignment: .leading)
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.holoDivider.opacity(0.4))
-                    Capsule()
-                        .fill(Color.holoPrimary.opacity(0.75))
-                        .frame(width: barWidth(total: geo.size.width, amount: item.amount, maxAmount: maxAmount))
-                }
-            }
-            .frame(height: 6)
+            HoloProgress(value: maxAmount > 0 ? Double(truncating: (item.amount / maxAmount) as NSDecimalNumber) : 0, color: .holoPrimary, lineWidth: 6)
 
             Text("\(item.formattedCompactAmount) · \(item.formattedPercentage)")
                 .font(.system(size: 10, design: .rounded))
@@ -397,11 +375,7 @@ struct ScopeCategoryBars: View {
         }
     }
 
-    private func barWidth(total: CGFloat, amount: Decimal, maxAmount: Decimal) -> CGFloat {
-        guard maxAmount > 0 else { return 4 }
-        let ratio = Double(truncating: (amount / maxAmount) as NSDecimalNumber)
-        return max(4, total * min(max(ratio, 0), 1))
-    }
+
 }
 
 // MARK: - 交易流水行

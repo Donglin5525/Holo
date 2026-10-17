@@ -254,6 +254,18 @@ struct ThoughtEditorView: View {
                 // 菜单本体新建会话也显示：「转为任务」自带先落库能力；
                 // 分享/重整/删除等只在已落库时出现（菜单内部按 currentThoughtId 分支）。
                 .toolbar {
+                    // fullScreenCover 无系统返回键：左上关闭钮与底部「完成」走同一条
+                    // finishEditing 收口（先落库再关闭，宽屏右栏形态由 closeEditor 分流）。
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button {
+                            finishEditing()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.holoToolTextSecondary)
+                        }
+                    }
+
                     ToolbarItem(placement: .navigationBarTrailing) {
                         editorOptionsMenu
                     }
@@ -370,6 +382,11 @@ struct ThoughtEditorView: View {
             }
         }
         .onAppear {
+            // 预置欢迎笔记的送达回执：编辑器真正打开才算送达，清除 pending
+            // （必达链路的 ack 端；HomeView 的跳转以此判断是否继续重试）
+            if editingThoughtId == WelcomeNoteSeed.noteId {
+                WelcomeNoteSeed.acknowledgePresentation()
+            }
             loadEditingData()
             // G1：孤儿 staged 文件对账（不被任何恢复记录引用且超期的清理掉）
             Task { await ThoughtEditorRecoveryStore.shared.cleanupOrphans() }
@@ -1240,7 +1257,8 @@ struct ThoughtEditorView: View {
 
             Text("AI")
                 .font(.system(size: 8, weight: .semibold))
-                .foregroundColor(isConfirmed ? .holoPrimary.opacity(0.6) : .holoToolTextSecondary.opacity(0.5))
+                // 8pt 微标不做半透明降档：深色下半透橙/灰会跌破可读线
+                .foregroundColor(isConfirmed ? .holoToolWarning : .holoToolTextSecondary)
 
             if !isConfirmed {
                 Button {
@@ -1693,7 +1711,7 @@ struct ThoughtEditorView: View {
                 if item.retryCount > 0 {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 12))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                         .padding(4)
                 }
             }
@@ -1723,7 +1741,7 @@ struct ThoughtEditorView: View {
                 VStack(spacing: 3) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(size: 14))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                     Text("重试")
                         .holoText(.metadata)
                         .foregroundColor(.holoToolTextSecondary)

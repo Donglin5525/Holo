@@ -172,7 +172,7 @@ private struct LifecycleListPage: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.system(size: 12))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(RoundedRectangle(cornerRadius: 10).fill(Color.holoError.opacity(0.08)))
@@ -338,7 +338,7 @@ struct SortPage: View {
                     if let errorMessage {
                         Text(errorMessage)
                             .font(.system(size: 12))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
 
                     if baselineIds.isEmpty {
@@ -360,7 +360,7 @@ struct SortPage: View {
                     } label: {
                         Text(String(localized: "保存顺序"))
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.holoToolOnAction)
                             .frame(maxWidth: .infinity, minHeight: 48)
                             .background(Capsule().fill(Color.holoToolAction))
                     }
@@ -404,7 +404,7 @@ struct SortPage: View {
 
             HStack(spacing: 0) {
                 Button {
-                    guard !reorder.isInteracting else { return }
+                    guard reorder.admitInteraction() else { return }
                     reorder.moveByOne(id: row.id, offset: -1, section: .sortSheet)
                 } label: {
                     Image(systemName: "chevron.up")
@@ -417,7 +417,7 @@ struct SortPage: View {
                 .accessibilityLabel(Text(String(localized: "上移\(row.name)")))
 
                 Button {
-                    guard !reorder.isInteracting else { return }
+                    guard reorder.admitInteraction() else { return }
                     reorder.moveByOne(id: row.id, offset: 1, section: .sortSheet)
                 } label: {
                     Image(systemName: "chevron.down")
@@ -508,7 +508,7 @@ private struct VisibilityPage: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.system(size: 12))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
 
                 ForEach(Array(draftOrder.enumerated()), id: \.element) { index, id in
@@ -522,7 +522,7 @@ private struct VisibilityPage: View {
                 } label: {
                     Text(String(localized: "保存展示设置"))
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(.holoToolOnAction)
                         .frame(maxWidth: .infinity, minHeight: 48)
                         .background(Capsule().fill(Color.holoToolAction))
                 }
@@ -691,12 +691,12 @@ private struct DataManagementPage: View {
                     HStack(spacing: HoloSpacing.md) {
                         Image(systemName: "trash")
                             .font(.system(size: 14))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                             .frame(width: 24)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(String(localized: "清空习惯数据"))
                                 .font(.holoBody)
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
                             Text(String(localized: "进入最近删除，30 天内可恢复"))
                                 .font(.system(size: 11))
                                 .foregroundColor(.holoToolTextSecondary)

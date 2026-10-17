@@ -618,7 +618,7 @@ struct AddTransactionSheet: View {
         } label: {
             Text("删除交易")
                 .font(.holoBody)
-                .foregroundColor(.holoError)
+                .foregroundColor(.holoToolError)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, HoloSpacing.md)
                 .background(Color.holoToolSurface)
@@ -954,10 +954,10 @@ struct RefundEntrySheet: View {
 
     private var limitWarning: some View {        Text(String(localized: "超出可退金额：这笔支出最多还可退 \(maxRefundable.formattedAsCurrency())"))
             .font(.holoCaption.weight(.semibold))
-            .foregroundColor(.holoError)
+            .foregroundColor(.holoToolError)
             .padding(HoloSpacing.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color.holoErrorLight))
+            .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color.holoError.opacity(0.12)))
     }
 
     // MARK: - 数据与保存

@@ -527,7 +527,7 @@ struct MatterV2PrototypeView: View {
                     } else {
                         Text(verbatim: "样机数据构造失败")
                             .font(.caption)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(Color.holoToolError)
                     }
                 }
             }

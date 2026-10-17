@@ -123,6 +123,10 @@ struct SettingsView: View {
     /// 任务纸面动效灰度开关（动效融合 G2）：key/默认值与 HoloTaskMotionRolloutPolicy 对齐，
     /// 未设置时默认开；拨动即落 UserDefaults，重启/即时生效（外观由视图每次取值）
     @AppStorage(HoloTaskMotionRolloutPolicy.Flag.taskPaperMotionEnabled.rawValue) private var taskPaperMotionEnabled: Bool = true
+    #if DEBUG
+    /// 「开发者选项」折叠行展开状态（默认收起，跨启动记忆）
+    @AppStorage("settings.developerOptionsExpanded") private var developerOptionsExpanded = false
+    #endif
     @State private var showAISettings = false
     @State private var showMatterV2Prototype = false
     @State private var showAIConsent = false
@@ -376,7 +380,7 @@ struct SettingsView: View {
             if let errorMessage = authService.errorMessage {
                 Text(errorMessage)
                     .font(.system(size: 12))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -389,7 +393,7 @@ struct SettingsView: View {
                         Text("退出登录")
                     }
                     .holoText(.body)
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
                     .background(Color.holoError.opacity(0.08))
@@ -405,7 +409,9 @@ struct SettingsView: View {
                         await iCloudSyncStatus.refreshAccountStatus()
                     }
                 }
-                .signInWithAppleButtonStyle(darkModeManager.colorScheme == .dark ? .white : .black)
+                // 跟随系统时 colorScheme 为 nil，旧写法会在系统深色下仍渲染纯黑按钮；
+                // 用环境 scheme 兜底，按钮样式与实际界面明暗保持一致
+                .signInWithAppleButtonStyle((darkModeManager.colorScheme ?? systemColorScheme) == .dark ? .white : .black)
                 .frame(height: 44)
                 // 通宵冲刺 D6（东林拍板项）：Apple 登录按钮在 iPad（regular）限宽居中；
                 // iPhone 维持拉满全宽不变
@@ -469,9 +475,10 @@ struct SettingsView: View {
                 // 图标
                 ZStack {
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
+                        // 未选中砖改嵌套底：深色下纯黑砖压深灰卡，浅色下观感不变
                         .fill(setting == darkModeManager.currentSetting
                               ? Color.holoPrimary.opacity(0.1)
-                              : Color.holoToolBackground)
+                              : Color.holoToolInset)
                         .frame(width: 40, height: 40)
 
                     Image(systemName: setting.iconName)
@@ -1022,72 +1029,120 @@ struct SettingsView: View {
             }
 
             #if DEBUG
-            // 任务纸面动效（灰度回退开关，仅开发调试）：动效融合 G2——
-            // 关闭即恢复任务模块原布局（大数字仪表/白卡/白底横幅），不动数据
-            HStack(spacing: 12) {
-                Image(systemName: "doc.text")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 24)
+            // 开发者选项：四个开发调试入口收进折叠行，默认收起，展开状态跨启动记忆
+            VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        developerOptionsExpanded.toggle()
+                    }
+                } label: {
+                    HStack(spacing: HoloSpacing.md) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                .fill(Color.holoPrimary.opacity(0.1))
+                                .frame(width: 40, height: 40)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("任务纸面动效")
-                        .holoText(.body)
-                        .foregroundColor(.holoToolText)
-                    Text("开发调试：任务模块纸页视觉，关闭恢复原布局")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoToolTextSecondary)
+                            Image(systemName: "wrench.and.screwdriver")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.holoPrimary)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(String(localized: "开发者选项"))
+                                .holoText(.body)
+                                .foregroundColor(.holoToolText)
+                                .lineLimit(1)
+
+                            Text(String(localized: "动效、模型与语音调试入口"))
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoToolTextSecondary)
+                                .lineLimit(2)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .layoutPriority(1)
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.holoToolTextSecondary.opacity(0.5))
+                            .rotationEffect(.degrees(developerOptionsExpanded ? 90 : 0))
+                    }
+                    .padding(HoloSpacing.md)
+                    .background(Color.holoToolSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                 }
+                .buttonStyle(PlainButtonStyle())
 
-                Spacer(minLength: 8)
+                if developerOptionsExpanded {
+                    VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                        // 任务纸面动效（灰度回退开关）：动效融合 G2——
+                        // 关闭即恢复任务模块原布局（大数字仪表/白卡/白底横幅），不动数据
+                        HStack(spacing: 12) {
+                            Image(systemName: "doc.text")
+                                .font(.system(size: 18))
+                                .foregroundColor(.holoPrimary)
+                                .frame(width: 24)
 
-                Toggle("", isOn: $taskPaperMotionEnabled)
-                    .labelsHidden()
-                    .tint(.holoPrimary)
-            }
-            .padding(.vertical, 6)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("任务纸面动效")
+                                    .holoText(.body)
+                                    .foregroundColor(.holoToolText)
+                                Text(String(localized: "任务模块纸页视觉"))
+                                    .font(.holoTinyLabel)
+                                    .foregroundColor(.holoToolTextSecondary)
+                            }
 
-            // AI 设置（仅开发调试）
-            settingsRow(
-                icon: "sparkles",
-                iconColor: .purple,
-                title: String(localized: "AI 助手"),
-                subtitle: String(localized: "开发调试：Provider、Prompt 与学习映射")
-            ) {
-                showAISettings = true
-            }
-            .sheet(isPresented: $showAISettings) {
-                NavigationStack {
-                    AISettingsView()
-                }
-            }
+                            Spacer(minLength: 8)
 
-            // Matter V2 静态样机（仅开发调试）：新规划卡/详情/Today 与旧卡对照
-            settingsRow(
-                icon: "square.stack.3d.up",
-                iconColor: .holoPrimary,
-                title: "Matter V2 样机",
-                subtitle: "开发调试：新规划卡 / 详情页 / Today 对照"
-            ) {
-                showMatterV2Prototype = true
-            }
-            .sheet(isPresented: $showMatterV2Prototype) {
-                NavigationStack {
-                    MatterV2PrototypeView()
-                }
-            }
+                            Toggle("", isOn: $taskPaperMotionEnabled)
+                                .labelsHidden()
+                                .tint(.holoPrimary)
+                        }
+                        .padding(.vertical, 6)
 
-            settingsRow(
-                icon: "waveform.circle",
-                iconColor: .holoInfo,
-                title: String(localized: "语音识别"),
-                subtitle: KeychainService.hasCachedVoiceRecognitionConfig ? String(localized: "已配置") : String(localized: "开发调试：阿里云百炼 Qwen-ASR")
-            ) {
-                showVoiceRecognitionSettings = true
-            }
-            .sheet(isPresented: $showVoiceRecognitionSettings) {
-                NavigationStack {
-                    VoiceRecognitionSettingsView()
+                        // AI 设置
+                        settingsRow(
+                            icon: "sparkles",
+                            iconColor: .purple,
+                            title: String(localized: "AI 助手"),
+                            subtitle: String(localized: "模型与提示词配置")
+                        ) {
+                            showAISettings = true
+                        }
+                        .sheet(isPresented: $showAISettings) {
+                            NavigationStack {
+                                AISettingsView()
+                            }
+                        }
+
+                        // Matter V2 静态样机：新规划卡/详情/Today 与旧卡对照
+                        settingsRow(
+                            icon: "square.stack.3d.up",
+                            iconColor: .holoPrimary,
+                            title: "Matter V2 样机",
+                            subtitle: String(localized: "新规划卡样机")
+                        ) {
+                            showMatterV2Prototype = true
+                        }
+                        .sheet(isPresented: $showMatterV2Prototype) {
+                            NavigationStack {
+                                MatterV2PrototypeView()
+                            }
+                        }
+
+                        settingsRow(
+                            icon: "waveform.circle",
+                            iconColor: .holoInfo,
+                            title: String(localized: "语音识别"),
+                            subtitle: KeychainService.hasCachedVoiceRecognitionConfig ? String(localized: "已配置") : String(localized: "语音识别引擎")
+                        ) {
+                            showVoiceRecognitionSettings = true
+                        }
+                        .sheet(isPresented: $showVoiceRecognitionSettings) {
+                            NavigationStack {
+                                VoiceRecognitionSettingsView()
+                            }
+                        }
+                    }
                 }
             }
             #endif
@@ -1115,6 +1170,21 @@ struct SettingsView: View {
                 dismiss()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
                     NotificationCenter.default.post(name: .replayHomeCoachTour, object: nil)
+                }
+            }
+
+            // 重看新人笔记（预置欢迎笔记；被删后入口自动隐藏，不复活）
+            if WelcomeNoteSeed.isNoteAlive() {
+                settingsRow(
+                    icon: "book",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "重看新人笔记"),
+                    subtitle: String(localized: "产品理念与功能速览"))
+                {
+                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                        DeepLinkState.shared.navigate(to: .thoughtDetail(thoughtId: WelcomeNoteSeed.noteId))
+                    }
                 }
             }
 
@@ -1208,7 +1278,7 @@ struct SettingsView: View {
 
                             if storageService.isClearing {
                                 ProgressView()
-                                    .tint(.holoError)
+                                    .tint(.holoToolError)
                             } else {
                                 Image(systemName: "trash")
                                     .font(.system(size: 18, weight: .medium))
@@ -1451,7 +1521,7 @@ struct SettingsView: View {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "person.crop.circle.badge.minus")
                     .font(.system(size: 18))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
 
                 Text("账号与数据")
                     .holoText(.body)
@@ -1471,18 +1541,18 @@ struct SettingsView: View {
 
                             if isDeletingAccountData {
                                 ProgressView()
-                                    .tint(.holoError)
+                                    .tint(.holoToolError)
                             } else {
                                 Image(systemName: "trash.slash")
                                     .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(.holoError)
+                                    .foregroundColor(.holoToolError)
                             }
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("删除账号与 Holo 数据")
                                 .holoText(.body)
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
 
                             Text("清除本机数据、附件、AI 记忆和登录状态")
                                 .font(.system(size: 12))

@@ -257,20 +257,10 @@ struct AccountListView: View {
             }
 
             // 资产/负债比例条：暖绿 vs 品牌橙
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.10))
-                    HStack(spacing: 0) {
-                        Capsule()
-                            .fill(LinearGradient(colors: [Color(hex: "#35A06D"), Color(hex: "#7EE2A8")], startPoint: .leading, endPoint: .trailing))
-                            .frame(width: proxy.size.width * assetRatio)
-                        LinearGradient(colors: [Color.holoPrimaryDark, Color(hex: "#F59E0B")], startPoint: .leading, endPoint: .trailing)
-                            .frame(width: proxy.size.width * (1 - assetRatio))
-                            .clipShape(Capsule())
-                    }
-                }
-            }
-            .frame(height: 3)
+            HoloProportionBar(segments: [
+                .init(id: "assets", label: "资产占比", weight: Double(assetRatio), color: .holoSuccess),
+                .init(id: "debt", label: "负债占比", weight: Double(1 - assetRatio), color: .holoPrimary)
+            ], height: 3)
         }
         .padding(20)
         .modifier(AccountCardMaterial(palette: netWorthPalette, isCurrent: false))
@@ -380,7 +370,7 @@ struct AccountListView: View {
                         if item.account.isDefault && !isArchived {
                             Text("默认")
                                 .font(.system(size: 9.5, weight: .semibold))
-                                .foregroundColor(.holoPrimaryDark)
+                                .foregroundColor(.holoToolWarning)
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 1.5)
                                 .background(Capsule().fill(Color.holoPrimary.opacity(0.10)))
@@ -409,7 +399,7 @@ struct AccountListView: View {
                         case .needsRecheck:
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.system(size: 9))
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
                                 .accessibilityHidden(true)
                         }
                     }

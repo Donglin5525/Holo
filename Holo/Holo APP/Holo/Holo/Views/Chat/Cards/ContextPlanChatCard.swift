@@ -323,7 +323,7 @@ struct ContextPlanChatCard: View {
             HStack(spacing: 8) {
                 Label(String(localized: "未加入成功"), systemImage: "xmark.circle.fill")
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.holoToolError)
                 Button {
                     performSingleSave(item)
                 } label: {
@@ -456,7 +456,7 @@ struct ContextPlanChatCard: View {
                 case .failed:
                     Label(String(localized: "这次没有添加成功"), systemImage: "xmark.circle.fill")
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.holoToolError)
                 case .blocked:
                     Label(String(localized: "方案背景已变化，暂时不能保存"), systemImage: "lock.shield")
                         .font(.caption)
@@ -731,7 +731,7 @@ struct ContextPlanChatCard: View {
             if let error = activationErrorText {
                 Text(error)
                     .font(.caption2)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(Color.holoToolError)
             }
         }
         .padding(11)

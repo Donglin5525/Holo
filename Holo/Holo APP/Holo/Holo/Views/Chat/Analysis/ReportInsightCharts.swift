@@ -13,7 +13,6 @@
 //
 
 import SwiftUI
-import Charts
 
 // MARK: - 数值格式化
 
@@ -245,126 +244,18 @@ struct ReportEvidenceMetricRow: View {
 /// 本地回查，与云端核验指标同源但未逐位对账。
 struct ReportTrendChart: View {
     let series: HoloReportTrendSeries
-    let weeklyAggregated: Bool
-
-    private var points: [HoloReportTrendSeries.Point] { series.points }
-    private var values: [Double] { points.map(\.value) }
-
+    @State private var selection: String?
+    private var buckets: [HoloChartBucket] {
+        guard let first = series.points.first, let last = series.points.last else { return [] }
+        return HoloChartFormat.days(from: series.interval.map { series.isWeeklyAggregated ? (Calendar.current.dateInterval(of: .weekOfYear, for: $0.start)?.start ?? $0.start) : $0.start } ?? first.date, through: series.interval?.end ?? last.date,
+                                   values: series.points.map { ($0.date, $0.value) }, step: series.isWeeklyAggregated ? .weekOfYear : .day)
+    }
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            header
-            noteCapsule
-            chart
+        HoloChartFrame(title: series.title, subtitle: series.isWeeklyAggregated ? "本机数据 · 周日均值" : "本机数据 · 逐日", independent: true) {
+            HoloLineChart(buckets: buckets,
+                          series: [.init(id: "report", title: series.isWeeklyAggregated ? "日均" : "记录值", color: .holoChart1)],
+                          selection: $selection, height: 140,
+                          valueText: { "\(HoloChartFormat.number($0)) \(series.unitLabel)" })
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .holoCard()
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilitySummary)
-    }
-
-    private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            HStack(spacing: 7) {
-                Circle()
-                    .fill(Color.holoChart1)
-                    .frame(width: 7, height: 7)
-                Text(series.title)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(.holoTextPrimary)
-            }
-            Spacer(minLength: 12)
-            Text(rangeText)
-                .font(.caption)
-                .foregroundColor(.holoTextSecondary)
-                .monospacedDigit()
-        }
-    }
-
-    private var noteCapsule: some View {
-        Text(weeklyAggregated ? "本机数据 · 按周" : "本机数据 · 逐日")
-            .font(.caption2.weight(.semibold))
-            .foregroundColor(.holoTextSecondary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
-            .background(Color.holoTextSecondary.opacity(0.10))
-            .clipShape(Capsule())
-    }
-
-    private var rangeText: String {
-        let low = values.min() ?? 0
-        let high = values.max() ?? 0
-        return "\(ReportMetricNumberFormatting.compact(low))–\(ReportMetricNumberFormatting.compact(high)) \(series.unitLabel)"
-    }
-
-    private var chart: some View {
-        Chart {
-            ForEach(Array(points.enumerated()), id: \.offset) { index, point in
-                AreaMark(
-                    x: .value("日期", point.date),
-                    y: .value("数值", point.value)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [Color.holoChart1.opacity(0.14), Color.holoChart1.opacity(0.005)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .interpolationMethod(.catmullRom)
-
-                LineMark(
-                    x: .value("日期", point.date),
-                    y: .value("数值", point.value)
-                )
-                .foregroundStyle(Color.holoChart1)
-                .lineStyle(StrokeStyle(lineWidth: 2.25, lineCap: .round, lineJoin: .round))
-                .interpolationMethod(.catmullRom)
-
-                // 末端点：当前值的位置锚（只标最后一个点，避免与大字体轴标签争位）
-                if index == points.count - 1 {
-                    PointMark(
-                        x: .value("日期", point.date),
-                        y: .value("数值", point.value)
-                    )
-                    .symbolSize(30)
-                    .foregroundStyle(Color.holoChart1)
-                }
-            }
-        }
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { _ in
-                AxisGridLine(centered: false)
-                    .foregroundStyle(Color.holoDivider.opacity(0.9))
-                AxisValueLabel(format: .dateTime.month().day())
-                    .font(.caption2)
-                    .foregroundStyle(Color.holoTextSecondary)
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { _ in
-                AxisGridLine()
-                    .foregroundStyle(Color.holoDivider.opacity(0.9))
-                AxisValueLabel()
-                    .font(.caption2)
-                    .foregroundStyle(Color.holoTextSecondary)
-            }
-        }
-        // 报告切换/数据刷新时曲线平滑插值（Point.value 是 Double，可直接作 diff 依据）
-        .animation(HoloAnimation.smooth, value: values)
-        .frame(height: 128)
-    }
-
-    private var accessibilitySummary: Text {
-        let first = points.first
-        let last = points.last
-        let high = values.max() ?? 0
-        var parts: [String] = [series.title]
-        if let first, let last {
-            parts.append("从 \(ReportMetricNumberFormatting.compact(first.value)) 到 \(ReportMetricNumberFormatting.compact(last.value)) \(series.unitLabel)")
-        }
-        parts.append("最高 \(ReportMetricNumberFormatting.compact(high)) \(series.unitLabel)")
-        parts.append("数据来自本机")
-        return Text(parts.joined(separator: "，"))
     }
 }

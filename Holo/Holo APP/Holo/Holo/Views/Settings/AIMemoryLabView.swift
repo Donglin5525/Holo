@@ -71,15 +71,15 @@ struct AIMemoryLabView: View {
 
     private var operatingModeSection: some View {
         Section("当前运行状态") {
-            LabeledContent("验证模式", value: "手动真实运行 + 只读检查")
+            LabeledContent(String(localized: "运行方式"), value: String(localized: "手动触发，只读不改数据"))
             LabeledContent("记忆总数", value: "\(records.count)")
             LabeledContent(
                 "采用状态",
                 value: String(localized: "自动 \(automaticCount) / 待确认 \(pendingCount) / 归档 \(archivedCount)")
             )
-            LabeledContent("汇总回执", value: inboxSnapshot.isEmpty ? "无未读" : inboxSnapshot.summaryText)
+            LabeledContent(String(localized: "本次整理结果"), value: inboxSnapshot.isEmpty ? "无未读" : inboxSnapshot.summaryText)
             LabeledContent(
-                "今日静默 AI 调用",
+                String(localized: "今天后台 AI 次数"),
                 value: scheduler.map { "\($0.aiCallsToday)/\($0.dailyCallLimit)" } ?? "—"
             )
             LabeledContent(
@@ -127,23 +127,23 @@ struct AIMemoryLabView: View {
         } header: {
             Text("领域状态")
         } footer: {
-            Text("进入领域后可检查最近一次真实阶段回执和当前仓库快照；只有上方“运行一次真实观察”会发起请求。")
+            Text(String(localized: "进入领域后可检查各阶段结果和当前数据快照；只有下方“运行一次真实观察”会发起请求。"))
         }
     }
 
     private var personalContextSection: some View {
         Section {
-            LabeledContent("情境库条目", value: "\(contextRecordCount) 条")
+            LabeledContent(String(localized: "情境记忆条目"), value: "\(contextRecordCount) 条")
             LabeledContent(
-                "最近萃取",
+                String(localized: "最近整理"),
                 value: contextDiagnostics.lastExtractionAt?
                     .formatted(.relative(presentation: .numeric)) ?? "未运行"
             )
             if let skip = contextDiagnostics.lastExtractionSkipReason {
-                LabeledContent("萃取跳过原因", value: skip)
+                LabeledContent(String(localized: "整理跳过原因"), value: skip)
             }
             LabeledContent(
-                "萃取累计新建",
+                String(localized: "整理累计新建"),
                 value: contextDiagnostics.lastExtractionCreatedTotal.map { "\($0) 条" } ?? "—"
             )
             LabeledContent(
@@ -169,7 +169,7 @@ struct AIMemoryLabView: View {
                     } else {
                         Image(systemName: "sparkles.rectangle.stack")
                     }
-                    Text(isRunningContextExtraction ? "情境萃取运行中…" : "跑一轮情境萃取")
+                    Text(isRunningContextExtraction ? String(localized: "情境整理运行中…") : String(localized: "跑一轮情境整理"))
                 }
             }
             .disabled(isRunningContextExtraction)
@@ -180,9 +180,9 @@ struct AIMemoryLabView: View {
                 Label("清空情境向量缓存（查询时自动重建）", systemImage: "arrow.triangle.2.circlepath.circle")
             }
         } header: {
-            Text("情境链路（想法→萃取→规划）")
+            Text(String(localized: "情境链路（想法→整理→规划）"))
         } footer: {
-            Text("排障顺序：库内条目为 0 = 萃取没跑；有条目但规划选取为 0 = 检索没命中。")
+            Text(String(localized: "排障顺序：库内条目为 0 = 整理没跑；有条目但规划选取为 0 = 检索没命中。"))
         }
     }
 
@@ -244,7 +244,7 @@ struct AIMemoryLabView: View {
         } header: {
             Text("验证工具")
         } footer: {
-            Text("重置只清除 Debug 调用额度、dirty、退避和脱敏回执，不删除用户记忆或任何业务数据。")
+            Text("重置只清除 Debug 调用额度、待整理标记、退避和脱敏回执，不删除用户记忆或任何业务数据。")
         }
     }
 
@@ -314,15 +314,30 @@ struct AIMemoryLabView: View {
 
     private func debugStatus(_ scope: AIMemoryLabScope) -> some View {
         let target = schedulerTarget(scope)
+        if target?.isDirty == true {
+            return Label(
+                String(localized: "待整理 \(target?.changeCount ?? 0)"),
+                systemImage: "circle.fill"
+            )
+            .foregroundColor(.orange)
+        }
+        // 从未成功运行过：中性灰虚线圈，不用绿勾，避免「看着一切正常其实没跑过」的误导
+        if target?.lastSuccessfulAt == nil {
+            return Label(
+                String(localized: "正常"),
+                systemImage: "circle.dashed"
+            )
+            .foregroundColor(.holoToolTextSecondary)
+        }
         return Label(
-            target?.isDirty == true ? "dirty \(target?.changeCount ?? 0)" : "clean",
-            systemImage: target?.isDirty == true ? "circle.fill" : "checkmark.circle"
+            String(localized: "正常"),
+            systemImage: "checkmark.circle"
         )
-        .foregroundColor(target?.isDirty == true ? .orange : .green)
+        .foregroundColor(.green)
     }
 
     private func lastRunText(_ scope: AIMemoryLabScope) -> String {
-        guard let date = schedulerTarget(scope)?.lastSuccessfulAt else { return String(localized: "未成功运行") }
+        guard let date = schedulerTarget(scope)?.lastSuccessfulAt else { return String(localized: "还没运行过") }
         return String(localized: "上次成功 \(date.formatted(.relative(presentation: .numeric)))")
     }
 
@@ -352,7 +367,7 @@ struct AIMemoryLabView: View {
         operationResult = nil
         let outcome = await HoloPersonalContextExtractionJob.runPass(packageLimit: 2)
         if let skip = outcome.skippedReason {
-            operationResult = "萃取未运行：\(skip)"
+            operationResult = String(localized: "整理未运行：\(skip)")
         } else {
             operationResult = "成功：本轮 \(outcome.ranBatches) 包，累计新建 \(outcome.progress.createdRecords) 条"
         }

@@ -406,7 +406,8 @@ struct EmptyStateView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "wallet.pass")
                 .font(.system(size: 64, weight: .light))
-                .foregroundColor(.holoToolTextSecondary.opacity(0.3))
+                // 深色下空态图标隐身：透明度从 0.3 提到 0.5 保住幽灵层级
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             Text(isFirstRecord ? String(localized: "暂无交易记录") : String(localized: "这一天还没有记录"))
                 .holoText(.body)

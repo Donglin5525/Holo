@@ -44,6 +44,10 @@ struct HomeView: View {
     /// 是否播放首页三步导览（V1 引导结束后自动一次，或设置页「重看新手引导」手动触发）
     @State private var showHomeCoachTour: Bool = false
 
+    /// 欢迎笔记推迟的三步导览：完成引导先跳笔记，笔记送达（pending 清除）后
+    /// 回到首页再接导览；未送达（没打开编辑器就退出想法模块）则继续等送达
+    @State private var welcomeNoteDeferredTour: Bool = false
+
     /// 首页推送通道服务
     @ObservedObject private var scheduleService = HomeScheduleService.shared
 
@@ -309,6 +313,13 @@ struct HomeView: View {
                    HoloSidebarDestination(rawValue: sidebarSelection.rawValue)?.activeScreen != nil {
                     sidebarSelection = .today
                 }
+                // 欢迎笔记读完回首页：接续被推迟的三步导览。pending 已清 =
+                // 编辑器真正打开过（送达）；没打开就退出想法模块的不播，
+                // 下次启动 onAppear 继续把笔记送达。
+                if welcomeNoteDeferredTour, !WelcomeNoteSeed.isPendingPresentation {
+                    welcomeNoteDeferredTour = false
+                    startHomeCoachTourIfNeeded()
+                }
             }
             // 进入任一模块时复位右滑标记，保证下次退出用默认的下滑转场
             if newValue != nil {
@@ -354,13 +365,22 @@ struct HomeView: View {
             wasEmptyAtLaunch = !NewUserActivationState.hasAnyRecord()
             refreshFirstStepCard()
         }
-        // 轻量新人引导（结束后紧接着播放一次首页三步导览）
+        // 轻量新人引导（欢迎笔记优先：完成引导先深链读笔记，读完回首页再接三步导览）
         .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
-            startHomeCoachTourIfNeeded()
+            if WelcomeNoteSeed.isPendingPresentation {
+                welcomeNoteDeferredTour = true
+                presentWelcomeNoteIfNeeded()
+            } else {
+                startHomeCoachTourIfNeeded()
+            }
             // 引导完成（或跳过）后行动卡才具备出现条件
             refreshFirstStepCard()
         }) {
-            HoloLightweightOnboardingView { _ in
+            HoloLightweightOnboardingView { choice in
+                // 整体跳过引导的用户不强制跳欢迎笔记（尊重跳过），笔记仍在想法列表顶部
+                if choice != .skippedOnboarding {
+                    WelcomeNoteSeed.markPendingPresentation()
+                }
                 showOnboarding = false
             }
             .holoContentColumn()
@@ -505,6 +525,13 @@ struct HomeView: View {
             #endif
             if LightweightOnboardingSettings.shouldPresent(deepLinkPending: false) {
                 showOnboarding = true
+            } else if WelcomeNoteSeed.isPendingPresentation {
+                // 中断续跳：上次完成引导但欢迎笔记未送达（杀 App/来电中断），必达
+                welcomeNoteDeferredTour = true
+                presentWelcomeNoteIfNeeded()
+            } else {
+                // 中断兜底：三步导览未看过的在回首页时补播（hasSeen 幂等）
+                startHomeCoachTourIfNeeded()
             }
         }
         // 监听 Deep Link：热启动/后台时 onChange 检测变化
@@ -549,6 +576,24 @@ struct HomeView: View {
     }
 
     // MARK: - 首页导览触发
+
+    /// 直达预置欢迎笔记（完成引导/中断续跳）。必达语义：pending 直到编辑器真正
+    /// 打开才清（ThoughtEditorView onAppear ack），中途杀 App 下次启动继续跳。
+    /// 延迟等 onboarding cover 的 dismissal 动画落定——SwiftUI 同窗同时刻只呈现
+    /// 一个 cover，被挡的呈现会静默丢弃（识图复核页同款时序）。
+    private func presentWelcomeNoteIfNeeded() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            guard WelcomeNoteSeed.isPendingPresentation else { return }
+            guard WelcomeNoteSeed.isNoteAlive() else {
+                // 笔记不存在（被删/种子异常）：清标记防残留，导览照常接续
+                WelcomeNoteSeed.acknowledgePresentation()
+                welcomeNoteDeferredTour = false
+                startHomeCoachTourIfNeeded()
+                return
+            }
+            deepLinkState.navigate(to: .thoughtDetail(thoughtId: WelcomeNoteSeed.noteId))
+        }
+    }
 
     /// V1 引导结束（完成或跳过）后触发一次首页导览。
     /// 开始即落盘：中途杀 App 也不会下次重放（首启导览体验只来一次）。
@@ -706,7 +751,7 @@ struct HomeView: View {
             .preferredColorScheme(DarkModeManager.shared.colorScheme)
 
         case .habits:
-            HabitsView()
+            HabitModuleContainer()
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
 
         case .tasks:

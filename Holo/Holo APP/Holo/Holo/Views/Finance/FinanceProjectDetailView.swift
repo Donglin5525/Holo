@@ -47,7 +47,9 @@ struct FinanceProjectDetailView: View {
         }
         .background(Color.holoToolBackground.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Color.clear.frame(height: 24)
+            // 让位 FinanceView 的「记一笔」浮钮（本页经账户 Tab 的项目列表进入，浮钮仍在）：
+            // 交易列表滚到底时最后一笔金额不再被浮钮压住（2026-10-17 设计审查 C4）
+            Color.clear.frame(height: 160)
         }
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -254,15 +256,7 @@ struct FinanceProjectDetailView: View {
         }()
         let remaining = budget - totalExpense
         return VStack(alignment: .leading, spacing: 6) {
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.holoDivider.opacity(0.5))
-                    Capsule()
-                        .fill(progressColor(ratio: ratio))
-                        .frame(width: proxy.size.width * CGFloat(ratio))
-                }
-            }
-            .frame(height: 5)
+            HoloProgress(value: ratio, color: progressColor(ratio: ratio), lineWidth: 5)
 
             Text(ratio >= 1
                  ? "已超支 ¥\(AccountCardFormat.amount(-remaining))"
@@ -349,15 +343,7 @@ struct FinanceProjectDetailView: View {
                         .frame(width: 34, alignment: .trailing)
                 }
 
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.holoDivider.opacity(0.35))
-                        Capsule()
-                            .fill(Color(hex: aggregation.category.color).opacity(0.75))
-                            .frame(width: proxy.size.width * CGFloat(min(aggregation.percentage / 100, 1)))
-                    }
-                }
-                .frame(height: 3)
+                HoloProgress(value: aggregation.percentage / 100, color: Color(hex: aggregation.category.color), lineWidth: 3)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)

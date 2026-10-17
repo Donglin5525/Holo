@@ -627,7 +627,9 @@ class HabitRepository: ObservableObject {
     
     /// 更新记录
     func updateRecord(_ record: HabitRecord, value: Double?, note: String?) throws {
-        if let value = value {
+        // 打卡记录只有「做了/没做」语义（value 恒 nil），编辑仅改备注；
+        // 数值只对数值型记录生效
+        if record.habit?.isCheckInType != true, let value = value {
             record.value = NSNumber(value: value)
         }
         record.note = note
@@ -651,14 +653,12 @@ class HabitRepository: ObservableObject {
     }
 
     /// 最近 7 天内可补签的日期（升序，元素为 startOfDay）
-    /// - 打卡型：仅每日好习惯返回漏卡日；weekly/monthly 有周期弹性，无「漏卡」概念
+    /// - 打卡型：好习惯返回未打卡日（含周/月频率——真实做了忘记录同样可补）
     /// - 数值型：当天无任何记录的日子
     /// - 坏习惯不参与补签（「补做坏事」无意义）
     /// - 早于习惯创建日的日子不算漏卡
     func retroactiveEligibleDays(for habit: Habit) -> [Date] {
         guard retroactiveSupported(habit) else { return [] }
-        // 打卡型仅每日习惯有「漏卡」概念；weekly/monthly 周期内有弹性，少一天不算漏
-        if habit.isCheckInType && habit.habitFrequency != .daily { return [] }
 
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())

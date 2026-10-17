@@ -294,22 +294,8 @@ struct ChartTouchSelection {
         plotWidth: CGFloat,
         pointXPositions: [CGFloat]
     ) -> Int? {
-        guard plotWidth > 0, !pointXPositions.isEmpty else { return nil }
-
-        let maxSnapDistance = plotWidth / CGFloat(pointXPositions.count) * 0.6
-        var closestIndex: Int?
-        var closestDistance = CGFloat.infinity
-
-        for (index, pointX) in pointXPositions.enumerated() {
-            let distance = abs(touchXInPlot - pointX)
-            if distance < closestDistance {
-                closestDistance = distance
-                closestIndex = index
-            }
-        }
-
-        guard closestDistance <= maxSnapDistance else { return nil }
-        return closestIndex
+        guard plotWidth > 0, touchXInPlot >= 0, touchXInPlot <= plotWidth else { return nil }
+        return HoloChartGeometry.nearestIndex(x: touchXInPlot, positions: pointXPositions)
     }
 }
 

@@ -1163,13 +1163,13 @@ private struct PreviewButtonRow: View {
 
                 Text(title)
                     .font(.holoBody)
-                    .foregroundColor(.holoPrimaryDark)
+                    .foregroundColor(.holoPrimary)
 
                 Spacer()
 
                 Image(systemName: "paperplane.fill")
                     .font(.system(size: 12))
-                    .foregroundColor(.holoPrimaryDark.opacity(0.6))
+                    .foregroundColor(.holoPrimary.opacity(0.6))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -1197,16 +1197,16 @@ private struct NotificationSettingsIconBlock: View {
     }
 }
 
-/// PLUS 小胶囊徽章（holoPrimaryLight 底 / holoPrimaryDark 字）
+/// PLUS 小胶囊徽章（holoToolInset 底 / holoToolWarning 字：两模式对比达标）
 private struct NotificationSettingsPlusBadge: View {
 
     var body: some View {
         Text("PLUS")
             .font(.system(size: 9, weight: .bold))
-            .foregroundColor(.holoPrimaryDark)
+            .foregroundColor(.holoToolWarning)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
-            .background(Color.holoPrimaryLight)
+            .background(Color.holoToolInset)
             .cornerRadius(5)
     }
 }

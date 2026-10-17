@@ -139,7 +139,7 @@ struct KanbanBudgetSection: View {
                     if data.isOverBudget {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 14))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
                     Text(data.isOverBudget ? data.overAmountFormatted : data.remainingFormatted)
                         .font(.system(size: 20, weight: .bold, design: .rounded))
@@ -184,7 +184,7 @@ struct KanbanBudgetSection: View {
             if data.isOverBudget {
                 Text("超支 \(data.overPercent)%")
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
         }
     }

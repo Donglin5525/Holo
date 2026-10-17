@@ -498,4 +498,30 @@ final class HabitPresentationProjectorTests: XCTestCase {
         XCTAssertNil(HabitPresentationProjector.retroactiveMode(habit: habit, day: day, data: data),
                      "已完成日幂等，无需补签")
     }
+
+    /// 2026-10-17 东林实报：周频率习惯真实做了忘记录，同样必须可补（与每日习惯同一套资格）
+    func test_周频率打卡漏做日可补签_窗口外走补记() throws {
+        let (repo, context) = try makeRepo()
+        let habit = try makeHabit(in: context, type: .checkIn, frequency: .weekly,
+                                  targetCount: 3, createdAtDaysAgo: 30)
+        try context.save()
+        let data = buildData(for: [habit], repo: repo)
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        XCTAssertEqual(HabitPresentationProjector.retroactiveMode(habit: habit, day: yesterday, data: data),
+                       .sign, "周频率漏做日在补签窗口内 = 补签")
+        let day8 = calendar.date(byAdding: .day, value: -8, to: today)!
+        XCTAssertEqual(HabitPresentationProjector.retroactiveMode(habit: habit, day: day8, data: data),
+                       .backfill, "窗口外历史日 = 补记")
+
+        // 已完成日同样幂等
+        try makeRecord(in: context, habit: habit, daysAgo: 2, completed: true)
+        try context.save()
+        let data2 = buildData(for: [habit], repo: repo)
+        let day2 = calendar.date(byAdding: .day, value: -2, to: today)!
+        XCTAssertNil(HabitPresentationProjector.retroactiveMode(habit: habit, day: day2, data: data2),
+                     "周频率已完成日幂等，无需补签")
+    }
 }

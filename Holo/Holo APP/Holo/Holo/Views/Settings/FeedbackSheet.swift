@@ -105,7 +105,7 @@ struct FeedbackSheet: View {
             if let errorMessage {
                 Text(errorMessage)
                     .font(.system(size: 13))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 

@@ -21,12 +21,20 @@ struct CategoryTabView: View {
     @State private var transactionSheetData: TransactionSheetData?
 
     // 图表颜色（饼图和图例共享）
-    // 类别统计页始终使用图表调色板区分扇区，避免导入/父子分类共享同一科目色时整图变成单色。
+    // 扇区色取分类自身颜色，与下方列表行图标底色一一对应（扇区色 == 行图标色）；
+    // 两种情况按序回退图表色板，避免无法区分相邻扇区：
+    // 1) 分类是灰系默认色（导入/未设置颜色，shouldUseChartPalette）；
+    // 2) 多个分类共享同一科目色（下钻时子分类继承父科目色），整图会塌缩成单色饼。
     private var chartColors: [Color] {
-        if FinanceCategoryChartColor.shouldUseChartPaletteForCategoryAnalysis() {
-            return Color.holoChartColors(count: currentAggregations.count)
+        let palette = Color.holoChartColors(count: currentAggregations.count)
+        let ownColors = currentAggregations.map { aggregation -> Color? in
+            FinanceCategoryChartColor.shouldUseChartPalette(hex: aggregation.category.color)
+                ? nil
+                : aggregation.category.swiftUIColor
         }
-        return currentAggregations.map { $0.category.swiftUIColor }
+        let present = ownColors.compactMap { $0 }
+        guard Set(present).count == present.count else { return palette }
+        return ownColors.enumerated().map { $1 ?? palette[$0] }
     }
 
     var body: some View {
@@ -54,7 +62,7 @@ struct CategoryTabView: View {
                     selectedCategory: selectedCategory,
                     colors: chartColors,
                     onSelectCategory: { category in
-                        handleCategoryTap(category)
+                        selectedCategory = category
                     }
                 )
                 .padding(HoloSpacing.md)
@@ -85,6 +93,12 @@ struct CategoryTabView: View {
             transactionSheetData = nil
             state.exitDrillDown()
         }
+        .onChange(of: currentAggregations.map { "\($0.category.id)-\($0.amount)" }) { _, _ in
+            selectedCategory = nil
+            transactionSheetData = nil
+        }
+        .onChange(of: state.timeRange) { _, _ in selectedCategory = nil }
+        .onChange(of: state.customDateRange.map { DateInterval(start: $0.start, end: $0.end) }) { _, _ in selectedCategory = nil }
         .sheet(item: $transactionSheetData) { data in
             CategoryDetailSheet(
                 category: data.category,

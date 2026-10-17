@@ -395,10 +395,10 @@ struct DailyKanbanView: View {
 
                 Text(todayString)
                     .holoText(.metadata)
-                    .foregroundColor(.holoPrimary)
+                    .foregroundColor(.holoToolWarning)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color.holoPrimaryLight)
+                    .background(Color.holoToolInset)
                     .clipShape(Capsule())
             }
         }
@@ -518,10 +518,10 @@ struct DailyKanbanView: View {
 
                 Text(todayString)
                     .holoText(.metadata)
-                    .foregroundColor(.holoPrimary)
+                    .foregroundColor(.holoToolWarning)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(Color.holoPrimaryLight)
+                    .background(Color.holoToolInset)
                     .clipShape(Capsule())
             }
         }

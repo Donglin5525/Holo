@@ -115,7 +115,7 @@ struct BudgetCategoryDetailSheet: View {
                     if overview.isOverBudget {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 14))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
                     Text(NumberFormatter.currency.string(from: NSDecimalNumber(decimal: overview.isOverBudget ? max(0, -overview.totalRemainingAmount) : overview.totalRemainingAmount)) ?? "¥0")
                         .font(.system(size: 24, weight: .bold, design: .rounded))
@@ -132,28 +132,11 @@ struct BudgetCategoryDetailSheet: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .trailing, spacing: 4) {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.holoDivider)
-                            .frame(height: 6)
-                        Capsule()
-                            .fill(budgetProgressColor(overview.progress))
-                            .frame(width: max(geo.size.width * min(overview.progress, 1.0), 0), height: 6)
-                            .overlay {
-                                if overview.isOverBudget {
-                                    OverBudgetStripeOverlay()
-                                        .clipShape(Capsule())
-                                }
-                            }
-                            .animation(.spring(response: 0.5), value: overview.progress)
-                    }
-                }
-                .frame(height: 6)
+                HoloProgress(value: overview.progress, color: budgetProgressColor(overview.progress), lineWidth: 6)
                 if overview.isOverBudget {
                     Text(String(localized: "超支 \(max(1, Int(ceil((overview.progress - 1.0) * 100))))%"))
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
             }
         }
@@ -250,7 +233,7 @@ struct BudgetCategoryDetailSheet: View {
             if net != 0 {
                 Text("-\(NumberFormatter.currency.string(from: NSDecimalNumber(decimal: net)) ?? "")")
                     .font(.system(size: 12))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
         }
         .padding(.horizontal, HoloSpacing.xs)

@@ -140,6 +140,16 @@ struct TaskQuadrantBoardView: View {
         groups.first { $0.quadrant == quadrant }?.members ?? []
     }
 
+    /// 空格引导：待整理有货时引导从待整理拖一件进来（doFirst 额外报归位数）；无货保留各自文案
+    private func emptyGuidance(for quadrant: TaskQuadrant) -> String {
+        let unclassified = model.unclassifiedCount
+        guard unclassified > 0 else { return quadrant.emptyGuidance }
+        if quadrant == .doFirst {
+            return String(localized: "有 \(unclassified) 件事等着归位\n从待整理挑一件放进来")
+        }
+        return String(localized: "从待整理挑一件放进来\n按住任务可拖动")
+    }
+
     // MARK: - 单格
 
     private func quadrantCell(_ quadrant: TaskQuadrant, members: [TaskRecordSnapshot]) -> some View {
@@ -193,7 +203,7 @@ struct TaskQuadrantBoardView: View {
 
             // 前 2 条预览 / 空态引导
             if members.isEmpty {
-                Text(quadrant.emptyGuidance)
+                Text(emptyGuidance(for: quadrant))
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
                     .frame(maxWidth: .infinity, minHeight: 88, alignment: .top)

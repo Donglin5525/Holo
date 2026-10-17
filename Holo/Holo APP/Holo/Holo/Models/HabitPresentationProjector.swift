@@ -749,10 +749,6 @@ enum HabitPresentationProjector {
         guard dayStart < data.today else { return nil }            // 今天/未来不可补
         guard dayStart >= data.dayStart(habit.createdAt) else { return nil } // 创建前不可补
 
-        if habit.isCheckInType && habit.habitFrequency != .daily {
-            return nil // 周/月打卡无「漏签」，也不开放补记（既有契约）
-        }
-
         let facts = data.recordsByHabit[habit.id] ?? []
         let dayFacts = data.records(facts, on: day)
         if habit.isCheckInType {

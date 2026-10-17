@@ -382,7 +382,7 @@ private struct ConvergenceSuggestionCard: View {
                 } label: {
                     Text("拒绝")
                         .font(.holoBody)
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, HoloSpacing.xs)
                         .background(Color.red.opacity(0.08))

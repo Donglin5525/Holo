@@ -210,7 +210,7 @@ struct AISettingsView: View {
                 case .failure(let message):
                     Label(message, systemImage: "xmark.circle.fill")
                         .font(.caption)
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
             }
         } header: {

@@ -10,22 +10,6 @@ import Foundation
 import Combine
 import SwiftUI
 
-// MARK: - 新 UI 开关
-
-/// 新交互整体开关（方案 §18.1）。G0–G5 默认关闭；
-/// Debug/模拟器通过启动参数或 launch environment 开启；发布默认开启由东林决定。
-enum HabitInteractionFeature {
-    static let enabledKey = "holo.habits.interactionV1.enabled"
-
-    /// 默认开启（东林 2026-10-06 拍板）。显式写 false 才回退旧 UI；
-    /// 回退只切换界面，不删新记录、不重置偏好（方案 §18.1）。
-    static var isV1Enabled: Bool {
-        UserDefaults.standard.object(forKey: enabledKey) == nil
-            ? true
-            : UserDefaults.standard.bool(forKey: enabledKey)
-    }
-}
-
 // MARK: - ViewModel
 
 @MainActor

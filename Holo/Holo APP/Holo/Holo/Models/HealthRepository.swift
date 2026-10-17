@@ -333,6 +333,14 @@ class HealthRepository: ObservableObject {
 
     // MARK: - 获取历史数据
 
+    /// 图表保留严格查询的无样本语义，不把未读取到的天转换成零值。
+    func fetchChartWeeklyData(for type: HealthMetricType, endingOn endDate: Date? = nil) async -> [DailyHealthData] {
+        let end = Calendar.current.startOfDay(for: endDate ?? Date())
+        let start = Calendar.current.date(byAdding: .day, value: -6, to: end) ?? end
+        if case let .value(data) = await fetchDailyRangeStrict(for: type, from: start, to: end) { return data }
+        return []
+    }
+
     /// 获取 7 天历史数据（以指定日期为终点，默认到今天）
     func fetchWeeklyData(for type: HealthMetricType, endingOn endDate: Date? = nil) async -> [DailyHealthData] {
         if useMockData {

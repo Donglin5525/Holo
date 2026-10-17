@@ -506,7 +506,7 @@ struct TodayAgendaSection: View {
         case .taskOverdue:
             Image(systemName: "exclamationmark.circle")
                 .font(.caption)
-                .foregroundStyle(Color.holoError)
+                .foregroundStyle(Color.holoToolError)
         default:
             Circle()
                 .strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1.4)

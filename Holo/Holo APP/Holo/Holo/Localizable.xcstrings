@@ -1,566 +1,6 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "重新读取进度" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Reload progress"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "重新讀取進度"
-          }
-        }
-      }
-    },
-    "这次规划已达到处理上限，可以重新开始。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This planning session has reached its limit. You can start again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這次規劃已達到處理上限，可以重新開始。"
-          }
-        }
-      }
-    },
-    "这次没有生成可用的结果，请重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No usable result was generated. Please try again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這次沒有產生可用的結果，請重試。"
-          }
-        }
-      }
-    },
-    "这份规划由较新版本的 Holo 创建，请更新 App 后继续。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This plan was created with a newer version of Holo. Update the app to continue."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這份規劃由較新版本的 Holo 建立，請更新 App 後繼續。"
-          }
-        }
-      }
-    },
-    "这份规划已无法继续，请重新开始。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This plan can no longer continue. Please start again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這份規劃已無法繼續，請重新開始。"
-          }
-        }
-      }
-    },
-    "这份未完成的规划将被删除，已有目标不受影响。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This unfinished plan will be deleted. Existing goals will be kept."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這份未完成的規劃將被刪除，已有目標不受影響。"
-          }
-        }
-      }
-    },
-    "这一步未保存，内容已保留，请重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This step was not saved. Your input is preserved. Please try again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這一步未儲存，內容已保留，請重試。"
-          }
-        }
-      }
-    },
-    "请先在「设置 → HoloAI 数据授权」开启授权，再回来继续。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enable consent in Settings → HoloAI Data Consent, then return to continue."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "請先在「設定 → HoloAI 資料授權」開啟授權，再回來繼續。"
-          }
-        }
-      }
-    },
-    "规划进度已变化，请重新读取后继续。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Planning progress has changed. Reload it to continue."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "規劃進度已變化，請重新讀取後繼續。"
-          }
-        }
-      }
-    },
-    "规划完成" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Planning complete"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "規劃完成"
-          }
-        }
-      }
-    },
-    "等待完成" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pending completion"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "等待完成"
-          }
-        }
-      }
-    },
-    "目标已保存，暂时无法读取规划进度。可关闭此页，在我的目标中查看。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your goal is saved. Planning progress cannot be loaded right now. Close this page and view it in My Goals."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目標已儲存，暫時無法讀取規劃進度。可關閉此頁，在我的目標中查看。"
-          }
-        }
-      }
-    },
-    "没有匹配的分类，请换个关键词。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No matching categories. Try another keyword."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "沒有符合的分類，請換個關鍵字。"
-          }
-        }
-      }
-    },
-    "步骤状态未保存，请重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The step status was not saved. Please try again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "步驟狀態未儲存，請重試。"
-          }
-        }
-      }
-    },
-    "正在起草，完成后会自动显示。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drafting now. The result will appear automatically."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在起草，完成後會自動顯示。"
-          }
-        }
-      }
-    },
-    "正在清空回收站…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Emptying Recently Deleted…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在清空最近刪除…"
-          }
-        }
-      }
-    },
-    "标记未完成" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mark as incomplete"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "標記未完成"
-          }
-        }
-      }
-    },
-    "服务暂时繁忙，请稍后继续。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The service is busy. Please continue later."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "服務暫時繁忙，請稍後繼續。"
-          }
-        }
-      }
-    },
-    "暂时无法连接服务，请检查网络后重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unable to connect. Check your network and try again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫時無法連線服務，請檢查網路後重試。"
-          }
-        }
-      }
-    },
-    "暂时未能保存，修改仍保留在这里，请重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not saved; your edits are kept here. Try again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫時未能保存，修改仍保留在這裡，請重試。"
-          }
-        }
-      }
-    },
-    "暂时未能保存，请重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Not saved, try again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫時未能保存，請重試。"
-          }
-        }
-      }
-    },
-    "暂时没有这类任务\n点 ＋ 添加任务" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nothing here right now\nTap + to add"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫時沒有這類任務\n點 ＋ 添加任務"
-          }
-        }
-      }
-    },
-    "暂时无法读取这份规划，原记录已保留。请稍后重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This plan cannot be loaded right now. The original record is preserved. Try again later."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫時無法讀取這份規劃，原記錄已保留。請稍後重試。"
-          }
-        }
-      }
-    },
-    "暂时无法读取规划进度，原记录已保留。请稍后重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Planning progress cannot be loaded. Your records are preserved. Try again later."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫時無法讀取規劃進度，原記錄已保留。請稍後重試。"
-          }
-        }
-      }
-    },
-    "时间调整未保存，请重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The time change was not saved. Please try again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "時間調整未儲存，請重試。"
-          }
-        }
-      }
-    },
-    "放弃这份规划？" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discard this plan?"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "放棄這份規劃？"
-          }
-        }
-      }
-    },
-    "放弃规划" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Discard plan"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "放棄規劃"
-          }
-        }
-      }
-    },
-    "操作未完成，请稍后重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The action did not complete. Please try again later."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "操作未完成，請稍後重試。"
-          }
-        }
-      }
-    },
-    "提醒未保存，请重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The reminder was not saved. Please try again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "提醒未儲存，請重試。"
-          }
-        }
-      }
-    },
-    "尚未发送的回答会丢失，已保存的规划进度会保留。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your unsent answer will be lost. Saved planning progress will be kept."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "尚未傳送的回答會丟失，已儲存的規劃進度會保留。"
-          }
-        }
-      }
-    },
-    "后一天" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Next day"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "後一天"
-          }
-        }
-      }
-    },
-    "取消完成%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mark %@ as incomplete"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "取消完成%@"
-          }
-        }
-      }
-    },
-    "发送回答" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Send answer"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "傳送回答"
-          }
-        }
-      }
-    },
-    "前一天" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Previous day"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "前一天"
-          }
-        }
-      }
-    },
-    "上一条还在处理，请稍等。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The previous request is still being processed. Please wait."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上一條還在處理，請稍等。"
-          }
-        }
-      }
-    },
     "" : {
       "localizations" : {
         "en" : {
@@ -769,7 +209,9 @@
         }
       }
     },
-    " · 已逾期" : {},
+    " · 已逾期" : {
+
+    },
     " · 无项目" : {
       "localizations" : {
         "en" : {
@@ -932,6 +374,23 @@
         }
       }
     },
+    " 个主题已代写" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " topics drafted"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " 個主題已代寫"
+          }
+        }
+      }
+    },
     " 当周" : {
       "localizations" : {
         "en" : {
@@ -948,7 +407,11 @@
         }
       }
     },
+    " 截止" : {
+
+    },
     " 时段" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1013,6 +476,7 @@
       }
     },
     " 起" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1043,6 +507,9 @@
           }
         }
       }
+    },
+    "-" : {
+
     },
     "-%@" : {
       "localizations" : {
@@ -1399,6 +866,7 @@
       }
     },
     "“午饭花了 35 元”" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1415,6 +883,7 @@
       }
     },
     "“这个月餐饮花了多少？”" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1609,6 +1078,7 @@
       }
     },
     "）" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2138,6 +1608,7 @@
       }
     },
     "「独立提醒」按设定时刻准时提醒，与截止时间无关；其余为截止时间前的提前提醒。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2347,6 +1818,7 @@
       }
     },
     "/%lld" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2443,6 +1915,7 @@
       }
     },
     "%" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2491,6 +1964,7 @@
       }
     },
     "%.1f亿" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2507,6 +1981,7 @@
       }
     },
     "%.1f千" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2656,6 +2131,16 @@
         }
       }
     },
+    "%@ · %lld 条" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld 条"
+          }
+        }
+      }
+    },
     "%@ · %lld 次记录" : {
       "localizations" : {
         "zh-Hans" : {
@@ -2782,6 +2267,7 @@
       }
     },
     "%@ · 未打卡" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2847,6 +2333,7 @@
       }
     },
     "%@ · 补上可恢复连续打卡" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -2959,6 +2446,7 @@
       }
     },
     "%@ %@  %@ %@%%" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -3094,22 +2582,6 @@
         }
       }
     },
-    "%@ %lld %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ %lld %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ %lld %@"
-          }
-        }
-      }
-    },
     "%@ %lld / %lld 次" : {
       "localizations" : {
         "en" : {
@@ -3128,6 +2600,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ %2$lld / %3$lld 次"
+          }
+        }
+      }
+    },
+    "%@ %lld %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %lld %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %lld %@"
           }
         }
       }
@@ -3230,6 +2718,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ vs %2$@"
+          }
+        }
+      }
+    },
+    "%@ 为本次新建，从 ¥0 起算" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is newly created and starts from ¥0"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 為本次新建，從 ¥0 起算"
           }
         }
       }
@@ -3577,7 +3082,6 @@
       }
     },
     "%@，%@，%lld项" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4278,6 +3782,7 @@
       }
     },
     "%@是本月最佳，完成率 " : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4406,6 +3911,7 @@
       }
     },
     "%@的更多操作" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4583,6 +4089,7 @@
       }
     },
     "%@需要关注，完成率 " : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5972,6 +5479,7 @@
       }
     },
     "%lld 笔待确认" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5983,6 +5491,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 筆待確認"
+          }
+        }
+      }
+    },
+    "%lld 笔待确认 · 合计 ¥%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Pending · Total ¥%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 筆待確認 · 合計 ¥%@"
           }
         }
       }
@@ -6122,6 +5646,7 @@
       }
     },
     "%lld 项任务" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6218,6 +5743,7 @@
       }
     },
     "%lld 项有时间安排" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6374,6 +5900,40 @@
         }
       }
     },
+    "%lld/%lld 到期完成" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld due completed"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld 到期完成"
+          }
+        }
+      }
+    },
+    "%lld/%lld 按时完成" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld on time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld/%2$lld 按時完成"
+          }
+        }
+      }
+    },
     "%lld/%lld 行动已接受" : {
       "localizations" : {
         "en" : {
@@ -6386,6 +5946,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld/%lld 行動已接受"
+          }
+        }
+      }
+    },
+    "%lld/4" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/4"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/4"
           }
         }
       }
@@ -6407,6 +5983,7 @@
       }
     },
     "%lld个" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6519,6 +6096,7 @@
       }
     },
     "%lld小时%lld分钟" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6551,6 +6129,7 @@
       }
     },
     "%lld年%lld月" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6567,6 +6146,7 @@
       }
     },
     "%lld时" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6583,6 +6163,7 @@
       }
     },
     "%lld时 · 完成 %lld 件" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6614,7 +6195,24 @@
         }
       }
     },
+    "%lld月—%lld月" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldmo—%lldmo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld月—%lld月"
+          }
+        }
+      }
+    },
     "%lld月%lld日" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6631,6 +6229,7 @@
       }
     },
     "%lld月%lld日，%lld项任务" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6642,22 +6241,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld月%lld日，%lld項任務"
-          }
-        }
-      }
-    },
-    "%lld月—%lld月" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lldmo—%lldmo"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld月—%lld月"
           }
         }
       }
@@ -6679,6 +6262,7 @@
       }
     },
     "%lld次" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6695,6 +6279,7 @@
       }
     },
     "%lld项任务" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -7556,6 +7141,7 @@
       }
     },
     "1 笔待确认" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8215,6 +7801,23 @@
         }
       }
     },
+    "30 天趋势" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30-Day Trend"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30 天趨勢"
+          }
+        }
+      }
+    },
     "30 天趋势 vs 基线 %@" : {
       "localizations" : {
         "en" : {
@@ -8809,7 +8412,9 @@
         }
       }
     },
-    "AI 拆解时猜你在等：" : {},
+    "AI 拆解时猜你在等：" : {
+
+    },
     "AI 摘要 · 可重建" : {
       "localizations" : {
         "en" : {
@@ -8998,6 +8603,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI 服務連線較慢，已先放開聊天互動"
+          }
+        }
+      }
+    },
+    "AI 根据你放进来的笔记代写 · 点开可改；不改它，它也只跟着你的动作学" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafted by AI from the notes you put here · Tap to edit. Left alone, it only learns from your actions."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 根據你放進來的筆記代寫 · 點開可改；不改它，它也只跟著你的動作學"
           }
         }
       }
@@ -9469,6 +9090,7 @@
       }
     },
     "clean" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9567,6 +9189,7 @@
       }
     },
     "dirty %lld" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10259,6 +9882,9 @@
           }
         }
       }
+    },
+    "Holo 是什么" : {
+
     },
     "Holo 正在为你的本周计划分析数据…" : {
       "localizations" : {
@@ -11492,6 +11118,9 @@
         }
       }
     },
+    "一个把生活记录在一起的地方——念头、账单、待办、习惯，时间久了，汇成你的记忆。" : {
+
+    },
     "一个问题已解决" : {
       "localizations" : {
         "en" : {
@@ -11574,6 +11203,7 @@
       }
     },
     "一句话记录" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11588,6 +11218,9 @@
           }
         }
       }
+    },
+    "一句话记录，不用先找入口" : {
+
     },
     "一周内到期，按日期折算 P2" : {
       "localizations" : {
@@ -11669,23 +11302,8 @@
         }
       }
     },
-    "一根柱是一周的记录天数。周/月习惯每周记 1 次即达成。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Each bar is one week's recorded days. Weekly and monthly habits count as met with 1 entry per week."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一根柱是一週的記錄天數。週/月習慣每週記 1 次即達成。"
-          }
-        }
-      }
-    },
     "一根柱是一周的发生天数，往下走是好事。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11702,6 +11320,7 @@
       }
     },
     "一根柱是一周的完成率（记录天数 ÷ 应打卡天数）。暂停日与创建前不计入。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -11713,6 +11332,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "一根柱是一週的完成率（記錄天數 ÷ 應打卡天數）。暫停日與創建前不計入。"
+          }
+        }
+      }
+    },
+    "一根柱是一周的记录天数。周/月习惯每周记 1 次即达成。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each bar is one week's recorded days. Weekly and monthly habits count as met with 1 entry per week."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一根柱是一週的記錄天數。週/月習慣每週記 1 次即達成。"
           }
         }
       }
@@ -11782,6 +11418,7 @@
       }
     },
     "一次次累加，例如喝水、练习次数" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -12200,6 +11837,22 @@
         }
       }
     },
+    "上一条还在处理，请稍等。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The previous request is still being processed. Please wait."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一條還在處理，請稍等。"
+          }
+        }
+      }
+    },
     "上下拖动穿梭日期，松手或轻点前往" : {
       "localizations" : {
         "en" : {
@@ -12408,6 +12061,22 @@
         }
       }
     },
+    "上季度 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last quarter · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上季度 · %@"
+          }
+        }
+      }
+    },
     "上年" : {
       "localizations" : {
         "en" : {
@@ -12436,6 +12105,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上月"
+          }
+        }
+      }
+    },
+    "上月 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last month · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上月 · %@"
           }
         }
       }
@@ -12520,22 +12205,6 @@
         }
       }
     },
-    "上期均值 %@%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Previous avg %@%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上期均值 %@%@"
-          }
-        }
-      }
-    },
     "上期%@ %lld %@" : {
       "localizations" : {
         "en" : {
@@ -12548,6 +12217,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "上期%@ %lld %@"
+          }
+        }
+      }
+    },
+    "上期均值 %@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous avg %@%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上期均值 %@%@"
           }
         }
       }
@@ -13280,7 +12965,9 @@
         }
       }
     },
-    "不对就改，缺了就加" : {},
+    "不对就改，缺了就加" : {
+
+    },
     "不开通知也不影响记账：快捷指令运行完会直接显示结果。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13310,6 +12997,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不歸入任何清單"
+          }
+        }
+      }
+    },
+    "不想要这个归属：长按徽章「从这条移除」，移出会成为 AI 的反例，同类内容以后不会再收进来。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Don't want this? Long-press the badge and choose “Remove”. Removals become counter-examples for the AI — similar content won't be added again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不想要這個歸屬：長按徽章「從這條移除」，移出會成為 AI 的反例，同類內容以後不會再收進來。"
           }
         }
       }
@@ -13427,6 +13130,7 @@
       }
     },
     "不用先找入口，直接告诉 Holo 发生了什么。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13474,7 +13178,9 @@
         }
       }
     },
-    "不知道从哪儿下手？拆成小步慢慢来" : {},
+    "不知道从哪儿下手？拆成小步慢慢来" : {
+
+    },
     "不知道怎么做，和 Holo 讨论" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13542,6 +13248,7 @@
       }
     },
     "不记这笔" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13654,22 +13361,6 @@
         }
       }
     },
-    "与%lld项任务时间重叠" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Overlaps %lld tasks"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "與%lld項任務時間重疊"
-          }
-        }
-      }
-    },
     "与「删除账号」的区别：清空所有数据不注销账号，登录状态、Holo Plus 订阅与偏好设置都会保留；健康数据来自系统健康 App，不受影响。" : {
       "localizations" : {
         "en" : {
@@ -13682,6 +13373,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "與「刪除帳號」的區別：清空所有資料不登出帳號，登入狀態、Holo Plus 訂閱與偏好設定都會保留；健康資料來自系統健康 App，不受影響。"
+          }
+        }
+      }
+    },
+    "与%lld项任务时间重叠" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overlaps %lld tasks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "與%lld項任務時間重疊"
           }
         }
       }
@@ -13939,6 +13646,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "個人檔案"
+          }
+        }
+      }
+    },
+    "个人档案的修改尚未保存，要保存后关闭吗？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your profile changes haven't been saved. Save before closing?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "個人的修改尚未儲存，要儲存後關閉嗎？"
           }
         }
       }
@@ -14205,6 +13928,38 @@
         }
       }
     },
+    "为什么归这里" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why it's here"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為什麼歸這裡"
+          }
+        }
+      }
+    },
+    "为什么归这里？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Why is it here?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為什麼歸這裡？"
+          }
+        }
+      }
+    },
     "为什么现在想做这件事（可选）" : {
       "localizations" : {
         "en" : {
@@ -14465,6 +14220,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主題和標籤路徑已同步更新"
+          }
+        }
+      }
+    },
+    "主题定义，点按编辑" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Topic definition, tap to edit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主題定義，點按編輯"
           }
         }
       }
@@ -14765,7 +14536,9 @@
         }
       }
     },
-    "也可以自己写一句" : {},
+    "也可以自己写一句" : {
+
+    },
     "习" : {
       "localizations" : {
         "en" : {
@@ -14853,6 +14626,7 @@
       }
     },
     "习惯与打卡记录全部清空；30 天内可在最近删除恢复" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15173,6 +14947,7 @@
       }
     },
     "习惯性质" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15189,6 +14964,7 @@
       }
     },
     "习惯性质（可选）" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15333,6 +15109,7 @@
       }
     },
     "习惯类型" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15671,6 +15448,7 @@
       }
     },
     "交易流水 · %lld 笔" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15733,6 +15511,9 @@
           }
         }
       }
+    },
+    "产品理念与功能速览" : {
+
     },
     "享受轻松的一天，或点右下角 + 计划一件事" : {
       "localizations" : {
@@ -16555,6 +16336,22 @@
         }
       }
     },
+    "今天后台 AI 次数" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Background AI calls today"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天背景 AI 次數"
+          }
+        }
+      }
+    },
     "今天已写下" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -17125,6 +16922,22 @@
         }
       }
     },
+    "今天的打卡 · %lld 个" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's check-ins · %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今天的打卡 · %lld 個"
+          }
+        }
+      }
+    },
     "今天的深度分析额度已用完，请在额度重置后再试" : {
       "localizations" : {
         "en" : {
@@ -17647,7 +17460,9 @@
         }
       }
     },
-    "今日处理次数已达上限" : {},
+    "今日处理次数已达上限" : {
+
+    },
     "今日完成" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -17972,6 +17787,7 @@
       }
     },
     "今日静默 AI 调用" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18276,6 +18092,22 @@
         }
       }
     },
+    "从待整理挑一件放进来\n按住任务可拖动" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick one from Triage to place here\nHold and drag a task to move it"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從待整理挑一件放進來\n按住任務可拖動"
+          }
+        }
+      }
+    },
     "从清晨到夜晚，这一天留下了完整的生活轨迹。" : {
       "localizations" : {
         "en" : {
@@ -18529,6 +18361,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "以後再說"
+          }
+        }
+      }
+    },
+    "以后看「每天几次」的走势" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See your daily counts over time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以後看「每天幾次」的走勢"
+          }
+        }
+      }
+    },
+    "以后看「连续多少天」" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See your streak over time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以後看「連續多少天」"
+          }
+        }
+      }
+    },
+    "以后看这个数的变化曲线" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See how this number changes over time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以後看這個數的變化曲線"
           }
         }
       }
@@ -19062,6 +18942,22 @@
         }
       }
     },
+    "任务模块纸页视觉" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task module paper visual"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任務模組紙頁視覺"
+          }
+        }
+      }
+    },
     "任务没有写入，稍后再试或到待办页手动创建。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -19176,6 +19072,7 @@
       }
     },
     "休" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19785,6 +19682,7 @@
       }
     },
     "余额" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19801,6 +19699,7 @@
       }
     },
     "余额 %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19849,6 +19748,7 @@
       }
     },
     "余额较期初 %@%@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20042,6 +19942,7 @@
       }
     },
     "你可以这样使用 Holo" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20197,6 +20098,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你標記"
+          }
+        }
+      }
+    },
+    "你每天要记什么？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What do you track each day?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你每天要記什麼？"
           }
         }
       }
@@ -20829,6 +20746,7 @@
       }
     },
     "保存修改" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21034,6 +20952,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存展示設定"
+          }
+        }
+      }
+    },
+    "保存并关闭" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save and Close"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存並關閉"
           }
         }
       }
@@ -21471,6 +21405,22 @@
         }
       }
     },
+    "修改提醒" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Reminder"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修改提醒"
+          }
+        }
+      }
+    },
     "修改文字样式" : {
       "localizations" : {
         "en" : {
@@ -21616,6 +21566,7 @@
       }
     },
     "值" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21680,6 +21631,7 @@
       }
     },
     "做了以后留一个勾" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21691,6 +21643,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "做了以後留一個勾"
+          }
+        }
+      }
+    },
+    "做了就 +1，一天累计几次 · 例：喝水 8 杯、俯卧撑 3 组" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap +1 each time. e.g. 8 glasses of water, 3 sets of push-ups"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "做了就 +1，一天累計幾次 · 例：喝水 8 杯、俯臥撐 3 組"
+          }
+        }
+      }
+    },
+    "做了没" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Did it"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "做了沒"
           }
         }
       }
@@ -21746,7 +21730,9 @@
         }
       }
     },
-    "做完了" : {},
+    "做完了" : {
+
+    },
     "停止" : {
       "localizations" : {
         "en" : {
@@ -22228,6 +22214,9 @@
         }
       }
     },
+    "像聊天一样，直接问自己的数据" : {
+
+    },
     "允许 AI 数据处理" : {
       "localizations" : {
         "en" : {
@@ -22504,6 +22493,7 @@
       }
     },
     "先去习惯页创建你的第一个习惯" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -22520,6 +22510,7 @@
       }
     },
     "先去习惯页创建你的第一个习惯。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -22599,7 +22590,9 @@
         }
       }
     },
-    "先放着，等我回来" : {},
+    "先放着，等我回来" : {
+
+    },
     "先看其他事" : {
       "localizations" : {
         "en" : {
@@ -22650,7 +22643,9 @@
         }
       }
     },
-    "先等等…" : {},
+    "先等等…" : {
+
+    },
     "先继续做着" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -22668,7 +22663,9 @@
         }
       }
     },
-    "先自己加" : {},
+    "先自己加" : {
+
+    },
     "先自由记录，Holo 会留意反复出现的方向，攒够同类想法后建议你建主题。\n你的分类体系，由你的想法塑造。" : {
       "localizations" : {
         "en" : {
@@ -22733,7 +22730,9 @@
         }
       }
     },
-    "先问一句" : {},
+    "先问一句" : {
+
+    },
     "免费" : {
       "localizations" : {
         "en" : {
@@ -22746,6 +22745,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "免費"
+          }
+        }
+      }
+    },
+    "免费次数每月 1 日重置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free quota resets on the 1st of each month"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免費次數每月 1 日重置"
           }
         }
       }
@@ -23156,7 +23172,9 @@
         }
       }
     },
-    "全部完成" : {},
+    "全部完成" : {
+
+    },
     "全部想法" : {
       "localizations" : {
         "en" : {
@@ -23569,6 +23587,7 @@
       }
     },
     "共 %lld 天 · %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -23890,6 +23909,7 @@
       }
     },
     "关联目标" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24330,6 +24350,7 @@
       }
     },
     "养成好节奏" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24394,7 +24415,9 @@
         }
       }
     },
-    "再拆一拆，看看还缺哪几步" : {},
+    "再拆一拆，看看还缺哪几步" : {
+
+    },
     "再等等" : {
       "localizations" : {
         "en" : {
@@ -24541,6 +24564,7 @@
       }
     },
     "最低" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24557,6 +24581,7 @@
       }
     },
     "最佳连续" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24637,6 +24662,7 @@
       }
     },
     "最早 %@ · 补上可恢复连续打卡" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24836,6 +24862,7 @@
       }
     },
     "最近 %lld 天有 %lld 天漏卡" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24868,6 +24895,7 @@
       }
     },
     "最近 7 天" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24884,6 +24912,7 @@
       }
     },
     "最近 13 周 · %lld 天有记录" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24900,6 +24929,7 @@
       }
     },
     "最近 30 天" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24932,6 +24962,7 @@
       }
     },
     "最近 30 天还没有记录。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24948,6 +24979,7 @@
       }
     },
     "最近 90 天" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -25451,6 +25483,7 @@
       }
     },
     "最近萃取" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -25566,6 +25599,7 @@
       }
     },
     "最高" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -25625,6 +25659,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最高心率"
+          }
+        }
+      }
+    },
+    "写一句「收什么、不收什么」，AI 会按它归类；不写也可以，AI 按你的用法慢慢学" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write one line of what fits and what doesn't — the AI will sort by it. Skip it and the AI learns from how you use this topic."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寫一句「收什麼、不收什麼」，AI 會按它歸類；不寫也可以，AI 按你的用法慢慢學"
           }
         }
       }
@@ -26286,6 +26336,9 @@
         }
       }
     },
+    "分段" : {
+
+    },
     "分类" : {
       "localizations" : {
         "en" : {
@@ -26590,6 +26643,9 @@
           }
         }
       }
+    },
+    "切换周期" : {
+
     },
     "切换科目排序方式" : {
       "localizations" : {
@@ -27844,6 +27900,22 @@
         }
       }
     },
+    "删除草稿" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Draft"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除草稿"
+          }
+        }
+      }
+    },
     "删除记录" : {
       "localizations" : {
         "en" : {
@@ -28053,6 +28125,7 @@
       }
     },
     "删除这条草稿" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -28116,7 +28189,9 @@
         }
       }
     },
-    "删除这步" : {},
+    "删除这步" : {
+
+    },
     "删除这笔交易" : {
       "localizations" : {
         "en" : {
@@ -28193,6 +28268,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刪除預算"
+          }
+        }
+      }
+    },
+    "判定引擎 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decision engine %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "判定引擎 %@"
           }
         }
       }
@@ -28364,7 +28455,9 @@
         }
       }
     },
-    "别的步骤不受影响" : {},
+    "别的步骤不受影响" : {
+
+    },
     "到指定日期" : {
       "localizations" : {
         "en" : {
@@ -28397,7 +28490,9 @@
         }
       }
     },
-    "到时候推给你：之前在等的事，看看有没有进展" : {},
+    "到时候推给你：之前在等的事，看看有没有进展" : {
+
+    },
     "到期" : {
       "localizations" : {
         "en" : {
@@ -28539,6 +28634,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "前 %lld 天"
+          }
+        }
+      }
+    },
+    "前一天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous day"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前一天"
           }
         }
       }
@@ -28801,8 +28912,12 @@
         }
       }
     },
-    "加一步" : {},
-    "加一步，回车保存" : {},
+    "加一步" : {
+
+    },
+    "加一步，回车保存" : {
+
+    },
     "加入「进行中的事」" : {
       "localizations" : {
         "en" : {
@@ -29056,6 +29171,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "載入測試資料"
+          }
+        }
+      }
+    },
+    "动效、模型与语音调试入口" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Motion, model & voice debugging entries"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "動效、模型與語音除錯入口"
           }
         }
       }
@@ -29965,6 +30096,7 @@
       }
     },
     "历史记录完整保留；要继续记录或补录，先取消归档" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30008,6 +30140,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "壓縮包內沒有找到帳單檔案（csv/txt/xlsx）"
+          }
+        }
+      }
+    },
+    "原 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原 %@"
           }
         }
       }
@@ -30450,6 +30598,7 @@
       }
     },
     "去设置页选择要展示在统计页的习惯。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30480,6 +30629,9 @@
           }
         }
       }
+    },
+    "参考值" : {
+
     },
     "双击在日历与洞察之间切换" : {
       "localizations" : {
@@ -30744,6 +30896,22 @@
         }
       }
     },
+    "发送回答" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send answer"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送回答"
+          }
+        }
+      }
+    },
     "发送测试通知" : {
       "localizations" : {
         "en" : {
@@ -30836,6 +31004,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消發生記錄"
+          }
+        }
+      }
+    },
+    "取消完成%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark %@ as incomplete"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消完成%@"
           }
         }
       }
@@ -31018,6 +31202,7 @@
       }
     },
     "变化" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -32340,6 +32525,22 @@
         }
       }
     },
+    "后一天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next day"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "後一天"
+          }
+        }
+      }
+    },
     "后半夜" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -32614,6 +32815,22 @@
         }
       }
     },
+    "启用日历" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Calendar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用日曆"
+          }
+        }
+      }
+    },
     "告诉 Holo 发生了什么…" : {
       "localizations" : {
         "en" : {
@@ -32663,6 +32880,7 @@
       }
     },
     "周/月习惯按周期记录，不补每日漏签" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -33106,6 +33324,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "和 Holo 討論這件事"
+          }
+        }
+      }
+    },
+    "和「%@」谈论同一件事" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Talks about the same thing as “%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "和「%@」談論同一件事"
           }
         }
       }
@@ -33659,6 +33893,22 @@
         }
       }
     },
+    "回放 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replay · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回放 · %@"
+          }
+        }
+      }
+    },
     "回放的**长期摘要维护**（把每一期并入跨期摘要）也在云端完成，上传的本期内容**用完即删**，云端不留存。" : {
       "localizations" : {
         "en" : {
@@ -33708,6 +33958,7 @@
       }
     },
     "回看生活变化" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -33756,6 +34007,7 @@
       }
     },
     "回顾展示设置" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -34271,6 +34523,12 @@
           }
         }
       }
+    },
+    "图表组件验收" : {
+
+    },
+    "图表选中位置" : {
+
     },
     "图里像是消费凭证，但我没能可靠地认出金额。重新拍一张，或手动记一笔？" : {
       "localizations" : {
@@ -34872,6 +35130,7 @@
       }
     },
     "坏习惯" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -34920,6 +35179,7 @@
       }
     },
     "坚持习惯" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -34936,6 +35196,7 @@
       }
     },
     "坚持得很稳，状态在线" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -35000,6 +35261,7 @@
       }
     },
     "培养积极的好习惯，目标达成时给予正向反馈" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -35112,6 +35374,7 @@
       }
     },
     "基线" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -35938,6 +36201,7 @@
       }
     },
     "好习惯" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -36177,6 +36441,23 @@
         }
       }
     },
+    "如同秒交易只导出一笔" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g., same-second transactions only exported once"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如同秒交易只匯出一筆"
+          }
+        }
+      }
+    },
     "如果分类或金额和你的认知不一致，可以点开账单依据回到对应明细。" : {
       "localizations" : {
         "en" : {
@@ -36238,6 +36519,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "子任務"
+          }
+        }
+      }
+    },
+    "子任务 %lld/%lld" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "子任务 %1$lld/%2$lld"
           }
         }
       }
@@ -36564,6 +36855,7 @@
       }
     },
     "安排执行时段" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -36675,6 +36967,9 @@
         }
       }
     },
+    "完成 %@%%" : {
+
+    },
     "完成 %lld" : {
       "localizations" : {
         "en" : {
@@ -36772,6 +37067,7 @@
       }
     },
     "完成%lld天 · 累计%@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -36788,6 +37084,7 @@
       }
     },
     "完成%lld天 · 连续%@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -36932,6 +37229,7 @@
       }
     },
     "完成天数" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -36947,7 +37245,6 @@
         }
       }
     },
-    "完成数" : {},
     "完成时刻分布" : {
       "localizations" : {
         "en" : {
@@ -36965,6 +37262,7 @@
       }
     },
     "完成时刻分布图：横滑查看各小时完成数" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -37028,22 +37326,6 @@
         }
       }
     },
-    "完成率 %lld%% · 上期 %lld%%" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Completion %lld%% · previous %lld%%"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "完成率 %lld%% · 上期 %lld%%"
-          }
-        }
-      }
-    },
     "完成率 / 拖延模式 / 截止压力" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -37093,7 +37375,25 @@
         }
       }
     },
+    "完成率 %lld%% · 上期 %lld%%" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completion %lld%% · previous %lld%%"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成率 %lld%% · 上期 %lld%%"
+          }
+        }
+      }
+    },
     "完成率最低，可以多投入一些" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -37138,6 +37438,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "完成的任務會收進今日事簿"
+          }
+        }
+      }
+    },
+    "完成的任务会画成趋势图" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Completed tasks will form the trend chart"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成的任務會畫成趨勢圖"
           }
         }
       }
@@ -37353,6 +37669,7 @@
       }
     },
     "定时" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -38654,6 +38971,22 @@
         }
       }
     },
+    "尚未发送的回答会丢失，已保存的规划进度会保留。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your unsent answer will be lost. Saved planning progress will be kept."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚未傳送的回答會丟失，已儲存的規劃進度會保留。"
+          }
+        }
+      }
+    },
     "尚未对账" : {
       "localizations" : {
         "en" : {
@@ -38880,6 +39213,7 @@
       }
     },
     "展开全部 · %lld 项" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -38927,7 +39261,9 @@
         }
       }
     },
-    "展开子任务" : {},
+    "展开子任务" : {
+
+    },
     "展开更多分析" : {
       "localizations" : {
         "en" : {
@@ -39031,6 +39367,7 @@
       }
     },
     "峰值" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -39075,6 +39412,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "左右滑動，翻看下一張"
+          }
+        }
+      }
+    },
+    "左右滑动查看每日金额" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe left or right to view daily amounts"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "左右滑動查看每日金額"
           }
         }
       }
@@ -39412,6 +39765,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已停用「%@」"
+          }
+        }
+      }
+    },
+    "已入账" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Booked"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已入帳"
           }
         }
       }
@@ -39979,6 +40348,7 @@
       }
     },
     "已取消归档，习惯回到进行中" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -40648,7 +41018,9 @@
         }
       }
     },
-    "已帮你填好标题和描述，可调整" : {},
+    "已帮你填好标题和描述，可调整" : {
+
+    },
     "已延期 %d 次" : {
       "localizations" : {
         "en" : {
@@ -40697,7 +41069,9 @@
         }
       }
     },
-    "已建立智能索引" : {},
+    "已建立智能索引" : {
+
+    },
     "已开启" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -40844,6 +41218,22 @@
         }
       }
     },
+    "已归档 · 历史保留" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archived · history kept"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已歸檔 · 歷史保留"
+          }
+        }
+      }
+    },
     "已归档 %lld 项" : {
       "localizations" : {
         "en" : {
@@ -40909,6 +41299,7 @@
       }
     },
     "已恢复「%@」，从冻结的进度接着算" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -41380,22 +41771,6 @@
         }
       }
     },
-    "已新增任务，已加入待安排" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Task added to Unscheduled"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已新增任務，已加入待安排"
-          }
-        }
-      }
-    },
     "已新增，当前范围不包含此任务" : {
       "localizations" : {
         "en" : {
@@ -41412,6 +41787,22 @@
         }
       }
     },
+    "已新增任务，已加入待安排" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task added to Unscheduled"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已新增任務，已加入待安排"
+          }
+        }
+      }
+    },
     "已暂停" : {
       "localizations" : {
         "en" : {
@@ -41424,6 +41815,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已暫停"
+          }
+        }
+      }
+    },
+    "已暂停 · 历史保留" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paused · history kept"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已暫停 · 歷史保留"
           }
         }
       }
@@ -41445,6 +41852,7 @@
       }
     },
     "已暂停（%lld）" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -42095,6 +42503,7 @@
       }
     },
     "已移至「%@」" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -42531,22 +42940,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已記 ¥%@"
-          }
-        }
-      }
-    },
-    "已记入财务" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Booked in finance"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已記入財務"
           }
         }
       }
@@ -43478,7 +43871,9 @@
         }
       }
     },
-    "带时钟的是天生要等的步骤（AI 标的），点一下可去掉或补标" : {},
+    "带时钟的是天生要等的步骤（AI 标的），点一下可去掉或补标" : {
+
+    },
     "带时间段的任务自动写入专属「Holo」日历，手表和系统日历可见；改动双向同步" : {
       "localizations" : {
         "en" : {
@@ -43657,6 +44052,7 @@
       }
     },
     "平均" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -43673,6 +44069,7 @@
       }
     },
     "平均: %@ %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -43977,6 +44374,7 @@
       }
     },
     "底部" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -44282,6 +44680,22 @@
         }
       }
     },
+    "开发者选项" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Developer Options"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開發者選項"
+          }
+        }
+      }
+    },
     "开发诊断用：验证 Holo 在后台/锁屏时能否执行指定时长的任务。不读写任何账目。" : {
       "localizations" : {
         "en" : {
@@ -44299,6 +44713,7 @@
       }
     },
     "开发调试：Provider、Prompt 与学习映射" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -44315,6 +44730,7 @@
       }
     },
     "开发调试：任务模块纸页视觉，关闭恢复原布局" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -44331,6 +44747,7 @@
       }
     },
     "开发调试：阿里云百炼 Qwen-ASR" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -45374,6 +45791,7 @@
       }
     },
     "当前已归档 · 历史保留" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -45406,6 +45824,7 @@
       }
     },
     "当前已暂停 · 历史保留" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -45568,6 +45987,7 @@
       }
     },
     "当前筛选下没有习惯" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -45601,6 +46021,7 @@
       }
     },
     "当前统计页没有已启用的习惯" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -45612,22 +46033,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "當前統計頁沒有已啟用的習慣"
-          }
-        }
-      }
-    },
-    "当前范围内已过截止时间的任务，与选中日期无关。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Overdue tasks in this scope, regardless of the selected day."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "當前範圍內已過截止時間的任務，與選中日期無關。"
           }
         }
       }
@@ -45644,6 +46049,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "當前範圍：%@"
+          }
+        }
+      }
+    },
+    "当前范围内已过截止时间的任务，与选中日期无关。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overdue tasks in this scope, regardless of the selected day."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當前範圍內已過截止時間的任務，與選中日期無關。"
           }
         }
       }
@@ -45985,7 +46406,9 @@
         }
       }
     },
-    "录音并将识别结果拆成标题和描述" : {},
+    "录音并将识别结果拆成标题和描述" : {
+
+    },
     "录音并将识别结果插入到任务描述" : {
       "localizations" : {
         "en" : {
@@ -46292,6 +46715,22 @@
         }
       }
     },
+    "待整理 %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending (%lld)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待整理 %lld"
+          }
+        }
+      }
+    },
     "待整理 %lld 项" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -46386,6 +46825,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "待補充資訊"
+          }
+        }
+      }
+    },
+    "待起草（分类主题攒够 5 条笔记后自动开始）" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending (starts automatically once a category topic has 5 notes)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待起草（分類主題攢夠 5 條筆記後自動開始）"
           }
         }
       }
@@ -46730,6 +47186,7 @@
       }
     },
     "快捷打卡" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -47346,6 +47803,7 @@
       }
     },
     "总计" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -47844,6 +48302,7 @@
       }
     },
     "情境库条目" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -47859,7 +48318,24 @@
         }
       }
     },
+    "情境整理运行中…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organizing context…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "情境整理執行中…"
+          }
+        }
+      }
+    },
     "情境萃取运行中…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -47875,7 +48351,40 @@
         }
       }
     },
+    "情境记忆条目" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Context memory entries"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "情境記憶條目"
+          }
+        }
+      }
+    },
+    "情境链路（想法→整理→规划）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Context pipeline (idea → organize → plan)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "情境鏈路（想法→整理→規劃）"
+          }
+        }
+      }
+    },
     "情境链路（想法→萃取→规划）" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -47951,6 +48460,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "想做什麼？"
+          }
+        }
+      }
+    },
+    "想减少的事 · %lld 个" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Things to cut down · %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想減少的事 · %lld 個"
           }
         }
       }
@@ -48312,6 +48837,7 @@
       }
     },
     "想知道最近的情况，直接用自然语言提问。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -49021,6 +49547,7 @@
       }
     },
     "截止" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -49080,6 +49607,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "截止事項 · 未佔用時間段"
+          }
+        }
+      }
+    },
+    "截止前" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Before Due"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截止前"
           }
         }
       }
@@ -49165,6 +49708,7 @@
       }
     },
     "截止时间前提醒" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -49341,6 +49885,7 @@
       }
     },
     "所选范围最近值" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -49357,6 +49902,7 @@
       }
     },
     "所选范围最近值 · %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -49373,6 +49919,7 @@
       }
     },
     "所选范围累计" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -49549,6 +50096,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "手動整理"
+          }
+        }
+      }
+    },
+    "手动触发，只读不改数据" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manually triggered, read-only"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手動觸發，唯讀不改資料"
           }
         }
       }
@@ -49731,6 +50294,7 @@
       }
     },
     "打卡日历" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -50069,7 +50633,9 @@
         }
       }
     },
-    "打开详情" : {},
+    "打开详情" : {
+
+    },
     "打开详情，确认或拒绝 AI 给这条想法打的标签" : {
       "localizations" : {
         "en" : {
@@ -50151,6 +50717,7 @@
       }
     },
     "执行时段" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -50231,6 +50798,7 @@
       }
     },
     "找回 ›" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -50472,7 +51040,9 @@
         }
       }
     },
-    "把这一步标为等待" : {},
+    "把这一步标为等待" : {
+
+    },
     "把这件事拆成一步步可做的小动作，卡住了可以调整" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -50617,6 +51187,9 @@
           }
         }
       }
+    },
+    "折线" : {
+
     },
     "护理" : {
       "localizations" : {
@@ -50768,7 +51341,9 @@
         }
       }
     },
-    "拆好了，加了 %lld 步" : {},
+    "拆好了，加了 %lld 步" : {
+
+    },
     "拆小一点" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -50802,8 +51377,12 @@
         }
       }
     },
-    "拆成几步" : {},
-    "拆成这 %lld 步" : {},
+    "拆成几步" : {
+
+    },
+    "拆成这 %lld 步" : {
+
+    },
     "拉伸" : {
       "localizations" : {
         "en" : {
@@ -51191,6 +51770,7 @@
       }
     },
     "按任务日生成的快捷档位，点选即加、再点取消：" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -51772,6 +52352,7 @@
       }
     },
     "按真实发生记录" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -52110,6 +52691,9 @@
         }
       }
     },
+    "排名" : {
+
+    },
     "排序" : {
       "localizations" : {
         "en" : {
@@ -52158,7 +52742,24 @@
         }
       }
     },
+    "排障顺序：库内条目为 0 = 整理没跑；有条目但规划选取为 0 = 检索没命中。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Troubleshooting: 0 entries = organizing never ran; entries but 0 selected = retrieval miss."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排障順序：庫內條目為 0 = 整理沒跑；有條目但規劃選取為 0 = 檢索沒命中。"
+          }
+        }
+      }
+    },
     "排障顺序：库内条目为 0 = 萃取没跑；有条目但规划选取为 0 = 检索没命中。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -52849,6 +53450,7 @@
       }
     },
     "提醒明细" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -52860,6 +53462,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "提醒明細"
+          }
+        }
+      }
+    },
+    "提醒未保存，请重试。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The reminder was not saved. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒未儲存，請重試。"
           }
         }
       }
@@ -53233,7 +53852,24 @@
         }
       }
     },
+    "摘要、图和明细使用同一个范围。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summary, charts, and details share the same range."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "摘要、圖和明細使用同一個範圍。"
+          }
+        }
+      }
+    },
     "摘要、图和明细使用同一个范围。这里改变范围，不会改动整体回顾的月份。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -53698,6 +54334,22 @@
         }
       }
     },
+    "操作未完成，请稍后重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The action did not complete. Please try again later."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作未完成，請稍後重試。"
+          }
+        }
+      }
+    },
     "操作沒有成功，狀態保持原樣。請重試。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -54053,6 +54705,7 @@
       }
     },
     "支出同比" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -54413,6 +55066,7 @@
       }
     },
     "收支趋势" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -54492,7 +55146,9 @@
         }
       }
     },
-    "收起子任务" : {},
+    "收起子任务" : {
+
+    },
     "收起引用" : {
       "localizations" : {
         "en" : {
@@ -54563,7 +55219,9 @@
         }
       }
     },
-    "改一下" : {},
+    "改一下" : {
+
+    },
     "改个名字" : {
       "localizations" : {
         "en" : {
@@ -54720,6 +55378,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "放棄修改？"
+          }
+        }
+      }
+    },
+    "放弃规划" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard plan"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放棄規劃"
+          }
+        }
+      }
+    },
+    "放弃这份规划？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Discard this plan?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放棄這份規劃？"
           }
         }
       }
@@ -54901,6 +55591,7 @@
       }
     },
     "数值类型" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -54912,6 +55603,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "數值型別"
+          }
+        }
+      }
+    },
+    "数几次" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Count"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "數幾次"
           }
         }
       }
@@ -55493,6 +56200,7 @@
       }
     },
     "整体完成率 %lld%%，比上月 " : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -55509,6 +56217,7 @@
       }
     },
     "整体完成率 %lld%%，继续保持" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -55626,7 +56335,22 @@
         }
       }
     },
-    "整理待整理任务" : {},
+    "整理未运行：%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organizing skipped: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整理未執行：%@"
+          }
+        }
+      }
+    },
     "整理状态" : {
       "localizations" : {
         "en" : {
@@ -55643,6 +56367,22 @@
         }
       }
     },
+    "整理累计新建" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total created by organizing"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整理累計新增"
+          }
+        }
+      }
+    },
     "整理设置" : {
       "localizations" : {
         "en" : {
@@ -55655,6 +56395,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "整理設定"
+          }
+        }
+      }
+    },
+    "整理跳过原因" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Organizing skip reason"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整理跳過原因"
           }
         }
       }
@@ -56275,6 +57031,22 @@
         }
       }
     },
+    "新提醒" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Reminder"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新提醒"
+          }
+        }
+      }
+    },
     "新标签名" : {
       "localizations" : {
         "en" : {
@@ -56319,6 +57091,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新的記錄與它不完全一致，Holo 正在重新確認"
+          }
+        }
+      }
+    },
+    "新规划卡样机" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New planning card prototype"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新規劃卡樣機"
           }
         }
       }
@@ -56660,6 +57448,7 @@
       }
     },
     "无收支" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -57060,6 +57849,22 @@
         }
       }
     },
+    "日回放 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily replay · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日回放 · %@"
+          }
+        }
+      }
+    },
     "日均" : {
       "localizations" : {
         "en" : {
@@ -57092,6 +57897,23 @@
         }
       }
     },
+    "日均 %@ · 上期日均 %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily avg %@ · previous %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日均 %@ · 上期日均 %@"
+          }
+        }
+      }
+    },
     "日均 %@ %@" : {
       "localizations" : {
         "en" : {
@@ -57104,22 +57926,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "日均 %@ %@"
-          }
-        }
-      }
-    },
-    "日均 %@ · 上期日均 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daily avg %@ · previous %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "日均 %@ · 上期日均 %@"
           }
         }
       }
@@ -57398,22 +58204,6 @@
         }
       }
     },
-    "日程" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Day"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "日程"
-          }
-        }
-      }
-    },
     "日期不在项目周期内" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -57508,6 +58298,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "日期範圍"
+          }
+        }
+      }
+    },
+    "日程" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Day"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日程"
           }
         }
       }
@@ -57672,6 +58478,22 @@
         }
       }
     },
+    "早期整理归入" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added by early organization"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "早期整理歸入"
+          }
+        }
+      }
+    },
     "早睡" : {
       "localizations" : {
         "en" : {
@@ -57736,8 +58558,8 @@
         }
       }
     },
-    "时刻" : {},
     "时段需要同一天且开始早于结束" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -57898,6 +58720,7 @@
       }
     },
     "时间类型" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -57914,6 +58737,7 @@
       }
     },
     "时间范围" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -57957,6 +58781,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "時間範圍只用於展示，不影響記帳——旅行結束後仍可補掛行前買的機票"
+          }
+        }
+      }
+    },
+    "时间调整未保存，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The time change was not saved. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時間調整未儲存，請重試。"
           }
         }
       }
@@ -58041,7 +58881,9 @@
         }
       }
     },
-    "明天上午 9:00 提醒我" : {},
+    "明天上午 9:00 提醒我" : {
+
+    },
     "明天提醒我看一眼" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -59182,6 +60024,23 @@
         }
       }
     },
+    "暂无到期任务" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No tasks due yet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無到期任務"
+          }
+        }
+      }
+    },
     "暂无可引用的想法" : {
       "localizations" : {
         "en" : {
@@ -59197,6 +60056,9 @@
           }
         }
       }
+    },
+    "暂无可用数据" : {
+
     },
     "暂无可用的健康数据" : {
       "localizations" : {
@@ -59215,6 +60077,7 @@
       }
     },
     "暂无可用趋势数据" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -59408,6 +60271,7 @@
       }
     },
     "暂无提醒" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -59440,6 +60304,7 @@
       }
     },
     "暂无数据，记一笔开始追踪吧！" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -59599,6 +60464,9 @@
         }
       }
     },
+    "暂无进度数据" : {
+
+    },
     "暂时不确定" : {
       "localizations" : {
         "en" : {
@@ -59659,6 +60527,102 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暫時無法讀取會員方案"
+          }
+        }
+      }
+    },
+    "暂时无法读取规划进度，原记录已保留。请稍后重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planning progress cannot be loaded. Your records are preserved. Try again later."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時無法讀取規劃進度，原記錄已保留。請稍後重試。"
+          }
+        }
+      }
+    },
+    "暂时无法读取这份规划，原记录已保留。请稍后重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This plan cannot be loaded right now. The original record is preserved. Try again later."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時無法讀取這份規劃，原記錄已保留。請稍後重試。"
+          }
+        }
+      }
+    },
+    "暂时无法连接服务，请检查网络后重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to connect. Check your network and try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時無法連線服務，請檢查網路後重試。"
+          }
+        }
+      }
+    },
+    "暂时未能保存，修改仍保留在这里，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not saved; your edits are kept here. Try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時未能保存，修改仍保留在這裡，請重試。"
+          }
+        }
+      }
+    },
+    "暂时未能保存，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not saved, try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時未能保存，請重試。"
+          }
+        }
+      }
+    },
+    "暂时没有这类任务\n点 ＋ 添加任务" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing here right now\nTap + to add"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時沒有這類任務\n點 ＋ 添加任務"
           }
         }
       }
@@ -59876,6 +60840,22 @@
         }
       }
     },
+    "更多范围" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More Ranges"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多範圍"
+          }
+        }
+      }
+    },
     "更多选项" : {
       "localizations" : {
         "en" : {
@@ -60088,6 +61068,7 @@
       }
     },
     "更早还没有这个习惯的记录" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -60312,6 +61293,22 @@
         }
       }
     },
+    "有 %lld 件事等着归位\n从待整理挑一件放进来" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld tasks waiting to be placed\nPick one from Triage"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 %lld 件事等著歸位\n從待整理挑一件放進來"
+          }
+        }
+      }
+    },
     "有 %lld 张图片未保存成功，稍后自动重试" : {
       "localizations" : {
         "en" : {
@@ -60357,6 +61354,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有 %lld 筆帳目的收支類型與分類不一致（舊資料異常），請先在帳目中修復後再刪除"
+          }
+        }
+      }
+    },
+    "有 %lld 项已完成任务缺少完成时间，未计入统计，点击查看" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld completed tasks lack completion times and aren't counted in stats. Tap to view."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有 %lld 項已完成任務缺少完成時間，未計入統計，點擊查看。"
           }
         }
       }
@@ -60538,6 +61552,7 @@
       }
     },
     "有发生记录的日子" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -60841,6 +61856,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "服務暫時不可用，請稍後重試"
+          }
+        }
+      }
+    },
+    "服务暂时繁忙，请稍后继续。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The service is busy. Please continue later."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服務暫時繁忙，請稍後繼續。"
           }
         }
       }
@@ -61472,6 +62503,7 @@
       }
     },
     "未成功运行" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -61911,6 +62943,7 @@
       }
     },
     "未记录是记录筛选，不代表任务未完成。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -62867,6 +63900,70 @@
         }
       }
     },
+    "本月 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This month · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月 · %@"
+          }
+        }
+      }
+    },
+    "本月上旬" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Early this month"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月上旬"
+          }
+        }
+      }
+    },
+    "本月下旬" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Late this month"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月下旬"
+          }
+        }
+      }
+    },
+    "本月中旬" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mid this month"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月中旬"
+          }
+        }
+      }
+    },
     "本月免费补签/补记" : {
       "localizations" : {
         "en" : {
@@ -62916,6 +64013,7 @@
       }
     },
     "本月完成率" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -62996,6 +64094,7 @@
       }
     },
     "本月暂无记录" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -63028,6 +64127,7 @@
       }
     },
     "本月洞察" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -63332,6 +64432,7 @@
       }
     },
     "本期暂无已到期任务，可切回「数量」查看新增与完成" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -63412,6 +64513,38 @@
         }
       }
     },
+    "本期还没有完成记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No completions yet this period"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本期還沒有完成記錄"
+          }
+        }
+      }
+    },
+    "本期还没有完成记录，完成后这里会显示时刻分布、清单与事项" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No completions yet this period; complete tasks to see time-of-day, lists, and matters here"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本期還沒有完成記錄，完成後這裡會顯示時刻分佈、清單與事項"
+          }
+        }
+      }
+    },
     "本期间还没有新增或完成记录" : {
       "localizations" : {
         "en" : {
@@ -63461,6 +64594,7 @@
       }
     },
     "本机数据 · 按周" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -63477,6 +64611,7 @@
       }
     },
     "本机数据 · 逐日" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -63683,6 +64818,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本次數值%@"
+          }
+        }
+      }
+    },
+    "本次整理结果" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Latest organizing result"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次整理結果"
           }
         }
       }
@@ -64239,6 +65390,22 @@
         }
       }
     },
+    "查看主题" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View Topic"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看主題"
+          }
+        }
+      }
+    },
     "查看主题脉络" : {
       "localizations" : {
         "en" : {
@@ -64347,6 +65514,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檢視全部 %lld %@"
+          }
+        }
+      }
+    },
+    "查看全部 %lld 个" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show all %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看全部 %lld 個"
           }
         }
       }
@@ -64529,6 +65712,7 @@
       }
     },
     "查看完整回顾" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -64997,6 +66181,22 @@
         }
       }
     },
+    "查看这个习惯的进度与走势" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View this habit's progress and trends"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看這個習慣的進度與走勢"
+          }
+        }
+      }
+    },
     "查看这件事" : {
       "localizations" : {
         "en" : {
@@ -65014,6 +66214,7 @@
       }
     },
     "查看长期回顾" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -65140,6 +66341,9 @@
           }
         }
       }
+    },
+    "柱状" : {
+
     },
     "标签" : {
       "localizations" : {
@@ -65372,6 +66576,22 @@
         }
       }
     },
+    "标记未完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark as incomplete"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標記未完成"
+          }
+        }
+      }
+    },
     "标题" : {
       "localizations" : {
         "en" : {
@@ -65419,6 +66639,9 @@
           }
         }
       }
+    },
+    "样板类型" : {
+
     },
     "核对：%@" : {
       "extractionState" : "stale",
@@ -65566,6 +66789,9 @@
           }
         }
       }
+    },
+    "格子" : {
+
     },
     "桌面小组件显示想法原文" : {
       "localizations" : {
@@ -65728,7 +66954,6 @@
         }
       }
     },
-    "槽位" : {},
     "模型" : {
       "localizations" : {
         "en" : {
@@ -65741,6 +66966,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "模型"
+          }
+        }
+      }
+    },
+    "模型与提示词配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model & prompt configuration"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模型與提示詞設定"
           }
         }
       }
@@ -65810,6 +67051,7 @@
       }
     },
     "横向滑动，明细实时定位" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -66372,6 +67614,7 @@
       }
     },
     "正在按这条路径起草，通常需要半分钟，写好会自动出现" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -66591,6 +67834,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在彙總…"
+          }
+        }
+      }
+    },
+    "正在清空回收站…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emptying Recently Deleted…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在清空最近刪除…"
           }
         }
       }
@@ -66932,6 +68191,9 @@
         }
       }
     },
+    "正在读取数据…" : {
+
+    },
     "正在读取本地 Agent 状态…" : {
       "localizations" : {
         "en" : {
@@ -66944,6 +68206,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在讀取本地 Agent 狀態…"
+          }
+        }
+      }
+    },
+    "正在起草，完成后会自动显示。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drafting now. The result will appear automatically."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在起草，完成後會自動顯示。"
           }
         }
       }
@@ -67040,6 +68318,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在重置…"
+          }
+        }
+      }
+    },
+    "正常" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正常"
           }
         }
       }
@@ -67352,6 +68646,22 @@
         }
       }
     },
+    "步骤状态未保存，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The step status was not saved. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "步驟狀態未儲存，請重試。"
+          }
+        }
+      }
+    },
     "步骤都做完了，确认一下结果就算完成" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -67554,6 +68864,7 @@
       }
     },
     "每一次记录，都在这里" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -67586,6 +68897,7 @@
       }
     },
     "每个点是当天最后一次测量，缺失日不连线。点记录可核对明细。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -67679,6 +68991,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每週%@"
+          }
+        }
+      }
+    },
+    "每周与每月 · %lld 个" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weekly & monthly · %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每週與每月 · %lld 個"
           }
         }
       }
@@ -67860,6 +69188,22 @@
         }
       }
     },
+    "每天记下一个数字 · 例：体重 75、睡眠 7.5 小时" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log one number a day. e.g. weight 75, sleep 7.5h"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天記下一個數字 · 例：體重 75、睡眠 7.5 小時"
+          }
+        }
+      }
+    },
     "每年" : {
       "localizations" : {
         "en" : {
@@ -67957,6 +69301,7 @@
       }
     },
     "每日%@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -68263,6 +69608,7 @@
       }
     },
     "每根柱子是当天的累计量。点记录可核对明细。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -68488,6 +69834,7 @@
       }
     },
     "汇总回执" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -68568,7 +69915,9 @@
         }
       }
     },
-    "没拆出来，网络或服务开小差了" : {},
+    "没拆出来，网络或服务开小差了" : {
+
+    },
     "没有保存成功" : {
       "localizations" : {
         "en" : {
@@ -68681,6 +70030,22 @@
         }
       }
     },
+    "没有匹配的分类，请换个关键词。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching categories. Try another keyword."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有符合的分類，請換個關鍵字。"
+          }
+        }
+      }
+    },
     "没有匹配的想法" : {
       "localizations" : {
         "en" : {
@@ -68778,6 +70143,7 @@
       }
     },
     "没有已归档的习惯；归档不会删除任何历史" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -69083,6 +70449,7 @@
       }
     },
     "没有进行中的习惯；创建或取消归档一个开始" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -69421,6 +70788,7 @@
       }
     },
     "活跃热力图" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -69581,6 +70949,7 @@
       }
     },
     "测量" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -70097,6 +71466,7 @@
       }
     },
     "添加提醒时刻" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -70173,6 +71543,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增紀念日"
+          }
+        }
+      }
+    },
+    "添加自定义时刻" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Custom Time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增自訂時刻"
           }
         }
       }
@@ -70314,7 +71700,9 @@
         }
       }
     },
-    "清单：%@" : {},
+    "清单：%@" : {
+
+    },
     "清单会从各入口收起，可在「归档管理」随时恢复；清单里未完成的任务仍会保留在任务列表中。" : {
       "localizations" : {
         "en" : {
@@ -71281,6 +72669,7 @@
       }
     },
     "点一块快速开始，或点右上角 ＋ 自定义" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -71379,6 +72768,7 @@
       }
     },
     "点击创建" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -71508,6 +72898,7 @@
       }
     },
     "点击柱子查看单期对照" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -71652,6 +73043,9 @@
           }
         }
       }
+    },
+    "点按查看 · 按住滑选日期" : {
+
     },
     "点明细看原账单" : {
       "localizations" : {
@@ -71847,6 +73241,7 @@
       }
     },
     "独立提醒" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -72072,7 +73467,9 @@
         }
       }
     },
-    "琢磨怎么拆…" : {},
+    "琢磨怎么拆…" : {
+
+    },
     "瑜伽" : {
       "localizations" : {
         "en" : {
@@ -72474,6 +73871,9 @@
         }
       }
     },
+    "生活轨迹串成时间线，方便回看" : {
+
+    },
     "生活闭环" : {
       "localizations" : {
         "en" : {
@@ -72734,6 +74134,7 @@
       }
     },
     "略有回落，调整节奏" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -73112,6 +74513,7 @@
       }
     },
     "目标、提醒、暂停与归档" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -73171,6 +74573,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目標不存在或已被刪除"
+          }
+        }
+      }
+    },
+    "目标与提醒" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goals & Reminders"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標與提醒"
           }
         }
       }
@@ -73331,6 +74750,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目標已保存"
+          }
+        }
+      }
+    },
+    "目标已保存，暂时无法读取规划进度。可关闭此页，在我的目标中查看。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your goal is saved. Planning progress cannot be loaded right now. Close this page and view it in My Goals."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目標已儲存，暫時無法讀取規劃進度。可關閉此頁，在我的目標中查看。"
           }
         }
       }
@@ -73723,6 +75158,7 @@
       }
     },
     "直接问自己的数据" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -73948,6 +75384,7 @@
       }
     },
     "看数值曲线 · 前后对比" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -73964,6 +75401,7 @@
       }
     },
     "看板" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -73980,6 +75418,7 @@
       }
     },
     "看每天次数 · 累计走势" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -74011,7 +75450,9 @@
         }
       }
     },
-    "看看这个任务该怎么一步步走" : {},
+    "看看这个任务该怎么一步步走" : {
+
+    },
     "看这份追问报告" : {
       "localizations" : {
         "en" : {
@@ -74028,7 +75469,24 @@
         }
       }
     },
+    "看进度" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Progress"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看進度"
+          }
+        }
+      }
+    },
     "看连续天数 · 每周完成率 · 日历" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -74479,6 +75937,7 @@
       }
     },
     "确定要删除这条记录吗？" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -74672,6 +76131,7 @@
       }
     },
     "确认删除记录" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -75104,6 +76564,22 @@
         }
       }
     },
+    "确认记 %lld 笔 · ¥%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save %lld Entries · ¥%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認記 %lld 筆 · ¥%@"
+          }
+        }
+      }
+    },
     "确认记账" : {
       "localizations" : {
         "en" : {
@@ -75116,6 +76592,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認記賬"
+          }
+        }
+      }
+    },
+    "确认记账 ¥%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm & Book ¥%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認記賬 ¥%@"
           }
         }
       }
@@ -76196,6 +77688,22 @@
         }
       }
     },
+    "符合「%@」这个类别的定义" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Matches what “%@” collects"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "符合「%@」這個類別的定義"
+          }
+        }
+      }
+    },
     "第 %lld / %lld 项" : {
       "localizations" : {
         "en" : {
@@ -76327,6 +77835,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第 %lld 行：%@"
+          }
+        }
+      }
+    },
+    "第 %lld 行起余额列不连续，账单可能缺行" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From line %lld, the balance column is discontinuous; the bill may be missing rows"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 行起餘額列不連續，帳單可能缺行"
           }
         }
       }
@@ -76589,7 +78114,9 @@
         }
       }
     },
-    "等到了，接着做" : {},
+    "等到了，接着做" : {
+
+    },
     "等到了这一天" : {
       "localizations" : {
         "en" : {
@@ -76672,7 +78199,9 @@
         }
       }
     },
-    "等待中 · %@" : {},
+    "等待中 · %@" : {
+
+    },
     "等待云端数据超时（10 分钟）。已收到的数据保留在本机；可以稍后再试一次拉取，或恢复拉取前的备份。" : {
       "localizations" : {
         "en" : {
@@ -76701,6 +78230,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "等待健康資料"
+          }
+        }
+      }
+    },
+    "等待完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending completion"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待完成"
           }
         }
       }
@@ -76950,6 +78495,22 @@
         }
       }
     },
+    "类别理解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Category Understanding"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "類別理解"
+          }
+        }
+      }
+    },
     "类型" : {
       "localizations" : {
         "en" : {
@@ -77063,7 +78624,6 @@
       }
     },
     "系列" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -77564,6 +79124,23 @@
         }
       }
     },
+    "纳入依据：本期已到期任务（排除缺完成时间）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Included by: due and overdue this period (excluding records without completion times)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "納入依據：本期已到期任務（排除缺完成時間）"
+          }
+        }
+      }
+    },
     "紫罗兰" : {
       "localizations" : {
         "en" : {
@@ -77597,6 +79174,7 @@
       }
     },
     "累计" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -77744,7 +79322,9 @@
         }
       }
     },
-    "结合已有 %lld 步，看看还缺什么" : {},
+    "结合已有 %lld 步，看看还缺什么" : {
+
+    },
     "结婚纪念日" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -77940,6 +79520,9 @@
           }
         }
       }
+    },
+    "绘图区" : {
+
     },
     "绘画" : {
       "localizations" : {
@@ -78151,6 +79734,7 @@
       }
     },
     "统计 = 习惯模块统计页 · 看板 = 首页今日看板" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -79925,7 +81509,9 @@
         }
       }
     },
-    "至少留一步" : {},
+    "至少留一步" : {
+
+    },
     "舞蹈" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -80248,6 +81834,7 @@
       }
     },
     "萃取累计新建" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -80264,6 +81851,7 @@
       }
     },
     "萃取跳过原因" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -80295,7 +81883,9 @@
         }
       }
     },
-    "行，按这个来（%lld 步）" : {},
+    "行，按这个来（%lld 步）" : {
+
+    },
     "行动、往来与想法，在这一天交织成一段生活。" : {
       "localizations" : {
         "en" : {
@@ -80362,6 +81952,7 @@
       }
     },
     "补" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -80474,6 +82065,7 @@
       }
     },
     "补签 / 补记" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -80485,6 +82077,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "補簽 / 補記"
+          }
+        }
+      }
+    },
+    "补签/补记的记录会带「补」标记，与当日实时打卡如实区分" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retroactive check-ins/entries are marked with \"Makeup\" to distinguish them from real-time check-ins"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "補簽/補記的記錄會帶「補」標記，與當日實時打卡如實區分"
           }
         }
       }
@@ -80506,6 +82115,7 @@
       }
     },
     "补签于 %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -80814,6 +82424,22 @@
         }
       }
     },
+    "要么做了，要么没做，一下就行 · 例：冥想、跑步、吃维生素" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One tap — done or not. e.g. meditation, running, vitamins"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要麼做了，要麼沒做，一下就行 · 例：冥想、跑步、吃維生素"
+          }
+        }
+      }
+    },
     "要创建的任务名" : {
       "localizations" : {
         "en" : {
@@ -80954,6 +82580,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "規劃中"
+          }
+        }
+      }
+    },
+    "规划完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planning complete"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "規劃完成"
+          }
+        }
+      }
+    },
+    "规划进度已变化，请重新读取后继续。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planning progress has changed. Reload it to continue."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "規劃進度已變化，請重新讀取後繼續。"
           }
         }
       }
@@ -81119,22 +82777,6 @@
         }
       }
     },
-    "计划 %@ · 记录后可对比计划与实际" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Planned %@ · Log to compare plan vs. actual"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "計劃 %@ · 記錄後可對比計劃與實際"
-          }
-        }
-      }
-    },
     "计划 / 截止均计入" : {
       "localizations" : {
         "en" : {
@@ -81147,6 +82789,25 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "計劃 / 截止均計入"
+          }
+        }
+      }
+    },
+    "计划 %@" : {
+
+    },
+    "计划 %@ · 记录后可对比计划与实际" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planned %@ · Log to compare plan vs. actual"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "計劃 %@ · 記錄後可對比計劃與實際"
           }
         }
       }
@@ -81266,6 +82927,7 @@
       }
     },
     "计数" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -81609,7 +83271,24 @@
         }
       }
     },
+    "记一个数" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log a number"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記一個數"
+          }
+        }
+      }
+    },
     "记一次" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -81658,6 +83337,7 @@
       }
     },
     "记下每次的数值，例如体重、时长" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -81691,6 +83371,7 @@
       }
     },
     "记了 %lld 天" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -81707,6 +83388,7 @@
       }
     },
     "记了 %lld 天 · 均值 %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -81723,6 +83405,7 @@
       }
     },
     "记了 %lld 天 · 日均 %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -81818,6 +83501,22 @@
         }
       }
     },
+    "记录「发生了」，超过目标会提醒你控制" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logs \"it happened\" and warns you past your limit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記錄「發生了」，超過目標會提醒你控制"
+          }
+        }
+      }
+    },
     "记录%@" : {
       "localizations" : {
         "en" : {
@@ -81835,6 +83534,7 @@
       }
     },
     "记录%lld天" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -81995,6 +83695,7 @@
       }
     },
     "记录天数" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82058,6 +83759,9 @@
         }
       }
     },
+    "记录数：0 · 1 · 2–3 · 4–5 · 6–9 · 10+" : {
+
+    },
     "记录数值" : {
       "localizations" : {
         "en" : {
@@ -82075,6 +83779,7 @@
       }
     },
     "记录方式" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82396,6 +84101,7 @@
       }
     },
     "记忆长廊会把不同模块的记录串成时间线，方便回看。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82407,6 +84113,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "記憶長廊會把不同模組的記錄串成時間線，方便回看。"
+          }
+        }
+      }
+    },
+    "记数字 · %lld 个" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Number tracking · %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記數字 · %lld 個"
           }
         }
       }
@@ -82471,6 +84193,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "記帳卡片：%@，%@%@元"
+          }
+        }
+      }
+    },
+    "记账卡片：%@，%@%@元，分类%@，%@，已入账" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expense card: %@, %@%@ yuan, category %@, %@, booked"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記帳卡片：%@，%@%@元，分類%@，%@，已入帳"
           }
         }
       }
@@ -82552,6 +84290,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "記賬沒有成功，請重試"
+          }
+        }
+      }
+    },
+    "记这笔" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記這筆"
           }
         }
       }
@@ -83536,6 +85290,7 @@
       }
     },
     "该习惯已被删除" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -83600,6 +85355,7 @@
       }
     },
     "该分类在此范围无交易" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -83644,6 +85400,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "該日已有打卡記錄，無需重複補"
+          }
+        }
+      }
+    },
+    "该时刻已有提醒" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A reminder already exists at this time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "該時刻已有提醒"
           }
         }
       }
@@ -83776,7 +85548,9 @@
         }
       }
     },
-    "详情 ›" : {},
+    "详情 ›" : {
+
+    },
     "详细描述" : {
       "localizations" : {
         "en" : {
@@ -83794,6 +85568,7 @@
       }
     },
     "详细统计" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -83950,6 +85725,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "語音識別失敗，請稍後重試"
+          }
+        }
+      }
+    },
+    "语音识别引擎" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speech recognition engine"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "語音識別引擎"
           }
         }
       }
@@ -84196,7 +85987,24 @@
         }
       }
     },
+    "请先在「设置 → HoloAI 数据授权」开启授权，再回来继续。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable consent in Settings → HoloAI Data Consent, then return to continue."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先在「設定 → HoloAI 資料授權」開啟授權，再回來繼續。"
+          }
+        }
+      }
+    },
     "请先在习惯模块中创建习惯" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -85142,6 +86950,7 @@
       }
     },
     "财务、待办、习惯和想法会出现在同一段生活轨迹中。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -85249,6 +87058,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "財務項目"
+          }
+        }
+      }
+    },
+    "账单不含余额列，无法自动核对" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The bill has no balance column, so automatic reconciliation is not possible"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帳單不含餘額列，無法自動核對"
           }
         }
       }
@@ -85879,6 +87705,7 @@
       }
     },
     "走势 · 对比 · 日历" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -85928,6 +87755,7 @@
       }
     },
     "起点" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -86089,6 +87917,7 @@
       }
     },
     "超过目标值时将以红色标记并提醒控制" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -86121,6 +87950,7 @@
       }
     },
     "趋势 · 日历 · 逐日明细" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -86153,6 +87983,7 @@
       }
     },
     "趋势图：新增 %lld 项，完成 %lld 项，可通过「查看趋势明细」逐日核对" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -86272,7 +88103,24 @@
         }
       }
     },
+    "跑一轮情境整理" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run a context organizing pass"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跑一輪情境整理"
+          }
+        }
+      }
+    },
     "跑一轮情境萃取" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -87936,6 +89784,22 @@
         }
       }
     },
+    "运行方式" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run mode"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行方式"
+          }
+        }
+      }
+    },
     "近 %lld 天偶有运动" : {
       "localizations" : {
         "en" : {
@@ -88017,7 +89881,6 @@
       }
     },
     "近 7 天" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -88098,6 +89961,7 @@
       }
     },
     "近 7 天趋势" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -88129,22 +89993,6 @@
         }
       }
     },
-    "近 30 天" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Last 30 Days"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "近 30 天"
-          }
-        }
-      }
-    },
     "近 7 天还没有记录。" : {
       "localizations" : {
         "en" : {
@@ -88157,6 +90005,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "近 7 天還沒有記錄。"
+          }
+        }
+      }
+    },
+    "近 30 天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last 30 Days"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近 30 天"
           }
         }
       }
@@ -88437,6 +90301,7 @@
       }
     },
     "返回图表" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -88497,6 +90362,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "返回換條路徑"
+          }
+        }
+      }
+    },
+    "返回日历" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to Calendar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回日曆"
           }
         }
       }
@@ -88597,7 +90478,9 @@
         }
       }
     },
-    "还剩 %lld 步" : {},
+    "还剩 %lld 步" : {
+
+    },
     "还原总结" : {
       "localizations" : {
         "en" : {
@@ -88615,6 +90498,7 @@
       }
     },
     "还可以创建待办、记录想法、习惯打卡。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -89021,7 +90905,9 @@
         }
       }
     },
-    "还没做完" : {},
+    "还没做完" : {
+
+    },
     "还没填任务名称，退出后这次填写的内容不会被保存。" : {
       "localizations" : {
         "en" : {
@@ -89055,6 +90941,7 @@
       }
     },
     "还没有习惯" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -89210,6 +91097,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有明確下一步"
+          }
+        }
+      }
+    },
+    "还没有更早的记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No earlier records yet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有更早的記錄"
           }
         }
       }
@@ -89405,6 +91308,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒解決 · %lld"
+          }
+        }
+      }
+    },
+    "还没运行过" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never run"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒執行過"
           }
         }
       }
@@ -89762,8 +91681,28 @@
         }
       }
     },
-    "这一步做什么" : {},
-    "这一步在等什么？" : {},
+    "这一步做什么" : {
+
+    },
+    "这一步在等什么？" : {
+
+    },
+    "这一步未保存，内容已保留，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This step was not saved. Your input is preserved. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這一步未儲存，內容已保留，請重試。"
+          }
+        }
+      }
+    },
     "这不是有效的压缩包文件" : {
       "localizations" : {
         "en" : {
@@ -89792,6 +91731,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這個主題下還沒有想法"
+          }
+        }
+      }
+    },
+    "这个主题收什么" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What belongs here"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個主題收什麼"
           }
         }
       }
@@ -90369,6 +92324,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這份建議已過期（跨天或安排有新變化），重新整理一下。"
+          }
+        }
+      }
+    },
+    "这份未完成的规划将被删除，已有目标不受影响。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This unfinished plan will be deleted. Existing goals will be kept."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這份未完成的規劃將被刪除，已有目標不受影響。"
+          }
+        }
+      }
+    },
+    "这份规划已无法继续，请重新开始。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This plan can no longer continue. Please start again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這份規劃已無法繼續，請重新開始。"
+          }
+        }
+      }
+    },
+    "这份规划由较新版本的 Holo 创建，请更新 App 后继续。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This plan was created with a newer version of Holo. Update the app to continue."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這份規劃由較新版本的 Holo 建立，請更新 App 後繼續。"
           }
         }
       }
@@ -91240,6 +93243,22 @@
         }
       }
     },
+    "这是想减少的事（坏习惯）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Something I want less of (bad habit)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是想減少的事（壞習慣）"
+          }
+        }
+      }
+    },
     "这是明确的重要事实；除非你纠正或删除，否则会长期保留。" : {
       "localizations" : {
         "en" : {
@@ -91706,6 +93725,22 @@
         }
       }
     },
+    "这次没有生成可用的结果，请重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No usable result was generated. Please try again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這次沒有產生可用的結果，請重試。"
+          }
+        }
+      }
+    },
     "这次没能自动整理今天的安排（网络或服务暂不可用）。你可以打开「今天」页点「帮我理一理」手动挑，稍后再试。" : {
       "localizations" : {
         "en" : {
@@ -91882,6 +93917,22 @@
         }
       }
     },
+    "这次规划已达到处理上限，可以重新开始。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This planning session has reached its limit. You can start again."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這次規劃已達到處理上限，可以重新開始。"
+          }
+        }
+      }
+    },
     "这次规划被新的请求取代，没有生成方案。重新发送刚才的话即可再试。" : {
       "localizations" : {
         "en" : {
@@ -91981,7 +94032,9 @@
         }
       }
     },
-    "这步已标为等待，点一下去掉" : {},
+    "这步已标为等待，点一下去掉" : {
+
+    },
     "这步还是太大" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -92096,6 +94149,22 @@
         }
       }
     },
+    "这笔不记，确认时将跳过" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This entry will be skipped"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這筆不記，確認時將跳過"
+          }
+        }
+      }
+    },
     "这笔可能已经记过，未自动入账。打开 Holo 确认。" : {
       "localizations" : {
         "en" : {
@@ -92146,6 +94215,7 @@
       }
     },
     "这笔账需要你确认。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -92206,6 +94276,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這組新想法"
+          }
+        }
+      }
+    },
+    "这行话就是 AI 的归类依据。改了它，相关笔记会自动重新归类；不写也可以，AI 按你放进来的笔记用法判定。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This line is what the AI sorts by. Change it and related notes re-sort automatically. Skip it and the AI goes by the notes you put here."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這行話就是 AI 的歸類依據。改了它，相關筆記會自動重新歸類；不寫也可以，AI 按你放進來的筆記用法判定。"
           }
         }
       }
@@ -92354,6 +94440,9 @@
         }
       }
     },
+    "进入后有一篇欢迎笔记，带你逛完各个模块" : {
+
+    },
     "进入统计分析页" : {
       "localizations" : {
         "en" : {
@@ -92387,6 +94476,7 @@
       }
     },
     "进入领域后可检查最近一次真实阶段回执和当前仓库快照；只有上方“运行一次真实观察”会发起请求。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -92398,6 +94488,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "進入領域後可檢查最近一次真實階段回執和當前倉庫快照；只有上方“執行一次真實觀察”會發起請求。"
+          }
+        }
+      }
+    },
+    "进入领域后可检查各阶段结果和当前数据快照；只有下方“运行一次真实观察”会发起请求。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a domain to check stage results and the data snapshot; only “Run a live observation” below sends requests."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進入領域後可檢查各階段結果和當前資料快照；只有下方「運行一次真實觀察」會發起請求。"
           }
         }
       }
@@ -92436,6 +94542,7 @@
       }
     },
     "进步明显，再接再厉" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -92596,6 +94703,7 @@
       }
     },
     "连续%@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -92639,6 +94747,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連續打卡"
+          }
+        }
+      }
+    },
+    "连续打卡中" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On a streak"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連續打卡中"
           }
         }
       }
@@ -92708,6 +94832,7 @@
       }
     },
     "连续进度已保留" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -92724,6 +94849,7 @@
       }
     },
     "连续进度已保留 · 将于 %@ 自动恢复" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -92740,6 +94866,7 @@
       }
     },
     "连续进度已保留 · 随时可恢复" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -93317,6 +95444,9 @@
         }
       }
     },
+    "选中位置" : {
+
+    },
     "选中场景只预填问句，可自由改写；改写后仍按该场景分析，发送由你确认" : {
       "localizations" : {
         "en" : {
@@ -93334,6 +95464,7 @@
       }
     },
     "选中日期" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -93382,6 +95513,7 @@
       }
     },
     "选中金额" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -93543,6 +95675,7 @@
       }
     },
     "选择后可启用对应的提醒策略" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -93801,6 +95934,7 @@
       }
     },
     "选择要展示的习惯，点击切换展示位置，拖动调整顺序" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -95209,6 +97343,22 @@
         }
       }
     },
+    "重新读取进度" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reload progress"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新讀取進度"
+          }
+        }
+      }
+    },
     "重点不准" : {
       "localizations" : {
         "en" : {
@@ -95224,6 +97374,9 @@
           }
         }
       }
+    },
+    "重看新人笔记" : {
+
     },
     "重看新手引导" : {
       "localizations" : {
@@ -95274,6 +97427,7 @@
       }
     },
     "重置只清除 Debug 调用额度、dirty、退避和脱敏回执，不删除用户记忆或任何业务数据。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -95285,6 +97439,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重置只清除 Debug 呼叫額度、dirty、退避和脫敏回執，不刪除使用者記憶或任何業務資料。"
+          }
+        }
+      }
+    },
+    "重置只清除 Debug 调用额度、待整理标记、退避和脱敏回执，不删除用户记忆或任何业务数据。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset only clears debug call quota, pending marks, backoff and redacted receipts; it never deletes memories or business data."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重置只清除 Debug 呼叫額度、待整理標記、退避和脫敏回執，不刪除用戶記憶或任何業務資料。"
           }
         }
       }
@@ -97028,6 +99198,9 @@
         }
       }
     },
+    "页尾验证" : {
+
+    },
     "页面内容" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -97867,6 +100040,7 @@
       }
     },
     "验证模式" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -98214,811 +100388,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預設帳戶"
-          }
-        }
-      }
-    },
-    "这个主题收什么" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "What belongs here"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這個主題收什麼"
-          }
-        }
-      }
-    },
-    "写一句「收什么、不收什么」，AI 会按它归类；不写也可以，AI 按你的用法慢慢学" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Write one line of what fits and what doesn't — the AI will sort by it. Skip it and the AI learns from how you use this topic."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "寫一句「收什麼、不收什麼」，AI 會按它歸類；不寫也可以，AI 按你的用法慢慢學"
-          }
-        }
-      }
-    },
-    "AI 根据你放进来的笔记代写 · 点开可改；不改它，它也只跟着你的动作学" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drafted by AI from the notes you put here · Tap to edit. Left alone, it only learns from your actions."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "AI 根據你放進來的筆記代寫 · 點開可改；不改它，它也只跟著你的動作學"
-          }
-        }
-      }
-    },
-    "这行话就是 AI 的归类依据。改了它，相关笔记会自动重新归类；不写也可以，AI 按你放进来的笔记用法判定。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This line is what the AI sorts by. Change it and related notes re-sort automatically. Skip it and the AI goes by the notes you put here."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這行話就是 AI 的歸類依據。改了它，相關筆記會自動重新歸類；不寫也可以，AI 按你放進來的筆記用法判定。"
-          }
-        }
-      }
-    },
-    "主题定义，点按编辑" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Topic definition, tap to edit"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主題定義，點按編輯"
-          }
-        }
-      }
-    },
-    "早期整理归入" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Added by early organization"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "早期整理歸入"
-          }
-        }
-      }
-    },
-    "查看主题" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "View Topic"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "查看主題"
-          }
-        }
-      }
-    },
-    "为什么归这里？" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Why is it here?"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "為什麼歸這裡？"
-          }
-        }
-      }
-    },
-    "为什么归这里" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Why it's here"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "為什麼歸這裡"
-          }
-        }
-      }
-    },
-    "类别理解" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Category Understanding"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "類別理解"
-          }
-        }
-      }
-    },
-    "符合「%@」这个类别的定义" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Matches what “%@” collects"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "符合「%@」這個類別的定義"
-          }
-        }
-      }
-    },
-    "和「%@」谈论同一件事" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Talks about the same thing as “%@”"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "和「%@」談論同一件事"
-          }
-        }
-      }
-    },
-    "判定引擎 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Decision engine %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "判定引擎 %@"
-          }
-        }
-      }
-    },
-    "不想要这个归属：长按徽章「从这条移除」，移出会成为 AI 的反例，同类内容以后不会再收进来。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Don't want this? Long-press the badge and choose “Remove”. Removals become counter-examples for the AI — similar content won't be added again."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不想要這個歸屬：長按徽章「從這條移除」，移出會成為 AI 的反例，同類內容以後不會再收進來。"
-          }
-        }
-      }
-    },
-    "待起草（分类主题攒够 5 条笔记后自动开始）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pending (starts automatically once a category topic has 5 notes)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "待起草（分類主題攢夠 5 條筆記後自動開始）"
-          }
-        }
-      }
-    },
-    " 个主题已代写" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " topics drafted"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : " 個主題已代寫"
-          }
-        }
-      }
-    },
-    "%@ 为本次新建，从 ¥0 起算" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ is newly created and starts from ¥0"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 為本次新建，從 ¥0 起算"
-          }
-        }
-      }
-    },
-    "%lld/%lld 到期完成" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld/%2$lld due completed"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld/%2$lld 到期完成"
-          }
-        }
-      }
-    },
-    "%lld/%lld 按时完成" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld/%2$lld on time"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld/%2$lld 按時完成"
-          }
-        }
-      }
-    },
-    "免费次数每月 1 日重置" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Free quota resets on the 1st of each month"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "免費次數每月 1 日重置"
-          }
-        }
-      }
-    },
-    "如同秒交易只导出一笔" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "e.g., same-second transactions only exported once"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "如同秒交易只匯出一筆"
-          }
-        }
-      }
-    },
-    "暂无到期任务" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No tasks due yet"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暫無到期任務"
-          }
-        }
-      }
-    },
-    "有 %lld 项已完成任务缺少完成时间，未计入统计，点击查看" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld completed tasks lack completion times and aren't counted in stats. Tap to view."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "有 %lld 項已完成任務缺少完成時間，未計入統計，點擊查看。"
-          }
-        }
-      }
-    },
-    "第 %lld 行起余额列不连续，账单可能缺行" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "From line %lld, the balance column is discontinuous; the bill may be missing rows"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "第 %lld 行起餘額列不連續，帳單可能缺行"
-          }
-        }
-      }
-    },
-    "纳入依据：本期已到期任务（排除缺完成时间）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Included by: due and overdue this period (excluding records without completion times)"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "納入依據：本期已到期任務（排除缺完成時間）"
-          }
-        }
-      }
-    },
-    "补签/补记的记录会带「补」标记，与当日实时打卡如实区分" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Retroactive check-ins/entries are marked with \"Makeup\" to distinguish them from real-time check-ins"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "補簽/補記的記錄會帶「補」標記，與當日實時打卡如實區分"
-          }
-        }
-      }
-    },
-    "账单不含余额列，无法自动核对" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The bill has no balance column, so automatic reconciliation is not possible"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "帳單不含餘額列，無法自動核對"
-          }
-        }
-      }
-    },
-    "添加自定义时刻" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add Custom Time"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增自訂時刻"
-          }
-        }
-      }
-    },
-    "新提醒" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "New Reminder"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新提醒"
-          }
-        }
-      }
-    },
-    "修改提醒" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edit Reminder"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "修改提醒"
-          }
-        }
-      }
-    },
-    "该时刻已有提醒" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A reminder already exists at this time"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "該時刻已有提醒"
-          }
-        }
-      }
-    },
-    "截止前" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Before Due"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "截止前"
-          }
-        }
-      }
-    },
-    "原 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Was %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "原 %@"
-          }
-        }
-      }
-    },
-    "%@ · %@ %@" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ · %2$@ %3$@"
-          }
-        }
-      }
-    },
-    "%lld 笔待确认 · 合计 ¥%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld Pending · Total ¥%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 筆待確認 · 合計 ¥%@"
-          }
-        }
-      }
-    },
-    "%lld/4" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld/4"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld/4"
-          }
-        }
-      }
-    },
-    "30 天趋势" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "30-Day Trend"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "30 天趨勢"
-          }
-        }
-      }
-    },
-    "删除草稿" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Delete Draft"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刪除草稿"
-          }
-        }
-      }
-    },
-    "启用日历" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Enable Calendar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "啟用日曆"
-          }
-        }
-      }
-    },
-    "已归档 · 历史保留" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Archived · history kept"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已歸檔 · 歷史保留"
-          }
-        }
-      }
-    },
-    "已暂停 · 历史保留" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Paused · history kept"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已暫停 · 歷史保留"
-          }
-        }
-      }
-    },
-    "摘要、图和明细使用同一个范围。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Summary, charts, and details share the same range."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "摘要、圖和明細使用同一個範圍。"
-          }
-        }
-      }
-    },
-    "更多范围" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "More Ranges"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更多範圍"
-          }
-        }
-      }
-    },
-    "目标与提醒" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Goals & Reminders"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目標與提醒"
-          }
-        }
-      }
-    },
-    "确认记 %lld 笔 · ¥%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save %lld Entries · ¥%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "確認記 %lld 筆 · ¥%@"
-          }
-        }
-      }
-    },
-    "确认记账 ¥%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Confirm & Book ¥%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "確認記賬 ¥%@"
-          }
-        }
-      }
-    },
-    "记这笔" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Keep"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "記這筆"
-          }
-        }
-      }
-    },
-    "返回日历" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Back to Calendar"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "返回日曆"
-          }
-        }
-      }
-    },
-    "还没有更早的记录" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No earlier records yet"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "還沒有更早的記錄"
-          }
-        }
-      }
-    },
-    "这笔不记，确认时将跳过" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This entry will be skipped"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這筆不記，確認時將跳過"
           }
         }
       }
