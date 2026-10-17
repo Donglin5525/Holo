@@ -719,10 +719,14 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  // v23: 财务深析五层深挖法 + claimTitle 点破式标题（2026-09-21 财务深析改造）
   // v25: 目录驱动字段原则（字段能力标记随目录上云，新字段零提示词教学）
-  assert.equal(prompt.version, 25);
+  // v26: 融合版判断法（S1 消融定稿：答案先行/候选解释+改判条件/已确认风险必处理/
+  //      台账优先+禁假设合同条款/输出禁自我对话；v21 维度菜单与 v23 五层深挖退役）
+  assert.equal(prompt.version, 26);
   assert.match(prompt.content, /HOLO_AGENT_CATALOG_DRIVEN_FIELDS_V25/);
+  assert.match(prompt.content, /HOLO_AGENT_INSIGHT_JUDGMENT_V26/);
+  assert.doesNotMatch(prompt.content, /HOLO_AGENT_FINANCE_DEPTH_V23/);
+  assert.doesNotMatch(prompt.content, /HOLO_AGENT_ANALYSIS_MASTERY_V21/);
   assert.match(prompt.content, /need_tools/);
   assert.match(prompt.content, /need_more_analysis/);
   assert.match(prompt.content, /final_claims/);
@@ -732,12 +736,12 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   // v17: 新增 title/narrativeSummary 顶层字段，让 LLM 产出有人味儿的标题和摘要
   assert.match(prompt.content, /narrativeSummary/);
   assert.match(prompt.content, /点破式提炼/);
-  // v21: 分析方法论 + keyInsight/interpretation 输出字段
-  assert.match(prompt.content, /HOLO_AGENT_ANALYSIS_MASTERY_V21/);
+  // v21 输出字段与个人基线纪律由 v26 继承；维度菜单方法论退役
+  assert.match(prompt.content, /HOLO_AGENT_INSIGHT_JUDGMENT_V26/);
   assert.match(prompt.content, /keyInsight/);
   assert.match(prompt.content, /interpretation/);
   assert.match(prompt.content, /个人基线/);
-  assert.match(prompt.content, /维度菜单/);
+  assert.match(prompt.content, /连续 2 期同向才叫趋势/);
   assert.match(prompt.content, /社交时差/);
   assert.match(prompt.content, /按当前节奏推算/);
   assert.match(prompt.content, /health_overview/);
@@ -753,15 +757,15 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /workout_summary/);
   assert.match(prompt.content, /dynamic_query/);
   assert.match(prompt.content, /禁止生成 SQL/);
-  // v23: 财务深析五层深挖 + 管家记忆 + 展开豁免 + claimTitle
-  assert.match(prompt.content, /HOLO_AGENT_FINANCE_DEPTH_V23/);
-  assert.match(prompt.content, /五层深挖/);
-  assert.match(prompt.content, /私人资产管家/);
-  assert.match(prompt.content, /生活状态交叉/);
+  // v23 管家记忆/时刻纪律/展开豁免由 v26 继承；五层深挖与管家人设退役
   assert.match(prompt.content, /管家记忆/);
+  assert.match(prompt.content, /00:00 整点/);
+  assert.match(prompt.content, /展开豁免/);
   assert.match(prompt.content, /claimTitle/);
   assert.match(prompt.content, /禁止复述正文第一句/);
-  assert.match(prompt.content, /00:00 整点/);
+  assert.match(prompt.content, /台账优先/);
+  assert.match(prompt.content, /已确认事实与已知风险/);
+  assert.match(prompt.content, /不许把自我核对/);
   // v18: 新增 expression 派生操作（分档换算自由组合）
   assert.match(prompt.content, /expression/);
   assert.match(prompt.content, /分档换算/);

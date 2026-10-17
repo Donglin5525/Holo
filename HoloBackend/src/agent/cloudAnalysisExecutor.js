@@ -181,7 +181,11 @@ function containsAnyToken(text, tokens) {
  * 修复轮后仍被撤回的 claim 不交付。
  * 返回 { claims, droppedClaims, warnings, title, narrativeSummary, keyInsight, emptyClaims }。
  */
-function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts }) {
+function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts, financeLedgerNumbers = [] }) {
+  // S2 融合版（2026-10-18）：iOS 快照注入的确定性台账数字是合法白名单来源——
+  // 模型直接引用台账数字时，工具 Ledger 可能没有同值指标，不并白名单会误撤正确结论。
+  const SELF_TALK_TOKENS = ["等等", "让我重新", "此处需修正", "重新核对", "不对，", "抱歉，我", "嗯，", "算了，"];
+  const containsSelfTalk = (text) => SELF_TALK_TOKENS.some((t) => text.includes(t));
   const warnings = [];
   const dropped = [];
   const ledgerHasMetrics = metricLedger.size > 0;
@@ -194,13 +198,21 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts 
   const claims = [];
   // claimTitle（v23 点破式标题）数字核验的白名单底座：Ledger 已核验值 +
   // 本条 claim 正文/断言的数字。claimTitle 自身不进白名单（自证无核验意义）。
-  const ledgerNumbers = [];
+  const ledgerNumbers = [...financeLedgerNumbers];
   for (const metric of metricLedger.values()) {
     ledgerNumbers.push(metric.value);
     if (metric.baselineValue != null) ledgerNumbers.push(metric.baselineValue);
   }
   for (const claim of output.claims ?? []) {
     const sanitized = { ...claim };
+    // 输出污染（S2）：自我对话/修正过程混进交付文本=整条撤回（实验实锤 flash 级
+    // 模型会把「等等，让我重新核对」写进 displayText）
+    const claimFullText = `${sanitized.displayText ?? ""}${sanitized.summary ?? ""}${sanitized.claimTitle ?? ""}`;
+    if (containsSelfTalk(claimFullText)) {
+      warnings.push(`SELF_TALK_CLAIM:${sanitized.id ?? "claim"}`);
+      dropped.push({ id: sanitized.id ?? null, reason: "输出混入自我核对/修正过程", excerpt: claimFullText.slice(0, 60) });
+      continue;
+    }
     // 数字断言逐条对账
     const keptAssertions = [];
     for (const assertion of sanitized.metricAssertions ?? []) {
@@ -304,10 +316,16 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts 
       if (assertion.baselineValue != null) allowedNumbers.push(assertion.baselineValue);
     }
   }
+  allowedNumbers.push(...financeLedgerNumbers);
   const narrativeFields = ["title", "narrativeSummary", "keyInsight"];
   for (const field of narrativeFields) {
     const text = output[field];
     if (typeof text !== "string" || !text.trim()) continue;
+    if (containsSelfTalk(text)) {
+      warnings.push(`SELF_TALK_NARRATIVE:${field}`);
+      output[field] = null;
+      continue;
+    }
     const badNumbers = extractCheckableNumbers(text).filter((n) => !numberMatchesAllowed(n, allowedNumbers));
     if (badNumbers.length > 0) {
       warnings.push(`NARRATIVE_INCONSISTENT:${field}`);
@@ -910,9 +928,14 @@ export function createCloudAnalysisExecutor({
         { role: "user", content: task.question },
       ]);
       const datasetNames = Object.keys(snapshot.datasets ?? {});
+      // S2 融合版：iOS 预计算确定性台账（对比指标+分期承诺+已确认事实与已知风险）
+      // 注入 system 数据段——深度来自程序先算好的判断原料，模型负责判断与表达（v26）。
+      const financeLedgerBlock = typeof snapshot.financeEvidenceLedger === "string" && snapshot.financeEvidenceLedger.trim()
+        ? `\n<finance_evidence_ledger>\n${snapshot.financeEvidenceLedger}\n</finance_evidence_ledger>\n`
+        : "";
       messages.push({
         role: "system",
-        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}`,
+        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}${financeLedgerBlock}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}`,
       });
       messages.push({ role: "user", content: task.question });
 
@@ -1024,10 +1047,14 @@ export function createCloudAnalysisExecutor({
         if (output.status === "final_claims") {
           // 交付核验（§3.4）：空 claims 不允许完成；数字断言/引用对不上 Ledger 的
           // 降级剥离并记 warning；叙事字段编数清空。「JSON 合法」不等于「可交付」。
+          const financeLedgerNumbers = financeLedgerBlock
+            ? extractCheckableNumbers(financeLedgerBlock).filter((n) => n >= 100)
+            : [];
           const verified = verifyDelivery(output, {
             metricLedger: metricEvidence,
             validEvidenceIDs,
             evidenceTexts,
+            financeLedgerNumbers,
           });
           // 修复轮触发（2026-10-04 体检 AI02 扩展）：空 claims 或有 claim 被核验
           // 撤回（数字不一致/空台账定性规律）都给一次重发机会，撤回原因喂回模型；
