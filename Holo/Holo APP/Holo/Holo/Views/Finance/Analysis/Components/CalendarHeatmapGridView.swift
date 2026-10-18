@@ -6,7 +6,7 @@ struct CalendarHeatmapGridView: View {
     let days: [Day]
     var weekdayLabels: [String] = []
     var showsMonthAxis = false
-    var palette: Color.HoloHeatmapPalette = .warm
+    var palette: Color.HoloHeatmapPalette = .mist
     var selectedDate: Date? = nil
     var onTapDay: ((Day) -> Void)? = nil
 

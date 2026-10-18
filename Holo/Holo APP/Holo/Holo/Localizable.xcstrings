@@ -60835,18 +60835,18 @@
         }
       }
     },
-    "暖色=活跃度 · 细线=来源" : {
+    "色深=记录数 · 细线=来源" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Warmth = Activity · Thin Lines = Source"
+            "value" : "Shade = Record Count · Thin Lines = Source"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "暖色=活躍度 · 細線=來源"
+            "value" : "色深=記錄數 · 細線=來源"
           }
         }
       }

@@ -119,8 +119,9 @@ extension Color {
 
     // MARK: - 热力图色阶（Heatmap）
 
-    /// 热力图色阶类型：暖橙（活跃/品牌色）或冷蓝（记录数/中性）
+    /// 数量热力图使用雾蓝；暖橙与旧冷蓝保留供兼容。
     enum HoloHeatmapPalette {
+        case mist   // 数量热力图：独立于品牌橙的雾蓝色阶
         case warm   // 活跃热力图（记忆），从背景色渐变到品牌橙
         case cool   // 记录热力图（月历），从背景色渐变到信息蓝
     }
@@ -132,8 +133,42 @@ extension Color {
         Color(hex: holoHeatmapHex(level: level, palette: palette, colorScheme: colorScheme))
     }
 
+    /// 格子与徽章共用的前景规则：从黑白中选择对比度较高者，避免深底黑字或浅底白字。
+    static func holoHeatmapForeground(level: Int, palette: HoloHeatmapPalette, colorScheme: ColorScheme) -> Color {
+        let color = UIColor(holoHeatmapColor(level: level, palette: palette, colorScheme: colorScheme))
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        let linear = [red, green, blue].map { value in
+            value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+        }
+        let luminance = linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722
+        return luminance > 0.1791287847 ? .black : .white
+    }
+
     private static func holoHeatmapHex(level: Int, palette: HoloHeatmapPalette, colorScheme: ColorScheme) -> String {
         switch palette {
+        case .mist:
+            // 与已选 HTML 雾蓝方案保持一致；浅色逐档加深，深色逐档提亮。
+            switch colorScheme {
+            case .dark:
+                switch level {
+                case 0: return "#363638"
+                case 1: return "#385064"
+                case 2: return "#496D8B"
+                case 3: return "#5E8BB2"
+                case 4: return "#73ABDA"
+                default: return "#A5C9E8"
+                }
+            default:
+                switch level {
+                case 0: return "#F0F0ED"
+                case 1: return "#D5E3F1"
+                case 2: return "#A4C2DC"
+                case 3: return "#75A0C5"
+                case 4: return "#4980AC"
+                default: return "#335F83"
+                }
+            }
         case .warm:
             // 活跃热力图：0=背景底色，1...5 由浅到深的暖橙
             // 注：L1 必须与 L0 背景不同——“1 条记录起即有色”是月历设计前提（见 CalendarHeatmap 注释），

@@ -477,7 +477,7 @@ struct TaskExperienceStatsView: View {
                 days: heatDays(analytics),
                 weekdayLabels: [String(localized: "一"), "", String(localized: "三"), "", String(localized: "五"), "", ""],
                 showsMonthAxis: true,
-                palette: .warm,
+                palette: .mist,
                 selectedDate: selectedHeatDay?.date
             ) { day in
                 selectedHeatDay = day
@@ -502,7 +502,7 @@ struct TaskExperienceStatsView: View {
                 .foregroundColor(.holoTextPlaceholder)
             ForEach(0...5, id: \.self) { level in
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.holoHeatmapColor(level: level, palette: .warm, colorScheme: colorScheme))
+                    .fill(Color.holoHeatmapColor(level: level, palette: .mist, colorScheme: colorScheme))
                     .frame(width: 10, height: 10)
             }
             Text("多")

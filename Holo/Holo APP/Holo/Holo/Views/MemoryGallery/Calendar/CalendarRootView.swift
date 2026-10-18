@@ -384,7 +384,7 @@ struct CalendarRootView: View {
             legendDot(color: CalendarHeatmap.color(forLevel: 2, colorScheme: colorScheme))
             legendDot(color: CalendarHeatmap.color(forLevel: 4, colorScheme: colorScheme))
             Text("多")
-            Text("暖色=活跃度 · 细线=来源")
+            Text("色深=记录数 · 细线=来源")
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 0)

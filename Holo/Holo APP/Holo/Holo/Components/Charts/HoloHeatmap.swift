@@ -13,7 +13,7 @@ struct HoloHeatmap: View {
     let days: [HoloHeatmapDay]
     var weekdayLabels: [String] = []
     var showsMonthAxis = true
-    var palette: Color.HoloHeatmapPalette = .warm
+    var palette: Color.HoloHeatmapPalette = .mist
     var selectedDate: Date? = nil
     var onSelect: ((HoloHeatmapDay) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
@@ -88,7 +88,7 @@ struct HoloHeatmap: View {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(Color.holoHeatmapColor(level: HoloChartGeometry.countLevel(day.count), palette: palette, colorScheme: colorScheme))
                     .overlay {
-                        if selected { RoundedRectangle(cornerRadius: 3).strokeBorder(Color.holoToolText, lineWidth: 2) }
+                        if selected { RoundedRectangle(cornerRadius: 3).strokeBorder(Color.holoPrimary, lineWidth: 2) }
                     }
                     .opacity(day.isFuture ? 0.3 : 1)
                     .frame(width: max(pitch - 3, 1), height: max(pitch - 3, 1))
