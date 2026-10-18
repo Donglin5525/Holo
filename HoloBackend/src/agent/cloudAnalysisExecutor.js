@@ -307,6 +307,66 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts,
     warnings.push("NO_TOOL_EVIDENCE");
   }
 
+  // v27 报告结构核验：引用必须落在幸存 claims；kicker/caption/sub/notes 的数字
+  // 必须有白名单支持（坏数字→置空该字段；段落引用全灭→丢段；全灭→整体降级 null）
+  const survivingIDs = new Set(claims.map((c) => c.id).filter(Boolean));
+  let verifiedReport = null;
+  if (output.reportStructure && typeof output.reportStructure === "object") {
+    const rs = output.reportStructure;
+    const narrativeAllowed = () => {
+      const pool = [];
+      for (const metric of metricLedger.values()) {
+        pool.push(metric.value);
+        if (metric.baselineValue != null) pool.push(metric.baselineValue);
+      }
+      for (const claim of claims) {
+        pool.push(...extractCheckableNumbers(claim.displayText), ...extractCheckableNumbers(claim.summary));
+        for (const a of claim.metricAssertions ?? []) {
+          if (a.value != null) pool.push(a.value);
+          if (a.baselineValue != null) pool.push(a.baselineValue);
+        }
+      }
+      pool.push(...financeLedgerNumbers);
+      return pool;
+    };
+    const rsPool = narrativeAllowed();
+    const badNarrative = (text) => typeof text === "string"
+      && extractCheckableNumbers(text).some((n) => !numberMatchesAllowed(n, rsPool));
+    const sections = [];
+    for (const sec of Array.isArray(rs.sections) ? rs.sections : []) {
+      if (!sec || typeof sec !== "object") continue;
+      const paragraphIDs = (Array.isArray(sec.paragraphClaimIDs) ? sec.paragraphClaimIDs : [])
+        .filter((id) => survivingIDs.has(id));
+      if (paragraphIDs.length === 0) continue; // 段落证据全灭：整节丢弃
+      let chartHint = null;
+      if (sec.chartHint && typeof sec.chartHint === "object"
+        && ["trend", "delta"].includes(sec.chartHint.kind)
+        && typeof sec.chartHint.dataset === "string" && sec.chartHint.dataset
+        && !badNarrative(sec.chartHint.caption)) {
+        chartHint = { kind: sec.chartHint.kind, dataset: sec.chartHint.dataset, caption: sec.chartHint.caption ?? "" };
+      } else if (sec.chartHint) {
+        warnings.push("CHART_HINT_DROPPED");
+      }
+      let notice = null;
+      if (sec.notice && typeof sec.notice === "object" && survivingIDs.has(sec.notice.bodyClaimID)
+        && !badNarrative(sec.notice.window)) {
+        notice = { bodyClaimID: sec.notice.bodyClaimID, window: sec.notice.window ?? "" };
+      }
+      const kicker = typeof sec.kicker === "string" && !badNarrative(sec.kicker) ? sec.kicker : null;
+      sections.push({ no: sec.no ?? "", title: sec.title ?? "", kicker, paragraphClaimIDs: paragraphIDs, chartHint, notice });
+    }
+    const conclusionItems = (Array.isArray(rs.conclusionItems) ? rs.conclusionItems : [])
+      .filter((it) => it && survivingIDs.has(it.claimID) && !badNarrative(it.sub))
+      .map((it) => ({ claimID: it.claimID, sub: it.sub ?? "" }));
+    const disclosureNotes = (Array.isArray(rs.disclosureNotes) ? rs.disclosureNotes : [])
+      .filter((n) => typeof n === "string" && !badNarrative(n));
+    if (sections.length > 0) {
+      verifiedReport = { sections, conclusionItems, disclosureNotes };
+    } else {
+      warnings.push("REPORT_STRUCTURE_DROPPED");
+    }
+  }
+
   // 叙事字段数字一致性：只允许出现 claims 文本/断言/Ledger 支持的数字
   const allowedNumbers = [];
   for (const metric of metricLedger.values()) {
@@ -344,6 +404,7 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts,
     title: output.title ?? null,
     narrativeSummary: output.narrativeSummary ?? null,
     keyInsight: output.keyInsight ?? null,
+    verifiedReportStructure: verifiedReport,
     emptyClaims: claims.length === 0,
   };
 }
@@ -1088,6 +1149,7 @@ export function createCloudAnalysisExecutor({
             // 交付核验只清空与 Ledger 冲突的编数字段，不另造叙事。
             narrativeSummary: verified.narrativeSummary,
             keyInsight: verified.keyInsight,
+            reportStructure: verified.verifiedReportStructure ?? null,
             claims: verified.claims,
             reasoning: output.reasoning ?? "",
             evidence: evidenceSnapshot(),

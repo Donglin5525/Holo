@@ -1858,3 +1858,60 @@ test("S2台账：输出混入自我对话→claim撤回+触发修复轮，修复
   // 修复轮被触发过（第二轮模型调用收到撤回原因）
   assert.ok(provider.calls.length >= 2, "污染必须触发修复轮");
 });
+
+// —— v27 报告结构：章节引用核验与降级 ——
+
+function reportFinal(sections, claimsExtra = {}) {
+  return agentJson("final_claims", {
+    claims: [
+      { id: "c1", displayText: "总支出较上一可比期明显上升，结余空间收窄", metricAssertions: [], evidenceIDs: [], type: "change" },
+      { id: "c2", displayText: "7 月起支出跳上台阶", metricAssertions: [], evidenceIDs: [], type: "change" },
+      { id: "c3", displayText: "固定支出与车贷同源，不暂停会双记", metricAssertions: [], evidenceIDs: [], type: "risk" },
+      ...((claimsExtra.more ?? [])),
+    ],
+    reportStructure: { sections, conclusionItems: [{ claimID: "c2", sub: "回看下月账单是否只记一笔" }], disclosureNotes: ["· 口径：排除对账调整"] },
+    ...claimsExtra.top ?? {},
+  });
+}
+
+test("v27报告结构：合法引用保留+图表表态保留+落库回传", async () => {
+  const provider = makeProvider([
+    reportFinal([
+      { no: "一", title: "收支总览", kicker: "两头受挤的半年", paragraphClaimIDs: ["c1", "c2"],
+        chartHint: { kind: "trend", dataset: "finance.transactions", caption: "图 1｜月度支出·7月起跳上台阶" }, notice: null },
+      { no: "二", title: "风险", kicker: null, paragraphClaimIDs: ["c9"], chartHint: null,  // 死引用段
+        notice: { bodyClaimID: "c3", window: "截止 2026-10-20" } },
+    ]),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "dev-rs1", question: "分析支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.ok(result.reportStructure, "reportStructure 应回传");
+  const secs = result.reportStructure.sections;
+  assert.equal(secs.length, 1, "死引用段（c9 全灭）应整节丢弃");
+  assert.equal(secs[0].paragraphClaimIDs.length, 2);
+  assert.equal(secs[0].chartHint.kind, "trend", "合法图表表态应保留");
+  assert.equal(secs[0].kicker, "两头受挤的半年");
+  assert.equal(result.reportStructure.conclusionItems.length, 1);
+  assert.equal(result.reportStructure.disclosureNotes.length, 1);
+});
+
+test("v27报告结构：kicker 编数字→置空该字段但保留段落；无 chartHint 数据集→剥离", async () => {
+  const provider = makeProvider([
+    reportFinal([
+      { no: "一", title: "总览", kicker: "结余薄了 99999 元", paragraphClaimIDs: ["c1"],
+        chartHint: { kind: "pie", dataset: "", caption: "图 1" }, notice: null },
+    ]),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "dev-rs2", question: "分析支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  const sec = result.reportStructure.sections[0];
+  assert.equal(sec.kicker, null, "kicker 白名单外数字（99999）应置空");
+  assert.equal(sec.chartHint, null, "非法 kind/空 dataset 的 chartHint 应剥离");
+  assert.equal(sec.paragraphClaimIDs.length, 1, "段落本身保留");
+});

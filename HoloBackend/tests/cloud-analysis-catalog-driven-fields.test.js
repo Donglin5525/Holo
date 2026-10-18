@@ -97,7 +97,7 @@ test("引擎：groupBy type=field 按项目分组，桶名即全部项目取值�
 test("提示词：agent_loop v26 仍含目录驱动字段契约块（原则句不依赖具体字段名）", () => {
   const prompt = getPrompt("agent_loop");
   assert.ok(prompt, "agent_loop prompt 应存在");
-  assert.equal(prompt.version, 26);
+  assert.equal(prompt.version, 27);
   assert.match(prompt.content, /\[HOLO_AGENT_CATALOG_DRIVEN_FIELDS_V25\]/);
   assert.match(prompt.content, /花括号标「可筛」的字段都可用于 filters 精确圈定、标「可组」的字段都可用于 groupBy type=field/);
   assert.match(prompt.content, /本条对目录今后新增的字段同样成立/);
