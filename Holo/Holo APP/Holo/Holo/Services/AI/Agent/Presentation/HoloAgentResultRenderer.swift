@@ -199,6 +199,31 @@ nonisolated enum HoloRenderedAgentFailure: Codable, Sendable, Equatable {
     case continuationUnavailable(userMessage: String)
 }
 
+/// v27 研报式报告结构（纯展示层：service 已把 claimID 解析成文本）
+nonisolated struct HoloRenderedReportStructure: Codable, Equatable, Sendable {
+    struct Section: Codable, Equatable, Sendable {
+        var no: String
+        var title: String
+        var kicker: String?
+        var paragraphs: [String]
+        struct ChartHint: Codable, Equatable, Sendable {
+            var kind: String
+            var dataset: String
+            var caption: String
+        }
+        var chartHint: ChartHint?
+        var noticeBody: String?
+        var noticeWindow: String?
+    }
+    struct ConclusionItem: Codable, Equatable, Sendable {
+        var text: String
+        var sub: String
+    }
+    var sections: [Section]
+    var conclusionItems: [ConclusionItem]
+    var disclosureNotes: [String]
+}
+
 nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var title: String
     var summary: String
@@ -227,6 +252,8 @@ nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var dataSamplePreview: HoloRenderedDataSamplePreview? = nil
     /// 连续追问展示与下一轮锚定所需的最小身份；旧消息缺失时不展示追问入口。
     var continuationMetadata: HoloRenderedContinuationMetadata? = nil
+    /// v27 研报式结构（存在时详情页走报告版式；旧消息 JSON 解码为 nil 走原版式）。
+    var reportStructure: HoloRenderedReportStructure? = nil
     var agentJobID: String? = nil
     var agentResultID: String? = nil
     var lineage: HoloAgentLineage? = nil

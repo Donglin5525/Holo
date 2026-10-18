@@ -459,6 +459,12 @@ final class HoloCloudAnalysisService {
             keyInsight: composed.keyInsight,
             dataSamplePreview: HoloCloudEvidencePresenter.dataSamplePreview(from: citedEvidence)
         )
+        // v27 研报式结构：章节由云端核验过的 reportStructure 提供，claimID 在此
+        // 解析成文本（段落正文=对应 claim 的 displayText）；解析不出段落则不启用报告版式
+        rendered.reportStructure = Self.renderedReportStructure(
+            from: result.reportStructure,
+            claims: result.claims ?? []
+        )
         // 追问血统身份（方案B）：云端结果不落本地 Job/Result 档案，用「cloud-任务ID」作本地等价编号——
         // 报告页据此显示追问入口，追问记录据此挂载血统；cloud- 前缀与本地 UUID 空间天然不冲突
         let cloudIdentity = "cloud-\(taskId)"
@@ -620,6 +626,63 @@ final class HoloCloudAnalysisService {
             analysisContextJSON: nil,
             rawLogJSON: nil,
             agentResultJSON: agentResultJSON
+        )
+    }
+}
+
+
+extension HoloCloudAnalysisService {
+    /// v27：云端 reportStructure（claimID 引用式）→ 渲染层报告结构（文本式）。
+    /// 任一章节解析不出段落文本即整节丢弃；全部失败返回 nil（详情页回退原版式）。
+    static func renderedReportStructure(
+        from structure: HoloCloudAnalysisClient.StatusResponse.CloudResult.CloudReportStructure?,
+        claims: [HoloCloudAnalysisClient.StatusResponse.CloudResult.CloudClaim]
+    ) -> HoloRenderedReportStructure? {
+        guard let structure, let rawSections = structure.sections, !rawSections.isEmpty else { return nil }
+        let textByID: [String: String] = claims.reduce(into: [:]) { map, claim in
+            if let id = claim.id?.trimmingCharacters(in: .whitespaces),
+               let text = claim.displayText?.trimmingCharacters(in: .whitespaces), !text.isEmpty {
+                map[id] = text
+            }
+        }
+        var figureNo = 0
+        let sections: [HoloRenderedReportStructure.Section] = rawSections.compactMap { sec in
+            let paragraphs = (sec.paragraphClaimIDs ?? []).compactMap { textByID[$0] }
+            guard !paragraphs.isEmpty else { return nil }
+            var chart: HoloRenderedReportStructure.Section.ChartHint?
+            if let hint = sec.chartHint,
+               let kind = hint.kind?.trimmingCharacters(in: .whitespaces),
+               let dataset = hint.dataset?.trimmingCharacters(in: .whitespaces), !dataset.isEmpty,
+               ["trend", "delta"].contains(kind) {
+                figureNo += 1
+                let rawCaption = hint.caption?.trimmingCharacters(in: .whitespaces) ?? ""
+                let caption = rawCaption.isEmpty ? "图 \(figureNo)" : rawCaption
+                chart = .init(kind: kind, dataset: dataset, caption: caption)
+            }
+            let noticeBody = sec.notice.flatMap { notice -> String? in
+                guard let id = notice.bodyClaimID else { return nil }
+                return textByID[id]
+            }
+            let noticeWindow = sec.notice?.window?.trimmingCharacters(in: .whitespaces)
+            return .init(
+                no: sec.no?.trimmingCharacters(in: .whitespaces) ?? "",
+                title: sec.title?.trimmingCharacters(in: .whitespaces) ?? "",
+                kicker: sec.kicker?.trimmingCharacters(in: .whitespaces),
+                paragraphs: paragraphs,
+                chartHint: chart,
+                noticeBody: noticeBody,
+                noticeWindow: noticeWindow.flatMap { $0.isEmpty ? nil : $0 }
+            )
+        }
+        guard !sections.isEmpty else { return nil }
+        let conclusionItems = (structure.conclusionItems ?? []).compactMap { item -> HoloRenderedReportStructure.ConclusionItem? in
+            guard let id = item.claimID, let text = textByID[id] else { return nil }
+            return .init(text: text, sub: item.sub?.trimmingCharacters(in: .whitespaces) ?? "")
+        }
+        return .init(
+            sections: sections,
+            conclusionItems: conclusionItems,
+            disclosureNotes: (structure.disclosureNotes ?? []).filter { !$0.isEmpty }
         )
     }
 }

@@ -89,6 +89,7 @@
 		5D0ECA0000000000000000B1 /* MozeMergeRehearsalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000B2 /* MozeMergeRehearsalTests.swift */; };
 		5D0ECA0000000000000000C1 /* FinanceSemanticsUnificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000C2 /* FinanceSemanticsUnificationTests.swift */; };
 		5D0ECA0000000000000000D1 /* FinanceEvidenceLedgerBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000D2 /* FinanceEvidenceLedgerBuilderTests.swift */; };
+		5D0ECA0000000000000000E1 /* AgentReportStructureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000E2 /* AgentReportStructureTests.swift */; };
 		5E3E2DB2A86C4845A1576752 /* EmojiCatalogSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DACE68F96BC4189A35FF7C0 /* EmojiCatalogSearchTests.swift */; };
 		5E7A2C92B4D3F0A8E6C10002 /* AppLockManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */; };
 		5E7A2C92B4D3F0A8E6C20002 /* BudgetCarryoverNotificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A2C91B4D3F0A8E6C20001 /* BudgetCarryoverNotificationServiceTests.swift */; };
@@ -578,6 +579,7 @@
 		5D0ECA0000000000000000B2 /* MozeMergeRehearsalTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MozeMergeRehearsalTests.swift; sourceTree = "<group>"; };
 		5D0ECA0000000000000000C2 /* FinanceSemanticsUnificationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceSemanticsUnificationTests.swift; sourceTree = "<group>"; };
 		5D0ECA0000000000000000D2 /* FinanceEvidenceLedgerBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceEvidenceLedgerBuilderTests.swift; sourceTree = "<group>"; };
+		5D0ECA0000000000000000E2 /* AgentReportStructureTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AgentReportStructureTests.swift; sourceTree = "<group>"; };
 		5D3A4266B8E20BFB85AAB16E /* InstallmentNoteSanitizerStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InstallmentNoteSanitizerStandaloneTests.swift; sourceTree = "<group>"; };
 		5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLockManagerTests.swift; sourceTree = "<group>"; };
 		5E7A2C91B4D3F0A8E6C20001 /* BudgetCarryoverNotificationServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BudgetCarryoverNotificationServiceTests.swift; sourceTree = "<group>"; };
@@ -1674,6 +1676,7 @@
 				5D0ECA0000000000000000B2 /* MozeMergeRehearsalTests.swift */,
 				5D0ECA0000000000000000C2 /* FinanceSemanticsUnificationTests.swift */,
 				5D0ECA0000000000000000D2 /* FinanceEvidenceLedgerBuilderTests.swift */,
+				5D0ECA0000000000000000E2 /* AgentReportStructureTests.swift */,
 			);
 			path = BillImport;
 			sourceTree = "<group>";
@@ -2200,6 +2203,7 @@
 				5D0ECA0000000000000000B1 /* MozeMergeRehearsalTests.swift in Sources */,
 				5D0ECA0000000000000000C1 /* FinanceSemanticsUnificationTests.swift in Sources */,
 				5D0ECA0000000000000000D1 /* FinanceEvidenceLedgerBuilderTests.swift in Sources */,
+				5D0ECA0000000000000000E1 /* AgentReportStructureTests.swift in Sources */,
 				F1AC090B0000000000000002 /* InstallmentImportStandaloneTests.swift in Sources */,
 				28A282186827B2575CB6C45E /* AIReadableResponseParserStandaloneTests.swift in Sources */,
 				01F117E5D9D90390C108F5B8 /* AnalysisReadableTextParserStandaloneTests.swift in Sources */,

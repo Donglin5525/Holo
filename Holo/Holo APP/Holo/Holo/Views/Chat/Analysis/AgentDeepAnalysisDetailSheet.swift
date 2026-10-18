@@ -435,6 +435,24 @@ struct AgentDeepAnalysisDetailSheet: View {
                 header
                 if model.isEmptyState {
                     emptyState
+                } else if let report = result.reportStructure {
+                    // v27 研报式版式（图文分工：图管数据、文字管解读）；
+                    // reportStructure 存在即启用，依据区与追问记录沿用原轨道。
+                    AgentDeepReportView(
+                        result: result,
+                        report: report,
+                        scopeLabel: model.scopeLabel
+                    )
+                    evidenceSection(model.evidence)
+                    if let controller = followUpController {
+                        ReportFollowUpRecordsSection(
+                            controller: controller,
+                            onOpen: { entry in
+                                onOpenFollowUpReport?(entry)
+                            }
+                        )
+                        .padding(.top, 2)
+                    }
                 } else {
                     opening(model)
                     recommendationsSection(model.recommendations)

@@ -65,11 +65,42 @@ final class HoloCloudAnalysisClient {
                 let end: Double
             }
 
+            /// v27 报告结构（章节/节导语/图表表态/结论条目/口径注）；旧结果缺失解码为 nil。
+            var reportStructure: CloudReportStructure? = nil
+
             /// 周期回放任务（kind == "period_replay"）：模型生成的回放 JSON 原文
             let kind: String?
             let output: String?
 
+            struct CloudReportStructure: Decodable {
+                struct Section: Decodable {
+                    let no: String?
+                    let title: String?
+                    let kicker: String?
+                    let paragraphClaimIDs: [String]?
+                    let chartHint: ChartHint?
+                    let notice: Notice?
+                    struct ChartHint: Decodable {
+                        let kind: String?
+                        let dataset: String?
+                        let caption: String?
+                    }
+                    struct Notice: Decodable {
+                        let bodyClaimID: String?
+                        let window: String?
+                    }
+                }
+                let sections: [Section]?
+                let conclusionItems: [ConclusionItem]?
+                let disclosureNotes: [String]?
+                struct ConclusionItem: Decodable {
+                    let claimID: String?
+                    let sub: String?
+                }
+            }
+
             struct CloudClaim: Decodable {
+                var id: String? = nil
                 let summary: String?
                 let displayText: String?
                 let evidenceIDs: [String]?
