@@ -231,8 +231,9 @@ final class HoloBackendAIProvider: AIProvider {
 
     /// 任务拆解：后端注入 matter_execution_plan 系统 prompt（proposal/clarification/cannotHelp 契约）。
     /// 输入为最小任务快照，输出由 TaskSplitService 解析校验；确认前零业务写入。
-    func generateExecutionPlan(prompt: String, context: UserContext) async throws -> String {
-        try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .matterExecutionPlan)
+    /// usageActionId 为拆解流程稳定额度动作 ID（taskSplit 月池按「拆一次」计量）。
+    func generateExecutionPlan(prompt: String, context: UserContext, usageActionId: String? = nil) async throws -> String {
+        try await chat(messages: [ChatMessageDTO(role: "user", content: prompt)], purpose: .matterExecutionPlan, explicitUsageActionId: usageActionId)
     }
 
     /// 个人情境萃取：后端注入 personal_context_extraction 系统 prompt（JSON 契约），

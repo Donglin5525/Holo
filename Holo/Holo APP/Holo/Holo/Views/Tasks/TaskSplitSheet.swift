@@ -64,12 +64,17 @@ struct TaskSplitSheet: View {
         case drafts
         case cannotHelp(String)
         case failed
+        /// taskSplit 月池用尽（档位限制非出错）：免费版给升级入口，Plus 只报重置
+        case quotaExhausted(message: String, upgradeAvailable: Bool)
     }
 
     @State private var phase: Phase = .loading
     @State private var drafts: [TaskSplitStepDraft] = []
     @State private var userAnswer: String?
     @State private var clarificationAnswer: String = ""
+    /// 本轮拆解的额度动作 ID：澄清追问回答后的再生成复用同一个，
+    /// 后端 taskSplit 月池按它幂等计量——「5 次/月」按拆一次任务计，不按 AI 调用次数计
+    @State private var flowUsageActionID = UUID().uuidString
     @Environment(\.dismiss) private var dismiss
 
     private var existingStepCount: Int {
@@ -87,6 +92,7 @@ struct TaskSplitSheet: View {
             case .clarification(let question, let answers): clarificationContent(question, answers)
             case .drafts: draftsContent
             case .cannotHelp(let reason): cannotHelpContent(reason).frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .quotaExhausted(let message, let upgradeAvailable): quotaExhaustedContent(message, upgradeAvailable).frame(maxWidth: .infinity, maxHeight: .infinity)
             case .failed: failedContent.frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -377,6 +383,38 @@ struct TaskSplitSheet: View {
         .padding(30)
     }
 
+    // MARK: 额度用尽（档位限制，非出错）
+
+    private func quotaExhaustedContent(_ message: String, _ upgradeAvailable: Bool) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: "sparkles")
+                .font(.title2)
+                .foregroundStyle(Color.holoToolAI)
+            Text(message)
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+                .multilineTextAlignment(.center)
+            if upgradeAvailable {
+                Button {
+                    HoloPlusActionCoordinator.shared.requirePlus(context: .taskSplit)
+                } label: {
+                    Text("了解 Holo Plus")
+                        .font(.holoBody.weight(.medium))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(Color.holoPrimary))
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("taskSplitQuotaUpgradeButton")
+            } else {
+                Button("知道了") { dismiss() }
+                    .buttonStyle(.bordered)
+            }
+        }
+        .padding(30)
+    }
+
     // MARK: 运行
 
     private func restart() {
@@ -387,7 +425,15 @@ struct TaskSplitSheet: View {
 
     private func run() async {
         guard case .loading = phase else { return }
-        let outcome = await TaskSplitService.shared.split(task: task, userAnswer: userAnswer)
+        // 本地额度预检：快照未就绪（nil）放行，后端 429 兜底；月池用尽直接落额度卡，不浪费一次请求
+        if let snapshot = HoloEntitlementState.shared.quotas["taskSplit"], snapshot.remaining <= 0 {
+            phase = .quotaExhausted(
+                message: HoloQuotaError.taskSplitExhaustedMessage(isPlusActive: HoloEntitlementState.shared.isPlusActive),
+                upgradeAvailable: !HoloEntitlementState.shared.isPlusActive
+            )
+            return
+        }
+        let outcome = await TaskSplitService.shared.split(task: task, userAnswer: userAnswer, usageActionId: flowUsageActionID)
         switch outcome {
         case .steps(let newDrafts):
             drafts = newDrafts
@@ -396,6 +442,8 @@ struct TaskSplitSheet: View {
             phase = .clarification(question: question, answers: answers)
         case .cannotHelp(let reason):
             phase = .cannotHelp(reason)
+        case .quotaExhausted(let message, let upgradeAvailable):
+            phase = .quotaExhausted(message: message, upgradeAvailable: upgradeAvailable)
         case nil:
             phase = .failed
         }

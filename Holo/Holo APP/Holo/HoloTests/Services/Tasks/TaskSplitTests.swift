@@ -235,4 +235,80 @@ final class TaskSplitTests: XCTestCase {
         XCTAssertTrue(prompt.contains("\"waiting\""))
         XCTAssertTrue(prompt.contains("waitHints"))
     }
+
+    // MARK: - 7. 服务层额度口径（taskSplit 月池）
+
+    @MainActor
+    func test_服务_额度耗尽映射为quotaExhausted且不重试() async throws {
+        let provider = MockTaskSplitProvider()
+        provider.quotaError = .quotaExceeded(payload: .init(
+            code: "QUOTA_EXCEEDED", message: "额度用完",
+            quotaType: "taskSplit", tier: "free",
+            limit: 5, used: 5, remaining: 0,
+            resetAt: "2026-11-01T00:00:00+08:00", period: "month",
+            upgradeAvailable: true, maxSeconds: nil, actualSeconds: nil
+        ))
+        let service = TaskSplitService(provider: provider)
+        let task = try makeTask()
+
+        let outcome = await service.split(task: task, usageActionId: "flow-1")
+
+        guard case .quotaExhausted(let message, let upgradeAvailable) = outcome else {
+            return XCTFail("应为 quotaExhausted，实际 \(String(describing: outcome))")
+        }
+        XCTAssertTrue(message.contains("任务拆解"))
+        XCTAssertTrue(upgradeAvailable)
+        // 档位限制不是解析失败：不得消耗修复重试多打一次 AI
+        XCTAssertEqual(provider.callCount, 1)
+    }
+
+    @MainActor
+    func test_服务_usageActionId透传_同一流程多次调用复用() async throws {
+        let provider = MockTaskSplitProvider()
+        let service = TaskSplitService(provider: provider)
+        let task = try makeTask()
+
+        // 初次生成 + 澄清回答后的再生成，共用同一流程动作 ID
+        _ = await service.split(task: task, usageActionId: "flow-1")
+        _ = await service.split(task: task, userAnswer: "两周内出发", usageActionId: "flow-1")
+
+        XCTAssertEqual(provider.receivedUsageActionIds, ["flow-1", "flow-1"])
+    }
+}
+
+// MARK: - Mock Provider（其余协议要求走默认实现）
+
+@MainActor
+private final class MockTaskSplitProvider: AIProvider {
+    var lastCallLog: LLMCallLog?
+
+    var quotaError: HoloQuotaError?
+    private(set) var callCount = 0
+    private(set) var receivedUsageActionIds: [String?] = []
+
+    func generateExecutionPlan(prompt: String, context: UserContext, usageActionId: String?) async throws -> String {
+        callCount += 1
+        receivedUsageActionIds.append(usageActionId)
+        if let quotaError { throw quotaError }
+        return #"{"kind":"proposal","steps":[{"action":"先查材料"}]}"#
+    }
+
+    func parseUserInput(_ input: String, context: UserContext) async throws -> ParsedResult {
+        throw APIError.serverError("not implemented")
+    }
+
+    func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {
+        throw APIError.serverError("not implemented")
+    }
+
+    func chatStreaming(
+        messages: [ChatMessageDTO],
+        userContext: UserContext,
+        systemContextOverride: String?,
+        promptType: PromptManager.PromptType
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish(throwing: APIError.serverError("not implemented"))
+        }
+    }
 }

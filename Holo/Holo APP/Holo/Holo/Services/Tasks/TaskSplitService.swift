@@ -38,6 +38,8 @@ enum TaskSplitOutcome: Equatable {
     case steps([TaskSplitStepDraft])
     case clarification(question: String, suggestedAnswers: [String])
     case cannotHelp(reason: String)
+    /// 档位限制（taskSplit 月池用尽），不是出错：UI 落额度卡而非失败重试
+    case quotaExhausted(message: String, upgradeAvailable: Bool)
 }
 
 // MARK: - 容错解析（未知字段不得变成隐藏副作用；扩展字段缺席即降级）
@@ -127,7 +129,9 @@ final class TaskSplitService: ObservableObject {
     }
 
     /// 拆解。返回 nil = 生成失败（UI 给重试）；userAnswer 为澄清一问后的用户回答。
-    func split(task: TodoTask, userAnswer: String? = nil) async -> TaskSplitOutcome? {
+    /// usageActionId 由确认页按「一次拆解流程」生成并全程复用——后端 taskSplit
+    /// 月池按 actionId 幂等计量，澄清追问与修复重试不再重复扣额度。
+    func split(task: TodoTask, userAnswer: String? = nil, usageActionId: String? = nil) async -> TaskSplitOutcome? {
         let taskID = task.id
         let requestID = UUID().uuidString
         activeRequests[taskID] = requestID
@@ -136,7 +140,7 @@ final class TaskSplitService: ObservableObject {
 
         let prompt = Self.makePrompt(task: task, userAnswer: userAnswer, requestID: requestID)
 
-        guard let outcome = await requestWithRetry(prompt: prompt, taskID: taskID, requestID: requestID) else {
+        guard let outcome = await requestWithRetry(prompt: prompt, taskID: taskID, requestID: requestID, usageActionId: usageActionId) else {
             return nil
         }
         guard activeRequests[taskID] == requestID else {
@@ -148,14 +152,17 @@ final class TaskSplitService: ObservableObject {
 
     // MARK: - 请求与校验（无效结构最多一次修复重试）
 
-    private func requestWithRetry(prompt: String, taskID: UUID, requestID: String) async -> TaskSplitOutcome? {
+    private func requestWithRetry(prompt: String, taskID: UUID, requestID: String, usageActionId: String?) async -> TaskSplitOutcome? {
         var lastPrompt = prompt
         for attempt in 0...Self.maxRepairRetries {
             do {
                 let raw = try await withTimeout(Self.timeout) {
-                    try await self.provider.generateExecutionPlan(prompt: lastPrompt, context: UserContext.empty)
+                    try await self.provider.generateExecutionPlan(prompt: lastPrompt, context: UserContext.empty, usageActionId: usageActionId)
                 }
                 return try TaskSplitParser.parse(raw)
+            } catch let quotaError as HoloQuotaError {
+                // 档位限制不可重试；修复重试同样带 usageActionId，不会因此多扣
+                return .quotaExhausted(message: quotaError.userMessage, upgradeAvailable: quotaError.upgradeAvailable)
             } catch {
                 logger.info("拆解失败（attempt \(attempt)）：\(error.localizedDescription, privacy: .public)")
                 if attempt == Self.maxRepairRetries { return nil }

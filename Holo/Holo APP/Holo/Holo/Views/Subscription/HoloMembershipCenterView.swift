@@ -241,6 +241,7 @@ struct HoloMembershipCenterView: View {
         case "asr": return String(localized: "语音识别")
         case "memoryInsight": return String(localized: "记忆洞察")
         case "lifePlan": return String(localized: "每周计划")
+        case "taskSplit": return String(localized: "AI 任务拆解")
         default: return key
         }
     }

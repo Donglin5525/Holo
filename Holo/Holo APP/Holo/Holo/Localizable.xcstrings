@@ -7689,6 +7689,38 @@
         }
       }
     },
+    "5 次/月" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 times/mo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "5 次/月"
+          }
+        }
+      }
+    },
+    "100 次/月" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "100 times/mo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "100 次/月"
+          }
+        }
+      }
+    },
     "15 次/天" : {
       "localizations" : {
         "en" : {
@@ -16774,6 +16806,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "今天的習慣完成度，一眼看完一週的堅持形狀。"
+          }
+        }
+      }
+    },
+    "本月的任务拆解额度已用完，请在额度重置后再试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This month's task breakdown quota is used up. Please try again after it resets."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月的任務拆解額度已用完，請在額度重置後再試"
+          }
+        }
+      }
+    },
+    "本月的免费任务拆解额度已用完，升级 Holo Plus 可继续使用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This month's free task breakdown quota is used up. Upgrade to Holo Plus to keep using it."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本月的免費任務拆解額度已用完，升級 Holo Plus 可繼續使用"
           }
         }
       }
@@ -29719,6 +29783,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "升級 Holo Plus，繼續和 HoloAI 對話"
+          }
+        }
+      }
+    },
+    "升级 Holo Plus，继续使用任务拆解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upgrade to Holo Plus to keep breaking down tasks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升級 Holo Plus，繼續使用任務拆解"
           }
         }
       }
@@ -59396,6 +59476,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "晴藍"
+          }
+        }
+      }
+    },
+    "AI 任务拆解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI Task Breakdown"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 任務拆解"
+          }
+        }
+      }
+    },
+    "任务拆解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Task Breakdown"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任務拆解"
           }
         }
       }

@@ -109,7 +109,8 @@ final class HoloEntitlementState: ObservableObject {
                 "naturalLanguageTask": 50,
                 "asr": 50,
                 "memoryInsight": 1,
-                "lifePlan": 2
+                "lifePlan": 2,
+                "taskSplit": 100
             ]
             : [
                 "chat": 15,
@@ -118,7 +119,8 @@ final class HoloEntitlementState: ObservableObject {
                 "naturalLanguageTask": 20,
                 "asr": 20,
                 "memoryInsight": 1,
-                "lifePlan": 1
+                "lifePlan": 1,
+                "taskSplit": 5
             ]
 
         return limits.mapValues {

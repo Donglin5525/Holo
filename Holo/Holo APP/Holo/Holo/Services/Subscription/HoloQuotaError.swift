@@ -62,6 +62,7 @@ nonisolated enum HoloQuotaError: Error, Equatable, LocalizedError {
             case "deepAnalysis": feature = String(localized: "深度分析")
             case "chat": feature = String(localized: "对话")
             case "lifePlan": feature = String(localized: "周计划")
+            case "taskSplit": feature = String(localized: "任务拆解")
             default: feature = "HoloAI"
             }
             // 兼容旧版后端：记忆洞察免费额度原本按周、Plus 按日。
@@ -138,6 +139,14 @@ nonisolated enum HoloQuotaError: Error, Equatable, LocalizedError {
         isPlusActive
             ? String(localized: "今天的对话额度已用完，请在额度重置后再试")
             : String(localized: "今天的免费对话额度已用完，升级 Holo Plus 可继续使用")
+    }
+
+    /// 任务拆解额度（taskSplit 池，免费 5/月、Plus 100/月）预检文案。
+    /// 周期是自然月（额度系统首个月窗口池），措辞用「本月」。
+    static func taskSplitExhaustedMessage(isPlusActive: Bool) -> String {
+        isPlusActive
+            ? String(localized: "本月的任务拆解额度已用完，请在额度重置后再试")
+            : String(localized: "本月的免费任务拆解额度已用完，升级 Holo Plus 可继续使用")
     }
 
     /// 目标规划预检文案：目标规划与日常对话共用 chat 池，

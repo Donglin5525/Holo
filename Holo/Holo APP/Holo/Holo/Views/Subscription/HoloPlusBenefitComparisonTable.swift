@@ -70,6 +70,12 @@ enum HoloPlusBenefits {
             plusValue: .text(String(localized: "50 次/天"))
         ),
         .init(
+            icon: "wand.and.stars",
+            name: String(localized: "AI 任务拆解"),
+            freeValue: .text(String(localized: "5 次/月")),
+            plusValue: .text(String(localized: "100 次/月"))
+        ),
+        .init(
             icon: "calendar.badge.clock",
             name: String(localized: "每周生活计划"),
             freeValue: .text(String(localized: "1 次/周")),

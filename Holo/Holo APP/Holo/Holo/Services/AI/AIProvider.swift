@@ -105,7 +105,8 @@ protocol AIProvider {
     func reconcileMatter(prompt: String, context: UserContext) async throws -> String
 
     /// 任务分步推进提案（matter_execution_plan 契约输出；2026-09-25 实施规格 §6.3）。
-    func generateExecutionPlan(prompt: String, context: UserContext) async throws -> String
+    /// usageActionId 为拆解流程稳定额度动作 ID：同一次拆解（含澄清追问/修复重试）只扣一次额度。
+    func generateExecutionPlan(prompt: String, context: UserContext, usageActionId: String?) async throws -> String
 }
 
 /// 支持通用情境向量批量的 Provider 能力协议（可选能力）。
@@ -203,7 +204,7 @@ extension AIProvider {
         throw APIError.serverError("当前 Provider 不支持 Matter 对账")
     }
 
-    func generateExecutionPlan(prompt: String, context: UserContext) async throws -> String {
+    func generateExecutionPlan(prompt: String, context: UserContext, usageActionId: String?) async throws -> String {
         throw APIError.serverError("当前 Provider 不支持分步推进提案")
     }
 
