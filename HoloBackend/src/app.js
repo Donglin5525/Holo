@@ -2451,8 +2451,10 @@ function quotaTypeForPurpose(purpose) {
   if (purpose === "personal_context_request" || purpose === "personal_context_planning") return QUOTA_TYPES.chat;
   // Matter 对账：用户交互路径，归 chat 池（route 另有独立限流桶与 maxTokens，成本独立统计）。
   if (purpose === "matter_reconciliation") return QUOTA_TYPES.chat;
-  // 任务分步推进提案（2026-09-25 实施规格 §12.5）：用户主动触发，归 chat 额度池
-  if (purpose === "matter_execution_plan") return QUOTA_TYPES.chat;
+  // 任务分步推进提案（2026-09-25 实施规格 §12.5）：用户主动触发。
+  // 2026-10-18 起独立成 taskSplit 月池（免费 5/月、Plus 100/月），
+  // 客户端以会话稳定 usageActionId 计量——一次拆解（含澄清追问/修复重试）只扣一次。
+  if (purpose === "matter_execution_plan") return QUOTA_TYPES.taskSplit;
   // 「今天减负」当日安排整理（2026-10-03 方案 §11.4）：用户主动触发，归 chat 额度池；
   // 采用/手动操作/继续步骤调用 AI 为 0（客户端只有整理生成走本 purpose）。
   if (purpose === "today_relief_plan") return QUOTA_TYPES.chat;

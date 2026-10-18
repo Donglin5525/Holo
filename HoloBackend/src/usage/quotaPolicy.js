@@ -6,6 +6,7 @@ export const QUOTA_TYPES = Object.freeze({
   asr: "asr",
   memoryInsight: "memoryInsight",
   lifePlan: "lifePlan",
+  taskSplit: "taskSplit",
 });
 
 export const QUOTA_POLICY = Object.freeze({
@@ -17,6 +18,7 @@ export const QUOTA_POLICY = Object.freeze({
     [QUOTA_TYPES.asr]: { limit: 20, period: "day", maxSeconds: 60 },
     [QUOTA_TYPES.memoryInsight]: { limit: 1, period: "week" },
     [QUOTA_TYPES.lifePlan]: { limit: 1, period: "week" },
+    [QUOTA_TYPES.taskSplit]: { limit: 5, period: "month" },
   },
   plus: {
     [QUOTA_TYPES.chat]: { limit: 30, period: "day" },
@@ -26,6 +28,7 @@ export const QUOTA_POLICY = Object.freeze({
     [QUOTA_TYPES.asr]: { limit: 50, period: "day", maxSeconds: 300 },
     [QUOTA_TYPES.memoryInsight]: { limit: 1, period: "day" },
     [QUOTA_TYPES.lifePlan]: { limit: 2, period: "week" },
+    [QUOTA_TYPES.taskSplit]: { limit: 100, period: "month" },
   },
 });
 
@@ -52,6 +55,10 @@ export function quotaPeriodForDate(date, period) {
     const start = startOfShanghaiWeek(day);
     return { periodKey: `week:${start}`, resetAt: `${addDays(start, 7)}T00:00:00+08:00` };
   }
+  if (period === "month") {
+    const month = day.slice(0, 7);
+    return { periodKey: `month:${month}`, resetAt: `${nextMonthStart(month)}T00:00:00+08:00` };
+  }
   throw new Error(`Unknown quota period: ${period}`);
 }
 
@@ -69,4 +76,11 @@ function startOfShanghaiWeek(dayString) {
   const utc = new Date(Date.UTC(year, month - 1, day));
   const weekday = utc.getUTCDay() || 7;
   return new Date(Date.UTC(year, month - 1, day - weekday + 1)).toISOString().slice(0, 10);
+}
+
+function nextMonthStart(monthString) {
+  const [year, month] = monthString.split("-").map(Number);
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  return `${String(nextYear).padStart(4, "0")}-${String(nextMonth).padStart(2, "0")}-01`;
 }
