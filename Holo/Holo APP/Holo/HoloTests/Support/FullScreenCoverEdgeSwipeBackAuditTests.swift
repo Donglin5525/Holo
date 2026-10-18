@@ -36,6 +36,7 @@ final class FullScreenCoverEdgeSwipeBackAuditTests: XCTestCase {
         "PhotoLibraryPickerView": "系统照片选择器（UIImagePickerController 包装）：系统自带取消与交互，不适用滑动退出（同 CameraView）",
         "UserAvatarCropView": "头像裁剪操作页：拖动/双指缩放调整裁剪框，右滑会与拖动手势冲突，走明确取消/确认按钮（同 ThoughtEditorView 逻辑）",
         "CloudRepullView": "iCloud 重新拉取确认流程页：有明确的开始/取消按钮与进度状态，多步流程走按钮退出（同 CSVQuickImportView）",
+        "HoloLightweightOnboardingView": "轻量新人引导页：选择式流程（尾闭包构造），右滑误退会丢引导进度，走明确选项按钮退出",
     ]
 
     /// 需要右滑返回的全屏页（阅读/详情/检索类）。定义文件必须挂手势。
@@ -119,6 +120,7 @@ final class FullScreenCoverEdgeSwipeBackAuditTests: XCTestCase {
             "self", "Self", "State", "StateObject", "ObservedObject", "AppStorage",
             "FocusState", "Environment", "Namespace", "UIApplication", "NotificationCenter",
             "ContentColumn", // holoContentColumn() 修饰符，非视图构造
+            "LazyView",     // 惰性包装器：内容视图在其尾闭包内，跳过后继续抓深层真视图
         ]
         let marker = ".fullScreenCover("
         let chars = Array(source)
@@ -177,13 +179,28 @@ final class FullScreenCoverEdgeSwipeBackAuditTests: XCTestCase {
         return nil
     }
 
-    /// 闭包体内第一个 `Ident(` 形式的大写开头构造，跳过控制词
+    /// 闭包体内第一个 `Ident(` 或 `Ident {`（尾闭包构造，如 HoloLightweightOnboardingView { ... }）
+    /// 形式的大写开头构造，跳过控制词。
+    /// 尾闭包识别缺位时会漏掉真视图、误抓闭包体深处方法名里的大写片段
+    /// （曾把 markPendingPresentation() 误提取为「PendingPresentation」，2026-10-18 实锤）。
     private static func firstViewConstructor(in body: String, excluding skip: Set<String>) -> String? {
         let chars = Array(body)
         var index = 0
         while index < chars.count {
             let c = chars[index]
             if c.isUppercase && c.isLetter {
+                // 标识符中间段不算新构造：前一个字符是字母/数字/下划线时，
+                // 当前大写字母只是驼峰名的一部分（NSLog→Log、goalDraftForReview→DraftForReview），
+                // 曾被误提取为视图名（2026-10-18 尾闭包识别引入，同轮修复）
+                if index > 0, chars[index - 1].isLetter || chars[index - 1].isNumber || chars[index - 1] == "_" {
+                    // 跳到该标识符末尾继续找
+                    var end = index
+                    while end < chars.count, chars[end].isLetter || chars[end].isNumber || chars[end] == "_" {
+                        end += 1
+                    }
+                    index = end
+                    continue
+                }
                 var name = ""
                 var scan = index
                 while scan < chars.count, chars[scan].isLetter || chars[scan].isNumber {
@@ -194,7 +211,7 @@ final class FullScreenCoverEdgeSwipeBackAuditTests: XCTestCase {
                 while peek < chars.count, chars[peek] == " " || chars[peek] == "\n" || chars[peek] == "\t" {
                     peek += 1
                 }
-                if peek < chars.count, chars[peek] == "(", !skip.contains(name) {
+                if peek < chars.count, (chars[peek] == "(" || chars[peek] == "{"), !skip.contains(name) {
                     return name
                 }
                 index = scan

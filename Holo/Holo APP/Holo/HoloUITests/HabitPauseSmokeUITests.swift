@@ -107,21 +107,21 @@ final class HabitPauseSmokeUITests: XCTestCase {
         return uniqueName
     }
 
-    /// 长按磁贴呼出菜单，点「暂停」
+    /// 长按行卡呼出菜单，点「暂停习惯」（2026-10-18 起长按 = 编辑/暂停/归档/删除菜单）
     private func longPressTileAndTapPause(habitName: String) -> Bool {
         let tile = app.staticTexts[habitName].firstMatch
         guard tile.waitForExistence(timeout: 5) else {
-            print("[PAUSE] 磁贴文本未找到: \(habitName)")
+            print("[PAUSE] 行卡文本未找到: \(habitName)")
             return false
         }
         tile.press(forDuration: 1.2)
         sleep(1)
-        // contextMenu 菜单项按 label 精确找「暂停」
+        // contextMenu 菜单项按 label 找「暂停习惯」（免费态显示「暂停习惯 · Plus」，CONTAINS 兼容）
         let pauseItem = app.buttons.matching(
-            NSPredicate(format: "label == %@", "暂停")
+            NSPredicate(format: "label CONTAINS %@", "暂停习惯")
         ).firstMatch
         guard pauseItem.waitForExistence(timeout: 4) else {
-            print("[PAUSE] 长按菜单无「暂停」项")
+            print("[PAUSE] 长按菜单无「暂停习惯」项")
             shoot("P01_no_pause_menu")
             return false
         }

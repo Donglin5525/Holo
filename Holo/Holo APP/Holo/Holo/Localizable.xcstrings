@@ -1,38 +1,6 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "最近删除是空的" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recently deleted is empty"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近刪除是空的"
-          }
-        }
-      }
-    },
-    "%lld 项已设置" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld set"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 項已設置"
-          }
-        }
-      }
-    },
     "" : {
       "localizations" : {
         "en" : {
@@ -4986,6 +4954,7 @@
       }
     },
     "%lld 条已设置" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -5722,6 +5691,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld 項在等待外部結果"
+          }
+        }
+      }
+    },
+    "%lld 项已设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld set"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 項已設置"
           }
         }
       }
@@ -10824,6 +10809,7 @@
       }
     },
     "Plus" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18092,6 +18078,7 @@
       }
     },
     "从今天隐藏，保留全部历史" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18462,6 +18449,7 @@
       }
     },
     "以后看「每天几次」的走势" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18478,6 +18466,7 @@
       }
     },
     "以后看「连续多少天」" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18494,6 +18483,7 @@
       }
     },
     "以后看这个数的变化曲线" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20875,6 +20865,7 @@
       }
     },
     "保存后，历史打卡将按每次 1 计入统计，勾选状态保留，可随时切回" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20891,6 +20882,7 @@
       }
     },
     "保存后，历史数值记录的每一天将标记为已完成，数值保留，可随时切回" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20902,6 +20894,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存後，歷史數值記錄的每一天將標記為已完成，數值保留，可隨時切回"
+          }
+        }
+      }
+    },
+    "保存后历史记录会自动转换，可随时切回" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After saving, past records convert automatically. You can switch back anytime"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存後歷史記錄會自動轉換，可隨時切回"
+          }
+        }
+      }
+    },
+    "保存后将清除现有目标" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving will clear the current target"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存後將清除現有目標"
           }
         }
       }
@@ -21744,6 +21768,7 @@
       }
     },
     "做了就 +1，一天累计几次 · 例：喝水 8 杯、俯卧撑 3 组" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -21755,6 +21780,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "做了就 +1，一天累計幾次 · 例：喝水 8 杯、俯臥撐 3 組"
+          }
+        }
+      }
+    },
+    "做了就 +1，如：喝水 8 杯" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each time adds +1, e.g. 8 cups of water"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "做了就 +1，如：喝水 8 杯"
           }
         }
       }
@@ -25221,6 +25262,22 @@
         }
       }
     },
+    "最近删除是空的" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently deleted is empty"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近刪除是空的"
+          }
+        }
+      }
+    },
     "最近变化" : {
       "localizations" : {
         "en" : {
@@ -27321,6 +27378,7 @@
       }
     },
     "删除习惯及全部记录，无法恢复" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -33974,6 +34032,7 @@
       }
     },
     "回收站是空的" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -36506,6 +36565,7 @@
       }
     },
     "如：早起、喝水、运动" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -48076,6 +48136,7 @@
       }
     },
     "恢复后沿用原暂停状态" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -50288,6 +50349,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "手續費 ¥%@/期"
+          }
+        }
+      }
+    },
+    "打了勾就算完成，如：冥想、跑步" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tick it and it's done, e.g. meditate, run"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打了勾就算完成，如：冥想、跑步"
           }
         }
       }
@@ -53498,6 +53575,7 @@
       }
     },
     "提醒与关联目标" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -56994,6 +57072,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新建主題"
+          }
+        }
+      }
+    },
+    "新建习惯" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Habit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增習慣"
           }
         }
       }
@@ -61000,6 +61094,22 @@
         }
       }
     },
+    "更多设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "More Settings"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多設定"
+          }
+        }
+      }
+    },
     "更多选项" : {
       "localizations" : {
         "en" : {
@@ -62278,6 +62388,7 @@
       }
     },
     "未关联目标" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -63168,6 +63279,7 @@
       }
     },
     "未设置目标；编辑时关闭会清除已有目标" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -69332,7 +69444,24 @@
         }
       }
     },
+    "每天记一个数字，如：体重 75" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log one number a day, e.g. weight 75"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天記一個數字，如：體重 75"
+          }
+        }
+      }
+    },
     "每天记下一个数字 · 例：体重 75、睡眠 7.5 小时" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -73075,6 +73204,7 @@
       }
     },
     "点击选择图标" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -74739,6 +74869,7 @@
       }
     },
     "目标与频率" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -79750,6 +79881,7 @@
       }
     },
     "给日常留一段空隙" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82569,6 +82701,7 @@
       }
     },
     "要么做了，要么没做，一下就行 · 例：冥想、跑步、吃维生素" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -87861,6 +87994,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "走勢 · 對比 · 日曆"
+          }
+        }
+      }
+    },
+    "起个名字，如：早起、喝水" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name it, e.g. wake up early, drink water"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取個名字，如：早起、喝水"
           }
         }
       }
@@ -93387,7 +93536,24 @@
         }
       }
     },
+    "这是想减少的事" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Something I want less of"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是想減少的事"
+          }
+        }
+      }
+    },
     "这是想减少的事（坏习惯）" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -97212,6 +97378,7 @@
       }
     },
     "重新出现在今天" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -99101,6 +99268,7 @@
       }
     },
     "需要完成订阅后重试" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

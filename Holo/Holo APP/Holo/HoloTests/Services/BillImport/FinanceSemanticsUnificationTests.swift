@@ -25,9 +25,10 @@ final class FinanceSemanticsUnificationTests: XCTestCase {
 
             var cal = Calendar(identifier: .gregorian)
             cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
-            // 用 now-1h 而非「今天12:00」：occurredPredicate 上界=当前时刻，
-            // 固定 12:00 在上午跑测试时是未来时刻会被排除（时间炸弹，2026-10-18 实锤）
-            let today = Date().addingTimeInterval(-3600)
+            // 插入时间用「此刻」：查询窗口 [今天00:00, 明天00:00) 且 occurredPredicate
+            // 上界=查询执行时刻，now 永不为未来、必在窗口内。相对偏移（-1h）深夜跑会跨回
+            // 昨天掉出窗口（时间炸弹第二轮，2026-10-19 00:06 实锤）；午夜竞态概率忽略。
+            let today = Date()
             @discardableResult
             func insert(amount: Decimal, adjustment: Bool) -> UUID {
                 let obj = NSEntityDescription.insertNewObject(forEntityName: "Transaction", into: bg)

@@ -2,9 +2,10 @@
 //  HabitTodayView.swift
 //  Holo
 //
-//  今天页（V2 §5）：日期与已记录数量 → 全部/未记录筛选与补录 →
-//  全部习惯连续列表（不按频率分组，东林 2026-10-07 拍板：分组切断拖拽排序）→
-//  底部轻量暂停入口。名称打开「今天的记录」；缝线只读；无顶部七天统计条。
+//  今天页（V2 §5）：日期与已记录数量 → 分节习惯列表（打卡主角/记数字/周月/坏习惯）
+//  → 底部轻量暂停入口。名称打开「今天的记录」；缝线只读；无顶部七天统计条。
+//  长按行卡 = 编辑/暂停/归档/删除直达（2026-10-18 东林拍板，长按换序退役，
+//  排序统一走更多 → 今天列表排序弹层）。
 //
 
 import SwiftUI
@@ -16,6 +17,8 @@ struct HabitTodayView: View {
     let onOpenAddHabit: () -> Void
     /// 打开「今天的记录」弹层
     var onOpenTodayRecords: (UUID) -> Void
+    /// 打开习惯编辑表单（长按菜单「编辑习惯」，容器接 AddHabitSheet 编辑态）
+    var onOpenHabitSettings: (UUID) -> Void
     /// 打开低频名单（更多 → 已暂停与已归档）
     var onOpenLifecycleList: () -> Void
     /// 「去今天记录」定位目标（消费后回调清零）
@@ -29,22 +32,17 @@ struct HabitTodayView: View {
     /// 补录的习惯选择
     @State private var showRetroactiveHabitPicker = false
 
-    // MARK: 拖拽排序（全局顺序数组；渲染分节，跨节不换位——P2 三节分制）
-
-    @StateObject private var reorder = HabitListReorderModel()
-    @Environment(\.scenePhase) private var scenePhase
+    // MARK: 排序（列表内长按换序已退役；顺序由更多 → 今天列表排序弹层落库）
 
     /// 主角区（每日打卡）显示上限，超出折叠（2026-10-15 东林拍板：放 4 个）
     private static let heroCardLimit = 4
     @State private var heroExpanded = false
 
     private var orderedRows: [HabitRowSnapshot] {
-        let base = model.todayRows
-        let byId = Dictionary(uniqueKeysWithValues: base.map { ($0.id, $0) })
-        return reorder.effectiveIds(.today, baseline: base.map(\.id)).compactMap { byId[$0] }
+        model.todayRows
     }
 
-    // MARK: 分节（P2 三节分制 + 坏习惯独立节；同节内拖拽换位，跨节不换）
+    // MARK: 分节（三节分制 + 坏习惯独立节；节内顺序由排序弹层统一落库）
 
     private enum TodaySection: Int {
         case checkInHero  // 每日打卡好习惯（主角大卡）
@@ -87,23 +85,9 @@ struct HabitTodayView: View {
                 .padding(.bottom, 40)
             }
             .onAppear {
-                reorder.scrollProxy = proxy
-                reorder.onCommit = { _, order, draggedId in
-                    model.persistTodayOrder(order, draggedId: draggedId)
-                }
-                reorder.canSwapAdjacent = { a, b in
-                    let byId = Dictionary(uniqueKeysWithValues: model.todayRows.map { ($0.id, $0) })
-                    guard let ra = byId[a], let rb = byId[b] else { return true }
-                    return section(of: ra) == section(of: rb)
-                }
                 consumeFocus(proxy)
             }
             .onChange(of: focusHabitId) { _, _ in consumeFocus(proxy) }
-        }
-        // 离开前台（来电/控制中心/切换 App）时系统不保证手势 onEnded 回调，
-        // 未收尾的拖拽会话就地取消，防全页按钮被 guard 永久静默吞掉
-        .onChange(of: scenePhase) { _, phase in
-            if phase != .active { reorder.cancelDrag() }
         }
         .sheet(item: $measureInputTarget) { snapshot in
             HabitMeasureInputSheet(snapshot: snapshot) { value, note in
@@ -131,34 +115,23 @@ struct HabitTodayView: View {
             snapshot: row,
             isSaving: model.coordinator.savingHabitIds.contains(row.id),
             inlineErrorMessage: model.inlineError?.habitId == row.id ? model.inlineError?.message : nil,
-            // 拖拽会话中/刚落定的行不放行按钮（长按后直接抬手不该触发打卡/开详情）
             onOpenTodayRecords: {
-                guard reorder.admitInteraction() else { return }
                 onOpenTodayRecords(row.id)
             },
             onToggleCheckIn: {
-                guard reorder.admitInteraction() else { return }
                 Task { await model.record(kind: .toggleCheckIn, habitId: row.id) }
             },
             onIncrement: {
-                guard reorder.admitInteraction() else { return }
                 Task { await model.record(kind: .increment(amount: 1), habitId: row.id) }
             },
             onDecrement: {
-                guard reorder.admitInteraction() else { return }
                 Task { await model.record(kind: .removeLatestNumeric, habitId: row.id) }
             },
             onMeasureRecord: {
-                guard reorder.admitInteraction() else { return }
                 measureInputTarget = row
             }
         )
-        .habitReorderable(
-            id: row.id,
-            section: .today,
-            spacing: HoloSpacing.sm,
-            model: reorder
-        )
+        .habitRowLifecycleMenu(row, onEdit: onOpenHabitSettings)
     }
 
     // MARK: 头部（日期 + 已记录数量 + 补录入口；P2 撤筛选，2026-10-15 东林拍板）
@@ -281,7 +254,6 @@ struct HabitTodayView: View {
         return HStack(spacing: HoloSpacing.md) {
             // 左侧信息区=行主体（AX 单元素，identifier 与普通行同款；点开概览弹层）
             Button {
-                guard reorder.admitInteraction() else { return }
                 onOpenTodayRecords(row.id)
             } label: {
                 HStack(spacing: HoloSpacing.md) {
@@ -315,7 +287,6 @@ struct HabitTodayView: View {
             .accessibilityHint(Text(String(localized: "连续打卡中")))
 
             Button {
-                guard reorder.admitInteraction() else { return }
                 Task { await model.record(kind: .toggleCheckIn, habitId: row.id) }
             } label: {
                 Group {
@@ -353,7 +324,7 @@ struct HabitTodayView: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(accent.opacity(0.25), lineWidth: 1)
         )
-        .habitReorderable(id: row.id, section: .today, spacing: HoloSpacing.sm, model: reorder)
+        .habitRowLifecycleMenu(row, onEdit: onOpenHabitSettings)
     }
 
     /// 大卡副行：没打卡给习惯名+激励，已打卡给习惯名；周条贴卡底

@@ -56,6 +56,8 @@ struct HabitModuleContainer: View {
                         model: model,
                         onOpenAddHabit: { addHabitDraft = HabitPrefillDraft() },
                         onOpenTodayRecords: { todayRecordTarget = $0 },
+                        // 长按菜单「编辑习惯」（§9 同款节拍：菜单收起后再开编辑表单）
+                        onOpenHabitSettings: { openSettingsAfterSheetDismiss($0) },
                         onOpenLifecycleList: {
                             optionsInitialPage = .lifecycle
                             showOptionsSheet = true
