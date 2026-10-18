@@ -88,6 +88,7 @@
 		5A202607190000000000000011 /* LightweightOnboardingSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607190000000000000012 /* LightweightOnboardingSettingsTests.swift */; };
 		5D0ECA0000000000000000B1 /* MozeMergeRehearsalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000B2 /* MozeMergeRehearsalTests.swift */; };
 		5D0ECA0000000000000000C1 /* FinanceSemanticsUnificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000C2 /* FinanceSemanticsUnificationTests.swift */; };
+		5D0ECA0000000000000000D1 /* FinanceEvidenceLedgerBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000D2 /* FinanceEvidenceLedgerBuilderTests.swift */; };
 		5E3E2DB2A86C4845A1576752 /* EmojiCatalogSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DACE68F96BC4189A35FF7C0 /* EmojiCatalogSearchTests.swift */; };
 		5E7A2C92B4D3F0A8E6C10002 /* AppLockManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */; };
 		5E7A2C92B4D3F0A8E6C20002 /* BudgetCarryoverNotificationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E7A2C91B4D3F0A8E6C20001 /* BudgetCarryoverNotificationServiceTests.swift */; };
@@ -374,7 +375,7 @@
 		DDA06C0100000000000000A2 /* HabitOrderMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA06C0100000000000000A1 /* HabitOrderMergeTests.swift */; };
 		DDA06C0100000000000000A4 /* HabitOrderMerge.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA06C0100000000000000A5 /* HabitOrderMerge.swift */; };
 		DDA06C0100000000000000B2 /* HabitOverLimitHintTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA06C0100000000000000B1 /* HabitOverLimitHintTests.swift */; };
-		DDA06C0100000000000000C2 /* HabitDragReorderUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA06C0100000000000000C1 /* HabitDragReorderUITests.swift */; };
+		DDA06C0100000000000000C2 /* HabitTodayRowMenuUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA06C0100000000000000C1 /* HabitTodayRowMenuUITests.swift */; };
 		DDA06C0200000000000000A2 /* WelcomeNoteSeedTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDA06C0200000000000000A1 /* WelcomeNoteSeedTests.swift */; };
 		DE280585393222DCEB6C9F92 /* GoalWorkshopSessionMO.swift in Sources */ = {isa = PBXBuildFile; fileRef = C414690E56E7ADF2F9B79C52 /* GoalWorkshopSessionMO.swift */; };
 		E12265AAC6E4FD5D4B105216 /* HoloInternalAccessStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3333E125C31F98C336BD39A /* HoloInternalAccessStandaloneTests.swift */; };
@@ -576,6 +577,7 @@
 		5CCB941D00AFDF85C22A3EE1 /* GoalWorkshopModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GoalWorkshopModels.swift; path = Holo/Models/GoalWorkshopModels.swift; sourceTree = "<group>"; };
 		5D0ECA0000000000000000B2 /* MozeMergeRehearsalTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MozeMergeRehearsalTests.swift; sourceTree = "<group>"; };
 		5D0ECA0000000000000000C2 /* FinanceSemanticsUnificationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceSemanticsUnificationTests.swift; sourceTree = "<group>"; };
+		5D0ECA0000000000000000D2 /* FinanceEvidenceLedgerBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceEvidenceLedgerBuilderTests.swift; sourceTree = "<group>"; };
 		5D3A4266B8E20BFB85AAB16E /* InstallmentNoteSanitizerStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InstallmentNoteSanitizerStandaloneTests.swift; sourceTree = "<group>"; };
 		5E7A2C91B4D3F0A8E6C10001 /* AppLockManagerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AppLockManagerTests.swift; sourceTree = "<group>"; };
 		5E7A2C91B4D3F0A8E6C20001 /* BudgetCarryoverNotificationServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BudgetCarryoverNotificationServiceTests.swift; sourceTree = "<group>"; };
@@ -857,7 +859,7 @@
 		DDA06C0100000000000000A1 /* HabitOrderMergeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitOrderMergeTests.swift; sourceTree = "<group>"; };
 		DDA06C0100000000000000A5 /* HabitOrderMerge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HabitOrderMerge.swift; path = Holo/Models/HabitOrderMerge.swift; sourceTree = "<group>"; };
 		DDA06C0100000000000000B1 /* HabitOverLimitHintTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitOverLimitHintTests.swift; sourceTree = "<group>"; };
-		DDA06C0100000000000000C1 /* HabitDragReorderUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitDragReorderUITests.swift; sourceTree = "<group>"; };
+		DDA06C0100000000000000C1 /* HabitTodayRowMenuUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitTodayRowMenuUITests.swift; sourceTree = "<group>"; };
 		DDA06C0200000000000000A1 /* WelcomeNoteSeedTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WelcomeNoteSeedTests.swift; sourceTree = "<group>"; };
 		DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageViewDataAgentResultTests.swift; sourceTree = "<group>"; };
 		E4241B525E8FB37245B68C4E /* HabitFocusSummaryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitFocusSummaryTests.swift; sourceTree = "<group>"; };
@@ -1671,6 +1673,7 @@
 				F1AC090B0000000000000001 /* InstallmentImportStandaloneTests.swift */,
 				5D0ECA0000000000000000B2 /* MozeMergeRehearsalTests.swift */,
 				5D0ECA0000000000000000C2 /* FinanceSemanticsUnificationTests.swift */,
+				5D0ECA0000000000000000D2 /* FinanceEvidenceLedgerBuilderTests.swift */,
 			);
 			path = BillImport;
 			sourceTree = "<group>";
@@ -1696,7 +1699,7 @@
 				AA11BB22CC33DD44EE550006 /* HoloXhsShotUITests.swift */,
 				AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */,
 				B71FE0A12F6A4C1E9D2B0107 /* HabitPauseSmokeUITests.swift */,
-				DDA06C0100000000000000C1 /* HabitDragReorderUITests.swift */,
+				DDA06C0100000000000000C1 /* HabitTodayRowMenuUITests.swift */,
 				A7C20000000000000000000B /* TodayReliefUITests.swift */,
 				A7C20000000000000000000D /* PolaroidPerfSmokeUITests.swift */,
 				A7C20000000000000000000F /* ReceiptDeletePathUITests.swift */,
@@ -2196,6 +2199,7 @@
 				F18A001B2C3D4E5F60718293 /* FinanceBillImportMatrixStandaloneTests.swift in Sources */,
 				5D0ECA0000000000000000B1 /* MozeMergeRehearsalTests.swift in Sources */,
 				5D0ECA0000000000000000C1 /* FinanceSemanticsUnificationTests.swift in Sources */,
+				5D0ECA0000000000000000D1 /* FinanceEvidenceLedgerBuilderTests.swift in Sources */,
 				F1AC090B0000000000000002 /* InstallmentImportStandaloneTests.swift in Sources */,
 				28A282186827B2575CB6C45E /* AIReadableResponseParserStandaloneTests.swift in Sources */,
 				01F117E5D9D90390C108F5B8 /* AnalysisReadableTextParserStandaloneTests.swift in Sources */,
@@ -2342,7 +2346,7 @@
 				AA11BB22CC33DD44EE550005 /* HoloXhsShotUITests.swift in Sources */,
 				AA11BB22CC33DD44EE660001 /* HabitStatsFloatUITests.swift in Sources */,
 				B71FE0A12F6A4C1E9D2B0108 /* HabitPauseSmokeUITests.swift in Sources */,
-				DDA06C0100000000000000C2 /* HabitDragReorderUITests.swift in Sources */,
+				DDA06C0100000000000000C2 /* HabitTodayRowMenuUITests.swift in Sources */,
 				A7C20000000000000000000C /* TodayReliefUITests.swift in Sources */,
 				A7C20000000000000000000E /* PolaroidPerfSmokeUITests.swift in Sources */,
 				A7C200000000000000000010 /* ReceiptDeletePathUITests.swift in Sources */,

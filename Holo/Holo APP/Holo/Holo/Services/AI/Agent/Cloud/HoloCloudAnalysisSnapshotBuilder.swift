@@ -59,6 +59,11 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         let historyDays: Int
         let datasets: [String: Dataset]
         var answerTask: AnswerTask? = nil
+        /// S2 融合版（2026-10-18）：财务确定性台账文本——后端注入
+        /// <finance_evidence_ledger>，v26 判断法的「唯一事实真相」。旧后端忽略。
+        var financeEvidenceLedger: String? = nil
+        /// 02 契约 §10 最小装载清单（时刻可靠性/账户语义/合并行/补偿类目/未来行）。
+        var financeSemantics: [String: String]? = nil
     }
 
     enum JSONValue: Encodable {
@@ -204,12 +209,22 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         } else {
             answerTask = nil
         }
+        // S2 融合版：财务数据集在场时生成确定性台账（本地预计算，不受快照行数限制）
+        var financeLedger: String? = nil
+        var financeSemantics: [String: String]? = nil
+        if datasets.keys.contains("finance.transactions") {
+            let built = await FinanceEvidenceLedgerBuilder.build(now: now)
+            financeLedger = built?.ledger
+            financeSemantics = built?.semantics
+        }
         let snapshot = Snapshot(
             version: 1,
             generatedAt: now,
             historyDays: historyDays,
             datasets: datasets,
-            answerTask: answerTask
+            answerTask: answerTask,
+            financeEvidenceLedger: financeLedger,
+            financeSemantics: financeSemantics
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
