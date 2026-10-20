@@ -79,6 +79,9 @@ struct ThoughtCardView: View {
         case deleteConfirm
     }
     @State private var pendingMenuAction: PendingMenuAction?
+    /// 附件大图浏览（与编辑器明细页同一交互：点缩略图进全屏大图，单击屏幕任意处关闭）
+    @State private var showAttachmentGallery = false
+    @State private var galleryStartIndex = 0
 
     // MARK: - Body
 
@@ -130,6 +133,13 @@ struct ThoughtCardView: View {
         // 分享面板同样挂卡片根：与「…」菜单锚点解耦后，菜单收起完成再请求才可靠弹出
         .sheet(isPresented: $showShareCard) {
             ThoughtShareSheet(thought: thought)
+        }
+        // 附件大图（挂卡片根与编辑器明细页同款）：点缩略图进全屏，单击屏幕任意处关闭
+        .fullScreenCover(isPresented: $showAttachmentGallery) {
+            ThoughtGalleryView(
+                attachments: thought.sortedAttachments,
+                startIndex: galleryStartIndex
+            )
         }
         // 「为什么归这里」理由面板（长按菜单入口；confirmationDialog 收起后再弹，
         // 与 pendingMenuAction 同理走一小段延迟避免连环弹层被系统丢弃）
@@ -466,13 +476,20 @@ struct ThoughtCardView: View {
     private var inlineAttachmentsView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: HoloSpacing.sm) {
-                ForEach(Array(thought.sortedAttachments.enumerated()), id: \.element.id) { _, attachment in
+                ForEach(Array(thought.sortedAttachments.enumerated()), id: \.element.id) { index, attachment in
                     ThoughtAttachmentThumbnailView(
                         thumbnailData: attachment.thumbnailData,
                         fileName: attachment.thumbnailFileName,
                         thoughtId: thought.id
                     )
                     .frame(width: 80, height: 80)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        HapticManager.light()
+                        galleryStartIndex = index
+                        showAttachmentGallery = true
+                    }
+                    .accessibilityLabel(String(localized: "查看图片"))
                 }
             }
         }
