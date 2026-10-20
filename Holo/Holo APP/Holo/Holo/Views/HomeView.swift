@@ -348,6 +348,7 @@ struct HomeView: View {
             HabitRepository.shared.setup()
             // 用户偏好（昵称等）云同步仓库：注册 iCloud 变更监听 + 采纳云端恢复的名字
             UserPreferenceRepository.shared.setup()
+            HoloGrowthService.shared.start()
             // 用户头像：本地即时展示，并监听私有 iCloud 恢复/跨设备变更
             UserAvatarRepository.shared.setup()
             loadFeatureItemsFromRepository()

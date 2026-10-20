@@ -25,6 +25,7 @@ struct MemoryGalleryView: View {
     @StateObject private var viewModel = MemoryGalleryViewModel()
     @State private var selectedTab: MemoryGalleryTab = .calendar
     @State private var hasMountedInsight = false
+    @State private var showGrowth = false
     @Environment(\.holoMotionSurfaceIsActive) private var presentationIsVisible
     private var insightIsVisible: Bool { presentationIsVisible && selectedTab == .insight }
     @ObservedObject private var deepLinkState = DeepLinkState.shared
@@ -67,6 +68,14 @@ struct MemoryGalleryView: View {
                     .padding(.top, HoloSpacing.sm)
                 }
 
+                Button { showGrowth = true } label: {
+                    HoloGrowthEntryView(compact: true)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, HoloSpacing.page)
+                .padding(.vertical, HoloSpacing.xs)
+                .holoContentColumn(maxWidth: contentColumnWidth, paintsBackground: false)
+
                 // 主内容区：两 tab 常驻不销毁（切走仅隐藏），
                 // 日历侧的取数与网格状态跨切换存活，消除切回卡顿
                 tabContent
@@ -80,6 +89,20 @@ struct MemoryGalleryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
+        .sheet(isPresented: $showGrowth) {
+            NavigationStack {
+                HoloGrowthView(onOpenModule: { target in
+                    showGrowth = false
+                    close()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { DeepLinkState.shared.navigate(to: target) }
+                })
+                .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("关闭") { showGrowth = false }
+                    }
+                }
+            }
+        }
         #if DEBUG
         .sheet(isPresented: $showAISettings) {
             NavigationStack {
@@ -245,7 +268,7 @@ struct MemoryGalleryView: View {
                 Text("Holo 看见的你")
                     .font(.system(size: 15 * typeScale, weight: .semibold, design: .serif))
                     .foregroundColor(.holoToolText)
-                Text("\(viewModel.totalRecordedDays) 天生活证据 · \(viewModel.totalMemoryCount) 条记录")
+                Text("从生活记录里，慢慢认识自己")
                     .font(.system(size: 10 * typeScale, weight: .medium))
                     .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(1)

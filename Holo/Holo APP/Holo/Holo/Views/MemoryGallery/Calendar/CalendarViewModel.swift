@@ -98,10 +98,19 @@ final class CalendarViewModel: ObservableObject {
     @Published private(set) var weekHighlights: [HighlightData] = []
     @Published private(set) var weekMilestones: [MilestoneData] = []
 
+    private var growthObserver: NSObjectProtocol?
+
     private let provider: CalendarEventProvider
 
     init(provider: CalendarEventProvider? = nil) {
         self.provider = provider ?? CalendarEventProvider(context: CoreDataStack.shared.viewContext)
+        growthObserver = NotificationCenter.default.addObserver(forName: .holoGrowthDidChange, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.refreshWeekNarrative(force: true) }
+        }
+    }
+
+    deinit {
+        if let growthObserver { NotificationCenter.default.removeObserver(growthObserver) }
     }
 
     // MARK: - 区间与标题（全部从 focusedDate 派生）
@@ -306,7 +315,7 @@ final class CalendarViewModel: ObservableObject {
                 let achievements = MemoryAchievementSnapshot(context: context)
                 let detected = HighlightDetector.detect(for: days, context: context, achievements: achievements)
                 let highlights = days.flatMap { detected[cal.startOfDay(for: $0)] ?? [] }
-                let milestones = MilestoneDetector.detect(context: context, achievements: achievements)
+                let milestones = try MilestoneDetector.detect(context: context, achievements: achievements)
                     .filter { CalendarRangeBuilder.contains($0.date, in: week) }.map(\.data)
                 return (highlights, milestones)
             }

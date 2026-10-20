@@ -45,6 +45,9 @@ struct HoloApp: App {
         // hosted test 宿主：不启动任何业务服务，app 只需提供活着的主线程与 bundle。
         // 正常启动的后台服务/通知监听会与测试 task 并发交互，触发运行时 double-free 崩溃。
         guard !TestHostEnvironment.isHostedByXCTest else { return }
+        #if DEBUG
+        if HoloGrowthValidation.isRequested { return }
+        #endif
 
         // 同步设置通知代理，确保冷启动时 didReceive 不被错过
         TodoNotificationService.shared.setupDelegate()
@@ -120,6 +123,8 @@ struct HoloApp: App {
                 // 测试宿主不渲染业务 UI：HomeView 等界面的 .task 会启动
                 // HomeScheduleService/各 ViewModel 刷新，同样会与测试并发交互导致崩溃。
                 Color.clear.ignoresSafeArea()
+            } else if isGrowthValidationRequested {
+                growthValidationView
             } else if HoloChartGalleryView.isRequested {
                 HoloChartGalleryView()
             } else {
@@ -145,10 +150,27 @@ struct HoloApp: App {
         }
     }
 
+    private var isGrowthValidationRequested: Bool {
+        #if DEBUG
+        HoloGrowthValidation.isRequested
+        #else
+        false
+        #endif
+    }
+
+    @ViewBuilder private var growthValidationView: some View {
+        #if DEBUG
+        HoloGrowthValidationView()
+        #else
+        EmptyView()
+        #endif
+    }
+
     /// 业务根视图与启动链；hosted test 下不挂载（见 init 注释）。
     private var appRoot: some View {
         ContentView()
             .modifier(StoreConflictRecoveryGate())
+            .modifier(HoloGrowthFeedbackModifier())
             .preferredColorScheme(darkModeManager.colorScheme)
             .onOpenURL { url in
                 guard url.isFileURL else {

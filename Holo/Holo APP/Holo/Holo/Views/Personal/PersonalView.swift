@@ -65,10 +65,20 @@ struct PersonalView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.xl) {
+                    plusSection
                     profileSection
+                    NavigationLink {
+                        HoloGrowthView(onOpenModule: { target in
+                            close()
+                            // 等个人页退场完成，避免新增记录的 sheet 被关闭动画吞掉。
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { onOpenLinkedEntity(target) }
+                        })
+                    } label: {
+                        HoloGrowthEntryView()
+                    }
+                    .buttonStyle(.plain)
                     goalsSection
                     memorySection
-                    plusSection
                     #if DEBUG
                     developerToolsSection
                     #endif

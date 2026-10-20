@@ -1448,7 +1448,13 @@ struct MemoryInsightContextBuilder {
     // MARK: - Milestones
 
     private func buildMilestoneContext(start: Date, end: Date) -> [MemoryInsightMilestoneContext] {
-        let allMilestones = MilestoneDetector.detect(context: dataContext)
+        let allMilestones: [(date: Date, data: MilestoneData)]
+        do {
+            allMilestones = try MilestoneDetector.detect(context: dataContext)
+        } catch {
+            Self.logger.error("读取积累里程碑失败：\(error.localizedDescription)")
+            return []
+        }
 
         return allMilestones
             .filter { $0.date >= start && $0.date <= end.addingDays(1) }

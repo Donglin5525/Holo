@@ -221,6 +221,9 @@ final class RecycleBinService: ObservableObject {
 
         // 1. 主库打标记（含批次记录创建）
         let taskIdsNeedingNotificationCancel: [UUID] = try await CoreDataStack.shared.performBackgroundTask { context in
+            let resetsGrowth = modules == RecycleBinModule.globalClearModules
+            if resetsGrowth { HoloGrowthStore.transactionLock.lock() }
+            defer { if resetsGrowth { HoloGrowthStore.transactionLock.unlock() } }
             let batch = RecycleBinBatch(context: context)
             batch.id = batchId
             batch.createdAt = now
@@ -242,6 +245,7 @@ final class RecycleBinService: ObservableObject {
                     try Self.markAllDeleted(entityName: auxEntityName, batchId: batchId, at: now, context: context)
                 }
             }
+            if resetsGrowth { try HoloGrowthStore.clear(context: context) }
             try context.save()
             return cancelledTaskIds
         }
@@ -255,6 +259,10 @@ final class RecycleBinService: ObservableObject {
         // 3. 任务模块：批量取消待发提醒
         if !taskIdsNeedingNotificationCancel.isEmpty {
             Self.cancelTaskNotifications(taskIds: taskIdsNeedingNotificationCancel)
+        }
+
+        if modules == RecycleBinModule.globalClearModules {
+            NotificationCenter.default.post(name: .holoGrowthDidReset, object: nil)
         }
 
         // 4. 广播各模块刷新 + 记忆系统缓存失效

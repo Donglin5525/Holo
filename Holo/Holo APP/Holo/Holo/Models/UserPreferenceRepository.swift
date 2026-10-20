@@ -119,6 +119,8 @@ final class UserPreferenceRepository {
 
         var grouped: [String: [UserPreferenceEntity]] = [:]
         for entity in all {
+            // 里程碑为不可变历史事件，跨设备副本按最早达成合并，不适用偏好的最新值覆盖。
+            guard !entity.key.hasPrefix(HoloGrowthStore.eventPrefix) else { continue }
             grouped[entity.key, default: []].append(entity)
         }
 

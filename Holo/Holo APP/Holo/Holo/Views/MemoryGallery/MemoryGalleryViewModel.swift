@@ -129,6 +129,9 @@ class MemoryGalleryViewModel: ObservableObject {
 
     private func setupNotifications() {
         NotificationCenter.default.addObserver(
+            self, selector: #selector(handleDataChange), name: .holoGrowthDidChange, object: nil
+        )
+        NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleDataChange),
             name: .financeDataDidChange,
@@ -270,7 +273,7 @@ class MemoryGalleryViewModel: ObservableObject {
             let dates = Self.collectUniqueDates(from: items)
             let achievements = MemoryAchievementSnapshot(context: context)
             let highlights = HighlightDetector.detect(for: dates, context: context, achievements: achievements)
-            let milestones = MilestoneDetector.detect(context: context, achievements: achievements)
+            let milestones = try MilestoneDetector.detect(context: context, achievements: achievements)
             let stats = Self.computeAggregateStats(context: context)
             let heatmap = Self.computeHeatmapData(context: context)
             return GallerySnapshot(
