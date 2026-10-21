@@ -47,6 +47,9 @@ struct HoloHabitToolRecord: Codable, Equatable, Sendable {
     var isMeasureType: Bool = false
     /// 近期记录备注（最多 5 条，近→早）：行为波动的用户自述原因，归因分析的关键文本。
     var recentNotes: [HoloHabitDailyNote] = []
+    /// 用户给该习惯设的每日结算时间（如「4:00」）；nil = 按自然日。
+    /// dailyCounts 已按它归属：结算前的凌晨打卡算前一天，AI 不得再按打卡时刻重新切天。
+    var dayCutoff: String? = nil
 }
 
 /// 习惯数据源协议：生产实现适配真实 habit repository（后续集成），测试用 mock。

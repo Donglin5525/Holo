@@ -8,6 +8,19 @@
 import Foundation
 import CoreData
 
+/// 单账户余额观测结果（目标闭环 §6.2）：缺失/软删/查询失败与「余额为 0」严格区分
+enum FinanceAccountBalanceObservation: Equatable {
+    case observed(balance: Decimal, asOf: Date, accountName: String, accountType: AccountType)
+    case accountMissing
+    case accountDeleted
+    case queryFailed
+
+    var balance: Decimal? {
+        if case .observed(let balance, _, _, _) = self { return balance }
+        return nil
+    }
+}
+
 extension FinanceRepository {
 
     // MARK: - Account Operations
@@ -238,25 +251,50 @@ extension FinanceRepository {
 
     /// 截止到指定日期、单个账户的累计余额（该账户 initialBalance + 此前收支净额，含对账调整）。
     /// 统计页按账户下钻时作余额曲线起点；与 getCumulativeBalance 同口径，仅圈定到所选账户。
+    /// 账户缺失返回 0 是统计页旧行为；目标结果读取必须用 `accountBalanceObservation`，缺失 ≠ 0 元。
     func getAccountCumulativeBalance(accountId: UUID, before date: Date) -> Decimal {
         let accountRequest = Account.fetchRequest()
         accountRequest.predicate = NSPredicate(format: "id == %@", accountId as CVarArg)
         accountRequest.fetchLimit = 1
         guard let account = try? context.fetch(accountRequest).first else { return 0 }
+        return accumulatedBalance(for: account, before: date) ?? account.initialBalance.decimalValue
+    }
 
+    /// 单账户余额的类型化读取（2026-10-20 目标闭环 §6.2）：
+    /// 账户不存在 / 已软删 / 查询失败各自有明确状态，不能被当成 0 元观测。
+    /// 余额算法与 getAccountCumulativeBalance 同源，不另写一份财务计算器。
+    func accountBalanceObservation(accountId: UUID, before date: Date) -> FinanceAccountBalanceObservation {
+        let accountRequest = Account.fetchRequest()
+        accountRequest.predicate = NSPredicate(format: "id == %@", accountId as CVarArg)
+        accountRequest.fetchLimit = 1
+        let fetched: [Account]
+        do {
+            fetched = try context.fetch(accountRequest)
+        } catch {
+            return .queryFailed
+        }
+        guard let account = fetched.first else { return .accountMissing }
+        guard account.deletedAt == nil else { return .accountDeleted }
+        guard let balance = accumulatedBalance(for: account, before: date) else { return .queryFailed }
+        return .observed(balance: balance,
+                         asOf: min(date, Date()),
+                         accountName: account.name,
+                         accountType: account.accountType)
+    }
+
+    /// initialBalance + date 之前已发生收支净额（含对账调整）；交易查询失败返回 nil
+    private func accumulatedBalance(for account: Account, before date: Date) -> Decimal? {
         var balance = account.initialBalance.decimalValue
 
         let request = Transaction.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            NSPredicate(format: "account.id == %@", accountId as CVarArg),
+            NSPredicate(format: "account.id == %@", account.id as CVarArg),
             NSPredicate(format: "date < %@", date as NSDate),
             FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: min(date, Date())),
             NSPredicate(format: "deletedAt == nil")
         ])
 
-        guard let transactions = try? context.fetch(request) else {
-            return balance
-        }
+        guard let transactions = try? context.fetch(request) else { return nil }
 
         for tx in transactions {
             if tx.transactionType == .income {
@@ -265,7 +303,6 @@ extension FinanceRepository {
                 balance -= tx.amount.decimalValue
             }
         }
-
         return balance
     }
 

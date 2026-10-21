@@ -112,6 +112,13 @@
 		79D6E5B7614875801A181738 /* HoloFinanceToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B443967EB0048E751507C6D /* HoloFinanceToolTests.swift */; };
 		7A11E5C2A4B90817D3F2E601 /* HoloAgentTimeSemanticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B22F6D3C5A01928E4A1F702 /* HoloAgentTimeSemanticsTests.swift */; };
 		7A1B2C3D4E5F60718293A4B5 /* AmountMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C0D1E2F3A4B5C6D7E8F90A1 /* AmountMathTests.swift */; };
+		7A1D0A2026102000000000A2 /* GoalPlanContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0A2026102000000000A1 /* GoalPlanContractTests.swift */; };
+		7A1D0A2026102000000000A4 /* GoalEvaluationSnapshotBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0A2026102000000000A3 /* GoalEvaluationSnapshotBuilderTests.swift */; };
+		7A1D0A2026102000000000A6 /* GoalPlanCommitV2Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0A2026102000000000A5 /* GoalPlanCommitV2Tests.swift */; };
+		7A1D0A2026102000000000A8 /* GoalReviewAndAdjustmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0A2026102000000000A7 /* GoalReviewAndAdjustmentTests.swift */; };
+		7A1D0A2026102000000000B2 /* GoalPlanContract.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0A2026102000000000B1 /* GoalPlanContract.swift */; };
+		7A1D0A2026102000000000B6 /* GoalClosedLoopSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0A2026102000000000B5 /* GoalClosedLoopSmokeUITests.swift */; };
+		7A1D0A2026102000000000C2 /* HabitDayAttribution.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0A2026102000000000C1 /* HabitDayAttribution.swift */; };
 		7A3F91E2B4C605D8A1F2E934 /* HoloDeterministicAnswerComposerStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C8D2A1F9E3B4760B2D8F1A3 /* HoloDeterministicAnswerComposerStandaloneTests.swift */; };
 		7A4C1F8E2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */; };
 		7A5C2EA02B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A5C2E9F2B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift */; };
@@ -605,6 +612,13 @@
 		76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageRepositoryOrphanCleanupTests.swift; sourceTree = "<group>"; };
 		77B02553D193169B1FC31AE3 /* HoloEpisodicMemoryStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloEpisodicMemoryStoreTests.swift; sourceTree = "<group>"; };
 		7A1C3E95B4D8F2A6C0E31B74 /* SleepStructureAnalyzerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepStructureAnalyzerTests.swift; sourceTree = "<group>"; };
+		7A1D0A2026102000000000A1 /* GoalPlanContractTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalPlanContractTests.swift; sourceTree = "<group>"; };
+		7A1D0A2026102000000000A3 /* GoalEvaluationSnapshotBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalEvaluationSnapshotBuilderTests.swift; sourceTree = "<group>"; };
+		7A1D0A2026102000000000A5 /* GoalPlanCommitV2Tests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalPlanCommitV2Tests.swift; sourceTree = "<group>"; };
+		7A1D0A2026102000000000A7 /* GoalReviewAndAdjustmentTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalReviewAndAdjustmentTests.swift; sourceTree = "<group>"; };
+		7A1D0A2026102000000000B1 /* GoalPlanContract.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = GoalPlanContract.swift; path = Holo/Models/GoalPlanContract.swift; sourceTree = "<group>"; };
+		7A1D0A2026102000000000B5 /* GoalClosedLoopSmokeUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalClosedLoopSmokeUITests.swift; sourceTree = "<group>"; };
+		7A1D0A2026102000000000C1 /* HabitDayAttribution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = HabitDayAttribution.swift; path = Holo/Models/HabitDayAttribution.swift; sourceTree = "<group>"; };
 		7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudKitRuntimeAvailabilityTests.swift; sourceTree = "<group>"; };
 		7A5C2E9F2B6E4B7D9F1A2468 /* ICloudSyncStatusServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ICloudSyncStatusServiceTests.swift; sourceTree = "<group>"; };
 		7A5D3E012B7F5C8DAE2B3501 /* CloudKitSyncErrorAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CloudKitSyncErrorAnalyzer.swift; path = Holo/Services/Sync/CloudKitSyncErrorAnalyzer.swift; sourceTree = "<group>"; };
@@ -1145,6 +1159,10 @@
 				F1AC00000000000000000FA2 /* ReceiptAttachmentTests.swift */,
 				69443339474AF4E0071C08EA /* GoalWorkshopStoreTests.swift */,
 				6C8B3B3BE3ECC2E23DC175E2 /* GoalWorkshopCommitTests.swift */,
+				7A1D0A2026102000000000A1 /* GoalPlanContractTests.swift */,
+				7A1D0A2026102000000000A3 /* GoalEvaluationSnapshotBuilderTests.swift */,
+				7A1D0A2026102000000000A5 /* GoalPlanCommitV2Tests.swift */,
+				7A1D0A2026102000000000A7 /* GoalReviewAndAdjustmentTests.swift */,
 				A1B2C3D4E5F60718293A0002 /* CategoryComparisonBuilderTests.swift */,
 				1EDCE631364060018D86E6FA /* HabitIconPresetsTests.swift */,
 				B6CF638B2243E17102E84F64 /* HabitStatsDisplaySettingsTests.swift */,
@@ -1268,6 +1286,7 @@
 				A1D01D0000000000000000003D /* CheckItem+CoreDataClass.swift */,
 				A1D01D0000000000000000003F /* CheckItem+CoreDataProperties.swift */,
 				A1D01D0000000000000000004B /* Habit.swift */,
+				7A1D0A2026102000000000C1 /* HabitDayAttribution.swift */,
 				A1D01D0000000000000000004D /* Habit+CoreDataProperties.swift */,
 				A1D01D0000000000000000004F /* HabitType.swift */,
 				A1D01D00000000000000000051 /* HabitNumericAggregation.swift */,
@@ -1328,6 +1347,7 @@
 				5CCB941D00AFDF85C22A3EE1 /* GoalWorkshopModels.swift */,
 				C414690E56E7ADF2F9B79C52 /* GoalWorkshopSessionMO.swift */,
 				900B75D1F23D16F02702C93F /* GoalPlanRevisionMO.swift */,
+				7A1D0A2026102000000000B1 /* GoalPlanContract.swift */,
 				EA77E10C0DE00000000000F0 /* HoloMatter+CoreDataClass.swift */,
 				EA77E10C0DE0000000000101 /* HoloMatterOpenLoop+CoreDataClass.swift */,
 				EA77E10C0DE0000000000111 /* HoloMatterLink+CoreDataClass.swift */,
@@ -1727,6 +1747,7 @@
 				GATEUI0000000000000002 /* ThoughtGestureGateUITests.swift */,
 				P1SMOKE0000000000000002 /* ThoughtP1PerceptionSmokeUITests.swift */,
 				F6245C98D5928399AA166F48 /* GoalWorkshopJourneyUITests.swift */,
+				7A1D0A2026102000000000B5 /* GoalClosedLoopSmokeUITests.swift */,
 			);
 			path = HoloUITests;
 			sourceTree = "<group>";
@@ -2043,6 +2064,10 @@
 				F1AC00000000000000000FB3 /* ReceiptAttachmentTests.swift in Sources */,
 				F38D3889CE87698AECF36EAF /* GoalWorkshopStoreTests.swift in Sources */,
 				BC59E00B27BFC9CD15E7DF45 /* GoalWorkshopCommitTests.swift in Sources */,
+				7A1D0A2026102000000000A2 /* GoalPlanContractTests.swift in Sources */,
+				7A1D0A2026102000000000A4 /* GoalEvaluationSnapshotBuilderTests.swift in Sources */,
+				7A1D0A2026102000000000A6 /* GoalPlanCommitV2Tests.swift in Sources */,
+				7A1D0A2026102000000000A8 /* GoalReviewAndAdjustmentTests.swift in Sources */,
 				A1B2C3D4E5F60718293A0001 /* CategoryComparisonBuilderTests.swift in Sources */,
 				2B2534D13C28FCD8CD5ACF14 /* HabitIconPresetsTests.swift in Sources */,
 				41420F5E967D7933A135A537 /* HabitStatsDisplaySettingsTests.swift in Sources */,
@@ -2260,6 +2285,7 @@
 				0773DB32DE0B0672FBC17769 /* GoalWorkshopModels.swift in Sources */,
 				DE280585393222DCEB6C9F92 /* GoalWorkshopSessionMO.swift in Sources */,
 				E3CB96D8D074BE5170A92FDE /* GoalPlanRevisionMO.swift in Sources */,
+				7A1D0A2026102000000000B2 /* GoalPlanContract.swift in Sources */,
 				EA77E10C0DE0000000000122 /* HoloMatterEvent+CoreDataClass.swift in Sources */,
 				A1D01D00000000000000000016 /* CoreDataStack+ScheduleEntities.swift in Sources */,
 				A1D01D00000000000000000018 /* CoreDataStack+SyncEntities.swift in Sources */,
@@ -2279,6 +2305,7 @@
 				A1D01D0000000000000000003E /* CheckItem+CoreDataClass.swift in Sources */,
 				A1D01D00000000000000000040 /* CheckItem+CoreDataProperties.swift in Sources */,
 				A1D01D0000000000000000004C /* Habit.swift in Sources */,
+				7A1D0A2026102000000000C2 /* HabitDayAttribution.swift in Sources */,
 				A1D01D0000000000000000004E /* Habit+CoreDataProperties.swift in Sources */,
 				A1D01D00000000000000000050 /* HabitType.swift in Sources */,
 				A1D01D00000000000000000052 /* HabitNumericAggregation.swift in Sources */,
@@ -2348,6 +2375,7 @@
 				P1SMOKE0000000000000001 /* ThoughtP1PerceptionSmokeUITests.swift in Sources */,
 				L1FESRC0000000000000011 /* LifeUnderstandingJourneyUITests.swift in Sources */,
 				D91595555CB4DEA96C2B3753 /* GoalWorkshopJourneyUITests.swift in Sources */,
+				7A1D0A2026102000000000B6 /* GoalClosedLoopSmokeUITests.swift in Sources */,
 				C10D0000A1B1C1D1E1F1BB02 /* CalendarPickerWalkUITests.swift in Sources */,
 				C10D0000A1B1C1D1E1F1BB04 /* ReceiptStubSmokeUITests.swift in Sources */,
 				AA11BB22CC33DD44EE550005 /* HoloXhsShotUITests.swift in Sources */,

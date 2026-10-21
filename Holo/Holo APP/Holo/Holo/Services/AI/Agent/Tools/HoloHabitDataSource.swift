@@ -38,6 +38,7 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
         repo.loadActiveHabits()
         return repo.activeHabits.map { habit in
             let records = repo.getRecords(for: habit, in: start...inclusiveEnd)
+            let dayEnd = habit.dayEndMinutes
             return HoloHabitToolRecord(
                 id: habit.id.uuidString,
                 name: habit.name,
@@ -47,11 +48,15 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
                     records: records,
                     today: referenceDay,
                     dayCount: dayCount,
-                    isMeasureType: habit.isMeasureType
+                    isMeasureType: habit.isMeasureType,
+                    dayEndMinutes: dayEnd
                 ),
                 unit: habit.isNumericType ? habit.unitText : nil,
                 isMeasureType: habit.isMeasureType,
-                recentNotes: collectNotes(records: records, today: referenceDay, dayCount: dayCount)
+                recentNotes: collectNotes(records: records, today: referenceDay, dayCount: dayCount, dayEndMinutes: dayEnd),
+                dayCutoff: habit.hasCustomDayEnd
+                    ? HabitDayAttribution.displayText(hour: habit.dayEndTime.hour, minute: habit.dayEndTime.minute)
+                    : nil
             )
         }
     }
@@ -65,7 +70,8 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
     /// 按 dayOffset（0=参考日）聚合每日计数：计数型累加 value，打卡型 +1；
     /// 测量型（如体重，LATEST 聚合）取当日最后一条记录值，避免一天多次记录被错误累加。
     /// retroactiveCount 同步统计该日后补（补签/补记）条数，供工具层向 AI 标注。
-    private static func aggregate(records: [HabitRecord], today: Date, dayCount: Int, isMeasureType: Bool) -> [HoloHabitDailyCount] {
+    /// 记录归属日按习惯的每日结算时间（dayEndMinutes）判定，与 App 内连续/热力图同口径。
+    private static func aggregate(records: [HabitRecord], today: Date, dayCount: Int, isMeasureType: Bool, dayEndMinutes: Int) -> [HoloHabitDailyCount] {
         let calendar = Calendar.current
         var bucket = [Double](repeating: 0, count: dayCount)
         var retroBucket = [Int](repeating: 0, count: dayCount)
@@ -75,7 +81,8 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
             var latestCreatedAtByOffset = [Int: Date]()
             for record in records {
                 guard let value = record.value?.doubleValue else { continue }
-                let dayOffset = calendar.dateComponents([.day], from: calendar.startOfDay(for: record.date), to: today).day ?? -1
+                let recordDay = record.attributedDay(dayEndMinutes: dayEndMinutes, calendar: calendar)
+                let dayOffset = calendar.dateComponents([.day], from: recordDay, to: today).day ?? -1
                 guard dayOffset >= 0, dayOffset < dayCount else { continue }
                 if let existing = latestCreatedAtByOffset[dayOffset], existing >= record.createdAt {
                     continue
@@ -86,7 +93,8 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
             }
         } else {
             for record in records {
-                let dayOffset = calendar.dateComponents([.day], from: calendar.startOfDay(for: record.date), to: today).day ?? -1
+                let recordDay = record.attributedDay(dayEndMinutes: dayEndMinutes, calendar: calendar)
+                let dayOffset = calendar.dateComponents([.day], from: recordDay, to: today).day ?? -1
                 guard dayOffset >= 0, dayOffset < dayCount else { continue }
                 if let value = record.value?.doubleValue {
                     bucket[dayOffset] += value
@@ -102,12 +110,13 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
     }
 
     /// 收集近期备注（近→早，最多 5 条）：同一天多条时取最新一条（按 createdAt，与聚合口径一致）
-    private static func collectNotes(records: [HabitRecord], today: Date, dayCount: Int) -> [HoloHabitDailyNote] {
+    private static func collectNotes(records: [HabitRecord], today: Date, dayCount: Int, dayEndMinutes: Int) -> [HoloHabitDailyNote] {
         let calendar = Calendar.current
         var latestByOffset: [Int: (createdAt: Date, note: String, isRetroactive: Bool)] = [:]
         for record in records {
             guard let note = record.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty else { continue }
-            let dayOffset = calendar.dateComponents([.day], from: calendar.startOfDay(for: record.date), to: today).day ?? -1
+            let recordDay = record.attributedDay(dayEndMinutes: dayEndMinutes, calendar: calendar)
+            let dayOffset = calendar.dateComponents([.day], from: recordDay, to: today).day ?? -1
             guard dayOffset >= 0, dayOffset < dayCount else { continue }
             if let existing = latestByOffset[dayOffset], existing.createdAt >= record.createdAt {
                 continue

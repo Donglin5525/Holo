@@ -19,20 +19,24 @@ struct MemoryAchievementSnapshot {
         let habits = DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
         let records = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
         records.resultType = .dictionaryResultType
-        records.propertiesToFetch = ["id", "habitId", "date", "isCompleted"]
+        records.propertiesToFetch = ["id", "habitId", "date", "isCompleted", "isRetroactive"]
         records.predicate = NSPredicate(format: "deletedAt == nil")
         let facts: [HabitRecordFact] = ((try? context.fetch(records)) ?? []).compactMap { row in
             guard let id = row["id"] as? UUID, let habitID = row["habitId"] as? UUID,
                   let date = row["date"] as? Date else { return nil }
             return HabitRecordFact(id: id, habitId: habitID, date: date,
                                    isCompleted: (row["isCompleted"] as? NSNumber)?.boolValue ?? false,
-                                   value: nil, isRetroactive: false)
+                                   value: nil,
+                                   isRetroactive: (row["isRetroactive"] as? NSNumber)?.boolValue ?? false)
         }
         let windows = Dictionary(habits.map { ($0.id, $0.pauseWindows) }, uniquingKeysWith: { first, _ in first })
-        let data = HabitPresentationProjector.buildData(records: facts, pauseWindowsByHabit: windows, now: now)
+        let dayEnds = Dictionary(habits.map { ($0.id, $0.dayEndMinutes) }, uniquingKeysWith: { first, _ in first })
+        let data = HabitPresentationProjector.buildData(
+            records: facts, pauseWindowsByHabit: windows, dayEndMinutesByHabit: dayEnds, now: now
+        )
         let completedToday = Set(data.recordsByHabit.compactMap { id, facts in
-            // 与旧仓库今日判定同口径：当天最新一条记录的完成态。
-            data.records(facts, on: data.today).last?.isCompleted == true ? id : nil
+            // 与旧仓库今日判定同口径：当天（按该习惯结算时间）最新一条记录的完成态。
+            data.records(facts, on: data.today(for: id)).last?.isCompleted == true ? id : nil
         })
         var streaks: [UUID: HabitStreak] = [:]
         for habit in habits {

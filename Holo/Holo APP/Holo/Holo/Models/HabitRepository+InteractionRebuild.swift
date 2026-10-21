@@ -98,6 +98,7 @@ extension HabitRepository {
         let oIsBad = habit.isBadHabit
         let oReminderMode = habit.habitReminderMode
         let oReminderTime = habit.reminderTime
+        let oDayEndTime = habit.dayEndTime
         let oGoal = habit.goal
 
         func restore() {
@@ -113,6 +114,7 @@ extension HabitRepository {
             habit.isBadHabit = oIsBad
             habit.habitReminderMode = oReminderMode
             habit.reminderTime = oReminderTime
+            habit.dayEndTime = oDayEndTime
             habit.goal = oGoal
         }
 
@@ -128,6 +130,7 @@ extension HabitRepository {
         habit.isBadHabit = payload.isBadHabit
         habit.habitReminderMode = payload.reminderMode
         habit.reminderTime = payload.reminderTime
+        habit.dayEndTime = payload.dayEndTime
         if typeChanged {
             habit.type = payload.type.rawValue
             bridgeRecordsForTypeChange(habit, to: payload.type)
@@ -231,6 +234,18 @@ extension HabitRepository {
         request.predicate = NSPredicate(format: "id IN %@ AND deletedAt == nil", ids as NSArray)
         for habit in (try? context.fetch(request)) ?? [] {
             result[habit.id] = habit.pauseWindows
+        }
+        return result
+    }
+
+    /// 全部未删除习惯的每日结算时间（投影底座按它把记录平移到各习惯的日界坐标）。
+    /// 习惯表很小，一次全取比按 id 分批更省事，归档习惯的历史痕迹也同口径。
+    func dayEndMinutesByHabit() -> [UUID: Int] {
+        let request = Habit.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
+        var result: [UUID: Int] = [:]
+        for habit in (try? context.fetch(request)) ?? [] where habit.hasCustomDayEnd {
+            result[habit.id] = habit.dayEndMinutes
         }
         return result
     }

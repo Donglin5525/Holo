@@ -100703,7 +100703,840 @@
           }
         }
       }
+    },
+    "每日结算时间" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily cutoff time"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日結算時間"
+          }
+        }
+      }
     }
+,
+    "凌晨 0 点，按自然日" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Midnight, by calendar day"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "凌晨 0 點，按自然日"
+          }
+        }
+      }
+    }
+,
+    "%@ 前的记录算前一天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entries before %@ count for the previous day"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 前的記錄算前一天"
+          }
+        }
+      }
+    }
+,
+    "0:00（默认）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0:00 (default)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "0:00（預設）"
+          }
+        }
+      }
+    }
+,
+    "%@ 结算" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cutoff %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 結算"
+          }
+        }
+      }
+    }
+,
+    "%@ · 每天 %@ 结算" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · daily cutoff %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · 每天 %2$@ 結算"
+          }
+        }
+      }
+    }
+,
+    "进度由你在目标里手动记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You record progress manually in the goal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進度由你在目標裡手動記錄"
+          }
+        }
+      }
+    }
+,
+    "按全账本收入减支出的净增加衡量，不是专项资金" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Measured by the whole ledger's net increase (income minus spending); not earmarked funds"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按全帳本收入減支出的淨增加衡量，不是專項資金"
+          }
+        }
+      }
+    }
+,
+    "这个目标不设量化来源，进度按任务与习惯的执行情况看" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No quantitative source for this goal; progress is read from task and habit execution"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個目標不設量化來源，進度按任務與習慣的執行情況看"
+          }
+        }
+      }
+    }
+,
+    "待补齐：计划照常建立，报告里结果按未知处理；之后到习惯里选定来源" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To be completed: the plan is created as usual and reports treat the result as unknown; pick a source in Habits later"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待補齊：計劃照常建立，報告裡結果按未知處理；之後到習慣裡選定來源"
+          }
+        }
+      }
+    }
+,
+    "待补齐：计划照常建立，报告里结果按未知处理；之后到财务完善账户再选定" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To be completed: the plan is created as usual and reports treat the result as unknown; set up the account in Finance, then pick it"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待補齊：計劃照常建立，報告裡結果按未知處理；之後到財務完善帳戶再選定"
+          }
+        }
+      }
+    }
+,
+    "读哪个习惯" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which habit to read"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀哪個習慣"
+          }
+        }
+      }
+    }
+,
+    "稍后补齐" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Decide later"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍後補齊"
+          }
+        }
+      }
+    }
+,
+    "新建 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建 · %@"
+          }
+        }
+      }
+    }
+,
+    "既有 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Existing · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既有 · %@"
+          }
+        }
+      }
+    }
+,
+    "怎么读" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to read it"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "怎麼讀"
+          }
+        }
+      }
+    }
+,
+    "取最新一次（体重类）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Latest reading (e.g. weight)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取最新一次（體重類）"
+          }
+        }
+      }
+    }
+,
+    "累计相加（练习量类）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cumulative sum (e.g. practice volume)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "累計相加（練習量類）"
+          }
+        }
+      }
+    }
+,
+    "窗口趋势" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window trend"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "窗口趨勢"
+          }
+        }
+      }
+    }
+,
+    "哪个账户代表这笔资金" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which account holds these funds"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "哪個帳戶代表這筆資金"
+          }
+        }
+      }
+    }
+,
+    "达到" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reach"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "達到"
+          }
+        }
+      }
+    }
+,
+    "不超过" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stay under"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不超過"
+          }
+        }
+      }
+    }
+,
+    "持续下降" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trend down"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "持續下降"
+          }
+        }
+      }
+    }
+,
+    "持续上升" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trend up"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "持續上升"
+          }
+        }
+      }
+    }
+,
+    "已选定的习惯" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected habit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已選定的習慣"
+          }
+        }
+      }
+    }
+,
+    "已选定的账户" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected account"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已選定的帳戶"
+          }
+        }
+      }
+    }
+,
+    "预算名称" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Budget name"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預算名稱"
+          }
+        }
+      }
+    }
+,
+    "复用这个账户%@已有的预算 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reuse this account's existing %1$@ budget of %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複用這個帳戶%1$@已有的預算 %2$@"
+          }
+        }
+      }
+    }
+,
+    "同账户同周期不会再建第二份预算：复用它，或者换账户 / 换周期" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No second budget for the same account and period: reuse it, or change the account / period"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同帳戶同週期不會再建第二份預算：複用它，或者換帳戶 / 換週期"
+          }
+        }
+      }
+    }
+,
+    "没有可用账户：可先取消预算，到财务添加账户后再设" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No account available: turn the budget off for now and set it after adding an account in Finance"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有可用帳戶：可先取消預算，到財務新增帳戶後再設"
+          }
+        }
+      }
+    }
+,
+    "预算需要选定账户，金额大于 0" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A budget needs an account and an amount above 0"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預算需要選定帳戶，金額大於 0"
+          }
+        }
+      }
+    }
+,
+    "资金期次" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Funding installments"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資金期次"
+          }
+        }
+      }
+    }
+,
+    "加一期" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add installment"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加一期"
+          }
+        }
+      }
+    }
+,
+    "删除这一期" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this installment"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除這一期"
+          }
+        }
+      }
+    }
+,
+    "共 %lld 期，合计 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld installments, %2$@ in total"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共 %1$lld 期，合計 %2$@"
+          }
+        }
+      }
+    }
+,
+    "行为限制" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Behavior limits"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "行為限制"
+          }
+        }
+      }
+    }
+,
+    "限制名称" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit name"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "限制名稱"
+          }
+        }
+      }
+    }
+,
+    "上限" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cap"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上限"
+          }
+        }
+      }
+    }
+,
+    "每 %lld 天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every %lld days"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每 %lld 天"
+          }
+        }
+      }
+    }
+,
+    "记在哪个习惯" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which habit tracks it"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記在哪個習慣"
+          }
+        }
+      }
+    }
+,
+    "选择习惯" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose habit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇習慣"
+          }
+        }
+      }
+    }
+,
+    "阶段性要求，到期自动结束" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Temporary requirement; ends automatically on the date"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "階段性要求，到期自動結束"
+          }
+        }
+      }
+    }
+,
+    "这条限制要落在一个习惯上才能记数：选一个既有习惯，或保留上方新建的习惯" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This limit needs a habit to count against: pick an existing habit, or keep the new habit above"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這條限制要落在一個習慣上才能記數：選一個既有習慣，或保留上方新建的習慣"
+          }
+        }
+      }
+    }
+,
+    "定期回顾" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regular review"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "定期回顧"
+          }
+        }
+      }
+    }
+,
+    "每两周" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every two weeks"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每兩週"
+          }
+        }
+      }
+    }
+,
+    "下次回顾" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next review"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下次回顧"
+          }
+        }
+      }
+    }
+,
+    "每次回看最近 %lld 天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each review looks back %lld days"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次回看最近 %lld 天"
+          }
+        }
+      }
+    }
+,
+    "到期先出现待回顾提示，你点开才会生成报告，不会每次记录都打扰" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When due, a review prompt appears first; the report is generated only when you open it, never on every entry"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到期先出現待回顧提示，你點開才會生成報告，不會每次記錄都打擾"
+          }
+        }
+      }
+    }
+,
+    "已关闭定期回顾；需要时仍可在目标里手动发起分析" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Regular review is off; you can still start an analysis from the goal anytime"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已關閉定期回顧；需要時仍可在目標裡手動發起分析"
+          }
+        }
+      }
+    }
+
   },
   "version" : "1.0"
 }

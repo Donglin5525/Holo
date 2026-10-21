@@ -60,11 +60,12 @@ struct HabitRetroactiveSheet: View {
 
     private var isPickerMode: Bool { selectedDay == nil }
 
-    /// 补记可选日期范围：习惯创建日 ~ 昨天
+    /// 补记可选日期范围：习惯创建日 ~ 昨天（创建日与「今天」均按习惯结算时间：
+    /// 结算前的凌晨，尚未结算的那一天还能直接打卡，不进补记范围）
     private var backfillRange: ClosedRange<Date>? {
         let calendar = Calendar.current
-        let lower = calendar.startOfDay(for: habit.createdAt)
-        let upper = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))
+        let lower = habit.creationDay(calendar: calendar)
+        let upper = calendar.date(byAdding: .day, value: -1, to: habit.currentDay(calendar: calendar))
         guard let upper, lower <= upper else { return nil }
         return lower...upper
     }
@@ -192,11 +193,11 @@ struct HabitRetroactiveSheet: View {
         }
     }
 
-    /// 昨天/前天/大前天（不早于创建日的）
+    /// 昨天/前天/大前天（不早于创建日的；「今天」按习惯结算时间）
     private var quickBackfillDays: [Date] {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let created = calendar.startOfDay(for: habit.createdAt)
+        let today = habit.currentDay(calendar: calendar)
+        let created = habit.creationDay(calendar: calendar)
         return (1...3).compactMap { offset in
             guard let day = calendar.date(byAdding: .day, value: -offset, to: today), day >= created else { return nil }
             return day
@@ -554,7 +555,7 @@ struct HabitRetroactiveSheet: View {
         let formatter = DateFormatter()
         formatter.setLocalizedDateFormatFromTemplate(withYear ? "yMMMdEEEE" : "MMMdEEEE")
 
-        let today = calendar.startOfDay(for: Date())
+        let today = habit.currentDay(calendar: calendar)
         let daysAgo = calendar.dateComponents([.day], from: day, to: today).day ?? 0
         let agoText: String
         switch daysAgo {
@@ -572,10 +573,10 @@ struct HabitRetroactiveSheet: View {
         return formatter.string(from: day)
     }
 
-    /// 快捷 chips 文案：昨天 / 前天 / N 天前
+    /// 快捷 chips 文案：昨天 / 前天 / N 天前（相对习惯口径的今天）
     private func dayAgoText(_ day: Date) -> String {
         let calendar = Calendar.current
-        let daysAgo = calendar.dateComponents([.day], from: calendar.startOfDay(for: day), to: calendar.startOfDay(for: Date())).day ?? 0
+        let daysAgo = calendar.dateComponents([.day], from: calendar.startOfDay(for: day), to: habit.currentDay(calendar: calendar)).day ?? 0
         switch daysAgo {
         case 1: return String(localized: "昨天")
         case 2: return String(localized: "前天")

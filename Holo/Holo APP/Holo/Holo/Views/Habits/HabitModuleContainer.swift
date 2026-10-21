@@ -123,7 +123,7 @@ struct HabitModuleContainer: View {
         }
         .sheet(item: $measureSheetTarget) { snapshot in
             HabitMeasureInputSheet(snapshot: snapshot) { value, note in
-                Task { await model.record(kind: .addNumeric(value: value), habitId: snapshot.id, note: note) }
+                await model.record(kind: .addNumeric(value: value), habitId: snapshot.id, note: note)
             }
         }
         .sheet(isPresented: $showOptionsSheet, onDismiss: { optionsInitialPage = nil }) {

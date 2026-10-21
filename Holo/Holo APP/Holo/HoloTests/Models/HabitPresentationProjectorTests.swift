@@ -524,4 +524,157 @@ final class HabitPresentationProjectorTests: XCTestCase {
         XCTAssertNil(HabitPresentationProjector.retroactiveMode(habit: habit, day: day2, data: data2),
                      "周频率已完成日幂等，无需补签")
     }
+
+    // MARK: - 每日结算时间（日界平移；固定时刻，不依赖跑测试的钟点）
+
+    private func fixedDate(_ day: Int, _ hour: Int, _ minute: Int = 0, month: Int = 10) -> Date {
+        Calendar.current.date(from: DateComponents(year: 2026, month: month, day: day, hour: hour, minute: minute))!
+    }
+
+    private func fixedDay(_ day: Int, month: Int = 10) -> Date { fixedDate(day, 0, month: month) }
+
+    /// 结算 4:00 的归属函数：凌晨 0:00–3:59 归前一天，4:00 起归当天；默认 0:00 为恒等
+    func test_结算时间_真实时刻归属日() {
+        let calendar = Calendar.current
+        let fourAM = 4 * 60
+        XCTAssertEqual(HabitDayAttribution.attributedDay(fixedDate(20, 1), dayEndMinutes: fourAM, calendar: calendar), fixedDay(19))
+        XCTAssertEqual(HabitDayAttribution.attributedDay(fixedDate(20, 3, 59), dayEndMinutes: fourAM, calendar: calendar), fixedDay(19))
+        XCTAssertEqual(HabitDayAttribution.attributedDay(fixedDate(20, 4), dayEndMinutes: fourAM, calendar: calendar), fixedDay(20))
+        XCTAssertEqual(HabitDayAttribution.attributedDay(fixedDate(20, 23, 30), dayEndMinutes: fourAM, calendar: calendar), fixedDay(20))
+        XCTAssertEqual(HabitDayAttribution.attributedDay(fixedDate(20, 1), dayEndMinutes: 0, calendar: calendar), fixedDay(20),
+                       "默认结算 0:00 = 自然日，归属函数恒等")
+    }
+
+    /// 补签记录与整日坐标记录是「日坐标」，不随结算时间平移；只有实时打卡记录平移
+    func test_结算时间_补签与整日记录不平移() {
+        let calendar = Calendar.current
+        let fourAM = 4 * 60
+        let retro = HabitDayAttribution.attributedMoment(
+            recordDate: fixedDay(19), isRetroactive: true, dayEndMinutes: fourAM, calendar: calendar)
+        XCTAssertEqual(retro, fixedDay(19), "补签记录 date=目标日零点，平移会把它推到前一天")
+        let midnightExact = HabitDayAttribution.attributedMoment(
+            recordDate: fixedDay(19), isRetroactive: false, dayEndMinutes: fourAM, calendar: calendar)
+        XCTAssertEqual(midnightExact, fixedDay(19), "恰在零点的整日坐标记录（种子/导入）按日坐标原样")
+        let live = HabitDayAttribution.attributedMoment(
+            recordDate: fixedDate(20, 0, 30), isRetroactive: false, dayEndMinutes: fourAM, calendar: calendar)
+        XCTAssertEqual(live, fixedDate(19, 20, 30), "实时记录向前平移结算时长")
+    }
+
+    /// SQL 超集窗口：归属到 19 日的实时记录最晚可写到 20 日 4:00
+    func test_结算时间_超集查询窗口() {
+        let window = HabitDayAttribution.rawFetchWindow(
+            firstDay: fixedDay(19), lastDay: fixedDay(19), dayEndMinutes: 4 * 60, calendar: .current)
+        XCTAssertEqual(window.start, fixedDay(19))
+        XCTAssertEqual(window.end, fixedDate(20, 4))
+    }
+
+    /// 投影底座按各习惯的结算时间平移 fact：同一条凌晨记录，结算 4:00 的习惯归前一天，默认习惯归当天；
+    /// 平移后 recordedAt 仍是真实时刻（展示用）
+    func test_结算时间_投影底座按习惯平移记录() {
+        let night = UUID()   // 结算 4:00
+        let plain = UUID()   // 默认
+        let at0030 = fixedDate(20, 0, 30)
+        let facts = [night, plain].map {
+            HabitRecordFact(id: UUID(), habitId: $0, date: at0030, isCompleted: true, value: nil, isRetroactive: false)
+        }
+        let now = fixedDate(20, 2)
+        let data = HabitPresentationProjector.buildData(
+            records: facts, pauseWindowsByHabit: [:], dayEndMinutesByHabit: [night: 240], now: now)
+
+        XCTAssertEqual(data.completedDaysByHabit[night], [fixedDay(19)])
+        XCTAssertEqual(data.completedDaysByHabit[plain], [fixedDay(20)])
+        XCTAssertEqual(data.recordsByHabit[night]?.first?.date, fixedDate(19, 20, 30))
+        XCTAssertEqual(data.recordsByHabit[night]?.first?.recordedAt, at0030, "真实记录时刻保留给展示")
+        XCTAssertEqual(data.today(for: night), fixedDay(19), "凌晨 2 点，结算 4:00 的习惯仍在 19 日")
+        XCTAssertEqual(data.today(for: plain), fixedDay(20))
+    }
+
+    /// 核心场景：睡前习惯拖过零点。17 日 23:30 打卡、19 日 0:30 打卡（意图是 18 日的），
+    /// 19 日凌晨 2 点看连续：结算 4:00 → 17、18 两天连上 = 2；默认结算 → 0:30 算 19 日、18 日空档，只剩今天 1 天
+    func test_结算时间_凌晨打卡不断连续() throws {
+        let (_, context) = try makeRepo()
+        let nightHabit = try makeHabit(in: context)
+        let plainHabit = try makeHabit(in: context)
+        nightHabit.dayEndTime = (hour: 4, minute: 0)
+        for habit in [nightHabit, plainHabit] {
+            habit.createdAt = fixedDay(1)
+        }
+        try context.save()
+
+        var facts: [HabitRecordFact] = []
+        for habit in [nightHabit, plainHabit] {
+            for moment in [fixedDate(17, 23, 30), fixedDate(19, 0, 30)] {
+                facts.append(HabitRecordFact(id: UUID(), habitId: habit.id, date: moment,
+                                             isCompleted: true, value: nil, isRetroactive: false))
+            }
+        }
+        let now = fixedDate(19, 2)
+        let data = HabitPresentationProjector.buildData(
+            records: facts, pauseWindowsByHabit: [:],
+            dayEndMinutesByHabit: [nightHabit.id: nightHabit.dayEndMinutes], now: now)
+
+        XCTAssertEqual(HabitPresentationProjector.checkInStreakLabel(habit: nightHabit, data: data).value, 2)
+        XCTAssertEqual(HabitPresentationProjector.checkInStreakLabel(habit: plainHabit, data: data).value, 1)
+    }
+
+    /// 结算点之后看「今天」：凌晨的记录已归前一天，今天尚未记录；默认习惯则算今天已记录
+    func test_结算时间_行快照今日状态按习惯口径() throws {
+        let (_, context) = try makeRepo()
+        let nightHabit = try makeHabit(in: context)
+        let plainHabit = try makeHabit(in: context)
+        nightHabit.dayEndTime = (hour: 4, minute: 0)
+        for habit in [nightHabit, plainHabit] {
+            habit.createdAt = fixedDay(1)
+        }
+        try context.save()
+
+        let facts = [nightHabit, plainHabit].map {
+            HabitRecordFact(id: UUID(), habitId: $0.id, date: fixedDate(20, 0, 30),
+                            isCompleted: true, value: nil, isRetroactive: false)
+        }
+        let data = HabitPresentationProjector.buildData(
+            records: facts, pauseWindowsByHabit: [:],
+            dayEndMinutesByHabit: [nightHabit.id: nightHabit.dayEndMinutes], now: fixedDate(20, 5))
+
+        let nightRow = HabitPresentationProjector.rowSnapshot(habit: nightHabit, lifecycle: .active, data: data)
+        let plainRow = HabitPresentationProjector.rowSnapshot(habit: plainHabit, lifecycle: .active, data: data)
+        XCTAssertFalse(nightRow.today.isCheckInDone, "5 点已过结算，0:30 的记录属 19 日，20 日尚未打卡")
+        XCTAssertTrue(plainRow.today.isCheckInDone)
+        XCTAssertEqual(nightRow.trail.first { $0.isToday }?.day, fixedDay(20))
+        XCTAssertTrue(nightRow.trail.first { $0.day == fixedDay(19) }?.isRecorded ?? false)
+
+        // 结算点之前（凌晨 2 点）：习惯的「今天」还是 19 日，trail 的今日指针也指 19 日
+        let early = HabitPresentationProjector.buildData(
+            records: facts, pauseWindowsByHabit: [:],
+            dayEndMinutesByHabit: [nightHabit.id: nightHabit.dayEndMinutes], now: fixedDate(20, 2))
+        let earlyRow = HabitPresentationProjector.rowSnapshot(habit: nightHabit, lifecycle: .active, data: early)
+        XCTAssertTrue(earlyRow.today.isCheckInDone)
+        XCTAssertEqual(earlyRow.trail.first { $0.isToday }?.day, fixedDay(19))
+    }
+
+    /// 回顾快照：范围与「今天/未来」按习惯口径展开
+    func test_结算时间_回顾快照范围与今日按习惯口径() throws {
+        let (_, context) = try makeRepo()
+        let habit = try makeHabit(in: context)
+        habit.dayEndTime = (hour: 4, minute: 0)
+        habit.createdAt = fixedDay(1)
+        try context.save()
+
+        let facts = [HabitRecordFact(id: UUID(), habitId: habit.id, date: fixedDate(20, 0, 30),
+                                     isCompleted: true, value: nil, isRetroactive: false)]
+        let now = fixedDate(20, 2)
+        let data = HabitPresentationProjector.buildData(
+            records: facts, pauseWindowsByHabit: [:],
+            dayEndMinutesByHabit: [habit.id: habit.dayEndMinutes], now: now)
+        let info = HabitReviewHabitInfo(habit: habit, lifecycle: .active)
+        let snapshot = HabitReviewProjector.rangeSnapshot(info: info, range: .lastDays(1), data: data)
+
+        XCTAssertEqual(snapshot.dayEndMinutes, 240)
+        XCTAssertEqual(snapshot.interval, DateInterval(start: fixedDay(19), end: fixedDay(20)),
+                       "最近 1 天 = 习惯口径的今天（19 日）")
+        XCTAssertTrue(snapshot.day(fixedDay(19), today: now, calendar: .current).isRecorded)
+        XCTAssertFalse(snapshot.day(fixedDay(19), today: now, calendar: .current).isFuture)
+        XCTAssertTrue(snapshot.day(fixedDay(20), today: now, calendar: .current).isFuture,
+                      "凌晨 2 点，20 日对这个习惯还没开始")
+    }
 }

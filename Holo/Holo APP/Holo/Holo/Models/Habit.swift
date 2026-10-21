@@ -37,6 +37,9 @@ public class Habit: NSManagedObject {
     @NSManaged public var reminderMode: String
     @NSManaged public var reminderHour: Int16
     @NSManaged public var reminderMinute: Int16
+    /// 每日结算时间（距零点的时/分；0:00 = 按自然日结算）。语义见 HabitDayAttribution
+    @NSManaged public var dayEndHour: Int16
+    @NSManaged public var dayEndMinute: Int16
     @NSManaged public var createdAt: Date
     @NSManaged public var updatedAt: Date
     @NSManaged public var records: NSSet?
@@ -82,6 +85,40 @@ public class Habit: NSManagedObject {
         habitType == .checkIn
     }
 
+    // MARK: - 每日结算时间（日界平移）
+
+    /// 结算时刻距零点的分钟数；0 = 凌晨 0 点结算（自然日，默认）
+    var dayEndMinutes: Int { Int(dayEndHour) * 60 + Int(dayEndMinute) }
+
+    var dayEndTime: (hour: Int, minute: Int) {
+        get { (Int(dayEndHour), Int(dayEndMinute)) }
+        set {
+            dayEndHour = Int16(newValue.hour)
+            dayEndMinute = Int16(newValue.minute)
+        }
+    }
+
+    var hasCustomDayEnd: Bool { dayEndMinutes != 0 }
+
+    /// 把一个真实时刻换到该习惯的日界坐标（结算前的时刻落回前一天）
+    func attributedMoment(_ moment: Date) -> Date {
+        HabitDayAttribution.attributedMoment(moment, dayEndMinutes: dayEndMinutes)
+    }
+
+    func attributedDay(_ moment: Date, calendar: Calendar = .current) -> Date {
+        calendar.startOfDay(for: attributedMoment(moment))
+    }
+
+    /// 该习惯此刻所处的「今天」：结算时间前仍是前一天
+    func currentDay(now: Date = Date(), calendar: Calendar = .current) -> Date {
+        attributedDay(now, calendar: calendar)
+    }
+
+    /// 创建日（习惯口径）：结算前创建的习惯归前一天，凌晨建完立刻打卡不会被判成「创建前」
+    func creationDay(calendar: Calendar = .current) -> Date {
+        attributedDay(createdAt, calendar: calendar)
+    }
+
     // MARK: - 暂停窗口（冻结口径：暂停日不算断、不计数）
 
     /// 历次暂停窗口（编码存 pauseWindowsData）
@@ -98,7 +135,7 @@ public class Habit: NSManagedObject {
     /// 某一天是否处于暂停窗口内（开放窗口视为延伸至今天）
     func isDayPaused(_ day: Date, calendar: Calendar = .current) -> Bool {
         let dayStart = calendar.startOfDay(for: day)
-        let today = calendar.startOfDay(for: Date())
+        let today = currentDay(calendar: calendar)
         return pauseWindows.contains { window in
             let start = calendar.startOfDay(for: window.startDate)
             guard dayStart >= start else { return false }

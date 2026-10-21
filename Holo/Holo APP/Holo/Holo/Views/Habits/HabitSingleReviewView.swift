@@ -84,11 +84,9 @@ struct HabitSingleReviewView: View {
                     kind: snapshot?.info.kind ?? .checkIn,
                     unit: snapshot?.info.unit
                 ) { value, note in
-                    Task {
-                        await model.record(kind: .updateRecord(recordId: target.recordId,
-                                                               value: value, note: note),
-                                           habitId: habitId)
-                    }
+                    await model.record(kind: .updateRecord(recordId: target.recordId,
+                                                          value: value, note: note),
+                                       habitId: habitId)
                 }
             }
         }
@@ -966,15 +964,17 @@ struct HabitSingleReviewView: View {
         let data = HabitPresentationProjector.buildData(
             records: HabitRepository.shared.allRecordFacts(),
             pauseWindowsByHabit: HabitRepository.shared.pauseWindowsByIds([habitId]),
+            dayEndMinutesByHabit: [habitId: habit.dayEndMinutes],
             now: model.projectionNow
         )
         return HabitPresentationProjector.retroactiveMode(habit: habit, day: day, data: data)
     }
 
-    /// 不可补的原因说明（§7.3：说明原因，不给无响应按钮）
+    /// 不可补的原因说明（§7.3：说明原因，不给无响应按钮）；「今天」按习惯结算时间
     private func ineligibleReason(_ day: Date, info: HabitReviewDay) -> String? {
         let dayStart = Calendar.current.startOfDay(for: day)
-        let todayStart = Calendar.current.startOfDay(for: model.projectionNow)
+        let todayStart = habit?.currentDay(now: model.projectionNow)
+            ?? Calendar.current.startOfDay(for: model.projectionNow)
         guard dayStart < todayStart else {
             return dayStart > todayStart ? String(localized: "未来日期不可记录") : nil
         }
@@ -1010,6 +1010,7 @@ struct HabitSingleReviewView: View {
         let data = HabitPresentationProjector.buildData(
             records: HabitRepository.shared.allRecordFacts(),
             pauseWindowsByHabit: HabitRepository.shared.pauseWindowsByIds([habitId]),
+            dayEndMinutesByHabit: [habitId: habit.dayEndMinutes],
             now: model.projectionNow
         )
         let snap = HabitReviewProjector.rangeSnapshot(info: info, range: selectedRange, data: data)

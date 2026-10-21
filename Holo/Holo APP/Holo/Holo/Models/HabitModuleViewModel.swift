@@ -176,6 +176,7 @@ final class HabitModuleViewModel: ObservableObject {
         let data = HabitPresentationProjector.buildData(
             records: facts,
             pauseWindowsByHabit: windows,
+            dayEndMinutesByHabit: repository.dayEndMinutesByHabit(),
             now: projectionNow,
             calendar: calendar
         )
@@ -250,10 +251,11 @@ final class HabitModuleViewModel: ObservableObject {
     // MARK: 记录动作
 
     /// 今天页/详情页的记录动作入口。结果驱动快照刷新与反馈时序。
-    func record(kind: HabitActionKind, habitId: UUID, note: String? = nil) async {
+    @discardableResult
+    func record(kind: HabitActionKind, habitId: UUID, note: String? = nil) async -> Bool {
         inlineError = nil
         guard let result = await coordinator.perform(kind, habitId: habitId, note: note) else {
-            return // 同习惯保存中：忽略重复提交
+            return false // 同习惯保存中：忽略重复提交
         }
 
         switch result {
@@ -262,6 +264,7 @@ final class HabitModuleViewModel: ObservableObject {
             refresh()
             warnIfOverLimit(receipt: receipt)
             announceMilestoneIfCrossed(habitId: habitId)
+            return true
 
         case .unchanged(let reason):
             refresh()
@@ -283,6 +286,7 @@ final class HabitModuleViewModel: ObservableObject {
         case .failed(let message):
             inlineError = InlineError(habitId: habitId, message: message)
         }
+        return false
     }
 
     /// 今天页拖拽排序落库（单一连续列表的感知顺序；

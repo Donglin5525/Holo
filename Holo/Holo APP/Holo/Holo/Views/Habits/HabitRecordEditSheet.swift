@@ -14,12 +14,16 @@ struct HabitRecordEditSheet: View {
     /// 习惯记录方式：打卡型无数值概念，只补备注；计数校验 >0、测量校验 ≥0
     let kind: HabitRowKind
     let unit: String?
-    var onSave: (Double?, String?) -> Void
+    var onSave: (Double?, String?) async -> Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var valueText: String = ""
     @State private var note: String = ""
     @State private var errorMessage: String?
+    @State private var isSaving = false
+    @State private var initialValue = ""
+    @State private var initialNote = ""
+    @State private var showDismissAlert = false
     @FocusState private var valueFocused: Bool
 
     var body: some View {
@@ -33,6 +37,7 @@ struct HabitRecordEditSheet: View {
                     HStack {
                         TextField(String(localized: "数值"), text: $valueText)
                             .keyboardType(.decimalPad)
+                .accessibilityIdentifier("habit-record-edit-value")
                             .font(.system(size: 22, weight: .semibold).monospacedDigit())
                             .foregroundColor(.holoToolText)
                             .focused($valueFocused)
@@ -60,7 +65,7 @@ struct HabitRecordEditSheet: View {
 
             HStack(spacing: HoloSpacing.md) {
                 Button {
-                    dismiss()
+                    if hasUnsavedChanges { showDismissAlert = true } else { dismiss() }
                 } label: {
                     Text(String(localized: "取消"))
                         .font(.system(size: 15, weight: .medium))
@@ -71,15 +76,19 @@ struct HabitRecordEditSheet: View {
                 .buttonStyle(HoloPressStyle())
 
                 Button {
-                    save()
+                    Task { await save() }
                 } label: {
-                    Text(String(localized: "保存"))
+                    Text(isSaving ? String(localized: "保存中…") : String(localized: "保存"))
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.holoToolOnAction)
                         .frame(maxWidth: .infinity, minHeight: 46)
                         .background(Capsule().fill(Color.holoToolAction))
                 }
                 .buttonStyle(HoloPressStyle())
+            }
+            .disabled(isSaving)
+            if kind == .checkIn, let errorMessage {
+                Text(errorMessage).holoText(.supporting).foregroundColor(.holoToolError)
             }
             Spacer(minLength: 0)
         }
@@ -96,10 +105,17 @@ struct HabitRecordEditSheet: View {
                 valueText = HabitPresentationProjector.formatValue(v)
             }
             note = record.note ?? ""
+            initialValue = valueText
+            initialNote = note
         }
+        .interactiveDismissDisabled(isSaving || hasUnsavedChanges)
+        .unsavedChangesAlert(isPresented: $showDismissAlert) { dismiss() }
     }
 
-    private func save() {
+    private var hasUnsavedChanges: Bool { valueText != initialValue || note != initialNote }
+
+    private func save() async {
+        guard !isSaving else { return }
         var newValue: Double? = nil
         if record.valueDouble != nil {
             let formatter = NumberFormatter()
@@ -114,7 +130,13 @@ struct HabitRecordEditSheet: View {
             }
             newValue = parsed
         }
-        onSave(newValue, note.isEmpty ? nil : note)
-        dismiss()
+        isSaving = true
+        errorMessage = nil
+        defer { isSaving = false }
+        if await onSave(newValue, note.isEmpty ? nil : note) {
+            dismiss()
+        } else {
+            errorMessage = String(localized: "这次没有保存成功，内容还在，请重试")
+        }
     }
 }

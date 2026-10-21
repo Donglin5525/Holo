@@ -166,8 +166,21 @@ struct HabitRangeSnapshot: Equatable {
     let recordedDays: Set<Date>
     /// 数值日聚合（升序，只含有记录日；计数 SUM / 测量 LATEST）
     let dailyValues: [HabitDailyNumericValue]
+    /// 该习惯的每日结算时间（分钟；0 = 自然日）。records 已按它平移到日界坐标，
+    /// 「今天」「创建日」等真实时刻在本快照内也必须按它平移
+    let dayEndMinutes: Int
 
     var recordedDayCount: Int { recordedDays.count }
+
+    /// 真实时刻 → 该习惯口径的日（startOfDay）
+    func attributedDay(_ moment: Date, calendar: Calendar) -> Date {
+        HabitDayAttribution.attributedDay(moment, dayEndMinutes: dayEndMinutes, calendar: calendar)
+    }
+
+    /// 创建日（习惯口径）
+    func creationDay(calendar: Calendar) -> Date {
+        attributedDay(info.createdAt, calendar: calendar)
+    }
 
     /// 半开归属判定（[start, end)）。DateInterval.contains 是闭区间语义（含 end），
     /// 界日（月末/明天零点）不得落入范围，必须手写比较（§10 日期窗口）。
@@ -213,7 +226,7 @@ struct HabitRangeSnapshot: Equatable {
         } else {
             dailyValue = nil
         }
-        let todayStart = calendar.startOfDay(for: today)
+        let todayStart = attributedDay(today, calendar: calendar)
         return HabitReviewDay(
             day: dayStart,
             isRecorded: recorded,
@@ -221,7 +234,7 @@ struct HabitRangeSnapshot: Equatable {
             isPaused: HabitProjectionData.isPausedDay(info.pauseWindows, on: dayStart,
                                                      today: todayStart, calendar: calendar),
             isRetroactive: dayFacts.contains { $0.isRetroactive },
-            isBeforeCreation: dayStart < calendar.startOfDay(for: info.createdAt),
+            isBeforeCreation: dayStart < creationDay(calendar: calendar),
             isFuture: dayStart > todayStart
         )
     }
@@ -302,7 +315,9 @@ enum HabitReviewProjector {
         range: HabitReviewRange,
         data: HabitProjectionData
     ) -> HabitRangeSnapshot {
-        let interval = range.dateInterval(now: data.now, calendar: data.calendar)
+        // 范围按该习惯的日界坐标展开：「今天」在结算时间前仍是前一天
+        let dayEndMinutes = data.dayEndMinutes(for: info.id)
+        let interval = range.dateInterval(now: data.now(for: info.id), calendar: data.calendar)
         // 半开归属 [start, end)：DateInterval.contains 含 end，界日（次月零点）
         // 会漏进本月（与 containsDay 同一个坑，必须手写比较）
         let facts = (data.recordsByHabit[info.id] ?? []).filter {
@@ -338,7 +353,8 @@ enum HabitReviewProjector {
             interval: interval,
             records: facts,
             recordedDays: recordedDays,
-            dailyValues: dailyValues
+            dailyValues: dailyValues,
+            dayEndMinutes: dayEndMinutes
         )
     }
 
@@ -401,7 +417,10 @@ enum HabitReviewProjector {
         let rowsInput = visibleHabits.filter { info in
             if !perHabitDays[info.id]!.isEmpty { return true }
             guard info.lifecycle == .active else { return false }
-            return data.dayStart(info.createdAt) < nextMonth
+            let creationDay = HabitDayAttribution.attributedDay(
+                info.createdAt, dayEndMinutes: data.dayEndMinutes(for: info.id), calendar: data.calendar
+            )
+            return creationDay < nextMonth
         }
 
         // 排序：orderedHabitIds 覆盖优先，未覆盖项保持主排序跟随其后
@@ -630,7 +649,7 @@ extension HabitReviewProjector {
     /// （2026-10-13 矩阵测试实锤：修掉周分桶后这里仍以 7.8s 超时）。
     private static func side(of snapshot: HabitRangeSnapshot, data: HabitProjectionData) -> HabitPeriodSide {
         let calendar = data.calendar
-        let creationDay = calendar.startOfDay(for: snapshot.info.createdAt)
+        let creationDay = snapshot.creationDay(calendar: calendar)
         let capFloor = calendar.date(byAdding: .day, value: -397, to: snapshot.interval.end)
             ?? snapshot.interval.start
         var day = max(max(snapshot.interval.start, creationDay), capFloor)

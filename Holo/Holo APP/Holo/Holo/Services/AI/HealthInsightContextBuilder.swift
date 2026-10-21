@@ -158,7 +158,7 @@ struct HoloHealthInsightDataSource: HealthInsightDataSource {
             let records = repo.getRecords(for: habit, in: range)
             var daySet = Set<Date>()
             for record in records {
-                daySet.insert(calendar.startOfDay(for: record.date))
+                daySet.insert(record.attributedDay(dayEndMinutes: habit.dayEndMinutes, calendar: calendar))
             }
             for day in daySet {
                 dayHitCount[day, default: 0] += 1

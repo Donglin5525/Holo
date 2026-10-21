@@ -340,18 +340,19 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
     static let habitSchema = HoloDataSetSchema(
         name: "habit.daily",
         domain: "habit",
-        description: "习惯每日完成情况。判定口径（必须遵守）：统计坚持天数/完成天数时只能数 value 达到 goal 的天数；count(rows) 只是有记录的天数，绝不等于完成天数，不能据此说满勤/全勤；value=0 表示当天没做（不是数据缺失）；type=measure（测量型）没记录的天不出现在数据里，只能算没测量，不能算完成也不能算缺席",
+        description: "习惯每日完成情况。判定口径（必须遵守）：统计坚持天数/完成天数时只能数 value 达到 goal 的天数；count(rows) 只是有记录的天数，绝不等于完成天数，不能据此说满勤/全勤；value=0 表示当天没做（不是数据缺失）；type=measure（测量型）没记录的天不出现在数据里，只能算没测量，不能算完成也不能算缺席。date 是该习惯口径下的归属日：带 dayCutoff 的习惯由用户自定了每日结算时间，结算前的凌晨打卡已归入前一天，不要按打卡时刻重新切天、也不要把它说成「第二天才做」",
         label: "习惯每日记录",
         timeField: "date",
         fields: [
-            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "日期", label: "日期"),
+            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "归属日（已按该习惯的每日结算时间切天）", label: "日期"),
             HoloDataField(name: "value", type: .number, unit: nil, filterable: true, groupable: false, aggregatable: true, description: "打卡/计数型为每日完成次数（0=当天没做）；测量型为当日测量值，单位见 unit 字段", label: "完成次数"),
             HoloDataField(name: "habit", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "习惯名称", label: "习惯"),
             HoloDataField(name: "polarity", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "positive 或 negative", label: "方向"),
             HoloDataField(name: "goal", type: .number, unit: nil, filterable: false, groupable: false, aggregatable: false, description: "每日目标：正向习惯=当天完成需 value≥goal；负向习惯=每日上限，value≤goal 才算达标；空=未设目标（value>0 即视为当天完成）", label: "每日目标"),
             HoloDataField(name: "type", type: .text, unit: nil, filterable: false, groupable: false, aggregatable: false, description: "check=打卡型；count=计数型（每日累加次数）；measure=测量型（如体重，当天没测量则该天无行）", label: "类型"),
             HoloDataField(name: "unit", type: .text, unit: nil, filterable: false, groupable: false, aggregatable: false, description: "计数/测量型的单位（如 次、分钟、kg）；打卡型为空", label: "单位"),
-            HoloDataField(name: "retroactiveCount", type: .number, unit: nil, filterable: false, groupable: false, aggregatable: false, description: "该日含事后补录（补签/补记）的条数；行为真实，仅记录时间靠后", label: "补录条数")
+            HoloDataField(name: "retroactiveCount", type: .number, unit: nil, filterable: false, groupable: false, aggregatable: false, description: "该日含事后补录（补签/补记）的条数；行为真实，仅记录时间靠后", label: "补录条数"),
+            HoloDataField(name: "dayCutoff", type: .text, unit: nil, filterable: false, groupable: false, aggregatable: false, description: "用户为该习惯设的每日结算时间（如 4:00 表示凌晨 4 点前的打卡算前一天）；空=按自然日", label: "结算时间")
         ],
         sensitivity: .normal,
         maximumRangeDays: 366

@@ -188,7 +188,7 @@ struct HabitAnalysisContextBuilder {
         return records
             .compactMap { record -> (Date, String)? in
                 guard let note = record.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty else { return nil }
-                let day = Calendar.current.startOfDay(for: record.date)
+                let day = record.attributedDay(dayEndMinutes: habit.dayEndMinutes)
                 if seen.contains(day) { return nil }
                 seen.insert(day)
                 return (record.date, note)

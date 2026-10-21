@@ -59,6 +59,9 @@ struct AddHabitSheet: View {
     @State private var reminderMode: HabitReminderMode = .follow
     @State private var reminderTime: Date = Self.defaultReminderTime
 
+    // 每日结算时间（整点；0 = 凌晨 0 点按自然日；结算前的打卡算前一天）
+    @State private var dayEndHour: Int = 0
+
     @State private var showIconPicker: Bool = false
     @State private var isSaving: Bool = false
 
@@ -200,6 +203,7 @@ struct AddHabitSheet: View {
                 || selectedColor != habit.color
                 || selectedType.rawValue != habit.type
                 || selectedFrequency.rawValue != habit.frequency
+                || dayEndHour != Int(habit.dayEndHour)
 
             // 打卡型：提醒模式/时间改动也算未保存修改
             if selectedType == .checkIn {
@@ -262,6 +266,7 @@ struct AddHabitSheet: View {
                 comps.minute = Int(habit.reminderMinute)
                 reminderTime = Calendar.current.date(from: comps) ?? Self.defaultReminderTime
             }
+            dayEndHour = Int(habit.dayEndHour)
 
             // 目标三态初始值（数值型 targetValue 优先，历史 targetCount 兜底展示）
             targetEnabled = habit.targetValueDouble != nil || habit.targetCountValue != nil
@@ -493,6 +498,7 @@ struct AddHabitSheet: View {
                     if selectedType == .checkIn {
                         reminderSection
                     }
+                    dayEndSection
                     goalLinkSection
                 }
                 .padding(.horizontal, 12)
@@ -503,7 +509,7 @@ struct AddHabitSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous))
     }
 
-    /// 折叠头摘要：频率 · 目标 · 提醒/关联
+    /// 折叠头摘要：频率 · 目标 · 提醒/结算/关联
     private var moreSettingsSummary: String {
         var parts: [String] = [selectedFrequency.displayName]
         if targetEnabled {
@@ -518,10 +524,62 @@ struct AddHabitSheet: View {
         if selectedType == .checkIn {
             parts.append(reminderMode.displayName)
         }
+        if dayEndHour != 0 {
+            parts.append(String(localized: "\(Self.dayEndText(dayEndHour)) 结算"))
+        }
         if goalSelection != nil {
             parts.append(String(localized: "已关联目标"))
         }
         return parts.joined(separator: " · ")
+    }
+
+    // MARK: - 每日结算时间
+
+    /// 可选的结算整点：0（自然日）～12 点。下午以后结算没有生活场景，不开放
+    private static let dayEndHourOptions = Array(0...12)
+
+    private static func dayEndText(_ hour: Int) -> String {
+        HabitDayAttribution.displayText(hour: hour, minute: 0)
+    }
+
+    private var dayEndSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("每日结算时间")
+                .font(.holoLabel)
+                .foregroundColor(.holoToolTextSecondary)
+
+            HStack(spacing: 10) {
+                Image(systemName: "moon.zzz")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(dayEndHour == 0 ? .holoToolTextSecondary : .holoPrimary)
+
+                Text(dayEndHour == 0
+                     ? String(localized: "凌晨 0 点，按自然日")
+                     : String(localized: "\(Self.dayEndText(dayEndHour)) 前的记录算前一天"))
+                    .font(.holoCaption)
+                    .foregroundColor(.holoToolTextSecondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
+
+                Picker("", selection: $dayEndHour) {
+                    ForEach(Self.dayEndHourOptions, id: \.self) { hour in
+                        Text(hour == 0 ? String(localized: "0:00（默认）") : Self.dayEndText(hour))
+                            .tag(hour)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .tint(.holoToolText)
+                .accessibilityIdentifier("habit.edit.dayEnd")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous)
+                    .fill(Color.holoToolInset)
+            )
+        }
     }
 
     // MARK: - 关联目标（真实 Goal 关系，方案 §6.3/§8.2）
@@ -686,6 +744,7 @@ struct AddHabitSheet: View {
             hour: calendar.component(.hour, from: reminderTime),
             minute: calendar.component(.minute, from: reminderTime)
         )
+        let dayEndTimeComponents = (hour: dayEndHour, minute: 0)
 
         // 编辑模式：三态字段一次用户意图完整提交（方案 §8.3/§12.4）
         if let habit = editingHabit {
@@ -694,7 +753,8 @@ struct AddHabitSheet: View {
                 type: selectedType, aggregationType: selectedAggregationType,
                 frequency: selectedFrequency, isBadHabit: badHabit,
                 reminderMode: isCheckIn ? reminderMode : .follow,
-                reminderTime: reminderTimeComponents
+                reminderTime: reminderTimeComponents,
+                dayEndTime: dayEndTimeComponents
             )
             // 目标三态：关闭 = clear（两个兼容字段一并清除）；开启有值 = set；开启无值按无效拦截
             if !targetEnabled {
@@ -753,7 +813,8 @@ struct AddHabitSheet: View {
                     aggregationType: selectedAggregationType,
                     isBadHabit: badHabit,
                     reminderMode: isCheckIn ? reminderMode : .follow,
-                    reminderTime: reminderTimeComponents
+                    reminderTime: reminderTimeComponents,
+                    dayEndTime: dayEndTimeComponents
                 )
                 // 目标关联失败不回滚基础习惯：保留同一草稿 ID 只补关联（方案 §8.3）
                 if let goal = goalSelection {

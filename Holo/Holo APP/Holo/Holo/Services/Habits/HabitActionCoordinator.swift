@@ -184,12 +184,13 @@ final class HabitActionCoordinator: ObservableObject {
         }
         if habit.isArchived { return .invalidated(.archivedNeedsUnarchive) }
 
-        // 提交时再校验一次日期与资格（弹层打开期间可能跨日/数据变化，方案 §10.1）
+        // 提交时再校验一次日期与资格（弹层打开期间可能跨日/数据变化，方案 §10.1）；
+        // 「今天」与创建日按习惯结算时间归属
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: day)
-        let today = calendar.startOfDay(for: Date())
+        let today = habit.currentDay(calendar: calendar)
         guard dayStart < today else { return .invalidated(.futureDate) }
-        guard dayStart >= calendar.startOfDay(for: habit.createdAt) else { return .invalidated(.beforeCreation) }
+        guard dayStart >= habit.creationDay(calendar: calendar) else { return .invalidated(.beforeCreation) }
 
         do {
             let result = try repository.retroactiveCheckIn(
