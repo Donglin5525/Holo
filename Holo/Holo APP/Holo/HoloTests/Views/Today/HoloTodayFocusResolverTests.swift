@@ -38,6 +38,28 @@ final class HoloTodayFocusResolverTests: XCTestCase {
         )
     }
 
+    func testReadOnlyOverviewRetainsPrimaryTaskAndLaterSchedules() {
+        let task = HoloTodayTaskCandidate(id: UUID(), title: "主卡移除后仍应出现的任务", dueAt: base.addingTimeInterval(-3600))
+        let later = HoloTodayScheduleCandidate(id: "later", title: "下午的日程", startAt: base.addingTimeInterval(4 * 3600), endAt: base.addingTimeInterval(5 * 3600))
+        let ended = HoloTodayScheduleCandidate(id: "ended", title: "已经结束", startAt: base.addingTimeInterval(-7200), endAt: base.addingTimeInterval(-3600))
+        let input = makeInput(schedules: [ended, later], tasks: [task])
+        let focus = HoloTodayFocusResolver.resolve(input: input)
+        let original = HoloTodayAgendaItem(id: "task:\(task.id.uuidString)", kind: .taskOverdue, title: task.title,
+            timeAt: task.dueAt, isCompleted: false, matterTitle: nil, action: .openTask(task.id))
+        func snapshot(_ agenda: [HoloTodayAgendaItem]) -> HoloTodaySnapshot {
+            HoloTodaySnapshot(referenceTime: base, dayStart: dayStart, dayEnd: dayEnd, timeZoneIdentifier: "Asia/Shanghai",
+                generatedAt: base, freshness: .fresh, primaryFocus: focus, matters: [], agenda: agenda, routine: .empty,
+                overview: .unavailable, sectionStates: [:],
+                plan: HoloTodayPlanProjection(state: .inheritBase, selectionRows: [], constraintRows: [], deferredRows: []), focusInput: input)
+        }
+        let restored = HoloTodayReadOnlyProjection.agenda(snapshot([]))
+        XCTAssertEqual(restored.map(\.id), ["schedule:later", original.id], "补回主卡任务，也展示90分钟之外的当天日程")
+        XCTAssertEqual(HoloTodayReadOnlyProjection.agenda(snapshot([original])).filter { $0.id == original.id }.count, 1, "同一任务不重复")
+        let completed = HoloTodayAgendaItem(id: "completed", kind: original.kind, title: original.title, timeAt: nil,
+            isCompleted: true, matterTitle: nil, action: original.action)
+        XCTAssertFalse(HoloTodayReadOnlyProjection.agenda(snapshot([completed])).contains { $0.id == "completed" }, "已完成项不混入待办摘要")
+    }
+
     // MARK: P0/P1 日程
 
     /// 当前有正在进行的日程 → 日程为 P0，severity=risk。

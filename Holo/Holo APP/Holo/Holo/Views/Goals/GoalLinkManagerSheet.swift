@@ -65,7 +65,8 @@ struct GoalLinkManagerSheet: View {
             .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭"))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isSaving ? String(localized: "保存中") : String(localized: "保存")) { save() }

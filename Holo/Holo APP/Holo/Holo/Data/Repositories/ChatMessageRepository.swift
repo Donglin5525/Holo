@@ -845,6 +845,16 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.agentResult = rendered
             snapshot.metadataState = .loaded
         }
+
+        // 报告理解链路登记点（本地/云端轨道共用此落点；链路自身受开关保护）
+        NotificationCenter.default.post(
+            name: .agentReportDidFinalize,
+            object: nil,
+            userInfo: [
+                "messageID": messageId,
+                "rendered": rendered,
+            ]
+        )
     }
 
     /// Agent 进度同步：用持久化 job 的真实状态更新原 streaming 消息。
@@ -1603,6 +1613,30 @@ final class ChatMessageRepository: ObservableObject {
     }
 
     /// 归档只收已完成的报告；生成中的卡片由 ChatViewModel 的消息流派生（冷启动可恢复）。
+    /// 已落卡回放的周期三元组（periodType|periodStart|periodEnd，与 Job 载荷同编码）。
+    /// 报告档案回填用它判断哪些洞察还没落过聊天消息。
+    func periodReplayCardTriples() -> Set<String> {
+        let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["extractedDataJSON"]
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "messageType == %@ AND role == %@ AND deletedAt == nil",
+                ChatMessageType.periodReplay.rawValue, "assistant"
+            )
+        ])
+        let rows = (try? context.fetch(request) as NSArray)?.compactMap { $0 as? [String: Any] } ?? []
+        var triples = Set<String>()
+        for row in rows {
+            guard let json = row["extractedDataJSON"] as? String,
+                  let data = json.data(using: .utf8),
+                  let dict = try? JSONDecoder().decode([String: String].self, from: data),
+                  dict["kind"] == HoloPeriodReplayJob.payloadKind else { continue }
+            triples.insert("\(dict["periodType"] ?? "")|\(dict["periodStart"] ?? "")|\(dict["periodEnd"] ?? "")")
+        }
+        return triples
+    }
+
     func loadReportArchiveAsync(limit: Int = 20, offset: Int = 0) async -> [ReportArchiveDTO] {
         await CoreDataStack.shared.waitUntilReady()
 
@@ -1828,6 +1862,12 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// 档案场景归类（目标闭环 §6.4）：goalScope 权威优先，其次才是问句关键词推断。
+    /// 独立成函数供回归测试直接断言（存钱类目标报告不得被「预算/存」关键词归到财务）。
+    static func archiveScenarioTag(rendered: HoloRenderedAgentResult, question: String?) -> ReportScenarioTag {
+        rendered.goalScope != nil ? .goal : ReportScenarioTag.classify(question: question)
+    }
+
     /// 档案行字典 → DTO 的唯一出口（列表/搜索/收藏/追问共用）：
     /// 深度分析走 agentResultJSON 解码，回放走 content/extratedData。
     private static func makeArchiveDTO(
@@ -1868,7 +1908,8 @@ final class ChatMessageRepository: ObservableObject {
             id: id,
             kind: .deepAnalysis,
             timestamp: timestamp,
-            scenarioTag: ReportScenarioTag.classify(question: question),
+            // 目标闭环 §6.4：goalScope 是权威归类——目标报告不因「存钱/体重」关键词被归到财务/健康而在目标筛选中消失
+            scenarioTag: ChatMessageRepository.archiveScenarioTag(rendered: rendered, question: question),
             title: rendered.title.isEmpty ? nil : rendered.title,
             question: question,
             summary: summary?.isEmpty == true ? nil : summary,

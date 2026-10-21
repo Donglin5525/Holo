@@ -126,6 +126,7 @@ struct HabitTodayRecordSheet: View {
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
             reloadRecords()
         }
+        .sheet(item: $sourceRoute) { route in HabitSourceDetailView(route: route) }
         .sheet(item: $editingRecord) { target in
             if let record = findRecord(target.recordId) {
                 HabitRecordEditSheet(
@@ -133,11 +134,9 @@ struct HabitTodayRecordSheet: View {
                     kind: row?.kind ?? .checkIn,
                     unit: row?.target?.unit
                 ) { value, note in
-                    Task {
-                        await model.record(kind: .updateRecord(recordId: target.recordId,
-                                                               value: value, note: note),
-                                           habitId: habitId)
-                    }
+                    await model.record(kind: .updateRecord(recordId: target.recordId,
+                                                          value: value, note: note),
+                                       habitId: habitId)
                 }
             }
         }
@@ -182,11 +181,20 @@ struct HabitTodayRecordSheet: View {
         .padding(.top, HoloSpacing.xs)
     }
 
+    /// 头部日期 = 该习惯口径下的「今天」：结算时间前仍显示前一天，让用户知道此刻的记录算到哪一天；
+    /// 自定义了结算时间的习惯附注结算时刻
     private var fullTodayText: String {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.dateStyle = .long
-        return formatter.string(from: model.projectionNow)
+        let dateText = formatter.string(from: habitToday)
+        guard let snapshot = allTimeSnapshot ?? historySnapshot, snapshot.dayEndMinutes != 0 else {
+            return dateText
+        }
+        let cutoff = HabitDayAttribution.displayText(
+            hour: snapshot.dayEndMinutes / 60, minute: snapshot.dayEndMinutes % 60
+        )
+        return String(localized: "\(dateText) · 每天 \(cutoff) 结算")
     }
 
     // MARK: 大数字区（今天优先；今天无记录时给历史锚点）
@@ -264,7 +272,7 @@ struct HabitTodayRecordSheet: View {
                 let daysAgo = calendar.dateComponents(
                     [.day],
                     from: calendar.startOfDay(for: latest.day),
-                    to: calendar.startOfDay(for: model.projectionNow)).day ?? 0
+                    to: habitToday).day ?? 0
                 let dateText = shortDate(latest.day)
                 let sub = daysAgo > 0
                     ? String(localized: "\(dateText) · \(daysAgo) 天前")
@@ -299,17 +307,26 @@ struct HabitTodayRecordSheet: View {
         }
     }
 
-    /// 全量范围内最近一次有效打卡时刻（如「10月10日 21:14」）
+    /// 全量范围内最近一次有效打卡时刻（如「10月10日 21:14」，按真实记录时刻）
     private var lastCheckInDateText: String? {
         guard let fact = allTimeSnapshot?.records.filter({ $0.isCompleted })
             .max(by: { $0.date < $1.date }) else { return nil }
-        return shortDateTime(fact.date)
+        return shortDateTime(fact.recordedAt)
+    }
+
+    /// 该习惯口径的「今天」：结算时间前仍是前一天（快照未就绪时按自然日）
+    private var habitToday: Date {
+        let calendar = Calendar.current
+        guard let snapshot = allTimeSnapshot ?? historySnapshot else {
+            return calendar.startOfDay(for: model.projectionNow)
+        }
+        return snapshot.attributedDay(model.projectionNow, calendar: calendar)
     }
 
     /// 今天之前的最近一次测量（今天已记录时副行锚点，不重复今天值）
     private var previousMeasureBeforeToday: (value: Double, day: Date)? {
         guard let snapshot = allTimeSnapshot else { return nil }
-        let todayStart = Calendar.current.startOfDay(for: model.projectionNow)
+        let todayStart = habitToday
         return snapshot.dailyValues
             .filter { Calendar.current.startOfDay(for: $0.date) < todayStart }
             .last
@@ -418,6 +435,7 @@ struct HabitTodayRecordSheet: View {
             .buttonStyle(.plain)
 
             Menu {
+            Button("记录明细与每日确认") { sourceRoute = .recent(habitId) }
                 Button {
                     editingRecord = EditTarget(recordId: record.id)
                 } label: {
@@ -486,7 +504,7 @@ struct HabitTodayRecordSheet: View {
     /// 密度低时几乎不可见（2026-10-11 东林实报「没看到任何图标」），改用大号圆点语言
     private func historyStitches(_ snapshot: HabitRangeSnapshot, accent: Color) -> some View {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: model.projectionNow)
+        let today = snapshot.attributedDay(model.projectionNow, calendar: calendar)
         let weekdaySymbols = ["日", "一", "二", "三", "四", "五", "六"]
         return HStack(spacing: 0) {
             ForEach(historyDays(snapshot), id: \.self) { day in
@@ -573,7 +591,7 @@ struct HabitTodayRecordSheet: View {
 
     private func historyDays(_ snapshot: HabitRangeSnapshot) -> [Date] {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: model.projectionNow)
+        let today = snapshot.attributedDay(model.projectionNow, calendar: calendar)
         let end = min(snapshot.interval.end,
                       calendar.date(byAdding: .day, value: 1, to: today) ?? today)
         var days: [Date] = []
@@ -776,6 +794,7 @@ struct HabitTodayRecordSheet: View {
         var id: UUID { recordId }
     }
 
+    @State private var sourceRoute: HabitSourceRoute?
     @State private var editingRecord: EditTarget?
     @State private var pendingDeleteRecordId: UUID?
     @State private var showDeleteConfirm = false
@@ -786,11 +805,12 @@ struct HabitTodayRecordSheet: View {
     var onRequestMeasureInput: ((UUID) -> Void)? = nil
 
     private func reloadRecords() {
-        let calendar = Calendar.current
-        let dayStart = calendar.startOfDay(for: Date())
-        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
-        dayRecords = HabitRepository.shared.getRecords(from: dayStart, to: dayEnd)
-            .filter { $0.habitId == habitId }
+        // 「今天」按该习惯的结算时间归属（结算前的凌晨记录仍属前一天）
+        if let habit = HabitRepository.shared.findHabit(by: habitId) {
+            dayRecords = HabitRepository.shared.getTodayRecords(for: habit)
+        } else {
+            dayRecords = []
+        }
         rebuildHistory()
     }
 
@@ -810,6 +830,7 @@ struct HabitTodayRecordSheet: View {
         let data = HabitPresentationProjector.buildData(
             records: HabitRepository.shared.allRecordFacts(),
             pauseWindowsByHabit: HabitRepository.shared.pauseWindowsByIds([habitId]),
+            dayEndMinutesByHabit: [habitId: habit.dayEndMinutes],
             now: model.projectionNow
         )
         historySnapshot = HabitReviewProjector.rangeSnapshot(info: info, range: .lastDays(7), data: data)

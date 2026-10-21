@@ -21,7 +21,7 @@ enum GoalWorkshopSchemaDefaults {
 nonisolated extension CoreDataStack {
 
     nonisolated func createGoalWorkshopEntities() -> [NSEntityDescription] {
-        [makeGoalWorkshopSessionEntity(), makeGoalPlanRevisionEntity()]
+        [makeGoalWorkshopSessionEntity(), makeGoalPlanRevisionEntity(), makeGoalReviewLinkEntity()]
     }
 
     // MARK: - GoalWorkshopSessionMO
@@ -91,6 +91,13 @@ nonisolated extension CoreDataStack {
         attr("decisionSummaryJSON", .stringAttributeType, optional: false, default: "")
         attr("createdAt", .dateAttributeType, optional: false, default: Date())
         attr("updatedAt", .dateAttributeType, optional: false, default: Date())
+        // 2026-10-20 目标闭环增量（全部可选，轻量迁移/CloudKit 增量安全）：
+        // planPayloadJSON = GoalPlanPayloadV2 信封；baseRevisionID 识别并发分支；
+        // operationID 幂等键；effectiveFrom 生效时点
+        attr("planPayloadJSON", .stringAttributeType, optional: true)
+        attr("baseRevisionID", .UUIDAttributeType, optional: true)
+        attr("operationID", .UUIDAttributeType, optional: true)
+        attr("effectiveFrom", .dateAttributeType, optional: true)
         let soft = CoreDataStack.makeSoftDeleteAttributes()
         attributes.append(contentsOf: soft.attributes)
 
@@ -98,6 +105,57 @@ nonisolated extension CoreDataStack {
         CoreDataStack.applyIndexes(to: entity, on: [
             "id": id,
             "goalID": goalID,
+        ])
+        return entity
+    }
+
+    // MARK: - GoalReviewLinkMO（目标回顾 ↔ 报告消息的轻量索引；只存索引与状态，不存正文）
+
+    private func makeGoalReviewLinkEntity() -> NSEntityDescription {
+        let entity = NSEntityDescription()
+        entity.name = "GoalReviewLinkMO"
+        entity.managedObjectClassName = "GoalReviewLinkMO"
+
+        var attributes: [NSAttributeDescription] = []
+        @discardableResult
+        func attr(_ name: String, _ type: NSAttributeType, optional: Bool, default value: Any? = nil) -> NSAttributeDescription {
+            let a = NSAttributeDescription()
+            a.name = name
+            a.attributeType = type
+            a.isOptional = optional
+            if let value { a.defaultValue = value }
+            attributes.append(a)
+            return a
+        }
+
+        let id = attr("id", .UUIDAttributeType, optional: false, default: GoalWorkshopSchemaDefaults.zeroUUID)
+        attr("schemaVersion", .integer16AttributeType, optional: false, default: Int16(1))
+        let goalID = attr("goalID", .UUIDAttributeType, optional: false, default: GoalWorkshopSchemaDefaults.zeroUUID)
+        attr("planRevisionID", .UUIDAttributeType, optional: false, default: GoalWorkshopSchemaDefaults.zeroUUID)
+        let reviewID = attr("reviewID", .UUIDAttributeType, optional: false, default: GoalWorkshopSchemaDefaults.zeroUUID)
+        // 报告身份 = ChatMessage.id；生成中尚无结果时为 nil
+        let reportMessageID = attr("reportMessageID", .UUIDAttributeType, optional: true)
+        attr("windowStart", .dateAttributeType, optional: false, default: Date(timeIntervalSince1970: 0))
+        attr("windowEndExclusive", .dateAttributeType, optional: false, default: Date(timeIntervalSince1970: 0))
+        attr("snapshotCutoffAt", .dateAttributeType, optional: false, default: Date(timeIntervalSince1970: 0))
+        attr("timeZoneID", .stringAttributeType, optional: false, default: "")
+        attr("sourceDigest", .stringAttributeType, optional: false, default: "")
+        // running / completed / failed / cancelled / stale
+        attr("statusRaw", .stringAttributeType, optional: false, default: "running")
+        attr("cloudTaskID", .stringAttributeType, optional: true)
+        attr("failureReason", .stringAttributeType, optional: true)
+        attr("createdAt", .dateAttributeType, optional: false, default: Date())
+        attr("updatedAt", .dateAttributeType, optional: false, default: Date())
+        attr("completedAt", .dateAttributeType, optional: true)
+        let soft = CoreDataStack.makeSoftDeleteAttributes()
+        attributes.append(contentsOf: soft.attributes)
+
+        entity.properties = attributes
+        CoreDataStack.applyIndexes(to: entity, on: [
+            "id": id,
+            "goalID": goalID,
+            "reviewID": reviewID,
+            "reportMessageID": reportMessageID,
         ])
         return entity
     }

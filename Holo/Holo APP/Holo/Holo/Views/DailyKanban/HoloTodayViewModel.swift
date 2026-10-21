@@ -50,6 +50,9 @@ final class HoloTodayViewModel: ObservableObject {
     func loadIfNeeded() async {
         guard case .loading = state else { return }
         await CoreDataStack.shared.waitUntilReady()
+            #if DEBUG && targetEnvironment(simulator)
+            GoalProgressUITestSeeder.seedIfNeeded()
+            #endif
         #if DEBUG
         TodayReliefUITestSeeder.seedIfNeeded()
         #endif

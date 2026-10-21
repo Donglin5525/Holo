@@ -7,6 +7,7 @@
 
 import SwiftUI
 import CoreData
+import Combine
 
 struct GoalListView: View {
     @ObservedObject private var repository = GoalRepository.shared
@@ -29,6 +30,9 @@ struct GoalListView: View {
 
     /// 是否已完成首次加载（避免冷启动时空态先闪现、再被真实列表替换）
     @State private var hasLoadedOnce = false
+    /// 目标闭环：到期待回顾的目标集合（加载路径计算，行渲染只查集合）
+    @State private var reviewDueGoalIDs: Set<UUID> = []
+    @State private var factSummaries: [UUID: String] = [:]
 
     init(
         onPlanGoal: @escaping () -> Void,
@@ -59,12 +63,12 @@ struct GoalListView: View {
                         goalCards
                     }
                 } else {
-                    VStack(spacing: HoloSpacing.md) {
+                    VStack(spacing: 0) {
                         goalCards
                     }
                 }
                 }
-                .padding(HoloSpacing.lg)
+                .padding(.horizontal, GoalJourneyStyle.pageInset)
                 // 通览型页面对齐长廊 920 口径（通宵冲刺 D7）；iPhone 直通
                 .holoContentColumn(maxWidth: HoloAdaptiveLayout.galleryColumnMaxWidth, paintsBackground: false)
             }
@@ -138,12 +142,26 @@ struct GoalListView: View {
         .task {
             // 等 Core Data 就绪后再加载，避免入场时空态闪现
             await CoreDataStack.shared.waitUntilReady()
+            #if DEBUG && targetEnvironment(simulator)
+            GoalProgressUITestSeeder.seedIfNeeded()
+            #endif
             repository.loadGoals()
             hasLoadedOnce = true
             refreshEntryState()
         }
         .onReceive(NotificationCenter.default.publisher(for: .holoServerFlagsDidUpdate)) { _ in
             refreshEntryState()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: GoalReviewCoordinator.reviewStateDidChange)) { _ in
+            refreshReviewDueState()
+        }
+        .onReceive(Publishers.Merge3(NotificationCenter.default.publisher(for: .habitDataDidChange),
+                                    NotificationCenter.default.publisher(for: .financeDataDidChange),
+                                    NotificationCenter.default.publisher(for: .todoDataDidChange))
+            .debounce(for: .milliseconds(100), scheduler: RunLoop.main)) { _ in refreshFactSummaries() }
+        .onReceive(NotificationCenter.default.publisher(for: .goalDataDidChange)) { _ in
+            refreshFactSummaries()
+            refreshReviewDueState()
         }
         .onChange(of: goalWorkshopLaunch) { _, _ in
             // 共创页关闭后回到本页：恢复条/入口显隐按最新状态刷新
@@ -164,12 +182,35 @@ struct GoalListView: View {
 
     /// 入口显隐 + 恢复条状态统一刷新（onAppear/开关广播/共创页关闭三处共用）
     private func refreshEntryState() {
+        refreshFactSummaries()
         workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
         do {
             resumableSession = try GoalWorkshopStore.shared.listResumable().first
         } catch {
             operationError = String(localized: "暂时无法读取规划进度，原记录已保留。请稍后重试。")
         }
+        refreshReviewDueState()
+    }
+
+    private func refreshFactSummaries() {
+        guard CoreDataStack.shared.isReady else { return }
+        for goal in repository.goals where !goal.isDeleted && goal.deletedAt == nil {
+            do { factSummaries[goal.id] = GoalFactsPresentation.result(try GoalReviewCoordinator.shared.loadState(goal: goal).snapshot) }
+            catch { factSummaries[goal.id] = "进展暂时无法读取" }
+        }
+    }
+
+    /// 待回顾集合在加载路径计算（不在行渲染里查库）；开关关闭时为空
+    private func refreshReviewDueState() {
+        guard HoloAIFeatureFlags.goalClosedLoopEnabled, CoreDataStack.shared.isReady else {
+            reviewDueGoalIDs = []
+            return
+        }
+        let context = CoreDataStack.shared.viewContext
+        reviewDueGoalIDs = Set(repository.goals
+            .filter { $0.goalStatus == .active }
+            .map(\.id)
+            .filter { GoalReviewCoordinator.isReviewDue(goalID: $0, in: context) })
     }
 
     /// 进行中共创会话恢复条：「进度已保存」在目标页的可见出口
@@ -290,39 +331,17 @@ struct GoalListView: View {
     }
 
     private func goalRow(_ goal: Goal) -> some View {
-        let progress = GoalProgressEvaluator.evaluate(goal: goal)
-        return HStack(spacing: HoloSpacing.md) {
-            Text(goal.displayIcon)
-                .font(.system(size: 20))
-                .frame(width: 40, height: 40)
-                .background(Color.holoPrimary.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(goal.title)
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-                if goal.isQuantitative, let metric = GoalMetricEvaluator.evaluate(goal: goal) {
-                    // 量化目标行：数字进度替代六档状态文案
-                    Text(metricRowText(goal: goal, metric: metric))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                        .lineLimit(1)
-                } else {
-                    Text("\(progress.state.displayName) · \(progress.taskSummary) · \(progress.habitSummary)")
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoToolTextSecondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
-        }
-        .padding(HoloSpacing.md)
-        .holoSurface()
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(goal.title).goalJourneyText(.row).foregroundStyle(Color.holoToolText)
+                Text(factSummaries[goal.id] ?? "正在读取进展")
+                    .goalJourneyText(.detail).foregroundStyle(Color.holoToolTextSecondary)
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            Text(goal.goalStatus == .active && reviewDueGoalIDs.contains(goal.id) ? "待回顾" : goal.goalStatus.displayName)
+                .goalJourneyText(.rowValue).foregroundStyle(Color.holoToolText)
+            Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Color.holoToolTextSecondary)
+        }.padding(.vertical, 13).frame(minHeight: 68).contentShape(Rectangle())
+            .overlay(alignment: .bottom) { Rectangle().fill(Color.holoToolBorder).frame(height: 0.5) }
     }
 
     /// 「128/300 km」；达标型显示「已减 2.5/5 kg」基线视角

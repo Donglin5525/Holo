@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct GoalDetailView: View {
     @ObservedObject private var repository = GoalRepository.shared
@@ -20,8 +21,12 @@ struct GoalDetailView: View {
     @State private var goalWorkshopLaunch: GoalWorkshopLaunch?
     /// 共创入口显隐随服务端开关即时刷新
     @State private var workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
+    /// 目标闭环（分析区/修正入口）显隐随服务端开关即时刷新
+    @State private var closedLoopEnabled = HoloAIFeatureFlags.goalClosedLoopEnabled
     @State private var showLinkManager = false
     @State private var showMetricLogSheet = false
+    @State private var showGoalSettings = false
+    @State private var showGoalReview = false
 
     init(
         goal: Goal,
@@ -34,25 +39,52 @@ struct GoalDetailView: View {
     }
 
     var body: some View {
-        let progress = GoalProgressEvaluator.evaluate(goal: goal)
-
+        if goal.managedObjectContext == nil || goal.isDeleted || goal.deletedAt != nil {
+            Text("这个目标已删除")
+        } else {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: HoloSpacing.lg) {
-                header(progress)
-                aiContextToggle
-                proactiveNudgeToggle
-                taskSection
-                habitSection
-                metricLogSection
-                actionSection
+            VStack(alignment: .leading, spacing: 16) {
+                GoalProgressScrollSection(goal: goal, onOpenReview: closedLoopEnabled ? { showGoalReview = true } : nil)
+                Button("目标设置与全部关联") { showGoalSettings = true }
+                    .goalJourneyText(.supporting).foregroundStyle(Color.holoToolTextSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
-            .padding(HoloSpacing.lg)
-            // 纵读详情在 iPad 限宽居中（通宵冲刺 D7）；iPhone 直通
+            .padding(.horizontal, GoalJourneyStyle.pageInset).padding(.top, 8).padding(.bottom, 24)
             .holoContentColumn(paintsBackground: false)
         }
         .background(Color.holoToolBackground)
         .navigationTitle("目标详情")
         .navigationBarTitleDisplayMode(.inline)
+        .tint(GoalJourneyStyle.action)
+        .toolbar { ToolbarItem(placement: .topBarTrailing) {
+            Button { showGoalSettings = true } label: { Image(systemName: "ellipsis") }.accessibilityLabel("目标设置")
+        } }
+        .sheet(isPresented: $showGoalSettings) { settingsPanel }
+        .sheet(isPresented: $showGoalReview) {
+            NavigationStack {
+                ScrollView { GoalAnalysisSection(goal: goal, onOpenLinkedEntity: onOpenLinkedEntity).padding(GoalJourneyStyle.pageInset) }
+                    .background(Color.holoToolBackground).navigationTitle("回顾与历史").navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("完成") { showGoalReview = false } } }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .holoServerFlagsDidUpdate)) { _ in
+            workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
+            closedLoopEnabled = HoloAIFeatureFlags.goalClosedLoopEnabled
+        }
+    }
+    }
+
+    private var settingsPanel: some View {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+                        header(GoalProgressEvaluator.evaluate(goal: goal))
+                        aiContextToggle; proactiveNudgeToggle; taskSection; habitSection; metricLogSection; actionSection
+                    }.padding(GoalJourneyStyle.pageInset)
+                }.background(Color.holoToolBackground).navigationTitle("目标设置")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("完成") { showGoalSettings = false } } }
+            }
         .confirmationDialog("删除目标", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("删除目标", role: .destructive) {
                 onDeleteRequested(goal.id)
@@ -71,9 +103,6 @@ struct GoalDetailView: View {
         }
         .sheet(item: $goalWorkshopLaunch) { launch in
             GoalWorkshopFlowView(launch: launch)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .holoServerFlagsDidUpdate)) { _ in
-            workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
         }
         .sheet(isPresented: $showEditForm) {
             GoalEditSheet(goal: goal) {
@@ -97,15 +126,6 @@ struct GoalDetailView: View {
                 Text(summary)
                     .holoText(.body)
                     .foregroundColor(.holoToolTextSecondary)
-            }
-            if goal.isQuantitative, let metric = GoalMetricEvaluator.evaluate(goal: goal) {
-                metricProgressCard(metric)
-            } else if GoalMetricEvaluator.isHabitSourceUnavailable(goal: goal) {
-                sourceUnavailableRow
-            } else {
-                Text("\(progress.state.displayName) · \(progress.taskSummary) · \(progress.habitSummary)")
-                    .holoText(.metadata)
-                    .foregroundColor(.holoPrimary)
             }
             if let desiredOutcome = goal.desiredOutcome, !desiredOutcome.isEmpty {
                 infoLine(icon: "checkmark.seal", label: String(localized: "期望结果"), value: desiredOutcome)
@@ -556,10 +576,13 @@ struct GoalEditSheet: View {
     @State private var draft: GoalDraft
     @State private var isSaving = false
     @State private var saveError: String?
+    @State private var criteriaConfirmed = false
+    private let baseRevisionID: UUID?
     let onSaved: () -> Void
 
     init(goal: Goal, onSaved: @escaping () -> Void) {
         self.goal = goal
+        self.baseRevisionID = GoalPlanRevisionStore.latestRevisionRow(goalID: goal.id, in: CoreDataStack.shared.viewContext)?.id
         self.onSaved = onSaved
         self._draft = State(initialValue: GoalEditForm.draft(from: goal))
     }
@@ -568,6 +591,14 @@ struct GoalEditSheet: View {
         !isSaving
             && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && GoalEditForm.metricFieldsValid(in: draft)
+            && (!criteriaChanged || criteriaConfirmed)
+    }
+
+    private var criteriaChanged: Bool {
+        let before = GoalEditForm.draft(from: goal)
+        return draft.desiredOutcome != before.desiredOutcome || draft.deadlineText != before.deadlineText
+            || draft.goalKind != before.goalKind || draft.metricTargetValue != before.metricTargetValue
+            || draft.metricSource != before.metricSource || draft.sourceHabitId != before.sourceHabitId
     }
 
     var body: some View {
@@ -575,6 +606,7 @@ struct GoalEditSheet: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.lg) {
                     GoalEditForm(draft: $draft)
+                    if criteriaChanged { Toggle("我确认修改成功条件、来源或期限", isOn: $criteriaConfirmed).holoText(.supporting) }
                 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.md)
@@ -649,7 +681,8 @@ struct GoalEditSheet: View {
                         ? .some(draft.metricBaselineValue) : nil,
                     metricSource: draft.isQuantitative ? draft.metricSource : nil,
                     sourceHabitId: draft.isQuantitative
-                        ? .some(draft.metricSource == .habit ? draft.sourceHabitId : nil) : nil
+                        ? .some(draft.metricSource == .habit ? draft.sourceHabitId : nil) : nil,
+                    expectedPlanRevisionID: baseRevisionID
                 )
                 isSaving = false
                 GoalNotificationService.broadcastGoalDataChange()

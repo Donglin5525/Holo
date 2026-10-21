@@ -91,7 +91,7 @@ struct HabitTodayView: View {
         }
         .sheet(item: $measureInputTarget) { snapshot in
             HabitMeasureInputSheet(snapshot: snapshot) { value, note in
-                Task { await model.record(kind: .addNumeric(value: value), habitId: snapshot.id, note: note) }
+                await model.record(kind: .addNumeric(value: value), habitId: snapshot.id, note: note)
             }
         }
         .sheet(isPresented: $showRetroactiveHabitPicker) {
@@ -434,12 +434,14 @@ struct HabitTodayView: View {
 struct HabitMeasureInputSheet: View {
 
     let snapshot: HabitRowSnapshot
-    var onSave: (Double, String?) -> Void
+    var onSave: (Double, String?) async -> Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var valueText = ""
     @State private var note = ""
     @State private var errorMessage: String?
+    @State private var isSaving = false
+    @State private var showDismissAlert = false
     @FocusState private var valueFocused: Bool
 
     var body: some View {
@@ -479,7 +481,7 @@ struct HabitMeasureInputSheet: View {
 
             HStack(spacing: HoloSpacing.md) {
                 Button {
-                    dismiss()
+                    if valueText.isEmpty && note.isEmpty { dismiss() } else { showDismissAlert = true }
                 } label: {
                     Text(String(localized: "取消"))
                         .font(.system(size: 15, weight: .medium))
@@ -490,9 +492,9 @@ struct HabitMeasureInputSheet: View {
                 .buttonStyle(HoloPressStyle())
 
                 Button {
-                    save()
+                    Task { await save() }
                 } label: {
-                    Text(String(localized: "保存"))
+                    Text(isSaving ? String(localized: "保存中…") : String(localized: "保存"))
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.holoToolOnAction)
                         .frame(maxWidth: .infinity, minHeight: 46)
@@ -513,6 +515,9 @@ struct HabitMeasureInputSheet: View {
             }
         }
         .onAppear { valueFocused = true }
+        .disabled(isSaving)
+        .interactiveDismissDisabled(isSaving || !valueText.isEmpty || !note.isEmpty)
+        .unsavedChangesAlert(isPresented: $showDismissAlert) { dismiss() }
     }
 
     private var unitText: String { snapshot.target?.unit ?? "" }
@@ -521,19 +526,22 @@ struct HabitMeasureInputSheet: View {
         snapshot.kind == .measure ? String(localized: "输入今天的数值") : String(localized: "输入数量")
     }
 
-    private func save() {
+    private func save() async {
+        guard !isSaving else { return }
         // Locale 合法小数 + 有限值（方案 §11.4）；测量允许 0
         let formatter = NumberFormatter()
         formatter.locale = Locale.current
         formatter.numberStyle = .decimal
         guard let number = formatter.number(from: valueText.trimmingCharacters(in: .whitespaces)),
-              let value = number as? Double, value.isFinite, value >= 0 else {
+              let value = number as? Double, value.isFinite, snapshot.kind == .count ? value > 0 : value >= 0 else {
             errorMessage = String(localized: "请输入有效的数值（不能为空或负数）")
             valueFocused = true
             return
         }
-        onSave(value, note.isEmpty ? nil : note)
-        dismiss()
+        isSaving = true
+        defer { isSaving = false }
+        if await onSave(value, note.isEmpty ? nil : note) { dismiss() }
+        else { errorMessage = String(localized: "这次没有保存成功，内容还在，请重试") }
     }
 }
 
@@ -579,7 +587,8 @@ private struct RetroactiveHabitPicker: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
             }
         }

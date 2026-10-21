@@ -68,6 +68,80 @@ final class HoloCloudAnalysisClient {
             /// v27 报告结构（章节/节导语/图表表态/结论条目/口径注）；旧结果缺失解码为 nil。
             var reportStructure: CloudReportStructure? = nil
 
+            /// 目标闭环（§6.4）：后端白名单校验后原样回显的目标范围（线上为 ISO8601 字符串，
+            /// HoloAgentGoalScope 自带解码）；非目标任务 / 旧结果为 nil。
+            var goalScope: HoloAgentGoalScope? = nil
+            /// 目标闭环（§6.5）：服务端白名单消毒后的修正草案线上形态（日期为 ISO8601 字符串，
+            /// 由 HoloCloudAnalysisService 映射成 GoalAdjustmentDraftV2）；缺失为 nil。
+            var goalAdjustmentDraft: CloudGoalAdjustmentDraft? = nil
+
+            struct CloudGoalAdjustmentDraft: Decodable {
+                var schemaVersion: Int? = nil
+                let draftID: String
+                let goalID: String
+                let baseRevisionID: String
+                var sourceDigest: String? = nil
+                var createdAt: String? = nil
+                var expiresAt: String? = nil
+                var expectedObservation: String? = nil
+                var operations: [Operation]? = nil
+
+                struct Operation: Decodable {
+                    let id: String
+                    let kind: String
+                    var targetEntityID: String? = nil
+                    var targetBindingID: String? = nil
+                    var draftRef: String? = nil
+                    var role: String? = nil
+                    var taskSpec: TaskSpec? = nil
+                    var habitSpec: GoalAdjustmentHabitSpecV2? = nil
+                    var budgetRule: BudgetRule? = nil
+                    var fundSchedule: [FundInstallment]? = nil
+                    var review: Review? = nil
+                    var criteriaChange: CriteriaChange? = nil
+                    var currentSummary: String? = nil
+                    var proposedSummary: String? = nil
+                    var reason: String? = nil
+                    var appliesFrom: String? = nil
+                    var appliesThrough: String? = nil
+                    var affectedObjectTitle: String? = nil
+                }
+                struct TaskSpec: Decodable {
+                    let title: String
+                    var dueDate: String? = nil
+                    var plannedStart: String? = nil
+                    var plannedEnd: String? = nil
+                    var priority: Int? = nil
+                    var note: String? = nil
+                }
+                struct BudgetRule: Decodable {
+                    var bindingID: String? = nil
+                    let accountID: String
+                    var categoryID: String? = nil
+                    let amount: Double
+                    let period: String
+                    var startDate: String? = nil
+                    var reuseExistingBudgetID: String? = nil
+                }
+                struct FundInstallment: Decodable {
+                    let dueDate: String
+                    let amount: Double
+                    var note: String? = nil
+                }
+                struct Review: Decodable {
+                    var cadenceDays: Int? = nil
+                    var nextReviewAt: String? = nil
+                    var observationWindowDays: Int? = nil
+                    var verificationFocus: [String]? = nil
+                }
+                struct CriteriaChange: Decodable {
+                    var newSuccessCriteria: String? = nil
+                    var newTargetValue: Double? = nil
+                    var newDeadline: String? = nil
+                    var reason: String? = nil
+                }
+            }
+
             /// 周期回放任务（kind == "period_replay"）：模型生成的回放 JSON 原文
             let kind: String?
             let output: String?

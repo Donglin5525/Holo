@@ -55,6 +55,12 @@ struct ReportDetailRoute: View {
                         childMessage = ChatMessageRepository.shared.loadMessageViewData(id: entry.id)
                     }
                 )
+                .safeAreaInset(edge: .bottom) {
+                    // 目标闭环 §2.3：目标报告展示关联目标，可返回目标详情 / 进入修正单；非目标报告不渲染
+                    if let scope = result.goalScope {
+                        GoalReportLinkBar(scope: scope, draft: result.goalAdjustmentDraft, reportMessageID: message.id)
+                    }
+                }
                 .fullScreenCover(item: $childMessage) { child in
                     ReportDetailRoute(
                         message: child,
@@ -70,6 +76,87 @@ struct ReportDetailRoute: View {
         .onDisappear {
             onDismiss()
         }
+    }
+}
+
+/// 报告详情底部的关联目标条（目标报告专用）：同一 reportMessageID 两入口共用，
+/// 「打开目标」走现有 .goalDetail 深链，「查看调整」进入差异确认单（确认前不改任何对象）。
+struct GoalReportLinkBar: View {
+    @Environment(\.dismiss) private var dismiss
+    let scope: HoloAgentGoalScope
+    let draft: GoalAdjustmentDraftV2?
+    let reportMessageID: UUID
+    @State private var adjustmentContext: GoalAdjustmentReviewContext?
+    @State private var notice: String?
+
+    private var goal: Goal? { GoalRepository.shared.findGoal(by: scope.goalID) }
+
+    var body: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "target").foregroundColor(.holoPrimary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(goal?.title ?? String(localized: "关联目标已删除"))
+                    .holoText(.supporting)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoToolText)
+                    .lineLimit(1)
+                Text(Self.revisionText(revisionID: scope.planRevisionID))
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
+            }
+            Spacer(minLength: 0)
+            if goal != nil {
+                if draft != nil, HoloAIFeatureFlags.goalClosedLoopEnabled {
+                    Button("查看调整") { openAdjustment() }
+                        .buttonStyle(.bordered)
+                        .holoText(.supporting)
+                        .accessibilityIdentifier("report.goal.openAdjustment")
+                }
+                Button("打开目标") {
+                    dismiss()
+                    DeepLinkState.shared.navigate(to: .goalDetail(goalId: scope.goalID))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.holoPrimary)
+                .holoText(.supporting)
+                .accessibilityIdentifier("report.goal.open")
+            }
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.vertical, HoloSpacing.sm)
+        .background(Color.holoToolSurface)
+        .overlay(alignment: .top) { Divider() }
+        .sheet(item: $adjustmentContext) { context in
+            GoalAdjustmentReviewSheet(context: context) {}
+        }
+        .alert("暂不能查看调整", isPresented: Binding(get: { notice != nil }, set: { if !$0 { notice = nil } })) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(notice ?? "")
+        }
+    }
+
+    private func openAdjustment() {
+        guard let goal, let draft else { return }
+        do {
+            let state = try GoalReviewCoordinator.shared.loadState(goal: goal)
+            if state.isAdjustmentStale || state.plan.revisionID != draft.baseRevisionID {
+                notice = String(localized: "依据或计划已变化，这份调整建议需要重新分析后再确认。")
+                return
+            }
+            adjustmentContext = GoalAdjustmentReviewContext(goal: goal, draft: draft, state: state)
+        } catch let error as GoalPlanResolveError {
+            notice = GoalReviewCoordinator.describe(error)
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    static func revisionText(revisionID: UUID) -> String {
+        if let row = GoalPlanRevisionStore.revisionRow(id: revisionID, in: CoreDataStack.shared.viewContext) {
+            return String(localized: "按计划第 \(row.revisionNumber) 版分析")
+        }
+        return String(localized: "分析所依据的计划版本已不存在")
     }
 }
 

@@ -538,4 +538,30 @@ enum HoloAIFeatureFlags {
         HoloMemorySettings.shared.agentContinuedProcessingEnabled
             && HoloMemorySettings.shared.agentStepIdempotencyEnabled
     }
+
+    // MARK: - Report Understanding（报告融合理解，2026-10-18 方案 §十三）
+    // 三个内部开关 P0 引入、默认全关：提取/消费互相独立，历史补齐 P3 前不实现。
+    // 用户侧不新增设置项，仍受 longTermMemoryWriteEnabled / memorySummaryInjectionEnabled
+    // 两个用户总开关的最高约束。
+
+    /// 报告理解提取（写入统一记忆仓库）。默认关。
+    static var reportUnderstandingExtractionEnabled: Bool {
+        UserDefaults.standard.object(forKey: "holo_reportUnderstandingExtractionEnabled") == nil
+            ? false
+            : UserDefaults.standard.bool(forKey: "holo_reportUnderstandingExtractionEnabled")
+    }
+
+    /// 报告理解消费（PersonalSituationBrief 注入深度分析背景）。默认关。
+    static var reportUnderstandingAnsweringEnabled: Bool {
+        UserDefaults.standard.object(forKey: "holo_reportUnderstandingAnsweringEnabled") == nil
+            ? false
+            : UserDefaults.standard.bool(forKey: "holo_reportUnderstandingAnsweringEnabled")
+    }
+
+    /// 影子模式：只跑提取与统计、不写库（P1 验证用；不污染台账认领）。默认关。
+    static var reportUnderstandingShadowEnabled: Bool {
+        UserDefaults.standard.object(forKey: "holo_reportUnderstandingShadowEnabled") == nil
+            ? false
+            : UserDefaults.standard.bool(forKey: "holo_reportUnderstandingShadowEnabled")
+    }
 }

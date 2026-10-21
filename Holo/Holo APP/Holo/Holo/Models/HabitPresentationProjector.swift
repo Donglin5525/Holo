@@ -16,6 +16,9 @@ import Foundation
 // MARK: - 轻量记录值
 
 /// 投影用的记录值快照（不持有 NSManagedObject）
+/// - date: 归属时刻。进投影底座（buildData）后已按该习惯的结算时间平移到日界坐标，
+///   所有按天切桶、排序、「今天」判定都用它；
+/// - recordedAt: 真实记录时刻（展示「几点记的」用，不参与归属）。
 struct HabitRecordFact: Equatable {
     let id: UUID
     let habitId: UUID
@@ -23,10 +26,33 @@ struct HabitRecordFact: Equatable {
     let isCompleted: Bool
     let value: Double?
     let isRetroactive: Bool
+    let recordedAt: Date
+
+    init(id: UUID, habitId: UUID, date: Date, isCompleted: Bool, value: Double?,
+         isRetroactive: Bool, recordedAt: Date? = nil) {
+        self.id = id
+        self.habitId = habitId
+        self.date = date
+        self.isCompleted = isCompleted
+        self.value = value
+        self.isRetroactive = isRetroactive
+        self.recordedAt = recordedAt ?? date
+    }
 
     var finiteValue: Double? {
         guard let value, value.isFinite else { return nil }
         return value
+    }
+
+    /// 按结算时间平移到日界坐标的副本（补签/整日坐标记录不平移，见 HabitDayAttribution）
+    func attributed(dayEndMinutes: Int, calendar: Calendar) -> HabitRecordFact {
+        guard dayEndMinutes != 0 else { return self }
+        let moment = HabitDayAttribution.attributedMoment(
+            recordDate: date, isRetroactive: isRetroactive, dayEndMinutes: dayEndMinutes, calendar: calendar
+        )
+        guard moment != date else { return self }
+        return HabitRecordFact(id: id, habitId: habitId, date: moment, isCompleted: isCompleted,
+                               value: value, isRetroactive: isRetroactive, recordedAt: recordedAt)
     }
 }
 
@@ -34,7 +60,7 @@ struct HabitRecordFact: Equatable {
 
 /// 一次批量取数后的内存聚合结果，跨页共享。
 struct HabitProjectionData {
-    /// habitId -> 记录值（按日期升序）
+    /// habitId -> 记录值（按日期升序；date 已平移为归属时刻）
     let recordsByHabit: [UUID: [HabitRecordFact]]
     /// habitId -> 有完成打卡的不同日集合（打卡型连续与周期判定用）
     let completedDaysByHabit: [UUID: Set<Date>]
@@ -42,14 +68,47 @@ struct HabitProjectionData {
     let dailyNumericByHabit: [UUID: [HabitDailyNumericValue]]
     /// habitId -> 暂停窗口（解码一次，判定复用）
     let pauseWindowsByHabit: [UUID: [HabitPauseWindow]]
+    /// habitId -> 每日结算时间（分钟；缺省 0 = 自然日）
+    let dayEndMinutesByHabit: [UUID: Int]
     let now: Date
     let calendar: Calendar
+
+    init(recordsByHabit: [UUID: [HabitRecordFact]],
+         completedDaysByHabit: [UUID: Set<Date>],
+         dailyNumericByHabit: [UUID: [HabitDailyNumericValue]],
+         pauseWindowsByHabit: [UUID: [HabitPauseWindow]],
+         dayEndMinutesByHabit: [UUID: Int] = [:],
+         now: Date,
+         calendar: Calendar) {
+        self.recordsByHabit = recordsByHabit
+        self.completedDaysByHabit = completedDaysByHabit
+        self.dailyNumericByHabit = dailyNumericByHabit
+        self.pauseWindowsByHabit = pauseWindowsByHabit
+        self.dayEndMinutesByHabit = dayEndMinutesByHabit
+        self.now = now
+        self.calendar = calendar
+    }
 
     /// 指定日的 startOfDay
     func dayStart(_ date: Date) -> Date { calendar.startOfDay(for: date) }
 
-    /// 今天 0 点
+    /// 自然日的今天 0 点（跨习惯的日历排布用；单习惯判定请用 today(for:)）
     var today: Date { dayStart(now) }
+
+    func dayEndMinutes(for habitId: UUID) -> Int { dayEndMinutesByHabit[habitId] ?? 0 }
+
+    /// 「此刻」在该习惯日界坐标里的位置
+    func now(for habitId: UUID) -> Date {
+        HabitDayAttribution.attributedMoment(now, dayEndMinutes: dayEndMinutes(for: habitId))
+    }
+
+    /// 该习惯此刻所处的「今天」：结算时间前仍是前一天
+    func today(for habitId: UUID) -> Date { dayStart(now(for: habitId)) }
+
+    /// 该习惯的创建日（习惯口径）
+    func creationDay(_ habit: Habit) -> Date {
+        dayStart(HabitDayAttribution.attributedMoment(habit.createdAt, dayEndMinutes: dayEndMinutes(for: habit.id)))
+    }
 
     /// 某习惯某天是否冻结（语义与 Habit.isDayPaused 一致：开放窗口延伸至今天）
     func isDayPaused(_ windows: [HabitPauseWindow], on day: Date) -> Bool {
@@ -75,15 +134,18 @@ struct HabitProjectionData {
 
 enum HabitPresentationProjector {
 
-    /// 从原始记录构建投影数据底座（一次调用、内存聚合）
+    /// 从原始记录构建投影数据底座（一次调用、内存聚合）。
+    /// 记录按各习惯的结算时间平移到日界坐标；未提供结算时间的习惯按自然日。
     static func buildData(
         records: [HabitRecordFact],
         pauseWindowsByHabit: [UUID: [HabitPauseWindow]],
+        dayEndMinutesByHabit: [UUID: Int] = [:],
         now: Date,
         calendar: Calendar = .current
     ) -> HabitProjectionData {
         var grouped: [UUID: [HabitRecordFact]] = [:]
-        for fact in records where fact.date <= now {
+        for raw in records where raw.date <= now {
+            let fact = raw.attributed(dayEndMinutes: dayEndMinutesByHabit[raw.habitId] ?? 0, calendar: calendar)
             grouped[fact.habitId, default: []].append(fact)
         }
         for key in grouped.keys {
@@ -103,7 +165,8 @@ enum HabitPresentationProjector {
             let numericFacts = facts.filter { $0.value != nil }
             dailyNumeric[habitId] = HabitNumericAggregator.aggregateDaily(
                 samples: numericFacts.map { HabitNumericSample(date: $0.date, value: $0.value) },
-                isCountType: true
+                isCountType: true,
+                calendar: calendar
             )
         }
 
@@ -112,21 +175,24 @@ enum HabitPresentationProjector {
             completedDaysByHabit: completedDays,
             dailyNumericByHabit: dailyNumeric,
             pauseWindowsByHabit: pauseWindowsByHabit,
+            dayEndMinutesByHabit: dayEndMinutesByHabit,
             now: now,
             calendar: calendar
         )
     }
 
     /// 滚动七天（今天-6 … 今天，升序）。截至今天，不含未来。
-    static func rollingSevenDays(_ data: HabitProjectionData) -> [Date] {
-        (0..<7).compactMap { data.calendar.date(byAdding: .day, value: $0 - 6, to: data.today) }
+    static func rollingSevenDays(_ data: HabitProjectionData, today: Date? = nil) -> [Date] {
+        let anchor = today ?? data.today
+        return (0..<7).compactMap { data.calendar.date(byAdding: .day, value: $0 - 6, to: anchor) }
     }
 
     /// 当月逐日（1 号 … 月末，升序）。含月末前的未来日子（isFuture 由渲染层退后），
     /// 月初累加视角的缝线窗口（2026-10-07 东林定稿：今天 10.7 就是 31 格走到第 7 格）。
-    static func currentMonthDays(_ data: HabitProjectionData) -> [Date] {
+    static func currentMonthDays(_ data: HabitProjectionData, today: Date? = nil) -> [Date] {
         let calendar = data.calendar
-        guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: data.today)),
+        let anchor = today ?? data.today
+        guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: anchor)),
               let nextMonthStart = calendar.date(byAdding: .month, value: 1, to: monthStart) else { return [] }
         var days: [Date] = []
         var day = monthStart
@@ -147,12 +213,13 @@ enum HabitPresentationProjector {
     ) -> HabitRowSnapshot {
         let facts = data.recordsByHabit[habit.id] ?? []
         let windows = data.pauseWindowsByHabit[habit.id] ?? []
+        let habitToday = data.today(for: habit.id)
 
         let isCheckIn = habit.isCheckInType
         let kind: HabitRowKind = isCheckIn ? .checkIn : (habit.isCountType ? .count : .measure)
 
         // 今日状态
-        let todayFacts = data.records(facts, on: data.today)
+        let todayFacts = data.records(facts, on: habitToday)
         let isCheckInDone = isCheckIn && todayFacts.contains { $0.isCompleted }
         let isRecorded: Bool
         if isCheckIn {
@@ -187,8 +254,8 @@ enum HabitPresentationProjector {
         let streak = streakLabel(for: habit, data: data)
 
         // 当月缝线痕迹：记录/补录/暂停/创建前空位/未来空位，今天带指针
-        let creationDay = data.dayStart(habit.createdAt)
-        let trail = currentMonthDays(data).map { day -> HabitTrailDay in
+        let creationDay = data.creationDay(habit)
+        let trail = currentMonthDays(data, today: habitToday).map { day -> HabitTrailDay in
             let dayFacts = data.records(facts, on: day)
             let recorded: Bool
             if isCheckIn {
@@ -202,9 +269,9 @@ enum HabitPresentationProjector {
                 isRecorded: recorded,
                 isRetroactive: dayFacts.contains { $0.isRetroactive },
                 isPaused: data.isDayPaused(windows, on: day),
-                isToday: dayStart == data.today,
+                isToday: dayStart == habitToday,
                 isBeforeCreation: dayStart < creationDay,
-                isFuture: dayStart > data.today
+                isFuture: dayStart > habitToday
             )
         }
 
@@ -266,11 +333,12 @@ enum HabitPresentationProjector {
     ) -> (text: String?, rangeText: String?) {
         let calendar = data.calendar
         let unit = habit.unitText
+        let habitNow = data.now(for: habit.id)
 
         switch habit.habitFrequency {
         case .daily:
             if habit.isCheckInType { return (nil, nil) }
-            let todayFacts = data.records(facts, on: data.today)
+            let todayFacts = data.records(facts, on: data.today(for: habit.id))
             let value = dailyAggregate(habit: habit, facts: todayFacts, data: data)
             guard let value else { return (nil, nil) }
             let valueText = formatValue(value)
@@ -285,12 +353,12 @@ enum HabitPresentationProjector {
             return (String(localized: "今天 \(valueText) \(unit)"), nil)
 
         case .weekly:
-            guard let interval = calendar.dateInterval(of: .weekOfYear, for: data.now) else { return (nil, nil) }
+            guard let interval = calendar.dateInterval(of: .weekOfYear, for: habitNow) else { return (nil, nil) }
             return periodText(habit: habit, target: target, facts: facts,
                               in: interval, unitName: String(localized: "本周"), data: data)
 
         case .monthly:
-            guard let interval = calendar.dateInterval(of: .month, for: data.now) else { return (nil, nil) }
+            guard let interval = calendar.dateInterval(of: .month, for: habitNow) else { return (nil, nil) }
             return periodText(habit: habit, target: target, facts: facts,
                               in: interval, unitName: String(localized: "本月"), data: data)
         }
@@ -342,25 +410,27 @@ enum HabitPresentationProjector {
     ) -> Bool {
         guard !isBadHabit, let target else { return false }
         let calendar = data.calendar
+        let habitNow = data.now(for: habit.id)
 
         switch habit.habitFrequency {
         case .daily:
+            let habitToday = data.today(for: habit.id)
             if habit.isCheckInType {
                 let facts = data.recordsByHabit[habit.id] ?? []
-                return data.records(facts, on: data.today).contains { $0.isCompleted }
+                return data.records(facts, on: habitToday).contains { $0.isCompleted }
             }
             guard let targetValue = target.value else { return false }
             let daily = data.dailyNumericByHabit[habit.id] ?? []
-            let todayValue = daily.last { $0.date == data.today }?.value
+            let todayValue = daily.last { $0.date == habitToday }?.value
             if habit.isMeasureType { return false } // 测量参考目标不做自动达标
             return (todayValue ?? 0) >= targetValue
 
         case .weekly:
-            guard let interval = calendar.dateInterval(of: .weekOfYear, for: data.now) else { return false }
+            guard let interval = calendar.dateInterval(of: .weekOfYear, for: habitNow) else { return false }
             return periodTargetMet(habit: habit, target: target, in: interval, data: data)
 
         case .monthly:
-            guard let interval = calendar.dateInterval(of: .month, for: data.now) else { return false }
+            guard let interval = calendar.dateInterval(of: .month, for: habitNow) else { return false }
             return periodTargetMet(habit: habit, target: target, in: interval, data: data)
         }
     }
@@ -408,7 +478,9 @@ enum HabitPresentationProjector {
         let target = max(habit.targetCountValue ?? 1, 1)
         let completedDays = data.completedDaysByHabit[habit.id] ?? []
         let windows = data.pauseWindowsByHabit[habit.id] ?? []
-        let creationDay = data.dayStart(habit.createdAt)
+        let creationDay = data.creationDay(habit)
+        let habitToday = data.today(for: habit.id)
+        let habitNow = data.now(for: habit.id)
         // 有目标→连续达标；无目标→连续记录（方案 §9.4）
         let dailyKindName = habit.targetCountValue == nil
             ? String(localized: "连续记录")
@@ -418,14 +490,15 @@ enum HabitPresentationProjector {
         case .daily:
             let days = dailyCompletionStreak(
                 completedDays: completedDays, isBadHabit: false,
-                windows: windows, creationDay: creationDay, data: data, todayCompleted: todayCompleted)
+                windows: windows, creationDay: creationDay, today: habitToday,
+                data: data, todayCompleted: todayCompleted)
             return HabitStreakLabel(value: days, unitName: String(localized: "天"),
                                     kindName: dailyKindName)
 
         case .weekly:
             let weeks = periodicCompletionStreak(
                 habit: habit, target: target, completedDays: completedDays,
-                windows: windows, creationDay: creationDay,
+                windows: windows, creationDay: creationDay, now: habitNow,
                 component: .weekOfYear, partialFrozenProrates: true, data: data)
             return HabitStreakLabel(value: weeks, unitName: String(localized: "周"),
                                     kindName: String(localized: "连续达标"))
@@ -433,7 +506,7 @@ enum HabitPresentationProjector {
         case .monthly:
             let months = periodicCompletionStreak(
                 habit: habit, target: target, completedDays: completedDays,
-                windows: windows, creationDay: creationDay,
+                windows: windows, creationDay: creationDay, now: habitNow,
                 component: .month, partialFrozenProrates: true, data: data)
             return HabitStreakLabel(value: months, unitName: String(localized: "月"),
                                     kindName: String(localized: "连续达标"))
@@ -447,22 +520,25 @@ enum HabitPresentationProjector {
         return dailyCompletionStreak(
             completedDays: completedDays, isBadHabit: true,
             windows: data.pauseWindowsByHabit[habit.id] ?? [],
-            creationDay: data.dayStart(habit.createdAt), data: data, todayCompleted: todayCompleted)
+            creationDay: data.creationDay(habit), today: data.today(for: habit.id),
+            data: data, todayCompleted: todayCompleted)
     }
 
     /// daily 逐日倒查（好习惯 = 连续完成天数；坏习惯 = 连续无记录控制天数）
+    /// - today: 该习惯口径的今天（结算时间前仍是前一天）
     private static func dailyCompletionStreak(
         completedDays: Set<Date>,
         isBadHabit: Bool,
         windows: [HabitPauseWindow],
         creationDay: Date,
+        today: Date,
         data: HabitProjectionData,
         todayCompleted: Bool? = nil
     ) -> Int {
         let calendar = data.calendar
-        var checkDate = data.today
+        var checkDate = today
         // 旧仓库以今日最新记录决定倒查起点；成就快照显式传入，其他展示保持原口径。
-        let todayHasCompletion = todayCompleted ?? completedDays.contains(data.today)
+        let todayHasCompletion = todayCompleted ?? completedDays.contains(today)
 
         if isBadHabit {
             if todayHasCompletion {
@@ -505,18 +581,20 @@ enum HabitPresentationProjector {
     }
 
     /// 周/月打卡连续（与 repository.calculatePeriodicStreak 同口径，含部分冻结折算）
+    /// - now: 该习惯日界坐标里的「此刻」（决定当前周期）
     private static func periodicCompletionStreak(
         habit: Habit,
         target: Int,
         completedDays: Set<Date>,
         windows: [HabitPauseWindow],
         creationDay: Date,
+        now: Date,
         component: Calendar.Component,
         partialFrozenProrates: Bool,
         data: HabitProjectionData
     ) -> Int {
         let calendar = data.calendar
-        guard let currentStart = periodStart(for: data.now, component: component, calendar: calendar) else { return 0 }
+        guard let currentStart = periodStart(for: now, component: component, calendar: calendar) else { return 0 }
 
         let currentDays = completedDaysIn(completedDays, from: currentStart, component: component, calendar: calendar)
         var checkStart: Date
@@ -575,7 +653,9 @@ enum HabitPresentationProjector {
     static func numericStreakLabel(habit: Habit, data: HabitProjectionData) -> HabitStreakLabel? {
         let daily = data.dailyNumericByHabit[habit.id] ?? []
         let windows = data.pauseWindowsByHabit[habit.id] ?? []
-        let creationDay = data.dayStart(habit.createdAt)
+        let creationDay = data.creationDay(habit)
+        let habitToday = data.today(for: habit.id)
+        let habitNow = data.now(for: habit.id)
         let calendar = data.calendar
         let target = targetSummary(for: habit)
 
@@ -585,8 +665,8 @@ enum HabitPresentationProjector {
             for entry in daily where entry.value.isFinite {
                 recordedDays.insert(entry.date)
             }
-            var checkDate = data.today
-            if !recordedDays.contains(data.today) {
+            var checkDate = habitToday
+            if !recordedDays.contains(habitToday) {
                 guard let yesterday = calendar.date(byAdding: .day, value: -1, to: checkDate) else { return nil }
                 checkDate = yesterday
             }
@@ -608,7 +688,7 @@ enum HabitPresentationProjector {
 
         case .weekly, .monthly:
             let component: Calendar.Component = habit.habitFrequency == .weekly ? .weekOfYear : .month
-            guard let currentStart = periodStart(for: data.now, component: component, calendar: calendar) else { return nil }
+            guard let currentStart = periodStart(for: habitNow, component: component, calendar: calendar) else { return nil }
 
             let hasTarget = habit.isCountType, hasTargetValue = target?.value
             let kindName: String
@@ -724,8 +804,8 @@ enum HabitPresentationProjector {
             isRecorded: isRecorded,
             isCheckInDone: isCheckInDone,
             isPausedDay: data.isDayPaused(windows, on: day),
-            isBeforeCreation: dayStart < data.dayStart(habit.createdAt),
-            isFuture: dayStart > data.today,
+            isBeforeCreation: dayStart < data.creationDay(habit),
+            isFuture: dayStart > data.today(for: habit.id),
             hasRetroactive: dayFacts.contains { $0.isRetroactive },
             isOverLimit: isOverLimit,
             numericValue: numericValue,
@@ -746,8 +826,9 @@ enum HabitPresentationProjector {
         guard !habit.isBadHabit else { return nil }
         guard habit.isCheckInType || habit.isNumericType else { return nil }
         let dayStart = data.dayStart(day)
-        guard dayStart < data.today else { return nil }            // 今天/未来不可补
-        guard dayStart >= data.dayStart(habit.createdAt) else { return nil } // 创建前不可补
+        let habitToday = data.today(for: habit.id)
+        guard dayStart < habitToday else { return nil }            // 今天/未来不可补
+        guard dayStart >= data.creationDay(habit) else { return nil } // 创建前不可补
 
         let facts = data.recordsByHabit[habit.id] ?? []
         let dayFacts = data.records(facts, on: day)
@@ -758,7 +839,7 @@ enum HabitPresentationProjector {
             // 数值型补记允许追加（多次有效记录），窗口外历史走 fullHistory
         }
 
-        guard let earliest = data.calendar.date(byAdding: .day, value: -(lookbackDays - 1), to: data.today) else { return nil }
+        guard let earliest = data.calendar.date(byAdding: .day, value: -(lookbackDays - 1), to: habitToday) else { return nil }
         if dayStart >= earliest {
             // 补签窗口内：打卡漏签日或数值无记录日
             if habit.isNumericType {

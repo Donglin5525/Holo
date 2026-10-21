@@ -4,12 +4,13 @@
 //
 //  「今天」主视图（今日看板 Matter 化方案 §4/§9）
 //
-//  新版（todayCommandCenterEnabled）：行动优先信息架构——
-//  Header「今天」→ Primary Focus → Weekly Brief → 进行中的事 → 今天的安排 → 保持状态 → 今日概况。
+//  新版（todayCommandCenterEnabled）：当天概况 → 重点目标 → 今天的安排 → 当天近况。
+//  今天只做来源事实摘要与原模块跳转，记录和管理沿用原模块。
 //  旧版（flag 关闭）：完整保留原今日看板布局（回滚不删数据）。
 //
 
 import SwiftUI
+import CoreData
 import os.log
 
 struct DailyKanbanView: View {
@@ -18,6 +19,7 @@ struct DailyKanbanView: View {
     @ObservedObject private var todoRepo = TodoRepository.shared
     @ObservedObject private var habitRepo = HabitRepository.shared
     @ObservedObject private var healthRepo = HealthRepository.shared
+    @ObservedObject private var goalRepo = GoalRepository.shared
     /// 完成协调层（G1 完成契约：议程区完成改走统一撤回窗口，撤回 banner 与其他入口共享）
     @ObservedObject private var completionCoordinator = HoloTaskCompletionCoordinator.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
@@ -59,6 +61,8 @@ struct DailyKanbanView: View {
 
     @State private var editingHabit: Habit? = nil
     @State private var inputValue: String = ""
+    @State private var habitSource: HabitSourceRoute?
+    @State private var habitOperationError: String?
     @State private var showGoalCreate = false
     @State private var showReliefSheet = false
     @FocusState private var isInputFocused: Bool
@@ -105,7 +109,7 @@ struct DailyKanbanView: View {
                         }
                         Spacer().frame(height: 60)
                     }
-                    .padding(.horizontal, isExpandedWidth ? 32 : 16)
+                    .padding(.horizontal, isExpandedWidth ? 32 : GoalJourneyStyle.pageInset)
                     .padding(.top, 8)
                 }
             }
@@ -118,12 +122,18 @@ struct DailyKanbanView: View {
             .sheet(item: $dispatcher.scheduleDetailItem) { item in
                 ScheduleDetailSheet(item: item)
             }
-            .sheet(item: $dispatcher.taskDetailSelection) { taskID in
+            .sheet(item: $dispatcher.taskDetailSelection, onDismiss: refreshToday) { taskID in
                 // TaskDetailView 全 App 统一弹窗呈现（TasksView/KanbanTaskSection 同款）；
                 // 不传 onBack，内部 dismiss 即关闭，sheet(item:) 自动置空 selection
                 if let task = TodoRepository.shared.findTask(by: taskID) {
                     TaskDetailView(task: task, repository: TodoRepository.shared)
                 }
+            }
+            .alert("没有保存成功", isPresented: Binding(get: { habitOperationError != nil }, set: { if !$0 { habitOperationError = nil } })) {
+                Button("知道了", role: .cancel) {}
+            } message: { Text(habitOperationError ?? "") }
+            .sheet(item: $habitSource) { route in
+                HabitSourceDetailView(route: route)
             }
             .sheet(isPresented: $showReliefSheet) {
                 TodayReliefSheet()
@@ -132,130 +142,31 @@ struct DailyKanbanView: View {
         .swipeBackToDismiss { dismiss() }
         .task {
             await todayViewModel?.loadIfNeeded()
+            goalRepo.loadGoals()
         }
         .onChange(of: dispatcher.path) { _, newValue in
             _ = newValue
         }
     }
 
-    /// iPad 双栏（§4.3）：Header/Focus/Brief 跨双栏（外层）；左栏 Matter+概况，右栏安排+保持。
-    @ViewBuilder
-    private var todaySectionsWide: some View {
-        if case .ready(let snapshot) = todayViewModel?.state {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 20) {
-                    TodayMatterSection(
-                        matters: snapshot.matters,
-                        sectionState: snapshot.sectionStates[.matters],
-                        onCard: { dispatcher.perform($0.cardAction) },
-                        onStartNew: { onOpenAI?() },
-                        onViewAll: { dispatcher.push(.matterList) },
-                        onDiscuss: { openChat(matterID: $0.id) }
-                    )
-                    TodayOverviewSection(
-                        overview: snapshot.overview,
-                        sectionState: snapshot.sectionStates[.overview],
-                        onOpenFinance: { onOpenFinance?() },
-                        onAddRecord: { onQuickRecord?() }
-                    )
-                }
-                VStack(alignment: .leading, spacing: 20) {
-                    TodayAgendaSection(
-                        items: snapshot.agenda,
-                        sectionState: snapshot.sectionStates[.agenda],
-                        maxVisible: 12,
-                        onItem: { dispatcher.perform($0.action) },
-                        onComplete: { completeTask($0) },
-                        pendingUndoTaskID: completionCoordinator.pending?.taskID,
-                        plan: snapshot.plan,
-                        onResolveConflict: { candidate in resolveTodayPlanConflict(candidate) }
-                    )
-                    TodayRoutineStrip(
-                        routine: snapshot.routine,
-                        onCheckIn: { checkInHabit($0) },
-                        onConnectHealth: nil
-                    )
-                }
-            }
-        } else {
-            TodayPrimaryFocusCard(focus: nil, isLoading: true, inFlightAction: nil, errorMessage: nil, onStart: { _ in }, onPostpone: {})
-        }
-    }
+    /// iPad 同样保持先目标、后少量安排，不把模块摘要并排堆满。
+    private var todaySectionsWide: some View { todaySections }
 
-    /// 新版信息架构（固定阅读顺序 §4.2，iPhone 单列）。
+    /// 今天只汇总事实并定位原模块，不承接记录、打卡或任务完成。
     @ViewBuilder
     private var todaySections: some View {
         if case .ready(let snapshot) = todayViewModel?.state {
-            // 1. Primary Focus
-            TodayPrimaryFocusCard(
-                focus: snapshot.primaryFocus,
-                isLoading: false,
-                inFlightAction: dispatcher.inFlightAction,
-                errorMessage: dispatcher.localErrorMessage,
-                onStart: { dispatcher.perform($0) },
-                onPostpone: { todayViewModel?.postponeFocus() },
-                onCalmQuickRecord: { onQuickRecord?() },
-                planContext: TodayPrimaryFocusCard.PlanFocusContext(snapshotPlan: snapshot.plan)
-            )
-
-            // 1.5 「帮我理一理」轻量入口（「今天减负」§4.1：主行动卡后、不弹引导）
-            reliefEntryButton
-
-            // 2. Weekly Brief（次级横幅，不压主行动）
-            // （已在上方紧跟主卡之后渲染）
-
-            // 3. 今天的安排（V2 §4.3：先安排后正在推进，压缩注意力；显式计划时三分组）
-            TodayAgendaSection(
-                items: snapshot.agenda,
-                sectionState: snapshot.sectionStates[.agenda],
-                maxVisible: 12,
-                onItem: { item in
-                    dispatcher.perform(item.action)
-                },
-                onComplete: { item in
-                    completeTask(item)
-                },
-                pendingUndoTaskID: completionCoordinator.pending?.taskID,
-                plan: snapshot.plan,
-                onResolveConflict: { candidate in resolveTodayPlanConflict(candidate) }
-            )
-
-            // 4. 正在推进（V2：最多两行紧凑，无 active 整块隐藏）
-            TodayMatterSection(
-                matters: snapshot.matters,
-                sectionState: snapshot.sectionStates[.matters],
-                onCard: { item in
-                    dispatcher.perform(item.cardAction)
-                },
-                onStartNew: {
-                    onOpenAI?()
-                },
-                onViewAll: {
-                    dispatcher.push(.matterList)
-                },
-                onDiscuss: { item in
-                    openChat(matterID: item.id)
-                }
-            )
-
-            // 5. 保持状态
-            TodayRoutineStrip(
-                routine: snapshot.routine,
-                onCheckIn: { row in checkInHabit(row) },
-                onConnectHealth: nil
-            )
-
-            // 6. 今日概况
-            TodayOverviewSection(
-                overview: snapshot.overview,
-                sectionState: snapshot.sectionStates[.overview],
-                onOpenFinance: { onOpenFinance?() },
-                onAddRecord: { onQuickRecord?() }
-            )
+            TodayReadOnlySection(snapshot: snapshot, onItem: { dispatcher.perform($0.action) }, onRefresh: refreshToday)
+            if let error = dispatcher.localErrorMessage {
+                Text(error).goalJourneyText(.supporting).foregroundStyle(Color.holoToolError)
+            }
         } else {
-            // loading：与最终卡等高的骨架
-            TodayPrimaryFocusCard(focus: nil, isLoading: true, inFlightAction: nil, errorMessage: nil, onStart: { _ in }, onPostpone: {})
+            ProgressView("正在读取今天").frame(maxWidth: .infinity, minHeight: 120)
         }
+    }
+
+    private func refreshToday() {
+        Task { await todayViewModel?.refreshNow() }
     }
 
     /// Today 内部路由目的地（§10.1）。
@@ -346,67 +257,39 @@ struct DailyKanbanView: View {
         HapticManager.light()
     }
 
-    /// 习惯快速打卡。
+    /// 数值由用户真实输入；打卡复用习惯协调层，目标值绝不当作实测值。
     private func checkInHabit(_ row: HoloTodayHabitRow) {
-        guard let habit = habitRepo.activeHabits.first(where: { $0.id == row.id }) else { return }
-        do {
-            let wasRecorded = (habitRepo.getTodayValue(for: habit) ?? 0) > 0
-            if row.isNegative {
-                _ = try habitRepo.addNumericRecord(for: habit, value: 1)
-            } else if habit.isMeasureType {
-                guard let target = habit.targetValue?.doubleValue else { return }
-                _ = try habitRepo.addNumericRecord(for: habit, value: target)
-            } else {
-                _ = try habitRepo.toggleCheckIn(for: habit)
+        guard let habit = habitRepo.findHabit(by: row.id) else { return }
+        if habit.isNumericType || habit.isBadHabit {
+            habitSource = .recent(row.id)
+        } else {
+            Task {
+                let result = await HabitActionCoordinator.shared.perform(.toggleCheckIn, habitId: row.id)
+                switch result {
+                case .confirmed, .unchanged: break
+                case .failed(let message): habitOperationError = message
+                default: habitOperationError = "当前无法打卡，请打开习惯核对状态后重试"
+                }
             }
-            let isRecorded = (habitRepo.getTodayValue(for: habit) ?? 0) > 0
-            if !row.isNegative && !wasRecorded && isRecorded {
-                HoloMotionFeedbackCenter.shared.completedHabit(habit.id)
-            } else if !isRecorded {
-                HoloMotionFeedbackCenter.shared.cancelHabitResponse(habit.id)
-            }
-            HapticManager.light()
-        } catch {
-            HoloToastCenter.shared.show(String(localized: "打卡失败，请重试"), type: .error)
         }
     }
 
     // MARK: - Header（今天 + 日期 + 关闭）
 
-    private var headerView: some View {
-        ZStack {
-            Text(String(localized: "今天"))
-                .holoText(.sectionTitle)
-                .foregroundColor(.holoToolText)
-
-            HStack {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.holoToolText)
-                        .frame(width: 36, height: 36)
-                        .background(Color.holoToolSurface)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.holoToolBorder, lineWidth: 1))
-                }
-                .accessibilityLabel(Text("关闭"))
-
+    @ViewBuilder private var headerView: some View {
+        if useNewToday {
+            HStack(spacing: 8) {
+                Button { dismiss() } label: { Image(systemName: "chevron.left").font(.system(size: 18)).frame(width: 44, height: 44) }.accessibilityLabel("关闭")
+                Text("今天").goalJourneyText(.heading)
                 Spacer()
-
-                Text(todayString)
-                    .holoText(.metadata)
-                    .foregroundColor(.holoToolWarning)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Color.holoToolInset)
-                    .clipShape(Capsule())
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
+                Text(todayString).goalJourneyText(.metadata).foregroundStyle(Color.holoToolTextSecondary)
+            }.foregroundStyle(Color.holoToolText).padding(.horizontal, -6).frame(minHeight: 44)
+        } else { legacyHeaderView }
     }
 
     private var todayString: String {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
         f.setLocalizedDateFormatFromTemplate("MMMdE")
         return f.string(from: Date())
     }

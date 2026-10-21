@@ -253,13 +253,16 @@ struct HabitEditPayload {
     var isBadHabit: Bool
     var reminderMode: HabitReminderMode
     var reminderTime: (hour: Int, minute: Int)
+    /// 每日结算时间（0:00 = 自然日）
+    var dayEndTime: (hour: Int, minute: Int)
     /// 目标关系三态（nil 原始 = 未关联；keep = 不修改；set = 关联该目标；clear = 解除）
     var goalId: HabitFieldUpdate<UUID?> = .keep
 
     init(name: String, icon: String, color: String, type: HabitType,
          aggregationType: HabitAggregationType = .sum, frequency: HabitFrequency = .daily,
          isBadHabit: Bool = false, reminderMode: HabitReminderMode = .follow,
-         reminderTime: (hour: Int, minute: Int) = (9, 0)) {
+         reminderTime: (hour: Int, minute: Int) = (9, 0),
+         dayEndTime: (hour: Int, minute: Int) = (0, 0)) {
         self.name = name
         self.icon = icon
         self.color = color
@@ -269,6 +272,7 @@ struct HabitEditPayload {
         self.isBadHabit = isBadHabit
         self.reminderMode = reminderMode
         self.reminderTime = reminderTime
+        self.dayEndTime = dayEndTime
     }
 }
 

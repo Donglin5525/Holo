@@ -32,7 +32,10 @@ final class GoalWorkshopFlowModel: ObservableObject {
             await perform {
                 let candidates = try self.store.listResumable()
                 if candidates.isEmpty {
-                    self.session = try await self.coordinator.start(seedText: seedText ?? "")
+                    self.session = try await self.coordinator.start(
+                        seedText: seedText ?? "",
+                        candidates: GoalWorkshopCandidateBuilder.build()
+                    )
                 } else {
                     self.resumeCandidates = candidates
                 }
@@ -54,7 +57,8 @@ final class GoalWorkshopFlowModel: ObservableObject {
                 [GoalWorkshopContextRef(sourceID: "goal-\($0.uuidString)", sourceRevision: 1,
                                         summary: GoalRepository.shared.findGoal(by: $0)?.title ?? "")]
             } ?? []
-            self.session = try await self.coordinator.start(seedText: seed, goalID: goalID, contextRefs: refs)
+            self.session = try await self.coordinator.start(seedText: seed, goalID: goalID, contextRefs: refs,
+                                                             candidates: GoalWorkshopCandidateBuilder.build())
             self.resumeCandidates = []
         }
     }

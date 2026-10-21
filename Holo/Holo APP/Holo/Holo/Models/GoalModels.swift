@@ -168,9 +168,23 @@ struct GoalHabitDraft: Codable, Equatable, Identifiable {
     var targetValue: Double?
     var isBadHabit: Bool?
     var successRule: String?
+    /// 目标闭环 v2：复用授权候选中的既有习惯（"habit:<uuid>"）而不新建；
+    /// 复用只建逻辑绑定，不抢对象原有 goal 父引用
+    var reuseHabitRef: String? = nil
+    /// 数值习惯聚合语义："sum"（练习时长）/ "latest"（体重）；nil 按 sum
+    var aggregation: String? = nil
 
     var resolvedFrequency: HabitFrequency {
         HabitFrequency(rawValue: frequency) ?? .daily
+    }
+
+    var resolvedAggregation: HabitAggregationType {
+        aggregation == "latest" ? .latest : .sum
+    }
+
+    var reuseHabitID: UUID? {
+        guard let reuseHabitRef, reuseHabitRef.hasPrefix("habit:") else { return nil }
+        return UUID(uuidString: String(reuseHabitRef.dropFirst("habit:".count)))
     }
 }
 

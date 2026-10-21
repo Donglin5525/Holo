@@ -64,6 +64,15 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         var financeEvidenceLedger: String? = nil
         /// 02 契约 §10 最小装载清单（时刻可靠性/账户语义/合并行/补偿类目/未来行）。
         var financeSemantics: [String: String]? = nil
+        /// 报告融合理解（ADR-08）：PersonalSituationBrief 个人情境背景投影，
+        /// 与财务 S2 T03 共用契约；空背景=正常分析；旧后端忽略。关闭时为 nil。
+        var personalSituationBrief: HoloPersonalSituationBrief? = nil
+        /// 目标闭环（2026-10-20 最终规格 §6.4）：目标分析范围，由代码冻结，模型不得改写；
+        /// 后端白名单校验后原样回显进结果。旧后端忽略；nil 时不编码该键。
+        var goalScope: HoloAgentGoalScope? = nil
+        /// 目标闭环 §6.3：该目标的统一事实快照（结果 / 执行 / 限制 / 覆盖 / 资金演算），
+        /// 确定性数字的唯一来源——后端注入冻结块并入白名单；模型解释，不重算。
+        var goalReview: GoalEvaluationSnapshot? = nil
     }
 
     enum JSONValue: Encodable {
@@ -132,20 +141,32 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
     /// scenario/userQuestion：显式场景发送时冻结为 AnswerTaskV1（时间默认窗
     /// 按 `AnalysisScenario.defaultRangeDays`，用户问句里自己指定的时间由后端
     /// 以「用户原话优先」覆盖）；nil = 常规深度分析，不带任务元数据。
+    /// goalScope/goalReview：目标回顾（§6.4）——范围与事实由代码冻结，只装载与该目标
+    /// 判断相关的数据集（财务/习惯/任务按绑定决定），不把全部生活记录当默认上下文。
     static func buildJSON(
         now: Date = Date(),
         historyDays: Int = defaultHistoryDays,
         maxRows: Int = maxRowsPerDataset,
         scenario: AnalysisScenario? = nil,
-        userQuestion: String? = nil
+        userQuestion: String? = nil,
+        goalScope: HoloAgentGoalScope? = nil,
+        goalReview: GoalEvaluationSnapshot? = nil
     ) async throws -> Data {
         let start = Calendar.current.date(byAdding: .day, value: -historyDays, to: now) ?? now
         let range = HoloAgentTimeRange(label: "云端分析快照窗口", start: start, end: now)
         let source = HoloDefaultCrossDomainDataSource()
 
+        // 报告融合理解（ADR-08）：个人情境背景投影（开关关闭时为空 brief，不下发）
+        let situationBrief = await HoloUnderstandingContextBuilder.brief(
+            question: userQuestion ?? "",
+            now: now
+        )
+
+        let goalDatasetFilter = goalReview.map(Self.relevantDatasetNames(for:))
         var datasets: [String: Snapshot.Dataset] = [:]
         for catalog in snapshotCatalogs {
             for schema in catalog.datasets {
+                if let goalDatasetFilter, !goalDatasetFilter.contains(schema.name) { continue }
                 let rows = await source.rows(source: schema.name, timeRange: range)
                 guard !rows.isEmpty else { continue }
                 let sorted = rows.sorted { $0.occurredAt > $1.occurredAt }
@@ -177,7 +198,22 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             }
         }
         let answerTask: Snapshot.AnswerTask?
-        if let scenario {
+        if let goalScope {
+            // 目标回顾：范围由代码冻结（观察窗 [start, min(endExclusive, cutoff))），
+            // 回答清单即规格 §3.3 的五件事；不解析问句时间词、不走场景默认窗
+            let windowEnd = min(goalScope.windowEndExclusive, goalScope.snapshotCutoffAt)
+            answerTask = Snapshot.AnswerTask(
+                scenarioID: AnalysisScenario.goal.rawValue,
+                userQuestion: userQuestion ?? AnalysisScenario.goal.question,
+                questionKind: "diagnosis",
+                primaryTimeRange: Snapshot.AnswerTask.TimeRangePayload(
+                    label: "目标回顾窗口",
+                    start: goalScope.windowStart.timeIntervalSince1970.rounded(),
+                    end: windowEnd.timeIntervalSince1970.rounded()
+                ),
+                answerChecklist: Self.goalReviewChecklist
+            )
+        } else if let scenario {
             let question = (userQuestion?.isEmpty == false) ? userQuestion! : scenario.question
             answerTask = Snapshot.AnswerTask(
                 scenarioID: scenario.rawValue,
@@ -224,10 +260,41 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             datasets: datasets,
             answerTask: answerTask,
             financeEvidenceLedger: financeLedger,
-            financeSemantics: financeSemantics
+            financeSemantics: financeSemantics,
+            personalSituationBrief: situationBrief.isEmpty ? nil : situationBrief,
+            goalScope: goalScope,
+            goalReview: goalReview
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         return try encoder.encode(snapshot)
+    }
+
+    // MARK: - 目标回顾（§3.3 / §6.4）
+
+    /// 报告优先回答的五件事（随快照冻结进回答清单；模型逐项回答，缺证据明确说不能判断）
+    static let goalReviewChecklist: [String] = [
+        "当初想达到什么、这轮按哪个计划执行",
+        "行动做了多少、结果变化多少、限制有没有被突破，各自来源与观测时间",
+        "差距主要在哪里：执行没跟上、方法未见效、负担或环境变化、限制冲突，还是证据暂缺",
+        "哪些原因有证据、哪些只是待确认线索；最需要用户补的关键问题是什么",
+        "下一步继续什么、建议改什么、预期观察什么、何时复查",
+    ]
+
+    /// 只装载与该目标判断相关的数据集：财务（ledger 结果或预算限制）、习惯（习惯绑定/限制）、
+    /// 任务（任务绑定）、目标自身进度。健康/想法等与本目标无关的记录不进快照（§6.4）。
+    static func relevantDatasetNames(for review: GoalEvaluationSnapshot) -> Set<String> {
+        var names: Set<String> = ["goal.progress.daily"]
+        if review.result.sourceKind == .ledger || review.constraints.contains(where: { $0.kind == .budget }) || review.fundPlan != nil {
+            names.insert("finance.transactions")
+        }
+        if review.execution.contains(where: { $0.entityType == .habit }) || review.constraints.contains(where: { $0.kind == .habitLimit })
+            || review.result.sourceKind == .habit {
+            names.insert("habit.daily")
+        }
+        if review.execution.contains(where: { $0.entityType == .task }) {
+            names.insert("task.daily")
+        }
+        return names
     }
 }

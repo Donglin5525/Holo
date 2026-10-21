@@ -25,6 +25,8 @@ struct GoalDraftReviewView: View {
     @State private var workshopSuccessEvidence: String
     @State private var workshopAssumptions: [String]
     @State private var deadlineDate: Date?
+    /// 目标闭环 v2：结果来源 / 回顾 / 预算 / 期次 / 限制 的用户最终确认状态
+    @State private var confirmation: GoalPlanConfirmation
 
     let workshopSession: GoalWorkshopSessionV1?
     let onCancel: () -> Void
@@ -40,10 +42,18 @@ struct GoalDraftReviewView: View {
         _workshopSuccessEvidence = State(initialValue: workshopContext?.successEvidence ?? "")
         _workshopAssumptions = State(initialValue: workshopContext?.assumptions ?? [])
         _deadlineDate = State(initialValue: GoalWorkshopValidator.strictDayFormatter.date(from: draft.deadlineText ?? ""))
+        let now = Date()
+        if let session = workshopContext?.session, let plan = session.plan {
+            _confirmation = State(initialValue: GoalPlanConfirmation.from(plan: plan, candidates: session.candidates, now: now))
+        } else {
+            _confirmation = State(initialValue: GoalPlanConfirmation.defaults(from: draft, successEvidence: workshopContext?.successEvidence ?? "", now: now))
+        }
         self.workshopSession = workshopContext?.session
         self.onCancel = onCancel
         self.onSaved = onSaved
     }
+
+    private var candidates: GoalWorkshopAuthorizedCandidates { workshopSession?.candidates ?? .empty }
 
     var body: some View {
         NavigationStack {
@@ -54,9 +64,18 @@ struct GoalDraftReviewView: View {
                     if let workshopSession {
                         workshopCard(for: workshopSession)
                     }
+                    if workshopSession != nil || confirmation.resultSource != nil {
+                        GoalResultSourceConfirmCard(confirmation: $confirmation, draft: draft, candidates: candidates)
+                    }
                     if !draft.missingInfoWarnings.isEmpty { warningsCard }
                     if !draft.tasks.isEmpty { tasksCard }
                     if !draft.habits.isEmpty { habitsCard }
+                    if !confirmation.constraints.isEmpty || confirmation.budget != nil || !confirmation.fundSchedule.isEmpty {
+                        GoalConstraintsConfirmCard(confirmation: $confirmation, draft: draft, candidates: candidates)
+                    }
+                    if workshopSession != nil {
+                        GoalReviewCadenceConfirmCard(review: $confirmation.review)
+                    }
                     aiContextCard
                     if let saveErrorText {
                         Label {
@@ -571,6 +590,22 @@ struct GoalDraftReviewView: View {
 
         isSaving = true
         saveErrorText = nil
+        var finalConfirmation = confirmation
+        finalConfirmation.successCriteria = workshopSuccessEvidence.isEmpty
+            ? finalConfirmation.successCriteria
+            : workshopSuccessEvidence
+        // 习惯来源没有落到任何真实/新建习惯上（含引用的新建习惯已在「习惯」卡被取消）→ 待补齐，
+        // 计划照常建立；不让一个解析不出的引用进提交器
+        if let source = finalConfirmation.resultSource,
+           source.sourceType == .habit, source.sourceID == nil, !source.isPending {
+            let draftStillSelected = finalConfirmation.resultSourceHabitDraftID.map { draftID in
+                draft.habits.contains { $0.id == draftID && $0.isSelected }
+            } ?? false
+            if !draftStillSelected {
+                finalConfirmation.resultSource?.isPending = true
+                finalConfirmation.resultSourceHabitDraftID = nil
+            }
+        }
         Task { @MainActor in
             do {
                 let result: GoalDraftSaveResult
@@ -580,7 +615,8 @@ struct GoalDraftReviewView: View {
                         draft: draft,
                         successEvidence: workshopSuccessEvidence,
                         assumptions: workshopAssumptions,
-                        allowAIContext: allowAIContext
+                        allowAIContext: allowAIContext,
+                        confirmation: finalConfirmation
                     )
                     let receipt = try await GoalWorkshopCommitService.shared.commitWorkshop(input)
                     guard let goal = GoalRepository.shared.findGoal(by: receipt.goalID) else {
@@ -611,6 +647,7 @@ struct GoalDraftReviewView: View {
             case .validation(let reason): return "没保存成功：\(reason)"
             case .saveFailed(let reason): return "没保存成功：\(reason)。内容还在，稍后再试一次。"
             case .sessionAlreadyApplied: return "这个目标已经保存过，不用重复保存。"
+            case .budgetConflict: return "这个账户同周期已经有一份预算了。请在「限制」里选择复用现有预算，或先取消预算再保存。"
             }
         }
         if let validationError = error as? GoalWorkshopValidationError {

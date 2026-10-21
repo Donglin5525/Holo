@@ -6,6 +6,7 @@
 //
 
 import CoreData
+import CryptoKit
 
 extension CoreDataStack {
 
@@ -166,6 +167,21 @@ extension CoreDataStack {
         habitReminderMinute.isOptional = false
         habitReminderMinute.defaultValue = 0
         habitAttributes.append(habitReminderMinute)
+
+        // 每日结算时间（距零点的时/分，默认 0:00 = 自然日；结算前的打卡归前一天，见 HabitDayAttribution）
+        let habitDayEndHour = NSAttributeDescription()
+        habitDayEndHour.name = "dayEndHour"
+        habitDayEndHour.attributeType = .integer16AttributeType
+        habitDayEndHour.isOptional = false
+        habitDayEndHour.defaultValue = 0
+        habitAttributes.append(habitDayEndHour)
+
+        let habitDayEndMinute = NSAttributeDescription()
+        habitDayEndMinute.name = "dayEndMinute"
+        habitDayEndMinute.attributeType = .integer16AttributeType
+        habitDayEndMinute.isOptional = false
+        habitDayEndMinute.defaultValue = 0
+        habitAttributes.append(habitDayEndMinute)
         
         // 创建时间
         let habitCreatedAt = NSAttributeDescription()
@@ -307,7 +323,83 @@ extension CoreDataStack {
         habitRecordEntity.properties = habitRecordAttributes + [recordHabitRelation]
         CoreDataStack.applyIndexes(to: habitRecordEntity, on: ["id": recordId, "habitId": recordHabitId, "date": recordDate, "deletedAt": recordSoftDelete.deletedAt, "deletedBatchId": recordSoftDelete.deletedBatchId])
 
-        return [habitEntity, habitRecordEntity]
+        let confirmationEntity = createHabitDailyConfirmationEntity(habitEntity: habitEntity)
+        return [habitEntity, habitRecordEntity, confirmationEntity]
     }
 
+}
+
+
+enum HabitDailyConfirmationStatus: String, Codable, CaseIterable {
+    case complete, none, asOf, met, notMet, withdrawn
+
+    var title: String {
+        switch self {
+        case .complete: return "这一天的记录已齐全"
+        case .none: return "这一天确认未发生"
+        case .asOf: return "截至现在已核对，今天仍在进行"
+        case .met: return "这一天明确做到了"
+        case .notMet: return "这一天明确没做到"
+        case .withdrawn: return "待确认"
+        }
+    }
+}
+
+/// 日确认是原记录的完整性声明，不作为一笔可累计数量。
+@objc(HabitDailyConfirmationMO)
+final class HabitDailyConfirmationMO: NSManagedObject {
+    @NSManaged var id: UUID
+    @NSManaged var habitID: UUID
+    @NSManaged var day: Date
+    @NSManaged var confirmedAt: Date
+    @NSManaged var statusRaw: String
+    @NSManaged var recordDigest: String
+    @NSManaged var timeZoneID: String
+    @NSManaged var dayEndMinutes: Int16
+    @NSManaged var habit: Habit?
+}
+
+struct HabitDailyConfirmationFact: Equatable {
+    var day: Date
+    var status: HabitDailyConfirmationStatus
+    var isValid: Bool
+}
+
+enum HabitDailyConfirmationDigest {
+    static func make(_ values: [(UUID, Double?, Bool)]) -> String {
+        let text = values.sorted { $0.0.uuidString < $1.0.uuidString }
+            .map { "\($0.0.uuidString)|\($0.1.map(String.init(describing:)) ?? "nil")|\($0.2)" }.joined(separator: ";")
+        return SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
+    }
+}
+
+extension CoreDataStack {
+    nonisolated func createHabitDailyConfirmationEntity(habitEntity: NSEntityDescription) -> NSEntityDescription {
+        let entity = NSEntityDescription()
+        entity.name = "HabitDailyConfirmationMO"
+        entity.managedObjectClassName = NSStringFromClass(HabitDailyConfirmationMO.self)
+        let fields: [(String, NSAttributeType, Any)] = [
+            ("id", .UUIDAttributeType, UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))),
+            ("habitID", .UUIDAttributeType, UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))),
+            ("day", .dateAttributeType, Date(timeIntervalSince1970: 0)),
+            ("confirmedAt", .dateAttributeType, Date(timeIntervalSince1970: 0)),
+            ("statusRaw", .stringAttributeType, "withdrawn"),
+            ("recordDigest", .stringAttributeType, ""),
+            ("timeZoneID", .stringAttributeType, ""),
+            ("dayEndMinutes", .integer16AttributeType, 0)
+        ]
+        entity.properties = fields.map { name, type, value in
+            let a = NSAttributeDescription(); a.name = name; a.attributeType = type
+            a.isOptional = false; a.defaultValue = value; return a
+        }
+        let parent = NSRelationshipDescription()
+        parent.name = "habit"; parent.destinationEntity = habitEntity
+        parent.maxCount = 1; parent.isOptional = true; parent.deleteRule = .nullifyDeleteRule
+        let children = NSRelationshipDescription()
+        children.name = "dailyConfirmations"; children.destinationEntity = entity
+        children.maxCount = 0; children.isOptional = true; children.deleteRule = .cascadeDeleteRule
+        parent.inverseRelationship = children; children.inverseRelationship = parent
+        entity.properties.append(parent); habitEntity.properties.append(children)
+        return entity
+    }
 }

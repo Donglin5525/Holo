@@ -62,6 +62,16 @@ final class GoalPlanRevisionMO: NSManagedObject, Identifiable {
     @NSManaged var deletedAt: Date?
     @NSManaged var deletedBatchId: UUID?
 
+    // 2026-10-20 目标闭环增量（全部可选；旧行为 nil）
+    /// GoalPlanPayloadV2 信封 JSON；nil = 仅有 v1 决策摘要（旧共创）或手动/旧目标
+    @NSManaged var planPayloadJSON: String?
+    /// 父版本 id；用于识别多设备并发分支（同父不同子 = 分叉）
+    @NSManaged var baseRevisionID: UUID?
+    /// 幂等键：同 operationID 的提交只生效一次
+    @NSManaged var operationID: UUID?
+    /// 本版生效时点（阶段规则只解释生效后的记录）
+    @NSManaged var effectiveFrom: Date?
+
     // MARK: - 构造与解码
 
     static func make(in context: NSManagedObjectContext,
@@ -91,4 +101,32 @@ final class GoalPlanRevisionMO: NSManagedObject, Identifiable {
         }
         return summary
     }
+}
+
+// MARK: - GoalReviewLinkMO
+
+/// 目标回顾 ↔ 报告消息索引（§6.4）：goalID / planRevisionID / reviewID / reportMessageID / 窗口 / 状态。
+/// 只存索引与状态，不复制报告正文或财务记录；删除报告时标记不可用而非复活正文。
+@objc(GoalReviewLinkMO)
+final class GoalReviewLinkMO: NSManagedObject, Identifiable {
+
+    @NSManaged var id: UUID
+    @NSManaged var schemaVersion: Int16
+    @NSManaged var goalID: UUID
+    @NSManaged var planRevisionID: UUID
+    @NSManaged var reviewID: UUID
+    @NSManaged var reportMessageID: UUID?
+    @NSManaged var windowStart: Date
+    @NSManaged var windowEndExclusive: Date
+    @NSManaged var snapshotCutoffAt: Date
+    @NSManaged var timeZoneID: String
+    @NSManaged var sourceDigest: String
+    @NSManaged var statusRaw: String
+    @NSManaged var cloudTaskID: String?
+    @NSManaged var failureReason: String?
+    @NSManaged var createdAt: Date
+    @NSManaged var updatedAt: Date
+    @NSManaged var completedAt: Date?
+    @NSManaged var deletedAt: Date?
+    @NSManaged var deletedBatchId: UUID?
 }

@@ -54,6 +54,9 @@ final class HoloCloudAnalysisService {
         /// 显式场景 rawValue（P1 冻结任务；恢复轮询期仅用于展示，
         /// 范围已随快照在服务端冻结，恢复不需要重传）
         var scenarioID: String? = nil
+        /// 目标回顾范围（§6.4）：随任务登记持久化，冷启动恢复后 finalize 仍能把
+        /// 报告归到正确目标（服务端回显缺失时的本地兜底）
+        var goalScope: HoloAgentGoalScope? = nil
     }
 
     /// 进行中的云端任务。回前台恢复轮询用；同步持久化（杀 App 后冷启动恢复领取
@@ -121,6 +124,11 @@ final class HoloCloudAnalysisService {
             if let scenarioID = context.scenarioID {
                 dict["scenarioID"] = scenarioID
             }
+            if let goalScope = context.goalScope,
+               let data = try? JSONEncoder().encode(goalScope),
+               let json = String(data: data, encoding: .utf8) {
+                dict["goalScope"] = json
+            }
             return dict
         }
         UserDefaults.standard.set(payload, forKey: Self.activeTasksDefaultsKey)
@@ -138,12 +146,16 @@ final class HoloCloudAnalysisService {
             else { continue }
             // 旧持久化无 taskType：按深度分析处理（v1 存量任务只有这一类）
             let taskType = dict["taskType"] ?? "deep_analysis"
+            let goalScope = dict["goalScope"]
+                .flatMap { $0.data(using: .utf8) }
+                .flatMap { try? JSONDecoder().decode(HoloAgentGoalScope.self, from: $0) }
             restored[taskId] = TaskContext(
                 messageID: messageID,
                 question: question,
                 taskType: taskType,
                 snapshotHash: dict["snapshotHash"],
-                scenarioID: dict["scenarioID"]
+                scenarioID: dict["scenarioID"],
+                goalScope: goalScope
             )
         }
         activeTasks = restored
@@ -157,12 +169,16 @@ final class HoloCloudAnalysisService {
 
     /// 云端轨道入口（ChatViewModel 在本地 runAnalysis 之前调用）。
     /// scenario：显式场景（随快照冻结为 AnswerTaskV1 上云）；nil = 常规深度分析。
+    /// goalScope/goalReview：目标回顾（GoalReviewCoordinator 发起）——范围与事实由代码冻结随快照上云，
+    /// 完成后报告带 goalScope 落同一条消息；快照只装载与该目标相关的数据集。
     /// - Returns: handled = 云端轨道已终局（成功落卡或失败落诚实失败卡，不再回落本地）；
     ///   userCancelled = 用户点停止；unavailable = 云端不可用，调用方落不可用说明。
     func attempt(
         question: String,
         sourceMessageID: UUID,
-        scenario: AnalysisScenario? = nil
+        scenario: AnalysisScenario? = nil,
+        goalScope: HoloAgentGoalScope? = nil,
+        goalReview: GoalEvaluationSnapshot? = nil
     ) async -> HoloCloudAttemptOutcome {
         guard HoloAIFeatureFlags.cloudDeepAnalysisEnabled else { return .unavailable(.featureDisabled) }
         guard Self.privacyConsented else { return .unavailable(.needsConsent) }
@@ -179,9 +195,20 @@ final class HoloCloudAnalysisService {
         ))
 
         do {
+            // 目标回顾：快照窗口 = 观察窗的两倍（含必要比较窗），不默认装载 180 天全量
+            let historyDays: Int
+            if let goalScope {
+                let windowDays = max(Int(goalScope.snapshotCutoffAt.timeIntervalSince(goalScope.windowStart) / 86_400), 7)
+                historyDays = min(max(windowDays * 2, 30), HoloCloudAnalysisSnapshotBuilder.defaultHistoryDays)
+            } else {
+                historyDays = HoloCloudAnalysisSnapshotBuilder.defaultHistoryDays
+            }
             let snapshot = try await HoloCloudAnalysisSnapshotBuilder.buildJSON(
+                historyDays: historyDays,
                 scenario: scenario,
-                userQuestion: question
+                userQuestion: question,
+                goalScope: goalScope,
+                goalReview: goalReview
             )
             let started = try await client.start(question: question)
             try Task.checkCancellation()
@@ -189,7 +216,8 @@ final class HoloCloudAnalysisService {
                 messageID: sourceMessageID,
                 question: question,
                 taskType: "deep_analysis",
-                scenarioID: scenario?.rawValue
+                scenarioID: scenario?.rawValue,
+                goalScope: goalScope
             )
             // start 成功即登记（提前于快照上传）：上传中途被杀，冷启动也能恢复轮询
             // 领取，对账兜底也能据此识别「云端在途」、不按「无 job 超 90s」误判中断
@@ -293,7 +321,7 @@ final class HoloCloudAnalysisService {
                         if context.taskType == "period_replay" {
                             periodReplayFinalizer?(context.messageID, result, context.snapshotHash)
                         } else {
-                            finalizeCloudResult(result, question: context.question, taskId: taskId, sourceMessageID: context.messageID)
+                            finalizeCloudResult(result, question: context.question, taskId: taskId, sourceMessageID: context.messageID, goalScope: context.goalScope)
                         }
                         // R1 确认制（D02 收紧，2026-10-04 体检）：ack 即焚不可逆，
                         // 必须确认结果已编码并持久化（agentResultJSON 可回读）才回执
@@ -440,7 +468,8 @@ final class HoloCloudAnalysisService {
         _ result: HoloCloudAnalysisClient.StatusResponse.CloudResult,
         question: String,
         taskId: String,
-        sourceMessageID: UUID
+        sourceMessageID: UUID,
+        goalScope: HoloAgentGoalScope? = nil
     ) {
         let composed = Self.composedCloudNarrative(from: result)
         // 证据收敛：云端证据池是「查过什么就有什么」，按结论引用（claims.evidenceIDs）
@@ -471,6 +500,17 @@ final class HoloCloudAnalysisService {
         rendered.agentJobID = cloudIdentity
         rendered.agentResultID = cloudIdentity
         rendered.rootUserQuestion = question
+        // 目标闭环（§6.4 / §6.5）：服务端回显的 goalScope 为权威归类；缺失时用登记时的本地范围兜底。
+        // 修正草案只接受与本范围同目标、同计划版本的草案，操作形状再过一次本地白名单。
+        let resolvedGoalScope = result.goalScope ?? goalScope
+        rendered.goalScope = resolvedGoalScope
+        if let resolvedGoalScope {
+            rendered.goalAdjustmentDraft = GoalAdjustmentDraftWireMapper.map(
+                result.goalAdjustmentDraft,
+                scope: resolvedGoalScope,
+                reportMessageID: sourceMessageID
+            )
+        }
         // 空态诚实化（2026-09-24 17:24 实锤：云端交付 7 条结论、手机渲染「没有
         // 可信结论」）：claims 非空但 usableClaims 全被显示防线滤掉时标记
         // unverifiable（副标题如实说「已查到数据但未过核验」）并打日志留取证线索，
@@ -493,6 +533,17 @@ final class HoloCloudAnalysisService {
         if let note = Self.verificationNote(for: result.warnings ?? []), rendered.scope != nil {
             rendered.scope?.verificationNote = note
         }
+        // 报告理解信封（2026-10-18 方案）：随消息持久化结构化 claims+证据池投影，
+        // 报告理解链路据此提取（不依赖渲染文字；旧消息无此字段解码为 nil）
+        rendered.reportUnderstanding = HoloReportSourceAdapter.envelope(
+            claims: result.claims ?? [],
+            evidence: evidencePool,
+            taskRangeStart: result.taskRange.map(\.start),
+            taskRangeEnd: result.taskRange.map(\.end),
+            truncated: truncatedCount > 0,
+            coverageNote: rendered.scope?.truncatedNote,
+            usedMemoryIDs: []
+        )
         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
         logger.info("云端结果已落地 claims=\(composed.sections.count, privacy: .public) narrative=\(composed.narrativeSummary != nil, privacy: .public) keyInsight=\(composed.keyInsight != nil, privacy: .public) evidence=\(citedEvidence.count, privacy: .public)/池\(evidencePool.count, privacy: .public)")
     }
@@ -601,6 +652,12 @@ final class HoloCloudAnalysisService {
             narrativeSummary: narrativeSummary,
             keyInsight: sanitized(result.keyInsight)
         )
+    }
+
+    /// 目标回顾发起方（GoalReviewCoordinator）在云端不可用时落诚实失败卡的出口：
+    /// 原计划继续有效，显示真实原因并允许重试（§2.2「失败、离线或额度不足」）
+    func markAnalysisUnavailable(sourceMessageID: UUID, summary: String) {
+        markDeepAnalysisFailed(sourceMessageID: sourceMessageID, summary: summary)
     }
 
     /// 云端独占语义的诚实终局：把深度分析消息落为可辨识的失败卡（与本地

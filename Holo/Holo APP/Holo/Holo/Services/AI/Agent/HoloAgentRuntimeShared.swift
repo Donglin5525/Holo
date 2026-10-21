@@ -91,6 +91,8 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
                     if let goal = habit.dailyGoal { fields["goal"] = .number(goal) }
                     if let unit = habit.unit, !unit.isEmpty { fields["unit"] = .text(unit) }
                     if retroCount > 0 { fields["retroactiveCount"] = .number(Double(retroCount)) }
+                    // 自定义结算时间的习惯行级标注：date 已按它归属，AI 不得按打卡时刻重新切天
+                    if let cutoff = habit.dayCutoff { fields["dayCutoff"] = .text(cutoff) }
                     let excerptSuffix = retroCount > 0 ? "（其中 \(retroCount) 次后补）" : ""
                     return HoloQueryRow(
                         id: "\(habit.id)-d\(count.dayOffset)",
