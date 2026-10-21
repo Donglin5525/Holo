@@ -1,20 +1,11 @@
-//
-//  SleepTimelineCard.swift
-//  Holo
-//
-//  整晚睡眠时间轴（三期重设计）：只画「主睡眠」（小睡由 HealthSleepSessionSplitter
-//  切分、另行一行带过），条带按真实时间比例定位、无样本处留白；两端标注入睡/起床
-//  时刻，整点刻度、四色图例、统计行与结构解读。
-//  阶段色与 SleepStagesCard 一致（蓝=深睡、粉=核心、黄=REM、灰=清醒、浅灰=在床）。
-//
-
+// 主睡眠时间轴：按真实时间展示，阶段、结构指标与说明分组排版。
 import SwiftUI
-
-// MARK: - SleepTimelineCard
 
 struct SleepTimelineCard: View {
     let timeline: HealthSleepTimeline
     let detail: HealthSleepDetail
+    @ScaledMetric(relativeTo: .caption2) private var tickLabelWidth: CGFloat = 48
+    @ScaledMetric(relativeTo: .caption2) private var tickRowHeight: CGFloat = 20
 
     private static let clockFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -22,7 +13,6 @@ struct SleepTimelineCard: View {
         return formatter
     }()
 
-    /// 小睡行时长文案（系统本地化："1小时20分" / "1h 20m"）
     private static let napDurationFormatter: DateComponentsFormatter = {
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.hour, .minute]
@@ -30,248 +20,215 @@ struct SleepTimelineCard: View {
         return formatter
     }()
 
-    private var nightSpan: TimeInterval? {
-        guard let start = timeline.nightStart, let end = timeline.nightEnd else { return nil }
-        return end.timeIntervalSince(start)
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            Text("整晚睡眠时间轴")
-                .holoText(.body)
-                .foregroundColor(.holoToolText)
+        VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                Text("整晚睡眠时间轴")
+                    .holoText(.body)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.holoToolText)
+                Text("主睡眠 · 按真实时间排列")
+                    .holoText(.metadata)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+            }
 
-            if let span = nightSpan, span > 0 {
-                anchorRow
-                timelineBar(span: span)
-                tickRow(span: span)
+            if let start = timeline.nightStart, let end = timeline.nightEnd, end > start {
+                HStack(alignment: .top) {
+                    anchor(value: detail.bedtime, label: "入睡", alignment: .leading)
+                    Spacer(minLength: HoloSpacing.md)
+                    anchor(value: detail.wakeTime, label: "记录结束", alignment: .trailing)
+                }
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    HoloRangeTimeline(start: start, end: end, segments: Self.displaySegments(from: timeline.segments).enumerated().map { index, segment in
+                        HoloTimelineSegment(id: String(index), start: segment.start, end: segment.end,
+                                            label: Self.stageLabel(segment.stage), color: Self.color(for: segment.stage))
+                    })
+                    tickRow(start: start, end: end)
+                }
                 legendRow
+                Divider().overlay(Color.holoToolBorder)
                 statsRow
                 napRow
                 readout
             } else {
                 Text("暂无时间轴数据")
                     .holoText(.supporting)
-                    .foregroundColor(.holoToolTextSecondary)
+                    .foregroundStyle(Color.holoToolTextSecondary)
             }
         }
         .padding(HoloSpacing.md)
         .holoSurface()
     }
 
-    // MARK: - 时刻锚点行（入睡 / 起床）
-
-    private var anchorRow: some View {
-        HStack(alignment: .top) {
-            anchor(value: detail.bedtime ?? timeline.nightStart, label: "入睡")
-            Spacer()
-            anchor(value: detail.wakeTime ?? timeline.nightEnd, label: "起床")
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-    }
-
-    private func anchor(value: Date?, label: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
+    private func anchor(value: Date?, label: String, alignment: HorizontalAlignment) -> some View {
+        VStack(alignment: alignment, spacing: HoloSpacing.xs) {
             Text(value.map { Self.clockFormatter.string(from: $0) } ?? "—")
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
-                .foregroundColor(.holoToolText)
+                .holoText(.sectionTitle)
+                .monospacedDigit()
+                .foregroundStyle(Color.holoToolText)
             Text(LocalizedStringKey(label))
-                .font(.holoTinyLabel)
-                .foregroundColor(.holoToolTextSecondary)
+                .holoText(.metadata)
+                .foregroundStyle(Color.holoToolTextSecondary)
         }
-    }
-
-    // MARK: - 时间轴主体（真实比例定位，空隙留白）
-
-    private func timelineBar(span: TimeInterval) -> some View {
-        let segments = Self.displaySegments(from: timeline.segments)
-        return HoloRangeTimeline(start: timeline.nightStart ?? detail.date,
-                                 end: timeline.nightEnd ?? detail.date,
-                                 segments: segments.enumerated().map { index, segment in
-            HoloTimelineSegment(id: String(index), start: segment.start, end: segment.end,
-                                label: Self.stageLabel(segment.stage), color: Self.color(for: segment.stage))
-        })
     }
 
     private static func stageLabel(_ stage: HealthSleepSegment.Stage) -> String {
         switch stage {
-        case .asleepDeep: return "深睡"
-        case .asleepCore: return "核心睡眠"
-        case .asleepREM: return "REM"
-        case .awake: return "清醒"
-        case .inBedAwake: return "在床"
-        case .asleepUnspecified: return "睡眠"
+        case .asleepDeep: return String(localized: "深睡")
+        case .asleepCore: return String(localized: "核心睡眠")
+        case .asleepREM: return "快速眼动"
+        case .awake: return String(localized: "清醒")
+        case .inBedAwake: return String(localized: "在床")
+        case .asleepUnspecified: return String(localized: "未分期")
         }
     }
 
-    // MARK: - 整点刻度
-
-    private func tickRow(span: TimeInterval) -> some View {
-        let nightStart = timeline.nightStart!
-        let ticks = Self.tickTimes(windowStart: nightStart, windowEnd: timeline.nightEnd ?? nightStart)
+    private func tickRow(start: Date, end: Date) -> some View {
+        let ticks = Self.tickTimes(windowStart: start, windowEnd: end)
         return GeometryReader { proxy in
-            let width = proxy.size.width
-            ForEach(Array(ticks.enumerated()), id: \.offset) { _, tick in
-                let rawX = tick.timeIntervalSince(nightStart) / span * width
+            let capacity = max(Int(proxy.size.width / tickLabelWidth), 1)
+            let step = max(Int(ceil(Double(ticks.count) / Double(capacity))), 1)
+            let visibleTicks = ticks.enumerated().filter { $0.offset % step == 0 }.map(\.element)
+            ForEach(visibleTicks, id: \.self) { tick in
+                let x = tick.timeIntervalSince(start) / end.timeIntervalSince(start) * proxy.size.width
                 Text(Self.clockFormatter.string(from: tick))
-                    .font(.system(size: 10))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .position(x: min(max(rawX, 16), width - 16), y: proxy.size.height / 2)
+                    .font(.holoTinyLabel)
+                    .monospacedDigit()
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .position(x: min(max(x, tickLabelWidth / 2), max(proxy.size.width - tickLabelWidth / 2, tickLabelWidth / 2)), y: proxy.size.height / 2)
             }
         }
-        .frame(height: 14)
+        .frame(height: tickRowHeight)
+        .accessibilityHidden(true)
     }
 
-    /// 窗口内整点刻度：跨度 ≥5 小时每 2 小时一个，否则每 1 小时；从窗口起点后的第一个整点起。
+    /// 长窗口每两小时一个整点；从实际整点取值，避免样本的秒数带偏刻度。
     static func tickTimes(windowStart: Date, windowEnd: Date, calendar: Calendar = .current) -> [Date] {
-        guard windowEnd.timeIntervalSince(windowStart) >= 2 * 3600 else { return [] }
-        let minute = calendar.component(.minute, from: windowStart)
-        var tick = windowStart.addingTimeInterval(TimeInterval(60 - minute) * 60)
+        guard windowEnd.timeIntervalSince(windowStart) >= 2 * 3600,
+              let hour = calendar.dateInterval(of: .hour, for: windowStart),
+              let firstTick = calendar.date(byAdding: .hour, value: 1, to: hour.start) else { return [] }
+        var tick = firstTick
         var result: [Date] = []
-        let step: TimeInterval = windowEnd.timeIntervalSince(windowStart) >= 5 * 3600 ? 7200 : 3600
+        let step = windowEnd.timeIntervalSince(windowStart) >= 5 * 3600 ? 2 : 1
         while tick < windowEnd {
             result.append(tick)
-            tick = tick.addingTimeInterval(step)
+            guard let next = calendar.date(byAdding: .hour, value: step, to: tick) else { break }
+            tick = next
         }
         return result
     }
 
-    // MARK: - 图例
-
     private var legendRow: some View {
-        HStack(spacing: 14) {
-            legendDot(color: Self.color(for: .asleepDeep), label: "深睡")
-            legendDot(color: Self.color(for: .asleepCore), label: "核心")
-            legendDot(color: Self.color(for: .asleepREM), label: "REM")
-            legendDot(color: Self.color(for: .awake), label: "清醒")
-            legendDot(color: Self.color(for: .inBedAwake), label: "在床")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: HoloSpacing.md) { legendItems }
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())],
+                      alignment: .leading, spacing: HoloSpacing.sm) { legendItems }
         }
     }
 
-    private func legendDot(color: Color, label: String) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
+    @ViewBuilder
+    private var legendItems: some View {
+        legendDot(stage: .asleepDeep, label: "深睡")
+        legendDot(stage: .asleepCore, label: "核心")
+        legendDot(stage: .asleepREM, label: "快速眼动")
+        legendDot(stage: .awake, label: "清醒")
+        legendDot(stage: .inBedAwake, label: "在床")
+        if timeline.segments.contains(where: { $0.stage == .asleepUnspecified }) {
+            legendDot(stage: .asleepUnspecified, label: "未分期")
+        }
+    }
+
+    private func legendDot(stage: HealthSleepSegment.Stage, label: String) -> some View {
+        HStack(spacing: HoloSpacing.xs) {
+            Circle().fill(Self.color(for: stage)).frame(width: 7, height: 7)
             Text(LocalizedStringKey(label))
-                .font(.system(size: 10))
-                .foregroundColor(.holoToolTextSecondary)
+                .font(.holoTinyLabel)
+                .foregroundStyle(Color.holoToolTextSecondary)
         }
+        .fixedSize(horizontal: true, vertical: false)
     }
-
-    // MARK: - 统计行（入睡/起床已在锚点行，不重复）
 
     private var statsRow: some View {
-        HStack(spacing: 0) {
-            statItem(value: detail.interruptionCount.map { String(localized: "\($0) 次") } ?? "—", label: "夜醒")
-            statItem(value: detail.remEpisodes.map { String(localized: "\($0) 段") } ?? "—", label: "REM")
-            statItem(value: detail.sleepOnsetLatencyMinutes.map { String(localized: "\(Int($0)) 分") } ?? "—", label: "入睡耗时")
-            statItem(value: deepFocusText, label: "深睡集中")
-        }
-        .padding(.top, 2)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(Color.holoToolBorder)
-                .frame(height: 1)
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())],
+                  alignment: .leading, spacing: HoloSpacing.md) {
+            statItem(value: detail.interruptionCount.map { String(localized: "\($0) 次") } ?? String(localized: "未记录"), label: "夜间清醒 ≥2 分钟")
+            statItem(value: detail.remEpisodes.map { String(localized: "\($0) 段") } ?? String(localized: "未记录"), label: "快速眼动片段")
+            statItem(value: detail.sleepOnsetLatencyMinutes.map { String(localized: "\(Int($0)) 分钟") } ?? String(localized: "未记录"), label: "入睡耗时")
+            statItem(value: Self.deepFocusText(detail.deepFrontLoadPercent), label: "深睡集中")
         }
     }
 
     private func statItem(value: String, label: String) -> some View {
-        VStack(spacing: 2) {
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
             Text(value)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(.holoToolText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .holoText(.body)
+                .fontWeight(.semibold)
+                .monospacedDigit()
+                .foregroundStyle(Color.holoToolText)
+                .fixedSize(horizontal: false, vertical: true)
             Text(LocalizedStringKey(label))
-                .font(.holoTinyLabel)
-                .foregroundColor(.holoToolTextSecondary)
+                .holoText(.metadata)
+                .foregroundStyle(Color.holoToolTextSecondary)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 
-    /// 深睡集中：nil 才是「无数据」；0%（深睡全在后半夜）是合法值，与解读文案同口径。
-    private var deepFocusText: String {
-        guard let ratio = detail.deepFrontLoadPercent else { return "—" }
+    /// 标题与说明使用同一组边界：<40 后半夜，40..<60 均匀，≥60 前半夜。
+    static func deepFocusText(_ ratio: Double?) -> String {
+        guard let ratio else { return String(localized: "未记录") }
         return ratio >= 60 ? String(localized: "前半夜") : (ratio < 40 ? String(localized: "后半夜") : String(localized: "均匀"))
     }
 
-    // MARK: - 小睡行
-
     @ViewBuilder
     private var napRow: some View {
-        if let napCount = detail.napCount, napCount > 0 {
+        if let count = detail.napCount, count > 0 {
             let duration = Self.napDurationFormatter.string(from: (detail.napHours ?? 0) * 3600) ?? ""
-            Text(String(format: String(localized: "白天另有小睡 %lld 次 · 约 %@，未计入上图"), napCount, duration))
-                .holoText(.supporting)
-                .foregroundColor(.holoToolTextSecondary)
-                .padding(.horizontal, HoloSpacing.sm)
-                .padding(.vertical, 7)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.holoNestedCardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            Text(String(format: String(localized: "白天另有小睡 %lld 次 · 约 %@，未计入上图"), count, duration))
+                .holoText(.metadata)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
-    // MARK: - 结构解读
-
     private var readout: some View {
-        Text(Self.structureSummary(detail: detail))
-            .holoText(.supporting)
-            .foregroundColor(.holoToolText)
-            .lineSpacing(2)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.horizontal, HoloSpacing.sm)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.holoNestedCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Text(Self.structureSummary(detail: detail))
+                .holoText(.supporting)
+                .foregroundStyle(Color.holoToolText)
+            Text("片段数不等于睡眠周期；单晚分期仅供参考，建议结合多晚趋势观察。")
+                .holoText(.metadata)
+                .foregroundStyle(Color.holoToolTextSecondary)
+        }
+        .lineSpacing(2)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// 由结构特征生成一句话解读（趋势观察口径，不做医学判断）。
-    /// 各片段独立本地化后按句拼接；多语言下的连接符沿用中文分号。
+    /// 描述观测事实，不凭单晚片段数或分布诊断睡眠质量。
     static func structureSummary(detail: HealthSleepDetail) -> String {
         var parts: [String] = []
         if let front = detail.deepFrontLoadPercent {
-            parts.append(front >= 60
-                ? String(localized: "深睡集中在前半夜，符合正常节律")
-                : String(localized: "深睡分布偏后半夜，入睡质量值得观察"))
+            if front >= 60 { parts.append(String(localized: "深睡主要分布在前半夜")) }
+            else if front < 40 { parts.append(String(localized: "深睡主要分布在后半夜")) }
+            else { parts.append(String(localized: "深睡在前后半夜分布较均匀")) }
         }
         if let episodes = detail.remEpisodes {
-            let remTrend = (4...6).contains(episodes)
-                ? String(localized: "REM \(episodes) 段，节律正常")
-                : String(localized: "REM \(episodes) 段")
-            parts.append(remTrend)
+            parts.append(String(localized: "记录到快速眼动 \(episodes) 个片段"))
         }
         if let latency = detail.sleepOnsetLatencyMinutes {
-            if latency <= 20 {
-                parts.append(String(localized: "入睡较快（\(Int(latency)) 分钟）"))
-            } else if latency >= 45 {
-                parts.append(String(localized: "入睡偏慢（\(Int(latency)) 分钟）"))
-            }
+            parts.append(String(localized: "上床至入睡约 \(Int(latency)) 分钟"))
         }
-        if parts.isEmpty {
-            parts.append(String(localized: "结构数据不足，参考时长与作息趋势即可"))
-        }
-        return parts.joined(separator: "；") + String(localized: "。单晚分期精度有限，建议看多晚趋势。")
+        if parts.isEmpty { parts.append(String(localized: "结构数据不足，参考时长与作息趋势即可")) }
+        return parts.joined(separator: "；") + "。"
     }
 
-    // MARK: - 显示段纯函数
-
-    /// 显示用分段：<40 秒的清醒段并入底色不画；相邻同阶段缝隙 <2 分钟缝合
-    /// （消灭分钟级样本碎片条纹）。
+    /// 只合并相接或重叠的同阶段记录，短段和未记录的间隙按真实时间保留。
     static func displaySegments(from segments: [HealthSleepSegment]) -> [HealthSleepSegment] {
-        let filtered = segments.filter { !($0.stage == .awake && $0.duration < 40) }
         var result: [HealthSleepSegment] = []
-        for segment in filtered {
-            if let last = result.last, last.stage == segment.stage,
-               segment.start.timeIntervalSince(last.end) < 120 {
-                result[result.count - 1] = HealthSleepSegment(
-                    stage: last.stage, start: last.start, end: segment.end
-                )
-            } else {
-                result.append(segment)
-            }
+        for segment in segments.sorted(by: { $0.start < $1.start }) {
+            if let last = result.last, last.stage == segment.stage, segment.start <= last.end {
+                result[result.count - 1] = HealthSleepSegment(stage: last.stage, start: last.start, end: max(last.end, segment.end))
+            } else { result.append(segment) }
         }
         return result
     }
@@ -279,36 +236,11 @@ struct SleepTimelineCard: View {
     static func color(for stage: HealthSleepSegment.Stage) -> Color {
         switch stage {
         case .asleepDeep: return .holoChart1
-        case .asleepCore, .asleepUnspecified: return .holoChart7
+        case .asleepCore: return .holoChart7
+        case .asleepUnspecified: return .holoToolInfo.opacity(0.45)
         case .asleepREM: return .holoChart8
-        case .awake: return .holoToolTextSecondary.opacity(0.4)
+        case .awake: return .holoToolTextSecondary.opacity(0.65)
         case .inBedAwake: return .holoToolTextSecondary.opacity(0.26)
         }
     }
-}
-
-#Preview {
-    let calendar = Calendar.current
-    let wakeDay = calendar.startOfDay(for: Date())
-    let bed = calendar.date(bySettingHour: 23, minute: 30, second: 0, of: calendar.date(byAdding: .day, value: -1, to: wakeDay)!)!
-    func segment(_ stage: HealthSleepSegment.Stage, _ start: Double, _ end: Double) -> HealthSleepSegment {
-        HealthSleepSegment(stage: stage, start: bed.addingTimeInterval(start * 60), end: bed.addingTimeInterval(end * 60))
-    }
-    let timeline = HealthSleepTimeline(wakeDay: wakeDay, segments: [
-        segment(.inBedAwake, 0, 17), segment(.asleepDeep, 17, 61), segment(.asleepCore, 61, 105),
-        segment(.asleepDeep, 105, 148), segment(.asleepREM, 148, 160), segment(.awake, 160, 172),
-        segment(.asleepCore, 172, 215), segment(.asleepREM, 236, 258), segment(.asleepCore, 258, 340),
-        segment(.awake, 340, 351), segment(.asleepREM, 351, 385), segment(.asleepCore, 385, 467),
-        segment(.awake, 467, 479), segment(.inBedAwake, 479, 525)
-    ], hasStageData: true)
-    let detail = HealthSleepDetail(
-        date: wakeDay, totalHours: 8.1, coreHours: 3.6, deepHours: 1.8, remHours: 1.6,
-        awakeHours: 0.4, inBedHours: 8.8, bedtime: bed.addingTimeInterval(17 * 60),
-        wakeTime: bed.addingTimeInterval(525 * 60), interruptionCount: 2,
-        remEpisodes: 4, remLatencyMinutes: 131, deepFrontLoadPercent: 76, sleepOnsetLatencyMinutes: 17,
-        napCount: 1, napHours: 1.3
-    )
-    return SleepTimelineCard(timeline: timeline, detail: detail)
-        .padding()
-        .background(Color.holoToolBackground)
 }

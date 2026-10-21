@@ -109,3 +109,6 @@ qa-shots/
 /.tmp/
 *.trace/
 *.xcresult/
+
+# 睡眠详情页本机评审截图与验收输出（合成数据）
+outputs/sleep-detail-review-20261021/

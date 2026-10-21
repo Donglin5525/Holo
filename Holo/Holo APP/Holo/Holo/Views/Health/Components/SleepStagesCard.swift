@@ -1,153 +1,93 @@
-//
-//  SleepStagesCard.swift
-//  Holo
-//
-//  睡眠阶段卡片：深度睡眠为主展示，核心睡眠 / 快速眼动 / 清醒为次要行
-//
-
+// 睡眠阶段：名称与时长同一基线，比例条独占一行；缺失值保留「未记录」。
 import SwiftUI
-
-// MARK: - SleepStagesCard
 
 struct SleepStagesCard: View {
     let detail: HealthSleepDetail
+    @ScaledMetric(relativeTo: .caption) private var percentageColumnWidth: CGFloat = 44
 
     private struct StageItem: Identifiable {
         let id: String
         let name: String
-        let hours: Double
+        let hours: Double?
         let color: Color
     }
 
-    /// 深度睡眠单独作为主视觉，其余阶段按比例条展示
-    private var deepSleepHours: Double? {
-        detail.deepHours
-    }
-
-    private var secondaryStages: [StageItem] {
-        var items: [StageItem] = []
-        if let core = detail.coreHours {
-            items.append(StageItem(id: "core", name: String(localized: "核心睡眠"), hours: core, color: .holoChart7))
-        }
-        if let rem = detail.remHours {
-            items.append(StageItem(id: "rem", name: String(localized: "快速眼动"), hours: rem, color: .holoChart8))
-        }
-        if let awake = detail.awakeHours {
-            items.append(StageItem(id: "awake", name: String(localized: "清醒"), hours: awake, color: .holoToolTextSecondary))
-        }
-        return items
+    private var stages: [StageItem] {
+        [StageItem(id: "core", name: String(localized: "核心睡眠"), hours: detail.coreHours, color: .holoChart7),
+         StageItem(id: "deep", name: String(localized: "深度睡眠"), hours: detail.deepHours, color: .holoChart1),
+         StageItem(id: "rem", name: String(localized: "快速眼动（REM）"), hours: detail.remHours, color: .holoChart8)]
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.sm) {
+        VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("睡眠阶段")
                     .holoText(.body)
-                    .foregroundColor(.holoToolText)
-                // 与下方时间轴卡口径对齐：本卡总量含小睡（时间轴只画主睡眠），显式标注避免两卡数字对不上
-                if let napCount = detail.napCount, napCount > 0 {
-                    Text("含小睡")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoToolTextSecondary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Color.holoNestedCardBackground)
-                        .clipShape(Capsule())
-                }
-                Spacer()
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.holoToolText)
+                Text(detail.napCount.map { $0 > 0 } == true ? "按总睡眠时长计算，含小睡" : "各阶段占总睡眠时长的比例")
+                    .holoText(.metadata)
+                    .foregroundStyle(Color.holoToolTextSecondary)
             }
 
-            if let deep = deepSleepHours {
-                deepSleepHero(hours: deep)
-            }
-
-            ForEach(secondaryStages) { stage in
+            ForEach(stages) { stage in
                 stageRow(stage)
             }
+
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                Divider().overlay(Color.holoToolBorder)
+                HStack(alignment: .firstTextBaseline, spacing: HoloSpacing.sm) {
+                    Circle().fill(Color.holoToolTextSecondary).frame(width: 8, height: 8)
+                    Text("清醒")
+                        .holoText(.supporting)
+                    Spacer(minLength: HoloSpacing.sm)
+                    Text(detail.awakeHours.map(Self.formatHours) ?? String(localized: "未记录"))
+                        .holoText(.supporting)
+                        .monospacedDigit()
+                }
+                Text("清醒不计入总睡眠时长；未记录表示没有该阶段样本。")
+                    .holoText(.metadata)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .foregroundStyle(Color.holoToolTextSecondary)
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoToolSurface)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoToolBorder, lineWidth: 1)
-        )
+        .holoSurface()
     }
 
-    /// 深度睡眠主视觉：大数值 + 占总睡眠比例
-    private func deepSleepHero(hours: Double) -> some View {
-        HStack(spacing: HoloSpacing.md) {
-            Text("深")
-                .font(.holoLabel)
-                .foregroundColor(.white)
-                .frame(width: 34, height: 34)
-                .background(Color.holoChart1)
-                .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("深度睡眠")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoToolText)
-
-                Text(proportionText(for: hours))
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoToolTextSecondary)
-            }
-
-            Spacer(minLength: 0)
-
-            Text(Self.formatHours(hours))
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundColor(.holoChart1)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .padding(HoloSpacing.sm)
-        .background(Color.holoChart1.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-    }
-
-    /// 次要阶段行：色点 + 名称 + 占比条 + 时长
     private func stageRow(_ stage: StageItem) -> some View {
-        HStack(spacing: HoloSpacing.sm) {
-            Circle()
-                .fill(stage.color)
-                .frame(width: 8, height: 8)
-
-            Text(stage.name)
-                .font(.holoLabel)
-                .foregroundColor(.holoToolText)
-
-            Spacer(minLength: HoloSpacing.sm)
-
-            proportionBar(for: stage)
-
-            Text(Self.formatHours(stage.hours))
-                .font(.holoLabel)
-                .foregroundColor(.holoToolTextSecondary)
-                .frame(width: 72, alignment: .trailing)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(alignment: .firstTextBaseline, spacing: HoloSpacing.sm) {
+                HStack(spacing: HoloSpacing.sm) {
+                    Circle().fill(stage.color).frame(width: 8, height: 8)
+                    Text(stage.name)
+                        .holoText(.supporting)
+                        .foregroundStyle(Color.holoToolText)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: HoloSpacing.sm)
+                Text(stage.hours.map(Self.formatHours) ?? String(localized: "未记录"))
+                    .holoText(.supporting)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(stage.hours == nil ? Color.holoToolTextSecondary : Color.holoToolText)
+                    .monospacedDigit()
+                    .fixedSize(horizontal: true, vertical: false)
+            }
+            HStack(spacing: HoloSpacing.sm) {
+                let fraction = stage.hours.flatMap { detail.totalHours > 0 ? $0 / detail.totalHours : nil }
+                HoloProgress(value: fraction, color: stage.color, lineWidth: 6)
+                    .accessibilityHidden(true)
+                Text(fraction.map { "\(Int(($0 * 100).rounded()))%" } ?? "—")
+                    .holoText(.metadata)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .monospacedDigit()
+                    .frame(width: percentageColumnWidth, alignment: .trailing)
+            }
         }
+        .accessibilityElement(children: .combine)
     }
 
-    private func proportionBar(for stage: StageItem) -> some View {
-        HoloProgress(value: detail.totalHours > 0 ? Double(proportion(of: stage.hours)) : nil, color: stage.color, lineWidth: 6).frame(width: 72)
-    }
-
-    /// 阶段时长占总睡眠时长的比例（清醒时间也按总睡眠归一，避免超过 100%）
-    private func proportion(of hours: Double) -> CGFloat {
-        guard detail.totalHours > 0 else { return 0 }
-        return CGFloat(min(max(hours / detail.totalHours, 0), 1))
-    }
-
-    private func proportionText(for hours: Double) -> String {
-        guard detail.totalHours > 0 else { return String(localized: "占总睡眠 --") }
-        let percent = Int((hours / detail.totalHours * 100).rounded())
-        return String(localized: "占总睡眠 \(percent)%")
-    }
-
-    /// 小时数格式化为中文时长，如 1小时23分 / 45分钟
+    /// 小时数格式化为本地化时长。
     static func formatHours(_ hours: Double) -> String {
         let totalMinutes = max(Int((hours * 60).rounded()), 0)
         let hourPart = totalMinutes / 60
@@ -155,9 +95,7 @@ struct SleepStagesCard: View {
         if hourPart > 0, minutePart > 0 {
             return String(localized: "\(hourPart)小时\(minutePart)分")
         }
-        if hourPart > 0 {
-            return String(localized: "\(hourPart)小时")
-        }
+        if hourPart > 0 { return String(localized: "\(hourPart)小时") }
         return String(localized: "\(minutePart)分钟")
     }
 }

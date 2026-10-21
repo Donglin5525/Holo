@@ -591,7 +591,12 @@ class HealthRepository: ObservableObject {
         guard let split = HealthSleepSessionSplitter.split(samples: rawSamples) else { return nil }
         let main = split.mainSamples
 
-        let coreValue = 4, deepValue = 5, remValue = 6, unspecifiedValue = 3, awakeValue = 2, inBedValue = 0
+        let coreValue = HKCategoryValueSleepAnalysis.asleepCore.rawValue
+        let deepValue = HKCategoryValueSleepAnalysis.asleepDeep.rawValue
+        let remValue = HKCategoryValueSleepAnalysis.asleepREM.rawValue
+        let unspecifiedValue = HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue
+        let awakeValue = HKCategoryValueSleepAnalysis.awake.rawValue
+        let inBedValue = HKCategoryValueSleepAnalysis.inBed.rawValue
         func intervals(_ value: Int, in source: [(value: Int, start: Date, end: Date)]) -> [HealthSleepSampleAggregator.Interval] {
             source.compactMap { $0.value == value ? HealthSleepSampleAggregator.Interval(start: $0.start, end: $0.end) : nil }
         }
@@ -605,7 +610,6 @@ class HealthRepository: ObservableObject {
         let inBed = intervals(inBedValue, in: main)
         let mainAsleep = core + deep + rem + unspecified
         guard !mainAsleep.isEmpty else { return nil }
-        let hasStages = !core.isEmpty || !deep.isEmpty || !rem.isEmpty
         let structure = SleepStructureAnalyzer.features(
             SleepStructureAnalyzer.NightSegments(asleep: mainAsleep, core: core, deep: deep, rem: rem, inBed: inBed)
         )
@@ -629,9 +633,9 @@ class HealthRepository: ObservableObject {
         return HealthSleepDetail(
             date: wakeDay,
             totalHours: HealthSleepSampleAggregator.totalHours(for: asleepAll),
-            coreHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: coreAll) : nil,
-            deepHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: deepAll) : nil,
-            remHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: remAll) : nil,
+            coreHours: coreAll.isEmpty ? nil : HealthSleepSampleAggregator.totalHours(for: coreAll),
+            deepHours: deepAll.isEmpty ? nil : HealthSleepSampleAggregator.totalHours(for: deepAll),
+            remHours: remAll.isEmpty ? nil : HealthSleepSampleAggregator.totalHours(for: remAll),
             awakeHours: awakeAll.isEmpty ? nil : HealthSleepSampleAggregator.totalHours(for: awakeAll),
             inBedHours: inBedAll.isEmpty ? windowBedtime.flatMap { bed in windowWakeTime.map { $0.timeIntervalSince(bed) / 3600 } } : HealthSleepSampleAggregator.totalHours(for: inBedAll),
             bedtime: bedtime, wakeTime: wakeTime,
@@ -654,24 +658,24 @@ class HealthRepository: ObservableObject {
         }
         func at(_ minutes: Double) -> Date { bedStart.addingTimeInterval(minutes * 60) }
         return [
-            (value: 4, start: at(-630), end: at(-550)),  // 白天小睡 13:00–14:20
-            (value: 0, start: at(0), end: at(17)),       // 上床
-            (value: 5, start: at(17), end: at(61)),
-            (value: 4, start: at(61), end: at(105)),
-            (value: 5, start: at(105), end: at(148)),
-            (value: 6, start: at(148), end: at(160)),
-            (value: 2, start: at(160), end: at(172)),    // 夜醒
-            (value: 4, start: at(172), end: at(215)),
-            (value: 5, start: at(215), end: at(236)),
-            (value: 6, start: at(236), end: at(258)),
-            (value: 4, start: at(258), end: at(340)),
-            (value: 2, start: at(340), end: at(351)),    // 夜醒
-            (value: 6, start: at(351), end: at(385)),
-            (value: 4, start: at(385), end: at(413)),
-            (value: 6, start: at(413), end: at(441)),
-            (value: 4, start: at(441), end: at(467)),
-            (value: 2, start: at(467), end: at(479)),    // 末次醒来
-            (value: 0, start: at(479), end: at(525))     // 赖床
+            (value: HKCategoryValueSleepAnalysis.asleepCore.rawValue, start: at(-630), end: at(-550)),  // 白天小睡 13:00–14:20
+            (value: HKCategoryValueSleepAnalysis.inBed.rawValue, start: at(0), end: at(17)),       // 上床
+            (value: HKCategoryValueSleepAnalysis.asleepDeep.rawValue, start: at(17), end: at(61)),
+            (value: HKCategoryValueSleepAnalysis.asleepCore.rawValue, start: at(61), end: at(105)),
+            (value: HKCategoryValueSleepAnalysis.asleepDeep.rawValue, start: at(105), end: at(148)),
+            (value: HKCategoryValueSleepAnalysis.asleepREM.rawValue, start: at(148), end: at(160)),
+            (value: HKCategoryValueSleepAnalysis.awake.rawValue, start: at(160), end: at(172)),    // 夜醒
+            (value: HKCategoryValueSleepAnalysis.asleepCore.rawValue, start: at(172), end: at(215)),
+            (value: HKCategoryValueSleepAnalysis.asleepDeep.rawValue, start: at(215), end: at(236)),
+            (value: HKCategoryValueSleepAnalysis.asleepREM.rawValue, start: at(236), end: at(258)),
+            (value: HKCategoryValueSleepAnalysis.asleepCore.rawValue, start: at(258), end: at(340)),
+            (value: HKCategoryValueSleepAnalysis.awake.rawValue, start: at(340), end: at(351)),    // 夜醒
+            (value: HKCategoryValueSleepAnalysis.asleepREM.rawValue, start: at(351), end: at(385)),
+            (value: HKCategoryValueSleepAnalysis.asleepCore.rawValue, start: at(385), end: at(413)),
+            (value: HKCategoryValueSleepAnalysis.asleepREM.rawValue, start: at(413), end: at(441)),
+            (value: HKCategoryValueSleepAnalysis.asleepCore.rawValue, start: at(441), end: at(467)),
+            (value: HKCategoryValueSleepAnalysis.awake.rawValue, start: at(467), end: at(479)),    // 末次醒来
+            (value: HKCategoryValueSleepAnalysis.inBed.rawValue, start: at(479), end: at(525))     // 赖床
         ]
     }
 

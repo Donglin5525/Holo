@@ -20,11 +20,17 @@
 //
 
 import Foundation
+import HealthKit
 
 enum HealthSleepSessionSplitter {
 
     /// 睡着类样本的 HKCategoryValueSleepAnalysis.rawValue（unspecified/core/deep/REM）
-    private static let asleepRawValues: Set<Int> = [3, 4, 5, 6]
+    private static let asleepRawValues: Set<Int> = [
+        HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
+        HKCategoryValueSleepAnalysis.asleepCore.rawValue,
+        HKCategoryValueSleepAnalysis.asleepDeep.rawValue,
+        HKCategoryValueSleepAnalysis.asleepREM.rawValue
+    ]
 
     /// 睡着段之间空隙低于该阈值归同一会话（起夜 30–60 分钟不会劈开两觉）
     static let sessionGapThreshold: TimeInterval = 3 * 3600
@@ -46,7 +52,10 @@ enum HealthSleepSessionSplitter {
     static func split(samples: [(value: Int, start: Date, end: Date)]) -> Result? {
         let valid = samples.filter { $0.end > $0.start }
         let asleepSamples = valid.filter { asleepRawValues.contains($0.value) }
-        let restSamples = valid.filter { !asleepRawValues.contains($0.value) }
+        let restSamples = valid.filter {
+            $0.value == HKCategoryValueSleepAnalysis.inBed.rawValue
+                || $0.value == HKCategoryValueSleepAnalysis.awake.rawValue
+        }
         let mergedAsleep = HealthSleepSampleAggregator.merged(
             asleepSamples.map { HealthSleepSampleAggregator.Interval(start: $0.start, end: $0.end) }
         )

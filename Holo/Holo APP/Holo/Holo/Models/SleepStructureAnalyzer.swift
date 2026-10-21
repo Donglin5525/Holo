@@ -35,23 +35,20 @@ struct SleepStructureAnalyzer {
         var sleepOnsetLatencyMinutes: Double?
     }
 
-    /// 低于该时长的 REM 段视为设备噪声，不计入段数。
-    private static let remMinimumSegmentSeconds: TimeInterval = 300
-
     static func features(_ night: NightSegments) -> Features {
         guard let sleepOnset = night.asleep.map(\.start).min() else {
             return Features()
         }
 
-        // 入睡潜伏期：上床 → 首次入睡。差值非正说明在床记录晚于入睡（多源错位），视为不可得。
+        // 入睡潜伏期：上床 → 首次入睡。差值为负说明在床记录晚于入睡（多源错位）。
         var onsetLatency: Double?
         if let bedStart = HealthSleepSampleAggregator.merged(night.inBed).first?.start {
             let latency = bedStart.distance(to: sleepOnset) / 60
-            onsetLatency = latency > 0 ? latency : nil
+            onsetLatency = latency >= 0 ? latency : nil
         }
 
         let mergedREM = HealthSleepSampleAggregator.merged(night.rem)
-            .filter { $0.end.timeIntervalSince($0.start) >= remMinimumSegmentSeconds }
+        // 设备已完成分期；保留有效短段，不再用任意的 5 分钟阈值删掉真实 REM。
         var remEpisodes: Int?
         var remLatency: Double?
         if !night.rem.isEmpty {

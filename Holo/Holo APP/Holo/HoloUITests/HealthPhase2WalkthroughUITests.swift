@@ -76,6 +76,10 @@ final class HealthPhase2WalkthroughUITests: XCTestCase {
         XCTAssertTrue(timeline.waitForExistence(timeout: 12), "睡眠详情应有整晚睡眠时间轴卡")
         sleep(1)
         attach("02_sleep_detail_timeline")
+        app.scrollViews.firstMatch.swipeUp()
+        let stages = anyElement(labelContains: ["各阶段占总睡眠时长", "按总睡眠时长计算"])
+        XCTAssertTrue(stages.waitForExistence(timeout: 5), "应能滚动查看睡眠阶段比例与时长")
+        attach("02_sleep_detail_stages")
     }
 
     func test_phase2_stepsDetail_showsActivityPatternCard() throws {
@@ -132,7 +136,7 @@ final class HealthPhase2WalkthroughUITests: XCTestCase {
         _ = sleepChip.waitForExistence(timeout: 8)
         sleepChip.tap()
         XCTAssertTrue(
-            anyElement(labelContains: ["恢复洞察", "恢復洞察"]).waitForExistence(timeout: 12),
+            anyElement(labelContains: ["整晚睡眠时间轴", "整晚睡眠時間軸"]).waitForExistence(timeout: 12),
             "应已进入睡眠详情页"
         )
 
@@ -142,9 +146,11 @@ final class HealthPhase2WalkthroughUITests: XCTestCase {
         // AX 树上（offset 只挪渲染不挪 AX 存在性），只断言 existence 会假绿。
         let vitalsEntry = button(labelContains: ["身体状态", "身體狀態"])
         XCTAssertTrue(vitalsEntry.waitForExistence(timeout: 8), "睡眠详情页边缘右滑应返回健康看板")
-        XCTAssertTrue(waitHittable(vitalsEntry), "健康看板应在屏幕内可交互（事故症状=整个模块停在屏外不可见）")
+        attach("sleep_edge_back_dashboard")
+        // 身体状态入口已移到看板下方；检查屏内睡眠卡，仍能拦截整层被滑出屏幕的事故。
+        XCTAssertTrue(waitHittable(metricChip(["睡眠"])), "返回后的睡眠指标卡应在屏幕内可交互")
         XCTAssertFalse(
-            anyElement(labelContains: ["恢复洞察", "恢復洞察"]).exists,
+            anyElement(labelContains: ["整晚睡眠时间轴", "整晚睡眠時間軸"]).exists,
             "不应停留在睡眠详情页"
         )
     }
@@ -251,7 +257,7 @@ final class HealthPhase2WalkthroughUITests: XCTestCase {
         _ = sleepChip.waitForExistence(timeout: 8)
         sleepChip.tap()
         XCTAssertTrue(
-            anyElement(labelContains: ["恢复洞察", "恢復洞察"]).waitForExistence(timeout: 12),
+            anyElement(labelContains: ["整晚睡眠时间轴", "整晚睡眠時間軸"]).waitForExistence(timeout: 12),
             "应已进入睡眠详情页"
         )
 
@@ -267,7 +273,7 @@ final class HealthPhase2WalkthroughUITests: XCTestCase {
         edgeSwipeRight()
         let vitalsEntry = button(labelContains: ["身体状态", "身體狀態"])
         XCTAssertTrue(vitalsEntry.waitForExistence(timeout: 8), "详情页边缘右滑应返回健康看板")
-        XCTAssertTrue(waitHittable(vitalsEntry), "健康看板应在屏幕内可交互")
+        XCTAssertTrue(waitHittable(metricChip(["睡眠"])), "返回后的睡眠指标卡应在屏幕内可交互")
         XCTAssertTrue(
             button(labelContains: ["今天 ·"]).waitForExistence(timeout: 5),
             "边缘右滑返回不应顺带切换日期"

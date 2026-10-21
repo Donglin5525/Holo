@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import HealthKit
 @testable import Holo
 
 struct HealthSleepSessionSplitterTests {
@@ -21,10 +22,13 @@ struct HealthSleepSessionSplitterTests {
         test无睡着段返回nil()
         test主睡眠吸收上床与赖床尾巴()
         test最长睡着会话为主睡眠()
-        test显示段缝合同阶段细缝()
-        test微小清醒段并入底色()
+        test显示段保留无记录的间隙()
+        test保留微小清醒段()
         test刻度每两小时整点()
         test短窗口刻度每小时()
+        test样本含秒时刻度仍为整点()
+        test未知编号不进入主睡眠()
+        test深睡分布说明边界一致()
         print("HealthSleepSessionSplitterTests passed")
     }
 
@@ -38,12 +42,12 @@ struct HealthSleepSessionSplitterTests {
 
     private static func test小睡与夜间睡眠切成两会话() {
         let result = HealthSleepSessionSplitter.split(samples: [
-            sample(4, -570, -450),  // 午睡 core（睡前 9.5~7.5 小时）
-            sample(0, 0, 17),       // 上床
-            sample(5, 17, 240),     // 夜间主睡眠
-            sample(4, 240, 420),
+            sample(HKCategoryValueSleepAnalysis.asleepCore.rawValue, -570, -450),  // 午睡 core（睡前 9.5~7.5 小时）
+            sample(HKCategoryValueSleepAnalysis.inBed.rawValue, 0, 17),       // 上床
+            sample(HKCategoryValueSleepAnalysis.asleepDeep.rawValue, 17, 240),     // 夜间主睡眠
+            sample(HKCategoryValueSleepAnalysis.asleepCore.rawValue, 240, 420),
             sample(2, 420, 435),    // 末次醒来
-            sample(0, 435, 465)     // 赖床
+            sample(HKCategoryValueSleepAnalysis.inBed.rawValue, 435, 465)     // 赖床
         ])
         expect(result != nil, "有睡着段应产出切分结果")
         let split = result!
@@ -53,14 +57,14 @@ struct HealthSleepSessionSplitterTests {
         // 小睡样本不混入主睡眠；主睡眠最早样本不早于上床链条（60 分钟阈值）
         let starts = split.mainSamples.map { $0.start.timeIntervalSince(base) / 60 }
         expect((starts.min() ?? 0) >= -60, "主睡眠最早样本不应早于上床链条范围，实际 \(String(describing: starts.min()))")
-        expect(!split.mainSamples.contains { $0.start < base.addingTimeInterval(-90 * 60) && $0.value == 4 },
+        expect(!split.mainSamples.contains { $0.start < base.addingTimeInterval(-90 * 60) && $0.value == HKCategoryValueSleepAnalysis.asleepCore.rawValue },
                "午睡样本不应混入主睡眠")
     }
 
     private static func test间隔小于三小时归同一会话() {
         let result = HealthSleepSessionSplitter.split(samples: [
-            sample(4, 0, 120),
-            sample(4, 270, 400)   // 与上段间隔 2.5 小时
+            sample(HKCategoryValueSleepAnalysis.asleepCore.rawValue, 0, 120),
+            sample(HKCategoryValueSleepAnalysis.asleepCore.rawValue, 270, 400)   // 与上段间隔 2.5 小时
         ])
         expect(result != nil && result!.napCount == 0, "间隔 2.5 小时应为同一会话、无小睡")
         expect(result?.napTotalSeconds == 0, "无小睡时长")
@@ -68,16 +72,16 @@ struct HealthSleepSessionSplitterTests {
 
     private static func test无睡着段返回nil() {
         let result = HealthSleepSessionSplitter.split(samples: [
-            sample(0, 0, 480)  // 只有在床
+            sample(HKCategoryValueSleepAnalysis.inBed.rawValue, 0, 480)  // 只有在床
         ])
         expect(result == nil, "只有在床无睡着应返回 nil")
     }
 
     private static func test主睡眠吸收上床与赖床尾巴() {
         let result = HealthSleepSessionSplitter.split(samples: [
-            sample(0, -150, -130),  // 距主睡眠起点 130 分钟（≥60）→ 不并入
-            sample(0, -60, -30),    // 上床（间隔 30 分钟）→ 吸收
-            sample(5, 0, 330),
+            sample(HKCategoryValueSleepAnalysis.inBed.rawValue, -150, -130),  // 距主睡眠起点 130 分钟（≥60）→ 不并入
+            sample(HKCategoryValueSleepAnalysis.inBed.rawValue, -60, -30),    // 上床（间隔 30 分钟）→ 吸收
+            sample(HKCategoryValueSleepAnalysis.asleepDeep.rawValue, 0, 330),
             sample(2, 330, 430)     // 赖床清醒 100 分钟 → 链条吸收到真实终点
         ])
         expect(result != nil, "有睡着段应产出切分结果")
@@ -90,33 +94,33 @@ struct HealthSleepSessionSplitterTests {
 
     private static func test最长睡着会话为主睡眠() {
         let result = HealthSleepSessionSplitter.split(samples: [
-            sample(4, -600, -180),  // 白天 7 小时长睡（倒班形态）
-            sample(5, 0, 60)        // 夜间仅 1 小时
+            sample(HKCategoryValueSleepAnalysis.asleepCore.rawValue, -600, -180),  // 白天 7 小时长睡（倒班形态）
+            sample(HKCategoryValueSleepAnalysis.asleepDeep.rawValue, 0, 60)        // 夜间仅 1 小时
         ])
         expect(result != nil && result!.napCount == 1, "短的一段应记为小睡")
-        expect(result!.mainSamples.contains { $0.value == 4 }, "睡着最长者（白天长睡）应为主睡眠")
+        expect(result!.mainSamples.contains { $0.value == HKCategoryValueSleepAnalysis.asleepCore.rawValue }, "睡着最长者（白天长睡）应为主睡眠")
     }
 
     // MARK: - 时间轴卡显示段（SleepTimelineCard.displaySegments）
 
-    private static func test显示段缝合同阶段细缝() {
+    private static func test显示段保留无记录的间隙() {
         let segments = [
             HealthSleepSegment(stage: .asleepCore, start: base, end: base.addingTimeInterval(600)),
             HealthSleepSegment(stage: .asleepCore, start: base.addingTimeInterval(660), end: base.addingTimeInterval(1200)),
             HealthSleepSegment(stage: .asleepREM, start: base.addingTimeInterval(1260), end: base.addingTimeInterval(1500))
         ]
         let display = SleepTimelineCard.displaySegments(from: segments)
-        expect(display.count == 2, "同阶段 1 分钟缝隙应缝合，实际 \(display.count)")
-        expect(display[0].duration == 1200, "缝合后应连续到 1200 秒，实际 \(display[0].duration)")
+        expect(display.count == 3, "无样本的 1 分钟不能伪装成睡眠，实际 \(display.count)")
+        expect(display[0].duration == 600, "第一段必须保留真实时长")
     }
 
-    private static func test微小清醒段并入底色() {
+    private static func test保留微小清醒段() {
         let segments = [
             HealthSleepSegment(stage: .asleepCore, start: base, end: base.addingTimeInterval(600)),
             HealthSleepSegment(stage: .awake, start: base.addingTimeInterval(600), end: base.addingTimeInterval(630))
         ]
         let display = SleepTimelineCard.displaySegments(from: segments)
-        expect(display.count == 1, "30 秒清醒段不应显示，实际 \(display.count)")
+        expect(display.count == 2, "设备记录的 30 秒清醒段也应保留，实际 \(display.count)")
     }
 
     // MARK: - 整点刻度（SleepTimelineCard.tickTimes）
@@ -135,6 +139,29 @@ struct HealthSleepSessionSplitterTests {
         let end = start.addingTimeInterval(3 * 3600)
         let ticks = SleepTimelineCard.tickTimes(windowStart: start, windowEnd: end, calendar: calendar)
         expect(ticks.count == 3, "3 小时窗应每整点一个刻度（02/03/04），实际 \(ticks.count)")
+    }
+
+    private static func test样本含秒时刻度仍为整点() {
+        let start = calendar.date(bySettingHour: 2, minute: 5, second: 37, of: base)!
+        let ticks = SleepTimelineCard.tickTimes(windowStart: start, windowEnd: start.addingTimeInterval(6 * 3600), calendar: calendar)
+        expect(ticks.allSatisfy { calendar.component(.minute, from: $0) == 0 && calendar.component(.second, from: $0) == 0 }, "含秒样本不能让刻度偏离整点")
+    }
+
+    private static func test未知编号不进入主睡眠() {
+        expect(HealthSleepSessionSplitter.split(samples: [sample(6, 0, 120)]) == nil, "不存在的阶段 6 不能被当成 REM")
+    }
+
+    private static func test深睡分布说明边界一致() {
+        for ratio in [0.0, 39.9, 40.0, 50.0, 59.9, 60.0, 100.0] {
+            var detail = HealthSleepDetail(date: base, totalHours: 8, coreHours: 5, deepHours: 1, remHours: 2,
+                                           awakeHours: nil, inBedHours: nil, bedtime: nil, wakeTime: nil, interruptionCount: nil)
+            detail.deepFrontLoadPercent = ratio
+            let summary = SleepTimelineCard.structureSummary(detail: detail)
+            let expected = ratio >= 60 ? "前半夜" : (ratio < 40 ? "后半夜" : "均匀")
+            expect(SleepTimelineCard.deepFocusText(ratio) == expected, "指标边界应一致")
+            expect(summary.contains(expected), "解读必须与指标一致：\(ratio)")
+            expect(!summary.contains("正常") && !summary.contains("质量"), "单晚数据不能直接评价睡眠质量")
+        }
     }
 }
 
