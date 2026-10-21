@@ -238,8 +238,7 @@ struct FinanceProjectListView: View {
             showDetail = true
         } label: {
             HStack(spacing: 12) {
-                Text(item.project.icon)
-                    .font(.system(size: 20))
+                entityIconGlyph(item.project.icon, size: 20, color: tint)
                     .frame(width: 40, height: 40)
                     .background(tint.opacity(0.14))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

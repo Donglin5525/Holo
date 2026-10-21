@@ -146,7 +146,7 @@ public class Habit: NSManagedObject {
     
     /// 是否为自定义图标（Asset Catalog 图标）
     var isCustomIcon: Bool {
-        HabitIconPresets.allItems.first { $0.name == icon }?.isCustom ?? false
+        EntityIconAsset.isAsset(icon)
     }
     
     /// 记录数组

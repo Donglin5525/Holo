@@ -545,7 +545,7 @@ struct AddCategorySheet: View {
     let onSave: () -> Void
 
     @State private var name = ""
-    @State private var iconName = CategoryIconCatalog.allIcons.first ?? "tag.fill"
+    @State private var iconName = "tag.fill"
     @State private var selectedColorHex = "#13A4EC"
     @State private var parentCategory: Category?
     @State private var isSaving = false
@@ -571,7 +571,7 @@ struct AddCategorySheet: View {
                 }
 
                 Section("图标") {
-                    IconPickerGrid(selectedIcon: $iconName)
+                    UnifiedIconGrid(currentIcon: iconName, emojiPaneMaxHeight: 420) { iconName = $0 }
                         .padding(.vertical, 8)
                 }
 
@@ -700,7 +700,7 @@ struct EditCategorySheet: View {
                         }
                     }
 
-                    IconPickerGrid(selectedIcon: $iconName)
+                    UnifiedIconGrid(currentIcon: iconName, emojiPaneMaxHeight: 420) { iconName = $0 }
                         .padding(.vertical, 8)
                 }
             }

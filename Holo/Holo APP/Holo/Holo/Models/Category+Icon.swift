@@ -31,11 +31,19 @@ func transactionCategoryIcon(_ category: Category, size: CGFloat) -> some View {
 
 @ViewBuilder
 func categoryIconGlyph(_ iconName: String, size: CGFloat, color: Color) -> some View {
+    entityIconGlyph(iconName, size: size, color: color)
+}
+
+/// 用户自建实体（习惯/财务项目/记账分类）图标统一渲染：
+/// emoji 原样彩色文本（东林 2026-10-22 拍板保留用户自选）→ 资产 template 染色 →
+/// holo.category.* 自绘兜底 → SF Symbol 染色 → 脏数据回退通用图标
+@ViewBuilder
+func entityIconGlyph(_ iconName: String, size: CGFloat, color: Color) -> some View {
     if isEmojiIconName(iconName) {
-        // 用户手选的 emoji 图标：彩色文本渲染，不跟随科目色
+        // 用户手选的 emoji 图标：彩色文本渲染，不跟随实体色
         Text(iconName)
             .font(.system(size: size))
-    } else if iconName.hasPrefix("finance_") || iconName.hasPrefix("income_") || iconName.hasPrefix("cat_") {
+    } else if UnifiedIconCatalog.isAssetIcon(iconName) {
         Image(iconName)
             .renderingMode(.template)
             .resizable()

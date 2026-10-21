@@ -133,8 +133,7 @@ struct ProjectTabView: View {
             selectedProject = project
         } label: {
             HStack(spacing: HoloSpacing.sm) {
-                Text(project.icon)
-                    .font(.system(size: 17))
+                entityIconGlyph(project.icon, size: 17, color: Color(hex: project.color))
                     .frame(width: 38, height: 38)
                     .background(
                         RoundedRectangle(cornerRadius: 11, style: .continuous)
@@ -336,8 +335,7 @@ private struct ProjectInsightView: View {
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack(spacing: HoloSpacing.sm) {
-                Text(project.icon)
-                    .font(.system(size: 22))
+                entityIconGlyph(project.icon, size: 22, color: .white)
                     .frame(width: 44, height: 44)
                     .background(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)

@@ -165,7 +165,9 @@ struct AddHabitSheet: View {
             loadEditingData()
         }
         .sheet(isPresented: $showIconPicker) {
-            IconPickerSheet(selectedIcon: $selectedIcon, selectedColor: $selectedColor)
+            UnifiedIconPickerSheet(currentIcon: selectedIcon, onSelect: { selectedIcon = $0 }) {
+                HabitIconColorFooter(selectedColor: $selectedColor)
+            }
         }
         .sheet(isPresented: $showGoalPicker) {
             GoalPickerSheet(currentGoalId: goalSelection?.id) { goal in
@@ -906,91 +908,17 @@ private struct HabitQuickColorDot: View {
 private struct HabitPreviewIcon: HabitIconRenderable {
     let icon: String
     var isCustomIcon: Bool {
-        HabitIconPresets.allItems.first { $0.name == icon }?.isCustom ?? false
+        UnifiedIconCatalog.isAssetIcon(icon)
     }
 }
 
-// MARK: - IconPickerSheet
+// MARK: - 选择器底部色点行
 
-/// 图标选择器（经典 SF Symbol 分组 + Emoji 库双页签，底部 12 色全量色点）
-struct IconPickerSheet: View {
-
-    @Environment(\.dismiss) var dismiss
-    @Binding var selectedIcon: String
+/// 统一图标选择弹层的常驻 footer：全量 12 色点，兜住外观行只摆 5 色的覆盖缺口（换色不关弹层）
+private struct HabitIconColorFooter: View {
     @Binding var selectedColor: String
 
-    enum PickerTab: String, CaseIterable, Identifiable {
-        case classic
-        case emoji = "Emoji"
-        var id: String { rawValue }
-        var displayName: String {
-            switch self {
-            case .classic: String(localized: "经典")
-            case .emoji: "Emoji"
-            }
-        }
-    }
-
-    @State private var pickerTab: PickerTab
-
-    init(selectedIcon: Binding<String>, selectedColor: Binding<String>) {
-        self._selectedIcon = selectedIcon
-        self._selectedColor = selectedColor
-        // 当前已是 emoji 时直接落在 Emoji 页
-        self._pickerTab = State(initialValue: EmojiCatalog.isEmojiIcon(selectedIcon.wrappedValue) ? .emoji : .classic)
-    }
-
-    /// 网格列定义（5列）
-    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
-
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                Picker("图标类型", selection: $pickerTab) {
-                    ForEach(PickerTab.allCases) { tab in
-                        Text(tab.displayName).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(HoloSpacing.md)
-
-                if pickerTab == .emoji {
-                    EmojiCatalogGrid(currentIcon: selectedIcon) { emoji in
-                        selectedIcon = emoji
-                        dismiss()
-                    }
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 24, pinnedViews: []) {
-                            ForEach(HabitIconPresets.categories) { category in
-                                categorySection(category)
-                            }
-                        }
-                        .padding()
-                    }
-                    .background(Color.holoToolBackground)
-                }
-
-                // 全量 12 色点：兜住外观行只摆 5 色的覆盖缺口（换色不关弹层）
-                colorRow
-            }
-            .background(Color.holoToolBackground)
-            .navigationTitle("选择图标")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
-                        dismiss()
-                    }
-                    .foregroundColor(.holoPrimary)
-                }
-            }
-        }
-    }
-
-    // MARK: - 底部颜色行
-
-    private var colorRow: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(String(localized: "颜色"))
                 .font(.system(size: 13))
@@ -1015,72 +943,6 @@ struct IconPickerSheet: View {
             Rectangle()
                 .fill(Color.holoToolBorder.opacity(0.5))
                 .frame(height: 0.5)
-        }
-    }
-
-    // MARK: - 分类区块
-
-    @ViewBuilder
-    private func categorySection(_ category: HabitIconCategory) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 分类标题
-            HStack(spacing: 6) {
-                Image(systemName: category.icon)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoPrimary)
-
-                Text(category.name)
-                    .font(.holoLabel)
-                    .foregroundColor(.holoToolTextSecondary)
-            }
-
-            // 图标网格
-            LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(category.items) { item in
-                    iconButton(item)
-                }
-            }
-        }
-    }
-
-    // MARK: - 图标按钮
-
-    @ViewBuilder
-    private func iconButton(_ item: IconItem) -> some View {
-        Button {
-            selectedIcon = item.name
-            dismiss()
-        } label: {
-            VStack(spacing: 4) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: HoloRadius.md)
-                        .fill(selectedIcon == item.name ? Color.holoPrimary.opacity(0.1) : Color.holoToolSurface)
-                        .frame(width: 52, height: 52)
-
-                    // 根据是否为自定义图标选择不同的显示方式
-                    if item.isCustom {
-                        Image(item.name)
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 22, height: 22)
-                            .foregroundColor(selectedIcon == item.name ? .holoPrimary : .holoToolText)
-                    } else {
-                        Image(systemName: item.name)
-                            .font(.system(size: 22))
-                            .foregroundColor(selectedIcon == item.name ? .holoPrimary : .holoToolText)
-                    }
-                }
-                .overlay(
-                    RoundedRectangle(cornerRadius: HoloRadius.md)
-                        .stroke(selectedIcon == item.name ? Color.holoPrimary : Color.clear, lineWidth: 2)
-                )
-
-                Text(item.label)
-                    .font(.system(size: 10))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .lineLimit(1)
-            }
         }
     }
 }

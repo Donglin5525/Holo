@@ -3,7 +3,7 @@
 //  Holo
 //
 //  新建/编辑财务项目 Sheet
-//  名称（必填）+ emoji 图标 + 颜色 + 时间范围（可选）+ 预算（可选）+ 备注
+//  名称（必填）+ 图标（统一精选单色 / emoji）+ 颜色 + 时间范围（可选）+ 预算（可选）+ 备注
 //
 
 import SwiftUI
@@ -72,7 +72,7 @@ struct AddProjectSheet: View {
                 }
             }
             .sheet(isPresented: $showIconPicker) {
-                EmojiIconPickerSheet(currentIcon: icon) { icon = $0 }
+                UnifiedIconPickerSheet(currentIcon: icon) { icon = $0 }
             }
             .onAppear { populateForEdit() }
         }
@@ -94,8 +94,7 @@ struct AddProjectSheet: View {
                 Button {
                     showIconPicker = true
                 } label: {
-                    Text(icon)
-                        .font(.system(size: 26))
+                    entityIconGlyph(icon, size: 26, color: Color(hex: color))
                         .frame(width: 52, height: 52)
                         .background(Color.holoToolSurface)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))

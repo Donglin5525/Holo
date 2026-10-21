@@ -172,8 +172,7 @@ struct FinanceProjectDetailView: View {
     private var headerCard: some View {
         VStack(spacing: HoloSpacing.md) {
             HStack(spacing: 10) {
-                Text(project.icon)
-                    .font(.system(size: 22))
+                entityIconGlyph(project.icon, size: 22, color: Color(hex: project.color))
                     .frame(width: 44, height: 44)
                     .background(Color(hex: project.color).opacity(0.14))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

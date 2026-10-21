@@ -145,9 +145,9 @@ struct CategoryTabView: View {
                     state.setCategoryProjectFilter(project)
                 } label: {
                     if state.categoryProjectFilter?.id == project.id {
-                        Label("\(project.icon) \(project.name)", systemImage: "checkmark")
+                        Label(project.name, systemImage: "checkmark")
                     } else {
-                        Text("\(project.icon) \(project.name)")
+                        Text(project.name)
                     }
                 }
             }
