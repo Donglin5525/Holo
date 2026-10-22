@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>事项模块 · 任务名超长显示方案原型</title>
+<style>
+/* 浅色（默认）——取值对齐 App 设计系统：holoPrimary #F46D38 / ToolBackground #FDFCF8 / 卡片圆角16 */
+:root{
+  --bg-page:#FDFCF8;
+  --card:#FFFFFF;
+  --nested:#F4F7F9;
+  --pill:#F2F2F7;
+  --label1:#1C1C1E;
+  --label2:rgba(60,60,67,.62);
+  --label3:rgba(60,60,67,.32);
+  --primary:#F46D38;
+  --orange:#FF9500;
+  --green:#34C759;
+  --frame:#3A3A3C;
+  --shadow-card:0 2px 6px rgba(0,0,0,.04);
+  --shadow-focus:0 2px 8px rgba(0,0,0,.05);
+}
+html[data-theme="dark"]{
+  --bg-page:#0E0E10;
+  --card:#000000;
+  --nested:#353538;
+  --pill:#2C2C2E;
+  --label1:#FFFFFF;
+  --label2:rgba(235,235,245,.60);
+  --label3:rgba(235,235,245,.30);
+  --shadow-card:none;
+  --shadow-focus:none;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+  background:#F2F1EC;
+  color:#222;
+  padding:36px 20px 60px;
+}
+html[data-theme="dark"] body{background:#191919;color:#EEE;}
+
+.pagehead{max-width:1180px;margin:0 auto 8px;}
+.pagehead h1{font-size:22px;font-weight:700;}
+.pagehead p{font-size:13px;color:#666;margin-top:6px;line-height:1.7;}
+html[data-theme="dark"] .pagehead p{color:#AAA;}
+.theme-toggle{
+  margin-top:12px;font-size:12px;padding:6px 14px;border-radius:999px;border:1px solid #C9C7C0;
+  background:transparent;color:inherit;cursor:pointer;
+}
+html[data-theme="dark"] .theme-toggle{border-color:#444;}
+
+.sec{max-width:1180px;margin:38px auto 0;}
+.sec-title{font-size:16px;font-weight:700;margin-bottom:4px;}
+.sec-sub{font-size:12px;color:#777;margin-bottom:16px;line-height:1.7;}
+html[data-theme="dark"] .sec-sub{color:#999;}
+.pair{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start;}
+
+.phone-wrap{flex:0 0 auto;}
+.tagchip{
+  display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:999px;margin-bottom:10px;
+}
+.tagchip.now{background:#E8E6E1;color:#6B6963;}
+html[data-theme="dark"] .tagchip.now{background:#333;color:#BBB;}
+.tagchip.after{background:rgba(244,109,56,.14);color:#EA580C;}
+.phone{
+  width:375px;background:var(--frame);
+  border-radius:52px;padding:9px;
+  box-shadow:0 8px 30px rgba(0,0,0,.12);
+}
+.screen{
+  background:var(--bg-page);
+  border-radius:44px;overflow:hidden;
+  padding:0 0 18px;
+}
+.statusbar{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 26px 6px;font-size:14px;font-weight:600;color:var(--label1);
+}
+.statusbar .sicons{display:flex;gap:5px;align-items:center;}
+
+/* ============ 通用文字层级（对齐 iOS 字号） ============ */
+.t-title3{font-size:20px;font-weight:700;color:var(--label1);line-height:1.3;}
+.t-sub-bold{font-size:15px;font-weight:600;color:var(--label1);line-height:1.35;}
+.t-sub{font-size:15px;color:var(--label1);line-height:1.4;}
+.t-cap{font-size:12px;color:var(--label2);line-height:1.45;}
+.t-cap2{font-size:11px;line-height:1.4;}
+.sec-label{font-size:12px;font-weight:700;letter-spacing:1px;color:var(--label2);}
+
+/* 单行截断（现状的真实截断，非手写省略号） */
+.clamp1{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;min-width:0;}
+/* 两行封顶（方案：现实文案几乎不会触顶，触顶才截断） */
+.clamp2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-width:0;}
+
+.chev{color:var(--label3);font-size:13px;font-weight:600;flex:0 0 auto;}
+
+/* ============ S1 事项列表页 ============ */
+.sheetnav{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:6px 18px 0;
+}
+.sheetnav .done{font-size:15px;color:var(--primary);}
+.navicons{display:flex;gap:16px;color:var(--label1);align-items:center;}
+.navicons svg{display:block;}
+.largetitle{font-size:28px;font-weight:800;color:var(--label1);padding:8px 16px 12px;}
+.listrows{display:flex;flex-direction:column;gap:10px;padding:0 16px;}
+
+.mrow{
+  background:var(--card);border-radius:16px;padding:13px;
+  box-shadow:var(--shadow-card);
+}
+.mtitle{font-size:15px;font-weight:600;color:var(--label1);line-height:1.35;}
+.mrow .headrow{display:flex;align-items:flex-start;gap:8px;}
+.mrow .headrow .mtitle{flex:1;}
+/* 现状副标题：一行挤到底 */
+.subline{display:flex;align-items:center;gap:6px;margin-top:5px;}
+.subline .cap-plain{font-size:12px;color:var(--label3);flex:0 0 auto;}
+/* 方案副标题：标签行 + 任务名独占整行 */
+.sublabel{margin-top:5px;}
+.sublabel .dotsep{color:var(--label3);}
+.subtask{margin-top:3px;}
+
+/* 改动点标注 */
+.chg{position:relative;outline:1.5px dashed #FF3B30;outline-offset:3px;border-radius:4px;}
+.num{
+  position:absolute;top:-9px;right:-9px;width:18px;height:18px;border-radius:50%;
+  background:#FF3B30;color:#fff;font-size:11px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;
+}
+
+.note{
+  max-width:780px;font-size:12.5px;color:#666;line-height:1.8;margin-top:14px;
+  background:rgba(244,109,56,.06);border-left:3px solid var(--primary);padding:10px 14px;border-radius:0 8px 8px 0;
+}
+html[data-theme="dark"] .note{color:#BBB;}
+.note b{color:var(--primary);}
+
+/* 变体B小卡 */
+.variantB{margin-top:20px;display:flex;gap:26px;align-items:flex-start;flex-wrap:wrap;}
+.vbchip{display:inline-block;font-size:12px;font-weight:600;padding:3px 12px;border-radius:999px;margin-bottom:10px;background:rgba(100,100,100,.12);color:#777;}
+html[data-theme="dark"] .vbchip{background:#333;color:#BBB;}
+
+/* ============ S2 首页焦点卡 ============ */
+.hintcap{font-size:11px;color:var(--label3);padding:14px 16px 0;text-align:center;}
+.fc{
+  background:var(--card);border-radius:16px;padding:14px;margin:8px 16px 0;
+  box-shadow:var(--shadow-focus);
+  border:1px solid rgba(244,109,56,.18);
+}
+.fc .fchead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.fc .fchead .lab{font-size:11px;font-weight:700;letter-spacing:1.2px;color:var(--primary);}
+.fc .fchead .more{font-size:11px;color:var(--label2);}
+.fc .titlerow{display:flex;align-items:flex-start;gap:6px;}
+.badge{
+  display:flex;align-items:center;gap:3px;flex:0 0 auto;margin-top:4px;
+  padding:3px 7px;border-radius:999px;background:rgba(255,149,0,.12);
+}
+.badge .bdot{width:5px;height:5px;border-radius:50%;background:var(--orange);}
+.badge span{font-size:11px;font-weight:600;color:var(--orange);}
+.fc .meta{font-size:12px;color:var(--label2);margin-top:6px;}
+.fc .meta em{font-style:normal;font-weight:600;color:var(--orange);}
+.nextpill{
+  display:flex;gap:6px;align-items:flex-start;
+  background:var(--pill);border-radius:10px;padding:7px 10px;margin-top:8px;
+}
+.nextpill .pl{font-size:12px;color:var(--label2);flex:0 0 auto;line-height:1.45;}
+.nextpill .pt{font-size:12px;font-weight:600;color:var(--label1);}
+
+/* ============ S3 紧凑档 ============ */
+.ccwrap{display:flex;flex-direction:column;gap:10px;padding:14px 16px 0;}
+.cc{
+  display:flex;align-items:center;gap:8px;
+  background:var(--card);border-radius:12px;padding:10px 13px;
+  box-shadow:var(--shadow-card);
+}
+.cc .cdot{width:7px;height:7px;border-radius:50%;background:var(--orange);flex:0 0 auto;}
+.cc .ctitle{font-size:15px;font-weight:600;color:var(--label1);flex:0 0 auto;}
+.cc .cnext{font-size:12px;color:var(--label2);flex:1;}
+
+/* ============ S4 详情页参考 ============ */
+.refcard{
+  background:var(--nested);border-radius:12px;padding:12px;margin:8px 16px 0;
+}
+.planrow{display:flex;gap:10px;align-items:flex-start;margin-top:9px;}
+.planrow .ptxt{font-size:15px;color:var(--label1);line-height:1.4;}
+.planrow.done .ptxt{color:var(--label2);text-decoration:line-through;}
+
+/* ============ 待拍板 ============ */
+.decide{
+  max-width:780px;margin:46px auto 0;background:var(--card);border-radius:16px;
+  padding:20px 24px;box-shadow:var(--shadow-card);
+}
+.decide h2{font-size:15px;font-weight:700;margin-bottom:12px;color:var(--primary);}
+.decide li{font-size:13px;line-height:1.9;color:var(--label1);margin-left:18px;}
+.decide li b{font-weight:700;}
+.decide .rec{color:#EA580C;font-weight:600;}
+</style>
+</head>
+<body>
+
+<div class="pagehead">
+  <h1>事项模块 · 任务名超长显示方案</h1>
+  <p>只改「文字怎么显示」，不动任何卡片位置、入口和布局。每处都给「现状」和「方案」对照，红虚线圈出的就是改动点。现状里的省略号是浏览器真实截断出来的，和真机行为一致。</p>
+  <button class="theme-toggle" onclick="var d=document.documentElement;d.dataset.theme=d.dataset.theme==='dark'?'':'dark';">切换 浅色 / 深色</button>
+</div>
+
+<!-- ================= S1 事项列表页 ================= -->
+<div class="sec">
+  <div class="sec-title">① 事项列表页「正在推进」——行内副标题</div>
+  <div class="sec-sub">问题最重的地方：任务名要和「下一步：」「N 个待确认」挤同一行小字，超长被砍成「…」，识别信息丢失。</div>
+  <div class="pair">
+
+    <div class="phone-wrap">
+      <span class="tagchip now">现状</span>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="sicons">
+          <svg width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg>
+          <svg width="16" height="11" viewBox="0 0 16 11"><path d="M8 9.2a1.4 1.4 0 100 2.8 1.4 1.4 0 000-2.8zM8 6c1.5 0 2.9.6 3.9 1.6l1.2-1.3A7.2 7.2 0 008 4 7.2 7.2 0 003 6.3l1.2 1.3A5.5 5.5 0 018 6zM8 1.5c2.5 0 4.8 1 6.5 2.6l1.2-1.3A10.6 10.6 0 008 -.5 10.6 10.6 0 00.3 2.8l1.2 1.3A8.9 8.9 0 018 1.5z" transform="translate(0 1)" fill="currentColor"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="3" stroke="currentColor" stroke-opacity=".4" fill="none"/><rect x="2" y="3" width="14" height="6" rx="1.5" fill="currentColor"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="currentColor" fill-opacity=".4"/></svg>
+        </span></div>
+        <div class="sheetnav">
+          <span class="done">完成</span>
+          <span class="navicons">
+            <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.6" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M5.8 7.6h8.4M7.2 10h7M8.6 12.4h5.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </span>
+        </div>
+        <div class="largetitle">正在推进</div>
+        <div class="listrows">
+          <div class="mrow">
+            <div class="headrow"><span class="mtitle clamp1">十月搬到公司附近</span></div>
+            <div class="subline chg"><span class="num">1</span>
+              <span class="t-cap clamp1" style="flex:1;">下一步：对比三家长租公寓平台的租金、押金政策以及通勤距离</span>
+              <span class="cap-plain t-cap2">· 2 个待确认</span>
+            </div>
+          </div>
+          <div class="mrow">
+            <div class="headrow"><span class="mtitle clamp1">准备日本签证</span></div>
+            <div class="subline">
+              <span class="t-cap clamp1" style="flex:1;">下一步：预约递交材料的时段</span>
+            </div>
+          </div>
+          <div class="mrow">
+            <div class="headrow"><span class="mtitle clamp1">整理过去五年所有纸质文档并扫描归档到云盘按年份建索引</span></div>
+            <div class="subline">
+              <span class="t-cap clamp1" style="flex:1;">下一步：把客厅和卧室所有物品按保留、捐赠、丢弃三类分拣并拍照登记造册形成完整的物品清单</span>
+              <span class="cap-plain t-cap2">· 5 个待确认</span>
+            </div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="phone-wrap">
+      <span class="tagchip after">方案 · 分行式（推荐）</span>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="sicons">
+          <svg width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg>
+          <svg width="16" height="11" viewBox="0 0 16 11"><path d="M8 9.2a1.4 1.4 0 100 2.8 1.4 1.4 0 000-2.8zM8 6c1.5 0 2.9.6 3.9 1.6l1.2-1.3A7.2 7.2 0 008 4 7.2 7.2 0 003 6.3l1.2 1.3A5.5 5.5 0 018 6zM8 1.5c2.5 0 4.8 1 6.5 2.6l1.2-1.3A10.6 10.6 0 008 -.5 10.6 10.6 0 00.3 2.8l1.2 1.3A8.9 8.9 0 018 1.5z" transform="translate(0 1)" fill="currentColor"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="3" stroke="currentColor" stroke-opacity=".4" fill="none"/><rect x="2" y="3" width="14" height="6" rx="1.5" fill="currentColor"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="currentColor" fill-opacity=".4"/></svg>
+        </span></div>
+        <div class="sheetnav">
+          <span class="done">完成</span>
+          <span class="navicons">
+            <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="8.6" stroke="currentColor" stroke-width="1.4" fill="none"/><path d="M5.8 7.6h8.4M7.2 10h7M8.6 12.4h5.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+            <svg width="20" height="20" viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </span>
+        </div>
+        <div class="largetitle">正在推进</div>
+        <div class="listrows">
+          <div class="mrow">
+            <div class="headrow chg"><span class="num">1</span><span class="mtitle clamp2">十月搬到公司附近</span></div>
+            <div class="sublabel chg"><span class="num">2</span>
+              <span class="t-cap">下一步 <span class="dotsep">· 2 个待确认</span></span>
+            </div>
+            <div class="subtask"><span class="t-sub clamp2">对比三家长租公寓平台的租金、押金政策以及通勤距离</span></div>
+          </div>
+          <div class="mrow">
+            <div class="headrow"><span class="mtitle clamp2">准备日本签证</span></div>
+            <div class="sublabel"><span class="t-cap">下一步</span></div>
+            <div class="subtask"><span class="t-sub clamp2">预约递交材料的时段</span></div>
+          </div>
+          <div class="mrow">
+            <div class="headrow"><span class="mtitle clamp2">整理过去五年所有纸质文档并扫描归档到云盘按年份建索引</span></div>
+            <div class="sublabel"><span class="t-cap">下一步 <span class="dotsep">· 5 个待确认</span></span></div>
+            <div class="subtask"><span class="t-sub clamp2">把客厅和卧室所有物品按保留、捐赠、丢弃三类分拣并拍照登记造册形成完整的物品清单</span></div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>方案规则：</b>① 事项标题从最多 1 行放宽到最多 2 行；② 副标题拆成两行——上面一行小字只放「下一步」标签和「N 个待确认」，下面一行任务名<b>独占整行宽度、最多两行</b>。任务名不再跟「下一步：」前缀抢宽度，可读字数直接变多。<br>
+    第三条数据是故意放的极端长文案：两行封顶仍然装不下时才会出现截断（第二行末尾），这是防止有人误粘一段超长文字把整个列表撑乱的保护闸——现实中 AI 拆出来的步骤名极少超过两行。
+  </div>
+
+  <div class="variantB">
+    <div>
+      <span class="vbchip">备选 · 变体 B（挂签式，更省高度）</span>
+      <div class="phone"><div class="screen" style="width:auto;">
+        <div class="listrows" style="padding-top:16px;padding-bottom:2px;">
+          <div class="mrow">
+            <div class="headrow"><span class="mtitle clamp2">十月搬到公司附近</span></div>
+            <div class="subline" style="align-items:flex-start;margin-top:6px;">
+              <span class="t-cap" style="flex:0 0 auto;padding-top:1px;">下一步 <span class="dotsep">· 2 个待确认</span></span>
+              <span class="t-sub clamp2" style="flex:1;">对比三家长租公寓平台的租金、押金政策以及通勤距离</span>
+            </div>
+          </div>
+        </div>
+      </div></div>
+      <div class="note" style="margin-top:12px;">标签挂在左边，任务名在右侧换行。行高更紧凑，但任务名可用宽度比分行式少约 5 个字。适合更在意列表高度的场景。</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= S2 首页焦点卡 完整档 ================= -->
+<div class="sec">
+  <div class="sec-title">② 首页焦点卡 · 完整档——「下一步」胶囊</div>
+  <div class="sec-sub">首页冻结令不涉及：卡片位置、入口、大小逻辑一律不动，只让胶囊里的任务名从最多 1 行放宽到最多 2 行，胶囊高度自己撑开。</div>
+  <div class="pair">
+
+    <div class="phone-wrap">
+      <span class="tagchip now">现状</span>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="sicons">
+          <svg width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="3" stroke="currentColor" stroke-opacity=".4" fill="none"/><rect x="2" y="3" width="14" height="6" rx="1.5" fill="currentColor"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="currentColor" fill-opacity=".4"/></svg>
+        </span></div>
+        <div class="hintcap">… 今日日程条下方（示意）</div>
+        <div class="fc">
+          <div class="fchead"><span class="lab">正在进行</span><span class="more">查看全部</span></div>
+          <div class="titlerow"><span class="t-title3" style="flex:1;">十月搬到公司附近</span>
+            <span class="badge"><span class="bdot"></span><span>需要关注</span></span>
+          </div>
+          <div class="meta">还有 14 天 · <em>目标日期临近，还有 4 步未完成</em></div>
+          <div class="nextpill chg"><span class="num">3</span>
+            <span class="pl">下一步</span>
+            <span class="pt clamp1" style="flex:1;">对比三家长租公寓平台的租金、押金政策以及通勤距离</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="phone-wrap">
+      <span class="tagchip after">方案</span>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="sicons">
+          <svg width="17" height="11" viewBox="0 0 17 11"><rect x="0" y="7" width="3" height="4" rx="1" fill="currentColor"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="currentColor"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="currentColor"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="currentColor"/></svg>
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="3" stroke="currentColor" stroke-opacity=".4" fill="none"/><rect x="2" y="3" width="14" height="6" rx="1.5" fill="currentColor"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="currentColor" fill-opacity=".4"/></svg>
+        </span></div>
+        <div class="hintcap">… 今日日程条下方（示意）</div>
+        <div class="fc">
+          <div class="fchead"><span class="lab">正在进行</span><span class="more">查看全部</span></div>
+          <div class="titlerow"><span class="t-title3" style="flex:1;">十月搬到公司附近</span>
+            <span class="badge"><span class="bdot"></span><span>需要关注</span></span>
+          </div>
+          <div class="meta">还有 14 天 · <em>目标日期临近，还有 4 步未完成</em></div>
+          <div class="nextpill chg"><span class="num">3</span>
+            <span class="pl">下一步</span>
+            <span class="pt clamp2" style="flex:1;">对比三家长租公寓平台的租金、押金政策以及通勤距离</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+  <div class="note"><b>方案规则：</b>胶囊内任务名最多两行、全文换行；「下一步」标签保持左侧挂位。除此之外焦点卡的一切不动。</div>
+</div>
+
+<!-- ================= S3 首页焦点卡 紧凑档 ================= -->
+<div class="sec">
+  <div class="sec-title">③ 首页焦点卡 · 紧凑档（小屏 / 空间紧张时的降级形态）</div>
+  <div class="sec-sub">紧凑条的存在意义就是「高度紧张时缩成一行」。方案：任务名放不下完整一行时，干脆不显示——被砍成「…」的下一步已经没有识别价值，白占宽度；事项标题保留一行。</div>
+  <div class="pair">
+
+    <div class="phone-wrap">
+      <span class="tagchip now">现状</span>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="sicons">
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="3" stroke="currentColor" stroke-opacity=".4" fill="none"/><rect x="2" y="3" width="14" height="6" rx="1.5" fill="currentColor"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="currentColor" fill-opacity=".4"/></svg>
+        </span></div>
+        <div class="ccwrap">
+          <div class="cc chg"><span class="num">4</span>
+            <span class="cdot"></span>
+            <span class="ctitle clamp1" style="flex:0 1 auto;">十月搬到公司附近</span>
+            <span class="cnext clamp1">下一步：对比三家长租公寓平台的租金、押金政策以及通勤距离</span>
+            <span class="chev">›</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="phone-wrap">
+      <span class="tagchip after">方案</span>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="sicons">
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="3" stroke="currentColor" stroke-opacity=".4" fill="none"/><rect x="2" y="3" width="14" height="6" rx="1.5" fill="currentColor"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="currentColor" fill-opacity=".4"/></svg>
+        </span></div>
+        <div class="ccwrap">
+          <div class="cc">
+            <span class="cdot"></span>
+            <span class="ctitle">准备日本签证</span>
+            <span class="cnext clamp1">下一步：预约递交材料的时段</span>
+            <span class="chev">›</span>
+          </div>
+          <div class="cc chg"><span class="num">4</span>
+            <span class="cdot"></span>
+            <span class="ctitle clamp1" style="flex:1;">十月搬到公司附近</span>
+            <span class="chev">›</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+  <div class="note"><b>方案规则：</b>上面一条=任务名短、整行放得下 → 照常显示；下面一条=放不下 → 不显示下一步，只留事项标题（完整信息一步点击可达）。<br>紧凑档的事项标题保持最多一行——这是降级形态的有意取舍；若你希望它也放宽到两行，说一声即可。</div>
+</div>
+
+<!-- ================= S4 详情页参考 ================= -->
+<div class="sec">
+  <div class="sec-title">④ 参考 · 事项详情页（现状已是全文换行，本次不改）</div>
+  <div class="sec-sub">列表副标题的「标签行 + 任务名」版式，正是向详情页「下一步 · 任务名」的语言靠拢，两个页面口径一致。</div>
+  <div class="pair">
+    <div class="phone-wrap">
+      <span class="tagchip now">现状 · 不动</span>
+      <div class="phone"><div class="screen">
+        <div class="statusbar"><span>9:41</span><span class="sicons">
+          <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0" y="1" width="21" height="10" rx="3" stroke="currentColor" stroke-opacity=".4" fill="none"/><rect x="2" y="3" width="14" height="6" rx="1.5" fill="currentColor"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="currentColor" fill-opacity=".4"/></svg>
+        </span></div>
+        <div class="hintcap">… 详情页中部（示意）</div>
+        <div class="refcard">
+          <div class="t-cap">下一步 · 预约周末看房并带上有宠物友好的筛选清单</div>
+        </div>
+        <div style="padding:14px 16px 0;"><span class="sec-label">计划 3/7</span></div>
+        <div class="refcard" style="margin-top:8px;">
+          <div class="planrow done">
+            <svg width="17" height="17" viewBox="0 0 17 17" style="flex:0 0 auto;margin-top:2px;"><circle cx="8.5" cy="8.5" r="8.5" fill="#34C759"/><path d="M4.6 8.7l2.6 2.6 5-5.6" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="ptxt">确定目标小区和预算范围</span>
+          </div>
+          <div class="planrow">
+            <svg width="17" height="17" viewBox="0 0 17 17" style="flex:0 0 auto;margin-top:2px;"><circle cx="8.5" cy="8.5" r="7.8" stroke="rgba(128,128,128,.55)" stroke-width="1.4" fill="none"/></svg>
+            <span class="ptxt">对比三家长租公寓平台的租金、押金政策以及通勤距离</span>
+          </div>
+          <div class="planrow">
+            <svg width="17" height="17" viewBox="0 0 17 17" style="flex:0 0 auto;margin-top:2px;"><circle cx="8.5" cy="8.5" r="7.8" stroke="rgba(128,128,128,.55)" stroke-width="1.4" fill="none"/></svg>
+            <span class="ptxt">预约周末看房并带上有宠物友好的筛选清单</span>
+          </div>
+        </div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 待拍板 ================= -->
+<div class="decide">
+  <h2>待你拍板的四件事</h2>
+  <ol>
+    <li><b>列表副标题版式</b>：分行式（推荐，任务名可用宽度最大）还是变体 B 挂签式（行高更省）？<span class="rec">推荐：分行式</span></li>
+    <li><b>紧凑档处理</b>：任务名放不下就不显示（推荐），还是也放宽成两行？<span class="rec">推荐：放不下就不显示</span></li>
+    <li><b>事项标题是否同行放宽</b>：列表行标题 1 行 → 2 行（原型已按此画）；紧凑档标题保持 1 行。</li>
+    <li><b>二期治本</b>：后端提示词约束 AI 拆解的步骤名 ≤20 字（需后端发版，显示端改完验收后再做）。</li>
+  </ol>
+</div>
+
+</body>
+</html>

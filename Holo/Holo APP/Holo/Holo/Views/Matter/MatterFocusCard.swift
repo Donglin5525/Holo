@@ -87,13 +87,15 @@ struct MatterFocusCard: View {
             .foregroundStyle(.secondary)
 
             if let next = item.nextActionTitle {
-                HStack(spacing: 6) {
+                // 2026-10-23 超长治理：任务名 1 行→2 行全文换行，胶囊高度自适应；
+                // 标签顶对齐第一行（原型 matter-taskname-wrap-prototype）
+                HStack(alignment: .top, spacing: 6) {
                     Text(String(localized: "下一步"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Text(next)
                         .font(.caption.weight(.semibold))
-                        .lineLimit(1)
+                        .lineLimit(2)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 10)
@@ -124,16 +126,25 @@ struct MatterFocusCard: View {
             Circle()
                 .fill(attentionTint)
                 .frame(width: 7, height: 7)
-            Text(item.title)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
-            if let next = item.nextActionTitle {
-                Text(String(localized: "下一步：\(next)"))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            // 2026-10-23 超长治理：紧凑档「下一步」放不下完整一行就不显示
+            // （截断成「…」的下一步没有识别价值）；ViewThatFits 两档候选，
+            // 都放不下时退到最后一档＝只留标题（原型 matter-taskname-wrap-prototype）
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    compactTitle
+                    if let next = item.nextActionTitle {
+                        Text(String(localized: "下一步：\(next)"))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                HStack(spacing: 8) {
+                    compactTitle
+                    Spacer(minLength: 0)
+                }
             }
-            Spacer(minLength: 0)
             Image(systemName: "chevron.right")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
@@ -148,6 +159,12 @@ struct MatterFocusCard: View {
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .onTapGesture { onTap?() }
         .accessibilityElement(children: .combine)
+    }
+
+    private var compactTitle: some View {
+        Text(item.title)
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
     }
 
     // MARK: - 小件
