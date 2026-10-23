@@ -17,6 +17,7 @@ struct ReceiptBookingSettingsView: View {
     @State private var draftCount = 0
     @State private var showReviewList = false
     @State private var showAIConsent = false
+    @State private var showBindingGuide = false
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
     @AppStorage("receiptShortcutNotificationsEnabled") private var notificationsEnabled = true
 
@@ -74,7 +75,18 @@ struct ReceiptBookingSettingsView: View {
             Section("1 分钟完成设置") {
                 setupStep(number: 1, title: "打开快捷指令", detail: "新建快捷指令，先加入“截屏”或“拍照”。")
                 setupStep(number: 2, title: "加入 Holo 动作", detail: "搜索并加入“识别图片并记账”，图片选择上一步结果；账户、项目和处理方式均可按需固定。")
-                setupStep(number: 3, title: "绑定系统入口", detail: "在系统设置中把这条指令绑定到操作按钮或轻点背面。")
+                Button {
+                    showBindingGuide = true
+                } label: {
+                    HStack(alignment: .top, spacing: 8) {
+                        setupStep(number: 3, title: "绑定系统入口", detail: "在系统设置中把这条指令绑定到操作按钮或轻点背面。点这行看图文步骤。")
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                            .padding(.top, 3)
+                    }
+                }
+                .buttonStyle(.plain)
 
                 Button {
                     guard let url = URL(string: "shortcuts://") else { return }
@@ -154,6 +166,12 @@ struct ReceiptBookingSettingsView: View {
         }
         .sheet(isPresented: $showReviewList, onDismiss: refresh) {
             ReceiptReviewListView()
+        }
+        .sheet(isPresented: $showBindingGuide) {
+            NavigationStack {
+                ReceiptTriggerBindingGuideView()
+            }
+            .holoSheetWidth(.form)
         }
         .sheet(isPresented: $showAIConsent) {
             NavigationStack {
