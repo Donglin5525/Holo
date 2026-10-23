@@ -372,6 +372,90 @@ const MIGRATIONS = [
       );
     `,
   },
+  {
+    id: 22,
+    description: '产品埋点事件表（2026-10-19 自建埋点方案）：iOS 匿名使用事件（模块曝光/记账/打卡/建任务/付费墙漏斗）批量上报落地。主键 = 客户端事件 UUID（INSERT OR IGNORE 幂等），180 天滚动保留',
+    up: `
+      CREATE TABLE IF NOT EXISTS product_events (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        timestamp_ms INTEGER NOT NULL,
+        params TEXT,
+        app_version TEXT,
+        build_channel TEXT,
+        received_at_ms INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_product_events_name_time
+        ON product_events (name, timestamp_ms);
+      CREATE INDEX IF NOT EXISTS idx_product_events_device
+        ON product_events (device_id, received_at_ms);
+    `,
+  },
+  {
+    id: 23,
+    description: '会话关联键贯穿三张日志表（2026-10-19 前后端链路打通）：客户端每次前台激活生成会话 UUID，随 x-holo-session-id 请求头与埋点事件上送；product_events / ai_call_logs / request_logs 统一记录 session_id——前端行为与后端 AI 调用按会话显式关联，不再依赖时间戳猜测。后台任务唤醒进程无前台会话 → 空',
+    up: `
+      ALTER TABLE product_events ADD COLUMN session_id TEXT;
+      ALTER TABLE ai_call_logs ADD COLUMN session_id TEXT;
+      ALTER TABLE request_logs ADD COLUMN session_id TEXT;
+      CREATE INDEX IF NOT EXISTS idx_product_events_session ON product_events (session_id);
+      CREATE INDEX IF NOT EXISTS idx_ai_call_logs_session ON ai_call_logs (session_id);
+    `,
+  },
+  {
+    // HoloAI「一个发现」G3 服务端持久化（2026-10-23 实施包 03 §3.3）：
+    // 只存控制、租约、日批次、幂等、阶段 hash 与 token 计量元数据；
+    // 不存记录原文、quote 或发现正文（候选/核验响应只在进程内存短期缓存）。
+    id: 24,
+    description: '创建「一个发现」三张表（discovery_controls 控制代数/discovery_runs 单租约日批次/discovery_requests 幂等），仅元数据',
+    up: `
+      CREATE TABLE IF NOT EXISTS discovery_controls (
+        subject TEXT PRIMARY KEY,
+        enabled INTEGER NOT NULL DEFAULT 0,
+        revision INTEGER NOT NULL DEFAULT 0,
+        owner_device_id TEXT,
+        scope_revision INTEGER NOT NULL DEFAULT 0,
+        allowed_domains TEXT NOT NULL DEFAULT '[]',
+        consent_doc_version TEXT,
+        updated_at INTEGER NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS discovery_runs (
+        run_id TEXT PRIMARY KEY,
+        subject TEXT NOT NULL,
+        device_id TEXT NOT NULL,
+        control_revision INTEGER NOT NULL,
+        scope_revision INTEGER NOT NULL,
+        source_manifest_digest TEXT,
+        day_key TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active','completed','cancelled','cancelled_undispatched','expired')),
+        token_hash TEXT NOT NULL,
+        lease_expires_at INTEGER NOT NULL,
+        candidate_request_hash TEXT,
+        verify_request_hash TEXT,
+        candidate_dispatched INTEGER NOT NULL DEFAULT 0,
+        verify_dispatched INTEGER NOT NULL DEFAULT 0,
+        token_version TEXT NOT NULL DEFAULT 'v1',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        UNIQUE(subject, day_key)
+      );
+
+      CREATE TABLE IF NOT EXISTS discovery_requests (
+        request_id TEXT PRIMARY KEY,
+        subject TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        status TEXT NOT NULL,
+        result_meta TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_discovery_requests_subject
+        ON discovery_requests(subject, kind);
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

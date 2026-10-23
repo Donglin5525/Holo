@@ -129,8 +129,8 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  // 版本号（v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图；v29: 日期/时间后置——缓存前缀治理）
-  assert.equal(prompt.version, 32);
+  // 版本号（v33: 长段陈述建任务+时段词未来下限；v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图；v29: 日期/时间后置——缓存前缀治理）
+  assert.equal(prompt.version, 33);
 
   // 缓存前缀治理（v29）：时间语境必须落在提示词最末尾，不允许回到开头/中部
   const timeIdx = prompt.content.indexOf("当前时间：");
@@ -149,7 +149,9 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   // 科目表静态前置、前缀缓存友好，直选失败率（菜名类）远低于原「候选词+hint」两段式。
   // 红线 8100（2026-10-03 今天减负：新增 today_relief 只读意图后 ~8008，按先例随功能扩容重划）：
   // 条目已裁剪至 1 例；不再裁会伤路由质量。
-  assert.ok(prompt.content.length < 8100, `prompt 长度 ${prompt.content.length} 超过 8100`);
+  // 红线 8800（2026-10-19 v33 长段陈述建任务规则+时段词未来下限规则+长段例句后 ~8672，按先例重划）：
+  // 例句是小模型命中的关键（只加规则不示例实测仍 unknown），不再裁。
+  assert.ok(prompt.content.length < 8800, `prompt 长度 ${prompt.content.length} 超过 8800`);
 
   // 注册表一致性（v25 起「防漏新」）：渲染产物必须包含 intents.json 全部意图与摘要，
   // 且不含任何未注册意图名——新增意图忘了登记 intents.json 会在这里红

@@ -12,9 +12,17 @@
 
 import { injectServerPrompt } from "../prompts/serverPromptPolicy.js";
 import { insightMaxTokensFor } from "../config.js";
+import { backgroundSubject } from "../usage/backgroundCostGuard.js";
 import { validateAgentLoopContent } from "../agentResponseValidator.js";
 import { createCloudAnalysisQueryEngine, buildCloudToolCatalog } from "./cloudAnalysisQueryEngine.js";
 import { createQuestionTimeResolver } from "./questionTimeResolver.js";
+import {
+  normalizeGoalScope,
+  acceptGoalReview,
+  buildGoalScopeBlock,
+  seedGoalReviewEvidence,
+  sanitizeGoalAdjustmentDraft,
+} from "./goalScopeContract.js";
 
 const MAX_LLM_ROUNDS = 12;
 const MAX_PROVIDER_RETRIES = 3;
@@ -432,6 +440,11 @@ export function createCloudAnalysisExecutor({
   // token 用量记账（adminLogStore 同接口）：云端任务的 AI 调用此前完全不入
   // ai_call_logs，成本核算存在盲区。purpose 用 cloud_* 前缀与端点侧调用区分。
   aiCallLogger = null,
+  // 预算端到端修复（报告理解方案 B02）：{ guard, entitlementStore }。
+  // replay_digest 的 provider 请求固定 purpose=agent_loop，入口守卫与包装层
+  // 都命不中；worker 在每次真实上游尝试前从任务归属（device_id→权益）恢复
+  // 预算主体并显式预留，不依赖已结束的 HTTP 上下文，也不信客户端传参。
+  backgroundBudget = null,
   // 问句时间解析员注入点（测试用）：null = 用真解析员；传 stub 可跳过/替换
   injectedQuestionTimeResolver = null,
   log = (...args) => console.log("[cloud-analysis]", ...args),
@@ -833,6 +846,19 @@ export function createCloudAnalysisExecutor({
     }
   }
 
+  // 预算预留辅助（报告理解方案 B02）：主体只从任务归属解析
+  // （device_id → 服务端权益表），不依赖 HTTP 上下文、不信客户端传参。
+  function reserveReplayDigestBudget(task, messages, upstreamRoute) {
+    if (!backgroundBudget) return null;
+    const entitlement = backgroundBudget.entitlementStore?.get(task.device_id);
+    const subject = backgroundSubject(task.device_id, entitlement);
+    return backgroundBudget.guard.reserveDirect(subject, {
+      purpose: "cloud_replay_digest",
+      messages,
+      maxTokens: upstreamRoute.maxTokens,
+    });
+  }
+
   /**
    * 回放摘要归纳（replay_digest）：单轮生成（2026-09-05 摘要云端化）。
    * - 素材 = iOS 组装的 ConsolidateRequest JSON（旧累计摘要+本期回放要点），
@@ -858,14 +884,23 @@ export function createCloudAnalysisExecutor({
         { role: "user", content: material },
       ]);
       const upstreamRoute = digestRoute ?? insightRoute ?? route;
-      const response = await callProvider(
-        [
-          { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
-          { role: "user", content: material },
-        ],
-        upstreamRoute,
-        { taskId, deviceId: task.device_id, purpose: "cloud_replay_digest", round: 1 },
-      );
+      const messages = [
+        { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
+        { role: "user", content: material },
+      ];
+      // 预算预留：主体=服务端已验证的任务归属；预算耗尽在此抛 429，
+      // 任务置 failed（reason 携带错误码），客户端据此不回落直调（B03）。
+      const reservationId = reserveReplayDigestBudget(task, messages, upstreamRoute);
+      let response;
+      try {
+        response = await callProvider(
+          messages,
+          upstreamRoute,
+          { taskId, deviceId: task.device_id, purpose: "cloud_replay_digest", round: 1 },
+        );
+      } finally {
+        if (reservationId) backgroundBudget.guard.settleDirect(reservationId, response?.usage);
+      }
       const content = response?.choices?.[0]?.message?.content ?? "";
       if (!content.trim()) {
         throw new Error("摘要生成为空输出");
@@ -883,7 +918,8 @@ export function createCloudAnalysisExecutor({
       log(`摘要任务完成 taskId=${taskId} chars=${content.length}`);
       return "completed";
     } catch (error) {
-      const reason = `云端摘要归纳失败：${error?.message ?? error}`;
+      const code = error?.code ? `[${error.code}] ` : "";
+      const reason = `云端摘要归纳失败：${code}${error?.message ?? error}`;
       try {
         taskStore.fail({ id: taskId, reason });
       } catch (failError) {
@@ -932,6 +968,14 @@ export function createCloudAnalysisExecutor({
         taskStore.fail({ id: taskId, reason: "快照缺失或格式非法" });
         return "failed";
       }
+      // 目标闭环（§6.4）：goalScope 防御性二次校验（app.js 上传时已拒绝非法值）；
+      // 非法即降级为普通深度分析并留痕，不中断任务
+      const goalScopeCheck = normalizeGoalScope(snapshot.goalScope);
+      const goalScope = goalScopeCheck.ok ? goalScopeCheck.scope : null;
+      if (snapshot.goalScope != null && !goalScope) {
+        log(`goalScope 校验失败 taskId=${taskId} reason=${goalScopeCheck.reason}`);
+      }
+      const goalReview = goalScope ? acceptGoalReview(snapshot.goalReview, goalScope) : null;
       if (!taskStore.transition(taskId, "running")) {
         return taskStore.get(taskId)?.status ?? "conflict";
       }
@@ -998,9 +1042,11 @@ export function createCloudAnalysisExecutor({
       const financeLedgerBlock = typeof snapshot.financeEvidenceLedger === "string" && snapshot.financeEvidenceLedger.trim()
         ? `\n<finance_evidence_ledger>\n${snapshot.financeEvidenceLedger}\n</finance_evidence_ledger>\n`
         : "";
+      // 目标闭环（§6.4）：冻结块 + 统一事实快照；模型不得改写范围，数字以快照为准
+      const goalBlock = goalScope ? buildGoalScopeBlock(goalScope, goalReview) : "";
       messages.push({
         role: "system",
-        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}${financeLedgerBlock}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}`,
+        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}${financeLedgerBlock}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}${goalBlock ? `\n\n${goalBlock}` : ""}`,
       });
       messages.push({ role: "user", content: task.question });
 
@@ -1015,6 +1061,9 @@ export function createCloudAnalysisExecutor({
       // 证据 ID → 原文摘要（AI02-A 正文数字白名单用）：claim 引用某条证据时，
       // 证据原文里出现的数字（行样本的单笔金额、派生指标值）视为可支持数字。
       const evidenceTexts = new Map();
+      // 目标闭环（§6.3）：goalReview 的确定性数字先进证据池——模型引用 goal.* 指标
+      // 或 goal-review:* 证据即可过交付核验，空台账定性拦截不会误杀目标回顾结论
+      seedGoalReviewEvidence(goalReview, { metricEvidence, validEvidenceIDs, evidenceTexts });
 
       function collectEvidence(toolRequests, toolResults) {
         toolResults.forEach((result, index) => {
@@ -1115,11 +1164,13 @@ export function createCloudAnalysisExecutor({
           const financeLedgerNumbers = financeLedgerBlock
             ? extractCheckableNumbers(financeLedgerBlock).filter((n) => n >= 100)
             : [];
+          // 目标闭环：goalReview 冻结块里的确定性数字并入白名单（4800/3300 等直接可引用）
+          const goalNumbers = goalBlock ? extractCheckableNumbers(goalBlock) : [];
           const verified = verifyDelivery(output, {
             metricLedger: metricEvidence,
             validEvidenceIDs,
             evidenceTexts,
-            financeLedgerNumbers,
+            financeLedgerNumbers: [...financeLedgerNumbers, ...goalNumbers],
           });
           // 修复轮触发（2026-10-04 体检 AI02 扩展）：空 claims 或有 claim 被核验
           // 撤回（数字不一致/空台账定性规律）都给一次重发机会，撤回原因喂回模型；
@@ -1142,6 +1193,10 @@ export function createCloudAnalysisExecutor({
             taskStore.fail({ id: taskId, reason: "模型未能产出可核验的结论（无 claim），请换个问法或稍后重试" });
             return "failed";
           }
+          // 目标闭环（§6.5）：修正草案白名单消毒；身份字段由服务端生成，引用必须落在快照集合内
+          const sanitizedDraft = goalScope
+            ? sanitizeGoalAdjustmentDraft(output.goalAdjustmentDraft, goalScope, goalReview)
+            : { draft: null, warnings: [] };
           const result = {
             title: verified.title,
             // v17/v21 叙事字段（温暖陪伴 P0 契约止损）：Validator 已规范化门控，
@@ -1153,7 +1208,11 @@ export function createCloudAnalysisExecutor({
             claims: verified.claims,
             reasoning: output.reasoning ?? "",
             evidence: evidenceSnapshot(),
-            warnings: verified.warnings,
+            warnings: [...verified.warnings, ...sanitizedDraft.warnings],
+            // 目标闭环（§6.4）：范围原样回显，客户端据此归类「目标」并双入口同报告；
+            // 修正草案经消毒后随结果下发（无合法操作时为 null，报告仍可读）
+            goalScope: goalScope ?? null,
+            goalAdjustmentDraft: sanitizedDraft.draft,
             // S03（2026-10-04 体检）：快照覆盖完整性回显——截断发生时客户端
             // 在报告范围行如实标注，截断明细不再冒充全量
             snapshotCoverage: snapshotCoverage(snapshot),

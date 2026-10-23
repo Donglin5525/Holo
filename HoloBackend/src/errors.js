@@ -96,6 +96,29 @@ export function publicMessage(code) {
 
     // 兜底
     INTERNAL_ERROR: "服务暂时不可用，请稍后重试",
+
+    // HoloAI「一个发现」（2026-10-23 实施包 G3）
+    DISCOVERY_DISABLED: "这个功能还没有开放",
+    DISCOVERY_REVISION_CONFLICT: "设置已在其他设备上更新，请刷新后再试",
+    DISCOVERY_TAKEOVER_REQUIRED: "另一台设备正在负责自动准备，确认接管后才能切换",
+    DISCOVERY_REQUEST_CONFLICT: "请求与已提交的操作不一致，请刷新后重试",
+    DISCOVERY_DAY_LIMIT: "今天已经准备过一次发现，明天会自动继续",
+    DISCOVERY_RUN_NOT_FOUND: "这次准备任务不存在或已结束",
+    DISCOVERY_RUN_NOT_OWNER: "当前设备不负责自动准备",
+    DISCOVERY_RUN_CLOSED: "这次准备任务已结束",
+    DISCOVERY_RUN_CONFLICT: "准备任务编号已被使用，请重新开始",
+    DISCOVERY_LEASE_EXPIRED: "这次准备超时结束，稍后会自动重试",
+    DISCOVERY_RUN_TOKEN_INVALID: "准备任务凭证无效，请重新开始",
+    DISCOVERY_STAGE_ORDER: "准备步骤还未到核验阶段",
+    DISCOVERY_STAGE_CONFLICT: "该步骤已用不同内容提交过，请重新开始",
+    DISCOVERY_STAGE_RESULT_LOST: "这次准备的结果已过期，本批自动终止，不影响已有发现",
+    DISCOVERY_CONTROL_CHANGED: "发现设置已变化，这次准备自动终止",
+    DISCOVERY_CONTROL_DISABLED: "发现功能已关闭",
+    DISCOVERY_MODEL_OUTPUT_INVALID: "本次结果未通过核验门槛，已自动放弃，不影响已有记录",
+    DISCOVERY_CANDIDATE_MISMATCH: "候选内容与生成结果不一致，请重新开始",
+    DISCOVERY_HASH_MISMATCH: "数据校验不一致，请重新开始",
+    DISCOVERY_INPUT_TOO_LARGE: "这次准备的材料过多，请缩小来源范围",
+    DISCOVERY_PURPOSE_BYPASS_BLOCKED: "请求的 AI 功能暂不可用",
   };
 
   return messages[code] ?? "服务暂时不可用，请稍后重试";

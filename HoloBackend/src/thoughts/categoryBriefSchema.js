@@ -1,4 +1,5 @@
 import { GatewayError } from "../errors.js";
+import { alignQuoteToSource } from "./quoteAlignment.js";
 
 /**
  * 归档类别理解器 /v1/thoughts/category-brief 输入/输出契约
@@ -150,13 +151,17 @@ export function validateBriefModelOutput(output, parsedRequest) {
     }
     if (seenRefs.has(item.ref)) return { malformed: true, reason: "evidence_ref_duplicated" };
     seenRefs.add(item.ref);
-    if (typeof item.quote !== "string" || !item.quote.length || item.quote.length > BRIEF_LIMITS.quoteMaxUTF16) {
+    if (typeof item.quote !== "string" || !item.quote.length) {
       return { malformed: true, reason: "quote_shape" };
     }
-    if (!textByRef.get(item.ref).includes(item.quote)) {
-      return { malformed: true, reason: "quote_not_verbatim" };
-    }
-    evidence.push({ ref: item.ref, quote: item.quote });
+    // 排版微差对齐回原文精确子串（quoteAlignment.js）；对不上仍拒绝。
+    const aligned = alignQuoteToSource(item.quote, textByRef.get(item.ref));
+    if (!aligned) return { malformed: true, reason: "quote_not_verbatim" };
+    // 长度是传输规范不是证据问题：对齐命中的长引用截断入库，不让已核对笔记无限重试。
+    let quote = aligned.length > BRIEF_LIMITS.quoteMaxUTF16
+      ? aligned.slice(0, BRIEF_LIMITS.quoteMaxUTF16) : aligned;
+    if (/[\uD800-\uDBFF]$/.test(quote)) quote = quote.slice(0, -1);
+    evidence.push({ ref: item.ref, quote });
   }
   return { brief: { definition: brief.definition, exclusions }, evidence };
 }

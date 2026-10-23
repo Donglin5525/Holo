@@ -11,13 +11,21 @@ const MAX_QUEUE_SIZE = 500;
 const FLUSH_INTERVAL_MS = 2000;
 const CLEANUP_OLDER_THAN_DAYS = 7;
 
+/** 会话关联键：客户端 x-holo-session-id 头（8-64 字符 UUID）；后台唤醒进程不带 → null */
+function readSessionId(c) {
+  const sessionId = c.req.header('x-holo-session-id');
+  return typeof sessionId === 'string' && sessionId.length >= 8 && sessionId.length <= 64
+    ? sessionId
+    : null;
+}
+
 export function createRequestLogger(db) {
   const queue = [];
   let flushTimer = null;
 
   const insertStmt = db.prepare(`
-    INSERT INTO request_logs (method, path, status_code, duration_ms, device_id, user_agent)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO request_logs (method, path, status_code, duration_ms, device_id, user_agent, session_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
   const flush = () => {
@@ -33,7 +41,8 @@ export function createRequestLogger(db) {
             entry.statusCode,
             entry.durationMs,
             entry.deviceId,
-            entry.userAgent
+            entry.userAgent,
+            entry.sessionId
           );
         }
       });
@@ -107,6 +116,8 @@ export function createRequestLogger(db) {
         durationMs,
         deviceId,
         userAgent: c.req.header('user-agent') || null,
+        // 会话关联键（2026-10-19 前后端链路打通）：与 product_events / ai_call_logs 同列对齐
+        sessionId: readSessionId(c),
       });
     },
 

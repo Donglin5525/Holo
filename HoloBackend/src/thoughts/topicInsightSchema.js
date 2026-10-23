@@ -1,4 +1,5 @@
 import { GatewayError } from "../errors.js";
+import { alignQuoteToSource } from "./quoteAlignment.js";
 
 /**
  * 想法主题洞察 V3 /v1/thoughts/topic-name 与 /v1/thoughts/topic-summary 输入/输出契约
@@ -194,16 +195,19 @@ export function validateTopicSummaryOutput(output, parsedRequest) {
     }
     if (seen.has(item.ref)) return { malformed: true, reason: "viewpoint_ref_duplicated" };
     seen.add(item.ref);
-    if (typeof item.quote !== "string" || item.quote.length === 0
-        || item.quote.length > TOPIC_SUMMARY_LIMITS.viewpointQuoteMaxUTF16) {
+    if (typeof item.quote !== "string" || item.quote.length === 0) {
       return { malformed: true, reason: "quote_shape" };
     }
     const text = byRef.get(item.ref);
-    const start = text.indexOf(item.quote);
-    if (start < 0) return { malformed: true, reason: "quote_not_verbatim" };
-    // 下标是原文的确定性结果，不依赖模型做 UTF-16 算术；引用仍须逐字匹配。
-    const range = [start, start + item.quote.length];
-    viewpoints.push({ ref: item.ref, quote: item.quote, rangeUTF16: [start, start + item.quote.length] });
+    // 排版微差对齐回原文精确子串（quoteAlignment.js）；下标是原文的确定性结果，
+    // 不依赖模型做 UTF-16 算术；长度超限截断（传输规范，不让已核对内容无限重试）。
+    const aligned = alignQuoteToSource(item.quote, text);
+    if (!aligned) return { malformed: true, reason: "quote_not_verbatim" };
+    let quote = aligned.length > TOPIC_SUMMARY_LIMITS.viewpointQuoteMaxUTF16
+      ? aligned.slice(0, TOPIC_SUMMARY_LIMITS.viewpointQuoteMaxUTF16) : aligned;
+    if (/[\uD800-\uDBFF]$/.test(quote)) quote = quote.slice(0, -1);
+    const start = text.indexOf(quote);
+    viewpoints.push({ ref: item.ref, quote, rangeUTF16: [start, start + quote.length] });
   }
   return { summary, viewpoints };
 }

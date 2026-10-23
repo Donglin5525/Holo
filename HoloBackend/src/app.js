@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { createErrorResponse, GatewayError, publicMessage } from "./errors.js";
 import { createInMemoryUsageStore } from "./usage/inMemoryUsageStore.js";
 import { createSqliteUsageStore } from "./usage/sqliteUsageStore.js";
-import { createBackgroundCostGuard, backgroundSubject, BACKGROUND_PATHS, BACKGROUND_PURPOSES } from "./usage/backgroundCostGuard.js";
+import { createBackgroundCostGuard, backgroundSubject, BACKGROUND_PURPOSES, backgroundPathPurpose } from "./usage/backgroundCostGuard.js";
 import { createMockChatProvider } from "./providers/mockChatProvider.js";
 import { createOpenAICompatibleProvider } from "./providers/openAICompatibleProvider.js";
 import { createMockAsrProvider } from "./providers/mockAsrProvider.js";
@@ -40,12 +40,17 @@ import { getQuotaRule, QUOTA_TYPES } from "./usage/quotaPolicy.js";
 import { createContentReportStore } from "./reports/contentReportStore.js";
 import { createFeedbackStore } from "./feedback/feedbackStore.js";
 import { createAgentTelemetryStore } from "./agent/agentTelemetryStore.js";
+import { createProductEventStore } from "./product/productEventStore.js";
 import { createCloudAnalysisTaskStore } from "./agent/cloudAnalysisTaskStore.js";
 import { createCloudAnalysisExecutor } from "./agent/cloudAnalysisExecutor.js";
+import { normalizeGoalScope, MAX_GOAL_REVIEW_BYTES } from "./agent/goalScopeContract.js";
 import { createDeviceTokenStore } from "./push/deviceTokenStore.js";
 import { createApnsSender } from "./push/apnsSender.js";
 import { createContentModerationService } from "./moderation/contentModerationService.js";
 import { createThoughtOrganizeBudgetStore } from "./thoughts/thoughtOrganizeBudgetStore.js";
+import { createDiscoveryControlStore } from "./discovery/discoveryControlStore.js";
+import { createDiscoveryRunStore } from "./discovery/discoveryRunStore.js";
+import { registerDiscoveryRoutes, DISCOVERY_PURPOSES } from "./discovery/discoveryController.js";
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
 import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateService.js";
 import { createThoughtCategoryBriefService } from "./thoughts/categoryBriefService.js";
@@ -188,6 +193,8 @@ export function createApp(overrides = {}) {
     config.feedbackStore ?? createFeedbackStore(database.db, { imagesDir: config.feedbackImagesDir });
   const agentTelemetryStore =
     config.agentTelemetryStore ?? createAgentTelemetryStore(database.db);
+  const productEventStore =
+    config.productEventStore ?? createProductEventStore(database.db);
   // 云端异步分析（二期 M1）：密钥未配置时优雅禁用（端点统一 503），配置后自动启用——
   // M1 部署不强制先配 ECS 环境变量，零风险上线；生产密钥纪律与 step 缓存一致。
   let cloudAnalysisTaskStore = config.cloudAnalysisTaskStore ?? null;
@@ -274,6 +281,8 @@ export function createApp(overrides = {}) {
         entitlementResolver,
         // 云端任务 AI 调用补记账：usage 落 ai_call_logs 独立列，成本核算不再有云端盲区
         aiCallLogger: config.aiCallLogs?.enabled ? adminLogStore : null,
+        // 预算端到端修复（报告理解方案）：replay_digest worker 显式预算主体
+        backgroundBudget: { guard: backgroundCostGuard, entitlementStore },
       });
     } catch (error) {
       console.error("[holo-backend] 云端分析执行器创建失败（任务将停留在 queued）:", error?.message ?? error);
@@ -366,6 +375,15 @@ export function createApp(overrides = {}) {
     contentModeration,
   });
 
+  // HoloAI「一个发现」（2026-10-23 实施包 G3/D06+D07）：控制/运行存储。
+  // 总开关 config.discovery.enabled（HOLO_DISCOVERY_ENABLED，默认 false）——
+  // 未启用时 capabilities 仍返回 enabled=false 供客户端解释，其余端点统一 503。
+  // 路由注册在下方后台成本中间件之后（Hono 只对先注册的中间件生效——
+  // 与 thought 路由同模式：阶段请求先经 checkIngress 建域，再进控制器）。
+  const discoveryControlStore = config.discoveryControlStore
+    ?? createDiscoveryControlStore(database.db);
+  const discoveryRunStore = config.discoveryRunStore ?? createDiscoveryRunStore(database.db);
+
   // 请求耗时日志中间件
   const requestLogger = createRequestLogger(database.db);
   app.use('*', requestLogger.middleware);
@@ -375,7 +393,9 @@ export function createApp(overrides = {}) {
   // 后台调用统一建立可信预算主体，入口先挡旧版/超长内容，再在模型调用处原子预留。
   app.use("/v1/*", async (context, next) => {
     if (context.req.method !== "POST") return next();
-    const pathPurpose = BACKGROUND_PATHS[context.req.path];
+    // backgroundPathPurpose（2026-10-23）：在静态 BACKGROUND_PATHS 之外前缀匹配
+    // 「一个发现」两阶段路径（/v1/discovery/runs/:id/candidates|verify，含动态 runID 段）
+    const pathPurpose = backgroundPathPurpose(context.req.path);
     if (!pathPurpose && context.req.path !== "/v1/ai/chat/completions") return next();
     try {
       const body = await readJson(context);
@@ -388,6 +408,23 @@ export function createApp(overrides = {}) {
     } catch (error) {
       return createErrorResponse(context, error);
     }
+  });
+
+  // 「一个发现」路由组：注册在后台成本中间件之后（Hono 中间件只作用于先注册的
+  // 中间件之后匹配的路由），阶段请求先经 checkIngress（字节数/最低版本/预算试探）
+  // 并建立 AsyncLocalStorage 预算主体域，再进入控制器。
+  registerDiscoveryRoutes(app, {
+    config,
+    providers,
+    getDeviceId,
+    entitlementStore,
+    usageStore,
+    adminLogStore,
+    getSessionId,
+    controlStore: discoveryControlStore,
+    runStore: discoveryRunStore,
+    backgroundCostGuard,
+    captureAiCallLogs,
   });
 
   const runAdminTestChat = createAdminTestChatRunner({
@@ -759,6 +796,12 @@ export function createApp(overrides = {}) {
       rejectClientRouting(request);
 
       const purpose = request.purpose ?? "chat";
+      // 防旁路（2026-10-23 实施包 03 §3.1）：「一个发现」两个 purpose 只能由专用
+      // 控制器调用（run/授权/预算/租约全链路检查），通用 chat 即使注册了路由也直接拒绝，
+      // 避免发现变成无控制的低成本通道。
+      if (purpose === DISCOVERY_PURPOSES.candidates || purpose === DISCOVERY_PURPOSES.verify) {
+        throw new GatewayError("DISCOVERY_PURPOSE_BYPASS_BLOCKED", "Discovery purposes require the dedicated endpoints", 400);
+      }
       const route = config.routes[purpose];
       if (!route) {
         throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
@@ -798,6 +841,7 @@ export function createApp(overrides = {}) {
             const quotaLogId = adminLogStore.startAiCall({
               deviceId,
               purpose,
+              sessionId: getSessionId(context),
               provider: route.provider,
               model: route.model,
               stream: request.stream === true,
@@ -862,6 +906,7 @@ export function createApp(overrides = {}) {
         ? adminLogStore.startAiCall({
             deviceId,
             purpose,
+            sessionId: getSessionId(context),
             provider: route.provider,
             model: route.model,
             promptType: serverPrompt.promptType,
@@ -1455,6 +1500,7 @@ export function createApp(overrides = {}) {
         ? adminLogStore.startAiCall({
             deviceId,
             purpose: "asr_transcription",
+            sessionId: getSessionId(context),
             provider: "dashscope",
             model: config.asr.model,
             stream: false,
@@ -1636,6 +1682,7 @@ export function createApp(overrides = {}) {
         ? adminLogStore.startAiCall({
             deviceId,
             purpose: "vision_extraction",
+            sessionId: getSessionId(context),
             provider: route.provider,
             model: route.model,
             promptType: serverPrompt.promptType,
@@ -1872,6 +1919,20 @@ export function createApp(overrides = {}) {
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new GatewayError("INVALID_REQUEST", "Snapshot must be a JSON object", 400);
       }
+      // 目标闭环（2026-10-20 最终规格 §6.4 / §9.6）：goalScope 必须过服务端白名单
+      // （schema/UUID/ISO 窗口/长度），goalReview 体积封顶；不合法不接受上传
+      if (parsed.goalScope != null) {
+        const check = normalizeGoalScope(parsed.goalScope);
+        if (!check.ok) {
+          throw new GatewayError("INVALID_GOAL_SCOPE", check.reason, 400);
+        }
+        if (parsed.goalReview != null) {
+          const reviewSize = JSON.stringify(parsed.goalReview).length;
+          if (reviewSize > MAX_GOAL_REVIEW_BYTES) {
+            throw new GatewayError("GOAL_REVIEW_TOO_LARGE", "goalReview exceeds size limit", 413);
+          }
+        }
+      }
       const attached = store.attachSnapshot({ id: task.id, snapshot: raw });
       if (!attached) {
         throw new GatewayError("INVALID_STATE", "Snapshot already received", 409);
@@ -2002,6 +2063,45 @@ export function createApp(overrides = {}) {
 
       const events = rawEvents.map(normalizeAgentTelemetryEvent);
       const inserted = agentTelemetryStore.insertBatch(deviceId, events);
+      return context.json({ ok: true, accepted: inserted });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // 产品埋点批量上报（2026-10-19 自建方案）：匿名使用事件（模块曝光/记账/打卡/
+  // 建任务/付费墙漏斗）。与 Agent 遥测同款管线（设备鉴权+限流+白名单+幂等）。
+  // HOLO_PRODUCT_ANALYTICS_ENABLED=false 时收下即弃（2xx accepted:0），客户端收到
+  // 成功响应即清队列——env 不发版即可全量关停收集。
+  app.post("/v1/product/events", async (context) => {
+    try {
+      const deviceId = await getDeviceId(context, config);
+      context.header("Cache-Control", "no-store");
+      if (!config.productAnalytics.enabled) {
+        return context.json({ ok: true, accepted: 0, disabled: true });
+      }
+      const request = await readJson(context);
+
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "product_events",
+        minuteLimit: config.limits.productEventUploadsPerMinute,
+        dailyLimit: config.limits.productEventUploadsPerDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+      }
+
+      const rawEvents = Array.isArray(request.events) ? request.events : null;
+      if (!rawEvents || rawEvents.length === 0) {
+        throw new GatewayError("INVALID_REQUEST", "events must be a non-empty array", 400);
+      }
+      if (rawEvents.length > 100) {
+        throw new GatewayError("INVALID_REQUEST", "at most 100 events per batch", 400);
+      }
+
+      const events = rawEvents.map(normalizeProductEvent);
+      const inserted = productEventStore.insertBatch(deviceId, events);
       return context.json({ ok: true, accepted: inserted });
     } catch (error) {
       return createErrorResponse(context, error);
@@ -2260,6 +2360,18 @@ async function getDeviceId(context, config) {
   return "debug-device";
 }
 
+/**
+ * 会话关联键（2026-10-19 前后端链路打通）：读客户端 x-holo-session-id 头
+ * （前台激活会话 UUID，8-64 字符）。与 requestLogger / product_events 同列对齐；
+ * 后台唤醒进程不带此头 → null。
+ */
+function getSessionId(context) {
+  const sessionId = context.req.header("x-holo-session-id");
+  return typeof sessionId === "string" && sessionId.length >= 8 && sessionId.length <= 64
+    ? sessionId
+    : null;
+}
+
 // 内容安全审核命中后的拦截文案（友好、不生硬）。
 const MODERATION_REFUSAL_MESSAGE = "抱歉，你的问题我暂时无法回应。换个话题吧。";
 
@@ -2465,6 +2577,9 @@ function quotaTypeForPurpose(purpose) {
   // 截图识别（2026-09-09 拍板 3）：视觉抽取先不占会员池，独立限流桶 20/天兜量；
   // 上线后测算真实成本再定额度策略（遗留提醒已立项）。
   if (purpose === "vision_extraction") return null;
+  // 「一个发现」两阶段（2026-10-23 实施包 §4.2）：后台自动批次，不占 chat/deepAnalysis
+  // 等会员次数池（T21）；批次预算由 discovery_runs 的上海日键 UNIQUE 约束 + 后台金额预算控制。
+  if (purpose === "discovery_candidate_v1" || purpose === "discovery_verify_v1") return null;
   return null;
 }
 
@@ -2486,6 +2601,66 @@ const AGENT_TELEMETRY_EVENT_NAMES = new Set([
   "agent_job_cancelled",
   "agent_lease_changed",
 ]);
+
+/** 与 iOS HoloProductEventName 一一对应（2026-10-19 埋点字典 v1）；新增事件先加这里再发 iOS。 */
+const PRODUCT_EVENT_NAMES = new Set([
+  "app_first_launch",
+  "app_session_start",
+  "module_view",
+  "bill_created",
+  "habit_checkin",
+  "task_created",
+  "paywall_viewed",
+  "paywall_purchase_tapped",
+]);
+
+/** 产品埋点事件归一：白名单事件名 + 扁平短字符串参数；隐私契约 = 不收用户内容。 */
+function normalizeProductEvent(raw) {
+  if (!raw || typeof raw !== "object") {
+    throw new GatewayError("INVALID_REQUEST", "event must be an object", 400);
+  }
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+  if (!id || id.length > 64) {
+    throw new GatewayError("INVALID_REQUEST", "event.id must be 1-64 chars", 400);
+  }
+  if (!PRODUCT_EVENT_NAMES.has(raw.name)) {
+    throw new GatewayError("INVALID_REQUEST", `unknown event name: ${String(raw.name).slice(0, 40)}`, 400);
+  }
+  const timestampMs = Number(raw.timestampMs);
+  if (!Number.isFinite(timestampMs)) {
+    throw new GatewayError("INVALID_REQUEST", "event.timestampMs must be a finite number", 400);
+  }
+  const shortString = (value) => (
+    typeof value === "string" && value.length > 0 ? value.slice(0, 32) : null
+  );
+  let params = null;
+  if (raw.params != null) {
+    if (typeof raw.params !== "object" || Array.isArray(raw.params)) {
+      throw new GatewayError("INVALID_REQUEST", "event.params must be a flat object", 400);
+    }
+    params = Object.fromEntries(
+      Object.entries(raw.params)
+        .slice(0, 16)
+        .map(([key, value]) => [
+          key.slice(0, 32),
+          String(value).slice(0, 128),
+        ]),
+    );
+  }
+  return {
+    id,
+    name: raw.name,
+    timestampMs: Math.trunc(timestampMs),
+    params,
+    appVersion: shortString(raw.appVersion),
+    buildChannel: raw.buildChannel === "debug" || raw.buildChannel === "release"
+      ? raw.buildChannel
+      : null,
+    sessionId: typeof raw.sessionId === "string" && raw.sessionId.length >= 8 && raw.sessionId.length <= 64
+      ? raw.sessionId
+      : null,
+  };
+}
 
 /** 遥测事件字段白名单与归一：非法 name/缺 id 拒绝，超长字符串截断，数字非法置空。 */
 function normalizeAgentTelemetryEvent(raw) {

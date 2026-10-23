@@ -82,6 +82,10 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   'cloud_period_replay',
   'cloud_context_plan',
   'cloud_replay_digest',
+  // HoloAI「一个发现」两阶段（2026-10-23 实施包 03 §3.3）：请求含用户记录匿名材料，
+  // 响应含候选/核验正文——一律 metadata_only，正文与 quote 不落任何日志/缓存/错误。
+  'discovery_candidate_v1',
+  'discovery_verify_v1',
 ];
 
 /** request 侧白名单：只有这些键允许进入 entry（metadata_only purpose）。 */
@@ -97,6 +101,8 @@ const METADATA_RESPONSE_KEYS = new Set([
   'labels', 'riskLevel',
   // 截图识别理解单的观测元数据（图型/置信度/交易笔数，无用户内容）
   'imageType', 'confidence', 'transactionCount',
+  // 「一个发现」阶段结果计数（候选条数/核验条数，纯数字无内容）
+  'resultCount',
 ]);
 
 function pickWhitelist(value, allowedKeys) {
@@ -141,8 +147,8 @@ export function createAdminLogStore(options = {}) {
       insertLog: db.prepare(`
         INSERT INTO ai_call_logs (device_id, call_type, purpose, provider, model, is_stream,
           prompt_type, prompt_version, request_summary, response_summary,
-          redaction_applied, content_capture_enabled, asr_file_type, asr_result_length)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          redaction_applied, content_capture_enabled, asr_file_type, asr_result_length, session_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `),
       updateLog: db.prepare(`
         UPDATE ai_call_logs SET
@@ -158,7 +164,7 @@ export function createAdminLogStore(options = {}) {
       `),
       listLogs: db.prepare(`
         SELECT id, device_id, call_type, purpose, provider, model, is_stream,
-          duration_ms, error_message, asr_file_type, asr_result_length, created_at
+          duration_ms, error_message, asr_file_type, asr_result_length, session_id, created_at
         FROM ai_call_logs ORDER BY id DESC LIMIT ?
       `),
       getLog: db.prepare(`
@@ -230,7 +236,9 @@ export function createAdminLogStore(options = {}) {
           forceMeta ? 0 : (contentCaptureEnabled ? 1 : 0),
           forceMeta ? 0 : (contentCaptureEnabled ? 1 : 0),
           input.asrFileType ?? null,
-          null  // asr_result_length — 调用完成后填充
+          null, // asr_result_length — 调用完成后填充
+          // 会话关联键（2026-10-19 前后端链路打通）：与 product_events / request_logs 同列对齐
+          input.sessionId ?? null
         );
         entry._rowId = result.lastInsertRowid;
       } catch (err) {

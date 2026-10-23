@@ -3,6 +3,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { GatewayError } from "../errors.js";
 
 // 仅后台维护共用此预算；主动聊天、分析、语音不占用。
+// replayDigest（2026-10-20 报告理解方案修订1）：回放摘要直调轨道的真实 purpose，
+// 进集合并经 chat/completions 入口守卫建域；云端轨道 worker 走 reserveDirect。
+// discovery_candidate_v1 / discovery_verify_v1（2026-10-23「一个发现」G3）：
+// 专用控制器阶段调用，走正常 provider wrap（不 reserveDirect），
+// 阶段路径由 backgroundPathPurpose 前缀匹配建域，成本并入后台总预算。
 export const BACKGROUND_PURPOSES = new Set([
   "personal_context_extraction", "personal_context_verification",
   "memory_observer", "memory_domain_extraction", "memory_cross_domain_fusion",
@@ -10,6 +15,8 @@ export const BACKGROUND_PURPOSES = new Set([
   "thought_organize_a", "thought_organize_r", "thought_organize_b",
   "thought_semantic_relate_v1", "thought_category_brief_v1",
   "thought_topic_name_v1", "thought_topic_summary_v1",
+  "replayDigest",
+  "discovery_candidate_v1", "discovery_verify_v1",
 ]);
 
 export const BACKGROUND_PATHS = {
@@ -19,6 +26,22 @@ export const BACKGROUND_PATHS = {
   "/v1/thoughts/topic-name": "thought_topic_name_v1",
   "/v1/thoughts/topic-summary": "thought_topic_summary_v1",
 };
+
+// 「一个发现」两阶段路径（含动态 runID 段，无法静态枚举，前缀匹配）
+const BACKGROUND_PATH_PREFIXES = [
+  { prefix: "/v1/discovery/runs/", suffix: "/candidates", purpose: "discovery_candidate_v1" },
+  { prefix: "/v1/discovery/runs/", suffix: "/verify", purpose: "discovery_verify_v1" },
+];
+
+/** 入口守卫的路径→purpose 解析：静态表精确匹配 + 发现阶段路径前缀匹配。 */
+export function backgroundPathPurpose(path) {
+  const exact = BACKGROUND_PATHS[path];
+  if (exact) return exact;
+  for (const { prefix, suffix, purpose } of BACKGROUND_PATH_PREFIXES) {
+    if (path.startsWith(prefix) && path.endsWith(suffix)) return purpose;
+  }
+  return null;
+}
 
 const hash = (value) => createHash("sha256").update(value).digest("hex");
 const micro = (cny) => Math.ceil(cny * 1_000_000);
@@ -176,6 +199,12 @@ export function createBackgroundCostGuard(db, config, now = Date.now) {
   return {
     run: (subject, action) => scope.run(subject, action),
     wrapProviders: (providers) => new Map([...providers].map(([name, provider]) => [name, wrapProvider(provider)])),
+    // 云端 worker 后台任务（replay_digest 等）不经入口中间件、provider 请求
+    // purpose 固定 agent_loop（不能整列进后台集合，会误伤主动深度分析）：
+    // 在每次真实上游尝试前由调用方从已验证的任务归属解析 subject 并显式
+    // 预留；request 需带 messages/maxTokens，purpose 仅供记账。
+    reserveDirect: (subject, request) => scope.run(subject, () => reserve.immediate(request)),
+    settleDirect: (id, usage) => finish(id, usage),
     checkIngress({ subject, userAgent, body }) {
       const build = /\bHolo\/(\d+)\b/i.exec(userAgent ?? "");
       if (build && Number(build[1]) < config.minBuild) {

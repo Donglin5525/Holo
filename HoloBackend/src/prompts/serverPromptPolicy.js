@@ -53,6 +53,9 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   goal_workshop: "goal_workshop",
   matter_execution_plan: "matter_execution_plan",
   today_relief_plan: "today_relief_plan",
+  // HoloAI「一个发现」两阶段（2026-10-23）：专用控制器调用，通用 chat 显式拒绝
+  discovery_candidate_v1: "discovery_candidate_v1",
+  discovery_verify_v1: "discovery_verify_v1",
 });
 
 // 多语言输出指令（一期繁体/二期英文）：客户端随请求传 x-holo-language，
@@ -83,6 +86,9 @@ const LANGUAGE_ALLOWED_PURPOSES = new Set([
   "thought_topic_summary_v1",
   // 目标共创：question/options/plan 的 assistantText 与 question 文本用户直接阅读
   "goal_workshop",
+  // 一个发现：claim 标题/正文用户直接阅读（quote 保持原文原样，由 prompt 约束）
+  "discovery_candidate_v1",
+  "discovery_verify_v1",
 ]);
 
 export function injectServerPrompt(purpose, messages, options = {}) {

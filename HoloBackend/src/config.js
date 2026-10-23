@@ -58,6 +58,9 @@ const DEFAULT_CONFIG = {
     // Agent 遥测批量上报：低频（前台化/冷却时 diff 上报），单批 ≤100 条由路由校验。
     agentTelemetryUploadsPerMinute: Number(process.env.HOLO_AGENT_TELEMETRY_UPLOADS_PER_MINUTE ?? 10),
     agentTelemetryUploadsPerDay: Number(process.env.HOLO_AGENT_TELEMETRY_UPLOADS_PER_DAY ?? 500),
+    // 产品埋点批量上报（2026-10-19 方案）：与 Agent 遥测同款节奏（前台化/进后台各一次）。
+    productEventUploadsPerMinute: Number(process.env.HOLO_PRODUCT_EVENTS_PER_MINUTE ?? 10),
+    productEventUploadsPerDay: Number(process.env.HOLO_PRODUCT_EVENTS_PER_DAY ?? 500),
     // 云端异步分析（二期）：创建与快照上传限流；额度池接入在 M2 执行器上线时统一接线。
     cloudAnalysisStartsPerMinute: Number(process.env.HOLO_CLOUD_ANALYSIS_STARTS_PER_MINUTE ?? 6),
     cloudAnalysisStartsPerDay: Number(process.env.HOLO_CLOUD_ANALYSIS_STARTS_PER_DAY ?? 30),
@@ -544,6 +547,51 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_DAY ?? 500),
       },
     },
+    // HoloAI「一个发现」两阶段（2026-10-23 实施包 §4 预算初值）：生成输出 ≤3072、核验 ≤2048；
+    // 输入 16k 总上限由 backgroundCostGuard.maxInputBytes + 端点 96KiB body 闸共同兜底。
+    // 专用控制器调用，通用 chat 端点显式拒绝这两个 purpose（防旁路，见 app.js）。
+    discovery_candidate_v1: {
+      provider: process.env.HOLO_DISCOVERY_CANDIDATE_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_DISCOVERY_CANDIDATE_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_DISCOVERY_CANDIDATE_TEMPERATURE ?? 0.3),
+      maxTokens: Number(process.env.HOLO_DISCOVERY_CANDIDATE_MAX_TOKENS ?? 3072),
+      // 候选生成含跨材料联系判断，low 档保结构化质量（与 cross_domain_fusion 同级）。
+      reasoningEffort: process.env.HOLO_DISCOVERY_CANDIDATE_REASONING_EFFORT ?? "low",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_DISCOVERY_REQUESTS_PER_MINUTE ?? 4),
+        perDay: Number(process.env.HOLO_DISCOVERY_REQUESTS_PER_DAY ?? 40),
+      },
+    },
+    discovery_verify_v1: {
+      provider: process.env.HOLO_DISCOVERY_VERIFY_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_DISCOVERY_VERIFY_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_DISCOVERY_VERIFY_TEMPERATURE ?? 0),
+      // 4096（2026-10-23 试评修复）：上游 deepseek-chat 已路由为推理模型（deepseek-flash），
+      // 2048 时 reasoning 可独吃全部输出预算导致 content 空（试评 4/54 判决 finish=length，
+      // 05 §4.6 禁重试即本批终止）。与 replayDigest/insight 同型修复先例。
+      maxTokens: Number(process.env.HOLO_DISCOVERY_VERIFY_MAX_TOKENS ?? 4096),
+      // 核验是支持度判断（宁可 reject 不可放水）。effort=none（2026-10-23 试评修复）：
+      // 逐句支持度判断不需要长思考，none 档把输出预算全部留给判决 JSON；
+      // 若后续观察到判级质量下降，可经 env 调回 low。
+      reasoningEffort: process.env.HOLO_DISCOVERY_VERIFY_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_DISCOVERY_REQUESTS_PER_MINUTE ?? 4),
+        perDay: Number(process.env.HOLO_DISCOVERY_REQUESTS_PER_DAY ?? 40),
+      },
+    },
+  },
+  // HoloAI「一个发现」服务端总开关与预算初值（2026-10-23 实施包 §3/§4）。
+  // enabled 默认 false：kill switch——质量或成本问题时改 env 重启即全量停新调用（T49）。
+  discovery: {
+    enabled: process.env.HOLO_DISCOVERY_ENABLED === "true",
+    policyVersion: process.env.HOLO_DISCOVERY_POLICY_VERSION ?? "v1",
+    allowedDomains: ["thought", "task", "habit"],
+    runsPerDay: Number(process.env.HOLO_DISCOVERY_RUNS_PER_DAY ?? 1),
+    // 03 §3.5：body 上限 96KiB；输入 16k token 总上限在 backgroundCostGuard.maxInputBytes 兜底
+    maxBodyBytes: Number(process.env.HOLO_DISCOVERY_MAX_BODY_BYTES ?? 96 * 1024),
+    leaseSeconds: Number(process.env.HOLO_DISCOVERY_LEASE_SECONDS ?? 600),
+    inputBudgetTokens: Number(process.env.HOLO_DISCOVERY_INPUT_BUDGET_TOKENS ?? 16_384),
+    responseFormat: process.env.HOLO_DISCOVERY_RESPONSE_FORMAT === "none" ? null : { type: "json_object" },
   },
   providers: {
     deepseek: {
@@ -621,6 +669,11 @@ const DEFAULT_CONFIG = {
     accessKeySecret: process.env.ALIBABA_CLOUD_ACCESS_KEY_SECRET ?? "",
     endpoint: process.env.HOLO_MODERATION_ENDPOINT ?? "green-cip.cn-shanghai.aliyuncs.com",
     service: process.env.HOLO_MODERATION_SERVICE ?? "chat_detection_pro",
+  },
+  // 产品埋点（2026-10-19 自建方案）：匿名使用事件收集总开关。关闭时端点收下
+  // 事件但即弃（2xx accepted:0），客户端清队列——env 可不发版全量关停收集。
+  productAnalytics: {
+    enabled: process.env.HOLO_PRODUCT_ANALYTICS_ENABLED !== "false",
   },
   // 想法自动整理 V2（方案 §6.3 默认工程预算；服务器执行，客户端不可提升）。
   // privacyVerified：供应商留存证据（缓存/日志/审核边界）经人工核实后由 env 显式开启；
@@ -774,6 +827,14 @@ export function loadConfig(overrides = {}) {
       ...DEFAULT_CONFIG.moderation,
       ...overrides.moderation,
     },
+    discovery: {
+      ...DEFAULT_CONFIG.discovery,
+      ...overrides.discovery,
+    },
+    productAnalytics: {
+      ...DEFAULT_CONFIG.productAnalytics,
+      ...overrides.productAnalytics,
+    },
     thoughtSemanticRelate: {
       ...DEFAULT_CONFIG.thoughtSemanticRelate,
       ...overrides.thoughtSemanticRelate,
@@ -858,6 +919,7 @@ export function loadConfig(overrides = {}) {
     contentReportStore: overrides.contentReportStore,
     feedbackStore: overrides.feedbackStore,
     agentTelemetryStore: overrides.agentTelemetryStore,
+    productEventStore: overrides.productEventStore,
     cloudAnalysisTaskStore: overrides.cloudAnalysisTaskStore,
     cloudAnalysisExecutor: overrides.cloudAnalysisExecutor,
     deviceTokenStore: overrides.deviceTokenStore,
@@ -879,6 +941,8 @@ export function loadConfig(overrides = {}) {
         ?? process.env.HOLO_AGENT_STEP_IDEMPOTENCY_PREVIOUS_ENCRYPTION_KEYS
         ?? "",
     thoughtOrganizeBudgetStore: overrides.thoughtOrganizeBudgetStore,
+    discoveryControlStore: overrides.discoveryControlStore,
+    discoveryRunStore: overrides.discoveryRunStore,
     runtimeEnvironment: overrides.runtimeEnvironment ?? process.env.NODE_ENV ?? "development",
     agentStepIdempotencyTtlSeconds: Number(
       overrides.agentStepIdempotencyTtlSeconds

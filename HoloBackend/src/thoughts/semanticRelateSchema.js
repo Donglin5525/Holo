@@ -1,4 +1,5 @@
 import { GatewayError } from "../errors.js";
+import { alignQuoteToSource } from "./quoteAlignment.js";
 
 /**
  * 想法语义关联 V3 /v1/thoughts/semantic-relate 输入/输出契约
@@ -193,11 +194,12 @@ export function validateRelateModelOutput(output, parsedRequest) {
       return { malformed: true, reason: "quote_shape" };
     }
     const text = parsedRequest.target.text;
-    const start = text.indexOf(item.quote);
-    if (start < 0) return { malformed: true, reason: "quote_not_verbatim" };
+    // 证据回源契约不变；排版微差（空白/大小写/引号形态）由服务端对齐（quoteAlignment.js）
+    let quote = alignQuoteToSource(item.quote, text);
+    if (!quote) return { malformed: true, reason: "quote_not_verbatim" };
+    const start = text.indexOf(quote);
     // 先核对完整引用确实来自原文，再规范成协议允许的证据长度；不信任部分匹配。
     // 模型经常复制整段，长度属于传输规范，不应使已核对的笔记无限重试。
-    let quote = item.quote;
     if (parsedRequest.schemaVersion >= 2 && quote.length > RELATE_LIMITS.quoteMaxUTF16) {
       quote = quote.slice(0, RELATE_LIMITS.quoteMaxUTF16);
       if (/[\uD800-\uDBFF]$/.test(quote)) quote = quote.slice(0, -1);
@@ -219,8 +221,11 @@ export function validateRelateModelOutput(output, parsedRequest) {
       const basis = item.representativeRef === "definition"
         ? definitionBasis
         : candidate.representatives.find(r => r.ref === item.representativeRef)?.text;
-      if (typeof item.representativeQuote !== "string" || !item.representativeQuote.length
-          || !basis?.includes(item.representativeQuote)) {
+      // 主题侧依据同样走对齐：排版微差不判依据不足（quoteAlignment.js，2026-10-19）。
+      const representativeAligned = (typeof item.representativeQuote === "string" && item.representativeQuote.length)
+        ? alignQuoteToSource(item.representativeQuote, basis ?? "")
+        : null;
+      if (!representativeAligned) {
         // 这个候选缺少可核对的主题侧依据：明确保留为依据不足，不写归属，也不阻塞其他候选。
         decisions.push({ candidateRef: item.candidateRef, relation: "insufficient", quote: null, rangeUTF16: null });
         continue;
@@ -229,7 +234,7 @@ export function validateRelateModelOutput(output, parsedRequest) {
       if (item.relation === "same_thread" && !isCleanShortString(item.sharedSubject, 120)) {
         return { malformed: true, reason: "shared_subject_missing" };
       }
-      let representativeQuote = item.representativeQuote.slice(0, 120);
+      let representativeQuote = representativeAligned.slice(0, 120);
       if (/[\uD800-\uDBFF]$/.test(representativeQuote)) representativeQuote = representativeQuote.slice(0, -1);
       evidence = item.relation === "same_thread"
         ? { representativeRef: item.representativeRef, representativeQuote, sharedSubject: item.sharedSubject }
