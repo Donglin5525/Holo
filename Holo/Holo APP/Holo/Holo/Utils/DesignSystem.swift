@@ -68,6 +68,9 @@ extension Color {
     static let holoSuccessDark = Color(red: 22/255, green: 163/255, blue: 74/255)  // #16A34A
     /// 成功状态浅色背景
     static let holoSuccessLight = Color(red: 209/255, green: 250/255, blue: 229/255)  // #D1FAE5
+    /// 成功状态文字级绿色（白/纸底对比 ≥4.5:1；#22C55E 仅 2.3:1 禁止再直接作文字色）
+    static let holoSuccessText = Color.holoDynamic(light: UIColor(red: 21/255, green: 128/255, blue: 61/255, alpha: 1),
+                                                   dark: UIColor(red: 74/255, green: 222/255, blue: 128/255, alpha: 1))  // 浅#15803D / 暗#4ADE80
     /// 错误/支出状态 - 红色
     static let holoError = Color(red: 239/255, green: 68/255, blue: 68/255)  // #EF4444
     /// 错误状态深色（渐变收尾用）
