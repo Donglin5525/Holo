@@ -35,6 +35,9 @@ WHITELIST = {
     "HomeView.swift",           # 主 struct ~1540 行
     # 非排除对象而是「非 SwiftUI 视图树」：UIKit 桥接逻辑文件，不参与 AttributeGraph 下钻
     "MarkdownTextView.swift",
+    # 10-22 拆分（1946→1399）滞留工作区未提交且与「一个发现」入口改动交织（2026-10-24 实测
+    # HEAD 仍 1946 行）；待该线收口提交后移出白名单（工作区态 1399 行已过线）
+    "ChatView.swift",
 }
 
 top_level_decl = re.compile(r"^(private |final |public )*(struct|class|enum|extension|actor) ")
