@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-10-24] 真机点设置必崩根治——iCloud 区块栈溢出拆独立 struct，任务两页同病排险，全库 View Weight Guard 闸门上线
+
+> 东林报「装新版本后首页点设置必崩」（10-19 同入口未定位悬案复发）。三份同签名 .ips 实锤根因：SettingsView.iCloudSyncSection 登录态深分支 SwiftUI 元数据实例化递归，真机 1MB 主线程栈溢出；模拟器 8MB 栈 + 未登录走浅分支 = 双重盲区，历次模拟器验证均无证明力。随案对同病高危页面拆分排险，并上线全库构建闸门防复发。
+
+- **设置页根治**：SettingsView 1740→1382 行。320 行 iCloud 同步区块（账号状态/上传下载双行/登录态才渲染的同步指引与空间满指引两大条件块/立即同步/同步诊断/从 iCloud 重新拉取）整块拆独立 `SettingsICloudSyncSection.swift`——叶子 struct 封顶单帧（ChatView 四次发作固化的「叶子拆出去、层级不增加」范式），4 个 @State 与 syncDirectionRow/iCloudAccountSubtitle 随迁，界面零变化。
+- **任务两页排险**（全库扫描后按「单 struct 内联体量」定的高危次序）：TaskDetailView 2597→1306 行，拆 5 struct（标题/子任务清单/附件/属性/清单选择弹层），主 struct 2468→1306；TaskListView 1888→1418 行，拆 Hero 今日仪表/筛选胶囊栏，主 struct 1551→1193。均为纯结构搬移，界面/行为/文案零变化。
+- **全库闸门「View Weight Guard」**：Holo target 构建脚本 phase + `BuildScripts/view_weight_guard.py`——Views 下单文件 >2000 行或首个 View struct 内联 >1400 行直接构建失败（安全基线=ChatView 拆后 1399 行存活）；白名单挂账制（ThoughtEditorView/ThoughtListView 在途待拆、HomeView 首页冻结令待批、MarkdownTextView 非 SwiftUI 树）；fail-closed 自检（文件数异常=闸门失效按失败处理）。双向实测：超线文件 exit 1 拦截、默认构建 421 文件全绿。随批根治 Xcode 用户脚本沙箱拦脚本读源文件（工程 ENABLE_USER_SCRIPT_SANDBOXING=YES→NO 两处，所有构建通道含 Xcode GUI 生效）；ChatView Weight Guard（10-22 上线但一直未入库）随本批一并提交。质量红线 §6 同步更新为全库 View 限重。
+- **挂账**：ThoughtEditorView(~2115)/ThoughtListView(~1838) 待想法主线收口后拆；HomeView(~1540) 待东林批准纯结构拆分。
+- **验证**：模拟器默认构建绿（闸门 421 文件全过）+装包冒烟存活；真机装包东林验收通过（点设置不崩/iCloud 区块正常/任务两页走查无异常）+设备崩溃库装包后零新增客观佐证。纯客户端改动，无后端发版。
+
+---
+
 ## [2026-10-24] 快捷记账「绑定一键触发」图文指引落进 App——按机型分流的触发设置教程
 
 > 用户反馈：建好快捷指令后，不知道怎么去 iOS 设置里把指令绑到触发按钮。先出 HTML 原型（holo-shortcut-trigger-guide.html）两轮打磨拍板（第二轮按东林意见全文精简：每步一行、FAQ 一句话答案），按原型 1:1 落进 App。
