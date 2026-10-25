@@ -51,6 +51,10 @@ struct HoloPlusPaywallView: View {
                     }
                 }
             }
+            .onAppear {
+                // 产品埋点：付费墙曝光（context = 触发场景，付费漏斗上段）
+                HoloProductAnalytics.shared.track(.paywallViewed, ["context": String(describing: context)])
+            }
             .task {
                 await subscriptionService.loadProducts()
                 if selectedProductId == nil {
@@ -409,7 +413,14 @@ struct HoloPlusPaywallView: View {
                     : String(localized: "订阅自动续订，可随时在系统设置中关闭"),
                 showsProgress: subscriptionService.isPurchasing
             ) {
-                Task { await subscriptionService.purchase(product) }
+                Task {
+                    // 产品埋点：购买按钮点击（付费漏斗下段；成功转化由订阅状态侧佐证）
+                    HoloProductAnalytics.shared.track(
+                        .paywallPurchaseTapped,
+                        ["context": String(describing: context), "plan": product.id]
+                    )
+                    await subscriptionService.purchase(product)
+                }
             }
 
             // 购买流程的状态反馈（等待家长审批/已扣款同步中/同步失败）在此透出：

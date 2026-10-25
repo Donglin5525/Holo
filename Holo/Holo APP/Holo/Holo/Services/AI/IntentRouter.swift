@@ -743,6 +743,7 @@ final class IntentRouter {
 
         let thoughtRepo = ThoughtRepository()
         let thought = try thoughtRepo.create(content: content, mood: mood, tags: [])
+        HoloProductAnalytics.shared.track(.thoughtCreated, ["source": "ai"])
 
         logger.info("心情已记录")
         return RouteResult(
@@ -1348,6 +1349,7 @@ final class IntentRouter {
 
         let thoughtRepo = ThoughtRepository()
         let thought = try thoughtRepo.create(content: content, mood: nil, tags: tags)
+        HoloProductAnalytics.shared.track(.thoughtCreated, ["source": "ai"])
 
         logger.info("笔记已创建")
         return RouteResult(

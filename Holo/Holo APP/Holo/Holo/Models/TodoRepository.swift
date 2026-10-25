@@ -372,6 +372,8 @@ class TodoRepository: ObservableObject {
         loadActiveTasks()
         notifyDataChange()
         notifyTaskChange(.created, taskId: task.id)
+        // 产品埋点：任务创建成功（想法转任务可区分来源；不收标题内容）
+        HoloProductAnalytics.shared.track(.taskCreated, ["source": sourceThought != nil ? "thought" : "manual"])
         return task
     }
 

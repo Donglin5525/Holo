@@ -301,6 +301,10 @@ struct HomeView: View {
             swipeDismissalActive = true
         }
         .onChange(of: activeScreen) { _, newValue in
+            // 产品埋点：模块打开（常驻栈是所有模块进出的唯一闸口，iPhone/iPad 通吃；关闭不打）
+            if let screen = newValue {
+                HoloProductAnalytics.shared.track(.moduleView, ["module": screen.rawValue])
+            }
             // 回到首页：复位底部导航选中态。
             // 走常驻栈的模块（如记忆长廊）退回时 activeScreen 变 nil，
             // 在此统一清理高亮，避免选中态残留。

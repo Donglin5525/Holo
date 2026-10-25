@@ -30,6 +30,10 @@ struct HoloApp: App {
     /// 外部文件导入状态（拖拽 CSV 到模拟器 / "Open In" 打开）
     @State private var pendingImportURL: CSVFileURL?
 
+    /// 产品埋点：会话去重状态——冷启动首激活记 cold 会话，此后仅「后台回前台」记 foreground
+    @State private var hasLoggedSession = false
+    @State private var lastScenePhase: ScenePhase = .background
+
     #if DEBUG
     /// 调试钩子：HOLO_DEBUG_AUTO_SURFACE=membership 时启动后直接弹会员中心，
     /// 供锁屏/无 idb 环境下的自动化截图与验收使用。Release 构建不参与编译。
@@ -210,6 +214,10 @@ struct HoloApp: App {
             }
             #endif
             .task {
+                // 产品埋点：首启事件 + 上次会话积压补报（独立于 Agent 能力，置于长 await 前）
+                HoloProductAnalytics.shared.trackFirstLaunchIfNeeded()
+                Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
+
                 await SensitiveDebugDataMigration.runIfNeeded()
                 await HoloSubscriptionService.shared.refreshStatus()
                 #if DEBUG
@@ -356,6 +364,8 @@ struct HoloApp: App {
                 #endif
                 switch phase {
                 case .background:
+                    // 产品埋点：退后台兜底冲刷一次，缩短事件到达服务端的延迟
+                    Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
                     Task {
                         await HoloMemoryObservationScheduler.shared.lightweightCheck(
                             trigger: .enteredBackground
@@ -365,6 +375,12 @@ struct HoloApp: App {
                         HoloBackgroundContinuationManager.shared.appDidEnterBackground()
                     }
                 case .active:
+                    // 产品埋点：冷启动首激活记 cold 会话；inactive 抖动（拉下通知中心等）不重复记
+                    if !hasLoggedSession || lastScenePhase == .background {
+                        HoloProductAnalytics.shared.trackSessionStart(cold: !hasLoggedSession)
+                        hasLoggedSession = true
+                    }
+                    Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
                     HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
                     #if DEBUG
                     // 删除链路 UITest 冒烟播种：须在兜底弹出之前落盘，弹出检查才能看到草案
@@ -412,6 +428,7 @@ struct HoloApp: App {
                 default:
                     break
                 }
+                lastScenePhase = phase
             }
     }
 }

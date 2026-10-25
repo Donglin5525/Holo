@@ -42,10 +42,13 @@ extension ThoughtRepository {
         createIfMissing: Bool
     ) throws -> ThoughtEditorCommitReceipt {
         let thought: Thought
+        let isNewThought: Bool
         if let existing = try fetchById(thoughtId) {
             thought = existing
+            isNewThought = false
         } else if createIfMissing {
             thought = makeEditorThought(id: thoughtId, content: content, richContentJSON: richContentJSON)
+            isNewThought = true
         } else {
             throw ThoughtError.notFound
         }
@@ -88,6 +91,10 @@ extension ThoughtRepository {
         thought.updatedAt = Date()
 
         try context.save()
+        // 产品埋点：仅首次落库的新想法记一次（后续编辑同一想法不计；AI 建笔记走 IntentRouter 另记 source=ai）
+        if isNewThought {
+            HoloProductAnalytics.shared.track(.thoughtCreated, ["source": "editor"])
+        }
         return ThoughtEditorCommitReceipt(thoughtId: thoughtId, committed: true, savedAt: Date())
     }
 

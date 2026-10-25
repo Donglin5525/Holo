@@ -449,6 +449,8 @@ struct ExportOptionsSheet: View {
                     includeReceipts: includeReceipts
                 )
                 shareURL = url
+                // 产品埋点：导出文件生成成功即计（之后的分享面板去向不可知、不计）
+                HoloProductAnalytics.shared.track(.exportPerformed, ["format": selectedFormat.rawValue.lowercased()])
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true

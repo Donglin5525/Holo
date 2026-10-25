@@ -41,6 +41,8 @@ final class ReceiptBookingCoordinator {
         rawImageData: Data,
         caption: String?
     ) async throws -> VisionPreparation {
+        // 产品埋点：识图记账漏斗上游（聊天图片入口；成功侧由 bill_created source=ai 承接）
+        HoloProductAnalytics.shared.track(.receiptBookingStarted, ["entry": ReceiptBookingSource.chat.rawValue])
         // 压缩+摘要先行（后台线程）：规范化 JPEG 同时作为上传与幂等基准，
         // 上传复用同一产物（聊天路径原来 extract 内部再压一遍，同图压两次全占主线程）
         let jpeg = await HoloVisionImagePipeline.compressedJPEGInBackground(from: rawImageData)
@@ -81,6 +83,8 @@ final class ReceiptBookingCoordinator {
     /// 完整识别记账链（方案 §23.4）。M1 阶段 autoCommit 决策被灰度开关拦成复核；
     /// 聊天入口固定 alwaysReview（铁律 10）。所有结果写本地结果存储（§22.1 第 5 步）。
     func book(_ request: ReceiptBookingRequest) async -> ReceiptBookingOutcome {
+        // 产品埋点：识图记账漏斗上游（快捷指令/分享/锁屏相机入口，entry 取请求来源）
+        HoloProductAnalytics.shared.track(.receiptBookingStarted, ["entry": request.source.rawValue])
         // 压缩 + 摘要先行（后台线程：快捷指令跑完 App 被拉到前台的那一刻，
         // 原图解码+多轮 JPEG 编码占主线程会直接顶掉回前台转场动画帧）。
         // 幂等基准 = 实际上传的规范化 JPEG（同一原图同参数压缩结果确定一致）

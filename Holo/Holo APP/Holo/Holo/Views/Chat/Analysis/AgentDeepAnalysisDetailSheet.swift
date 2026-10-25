@@ -480,6 +480,8 @@ struct AgentDeepAnalysisDetailSheet: View {
         }
         .background(sheetBackground)
         .presentationDetents([.medium, .large])
+        // 产品埋点：报告详情被打开查看（生成≠查看，打开率是旗舰功能留存信号）
+        .onAppear { HoloProductAnalytics.shared.track(.aiDeepReportViewed) }
         .task {
             await followUpController?.loadFollowUps()
         }

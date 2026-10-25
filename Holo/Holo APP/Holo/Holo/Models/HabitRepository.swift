@@ -16,6 +16,13 @@ import os.log
 extension Notification.Name {
     /// 习惯数据变更通知（新增/编辑/删除习惯或记录时发送）
     static let habitDataDidChange = Notification.Name("habitDataDidChange")
+
+    /// 打卡埋点事件总线（2026-10-19 产品埋点）：本文件同时被主 App 与 HoloWidgets
+    /// 两个 target 编译，仓库层不能直接引用 App 侧的 HoloProductAnalytics（小组件
+    /// target 编不过）；打卡事件经通知解耦，由主 App 侧埋点服务监听记录。
+    static let holoHabitCheckinDidRecord = Notification.Name("holo.habit.checkinDidRecord")
+    /// 新建习惯埋点事件总线（2026-10-25 字典 v2），同上解耦口径；userInfo["type"]=checkIn/numeric
+    static let holoHabitDidCreate = Notification.Name("holo.habit.didCreate")
 }
 
 // MARK: - HabitRepository
@@ -330,6 +337,12 @@ class HabitRepository: ObservableObject {
         // 新建习惯需出现在今日看板；看板白名单非空时自动纳入（不限频率），避免新建后看不到
         HabitStatsDisplaySettings.shared.addDashboardHabitIfNeeded(habit.id)
         notifyDataChange(habitId: habit.id)
+        // 产品埋点：新建习惯经通知总线送达主 App 侧（同打卡事件，双 target 共享文件不能直调）
+        NotificationCenter.default.post(
+            name: .holoHabitDidCreate,
+            object: nil,
+            userInfo: ["type": type == .checkIn ? "checkIn" : "numeric"]
+        )
 
         return habit
     }
@@ -565,18 +578,34 @@ class HabitRepository: ObservableObject {
         // 查找今日记录
         if let existingRecord = findTodayCheckInRecord(for: habit) {
             // 切换完成状态（取消打卡保留原备注）
+            let oldCompleted = existingRecord.isCompleted, oldNote = existingRecord.note
             existingRecord.isCompleted.toggle()
             if existingRecord.isCompleted, let note, !note.isEmpty {
                 existingRecord.note = note
             }
-            try context.save()
+            do { try context.save() }
+            catch { existingRecord.isCompleted = oldCompleted; existingRecord.note = oldNote; throw error }
             notifyDataChange(habitId: habit.id)
+            // 产品埋点：仅成功打卡记事件（撤销打卡不打），经通知总线送达主 App 侧
+            if existingRecord.isCompleted {
+                NotificationCenter.default.post(
+                    name: .holoHabitCheckinDidRecord,
+                    object: nil,
+                    userInfo: ["kind": "check"]
+                )
+            }
             return existingRecord.isCompleted
         } else {
             // 创建新记录（默认已完成）
-            _ = HabitRecord.createCheckIn(in: context, habit: habit, isCompleted: true, note: note)
-            try context.save()
+            let inserted = HabitRecord.createCheckIn(in: context, habit: habit, isCompleted: true, note: note)
+            do { try context.save() }
+            catch { context.delete(inserted); throw error }
             notifyDataChange(habitId: habit.id)
+            NotificationCenter.default.post(
+                name: .holoHabitCheckinDidRecord,
+                object: nil,
+                userInfo: ["kind": "check"]
+            )
             return true
         }
     }
@@ -592,10 +621,17 @@ class HabitRepository: ObservableObject {
         // 暂停期不记数，与打卡型同一道闸
         guard !habit.isPaused else { throw HabitError.habitIsPaused }
         let record = HabitRecord.createNumeric(in: context, habit: habit, value: value, note: note)
-        
-        try context.save()
+
+        do { try context.save() }
+        catch { context.delete(record); throw error }
         notifyDataChange(habitId: habit.id)
-        
+        // 产品埋点：数值型记录一笔（incrementCount 快捷 +1 复用此函数，天然覆盖）
+        NotificationCenter.default.post(
+            name: .holoHabitCheckinDidRecord,
+            object: nil,
+            userInfo: ["kind": "numeric"]
+        )
+
         return record
     }
     

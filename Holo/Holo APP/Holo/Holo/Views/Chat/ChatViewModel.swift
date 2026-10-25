@@ -774,6 +774,7 @@ final class ChatViewModel: ObservableObject {
         }
         let caption = rawCaption.trimmingCharacters(in: .whitespacesAndNewlines)
         errorMessage = nil
+        trackOutgoingMessage(kind: "image")
 
         // 1. 压缩先行（后台线程，重活不占主线程）：完成后再落用户消息+缩略图，
         //    保持「缩略图先于气泡渲染存在」的既有时序（气泡探测不到文件=不显示图）
@@ -886,6 +887,24 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    // MARK: - 产品埋点（AI 交互，字典 v2）
+
+    /// 本进程内最近一次记过 ai_conversation_started 的分析会话键。会话 ID 每次前台激活换新
+    ///（HoloAnalyticsSession），自然得到「每次使用 App 首次发 AI 消息记一次」；
+    /// 与 app_session_start 相除即 AI 渗透率。无会话时用哨兵键，保证首条消息必记。
+    private static var lastConversationTrackedKey: String?
+
+    /// 用户消息真正发出时调用（本地拦截分支如草案待确认提示不计）：
+    /// 首条消息补记会话开始，再记消息本身；kind=text/image/report_followup
+    private func trackOutgoingMessage(kind: String) {
+        let key = HoloAnalyticsSession.currentId ?? "no-session"
+        if key != Self.lastConversationTrackedKey {
+            Self.lastConversationTrackedKey = key
+            HoloProductAnalytics.shared.track(.aiConversationStarted)
+        }
+        HoloProductAnalytics.shared.track(.aiMessageSent, ["kind": kind])
+    }
+
     func sendMessage() async {
         // 一条流式回复进行中时禁止再发：并发发送会互相覆盖 currentTask/activeStreamingMessageID，
         // 两条气泡还会显示同一段交叉串流内容（发送按钮已切换为停止键，这里挡住键盘回车等旁路入口）
@@ -901,6 +920,12 @@ final class ChatViewModel: ObservableObject {
             return
         }
 
+        // 发送路由统一决策：显式场景 > 规划续答 > 草案待确认 > 常规意图识别。
+        // 显式场景命中时规划会话让位（取消有气泡交代），深度分析不再被吞（2026-09-19）。
+        // 场景意图必须在 inputText 置空前捕获：didSet 会把清空视为「用户删光预填=
+        // 放弃场景」解除绑定（4764ad2849），先清后取会让每次显式场景发送都退回
+        // 常规意图识别（2026-10-25 埋点冒烟实锤回归）。
+        let explicitScenario = consumeExplicitScenarioIntent(for: text)
         inputText = ""
         errorMessage = nil
 
@@ -910,21 +935,21 @@ final class ChatViewModel: ObservableObject {
             restoreActiveGoalPlanningIfNeeded()
         }
 
-        // 发送路由统一决策：显式场景 > 规划续答 > 草案待确认 > 常规意图识别。
-        // 显式场景命中时规划会话让位（取消有气泡交代），深度分析不再被吞（2026-09-19）。
-        let explicitScenario = consumeExplicitScenarioIntent(for: text)
         switch Self.resolveSendRoute(
             text: text,
             explicitScenario: explicitScenario,
             planningStatus: activeGoalPlanningSession?.status,
             hasDraftForReview: goalDraftForReview != nil
         ) {
-        case .explicitDeepAnalysis:
+        case .explicitDeepAnalysis(let scenario):
             if activeGoalPlanningSession != nil || goalDraftForReview != nil {
                 cancelGoalPlanning()
             }
+            // 产品埋点：深度洞察发起（消耗 Plus 额度；消息本身在下方统一记 ai_message_sent）
+            HoloProductAnalytics.shared.track(.aiDeepReportRequested, ["scenario": scenario.rawValue])
         case .goalPlanningReply:
             if let session = activeGoalPlanningSession {
+                trackOutgoingMessage(kind: "text")
                 await handleGoalPlanningReply(text, session: session)
             }
             return
@@ -944,6 +969,7 @@ final class ChatViewModel: ObservableObject {
         }
 
         // 1. 保存用户消息
+        trackOutgoingMessage(kind: continuationDraft != nil ? "report_followup" : "text")
         let userMessageId = chatRepo.addMessage(role: "user", content: text)
         lastSentUserText = text
 

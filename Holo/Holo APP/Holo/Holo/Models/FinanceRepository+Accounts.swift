@@ -107,6 +107,8 @@ extension FinanceRepository {
             if let creditLimit = creditLimit { account.creditLimit = NSDecimalNumber(decimal: creditLimit) }
         }
         try context.save()
+        // 产品埋点：新建账户（唯一调用方=添加账户页，种子不走此函数）
+        HoloProductAnalytics.shared.track(.accountCreated, ["type": type.rawValue])
         return account
     }
 
