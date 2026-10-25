@@ -441,7 +441,10 @@ struct SettingsView: View {
             showHoloAIUserSettings = true
         }
         .sheet(isPresented: $showHoloAIUserSettings) {
-            HoloAIUserSettingsView(discoveryService: DiscoveryCoordinator.shared)
+            HoloAIUserSettingsView(
+                discoveryState: DiscoveryCoordinator.shared.settingsDetailState,
+                discoveryService: DiscoveryCoordinator.shared
+            )
         }
     }
 
