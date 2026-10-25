@@ -81,6 +81,32 @@ test("未知事件名与缺 id 拒绝 400", async () => {
   assert.equal(bad2.status, 400);
 });
 
+test("v2 字典 9 个新事件名全部在白名单内（双端契约：iOS 枚举同步变更）", async () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = createProductEventStore(database.db);
+  const app = createTestApp({ productEventStore: store });
+
+  const v2Events = [
+    makeEvent({ name: "ai_conversation_started", params: null }),
+    makeEvent({ name: "ai_message_sent", params: { kind: "text" } }),
+    makeEvent({ name: "ai_deep_report_requested", params: { scenario: "finance" } }),
+    makeEvent({ name: "ai_deep_report_viewed", params: null }),
+    makeEvent({ name: "thought_created", params: { source: "editor" } }),
+    makeEvent({ name: "habit_created", params: { type: "checkIn" } }),
+    makeEvent({ name: "account_created", params: { type: "creditCard" } }),
+    makeEvent({ name: "receipt_booking_started", params: { entry: "shortcutScreenshot" } }),
+    makeEvent({ name: "export_performed", params: { format: "csv" } }),
+  ];
+  const response = await sendEvents(app, v2Events);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).accepted, 9);
+  assert.equal(store.count(), 9);
+
+  const byName = new Map(store.listByDevice("device-a").map((row) => [row.name, row]));
+  assert.equal(JSON.parse(byName.get("ai_deep_report_requested").params).scenario, "finance");
+  assert.equal(JSON.parse(byName.get("receipt_booking_started").params).entry, "shortcutScreenshot");
+});
+
 test("空数组、超 100 条批次、params 非对象拒绝 400", async () => {
   const app = createTestApp();
   assert.equal((await sendEvents(app, [])).status, 400);

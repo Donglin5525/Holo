@@ -2602,8 +2602,9 @@ const AGENT_TELEMETRY_EVENT_NAMES = new Set([
   "agent_lease_changed",
 ]);
 
-/** 与 iOS HoloProductEventName 一一对应（2026-10-19 埋点字典 v1）；新增事件先加这里再发 iOS。 */
+/** 与 iOS HoloProductEventName 一一对应（2026-10-19 埋点字典 v1 + 2026-10-25 v2）；新增事件先加这里再发 iOS。 */
 const PRODUCT_EVENT_NAMES = new Set([
+  // v1（2026-10-19）
   "app_first_launch",
   "app_session_start",
   "module_view",
@@ -2612,6 +2613,16 @@ const PRODUCT_EVENT_NAMES = new Set([
   "task_created",
   "paywall_viewed",
   "paywall_purchase_tapped",
+  // v2（2026-10-25）：AI 交互 + 记录动作补齐 + 漏斗/数据安全
+  "ai_conversation_started",
+  "ai_message_sent",
+  "ai_deep_report_requested",
+  "ai_deep_report_viewed",
+  "thought_created",
+  "habit_created",
+  "account_created",
+  "receipt_booking_started",
+  "export_performed",
 ]);
 
 /** 产品埋点事件归一：白名单事件名 + 扁平短字符串参数；隐私契约 = 不收用户内容。 */
