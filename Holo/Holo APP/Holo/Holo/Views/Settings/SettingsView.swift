@@ -22,17 +22,18 @@ struct SettingsView: View {
 
     /// 设置分组：与单列滚动的 section 一一对应，双栏左列的导航项。
     /// danger 不进常规导航——单列时孤立页面底部，双栏时左列底部固定红行（iOS 危险操作惯例）。
+    /// v3.1：原「AI 与记忆」组整删——数据授权/想法整理/周期回放开关在 HoloAI 聚合页里
+    /// 全都有（回放那边 4 个开关更全），一级行是重复入口；HoloAI 降为用户卡下的独立入口卡。
     private enum SettingsSection: String, Identifiable {
-        case aiMemory, dataSync, privacySecurity, general, danger
+        case dataSync, privacySecurity, general, danger
 
         var id: String { rawValue }
 
         /// 双栏左列常规导航项（不含 danger）
-        static let navCases: [SettingsSection] = [.aiMemory, .dataSync, .privacySecurity, .general]
+        static let navCases: [SettingsSection] = [.dataSync, .privacySecurity, .general]
 
         var title: String {
             switch self {
-            case .aiMemory: return String(localized: "AI 与记忆")
             case .dataSync: return String(localized: "数据与同步")
             case .privacySecurity: return String(localized: "隐私与安全")
             case .general: return String(localized: "通用")
@@ -42,7 +43,6 @@ struct SettingsView: View {
 
         var icon: String {
             switch self {
-            case .aiMemory: return "sparkles"
             case .dataSync: return "internaldrive.fill"
             case .privacySecurity: return "lock.shield.fill"
             case .general: return "gearshape"
@@ -86,7 +86,6 @@ struct SettingsView: View {
     #endif
     @State private var showAISettings = false
     @State private var showMatterV2Prototype = false
-    @State private var showAIConsent = false
     @State private var showVoiceRecognitionSettings = false
     @State private var showHealthKitDiagnostics = false
     @State private var showSignOutConfirmation = false
@@ -103,17 +102,15 @@ struct SettingsView: View {
 
     // 规整后新增的二级页
     @State private var showAppearancePage = false
-    @State private var showAIPlaybackPage = false
     @State private var showICloudSyncPage = false
     @State private var showCalendarPage = false
 
-    @State private var showThoughtOrganizationSettings = false
     @State private var showNotificationSettings = false
     @State private var showHoloAIUserSettings = false
     @State private var showDataManagement: Bool = false
 
     // 宽屏双栏：当前选中的分组
-    @State private var selectedSection: SettingsSection = .aiMemory
+    @State private var selectedSection: SettingsSection = .dataSync
     @Environment(\.holoContentWidth) private var settingsWindowWidth
     private var isWideLayout: Bool { HoloAdaptiveLayout.isExpandedWidth(settingsWindowWidth) }
 
@@ -187,12 +184,12 @@ struct SettingsView: View {
         }
     }
 
-    /// 单列长滚动（窄屏/iPhone）：用户卡 + 四组 + 底部孤立危险区
+    /// 单列长滚动（窄屏/iPhone）：用户卡 + HoloAI 总入口 + 三组 + 底部孤立危险区
     private var settingsScroll: some View {
         ScrollView {
             VStack(spacing: HoloSpacing.lg) {
                 userInfoCard
-                aiMemorySection
+                holAICard
                 dataSyncSection
                 privacySecuritySection
                 generalSection
@@ -203,12 +200,14 @@ struct SettingsView: View {
         }
     }
 
-    /// 宽屏左列：用户信息卡 + 分组导航 + 底部危险区入口
+    /// 宽屏左列：用户信息卡 + HoloAI 总入口 + 分组导航 + 底部危险区入口
     private var settingsNavColumn: some View {
         VStack(spacing: 0) {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.md) {
                     userInfoCard
+
+                    holAICard
 
                     VStack(spacing: 4) {
                         ForEach(SettingsSection.navCases) { section in
@@ -310,7 +309,6 @@ struct SettingsView: View {
     @ViewBuilder
     private func sectionBody(_ section: SettingsSection) -> some View {
         switch section {
-        case .aiMemory: aiMemorySection
         case .dataSync: dataSyncSection
         case .privacySecurity: privacySecuritySection
         case .general: generalSection
@@ -429,77 +427,21 @@ struct SettingsView: View {
         return String(localized: "本机模式，登录后会检查 iCloud 云同步状态")
     }
 
-    // MARK: - AI 与记忆
+    // MARK: - HoloAI 总入口（独立卡）
 
-    /// HoloAI 聚合设置 + 数据授权 + 想法整理 + AI 回放（原「AI 整理」「AI 回放」两组合并）
-    private var aiMemorySection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            sectionHeader(icon: "sparkles", title: "AI 与记忆")
-
-            VStack(spacing: 0) {
-                // HoloAI 统一用户设置（2026-10-23「一个发现」随附）：一个发现/长期记忆/自动处理/数据与隐私
-                // 的聚合页；与 HoloAI 页右上角齿轮同一页面（01 §4 正式入口二）
-                SettingsNavRow(
-                    icon: "sparkle",
-                    iconColor: .holoPrimary,
-                    title: String(localized: "HoloAI"),
-                    subtitle: String(localized: "一个发现 · 记忆 · 自动处理 · 数据与隐私")
-                ) {
-                    showHoloAIUserSettings = true
-                }
-                .sheet(isPresented: $showHoloAIUserSettings) {
-                    HoloAIUserSettingsView(
-                        discoveryState: DiscoveryCoordinator.shared.settingsDetailState,
-                        discoveryService: DiscoveryCoordinator.shared
-                    )
-                }
-
-                Divider().padding(.leading, 56)
-
-                // HoloAI 数据授权（全局 AI 授权，保留在系统设置）
-                SettingsNavRow(
-                    icon: "hand.raised.square",
-                    iconColor: .holoPrimary,
-                    title: String(localized: "HoloAI 数据授权"),
-                    subtitle: HoloAIFeatureFlags.aiDataProcessingConsentGranted ? String(localized: "已授权，可随时撤回") : String(localized: "未授权，AI 功能暂停")
-                ) {
-                    showAIConsent = true
-                }
-                .sheet(isPresented: $showAIConsent) {
-                    NavigationStack {
-                        AIDataProcessingConsentView()
-                    }
-                }
-
-                Divider().padding(.leading, 56)
-
-                SettingsNavRow(
-                    icon: "lightbulb",
-                    iconColor: .holoPrimary,
-                    title: String(localized: "想法设置"),
-                    subtitle: String(localized: "智能整理、主题与标签管理")
-                ) {
-                    showThoughtOrganizationSettings = true
-                }
-                .sheet(isPresented: $showThoughtOrganizationSettings) { ThoughtOrganizationSettingsView() }
-
-                Divider().padding(.leading, 56)
-
-                // AI 回放三开关收进门（原一级页独立组）
-                SettingsNavRow(
-                    icon: "waveform",
-                    iconColor: .holoPurple,
-                    title: String(localized: "AI 回放"),
-                    subtitle: String(localized: "每周提醒 · 每月提醒 · 后台自动生成")
-                ) {
-                    showAIPlaybackPage = true
-                }
-                .sheet(isPresented: $showAIPlaybackPage) {
-                    SettingsAIPlaybackPage()
-                }
-            }
-            .background(Color.holoToolSurface)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+    /// AI 设置唯一总入口：一个发现/长期记忆/自动处理（想法整理·周期回放）/数据与隐私
+    /// 都在 HoloAI 聚合页内（v3.1 review：一级行曾是重复入口，整组删除收敛于此）
+    private var holAICard: some View {
+        SettingsNavRow(
+            icon: "sparkles",
+            iconColor: .holoPrimary,
+            title: String(localized: "HoloAI"),
+            subtitle: String(localized: "一个发现 · 记忆 · 自动处理 · 数据与隐私")
+        ) {
+            showHoloAIUserSettings = true
+        }
+        .sheet(isPresented: $showHoloAIUserSettings) {
+            HoloAIUserSettingsView(discoveryService: DiscoveryCoordinator.shared)
         }
     }
 
@@ -531,8 +473,7 @@ struct SettingsView: View {
                 SettingsNavRow(
                     icon: "calendar",
                     iconColor: .holoInfo,
-                    title: String(localized: "日历"),
-                    subtitle: String(localized: "系统日历接入与任务双向同步")
+                    title: String(localized: "日历")
                 ) {
                     showCalendarPage = true
                 }
@@ -547,9 +488,9 @@ struct SettingsView: View {
                 // 数据管理（模块清空/清空所有数据/最近删除回收站/缓存管理统一入口）
                 SettingsNavRow(
                     icon: "externaldrive.badge.timemachine",
-                    iconColor: .holoPrimary,
+                    iconColor: .holoInfo,
                     title: String(localized: "数据管理"),
-                    subtitle: String(localized: "数据概览 · 最近删除 · 清理缓存 · 清空所有数据")
+                    subtitle: String(localized: "最近删除 · 清空 · 缓存")
                 ) {
                     showDataManagement = true
                 }
@@ -575,7 +516,8 @@ struct SettingsView: View {
 
     // MARK: - 隐私与安全
 
-    /// 应用锁 + 锁定时机 + 小组件隐私（政策文档移入关于页，一级只留三个纯开关）
+    /// 应用锁 + 从属的锁定时机 + 小组件隐私（v3.1：政策文档移入关于页；图标整组绿色；
+    /// 锁定时机为应用锁开启时出现的缩进从属行）
     private var privacySecuritySection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             sectionHeader(icon: "lock.shield.fill", title: "隐私与安全")
@@ -583,9 +525,8 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 SettingsToggleRow(
                     icon: "faceid",
-                    iconColor: .holoPrimary,
+                    iconColor: .holoSuccess,
                     title: String(localized: "应用锁"),
-                    subtitle: appLockSubtitle,
                     isOn: appLockBinding
                 )
 
@@ -598,10 +539,10 @@ struct SettingsView: View {
                 Divider().padding(.leading, 56)
 
                 SettingsToggleRow(
-                    icon: "text.quote",
-                    iconColor: .holoPrimary,
-                    title: String(localized: "桌面小组件显示想法原文"),
-                    subtitle: String(localized: "关闭后「想法随机漫步」小组件只显示来源提示，不显示内容"),
+                    icon: "widget",
+                    iconColor: .holoSuccess,
+                    title: String(localized: "小组件显示想法原文"),
+                    subtitle: String(localized: "关闭后桌面只显示来源提示"),
                     isOn: thoughtExcerptBinding
                 )
             }
@@ -613,13 +554,6 @@ struct SettingsView: View {
         } message: {
             Text(appLockUnavailableMessage ?? "")
         }
-    }
-
-    private var appLockSubtitle: String {
-        if !appLockSettings.isEnabled {
-            return String(localized: "开启后打开 App 需面容 ID 或手机密码验证")
-        }
-        return String(localized: "已开启 · \(appLockSettings.graceStyle.subtitle)")
     }
 
     /// 切换后立即重写想法快照并刷新小组件；当日选取是确定性的，内容不会跳变
@@ -664,7 +598,8 @@ struct SettingsView: View {
         )
     }
 
-    /// 锁定时机三档（立即 / 1 分钟 / 5 分钟，默认 5 分钟）
+    /// 锁定时机三档（立即 / 1 分钟 / 5 分钟，默认 5 分钟）。
+    /// v3.1：应用锁的从属设置——缩进小行样式（小图标砖 + 次级文字），仅应用锁开启时出现
     private var appLockGraceRow: some View {
         Menu {
             ForEach(AppLockSettings.GraceStyle.allCases, id: \.self) { style in
@@ -679,33 +614,35 @@ struct SettingsView: View {
                 }
             }
         } label: {
-            HStack(spacing: HoloSpacing.md) {
-                SettingsIconTile(icon: "clock.arrow.circlepath", iconColor: .holoPrimary)
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
+                        .fill(Color.holoSuccess.opacity(0.1))
+                        .frame(width: 28, height: 28)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("锁定时机")
-                        .holoText(.body)
-                        .foregroundColor(.holoToolText)
-                        .lineLimit(1)
-
-                    Text(appLockSettings.graceStyle.subtitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoToolTextSecondary)
-                        .lineLimit(2)
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.holoSuccess)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(1)
+
+                Text("锁定时机")
+                    .font(.system(size: 13.5, weight: .medium))
+                    .foregroundColor(.holoToolTextSecondary)
+                    .lineLimit(1)
+
+                Spacer(minLength: 8)
 
                 Text(appLockSettings.graceStyle.displayName)
                     .font(.system(size: 13))
                     .foregroundColor(.holoToolTextSecondary)
 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundColor(.holoTextPlaceholder)
             }
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.vertical, 12)
+            .padding(.leading, 42)
+            .padding(.trailing, HoloSpacing.md)
+            .padding(.vertical, 8)
             .contentShape(Rectangle())
         }
     }
@@ -721,9 +658,8 @@ struct SettingsView: View {
                 // 外观：一级只留一行，右侧显示当前值，点开三选一
                 SettingsNavRow(
                     icon: "moon.circle.fill",
-                    iconColor: .holoPrimary,
+                    iconColor: .holoToolTextSecondary,
                     title: String(localized: "外观"),
-                    subtitle: String(localized: "跟随系统 · 浅色 · 深色"),
                     value: darkModeManager.currentSetting.displayName
                 ) {
                     showAppearancePage = true
@@ -737,9 +673,8 @@ struct SettingsView: View {
                 // 统一通知中心入口（早报/习惯提醒/晨报/AI 回放的完整开关与时间都在这里）
                 SettingsNavRow(
                     icon: "bell.badge",
-                    iconColor: .holoPrimary,
-                    title: String(localized: "通知设置"),
-                    subtitle: String(localized: "每日早报 · 习惯提醒 · 周一晨报 · AI 回放")
+                    iconColor: .holoToolTextSecondary,
+                    title: String(localized: "通知")
                 ) {
                     showNotificationSettings = true
                 }
@@ -749,12 +684,10 @@ struct SettingsView: View {
 
                 Divider().padding(.leading, 56)
 
-                // 反馈给开发者
                 SettingsNavRow(
                     icon: "ellipsis.bubble",
-                    iconColor: .holoPrimary,
-                    title: String(localized: "反馈给开发者"),
-                    subtitle: String(localized: "建议、问题、吐槽都欢迎，留个联系方式我们能找你")
+                    iconColor: .holoToolTextSecondary,
+                    title: String(localized: "反馈")
                 ) {
                     showFeedback = true
                 }
@@ -767,7 +700,7 @@ struct SettingsView: View {
                 // 关于：版本 + 政策文档 + 重看引导（二级聚合页）
                 SettingsNavRow(
                     icon: "info.circle",
-                    iconColor: .holoInfo,
+                    iconColor: .holoToolTextSecondary,
                     title: String(localized: "关于 Holo"),
                     subtitle: appVersionText
                 ) {
@@ -963,13 +896,9 @@ struct SettingsView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("删除账号与 Holo 数据")
+                        Text("删除账号与数据")
                             .holoText(.body)
                             .foregroundColor(.holoToolError)
-
-                        Text("清除本机数据、附件、AI 记忆和登录状态")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoToolTextSecondary)
 
                         if let accountDataDeletionMessage {
                             Text(accountDataDeletionMessage)

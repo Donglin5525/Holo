@@ -562,6 +562,85 @@
         }
       }
     },
+    "关闭后桌面只显示来源提示" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When off, widgets only show the source"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉後桌面只顯示來源提示"
+          }
+        }
+      }
+    },
+    "将停止自动理解，并清除已生成的发现；你的原始记录与已有记忆不受影响。" : {
+
+    },
+    "小组件显示想法原文" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Widgets show thought text"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小工具顯示想法原文"
+          }
+        }
+      }
+    },
+    "已重置，之前隐藏过的类别之后可能再次出现。" : {
+
+    },
+    "最近删除 · 清空 · 缓存" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently deleted · Erase · Cache"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近刪除 · 清空 · 快取"
+          }
+        }
+      }
+    },
+    "查看来源：%@记录" : {
+
+    },
+    "清除你给过的「不太准确」与「不想看这类」反馈；不影响任何业务数据。" : {
+
+    },
+    "自动处理如何进行" : {
+
+    },
+    "通知" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
+          }
+        }
+      }
+    },
     "，一点就记账。" : {
 
     },
@@ -21563,9 +21642,6 @@
         }
       }
     },
-    "你选择过「不想看这类」的观察类别会列在这里，可随时恢复偏好。" : {
-
-    },
     "你重新打开了这件事" : {
       "localizations" : {
         "en" : {
@@ -40750,9 +40826,6 @@
         }
       }
     },
-    "将停止新的自动理解，并清除已生成的发现与派生缓存；你的原始记录与已有记忆不受影响。" : {
-
-    },
     "将全局重命名「%@」；若与已有标签同名会自动合并" : {
       "localizations" : {
         "en" : {
@@ -50934,9 +51007,6 @@
           }
         }
       }
-    },
-    "恢复全部偏好" : {
-
     },
     "恢复关联" : {
       "localizations" : {
@@ -65849,9 +65919,6 @@
         }
       }
     },
-    "未允许" : {
-
-    },
     "未关联目标" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -76695,9 +76762,6 @@
           }
         }
       }
-    },
-    "清除你对「一个发现」的否定反馈与「不想看这类」的隐藏偏好；不影响任何业务数据。" : {
-
     },
     "清除所有" : {
       "localizations" : {

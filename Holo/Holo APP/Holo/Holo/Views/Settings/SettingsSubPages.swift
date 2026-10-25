@@ -7,19 +7,21 @@
 //    视觉规格（40pt 圆角方砖 + 图标 + 标题副标题 + 尾随元素）与原设置页逐像素一致
 //  · SettingsSheetShell —— 设置二级页统一外壳（X 关闭 + 居中标题 + 工具页背景）
 //  · SettingsAppearancePage —— 外观三选一（原一级页 3 行平铺收成入口行后的选择页）
-//  · SettingsAIPlaybackPage —— AI 回放三开关（原独立分组收进门）
+//  v3.1：SettingsAIPlaybackPage 退役——周期回放开关在 HoloAI 聚合页「自动处理 › 周期回放」
+//  （那边 4 个开关更全），独立页是重复入口。
 //
 
 import SwiftUI
 
 // MARK: - 共享行组件（从 SettingsView 提取，规格不变）
 
-/// 设置页通用入口行：点击进二级页/触发动作，尾随箭头
+/// 设置页通用入口行：点击进二级页/触发动作，尾随箭头。
+/// subtitle 省略即纯标题行（v3.1：副标题只留给「状态值」类信息）
 struct SettingsNavRow: View {
     let icon: String
     let iconColor: Color
     let title: String
-    let subtitle: String
+    var subtitle: String? = nil
     /// 尾随值文本（如外观当前值），显示在箭头左侧
     var value: String? = nil
     let action: () -> Void
@@ -35,10 +37,12 @@ struct SettingsNavRow: View {
                         .foregroundColor(.holoToolText)
                         .lineLimit(1)
 
-                    Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoToolTextSecondary)
-                        .lineLimit(2)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoToolTextSecondary)
+                            .lineLimit(2)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
@@ -67,7 +71,7 @@ struct SettingsToggleRow: View {
     let icon: String
     let iconColor: Color
     let title: String
-    let subtitle: String
+    var subtitle: String? = nil
     @Binding var isOn: Bool
 
     var body: some View {
@@ -80,10 +84,12 @@ struct SettingsToggleRow: View {
                     .foregroundColor(.holoToolText)
                     .lineLimit(1)
 
-                Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .lineLimit(2)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoToolTextSecondary)
+                        .lineLimit(2)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .layoutPriority(1)
@@ -238,62 +244,5 @@ struct SettingsAppearancePage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
-    }
-}
-
-// MARK: - AI 回放二级页
-
-/// AI 回放三开关（原一级页「AI 回放」独立组收进门）
-struct SettingsAIPlaybackPage: View {
-    @ObservedObject private var insightSettings = MemoryInsightScheduleSettings.shared
-
-    var body: some View {
-        SettingsSheetShell(String(localized: "AI 回放")) {
-            VStack(spacing: 0) {
-                SettingsToggleRow(
-                    icon: "calendar.badge.clock",
-                    iconColor: .holoPrimary,
-                    title: String(localized: "每周提醒我生成周回放"),
-                    subtitle: weeklyReminderSubtitle,
-                    isOn: $insightSettings.weeklyReminderEnabled
-                )
-
-                Divider().padding(.leading, 56)
-
-                SettingsToggleRow(
-                    icon: "calendar.circle",
-                    iconColor: .holoSuccess,
-                    title: String(localized: "每月提醒我生成月回放"),
-                    subtitle: monthlyReminderSubtitle,
-                    isOn: $insightSettings.monthlyReminderEnabled
-                )
-
-                Divider().padding(.leading, 56)
-
-                SettingsToggleRow(
-                    icon: "arrow.triangle.2.circlepath",
-                    iconColor: .holoInfo,
-                    title: String(localized: "允许后台自动尝试生成"),
-                    subtitle: String(localized: "iOS 不保证准时执行，下次打开 App 时会补生成"),
-                    isOn: $insightSettings.backgroundAutoGenerationEnabled
-                )
-            }
-            .background(Color.holoToolSurface)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        }
-    }
-
-    private var weeklyReminderSubtitle: String {
-        if insightSettings.weeklyReminderEnabled {
-            return String(localized: "每\(insightSettings.weeklyReminderWeekdayName) \(String(format: "%02d", insightSettings.weeklyReminderHour)):00")
-        }
-        return String(localized: "默认关闭")
-    }
-
-    private var monthlyReminderSubtitle: String {
-        if insightSettings.monthlyReminderEnabled {
-            return String(localized: "每月\(insightSettings.monthlyReminderDay)日 \(String(format: "%02d", insightSettings.monthlyReminderHour)):00")
-        }
-        return String(localized: "默认关闭")
     }
 }
