@@ -31,6 +31,9 @@ extension Color {
     /// 追问血统紫
     static let holoLineageTint = Color.holoDynamic(light: UIColor(red: 0.36, green: 0.22, blue: 0.71, alpha: 1),
                                                    dark: UIColor(red: 0.77, green: 0.71, blue: 0.99, alpha: 1))
+    /// 想法「不参与 AI」盾牌淡金（2026-10-21 标签级 AI 排除：排除态标签/角标，亮=麦金 暗=亮金）
+    static let holoAIShieldTint = Color.holoDynamic(light: UIColor(red: 0.66, green: 0.45, blue: 0.24, alpha: 1),
+                                                    dark: UIColor(red: 0.91, green: 0.72, blue: 0.45, alpha: 1))
 
     /// 双模式色构造：语义色走 Asset Catalog，此工具用于少量品牌衍生色。
     static func holoDynamic(light: UIColor, dark: UIColor) -> Color {

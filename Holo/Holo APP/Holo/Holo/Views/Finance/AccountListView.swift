@@ -56,6 +56,10 @@ struct AccountListView: View {
     /// 返回上一级（与其他 Tab 一致的返回交互）
     let onBack: () -> Void
 
+    /// 外部（模块级 FAB）请求新增账户：置 true 时本视图自己弹「新建账户」，
+    /// 保存后走自身的 loadData 刷新；消费完立即复位
+    @Binding var externalAddRequest: Bool
+
     @State private var pageMode: AccountPageMode = .accounts
     @State private var items: [AccountRowItem] = []
     @State private var archivedItems: [AccountRowItem] = []
@@ -158,6 +162,12 @@ struct AccountListView: View {
             // 从账户详情返回后刷新（详情内可能改了余额/归档/删除）
             .onChange(of: showDetail) { _, showing in
                 if !showing { loadData() }
+            }
+            // 模块级 FAB（账户页签）请求新增：交给本视图自己的表单，保存后自动刷新
+            .onChange(of: externalAddRequest) { _, requested in
+                guard requested else { return }
+                externalAddRequest = false
+                showAddAccount = true
             }
         }
     }

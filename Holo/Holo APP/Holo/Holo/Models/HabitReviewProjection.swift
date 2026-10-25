@@ -378,14 +378,25 @@ enum HabitReviewProjector {
                 rows: [], activeRecordDays: 0, recordedHabitCount: 0, visibleCount: nil)
         }
 
-        // 可见集合：全关闭=[]（保留空态），白名单过滤，nil=全部
+        // 可见集合：全关闭=[]（保留空态），白名单过滤，nil=全部。
+        // 白名单可能存有已不存在 habit 的过期 UUID（重装恢复/迁移会重建 UUID），
+        // 非空白名单一个都匹配不上时回退「全部」，否则页面对着「已选 N 项」渲染空世界
+        let effectiveVisibleIds: [UUID]?
         let visibleHabits: [HabitReviewHabitInfo]
         switch visibleIds {
         case .none:
+            effectiveVisibleIds = nil
             visibleHabits = habits
         case .some(let ids):
             let idSet = Set(ids)
-            visibleHabits = habits.filter { idSet.contains($0.id) }
+            let filtered = habits.filter { idSet.contains($0.id) }
+            if ids.isEmpty || !filtered.isEmpty {
+                effectiveVisibleIds = ids
+                visibleHabits = filtered
+            } else {
+                effectiveVisibleIds = nil
+                visibleHabits = habits
+            }
         }
 
         // 范围内有效记录（不同习惯的记录只算可见集合内的）
@@ -466,7 +477,7 @@ enum HabitReviewProjector {
             rows: rows,
             activeRecordDays: recordedDates.count,
             recordedHabitCount: recordedHabitIds.count,
-            visibleCount: visibleIds.map(\.count)
+            visibleCount: effectiveVisibleIds.map(\.count)
         )
     }
 }

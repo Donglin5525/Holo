@@ -42,7 +42,7 @@ struct HoloDefaultThoughtDataSource: HoloThoughtDataSource {
                 topTags: topTags,
                 snippets: repo.getThoughtTexts(from: start, to: end, limit: 5)
                     .map { String($0.prefix(120)) },
-                dailyCounts: repo.getThoughtCountByDay(from: start, to: end),
+                dailyCounts: repo.getThoughtCountByDay(from: start, to: end, aiVisibleOnly: true),
                 topics: Array(topics)
             )
         }

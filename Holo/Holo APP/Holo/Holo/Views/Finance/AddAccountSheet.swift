@@ -90,7 +90,8 @@ struct AddAccountSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭"))
                         .foregroundColor(.holoToolTextSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -345,7 +346,7 @@ struct AddAccountSheet: View {
 
                 // 额度（选填）
                 HStack {
-                    Text("额度（选填）")
+                    Text("额度（可选）")
                         .font(.holoBody)
                         .foregroundColor(.holoToolText)
                     Spacer()

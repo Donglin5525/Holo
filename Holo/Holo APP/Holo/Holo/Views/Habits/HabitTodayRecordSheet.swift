@@ -692,7 +692,7 @@ struct HabitTodayRecordSheet: View {
                         mode: .sign
                     )
                 } label: {
-                    Label(String(localized: "补签"), systemImage: "clock.arrow.circlepath")
+                    Label(String(localized: "补录"), systemImage: "clock.arrow.circlepath")
                 }
             }
             Divider()

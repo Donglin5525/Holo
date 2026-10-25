@@ -125,18 +125,27 @@ extension FinanceRepository {
         
         // 统计每个分类的使用次数（仅统计二级子分类）
         var frequencyMap: [NSManagedObjectID: Int] = [:]
+        var lastUsedMap: [NSManagedObjectID: Date] = [:]
         var categoryMap: [NSManagedObjectID: Category] = [:]
         
         for tx in transactions {
             guard let cat = tx.category, cat.isSubCategory else { continue }
             let oid = cat.objectID
             frequencyMap[oid, default: 0] += 1
+            lastUsedMap[oid] = max(lastUsedMap[oid] ?? .distantPast, tx.date)
             categoryMap[oid] = cat
         }
         
-        // 按频次降序取前 limit 个
+        // 频次降序；同频按最近一次使用降序，再按名称——字典遍历顺序不稳定，
+        // 没有次级键时同频分类每次打开都会重排
         let sorted = frequencyMap
-            .sorted { $0.value > $1.value }
+            .sorted { lhs, rhs in
+                if lhs.value != rhs.value { return lhs.value > rhs.value }
+                let lDate = lastUsedMap[lhs.key] ?? .distantPast
+                let rDate = lastUsedMap[rhs.key] ?? .distantPast
+                if lDate != rDate { return lDate > rDate }
+                return (categoryMap[lhs.key]?.name ?? "") < (categoryMap[rhs.key]?.name ?? "")
+            }
             .prefix(limit)
             .compactMap { categoryMap[$0.key] }
         

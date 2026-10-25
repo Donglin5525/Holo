@@ -48,6 +48,13 @@ extension ThoughtRepository {
         let affectedTopicIds = affectedTopics.map(\.id).sorted { $0.uuidString < $1.uuidString }
         let assignmentCount = (tag.assignments as? Set<ThoughtTagAssignment>)?.count ?? 0
 
+        // 删除前先记下关联的想法：若是排除标签，删除后这些想法需要重判恢复（否则永久困在 excluded）
+        var affectedThoughtIDs = Set<UUID>()
+        if let assignments = tag.assignments as? Set<ThoughtTagAssignment> {
+            for assignment in assignments { if let id = assignment.thought?.id { affectedThoughtIDs.insert(id) } }
+        }
+        if let thoughts = tag.thoughts as? Set<Thought> { affectedThoughtIDs.formUnion(thoughts.map(\.id)) }
+
         // 显式断开 Topic 关联（比依赖 delete rule 的生效时机更稳）
         for topic in affectedTopics {
             topic.removeAssociatedTags(tag)
@@ -63,6 +70,11 @@ extension ThoughtRepository {
         }
 
         try context.save()
+        // 排除标签消失后重判受影响想法（命中其他排除标签的保持，其余恢复参与 AI）
+        let thoughtIDs = Array(affectedThoughtIDs)
+        Task.detached(priority: .utility) {
+            await ThoughtAIExclusionService.shared.reconcile(thoughtIDs: thoughtIDs)
+        }
         return TagDeletionResult(removedAssignmentCount: assignmentCount, affectedTopicIds: affectedTopicIds)
     }
 
@@ -162,6 +174,12 @@ extension ThoughtRepository {
     /// 合并标签：把 source 的 thoughts/assignments/Topic 关联迁移到 target，删除 source
     /// 同想法去重规则：高优先级来源胜出（manual > inline > confirmedAI > ai > rejectedAI），与 createAssignmentInternal 同源
     private func mergeTag(source: ThoughtTag, into target: ThoughtTag) {
+        // 0. 排除属性安全方向继承：源标签「不参与 AI」时目标标签也置为排除——
+        // 合并后源标签的想法暴露给 AI 属隐私泄漏方向，宁可多排除（用户可再手动关闭）
+        if source.excludeFromAI {
+            target.excludeFromAI = true
+        }
+
         // 1. 迁移 thoughts 多对多关系
         if let thoughts = source.thoughts as? Set<Thought> {
             for thought in thoughts {

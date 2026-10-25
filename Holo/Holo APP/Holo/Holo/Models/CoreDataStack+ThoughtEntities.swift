@@ -286,6 +286,15 @@ extension CoreDataStack {
         thoughtTagAutoCollectionHidden.defaultValue = false
         thoughtTagAttributes.append(thoughtTagAutoCollectionHidden)
 
+        // 用户声明「带此标签的想法不交给 AI」：命中（用户关联）的想法整体退出全部 AI 通道，
+        // 与 autoSuggestionBlocked（只禁 AI 自动复用概念名、想法仍参与分析）是两层语义
+        let thoughtTagExcludeFromAI = NSAttributeDescription()
+        thoughtTagExcludeFromAI.name = "excludeFromAI"
+        thoughtTagExcludeFromAI.attributeType = .booleanAttributeType
+        thoughtTagExcludeFromAI.isOptional = false
+        thoughtTagExcludeFromAI.defaultValue = false
+        thoughtTagAttributes.append(thoughtTagExcludeFromAI)
+
         // MARK: - ThoughtReference Entity
         // 观点模块 - 引用关系实体
         let thoughtReferenceEntity = NSEntityDescription()

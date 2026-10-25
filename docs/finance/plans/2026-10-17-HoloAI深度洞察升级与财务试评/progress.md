@@ -1,5 +1,14 @@
 # 进展
 
+## 2026-10-18（第四轮：融合版定稿并实跑验证）
+
+- 东林盲评反馈「都挺好，分期最佳」→ 拆出 Q3 成功要素（台账预置事实性风险+明确行动判断），融合四条件优点定稿 P1V2：C 的判断骨架 + A 的表达成熟度 + D 的背景使用（带防线）+ 全程台账纪律；输出 schema 对齐生产 AnswerV1（展示层零重构）。
+- 台账三处根治：①【已确认事实与已知风险】段（双记/零息/口径）②零息特征行=程序算出「月供×60≈合同额」根治编利率 ③方向箭头式行文（待 S2）。
+- 融合版实跑 3+1 次：Q1/Q3 一次过（Q3 标题「车贷零息且占比低，无需提前结清；当前首要动作是修复记账数据」=目标形态）；Q2 首版方向说反（与现行方法同款弱点）+输出自我对话污染 → 修复协议重跑一次全对。总 16 次 ≈¥0.021，单份 ≈¥0.001。
+- 交付：06-融合版与S2接入方案.md（S2 任务序列/核验增强/待拍板三项）+ local-only/final-fusion-reports.md。
+- 新增实锤：flash 级模型「比较方向说反」是稳定弱点（A 与 F 首版同犯），核验必须含方向。
+
+
 ## 2026-10-17（第三轮：S1 消融实验交付）
 
 - 东林授权后执行 03§4 受控对比：三题×A/B/C/D 共 12 次离线模型调用（qwen3.7-flash，t=0.2，思考关），12/12 成功、总费用≈¥0.016、中位 13.6s。
@@ -34,3 +43,10 @@
 - git check-ignore 确认 local-only 下的真实数据会被忽略；git diff --check 通过。本轮没有编译或测试 App，文档检查不等于产品验证。
 - 东林补充数据可直接录入 Holo；已调整为 Holo 实际数据与同一入口主验收，辅助离线核算，不再要求另备财务表格。
 - 已完成文档交付；具体试点记录与当前报告尚未核对，模型试评、App 实施和生产验证仍未开始。
+
+## 2026-10-18（第五轮：v27 报告版式全链落地）
+
+- 东林拍板 A（一步到位）。后端 v26→**v27**：reportStructure（sections 章节引用 claimID/chartHint 图表表态/conclusionItems/disclosureNotes），核验扩展（死引用丢段、kicker/caption/sub 数字白名单、非法 chartHint 剥离、全灭降级回退平铺），541 测试全绿，已发生产（prompt 27/结构核验/落库字段三重验证）。
+- iOS：CloudResult+CloudClaim.id 解码 → service renderedReportStructure（claimID→文本、图注缺省编号）→ HoloRenderedReportStructure 渲染层类型 → **AgentDeepReportView**（e-report-v3 骨架：报告头/标题/导语框/编号章节/节导语/首句程序加粗/trend 图复用 ReportTrendChart+图注/重要事项提示/结论编号递增/数据说明）→ DetailSheet 双轨（有 reportStructure 走报告版式，旧报告/无结构回退原版式，依据区与追问共用）。图表一期 trend（本地核算+标准组件）；delta 横条二期。
+- 测试：AgentReportStructureTests 4 用例（解析/死引用/图注编号/首句加粗 run 边界）+ 云端契约 13 + 台账/语义/演练全绿；全量构建通过。
+- 已知边界：模拟器无账号→真机首次深度分析即见报告版式（后端已产 reportStructure）；delta 图表与 chartHint 健康域扩展留二期。

@@ -103,6 +103,9 @@ final class ChatReportTabViewModel: ObservableObject {
     func reload() async {
         isLoading = true
         defer { isLoading = false }
+        // 从未点开过的已生成洞察没有聊天消息，档案查不到；先静默补卡再加载，
+        // 让报告页签与数据概览「AI 报告」同口径
+        HoloPeriodReplayCoordinator.shared.backfillUnopenedInsightCards()
         async let fresh = repository.loadReportArchiveAsync(limit: pageSize, offset: 0)
         async let favorites = repository.countFavoriteReportsAsync()
         let (reports, count) = await (fresh, favorites)

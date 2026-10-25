@@ -95,6 +95,8 @@ struct ThoughtEditorView: View {
     /// 工具栏色板显隐；光标活动或候选面板触发时自动关闭
     @State private var showsColorPalette: Bool = false
     @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
+    /// 当前想法命中「不参与 AI」标签（口径二：所有 AI 功能一刀切停用；想用先关标签排除）
+    @State private var aiExcluded: Bool = false
 
     // MARK: - 转为任务
     /// 提取确认面板的参数（用 item 模式确保弹窗拿到的参数是一次性写好的、自洽的）
@@ -224,12 +226,22 @@ struct ThoughtEditorView: View {
                         // 可回原文的旧想法；无命中安静留空，不打扰记录。
                         // id 随想法/正文版本变化——编辑后旧召回结果整体重建
                         if let currentThoughtId, hasLoadedEditorData {
-                            if ThoughtSemanticFeatureFlags.uiEnabled,
+                            if aiExcluded {
+                                // 标签级 AI 排除（口径二一刀切）：停用的不只是按钮，还要说清去哪恢复
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.shield.fill")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text("这条想法带有不参与 AI 的标签，AI 功能已停用。想到「想法设置 › AI 分析范围」可调整。")
+                                }
+                                .font(.holoCaption)
+                                .foregroundStyle(Color.holoAIShieldTint)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            } else if ThoughtSemanticFeatureFlags.uiEnabled,
                                content.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10 {
                                 ThoughtInsightButton(content: content)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            if ThoughtSemanticFeatureFlags.resurfacingEnabled {
+                            if !aiExcluded && ThoughtSemanticFeatureFlags.resurfacingEnabled {
                                 ThoughtRelatedSection(
                                     thoughtID: currentThoughtId,
                                     content: content,
@@ -349,6 +361,7 @@ struct ThoughtEditorView: View {
                 content: request.content,
                 sourceThought: request.sourceThought,
                 isFromSelection: request.isFromSelection,
+                isAIExcluded: aiExcluded,
                 visibleSourceText: visibleEditorText(for: request.sourceThought),
                 sourceRange: request.sourceRange,
                 onDismiss: {
@@ -374,7 +387,8 @@ struct ThoughtEditorView: View {
             )
         }
         .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
-            if smartSummaryEnabled {
+            // 排除想法不挂智能总结处理器：语音输入照常，只是不把内容交给 AI 整理
+            if smartSummaryEnabled && !aiExcluded {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .thought),
                     readySubtitle: String(localized: "确认后插入到想法内容"),
@@ -1308,8 +1322,8 @@ struct ThoughtEditorView: View {
                 .foregroundColor(isConfirmed ? .holoPrimary : .holoToolTextSecondary)
 
             Text("AI")
-                .font(.system(size: 8, weight: .semibold))
-                // 8pt 微标不做半透明降档：深色下半透橙/灰会跌破可读线
+                .font(.system(size: 10, weight: .semibold))
+                // 微标不做半透明降档：深色下半透橙/灰会跌破可读线
                 .foregroundColor(isConfirmed ? .holoToolWarning : .holoToolTextSecondary)
 
             if !isConfirmed {
@@ -1323,7 +1337,9 @@ struct ThoughtEditorView: View {
                 } label: {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.holoSuccess)
+                        .foregroundColor(.holoSuccessText)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
 
                 // FR-06′：× 默认仅本条不适合（与详情页一致），不写全局抑制
@@ -1337,7 +1353,9 @@ struct ThoughtEditorView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.holoError.opacity(0.7))
+                        .foregroundColor(.holoError)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
             }
         }
@@ -1449,9 +1467,11 @@ struct ThoughtEditorView: View {
         .accessibilityLabel(String(localized: "更多操作"))
     }
 
-    /// skipped（<10 字）重试无意义不显示；failed / organized / disabled 均可手动重整
+    /// skipped（<10 字）重试无意义不显示；failed / organized / disabled 均可手动重整。
+    /// excluded（「不参与 AI」标签）不显示——恢复只能走标签开关，这里不能成为绕过门。
     private var canRetryOrganization: Bool {
         guard let status = organizedStatus else { return false }
+        guard status != ThoughtAIClassificationPolicy.excludedStatus else { return false }
         return status != "skipped" && status != "pending" && status != "processing"
     }
 
@@ -1797,6 +1817,8 @@ struct ThoughtEditorView: View {
             aiAssignments = (try? repo.fetchVisibleAIAssignments(thoughtId: thoughtId)) ?? []
             // 「…」菜单的「重新整理」可见性依据
             organizedStatus = thought.organizedStatus
+            // 标签级 AI 排除：AI 功能门控依据（编辑中打的标签保存后由 ChangeFeed 兜底收敛）
+            aiExcluded = ThoughtAIAudience.isExcluded(thought)
 
             // 设置原始值（用于比较是否有修改）
             originalContent = thought.content

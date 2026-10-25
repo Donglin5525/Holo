@@ -44,7 +44,9 @@ actor ThoughtAutomaticTopicDiscovery {
             for cluster in clusters.prefix(2) {
                 let snapshots: [(id: UUID, text: String, hash: String)] = await context.perform {
                     let request = Thought.fetchRequest()
-                    request.predicate = NSPredicate(format: "id IN %@ AND deletedAt == nil AND isArchived == NO", cluster.memberIDs)
+                    // 「不参与 AI」标签的想法正文不上传（簇成员命名请求的素材源）
+                    request.predicate = ThoughtAIAudience.aiVisible(
+                        NSPredicate(format: "id IN %@ AND deletedAt == nil AND isArchived == NO", cluster.memberIDs))
                     request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
                     return ((try? context.fetch(request)) ?? []).filter {
                         ThoughtTopicLinkProjection.effectiveTopics(for: $0).filter(\.isVisibleTopic).isEmpty
@@ -92,7 +94,8 @@ actor ThoughtAutomaticTopicDiscovery {
                     for member in members {
                         guard let snapshot = snapshots.first(where: { $0.id.uuidString == member.ref }) else { return false }
                         let thoughtRequest = Thought.fetchRequest()
-                        thoughtRequest.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil AND isArchived == NO", snapshot.id as CVarArg)
+                        thoughtRequest.predicate = ThoughtAIAudience.aiVisible(
+                            NSPredicate(format: "id == %@ AND deletedAt == nil AND isArchived == NO", snapshot.id as CVarArg))
                         guard let thought = try context.fetch(thoughtRequest).first,
                               ThoughtSemanticText.contentHash( thought.content) == snapshot.hash,
                               ThoughtTopicLinkProjection.effectiveTopics(for: thought).filter(\.isVisibleTopic).isEmpty else { return false }

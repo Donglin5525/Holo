@@ -62,7 +62,8 @@ actor ThoughtSemanticRelateExecutor {
             var out: (UUID, String)?
             context.performAndWait {
                 let request = Thought.fetchRequest()
-                request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil AND isArchived == NO", job.thoughtID as CVarArg)
+                // 执行时再查一次排除（入队后用户可能才打上「不参与 AI」标签）
+                request.predicate = ThoughtAIAudience.processablePredicate(thoughtID: job.thoughtID)
                 request.fetchLimit = 1
                 if let thought = (try? context.fetch(request))?.first {
                     out = (thought.id, thought.content)

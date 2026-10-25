@@ -51,9 +51,12 @@ struct DailyKanbanEntryButton: View {
             h = (0, 0)
         } else {
             let visibleIds = displaySettings.dashboardVisibleHabitIds
-            h = habitRepo.getTodayCheckInProgress(
-                visibleHabitIds: visibleIds.isEmpty ? nil : visibleIds
-            )
+            let visibleSet = Set(visibleIds)
+            // 过期白名单（习惯 UUID 重建后）一个都匹配不上时回退全部，防止看板进度莫名归零
+            let effectiveIds: [UUID]? = visibleIds.isEmpty
+                ? nil
+                : (habitRepo.activeHabits.contains { visibleSet.contains($0.id) } ? visibleIds : nil)
+            h = habitRepo.getTodayCheckInProgress(visibleHabitIds: effectiveIds)
         }
         cachedTaskPercent = t.total > 0 ? Double(t.completed) / Double(t.total) : 0
         cachedHabitPercent = h.total > 0 ? Double(h.completed) / Double(h.total) : 0

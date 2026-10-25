@@ -150,7 +150,10 @@ final class ConversationCoordinator {
         planningProgress: ((HoloContextPlanStage, HoloContextPlanRouteSource?, String?) -> Void)? = nil,
         contextPlanCloudAsync: Bool = false
     ) async throws -> ConversationProcessResult {
-        let parseBatch = try await provider.parseUserInputBatch(text, context: userContext)
+        var parseBatch = try await provider.parseUserInputBatch(text, context: userContext)
+        // 时段词未来下限：今晚类模糊时刻（如 21:59 说「今晚」得 20:00 的过期提醒）
+        // 在结果进系统这一刻冻结顺延值，卡片/编辑弹层/落库读到同一个字符串
+        parseBatch = TaskPendingDefaults.applyingFutureFloor(to: parseBatch, originalInput: text)
         let intentLog = provider.lastCallLog
 
         // 需要追问

@@ -109,8 +109,81 @@ final class ChatViewModel: ObservableObject {
     /// 空状态卡片使用的能力入口（含 onboarding 引导等，按用户状态动态生成）。
     @Published private(set) var emptyStateCapabilities: [HoloAICapability] = []
 
-    /// 输入框上方常驻能力行使用的能力入口（今日状态/最近分析/规划目标等常驻项）。
+    /// 输入框上方常驻能力行使用的能力入口（深度分析/周期回放/规划目标；「一个发现」
+    /// 胶囊由 QuickActionBar 在周期回放前按 presentationState 独立渲染，不在此列）。
     @Published private(set) var persistentCapabilities: [HoloAICapability] = HoloAICapabilityProvider.persistentCapabilities()
+
+    // MARK: - 一个发现（Discovery）
+
+    /// 胶囊呈现状态（拉取式同步：发现一天最多一批，onAppear/回前台/动作后刷新足够）。
+    @Published private(set) var discoveryPresentationState: DiscoveryPresentationState = .disabled
+    /// 当前正在阅读的发现（打开期间不被新结果替换；撤权/失效由服务侧强制关闭）。
+    @Published var discoveryFinding: DiscoveryFindingPresentation?
+    @Published var showsDiscoveryDetail = false
+    /// 详情被服务侧强制关闭时的失效说明（撤权/来源失效）。
+    @Published var discoveryInvalidationText: String?
+
+    var discoveryService: any DiscoveryService { DiscoveryCoordinator.shared }
+
+    /// 拉取发现状态（onAppear / 回前台 / 关键动作后调用）。
+    @MainActor
+    func refreshDiscoveryState() async {
+        await discoveryService.refresh()
+        discoveryPresentationState = discoveryService.presentationState
+        if !discoveryService.isDetailPresented, showsDiscoveryDetail {
+            // 撤权/失效：服务侧已关闭阅读，带上失效说明
+            discoveryInvalidationText = "这条发现已失效或授权已撤回"
+            showsDiscoveryDetail = false
+        }
+    }
+
+    /// 胶囊点击：打开当前有效发现（过期/失效返回 nil 则不呈现）。
+    @MainActor
+    func openDiscoveryFinding() {
+        if let finding = discoveryService.openFinding() {
+            discoveryFinding = finding
+            discoveryInvalidationText = nil
+            showsDiscoveryDetail = true
+        }
+        discoveryPresentationState = discoveryService.presentationState
+    }
+
+    @MainActor
+    func closeDiscoveryDetail() {
+        showsDiscoveryDetail = false
+        discoveryPresentationState = discoveryService.presentationState
+    }
+
+    /// 「一个发现」依据「打开原记录」路由：sourceRef canonical 串（thought:<uuid> /
+    /// task:<uuid> / habitEvent:<uuid>；habitEvent 无独立详情页，跳对应习惯详情——
+    /// V1 事件 ref 的 localID 即 HabitRecord id，经 habitId 反查跳转见 habitEvent 分支）。
+    @MainActor
+    func openRecord(sourceRef: String) {
+        let parts = sourceRef.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2, let id = UUID(uuidString: String(parts[1])) else { return }
+        switch parts[0] {
+        case "thought":
+            DeepLinkState.shared.navigate(to: .thoughtDetail(thoughtId: id))
+        case "task":
+            DeepLinkState.shared.navigate(to: .taskDetail(taskId: id))
+        case "habitEvent":
+            if let habitId = HabitRepository.shared.habitId(ofRecord: id) {
+                DeepLinkState.shared.navigate(to: .habitDetail(habitId: habitId))
+            } else {
+                DeepLinkState.shared.navigate(to: .habits)
+            }
+        default:
+            break
+        }
+    }
+
+    /// 「聊聊这个」续聊草稿：仅在输入框为空时预填（01 §3「草稿非空时给保留/替换选择」的
+    /// V1 简化——不覆盖用户未发送的草稿；完整选择弹窗待协议补齐后接入）。
+    @MainActor
+    func seedDiscoveryDraft(_ draft: DiscoveryConversationDraft) {
+        guard inputText.isEmpty else { return }
+        inputText = draft.suggestedDraftText
+    }
 
     /// 是否处于真正的空会话（历史消息加载完成且无消息）。
     /// 用于区分「加载中的假空」与「加载完成的真空」，避免空状态 UI 闪烁出现又消失。

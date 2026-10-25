@@ -7,7 +7,7 @@ struct ThoughtOrganizationSettingsView: View {
     @AppStorage(ThoughtSemanticFeatureFlags.newTopicsKey) private var newTopics = true
     @AppStorage(ThoughtSemanticFeatureFlags.relatedKey) private var related = true
     private enum Destination: String, Identifiable {
-        case topics, tags, index, clear
+        case topics, tags, index, clear, aiScope
         var id: String { rawValue }
     }
     @State private var destination: Destination?
@@ -16,6 +16,8 @@ struct ThoughtOrganizationSettingsView: View {
     @State private var busy = false
     @State private var message: String?
     @State private var discoveryMessage: String?
+    /// 已开启「不参与 AI」的标签数（AI 参与范围入口行的右侧值）
+    @State private var excludedTagCount = 0
     /// 成果视角计数：已归类笔记数与可见主题数（与工程视角的索引/队列数互补）
     @State private var classifiedCount = 0
     @State private var topicCount = 0
@@ -36,6 +38,29 @@ struct ThoughtOrganizationSettingsView: View {
                         .accessibilityIdentifier("thoughts.settings.related")
                 } header: { Text("智能整理") } footer: {
                     Text("随手记录时，Holo 根据笔记内容把笔记归入已有主题，积累同一方向后自动形成新主题；这些功能默认开启，关闭后停止新的 AI 处理，已形成的主题和手动标签保留。处理时会将必要的脱敏正文和少量相关笔记交给 AI 服务核对；需要你已授予 HoloAI 数据处理授权。")
+                }
+                // AI 参与范围：隐私边界控制，独立成区不埋进管理列表（2026-10-21 标签级 AI 排除）
+                Section {
+                    Button {
+                        destination = .aiScope
+                    } label: {
+                        HStack {
+                            Label("AI 分析范围", systemImage: "checkmark.shield")
+                                .foregroundStyle(Color.primary)
+                            Spacer()
+                            Text(excludedTagCount > 0
+                                 ? "\(excludedTagCount) 个标签已排除"
+                                 : "未设置")
+                                .font(.holoCaption)
+                                .foregroundStyle(Color.holoTextSecondary)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.holoTextSecondary.opacity(0.6))
+                        }
+                    }
+                    .accessibilityIdentifier("thoughts.settings.aiScope.open")
+                } header: { Text("AI 参与范围") } footer: {
+                    Text("有些标签下的想法，可以只属于你自己。标记后它们不参与任何 AI 归类与分析。")
                 }
                 // 小屏适配：内容管理是固定高度的高频入口，必须排在会随整理数据长高的
                 // 「整理状态」之前——否则数据一多它就被推到折叠线以下，静止状态下页面
@@ -114,6 +139,7 @@ struct ThoughtOrganizationSettingsView: View {
                 case .tags: ThoughtTagManagementView()
                 case .index: NavigationStack { DeviceIntelligenceIndexView().holoSheetShell() }
                 case .clear: ModuleClearSheet(module: .thought)
+                case .aiScope: ThoughtAIScopeSettingsView()
                 }
             }
             .task {
@@ -135,6 +161,7 @@ struct ThoughtOrganizationSettingsView: View {
         }
         discoveryMessage = await ThoughtAutomaticTopicDiscovery.shared.statusMessage
         await refreshOutcomeCounts()
+        excludedTagCount = ThoughtRepository().countExcludedTags()
     }
 
     /// 成果计数（已归类笔记/可见主题）。数据量在数百条级，直接投影统计。

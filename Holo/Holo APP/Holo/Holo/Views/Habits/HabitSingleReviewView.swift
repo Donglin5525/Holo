@@ -33,6 +33,7 @@ struct HabitSingleReviewView: View {
     @State private var comparison: HabitPeriodComparison?
     /// 打卡型每周走势（方案A：打卡型第一次有走势图）
     @State private var weeklyTrend: (mode: HabitWeeklyTrendMode, bars: [HabitWeeklyBar])?
+    @State private var sourceRoute: HabitSourceRoute?
     @State private var rangeSheetShown = false
     @State private var editingRecord: RecordTarget?
     @State private var pendingDeleteRecord: HabitRecord?
@@ -76,6 +77,7 @@ struct HabitSingleReviewView: View {
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
             rebuild()
         }
+        .sheet(item: $sourceRoute) { route in HabitSourceDetailView(route: route) }
         .sheet(isPresented: $rangeSheetShown) { rangeSheet }
         .sheet(item: $editingRecord) { target in
             if let record = findRecord(target.recordId) {
@@ -120,6 +122,9 @@ struct HabitSingleReviewView: View {
             VStack(alignment: .leading, spacing: 0) {
                 headerHead(snapshot.info)
                 rangeChips
+                Button("记录明细与每日确认") {
+                    sourceRoute = HabitSourceRoute(habitID: habitId, start: snapshot.interval.start, endExclusive: snapshot.interval.end)
+                }.holoText(.supporting).frame(minHeight: 44).foregroundStyle(Color.holoToolAction)
                 if let comparison {
                     periodCompareCard(comparison, info: snapshot.info)
                         .padding(.top, 14)
@@ -757,8 +762,8 @@ struct HabitSingleReviewView: View {
                             Image(systemName: "clock.arrow.circlepath")
                                 .font(.system(size: 13))
                             Text(retro == .sign
-                                 ? String(localized: "补签这一天")
-                                 : String(localized: "补记这一天"))
+                                 ? String(localized: "补录这一天")
+                                 : String(localized: "补录这一天"))
                         }
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(Color(hex: snapshot.info.colorHex))

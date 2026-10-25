@@ -120,7 +120,9 @@ nonisolated final class ThoughtCategoryBriefMaintainer: @unchecked Sendable {
         await context.perform {
             guard let topic = Topic.resolveValid(id: topicID, in: context) else { return nil }
             let memberRequest = Thought.fetchRequest()
-            memberRequest.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO AND ANY topicLinks.topic.id == %@", topicID as CVarArg)
+            // 成员样本正文会上传：排除「不参与 AI」标签的想法
+            memberRequest.predicate = ThoughtAIAudience.aiVisible(
+                NSPredicate(format: "deletedAt == nil AND isArchived == NO AND ANY topicLinks.topic.id == %@", topicID as CVarArg))
             let members = ((try? context.fetch(memberRequest)) ?? []).filter {
                 ThoughtTopicLinkProjection.isEffectiveMember($0, of: topic)
             }
@@ -150,7 +152,9 @@ nonisolated final class ThoughtCategoryBriefMaintainer: @unchecked Sendable {
             let rejectedLinks = (try? context.fetch(removalRequest)) ?? []
             var removalSamples: [(String, String)] = []
             for link in rejectedLinks {
-                guard let thought = link.thought, !thought.isSoftDeleted else { continue }
+                // 移出反证同样上传正文：历史 rejected 的想法若已带排除标签，不再外泄
+                guard let thought = link.thought, !thought.isSoftDeleted,
+                      !ThoughtAIAudience.isExcluded(thought) else { continue }
                 let content = thought.content as String?
                 guard let content, !content.isEmpty else { continue }
                 let text = ThoughtSemanticText.prefix(ThoughtIndexV2Policy.redactedText(forUpload: content), maxUTF16: 240)

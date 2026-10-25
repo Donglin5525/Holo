@@ -73,6 +73,7 @@ struct FinanceView: View {
     /// 顶部切换条选中胶囊的滑动命名空间
     @Namespace private var financeTabNamespace
     @State private var showAddTransaction: Bool = false
+    @State private var showAddAccount: Bool = false
     /// Cmd+F 触发计数：切到账本 Tab 并转发给 FinanceLedgerView 打开搜索
     @State private var searchTrigger: Int = 0
     @State private var deepLinkedTransaction: Transaction?
@@ -134,7 +135,10 @@ struct FinanceView: View {
                     } else {
                         switch selectedTab {
                         case .accounts:
-                            AccountListView(onBack: { close() })
+                            AccountListView(
+                                onBack: { close() },
+                                externalAddRequest: $showAddAccount
+                            )
                         case .analysis:
                             FinanceAnalysisView(
                                 state: analysisState,
@@ -373,10 +377,15 @@ struct FinanceView: View {
         .zIndex(40)
     }
 
-    /// 悬浮「记一笔」按钮：浮在 Tab 栏上方右下角，任意页面均可触发
+    /// 悬浮新增按钮：账本页=记一笔；账户页=添加账户（此前账户页的 FAB 也弹记一笔，
+    /// 「添加账户」却藏在导航栏小「+」里，2026-10-21 拍板按页签分语义）
     private var addTransactionFAB: some View {
         Button {
-            showAddTransaction = true
+            if selectedTab == .accounts {
+                showAddAccount = true
+            } else {
+                showAddTransaction = true
+            }
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 24, weight: .semibold))
@@ -387,7 +396,8 @@ struct FinanceView: View {
                 .shadow(color: Color.holoPrimary.opacity(0.4), radius: 10, x: 0, y: 4)
         }
         .buttonStyle(PlainButtonStyle())
-        .accessibilityIdentifier("finance.fab.addTransaction")
+        .accessibilityIdentifier(selectedTab == .accounts ? "finance.fab.addAccount" : "finance.fab.addTransaction")
+        .accessibilityLabel(selectedTab == .accounts ? Text("添加账户") : Text("记一笔"))
         .padding(.trailing, 20)
         // 吸底 Tab 栏在位时抬高避开（88pt）；顶部切换条形态（v2 expanded）贴底即可
         .padding(.bottom, isExpandedWidth ? 24 : 104)

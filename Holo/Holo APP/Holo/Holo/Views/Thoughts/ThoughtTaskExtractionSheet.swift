@@ -56,6 +56,9 @@ struct ThoughtTaskExtractionSheet: View {
     /// 是否来自"选中文字转化"（影响顶部说明文案）
     private let isFromSelection: Bool
 
+    /// 源想法命中「不参与 AI」标签：AI 智能识别按钮不显示（口径二一刀切）
+    private let isAIExcluded: Bool
+
     /// 是否正在批量创建
     @State private var isCreating = false
 
@@ -78,6 +81,7 @@ struct ThoughtTaskExtractionSheet: View {
         content: String,
         sourceThought: Thought,
         isFromSelection: Bool = false,
+        isAIExcluded: Bool = false,
         visibleSourceText: String? = nil,
         sourceRange: NSRange? = nil,
         onDismiss: @escaping () -> Void,
@@ -86,6 +90,7 @@ struct ThoughtTaskExtractionSheet: View {
         self.sourceThought = sourceThought
         self.rawContent = content
         self.isFromSelection = isFromSelection
+        self.isAIExcluded = isAIExcluded
         self.visibleSourceText = visibleSourceText
         self.onDismiss = onDismiss
         self.onCreated = onCreated
@@ -118,7 +123,7 @@ struct ThoughtTaskExtractionSheet: View {
                         .font(.holoBody)
                         .foregroundColor(.holoTextSecondary)
                 }
-                if !isFromSelection {
+                if !isFromSelection && !isAIExcluded {
                     ToolbarItem(placement: .principal) {
                         Button {
                             Task { await runAIExtraction() }

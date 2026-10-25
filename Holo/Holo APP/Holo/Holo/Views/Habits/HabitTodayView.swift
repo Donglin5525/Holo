@@ -597,7 +597,7 @@ private struct RetroactiveHabitPicker: View {
 
     /// 实际动作按既有资格区分（V2 §5.2：入口统一叫补录，动作再分补签/补记）
     private func actionText(_ row: HabitRowSnapshot) -> String {
-        row.kind == .checkIn ? String(localized: "补签") : String(localized: "补记")
+        String(localized: "补录")
     }
 }
 

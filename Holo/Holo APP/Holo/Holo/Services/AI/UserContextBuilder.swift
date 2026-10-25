@@ -358,7 +358,8 @@ final class UserContextBuilder {
     private func buildThoughtSummary() -> ThoughtSummary {
         do {
             let repo = ThoughtRepository()
-            let thoughts = try repo.fetchAll(limit: 5)
+            // fetchAll 同时服务 UI 与 AI，AI 侧取数后过滤「不参与 AI」标签的想法（连条数都不给 AI）
+            let thoughts = ThoughtAIAudience.aiVisibleOnly(try repo.fetchAll(limit: 5))
 
             var recentList: [String] = []
             for thought in thoughts {
@@ -366,7 +367,7 @@ final class UserContextBuilder {
                 recentList.append(prefix)
             }
 
-            let allThoughts = try repo.fetchAll()
+            let allThoughts = ThoughtAIAudience.aiVisibleOnly(try repo.fetchAll())
             return ThoughtSummary(
                 recentThoughts: recentList,
                 totalThoughts: allThoughts.count

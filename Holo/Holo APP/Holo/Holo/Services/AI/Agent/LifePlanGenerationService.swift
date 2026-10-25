@@ -51,7 +51,8 @@ final class LifePlanGenerationService {
             ]))),
             ("想法", count("Thought", NSCompoundPredicate(andPredicateWithSubpredicates: [
                 NSPredicate(format: "createdAt > %@", weekAgo),
-                NSPredicate(format: "deletedAt == nil")
+                NSPredicate(format: "deletedAt == nil"),
+                ThoughtAIAudience.aiVisiblePredicate()
             ])))
         ]
         let activeDomains = domains.filter { $0.count > 0 }

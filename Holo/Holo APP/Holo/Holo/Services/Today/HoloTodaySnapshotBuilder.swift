@@ -437,11 +437,16 @@ enum HoloTodaySnapshotBuilder {
         let healthRepo = HealthRepository.shared
         let visibleHabitIDs = HabitStatsDisplaySettings.shared.dashboardVisibleHabitIds
         let activeHabits = habitRepo.activeHabits.filter { !$0.isArchived }
+        let projection = HabitPresentationProjector.buildData(records: habitRepo.allRecordFacts(),
+            pauseWindowsByHabit: habitRepo.pauseWindowsByIds(activeHabits.map(\.id)),
+            dayEndMinutesByHabit: Dictionary(activeHabits.map { ($0.id, $0.dayEndMinutes) }, uniquingKeysWith: { first, _ in first }),
+            now: referenceTime)
         var habitRows: [HoloTodayHabitRow] = []
         var habitCompleted = 0
         var habitTotal = 0
         for habit in activeHabits {
-            let isDone = habitRepo.isTodayCompleted(for: habit)
+            let row = HabitPresentationProjector.rowSnapshot(habit: habit, lifecycle: .active, data: projection)
+            let isDone = row.today.isRecorded
             let displayList = visibleHabitIDs
             if !displayList.isEmpty && habit.isCheckInType && !displayList.contains(habit.id) { continue }
             if habit.isCheckInType {
@@ -453,20 +458,17 @@ enum HoloTodaySnapshotBuilder {
                         isNegative: habit.isBadHabit, isMeasurable: false, progressText: nil
                     ))
                 }
-            } else if habit.isMeasureType {
-                let value = habitRepo.getTodayValue(for: habit)
-                let target = habit.targetValue?.doubleValue
-                if target != nil && !habit.isBadHabit {
+            } else if habit.isNumericType {
+                let value = row.today.todayValue
+                if !habit.isBadHabit {
                     habitTotal += 1
-                    if let value, let target, value >= target { habitCompleted += 1 }
+                    if row.today.isRecorded { habitCompleted += 1 }
                 }
-                if value == nil {
-                    habitRows.append(HoloTodayHabitRow(
-                        id: habit.id, name: habit.name, isDone: false,
-                        isNegative: habit.isBadHabit, isMeasurable: true,
-                        progressText: target.map { "0/\(Int($0))\(habit.unitText)" }
-                    ))
-                }
+                habitRows.append(HoloTodayHabitRow(
+                    id: habit.id, name: habit.name, isDone: value != nil,
+                    isNegative: habit.isBadHabit, isMeasurable: true,
+                    progressText: value.map { HabitPresentationProjector.formatValue($0) + habit.unitText } ?? String(localized: "待记录")
+                ))
             }
         }
         let routine = HoloTodayRoutineSummary(

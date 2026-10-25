@@ -544,6 +544,43 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         }
     }
 
+    /// 标签级 AI 排除（2026-10-21 方案）：删除由指定想法派生的记忆。
+    /// 口径「证据含排除想法即删」：thought 域证据命中直接删；跨域融合记录的 evidenceRefs
+    /// 可能不含想法 UUID，但上游记忆被删后 upstreamMemoryIDs 悬空，一并删除，
+    /// 由观察器从剩余想法重新沉淀。排除语义（隐私）优先于记忆保留。
+    /// - Returns: 实际删除条数
+    @discardableResult
+    func deleteRecordsDerived(fromThoughtIDs thoughtIDs: Set<String>) async throws -> Int {
+        guard !thoughtIDs.isEmpty else { return 0 }
+        return try await withMutationLock {
+            let records = try await query(.all)
+            let normalizedKeys = Set(thoughtIDs.map { $0.lowercased() })
+            func referencesExcludedThought(_ record: HoloMemoryRecord) -> Bool {
+                record.evidenceRefs.contains { ref in
+                    guard ref.sourceDomain == .thought else { return false }
+                    if let sourceID = ref.sourceID, normalizedKeys.contains(sourceID.lowercased()) { return true }
+                    return ref.lineageKey.lowercased().hasPrefix("thought:")
+                        && normalizedKeys.contains(String(ref.lineageKey.dropFirst("thought:".count)).lowercased())
+                }
+            }
+            var deletedIDs = Set(records.filter(referencesExcludedThought).map(\.id))
+            // 级联：跨域融合记录引用了被删上游
+            for record in records where record.scope == .crossDomain && !deletedIDs.contains(record.id) {
+                if !Set(record.upstreamMemoryIDs).isDisjoint(with: deletedIDs) {
+                    deletedIDs.insert(record.id)
+                }
+            }
+            var deleted = 0
+            for id in deletedIDs {
+                if let stored = try await fetchStored(id: id) {
+                    try await deletePersistedRecord(id: id, from: stored.storage)
+                    deleted += 1
+                }
+            }
+            return deleted
+        }
+    }
+
     func replaceRecordForMigration(_ record: HoloMemoryRecord) async throws {
         do {
             try record.validate()

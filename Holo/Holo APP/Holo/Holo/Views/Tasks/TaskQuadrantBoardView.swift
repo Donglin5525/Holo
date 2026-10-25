@@ -570,6 +570,8 @@ struct TaskQuadrantRulesSheet: View {
                 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.md)
+                // 半屏 detent 装不下全部内容：底部让位让末段能完整滚出（8 处贴底联动之一）
+                .padding(.bottom, HoloSpacing.xl)
             }
             .navigationTitle(String(localized: "象限规则"))
             .navigationBarTitleDisplayMode(.inline)
@@ -579,6 +581,6 @@ struct TaskQuadrantRulesSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 }

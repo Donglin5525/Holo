@@ -34,7 +34,7 @@ struct OnboardingWelcomePage: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                     VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                        Text("希望我怎么称呼你？（选填）")
+                        Text("希望我怎么称呼你？（可选）")
                             .font(.holoCaption)
                             .foregroundColor(.holoTextSecondary)
 

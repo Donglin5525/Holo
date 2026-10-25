@@ -60,7 +60,8 @@ struct AddProjectSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭"))
                         .foregroundColor(.holoToolTextSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -196,7 +197,7 @@ struct AddProjectSheet: View {
 
     private var budgetSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("预算（选填）")
+            Text("预算（可选）")
                 .font(.holoLabel)
                 .foregroundColor(.holoToolTextSecondary)
 

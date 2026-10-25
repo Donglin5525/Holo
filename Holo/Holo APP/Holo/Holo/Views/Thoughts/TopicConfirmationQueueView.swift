@@ -122,27 +122,17 @@ struct TopicConfirmationQueueView: View {
                     pickerThoughtId = thought.id
                 } label: {
                     Text("换一个")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.holoNestedCardBackground)
-                        .cornerRadius(HoloRadius.md)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoloActionStyle(role: .secondary))
 
                 Button {
                     confirmPlacement(thought)
                 } label: {
                     Text("放这里")
-                        .font(.holoBody)
-                        .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.holoSuccess)
-                        .cornerRadius(HoloRadius.md)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoloActionStyle(role: .primary))
             }
         }
         .padding(HoloSpacing.md)
@@ -219,7 +209,7 @@ struct TopicConfirmationQueueView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 44))
-                .foregroundColor(.holoSuccess.opacity(0.8))
+                .foregroundColor(.holoSuccessText)
             Text("都确认完了")
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)

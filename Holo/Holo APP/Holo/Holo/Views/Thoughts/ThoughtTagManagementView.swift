@@ -29,6 +29,11 @@ struct ThoughtTagManagementView: View {
     @State private var unrecognizedAINames: [String] = []
     @State private var assignmentCounts: [String: Int] = [:]
     @State private var recognizedKeys: Set<String> = []
+    /// 标签级 AI 排除（2026-10-21）：归一化 key → 标签实体 id；已排除的 key 集合（仅「我的标签」提供）
+    @State private var aiScopeTagIDs: [String: UUID] = [:]
+    @State private var excludedTagKeys: Set<String> = []
+    /// 待确认开启排除的标签（弹确认，与「AI 分析范围」子页同文案）
+    @State private var aiScopePending: (tagID: UUID, name: String)? = nil
 
     /// 待执行改名/合并的标签（弹输入框）
     @State private var renameTarget: String? = nil
@@ -98,6 +103,12 @@ struct ThoughtTagManagementView: View {
             } message: {
                 Text("将影响 \(deleteAffectedCount) 条想法的标签关联；原文与手动标签不受影响，AI 也不会立即再建回。")
             }
+            .alert("把「\(aiScopePending?.name ?? "")」留给自己？", isPresented: aiScopeBinding) {
+                Button("暂不", role: .cancel) { aiScopePending = nil }
+                Button("开启排除") { applyAIScopeExclusion() }
+            } message: {
+                Text("带「\(aiScopePending?.name ?? "")」标签的想法将退出所有 AI 处理：不归类主题、不打自动标签、不进洞察与复盘——AI 不会知道它们的存在。\n\n已有的 AI 归类会一并撤下，随时可以关闭恢复。")
+            }
             .overlay(alignment: .bottom) {
                 if let notice {
                     Text(notice)
@@ -120,13 +131,24 @@ struct ThoughtTagManagementView: View {
 
     private func tagRow(_ name: String) -> some View {
         let display = ThoughtTagNormalizer.displayName(name)
-        let count = assignmentCounts[ThoughtTagNormalizer.key(name)] ?? 0
+        let key = ThoughtTagNormalizer.key(name)
+        let count = assignmentCounts[key] ?? 0
+        let aiExcluded = segment == .mine && excludedTagKeys.contains(key)
         return HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("#\(display)")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-                Text(count > 0 ? String(localized: "\(count) 条想法") : String(localized: "未使用"))
+                HStack(spacing: 5) {
+                    Text("#\(display)")
+                        .font(.holoBody)
+                        .foregroundColor(aiExcluded ? Color.holoAIShieldTint : .holoTextPrimary)
+                    if aiExcluded {
+                        Image(systemName: "checkmark.shield.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Color.holoAIShieldTint)
+                    }
+                }
+                Text(aiExcluded
+                     ? String(localized: "\(count) 条想法 · 已排除出 AI 分析")
+                     : (count > 0 ? String(localized: "\(count) 条想法") : String(localized: "未使用")))
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
@@ -139,11 +161,27 @@ struct ThoughtTagManagementView: View {
                         Label("确认采用", systemImage: "checkmark")
                     }
                 }
+                // 标签级 AI 排除：仅「我的标签」提供（排除判定只认用户关联，AI 建议标签给了也永不生效）
+                if segment == .mine, let tagID = aiScopeTagIDs[key] {
+                    if aiExcluded {
+                        Button {
+                            setAIExcluded(tagID: tagID, excluded: false)
+                        } label: {
+                            Label("恢复参与 AI 分析", systemImage: "arrow.uturn.backward.circle")
+                        }
+                    } else {
+                        Button {
+                            aiScopePending = (tagID, display)
+                        } label: {
+                            Label("不参与 AI 分析", systemImage: "checkmark.shield")
+                        }
+                    }
+                }
                 Button {
                     renameTarget = name
                     renameText = display
                 } label: {
-                        Label(segment == .mine ? String(localized: "改名") : String(localized: "改名后采用"), systemImage: "pencil")
+                    Label(segment == .mine ? String(localized: "改名") : String(localized: "改名后采用"), systemImage: "pencil")
                 }
                 if segment == .aiSuggested, !recognizedNames.isEmpty {
                     Menu {
@@ -243,6 +281,38 @@ struct ThoughtTagManagementView: View {
             }
         }
         assignmentCounts = counts
+        // 标签级 AI 排除：key → 实体 id 与已排除集合（菜单盾牌项与名称着色用）
+        let scopeTags = repository.fetchUserTagsForAIScope()
+        var idsByKey: [String: UUID] = [:]
+        var excluded: Set<String> = []
+        for info in scopeTags {
+            let key = ThoughtTagNormalizer.key(info.tag.name)
+            idsByKey[key] = info.tag.id
+            if info.tag.excludeFromAI { excluded.insert(key) }
+        }
+        aiScopeTagIDs = idsByKey
+        excludedTagKeys = excluded
+    }
+
+    /// 标签级 AI 排除开关；开启走确认弹窗，关闭直接生效
+    private func setAIExcluded(tagID: UUID, excluded: Bool) {
+        Task {
+            _ = await ThoughtAIExclusionService.shared.setTagExcluded(tagID: tagID, excluded)
+            loadData()
+            notice = excluded
+                ? String(localized: "已退出 AI 分析，已有的 AI 归类正在撤下")
+                : String(localized: "已恢复参与 AI，稍后自动归类")
+        }
+    }
+
+    private func applyAIScopeExclusion() {
+        guard let pending = aiScopePending else { return }
+        aiScopePending = nil
+        setAIExcluded(tagID: pending.tagID, excluded: true)
+    }
+
+    private var aiScopeBinding: Binding<Bool> {
+        Binding(get: { aiScopePending != nil }, set: { if !$0 { aiScopePending = nil } })
     }
 
     private var renameBinding: Binding<Bool> {

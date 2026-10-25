@@ -51,6 +51,8 @@ struct HabitReminderDetailView: View {
             }
             .padding(.horizontal, HoloSpacing.md)
             .padding(.vertical, HoloSpacing.sm)
+            // 半屏底部让位：规则说明末段在 medium 档能完整滚出
+            .padding(.bottom, HoloSpacing.xl)
         }
         .background(Color.holoBackground)
         .navigationTitle("习惯打卡提醒")

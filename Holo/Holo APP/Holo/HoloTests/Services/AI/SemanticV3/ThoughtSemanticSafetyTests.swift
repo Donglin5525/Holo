@@ -271,6 +271,33 @@ final class ThoughtSemanticSafetyTests: XCTestCase {
         XCTAssertTrue(keys.contains("\(other.topicID.uuidString):3"))
     }
 
+    /// 完整指纹读写一致，空结果也算完成；类别理解升版后才恢复重评。
+    func testCategoryBriefEvaluationReceiptPreventsRequeue() async throws {
+        let (store, root) = try await makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let topicID = UUID()
+        let thoughtID = UUID()
+        let catalog = "thought_semantic_v3.2:catalog:live"
+        var brief = ThoughtSemanticStore.CategoryBriefRecord(topicID: topicID, version: 1,
+            definition: "个人观察", exclusions: [], basisMemberCount: 5,
+            basisRemovalCount: 0, updatedAt: Date())
+        try await store.saveCategoryBrief(brief)
+        let version = try await store.relationEvaluationVersion(catalogVersion: catalog)
+        XCTAssertEqual(version, catalog + ":brief=\(topicID.uuidString):1")
+        try await store.recordRelationCandidate(thoughtID: thoughtID, topicID: thoughtID,
+            contentHash: "same-text", scoreFeatures: "{}", verifierResult: "no_match",
+            state: "evaluated", engineVersion: version, expiryDays: 14)
+        let alreadyEvaluated = try await store.hasRelationRecord(thoughtID: thoughtID,
+            contentHash: "same-text", evaluationVersion: catalog)
+        XCTAssertTrue(alreadyEvaluated, "成功的空结果也不能反复排队")
+        brief.version = 2
+        try await store.saveCategoryBrief(brief)
+        let needsReevaluation = try await store.hasRelationRecord(thoughtID: thoughtID,
+            contentHash: "same-text", evaluationVersion: catalog)
+        XCTAssertFalse(needsReevaluation, "类别理解升版后仍须按新口径重评")
+        await store.close()
+    }
+
     /// 响应二次校验：证据逐字回源才放行；伪 quote / 越界定义 / 空 evidence 拒绝。
     func testBriefValidatedContentContract() {
         let request = ThoughtCategoryBriefClient.makeRequest(

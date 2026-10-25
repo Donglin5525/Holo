@@ -81,6 +81,7 @@ extension AddTransactionSheet {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -133,6 +134,7 @@ extension AddTransactionSheet {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("transactionSheet.receiptRow")
@@ -172,6 +174,7 @@ extension AddTransactionSheet {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("transactionSheet.projectRow")
@@ -210,6 +213,7 @@ extension AddTransactionSheet {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -260,6 +264,7 @@ extension AddTransactionSheet {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -291,7 +296,7 @@ extension AddTransactionSheet {
                     .scrollContentBackground(.hidden)
 
                 if remark.isEmpty {
-                    Text("添加补充备注（选填）...")
+                    Text("添加补充备注（可选）…")
                         .font(.system(size: 15))
                         .foregroundColor(.holoTextSecondary.opacity(0.5))
                         .padding(.horizontal, 5)

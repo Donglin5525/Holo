@@ -339,6 +339,17 @@ final class HoloReplayDigestService {
                 return try parseConsolidateOutput(raw: raw, previous: oldDigest)
             } catch is CancellationError {
                 throw CancellationError()
+            } catch let error as APIError {
+                // 预算端到端修复（报告理解方案 B03）：预算拒绝(429)/版本闸门(426)不得
+                // 回落直调——直调同受预算约束，回落=换轨道绕过；摘要延后由下次回放补。
+                switch error {
+                case .rateLimited:
+                    throw error
+                case .backendError(let statusCode, _, _, _) where statusCode == 429 || statusCode == 426:
+                    throw error
+                default:
+                    Self.logger.error("云端摘要归纳失败，回落直调：\(String(describing: error), privacy: .public)")
+                }
             } catch {
                 Self.logger.error("云端摘要归纳失败，回落直调：\(String(describing: error), privacy: .public)")
             }
@@ -394,6 +405,11 @@ final class HoloReplayDigestService {
                 Self.logger.info("云端摘要已领取并回执销毁 taskId=\(started.taskId, privacy: .public)")
                 return output
             case "failed", "cancelled", "expired":
+                // 预算拒绝经失败原因携带错误码回传：不回落直调（B03），由下次回放补
+                if let reason = status.failureReason,
+                   reason.contains("BACKGROUND_BUDGET_EXCEEDED") || reason.contains("BACKGROUND_CLIENT_UPDATE_REQUIRED") {
+                    throw APIError.rateLimited(reason)
+                }
                 throw APIError.serverError("云端摘要任务终态=\(status.status)")
             default:
                 try? await Task.sleep(for: .seconds(Self.cloudDigestPollInterval))

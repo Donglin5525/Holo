@@ -283,7 +283,8 @@ struct SpendingProjectEndConditionSheet: View {
             .toolbarBackground(Color.holoBackground, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭")) }
                 ToolbarItem(placement: .confirmationAction) { Button("保存") { save() } }
                 // 数字键盘没有「完成」按钮，这里在键盘正上方提供一个
                 ToolbarItemGroup(placement: .keyboard) {
@@ -364,7 +365,8 @@ struct SpendingProjectOneOffEditorSheet: View {
             .toolbarBackground(Color.holoBackground, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭")) }
                 ToolbarItem(placement: .confirmationAction) { Button("保存") { save() } }
                 // 数字键盘没有「完成」按钮，这里在键盘正上方提供一个
                 ToolbarItemGroup(placement: .keyboard) {
@@ -445,7 +447,8 @@ struct AddSpendingProjectSheet: View {
             .navigationTitle("添加固定支出")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭")) }
                 ToolbarItem(placement: .confirmationAction) { Button("保存") { save() }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || Decimal(string: amount) == nil) }
             }
             .presentationBackground(Color.holoBackground)

@@ -27,7 +27,6 @@ struct ThoughtCardView: View {
         /// 顶部/正文/底部三区块间距
         static let sectionSpacing: CGFloat = 12
         /// 主题弱徽章字色强度（绿=主题语义，降强度不当强调色用）
-        static let topicBadgeTintOpacity: Double = 0.75
         /// 标签 chip 底色透明度（统一值，前景仍用用户自选色）
         static let tagChipBackgroundOpacity: Double = 0.08
     }
@@ -184,6 +183,14 @@ struct ThoughtCardView: View {
             Spacer()
 
             ThoughtStyleSignature(style: thought.appearanceStyle)
+
+            // 标签级 AI 排除：淡金盾牌角标（提示而不喧宾，2026-10-21 方案画板⑤）
+            if ThoughtAIAudience.isExcluded(thought) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.holoAIShieldTint)
+                    .accessibilityLabel(String(localized: "不参与 AI"))
+            }
 
             // V3 新 UI：AI 整理状态（整理中/待确认/失败）不进主路径
             if !ThoughtSemanticFeatureFlags.uiEnabled {
@@ -436,9 +443,10 @@ struct ThoughtCardView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
-            .foregroundColor(Color.holoSuccess.opacity(Metrics.topicBadgeTintOpacity))
+            .foregroundColor(Color.holoSuccessText)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
+            .frame(minHeight: 28)
             .background(Color.holoSuccess.opacity(0.09))
             .cornerRadius(HoloRadius.sm)
             .fixedSize(horizontal: false, vertical: true)
@@ -507,6 +515,8 @@ struct ThoughtCardView: View {
             // 展示叶段名（路径是存储结构，不进 UI 文案）；筛选仍用完整路径。
             // 有 emoji 图标时以图标代替 # 前缀，无 emoji 恢复 # 前缀（2026-09-26 R0 冒烟修复）
             let emoji = ThoughtTagEmojiStore.emoji(forKey: tag.name)
+            // 排除标签转淡金盾系配色（2026-10-21 标签级 AI 排除）
+            let chipColor = tag.excludeFromAI ? Color.holoAIShieldTint : tag.tagColor
             HStack(spacing: 3) {
                 if let emoji {
                     Text(emoji)
@@ -515,12 +525,16 @@ struct ThoughtCardView: View {
                 } else {
                     Text("#\(ThoughtTagNormalizer.lastSegment(tag.name))")
                 }
+                if tag.excludeFromAI {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                }
             }
                 .holoText(.metadata)
-                .foregroundColor(tag.tagColor)
+                .foregroundColor(chipColor)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(tag.tagColor.opacity(Metrics.tagChipBackgroundOpacity))
+                .background(chipColor.opacity(Metrics.tagChipBackgroundOpacity))
                 .cornerRadius(HoloRadius.sm)
                 .fixedSize(horizontal: true, vertical: false)
         }
@@ -541,8 +555,8 @@ struct ThoughtCardView: View {
                     .foregroundColor(.holoToolTextSecondary)
 
                 Text("AI")
-                    .font(.system(size: 8, weight: .semibold))
-                    // 8pt 微标不做半透明降档：深色下会跌破可读线
+                    .font(.system(size: 10, weight: .semibold))
+                    // 微标不做半透明降档：深色下会跌破可读线
                     .foregroundColor(.holoToolTextSecondary)
             }
             .padding(.horizontal, 8)
@@ -706,8 +720,9 @@ private struct ThoughtCardStatusBadge: View {
                 .font(.holoTinyLabel)
         }
         .foregroundColor(status.color)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .frame(minHeight: 28)
         .background(status.color.opacity(0.1))
         .clipShape(Capsule())
         // iOS 26 plain 按钮会把命中区收缩到文字内容：显式声明热区=可视胶囊

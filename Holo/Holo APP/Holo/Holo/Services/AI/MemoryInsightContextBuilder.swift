@@ -1055,7 +1055,10 @@ struct MemoryInsightContextBuilder {
 
         do {
             let filters = ThoughtFilters(startDate: start, endDate: endDate)
-            let thoughts = try thoughtRepo.search(query: "", filters: filters)
+            // search 同时服务 UI 与 AI，AI 侧取数后过滤「不参与 AI」标签的想法（连条数都不给 AI）
+            let thoughts = ThoughtAIAudience.aiVisibleOnly(
+                try thoughtRepo.search(query: "", filters: filters)
+            )
             totalCount = thoughts.count
             recentSnippets = thoughts
                 .prefix(5)
@@ -1113,7 +1116,8 @@ struct MemoryInsightContextBuilder {
         )
         let thoughtCounts = thoughtRepo.getThoughtCountByDay(
             from: start,
-            to: endExclusive
+            to: endExclusive,
+            aiVisibleOnly: true
         )
 
         // 按天聚合逾期
@@ -2178,7 +2182,10 @@ struct MemoryInsightContextBuilder {
     ) {
         do {
             let filters = ThoughtFilters(startDate: start, endDate: end)
-            let thoughts = try thoughtRepo.search(query: "", filters: filters)
+            // search 同时服务 UI 与 AI，AI 侧取数后过滤「不参与 AI」标签的想法
+            let thoughts = ThoughtAIAudience.aiVisibleOnly(
+                try thoughtRepo.search(query: "", filters: filters)
+            )
             for thought in thoughts.prefix(10) {
                 guard !thought.content.isEmpty else { continue }
                 let tagNames = (thought.tags as? Set<ThoughtTag>)?.map(\.name) ?? []

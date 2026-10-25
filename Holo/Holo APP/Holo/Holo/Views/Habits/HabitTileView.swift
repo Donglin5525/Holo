@@ -722,7 +722,7 @@ struct HabitTileView: View {
                 Button {
                     retroContext = HabitRetroactiveSheetContext(habit: habit, preselectedDay: nil)
                 } label: {
-                    Label("补签漏卡", systemImage: "arrow.counterclockwise.circle")
+                    Label("补录漏卡", systemImage: "arrow.counterclockwise.circle")
                 }
 
                 Divider()

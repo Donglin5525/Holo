@@ -26,7 +26,14 @@ enum HoloLongTermMemoryCandidateObserver {
         ) { notification in
             guard let insightID = notification.userInfo?["insightID"] as? String,
                   let cards = notification.userInfo?["cards"] as? [[String: Any]] else { return }
-            extractCandidates(from: insightID, cards: cards)
+            // 写入权切换（报告融合理解方案 §九）：新链路已拥有该回放时旧链路跳过，
+            // 禁止双写晋升。两链路开关同时开启才可能命中。
+            Task.detached(priority: .utility) {
+                if await HoloReportUnderstandingCoordinator.ownsReplay(insightID: insightID) {
+                    return
+                }
+                extractCandidates(from: insightID, cards: cards)
+            }
         }
     }
 

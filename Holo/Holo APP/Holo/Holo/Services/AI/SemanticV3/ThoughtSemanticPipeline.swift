@@ -100,6 +100,7 @@ actor ThoughtSemanticPipeline {
         if heartbeatTask == nil {
             startQueueHeartbeat()
         }
+        try? await store.restampStalePendingJobs(to: await MainActor.run { ThoughtSemanticFeatureFlags.consentGeneration })
         await ThoughtSemanticEmbeddingExecutor.shared.processBatch(store: store, index: index)
         await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
         await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
@@ -110,6 +111,9 @@ actor ThoughtSemanticPipeline {
         guard let store, let index, heartbeatTask == nil else { return }
         heartbeatTask = Task {
             while !Task.isCancelled {
+                // 代数自愈（2026-10-19）：改设置开关产生的旧代数 pending 任务恢复可领
+                //（详见 restampStalePendingJobs 注释），历史僵尸随节拍自动复活。
+                try? await store.restampStalePendingJobs(to: await MainActor.run { ThoughtSemanticFeatureFlags.consentGeneration })
                 // 谷时段门控（2026-10-09 降本）：高峰期只保持节拍不消费队列，谷窗自动续跑；
                 // 设置页 kickQueue（用户手动加速）不经此门。
                 if HoloAIWindowPolicy.isValleyWindow() {
