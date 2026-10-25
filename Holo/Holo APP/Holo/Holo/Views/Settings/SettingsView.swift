@@ -2,8 +2,12 @@
 //  SettingsView.swift
 //  Holo
 //
-//  设置页面 - 包含深色模式等设置项
-//  从首页右上角人头像按钮进入
+//  设置页面 - 2026-10-25 规整（原型契约：docs/_common/plans/2026-10-25-设置页规整/）：
+//  11 个分组收敛为 5 组 + 底部孤立危险区——AI 与记忆 / 数据与同步 / 隐私与安全 / 通用。
+//  低频项收进二级页（外观三选一、AI 回放开关、iCloud、日历），
+//  政策文档与「重看引导/笔记」归入关于页，缓存管理归入数据管理页。
+//  宽屏（expanded 档）双栏：左侧分组导航（含用户信息卡 + 底部危险区入口），右侧渲染所选分组；
+//  窄屏/iPhone 单列长滚动。
 //
 
 import SwiftUI
@@ -14,44 +18,35 @@ import AuthenticationServices
 // MARK: - SettingsView
 
 /// 设置页面
-/// 宽屏（expanded 档）双栏：左侧分组导航（含用户信息卡），右侧只渲染所选分组；
-/// 窄屏/iPhone 维持单列长滚动（v2 规划「左分组导航右内容」）。
 struct SettingsView: View {
 
-    /// 设置分组：与单列滚动的 section 一一对应，双栏左列的导航项
-    private enum SettingsSection: String, CaseIterable, Identifiable {
-        case darkMode, iCloudSync, calendar, aiOrganization, aiPlayback
-        case storage, privacySecurity, legal, accountData, other
+    /// 设置分组：与单列滚动的 section 一一对应，双栏左列的导航项。
+    /// danger 不进常规导航——单列时孤立页面底部，双栏时左列底部固定红行（iOS 危险操作惯例）。
+    private enum SettingsSection: String, Identifiable {
+        case aiMemory, dataSync, privacySecurity, general, danger
 
         var id: String { rawValue }
 
+        /// 双栏左列常规导航项（不含 danger）
+        static let navCases: [SettingsSection] = [.aiMemory, .dataSync, .privacySecurity, .general]
+
         var title: String {
             switch self {
-            case .darkMode: return String(localized: "外观")
-            case .iCloudSync: return String(localized: "iCloud 同步")
-            case .calendar: return String(localized: "日历")
-            case .aiOrganization: return String(localized: "AI 整理")
-            case .aiPlayback: return String(localized: "AI 回放")
-            case .storage: return String(localized: "存储与缓存")
+            case .aiMemory: return String(localized: "AI 与记忆")
+            case .dataSync: return String(localized: "数据与同步")
             case .privacySecurity: return String(localized: "隐私与安全")
-            case .legal: return String(localized: "法律与隐私")
-            case .accountData: return String(localized: "账号与数据")
-            case .other: return String(localized: "其他")
+            case .general: return String(localized: "通用")
+            case .danger: return String(localized: "删除账号与数据")
             }
         }
 
         var icon: String {
             switch self {
-            case .darkMode: return "moon.fill"
-            case .iCloudSync: return "icloud.fill"
-            case .calendar: return "calendar"
-            case .aiOrganization: return "sparkles"
-            case .aiPlayback: return "waveform"
-            case .storage: return "internaldrive.fill"
+            case .aiMemory: return "sparkles"
+            case .dataSync: return "internaldrive.fill"
             case .privacySecurity: return "lock.shield.fill"
-            case .legal: return "doc.text.fill"
-            case .accountData: return "person.crop.circle.badge.clock"
-            case .other: return "ellipsis.circle"
+            case .general: return "gearshape"
+            case .danger: return "trash"
             }
         }
     }
@@ -77,10 +72,8 @@ struct SettingsView: View {
     // MARK: - Observed Objects
 
     @ObservedObject private var darkModeManager = DarkModeManager.shared
-    @ObservedObject private var insightSettings = MemoryInsightScheduleSettings.shared
     @ObservedObject private var iCloudSyncStatus = ICloudSyncStatusService.shared
     @ObservedObject private var authService = AppleSignInAuthService.shared
-    @ObservedObject private var storageService = StorageCacheService.shared
     @ObservedObject private var appLockSettings = AppLockSettings.shared
     @ObservedObject private var appLockManager = AppLockManager.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
@@ -95,11 +88,8 @@ struct SettingsView: View {
     @State private var showMatterV2Prototype = false
     @State private var showAIConsent = false
     @State private var showVoiceRecognitionSettings = false
-    @State private var showPrivacyPolicy = false
-    @State private var showTermsOfUse = false
     @State private var showHealthKitDiagnostics = false
     @State private var showSignOutConfirmation = false
-    @State private var showClearCacheAlert = false
     @State private var showDeleteAccountDataConfirmation = false
     @State private var isDeletingAccountData = false
     @State private var accountDataDeletionMessage: String?
@@ -111,8 +101,19 @@ struct SettingsView: View {
     @State private var appLockEnablePending = false
     @State private var showUserProfileEditor = false
 
+    // 规整后新增的二级页
+    @State private var showAppearancePage = false
+    @State private var showAIPlaybackPage = false
+    @State private var showICloudSyncPage = false
+    @State private var showCalendarPage = false
+
+    @State private var showThoughtOrganizationSettings = false
+    @State private var showNotificationSettings = false
+    @State private var showHoloAIUserSettings = false
+    @State private var showDataManagement: Bool = false
+
     // 宽屏双栏：当前选中的分组
-    @State private var selectedSection: SettingsSection = .darkMode
+    @State private var selectedSection: SettingsSection = .aiMemory
     @Environment(\.holoContentWidth) private var settingsWindowWidth
     private var isWideLayout: Bool { HoloAdaptiveLayout.isExpandedWidth(settingsWindowWidth) }
 
@@ -147,7 +148,6 @@ struct SettingsView: View {
         .task {
             await authService.refreshCredentialState()
             await iCloudSyncStatus.refreshAccountStatus()
-            await storageService.calculateCacheSize()
         }
         .alert("退出 Apple 登录？", isPresented: $showSignOutConfirmation) {
             Button("取消", role: .cancel) {}
@@ -187,62 +187,45 @@ struct SettingsView: View {
         }
     }
 
-    /// 单列长滚动（窄屏/iPhone 原样）
+    /// 单列长滚动（窄屏/iPhone）：用户卡 + 四组 + 底部孤立危险区
     private var settingsScroll: some View {
         ScrollView {
             VStack(spacing: HoloSpacing.lg) {
-                // 用户信息卡片（头像 + 昵称 + 账号状态；点头像区改资料）
                 userInfoCard
-
-                // 深色模式设置
-                darkModeSection
-
-                // iCloud 同步
-                SettingsICloudSyncSection()
-
-                // 日历（系统日历接入）
-                ScheduleSettingsSection()
-
-                // AI 整理设置
-                aiOrganizationSection
-
-                // AI 回放设置
-                aiPlaybackSection
-
-                // 存储与缓存
-                storageSection
-
-                // 隐私与安全
+                aiMemorySection
+                dataSyncSection
                 privacySecuritySection
-
-                // 法律与隐私
-                legalSection
-
-                // 账号与数据
-                accountDataSection
-
-                // 其他设置（占位）
-                otherSettingsSection
+                generalSection
+                dangerSection
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.vertical, HoloSpacing.md)
         }
     }
 
-    /// 宽屏左列：用户信息卡 + 分组导航
+    /// 宽屏左列：用户信息卡 + 分组导航 + 底部危险区入口
     private var settingsNavColumn: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: HoloSpacing.md) {
-                userInfoCard
+        VStack(spacing: 0) {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: HoloSpacing.md) {
+                    userInfoCard
 
-                VStack(spacing: 4) {
-                    ForEach(SettingsSection.allCases) { section in
-                        settingsNavRow(section)
+                    VStack(spacing: 4) {
+                        ForEach(SettingsSection.navCases) { section in
+                            settingsNavRow(section)
+                        }
                     }
                 }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, HoloSpacing.md)
             }
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.vertical, HoloSpacing.md)
+
+            Spacer(minLength: 0)
+
+            // 危险区固定左列底部：与单列「孤立最底」同语义
+            dangerNavRow
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, HoloSpacing.md)
         }
         .frame(width: 252)
     }
@@ -279,6 +262,39 @@ struct SettingsView: View {
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
+    /// 宽屏左列底部危险区行：红字，选中态与常规导航一致但用红系
+    private var dangerNavRow: some View {
+        let isSelected = selectedSection == .danger
+        return Button {
+            guard selectedSection != .danger else { return }
+            withAnimation(HoloAnimation.quick) {
+                selectedSection = .danger
+            }
+            HapticManager.light()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: SettingsSection.danger.icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(isSelected ? .holoToolError : .holoToolTextSecondary)
+                    .frame(width: 22)
+                Text(SettingsSection.danger.title)
+                    .font(.system(size: 14, weight: isSelected ? .semibold : .medium))
+                    .foregroundColor(isSelected ? .holoToolError : .holoToolTextSecondary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 40)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                    .fill(isSelected ? Color.holoError.opacity(0.10) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+    }
+
     /// 宽屏右栏：只渲染所选分组（id 重置滚动，切组从顶部开始读）
     private var selectedSectionPane: some View {
         ScrollView(showsIndicators: false) {
@@ -294,16 +310,26 @@ struct SettingsView: View {
     @ViewBuilder
     private func sectionBody(_ section: SettingsSection) -> some View {
         switch section {
-        case .darkMode: darkModeSection
-        case .iCloudSync: SettingsICloudSyncSection()
-        case .calendar: ScheduleSettingsSection()
-        case .aiOrganization: aiOrganizationSection
-        case .aiPlayback: aiPlaybackSection
-        case .storage: storageSection
+        case .aiMemory: aiMemorySection
+        case .dataSync: dataSyncSection
         case .privacySecurity: privacySecuritySection
-        case .legal: legalSection
-        case .accountData: accountDataSection
-        case .other: otherSettingsSection
+        case .general: generalSection
+        case .danger: dangerSection
+        }
+    }
+
+    // MARK: - 分组标题
+
+    private func sectionHeader(icon: String, title: String, color: Color = .holoPrimary) -> some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: icon)
+                .font(.system(size: 18))
+                .foregroundColor(color)
+
+            Text(title)
+                .holoText(.body)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoToolText)
         }
     }
 
@@ -403,26 +429,73 @@ struct SettingsView: View {
         return String(localized: "本机模式，登录后会检查 iCloud 云同步状态")
     }
 
-    // MARK: - 深色模式设置
+    // MARK: - AI 与记忆
 
-    private var darkModeSection: some View {
+    /// HoloAI 聚合设置 + 数据授权 + 想法整理 + AI 回放（原「AI 整理」「AI 回放」两组合并）
+    private var aiMemorySection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // 标题
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "moon.circle.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoPrimary)
+            sectionHeader(icon: "sparkles", title: "AI 与记忆")
 
-                Text("外观")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-            }
-
-            // 深色模式选项
             VStack(spacing: 0) {
-                ForEach(DarkModeSetting.allCases, id: \.self) { setting in
-                    darkModeOptionRow(setting)
+                // HoloAI 统一用户设置（2026-10-23「一个发现」随附）：一个发现/长期记忆/自动处理/数据与隐私
+                // 的聚合页；与 HoloAI 页右上角齿轮同一页面（01 §4 正式入口二）
+                SettingsNavRow(
+                    icon: "sparkle",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "HoloAI"),
+                    subtitle: String(localized: "一个发现 · 记忆 · 自动处理 · 数据与隐私")
+                ) {
+                    showHoloAIUserSettings = true
+                }
+                .sheet(isPresented: $showHoloAIUserSettings) {
+                    HoloAIUserSettingsView(
+                        discoveryState: DiscoveryCoordinator.shared.settingsDetailState,
+                        discoveryService: DiscoveryCoordinator.shared
+                    )
+                }
+
+                Divider().padding(.leading, 56)
+
+                // HoloAI 数据授权（全局 AI 授权，保留在系统设置）
+                SettingsNavRow(
+                    icon: "hand.raised.square",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "HoloAI 数据授权"),
+                    subtitle: HoloAIFeatureFlags.aiDataProcessingConsentGranted ? String(localized: "已授权，可随时撤回") : String(localized: "未授权，AI 功能暂停")
+                ) {
+                    showAIConsent = true
+                }
+                .sheet(isPresented: $showAIConsent) {
+                    NavigationStack {
+                        AIDataProcessingConsentView()
+                    }
+                }
+
+                Divider().padding(.leading, 56)
+
+                SettingsNavRow(
+                    icon: "lightbulb",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "想法设置"),
+                    subtitle: String(localized: "智能整理、主题与标签管理")
+                ) {
+                    showThoughtOrganizationSettings = true
+                }
+                .sheet(isPresented: $showThoughtOrganizationSettings) { ThoughtOrganizationSettingsView() }
+
+                Divider().padding(.leading, 56)
+
+                // AI 回放三开关收进门（原一级页独立组）
+                SettingsNavRow(
+                    icon: "waveform",
+                    iconColor: .holoPurple,
+                    title: String(localized: "AI 回放"),
+                    subtitle: String(localized: "每周提醒 · 每月提醒 · 后台自动生成")
+                ) {
+                    showAIPlaybackPage = true
+                }
+                .sheet(isPresented: $showAIPlaybackPage) {
+                    SettingsAIPlaybackPage()
                 }
             }
             .background(Color.holoToolSurface)
@@ -430,553 +503,85 @@ struct SettingsView: View {
         }
     }
 
-    /// 深色模式选项行
-    private func darkModeOptionRow(_ setting: DarkModeSetting) -> some View {
-        Button {
-            darkModeManager.updateSetting(setting)
-        } label: {
-            HStack(spacing: HoloSpacing.md) {
-                // 图标
-                ZStack {
-                    RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        // 未选中砖改嵌套底：深色下纯黑砖压深灰卡，浅色下观感不变
-                        .fill(setting == darkModeManager.currentSetting
-                              ? Color.holoPrimary.opacity(0.1)
-                              : Color.holoToolInset)
-                        .frame(width: 40, height: 40)
+    // MARK: - 数据与同步
 
-                    Image(systemName: setting.iconName)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(setting == darkModeManager.currentSetting
-                                         ? .holoPrimary
-                                         : .holoToolTextSecondary)
-                }
-
-                // 文字
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(setting.displayName)
-                        .holoText(.body)
-                        .foregroundColor(.holoToolText)
-
-                    // 跟随系统时显示当前系统状态
-                    if setting == .system {
-                        Text(systemColorScheme == .dark ? String(localized: "当前：深色") : String(localized: "当前：浅色"))
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoToolTextSecondary)
-                    }
-                }
-
-                Spacer()
-
-                // 选中指示器
-                if setting == darkModeManager.currentSetting {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(.holoPrimary)
-                }
-            }
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-
-    // MARK: - AI 整理设置
-
-    @State private var showThoughtOrganizationSettings = false
-    @State private var showNotificationSettings = false
-
-    private var aiOrganizationSection: some View {
+    /// iCloud 同步 + 日历 + 数据管理（原 iCloud/日历/存储缓存/通用内数据管理四处归一；
+    /// 缓存大小与清除缓存收进数据管理页）
+    private var dataSyncSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // 标题
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "tag.circle")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoPrimary)
+            sectionHeader(icon: "internaldrive", title: "数据与同步")
 
-                Text("AI 整理")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-            }
-
-            // HoloAI 数据授权（全局 AI 授权，保留在系统设置）
-            settingsRow(
-                icon: "hand.raised.square",
-                iconColor: .holoPrimary,
-                title: String(localized: "HoloAI 数据授权"),
-                subtitle: HoloAIFeatureFlags.aiDataProcessingConsentGranted ? String(localized: "已授权，可随时撤回") : String(localized: "未授权，AI 功能暂停")
-            ) {
-                showAIConsent = true
-            }
-            .sheet(isPresented: $showAIConsent) {
-                NavigationStack {
-                    AIDataProcessingConsentView()
-                }
-            }
-
-            settingsRow(icon: "gearshape", iconColor: .holoPrimary,
-                title: String(localized: "想法设置"), subtitle: String(localized: "智能整理、主题与标签管理")) {
-                showThoughtOrganizationSettings = true
-            }
-            .sheet(isPresented: $showThoughtOrganizationSettings) { ThoughtOrganizationSettingsView() }
-
-            // 统一通知中心入口（早报/习惯提醒/晨报/AI 回放的完整开关与时间都在这里）
-            settingsRow(
-                icon: "bell.badge",
-                iconColor: .holoPrimary,
-                title: String(localized: "通知设置"),
-                subtitle: String(localized: "每日早报 · 习惯提醒 · 周一晨报 · AI 回放")
-            ) {
-                showNotificationSettings = true
-            }
-            .sheet(isPresented: $showNotificationSettings) {
-                NotificationSettingsView()
-            }
-        }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, HoloSpacing.sm)
-        .background(Color.holoToolSurface)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-    }
-
-    // MARK: - AI 回放设置
-
-    private var aiPlaybackSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // 标题
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoPrimary)
-
-                Text("AI 回放")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-            }
-
-            // 开关列表
             VStack(spacing: 0) {
-                // 每周提醒
-                insightToggleRow(
-                    icon: "calendar.badge.clock",
-                    iconColor: .holoPrimary,
-                    title: String(localized: "每周提醒我生成周回放"),
-                    subtitle: weeklyReminderSubtitle,
-                    isOn: $insightSettings.weeklyReminderEnabled
-                )
-
-                Divider()
-                    .padding(.leading, 56)
-
-                // 每月提醒
-                insightToggleRow(
-                    icon: "calendar.circle",
-                    iconColor: .holoSuccess,
-                    title: String(localized: "每月提醒我生成月回放"),
-                    subtitle: monthlyReminderSubtitle,
-                    isOn: $insightSettings.monthlyReminderEnabled
-                )
-
-                Divider()
-                    .padding(.leading, 56)
-
-                // 后台自动生成
-                insightToggleRow(
-                    icon: "arrow.triangle.2.circlepath",
+                SettingsNavRow(
+                    icon: "icloud.fill",
                     iconColor: .holoInfo,
-                    title: String(localized: "允许后台自动尝试生成"),
-                    subtitle: String(localized: "iOS 不保证准时执行，下次打开 App 时会补生成"),
-                    isOn: $insightSettings.backgroundAutoGenerationEnabled
-                )
-            }
-            .background(Color.holoToolSurface)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        }
-    }
-
-    /// 周提醒描述
-    private var weeklyReminderSubtitle: String {
-        if insightSettings.weeklyReminderEnabled {
-            return String(localized: "每\(insightSettings.weeklyReminderWeekdayName) \(String(format: "%02d", insightSettings.weeklyReminderHour)):00")
-        }
-        return String(localized: "默认关闭")
-    }
-
-    /// 月提醒描述
-    private var monthlyReminderSubtitle: String {
-        if insightSettings.monthlyReminderEnabled {
-            return String(localized: "每月\(insightSettings.monthlyReminderDay)日 \(String(format: "%02d", insightSettings.monthlyReminderHour)):00")
-        }
-        return String(localized: "默认关闭")
-    }
-
-    /// AI 回放 Toggle 行
-    private func insightToggleRow(
-        icon: String,
-        iconColor: Color,
-        title: String,
-        subtitle: String,
-        isOn: Binding<Bool>
-    ) -> some View {
-        HStack(spacing: HoloSpacing.md) {
-            ZStack {
-                RoundedRectangle(cornerRadius: HoloRadius.sm)
-                    .fill(iconColor.opacity(0.1))
-                    .frame(width: 40, height: 40)
-
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(iconColor)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .holoText(.body)
-                    .foregroundColor(.holoToolText)
-                    .lineLimit(1)
-
-                Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .layoutPriority(1)
-
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .tint(.holoPrimary)
-        }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, 12)
-    }
-
-    // MARK: - 其他设置（占位）
-
-    private var otherSettingsSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // 标题
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "gearshape.circle.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoToolTextSecondary)
-
-                Text("通用")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-            }
-
-            #if DEBUG
-            // 开发者选项：四个开发调试入口收进折叠行，默认收起，展开状态跨启动记忆
-            VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        developerOptionsExpanded.toggle()
-                    }
-                } label: {
-                    HStack(spacing: HoloSpacing.md) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: HoloRadius.sm)
-                                .fill(Color.holoPrimary.opacity(0.1))
-                                .frame(width: 40, height: 40)
-
-                            Image(systemName: "wrench.and.screwdriver")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.holoPrimary)
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(String(localized: "开发者选项"))
-                                .holoText(.body)
-                                .foregroundColor(.holoToolText)
-                                .lineLimit(1)
-
-                            Text(String(localized: "动效、模型与语音调试入口"))
-                                .font(.system(size: 12))
-                                .foregroundColor(.holoToolTextSecondary)
-                                .lineLimit(2)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .layoutPriority(1)
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.holoToolTextSecondary.opacity(0.5))
-                            .rotationEffect(.degrees(developerOptionsExpanded ? 90 : 0))
-                    }
-                    .padding(HoloSpacing.md)
-                    .background(Color.holoToolSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                    title: String(localized: "iCloud 同步"),
+                    subtitle: iCloudRowSubtitle
+                ) {
+                    showICloudSyncPage = true
                 }
-                .buttonStyle(PlainButtonStyle())
-
-                if developerOptionsExpanded {
-                    VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                        // 任务纸面动效（灰度回退开关）：动效融合 G2——
-                        // 关闭即恢复任务模块原布局（大数字仪表/白卡/白底横幅），不动数据
-                        HStack(spacing: 12) {
-                            Image(systemName: "doc.text")
-                                .font(.system(size: 18))
-                                .foregroundColor(.holoPrimary)
-                                .frame(width: 24)
-
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("任务纸面动效")
-                                    .holoText(.body)
-                                    .foregroundColor(.holoToolText)
-                                Text(String(localized: "任务模块纸页视觉"))
-                                    .font(.holoTinyLabel)
-                                    .foregroundColor(.holoToolTextSecondary)
-                            }
-
-                            Spacer(minLength: 8)
-
-                            Toggle("", isOn: $taskPaperMotionEnabled)
-                                .labelsHidden()
-                                .tint(.holoPrimary)
-                        }
-                        .padding(.vertical, 6)
-
-                        // AI 设置
-                        settingsRow(
-                            icon: "sparkles",
-                            iconColor: .purple,
-                            title: String(localized: "AI 助手"),
-                            subtitle: String(localized: "模型与提示词配置")
-                        ) {
-                            showAISettings = true
-                        }
-                        .sheet(isPresented: $showAISettings) {
-                            NavigationStack {
-                                AISettingsView()
-                            }
-                        }
-
-                        // Matter V2 静态样机：新规划卡/详情/Today 与旧卡对照
-                        settingsRow(
-                            icon: "square.stack.3d.up",
-                            iconColor: .holoPrimary,
-                            title: "Matter V2 样机",
-                            subtitle: String(localized: "新规划卡样机")
-                        ) {
-                            showMatterV2Prototype = true
-                        }
-                        .sheet(isPresented: $showMatterV2Prototype) {
-                            NavigationStack {
-                                MatterV2PrototypeView()
-                            }
-                        }
-
-                        settingsRow(
-                            icon: "waveform.circle",
-                            iconColor: .holoInfo,
-                            title: String(localized: "语音识别"),
-                            subtitle: KeychainService.hasCachedVoiceRecognitionConfig ? String(localized: "已配置") : String(localized: "语音识别引擎")
-                        ) {
-                            showVoiceRecognitionSettings = true
-                        }
-                        .sheet(isPresented: $showVoiceRecognitionSettings) {
-                            NavigationStack {
-                                VoiceRecognitionSettingsView()
-                            }
-                        }
+                .sheet(isPresented: $showICloudSyncPage) {
+                    SettingsSheetShell(String(localized: "iCloud 同步")) {
+                        SettingsICloudSyncSection(showsSectionHeader: false)
                     }
                 }
-            }
-            #endif
 
-            // 反馈给开发者
-            settingsRow(
-                icon: "ellipsis.bubble",
-                iconColor: .holoPrimary,
-                title: String(localized: "反馈给开发者"),
-                subtitle: String(localized: "建议、问题、吐槽都欢迎，留个联系方式我们能找你")
-            ) {
-                showFeedback = true
-            }
-            .sheet(isPresented: $showFeedback) {
-                FeedbackSheet()
-            }
+                Divider().padding(.leading, 56)
 
-            // 重看新手引导（首页三步导览；先关设置页再播放）
-            settingsRow(
-                icon: "sparkles",
-                iconColor: .holoPurple,
-                title: String(localized: "重看新手引导"),
-                subtitle: String(localized: "三步回顾首页的功能入口")
-            ) {
-                dismiss()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                    NotificationCenter.default.post(name: .replayHomeCoachTour, object: nil)
+                SettingsNavRow(
+                    icon: "calendar",
+                    iconColor: .holoInfo,
+                    title: String(localized: "日历"),
+                    subtitle: String(localized: "系统日历接入与任务双向同步")
+                ) {
+                    showCalendarPage = true
                 }
-            }
+                .sheet(isPresented: $showCalendarPage) {
+                    SettingsSheetShell(String(localized: "日历")) {
+                        ScheduleSettingsSection(showsSectionHeader: false)
+                    }
+                }
 
-            // 重看新人笔记（预置欢迎笔记；被删后入口自动隐藏，不复活）
-            if WelcomeNoteSeed.isNoteAlive() {
-                settingsRow(
-                    icon: "book",
+                Divider().padding(.leading, 56)
+
+                // 数据管理（模块清空/清空所有数据/最近删除回收站/缓存管理统一入口）
+                SettingsNavRow(
+                    icon: "externaldrive.badge.timemachine",
                     iconColor: .holoPrimary,
-                    title: String(localized: "重看新人笔记"),
-                    subtitle: String(localized: "产品理念与功能速览"))
-                {
-                    dismiss()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                        DeepLinkState.shared.navigate(to: .thoughtDetail(thoughtId: WelcomeNoteSeed.noteId))
-                    }
+                    title: String(localized: "数据管理"),
+                    subtitle: String(localized: "数据概览 · 最近删除 · 清理缓存 · 清空所有数据")
+                ) {
+                    showDataManagement = true
                 }
-            }
-
-            // 关于
-            settingsRow(
-                icon: "info.circle",
-                iconColor: .holoInfo,
-                title: String(localized: "关于 Holo"),
-                subtitle: appVersionText
-            ) {
-                showAbout = true
-            }
-            .sheet(isPresented: $showAbout) {
-                NavigationStack {
-                    AboutView()
+                .sheet(isPresented: $showDataManagement) {
+                    DataManagementView()
                 }
-            }
-
-            diagnosticsSection
-        }
-    }
-
-    private var appVersionText: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "-"
-        return String(localized: "版本 \(version) (\(build))")
-    }
-
-    // MARK: - 存储与缓存
-
-    private var storageSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "internaldrive")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoPrimary)
-
-                Text("存储与缓存")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-            }
-
-            VStack(spacing: 0) {
-                // 缓存大小
-                HStack(spacing: HoloSpacing.md) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: HoloRadius.sm)
-                            .fill(Color.holoInfo.opacity(0.1))
-                            .frame(width: 40, height: 40)
-
-                        if storageService.isCalculating {
-                            ProgressView()
-                                .tint(.holoInfo)
-                        } else {
-                            Image(systemName: "chart.bar")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.holoInfo)
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("缓存大小")
-                            .holoText(.body)
-                            .foregroundColor(.holoToolText)
-
-                        Text(storageService.formattedSize)
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoToolTextSecondary)
-                    }
-
-                    Spacer()
-                }
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.vertical, 12)
-
-                Divider()
-                    .padding(.leading, 56)
-
-                // 清除缓存按钮
-                Button {
-                    showClearCacheAlert = true
-                } label: {
-                    HStack(spacing: HoloSpacing.md) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: HoloRadius.sm)
-                                .fill(storageService.isClearing || storageService.cacheSize == 0
-                                      ? Color.holoToolTextSecondary.opacity(0.1)
-                                      : Color.holoError.opacity(0.1))
-                                .frame(width: 40, height: 40)
-
-                            if storageService.isClearing {
-                                ProgressView()
-                                    .tint(.holoToolError)
-                            } else {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(storageService.cacheSize == 0 ? .holoToolTextSecondary : .holoError)
-                            }
-                        }
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("清除缓存")
-                                .holoText(.body)
-                                .foregroundColor(storageService.cacheSize == 0 ? .holoToolTextSecondary : .holoError)
-
-                            Text("清理诊断日志和过期数据，不会删除你的数据")
-                                .font(.system(size: 12))
-                                .foregroundColor(.holoToolTextSecondary)
-                        }
-
-                        Spacer()
-                    }
-                    .padding(.horizontal, HoloSpacing.md)
-                    .padding(.vertical, 12)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(PlainButtonStyle())
-                .disabled(storageService.isClearing || storageService.cacheSize == 0)
             }
             .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
-        .alert("确认清除缓存？", isPresented: $showClearCacheAlert) {
-            Button("取消", role: .cancel) {}
-            Button("清除", role: .destructive) {
-                Task { await storageService.clearCache() }
-            }
-        } message: {
-            Text("将清理 AI 诊断日志和过期数据，你的对话、记忆和其他数据不会受影响。")
+    }
+
+    /// iCloud 入口行副标题：与 iCloud 同步二级页的「账号状态」同源口径
+    private var iCloudRowSubtitle: String {
+        guard authService.isSignedIn else {
+            return String(localized: "登录 Holo 后检查云同步状态")
         }
+        if iCloudSyncStatus.accountStatus == .available {
+            return String(localized: "iCloud 可用，云同步已开启")
+        }
+        return iCloudSyncStatus.accountStatusText
     }
 
     // MARK: - 隐私与安全
 
+    /// 应用锁 + 锁定时机 + 小组件隐私（政策文档移入关于页，一级只留三个纯开关）
     private var privacySecuritySection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "lock.shield.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoPrimary)
-
-                Text("隐私与安全")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-            }
+            sectionHeader(icon: "lock.shield.fill", title: "隐私与安全")
 
             VStack(spacing: 0) {
-                insightToggleRow(
+                SettingsToggleRow(
                     icon: "faceid",
                     iconColor: .holoPrimary,
                     title: String(localized: "应用锁"),
@@ -985,16 +590,14 @@ struct SettingsView: View {
                 )
 
                 if appLockSettings.isEnabled {
-                    Divider()
-                        .padding(.leading, 56)
+                    Divider().padding(.leading, 56)
 
                     appLockGraceRow
                 }
 
-                Divider()
-                    .padding(.leading, 56)
+                Divider().padding(.leading, 56)
 
-                insightToggleRow(
+                SettingsToggleRow(
                     icon: "text.quote",
                     iconColor: .holoPrimary,
                     title: String(localized: "桌面小组件显示想法原文"),
@@ -1077,15 +680,7 @@ struct SettingsView: View {
             }
         } label: {
             HStack(spacing: HoloSpacing.md) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .fill(Color.holoPrimary.opacity(0.1))
-                        .frame(width: 40, height: 40)
-
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                }
+                SettingsIconTile(icon: "clock.arrow.circlepath", iconColor: .holoPrimary)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("锁定时机")
@@ -1115,109 +710,284 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 法律与隐私
+    // MARK: - 通用
 
-    private var legalSection: some View {
+    /// 外观（入口行）+ 通知 + 反馈 + 关于（政策文档与重看引导收进关于页）
+    private var generalSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "hand.raised.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoPrimary)
+            sectionHeader(icon: "gearshape.circle.fill", title: "通用", color: .holoToolTextSecondary)
 
-                Text("法律与隐私")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-            }
+            VStack(spacing: 0) {
+                // 外观：一级只留一行，右侧显示当前值，点开三选一
+                SettingsNavRow(
+                    icon: "moon.circle.fill",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "外观"),
+                    subtitle: String(localized: "跟随系统 · 浅色 · 深色"),
+                    value: darkModeManager.currentSetting.displayName
+                ) {
+                    showAppearancePage = true
+                }
+                .sheet(isPresented: $showAppearancePage) {
+                    SettingsAppearancePage()
+                }
 
-            settingsRow(
-                icon: "shield.checkered",
-                iconColor: .holoPrimary,
-                title: String(localized: "隐私政策"),
-                subtitle: String(localized: "了解我们如何保护你的数据")
-            ) {
-                showPrivacyPolicy = true
-            }
-            .sheet(isPresented: $showPrivacyPolicy) {
-                LegalDocumentSheet(documentType: .privacyPolicy)
-            }
+                Divider().padding(.leading, 56)
 
-            settingsRow(
-                icon: "doc.text",
-                iconColor: .holoInfo,
-                title: String(localized: "用户协议"),
-                subtitle: String(localized: "服务条款与使用规范")
-            ) {
-                showTermsOfUse = true
+                // 统一通知中心入口（早报/习惯提醒/晨报/AI 回放的完整开关与时间都在这里）
+                SettingsNavRow(
+                    icon: "bell.badge",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "通知设置"),
+                    subtitle: String(localized: "每日早报 · 习惯提醒 · 周一晨报 · AI 回放")
+                ) {
+                    showNotificationSettings = true
+                }
+                .sheet(isPresented: $showNotificationSettings) {
+                    NotificationSettingsView()
+                }
+
+                Divider().padding(.leading, 56)
+
+                // 反馈给开发者
+                SettingsNavRow(
+                    icon: "ellipsis.bubble",
+                    iconColor: .holoPrimary,
+                    title: String(localized: "反馈给开发者"),
+                    subtitle: String(localized: "建议、问题、吐槽都欢迎，留个联系方式我们能找你")
+                ) {
+                    showFeedback = true
+                }
+                .sheet(isPresented: $showFeedback) {
+                    FeedbackSheet()
+                }
+
+                Divider().padding(.leading, 56)
+
+                // 关于：版本 + 政策文档 + 重看引导（二级聚合页）
+                SettingsNavRow(
+                    icon: "info.circle",
+                    iconColor: .holoInfo,
+                    title: String(localized: "关于 Holo"),
+                    subtitle: appVersionText
+                ) {
+                    showAbout = true
+                }
+                .sheet(isPresented: $showAbout) {
+                    NavigationStack {
+                        AboutView(
+                            onReplayCoachTour: {
+                                // 先关设置页再等动画收尾，然后触发首页导览重播
+                                close()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                                    NotificationCenter.default.post(name: .replayHomeCoachTour, object: nil)
+                                }
+                            },
+                            onReplayWelcomeNote: {
+                                close()
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                                    DeepLinkState.shared.navigate(to: .thoughtDetail(thoughtId: WelcomeNoteSeed.noteId))
+                                }
+                            }
+                        )
+                    }
+                }
             }
-            .sheet(isPresented: $showTermsOfUse) {
-                LegalDocumentSheet(documentType: .termsOfUse)
-            }
+            .background(Color.holoToolSurface)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+
+            #if DEBUG
+            developerOptionsSection
+            #endif
         }
     }
 
-    // MARK: - 账号与数据
+    private var appVersionText: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "-"
+        return String(localized: "版本 \(version) (\(build))")
+    }
 
-    private var accountDataSection: some View {
+    #if DEBUG
+    /// 开发者选项：四个开发调试入口收进折叠行，默认收起，展开状态跨启动记忆
+    @ViewBuilder
+    private var developerOptionsSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "person.crop.circle.badge.minus")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoToolError)
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    developerOptionsExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    SettingsIconTile(icon: "wrench.and.screwdriver", iconColor: .holoPrimary)
 
-                Text("账号与数据")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(localized: "开发者选项"))
+                            .holoText(.body)
+                            .foregroundColor(.holoToolText)
+                            .lineLimit(1)
+
+                        Text(String(localized: "动效、模型与语音调试入口"))
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoToolTextSecondary)
+                            .lineLimit(2)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
+                        .rotationEffect(.degrees(developerOptionsExpanded ? 90 : 0))
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoToolSurface)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             }
+            .buttonStyle(PlainButtonStyle())
 
-            VStack(spacing: 0) {
-                Button {
-                    showDeleteAccountDataConfirmation = true
-                } label: {
-                    HStack(spacing: HoloSpacing.md) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: HoloRadius.sm)
-                                .fill(isDeletingAccountData ? Color.holoToolTextSecondary.opacity(0.1) : Color.holoError.opacity(0.1))
-                                .frame(width: 40, height: 40)
-
-                            if isDeletingAccountData {
-                                ProgressView()
-                                    .tint(.holoToolError)
-                            } else {
-                                Image(systemName: "trash.slash")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(.holoToolError)
-                            }
-                        }
+            if developerOptionsExpanded {
+                VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                    // 任务纸面动效（灰度回退开关）：动效融合 G2——
+                    // 关闭即恢复任务模块原布局（大数字仪表/白卡/白底横幅），不动数据
+                    HStack(spacing: 12) {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 18))
+                            .foregroundColor(.holoPrimary)
+                            .frame(width: 24)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("删除账号与 Holo 数据")
+                            Text("任务纸面动效")
                                 .holoText(.body)
-                                .foregroundColor(.holoToolError)
-
-                            Text("清除本机数据、附件、AI 记忆和登录状态")
-                                .font(.system(size: 12))
+                                .foregroundColor(.holoToolText)
+                            Text(String(localized: "任务模块纸页视觉"))
+                                .font(.holoTinyLabel)
                                 .foregroundColor(.holoToolTextSecondary)
-
-                            if let accountDataDeletionMessage {
-                                Text(accountDataDeletionMessage)
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.holoToolTextSecondary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
                         }
 
-                        Spacer()
+                        Spacer(minLength: 8)
+
+                        Toggle("", isOn: $taskPaperMotionEnabled)
+                            .labelsHidden()
+                            .tint(.holoPrimary)
                     }
-                    .padding(HoloSpacing.md)
-                    .background(Color.holoToolSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                    .contentShape(Rectangle())
+                    .padding(.vertical, 6)
+
+                    // AI 设置：仅 Debug 构建可见（服务商/API Key/温度/Token 是开发者参数；
+                    // 2026-10-21 拍板退役入口，代码保留，预留未来 Pro 版自接 API）
+                    settingsRow(
+                        icon: "sparkles",
+                        iconColor: .purple,
+                        title: String(localized: "AI 助手"),
+                        subtitle: String(localized: "模型与提示词配置")
+                    ) {
+                        showAISettings = true
+                    }
+                    .sheet(isPresented: $showAISettings) {
+                        NavigationStack {
+                            AISettingsView()
+                        }
+                    }
+
+                    // Matter V2 静态样机：新规划卡/详情/Today 与旧卡对照
+                    settingsRow(
+                        icon: "square.stack.3d.up",
+                        iconColor: .holoPrimary,
+                        title: "Matter V2 样机",
+                        subtitle: String(localized: "新规划卡样机")
+                    ) {
+                        showMatterV2Prototype = true
+                    }
+                    .sheet(isPresented: $showMatterV2Prototype) {
+                        NavigationStack {
+                            MatterV2PrototypeView()
+                        }
+                    }
+
+                    settingsRow(
+                        icon: "waveform.circle",
+                        iconColor: .holoInfo,
+                        title: String(localized: "语音识别"),
+                        subtitle: KeychainService.hasCachedVoiceRecognitionConfig ? String(localized: "已配置") : String(localized: "语音识别引擎")
+                    ) {
+                        showVoiceRecognitionSettings = true
+                    }
+                    .sheet(isPresented: $showVoiceRecognitionSettings) {
+                        NavigationStack {
+                            VoiceRecognitionSettingsView()
+                        }
+                    }
+
+                    // HealthKit 诊断页是开发自测工具（生成 raw 报告 + 复制），普通用户无价值，Release 不暴露
+                    settingsRow(
+                        icon: "heart.text.square",
+                        iconColor: .holoInfo,
+                        title: String(localized: "健康数据诊断"),
+                        subtitle: String(localized: "HealthKit 来源与类型汇总")
+                    ) {
+                        showHealthKitDiagnostics = true
+                    }
+                    .sheet(isPresented: $showHealthKitDiagnostics) {
+                        NavigationStack {
+                            HealthKitDiagnosticsView()
+                        }
+                    }
                 }
-                .buttonStyle(PlainButtonStyle())
-                .disabled(isDeletingAccountData)
             }
+        }
+    }
+    #endif
+
+    // MARK: - 底部危险区（孤立，无组标题）
+
+    /// 删除账号与数据：孤立最底（原「账号与数据」组去标题；iOS 危险操作惯例）
+    private var dangerSection: some View {
+        VStack(spacing: 0) {
+            Button {
+                showDeleteAccountDataConfirmation = true
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(isDeletingAccountData ? Color.holoToolTextSecondary.opacity(0.1) : Color.holoError.opacity(0.1))
+                            .frame(width: 40, height: 40)
+
+                        if isDeletingAccountData {
+                            ProgressView()
+                                .tint(.holoToolError)
+                        } else {
+                            Image(systemName: "trash.slash")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.holoToolError)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("删除账号与 Holo 数据")
+                            .holoText(.body)
+                            .foregroundColor(.holoToolError)
+
+                        Text("清除本机数据、附件、AI 记忆和登录状态")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoToolTextSecondary)
+
+                        if let accountDataDeletionMessage {
+                            Text(accountDataDeletionMessage)
+                                .font(.system(size: 11))
+                                .foregroundColor(.holoToolTextSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    Spacer()
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoToolSurface)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+            .disabled(isDeletingAccountData)
         }
     }
 
@@ -1234,62 +1004,13 @@ struct SettingsView: View {
             await authService.markAccountDeleted()
             UserAvatarRepository.shared.resetPublishedStateAfterAccountDeletion()
             accountDataDeletionMessage = String(localized: "已删除 \(result.deletedObjectCount) 条本机记录；iCloud 删除同步由系统继续处理。")
-            await storageService.calculateCacheSize()
         } catch {
             accountDataDeletionMessage = String(localized: "删除失败：\(error.localizedDescription)")
         }
     }
 
-    // MARK: - 诊断与数据管理
+    // MARK: - 开发者选项内用行（独立小卡样式，与折叠区一致）
 
-    @State private var showDataManagement: Bool = false
-
-    private var diagnosticsSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "stethoscope")
-                    .font(.system(size: 18))
-                    .foregroundColor(.orange)
-
-                Text("数据管理")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-            }
-
-            #if DEBUG
-            // HealthKit 诊断页是开发自测工具（生成 raw 报告 + 复制），普通用户无价值，Release 不暴露
-            settingsRow(
-                icon: "heart.text.square",
-                iconColor: .holoInfo,
-                title: String(localized: "健康数据诊断"),
-                subtitle: String(localized: "HealthKit 来源与类型汇总")
-            ) {
-                showHealthKitDiagnostics = true
-            }
-            .sheet(isPresented: $showHealthKitDiagnostics) {
-                NavigationStack {
-                    HealthKitDiagnosticsView()
-                }
-            }
-            #endif
-
-            // 数据管理（模块清空/清空所有数据/最近删除回收站统一入口；想法等模块清空在各自模块内）
-            settingsRow(
-                icon: "externaldrive.badge.timemachine",
-                iconColor: .holoPrimary,
-                title: String(localized: "数据管理"),
-                subtitle: String(localized: "数据概览 · 清空所有数据 · 最近删除（30 天可恢复）")
-            ) {
-                showDataManagement = true
-            }
-            .sheet(isPresented: $showDataManagement) {
-                DataManagementView()
-            }
-        }
-    }
-
-    /// 通用设置行
     private func settingsRow(
         icon: String,
         iconColor: Color,
@@ -1297,44 +1018,7 @@ struct SettingsView: View {
         subtitle: String,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
-            HStack(spacing: HoloSpacing.md) {
-                // 图标
-                ZStack {
-                    RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .fill(iconColor.opacity(0.1))
-                        .frame(width: 40, height: 40)
-
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(iconColor)
-                }
-
-                // 文字
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .holoText(.body)
-                        .foregroundColor(.holoToolText)
-                        .lineLimit(1)
-
-                    Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoToolTextSecondary)
-                        .lineLimit(2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(1)
-
-                // 箭头
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoToolTextSecondary.opacity(0.5))
-            }
-            .padding(HoloSpacing.md)
-            .background(Color.holoToolSurface)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        }
-        .buttonStyle(PlainButtonStyle())
+        SettingsNavRow(icon: icon, iconColor: iconColor, title: title, subtitle: subtitle, action: action)
     }
 }
 
@@ -1349,6 +1033,7 @@ struct SettingsView: View {
 struct AppleButtonWidthCapModifier: ViewModifier {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    @ViewBuilder
     func body(content: Content) -> some View {
         if HoloAdaptiveLayout.isRegularWidth(horizontalSizeClass) {
             content

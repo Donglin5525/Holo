@@ -410,6 +410,9 @@
     " 截止" : {
 
     },
+    " 新建。" : {
+
+    },
     " 时段" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -508,6 +511,96 @@
         }
       }
     },
+    "%@ %lld 条" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$lld 条"
+          }
+        }
+      }
+    },
+    "%@ 的回顾 ↗" : {
+
+    },
+    "%@尚无观测：能看执行，暂不能判断成果" : {
+
+    },
+    "%@记录 · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@记录 · %2$@"
+          }
+        }
+      }
+    },
+    "%@记录 · %@@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ record · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@記錄 · %@@"
+          }
+        }
+      }
+    },
+    "%@，下一站 %lld %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@，下一站 %2$lld %3$@"
+          }
+        }
+      }
+    },
+    "%d 张" : {
+
+    },
+    "%lld / %lld %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld / %2$lld %3$@"
+          }
+        }
+      }
+    },
+    "%lld / %lld 天已明确确认；其余只显示已记录量。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld / %2$lld 天已明确确认；其余只显示已记录量。"
+          }
+        }
+      }
+    },
+    "%lld 个习惯的窗口记录" : {
+
+    },
+    "%lld 个标签已排除" : {
+
+    },
+    "%lld 条想法 · AI 不可见" : {
+
+    },
+    "%lld 条想法 · 已排除出 AI 分析" : {
+
+    },
+    "%lld 段片段" : {
+
+    },
     "-" : {
 
     },
@@ -543,6 +636,202 @@
         }
       }
     },
+    "2 · 绑定触发位置" : {
+
+    },
+    "7 晚中有 %lld 晚记录，其中 %lld 晚达到时长目标。其余 %lld 晚未记录，不参与平均值计算。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "7 晚中有 %1$lld 晚记录，其中 %2$lld 晚达到时长目标。其余 %3$lld 晚未记录，不参与平均值计算。"
+          }
+        }
+      }
+    },
+    "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <style>%@</style>\n</head>\n<body>\n\n<h1>Holo 隐私政策</h1>\n<p class=\"meta\">最后更新日期：2026 年 10 月 25 日<br>生效日期：2026 年 10 月 25 日</p>\n\n<p>欢迎使用 Holo（以下简称\"本应用\"）。我们深知个人数据的重要性，并致力于保护您的隐私。本隐私政策旨在向您说明我们如何收集、使用、存储和保护您的信息。</p>\n\n<div class=\"highlight\">\n    <strong>核心原则：</strong>您的数据属于您自己。我们尽可能将数据存储在您的设备本地和您的个人 iCloud 中。我们不会出售您的个人数据，也不会将您的数据用于广告投放。\n</div>\n\n<h2>一、我们收集的信息</h2>\n\n<h3>1.1 您主动提供的信息</h3>\n<ul>\n    <li><strong>账户信息</strong>：当您使用\"通过 Apple 登录\"时，我们会收到您的 Apple ID 关联邮箱地址和唯一用户标识符。您可以选择隐藏邮箱地址。</li>\n    <li><strong>个人资料头像</strong>：当您主动选择照片或拍照设置头像时，Holo 只保存您确认裁剪后的头像，不保存原始照片及其位置等元数据。头像存储在您的设备本地和您的个人 iCloud 中，不会发送给 AI 服务或 Holo 后端。</li>\n    <li><strong>财务记录</strong>：您手动输入的记账数据，包括金额、分类、账户、日期和备注。这些数据存储在您的设备本地和您的 iCloud 中。</li>\n    <li><strong>健康数据</strong>：在您授权后，本应用会从 Apple HealthKit 读取步数、睡眠、站立、运动时长等健康数据。本应用<strong>不会写入或修改</strong>您的健康数据。</li>\n    <li><strong>健康相关 AI 处理</strong>：当您使用需要健康上下文的 AI 功能时，必要的健康摘要会在您同意 AI 数据处理后通过 Holo 后端发送给第三方 AI 服务；健康领域的 AI 派生记忆只保存在本机。</li>\n    <li><strong>习惯与待办</strong>：您创建的习惯追踪记录和待办事项。</li>\n    <li><strong>想法记录</strong>：您创建的想法、标签和引用，存储在您的设备本地和您的 iCloud 中。</li>\n    <li><strong>AI 派生记忆</strong>：在您开启“自动形成记忆”后，Holo 会从各模块的结构化信号和汇总数据中整理领域记忆及综合观察。普通记忆可存储在您的设备本地和个人 iCloud 中；健康领域记忆及包含健康来源的综合记忆只保存在本机。</li>\n    <li><strong>语音输入</strong>：当您使用语音输入功能时，音频数据会发送至我们的服务器进行语音转文字处理，处理完成后音频数据不会被保存。</li>\n</ul>\n\n<h3>1.2 AI 功能处理的数据</h3>\n<p>本应用提供 AI 智能助手功能（包括数据洞察、记忆分析、智能分类等）。当您使用这些功能时：</p>\n<ul>\n    <li>您的问题和相关上下文数据会通过加密连接发送至我们的后端服务器。</li>\n    <li>后端服务器将数据转发至第三方 AI 服务提供商进行处理。</li>\n    <li>AI 服务提供商处理后返回分析结果。我们不会主动保存您发送给 AI 的原始请求正文或完整上下文作为用户资料。</li>\n    <li>生成的分析结果和派生记忆按上述范围保存在本机或您的个人 iCloud 中；您可在“记忆管理”中查看、纠正、停用或忘记单条记忆，也可在设置中删除账号与数据。</li>\n</ul>\n\n<h3>1.3 自动收集的信息</h3>\n<p>为改进产品，本应用会自动收集<strong>匿名使用事件</strong>（例如打开了哪个功能模块、完成了一次记账或打卡、是否发起了 AI 对话）。这些事件<strong>不包含任何您记录的内容</strong>（如金额、标题、备注、习惯名称、消息正文），仅携带功能名称等枚举信息、应用版本和一个匿名设备标识。我们不收集您的位置信息，不使用任何第三方分析工具。使用事件最多保留 180 天，仅用于统计功能使用情况与改进产品设计。</p>\n\n<h2>二、信息的使用目的</h2>\n\n<table>\n    <thead><tr><th>数据类型</th><th>使用目的</th></tr></thead>\n    <tbody>\n        <tr><td>Apple ID 信息</td><td>用户身份认证与登录</td></tr>\n        <tr><td>个人资料头像</td><td>在设置、个人页和 Holo AI 对话中识别您的身份</td></tr>\n        <tr><td>财务记录</td><td>记账功能、数据统计与展示</td></tr>\n        <tr><td>健康数据（只读）</td><td>健康数据展示、趋势分析与经授权的 AI 洞察</td></tr>\n        <tr><td>习惯与待办数据</td><td>习惯追踪与任务管理功能</td></tr>\n        <tr><td>想法数据</td><td>想法记录、标签与引用管理</td></tr>\n        <tr><td>语音音频</td><td>语音转文字，用于记账或 AI 对话输入</td></tr>\n        <tr><td>AI 对话上下文</td><td>生成数据分析、智能建议等 AI 功能</td></tr>\n        <tr><td>AI 派生记忆</td><td>减少重复分析，并在合适的问题中提供个性化上下文</td></tr>\n        <tr><td>匿名使用事件</td><td>统计功能使用情况，改进产品设计（不含任何记录内容）</td></tr>\n    </tbody>\n</table>\n\n<h2>三、数据的存储与安全</h2>\n\n<h3>3.1 本地存储</h3>\n<p>您的核心数据存储在您的设备本地，使用 Apple Core Data 框架进行管理。</p>\n<p>App Store 正式版不会在设备上另存 AI 原始请求、完整上下文或完整响应日志。</p>\n\n<h3>3.2 iCloud 同步</h3>\n<p>在您登录 iCloud 并启用同步后，您的 Holo 本地记录、个人资料头像和普通 AI 派生记忆会通过 Apple CloudKit 在您的设备之间同步。数据传输和存储均受 Apple 的加密保护。我们<strong>无法访问</strong>您 iCloud 中的用户数据。Holo 不会将从 Apple HealthKit 读取的原始健康数据、健康派生记忆或包含健康来源的综合记忆写入或同步到 Holo 的 iCloud 数据库。</p>\n\n<h3>3.3 服务器端处理</h3>\n<ul>\n    <li>AI 和语音识别请求通过 HTTPS 加密传输至我们的后端服务器。</li>\n    <li>服务器主要用于请求转发、限流、安全防护和故障排查。我们不会主动保存您发送给 AI 的原始请求正文、语音音频或完整上下文作为用户资料。</li>\n    <li>为保障服务稳定性，服务器会保存最小化的技术日志或摘要信息，例如设备标识、调用类型、服务商、模型、耗时、错误信息、请求/响应摘要或长度以及调用时间。日志用于安全、限流和排障，默认不保存完整原文，并会按后台配置定期清理。</li>\n</ul>\n\n<h3>3.4 安全措施</h3>\n<ul>\n    <li>所有网络通信使用 TLS 1.2+ 加密。</li>\n    <li>API Key 不存储在客户端应用中，由后端服务器安全保管。</li>\n    <li>服务器部署在受防火墙保护的云环境中。</li>\n</ul>\n\n<h2>四、信息共享</h2>\n<p>我们<strong>不会</strong>出售、出租或交易您的个人信息。</p>\n<ul>\n    <li><strong>AI 服务提供商</strong>：在您使用 AI 功能并同意 AI 数据处理授权后，您的提问和必要上下文会发送至第三方 AI 服务（如阿里云百炼（通义千问）、DeepSeek、Moonshot（Kimi）、智谱（GLM））。</li>\n    <li><strong>Apple 服务</strong>：Sign in with Apple 和 iCloud 同步由 Apple 提供并受 Apple 隐私政策约束。</li>\n    <li><strong>法律要求</strong>：在适用法律法规要求时，我们可能需要披露您的信息。</li>\n</ul>\n\n<h2>五、您的权利</h2>\n<ul>\n    <li><strong>访问数据</strong>：您可随时在应用内查看所有已存储的个人数据。</li>\n    <li><strong>更换或移除头像</strong>：您可随时在“个人资料”中更换或移除头像，移除意图会同步到您的其他设备。</li>\n    <li><strong>删除数据</strong>：您可以在设置中选择\"删除账号与数据\"。</li>\n    <li><strong>撤销授权</strong>：您可以在设备\"设置\"→\"隐私与安全性\"中随时撤销各项权限。</li>\n</ul>\n\n<h2>六、数据保留期限</h2>\n<ul>\n    <li>本地数据：在您主动删除或卸载应用前持续保留。</li>\n    <li>iCloud 数据：随您的 iCloud 账户保留。</li>\n    <li>服务器日志：仅保留最小化技术日志或摘要信息，用于安全、限流和排障，并按后台配置定期清理；我们不会主动保存 AI 原始请求正文、语音音频或完整上下文作为用户资料。</li>\n    <li>语音音频：处理完成后立即销毁。</li>\n</ul>\n\n<h2>七、儿童隐私</h2>\n<p>本应用不面向 13 岁以下儿童。如果我们发现误收集了儿童的数据，将立即删除。</p>\n\n<h2>八、隐私政策的更新</h2>\n<p>重大变更将通过应用内通知告知您。继续使用即表示您同意更新后的政策。</p>\n\n<h2>九、联系我们</h2>\n<ul>\n    <li>邮箱：<a href=\"mailto:%@\">%@</a></li>\n    <li>网站：https://holoapp.cn</li>\n</ul>\n\n<div class=\"footer\">\n    <p>© 2026 Holo. 保留所有权利。</p>\n</div>\n\n</body>\n</html>" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "<!DOCTYPE html>\n<html lang=\"zh-CN\">\n<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <style>%1$@</style>\n</head>\n<body>\n\n<h1>Holo 隐私政策</h1>\n<p class=\"meta\">最后更新日期：2026 年 10 月 25 日<br>生效日期：2026 年 10 月 25 日</p>\n\n<p>欢迎使用 Holo（以下简称\"本应用\"）。我们深知个人数据的重要性，并致力于保护您的隐私。本隐私政策旨在向您说明我们如何收集、使用、存储和保护您的信息。</p>\n\n<div class=\"highlight\">\n    <strong>核心原则：</strong>您的数据属于您自己。我们尽可能将数据存储在您的设备本地和您的个人 iCloud 中。我们不会出售您的个人数据，也不会将您的数据用于广告投放。\n</div>\n\n<h2>一、我们收集的信息</h2>\n\n<h3>1.1 您主动提供的信息</h3>\n<ul>\n    <li><strong>账户信息</strong>：当您使用\"通过 Apple 登录\"时，我们会收到您的 Apple ID 关联邮箱地址和唯一用户标识符。您可以选择隐藏邮箱地址。</li>\n    <li><strong>个人资料头像</strong>：当您主动选择照片或拍照设置头像时，Holo 只保存您确认裁剪后的头像，不保存原始照片及其位置等元数据。头像存储在您的设备本地和您的个人 iCloud 中，不会发送给 AI 服务或 Holo 后端。</li>\n    <li><strong>财务记录</strong>：您手动输入的记账数据，包括金额、分类、账户、日期和备注。这些数据存储在您的设备本地和您的 iCloud 中。</li>\n    <li><strong>健康数据</strong>：在您授权后，本应用会从 Apple HealthKit 读取步数、睡眠、站立、运动时长等健康数据。本应用<strong>不会写入或修改</strong>您的健康数据。</li>\n    <li><strong>健康相关 AI 处理</strong>：当您使用需要健康上下文的 AI 功能时，必要的健康摘要会在您同意 AI 数据处理后通过 Holo 后端发送给第三方 AI 服务；健康领域的 AI 派生记忆只保存在本机。</li>\n    <li><strong>习惯与待办</strong>：您创建的习惯追踪记录和待办事项。</li>\n    <li><strong>想法记录</strong>：您创建的想法、标签和引用，存储在您的设备本地和您的 iCloud 中。</li>\n    <li><strong>AI 派生记忆</strong>：在您开启“自动形成记忆”后，Holo 会从各模块的结构化信号和汇总数据中整理领域记忆及综合观察。普通记忆可存储在您的设备本地和个人 iCloud 中；健康领域记忆及包含健康来源的综合记忆只保存在本机。</li>\n    <li><strong>语音输入</strong>：当您使用语音输入功能时，音频数据会发送至我们的服务器进行语音转文字处理，处理完成后音频数据不会被保存。</li>\n</ul>\n\n<h3>1.2 AI 功能处理的数据</h3>\n<p>本应用提供 AI 智能助手功能（包括数据洞察、记忆分析、智能分类等）。当您使用这些功能时：</p>\n<ul>\n    <li>您的问题和相关上下文数据会通过加密连接发送至我们的后端服务器。</li>\n    <li>后端服务器将数据转发至第三方 AI 服务提供商进行处理。</li>\n    <li>AI 服务提供商处理后返回分析结果。我们不会主动保存您发送给 AI 的原始请求正文或完整上下文作为用户资料。</li>\n    <li>生成的分析结果和派生记忆按上述范围保存在本机或您的个人 iCloud 中；您可在“记忆管理”中查看、纠正、停用或忘记单条记忆，也可在设置中删除账号与数据。</li>\n</ul>\n\n<h3>1.3 自动收集的信息</h3>\n<p>为改进产品，本应用会自动收集<strong>匿名使用事件</strong>（例如打开了哪个功能模块、完成了一次记账或打卡、是否发起了 AI 对话）。这些事件<strong>不包含任何您记录的内容</strong>（如金额、标题、备注、习惯名称、消息正文），仅携带功能名称等枚举信息、应用版本和一个匿名设备标识。我们不收集您的位置信息，不使用任何第三方分析工具。使用事件最多保留 180 天，仅用于统计功能使用情况与改进产品设计。</p>\n\n<h2>二、信息的使用目的</h2>\n\n<table>\n    <thead><tr><th>数据类型</th><th>使用目的</th></tr></thead>\n    <tbody>\n        <tr><td>Apple ID 信息</td><td>用户身份认证与登录</td></tr>\n        <tr><td>个人资料头像</td><td>在设置、个人页和 Holo AI 对话中识别您的身份</td></tr>\n        <tr><td>财务记录</td><td>记账功能、数据统计与展示</td></tr>\n        <tr><td>健康数据（只读）</td><td>健康数据展示、趋势分析与经授权的 AI 洞察</td></tr>\n        <tr><td>习惯与待办数据</td><td>习惯追踪与任务管理功能</td></tr>\n        <tr><td>想法数据</td><td>想法记录、标签与引用管理</td></tr>\n        <tr><td>语音音频</td><td>语音转文字，用于记账或 AI 对话输入</td></tr>\n        <tr><td>AI 对话上下文</td><td>生成数据分析、智能建议等 AI 功能</td></tr>\n        <tr><td>AI 派生记忆</td><td>减少重复分析，并在合适的问题中提供个性化上下文</td></tr>\n        <tr><td>匿名使用事件</td><td>统计功能使用情况，改进产品设计（不含任何记录内容）</td></tr>\n    </tbody>\n</table>\n\n<h2>三、数据的存储与安全</h2>\n\n<h3>3.1 本地存储</h3>\n<p>您的核心数据存储在您的设备本地，使用 Apple Core Data 框架进行管理。</p>\n<p>App Store 正式版不会在设备上另存 AI 原始请求、完整上下文或完整响应日志。</p>\n\n<h3>3.2 iCloud 同步</h3>\n<p>在您登录 iCloud 并启用同步后，您的 Holo 本地记录、个人资料头像和普通 AI 派生记忆会通过 Apple CloudKit 在您的设备之间同步。数据传输和存储均受 Apple 的加密保护。我们<strong>无法访问</strong>您 iCloud 中的用户数据。Holo 不会将从 Apple HealthKit 读取的原始健康数据、健康派生记忆或包含健康来源的综合记忆写入或同步到 Holo 的 iCloud 数据库。</p>\n\n<h3>3.3 服务器端处理</h3>\n<ul>\n    <li>AI 和语音识别请求通过 HTTPS 加密传输至我们的后端服务器。</li>\n    <li>服务器主要用于请求转发、限流、安全防护和故障排查。我们不会主动保存您发送给 AI 的原始请求正文、语音音频或完整上下文作为用户资料。</li>\n    <li>为保障服务稳定性，服务器会保存最小化的技术日志或摘要信息，例如设备标识、调用类型、服务商、模型、耗时、错误信息、请求/响应摘要或长度以及调用时间。日志用于安全、限流和排障，默认不保存完整原文，并会按后台配置定期清理。</li>\n</ul>\n\n<h3>3.4 安全措施</h3>\n<ul>\n    <li>所有网络通信使用 TLS 1.2+ 加密。</li>\n    <li>API Key 不存储在客户端应用中，由后端服务器安全保管。</li>\n    <li>服务器部署在受防火墙保护的云环境中。</li>\n</ul>\n\n<h2>四、信息共享</h2>\n<p>我们<strong>不会</strong>出售、出租或交易您的个人信息。</p>\n<ul>\n    <li><strong>AI 服务提供商</strong>：在您使用 AI 功能并同意 AI 数据处理授权后，您的提问和必要上下文会发送至第三方 AI 服务（如阿里云百炼（通义千问）、DeepSeek、Moonshot（Kimi）、智谱（GLM））。</li>\n    <li><strong>Apple 服务</strong>：Sign in with Apple 和 iCloud 同步由 Apple 提供并受 Apple 隐私政策约束。</li>\n    <li><strong>法律要求</strong>：在适用法律法规要求时，我们可能需要披露您的信息。</li>\n</ul>\n\n<h2>五、您的权利</h2>\n<ul>\n    <li><strong>访问数据</strong>：您可随时在应用内查看所有已存储的个人数据。</li>\n    <li><strong>更换或移除头像</strong>：您可随时在“个人资料”中更换或移除头像，移除意图会同步到您的其他设备。</li>\n    <li><strong>删除数据</strong>：您可以在设置中选择\"删除账号与数据\"。</li>\n    <li><strong>撤销授权</strong>：您可以在设备\"设置\"→\"隐私与安全性\"中随时撤销各项权限。</li>\n</ul>\n\n<h2>六、数据保留期限</h2>\n<ul>\n    <li>本地数据：在您主动删除或卸载应用前持续保留。</li>\n    <li>iCloud 数据：随您的 iCloud 账户保留。</li>\n    <li>服务器日志：仅保留最小化技术日志或摘要信息，用于安全、限流和排障，并按后台配置定期清理；我们不会主动保存 AI 原始请求正文、语音音频或完整上下文作为用户资料。</li>\n    <li>语音音频：处理完成后立即销毁。</li>\n</ul>\n\n<h2>七、儿童隐私</h2>\n<p>本应用不面向 13 岁以下儿童。如果我们发现误收集了儿童的数据，将立即删除。</p>\n\n<h2>八、隐私政策的更新</h2>\n<p>重大变更将通过应用内通知告知您。继续使用即表示您同意更新后的政策。</p>\n\n<h2>九、联系我们</h2>\n<ul>\n    <li>邮箱：<a href=\"mailto:%2$@\">%3$@</a></li>\n    <li>网站：https://holoapp.cn</li>\n</ul>\n\n<div class=\"footer\">\n    <p>© 2026 Holo. 保留所有权利。</p>\n</div>\n\n</body>\n</html>"
+          }
+        }
+      }
+    },
+    "AI 与记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI & Memory"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 與記憶"
+          }
+        }
+      }
+    },
+    "AI 分析范围" : {
+
+    },
+    "AI 参与范围" : {
+
+    },
+    "AI 看不到这些想法——连「存在多少条」都看不到。" : {
+
+    },
+    "HOLO 深度洞察" : {
+
+    },
+    "Holo Plus · 无限补录" : {
+
+    },
+    "Holo · 人生数据库" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo · Life database"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo · 人生数据库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo · 人生資料庫"
+          }
+        }
+      }
+    },
+    "Holo 不会主动新增对你的理解。已保存的内容仍在这里，随时可管理。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo won't add new understanding on its own. Saved memories stay here, ready to manage."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo 不會主動新增對你的理解。已保存的內容仍在這裡，隨時可管理。"
+          }
+        }
+      }
+    },
+    "Holo 不会用原来的证据自动重建这条理解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo won't rebuild this understanding from the original evidence"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo 不會用原來的證據自動重建這條理解"
+          }
+        }
+      }
+    },
+    "Holo 依据记录与对话自动形成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Formed automatically from your records and chats"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo 依據記錄與對話自動形成"
+          }
+        }
+      }
+    },
+    "Holo 对你的理解都保存在这里，来源可查，去留由你。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Everything Holo has learned about you lives here — check the sources, decide what stays."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo 對你的理解都保存在這裡，來源可查，去留由你。"
+          }
+        }
+      }
+    },
+    "Holo 推断" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo inferred"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo 推斷"
+          }
+        }
+      }
+    },
+    "Holo 记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo Memory"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holo 記憶"
+          }
+        }
+      }
+    },
+    "Holo 记忆 · 管理页" : {
+
+    },
+    "Holo 默认外观" : {
+
+    },
+    "HoloAI" : {
+
+    },
+    "HoloAI 正在进行另一项分析" : {
+
+    },
+    "HoloAI 正在进行另一项分析，等它结束再来" : {
+
+    },
+    "HoloAI 设置" : {
+
+    },
+    "iPhone 15 Pro 及之后全系" : {
+
+    },
+    "iPhone 15 及更早机型" : {
+
+    },
     "—" : {
       "localizations" : {
         "en" : {
@@ -558,6 +847,4669 @@
           }
         }
       }
+    },
+    "。" : {
+
+    },
+    "。你可以查看依据，或告诉 Holo 更准确的情况。不处理也没关系，它们不会自己变成「已记住」。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". You can check the sources or tell Holo what's more accurate. No rush — they won't become \"Remembered\" on their own."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。你可以查看依據，或告訴 Holo 更準確的情況。不處理也沒關係，它們不會自己變成「已記住」。"
+          }
+        }
+      }
+    },
+    "「%@」不可用" : {
+
+    },
+    "「%@」对应习惯不可用" : {
+
+    },
+    "「%@」尚无观测" : {
+
+    },
+    "「%@」已归档" : {
+
+    },
+    "「%@」最新观测 %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "「%1$@」最新观测 %2$@"
+          }
+        }
+      }
+    },
+    "「%@」本窗口无记录" : {
+
+    },
+    "「%@」窗口累计 %lld 条记录" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "「%1$@」窗口累计 %2$lld 条记录"
+          }
+        }
+      }
+    },
+    "「一个发现」同一时间只在一台设备上自动理解。在本设备接管后，%@ 将停止自动理解，原设备上已生成的发现也会撤下。" : {
+
+    },
+    "「一个发现」已在另一台设备开启" : {
+
+    },
+    "「一个发现」的自动理解同样依赖总授权。请先到「数据处理授权」了解并同意，再回来开启。" : {
+
+    },
+    "「自定操作」点「" : {
+
+    },
+    "「设置」→「" : {
+
+    },
+    "「设置」→「辅助功能」→「触控」→ 打开「" : {
+
+    },
+    "「设置」→「辅助功能」→「触控」→ 最底「" : {
+
+    },
+    "」→ 完成。" : {
+
+    },
+    "」→ 拉到「快捷指令」分组勾选你那条。" : {
+
+    },
+    "」。" : {
+
+    },
+    "」加入（拍小票就搜「" : {
+
+    },
+    "」加入，图片会自动接上。" : {
+
+    },
+    "」）。" : {
+
+    },
+    "」，点「选择快捷指令…」勾选你那条。" : {
+
+    },
+    "一个值得记住的小节点" : {
+
+    },
+    "一个发现" : {
+
+    },
+    "一个发现 · 记忆 · 自动处理 · 数据与隐私" : {
+
+    },
+    "一个发现，有新内容" : {
+
+    },
+    "一日一页" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A day, a page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一日一页"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一日一頁"
+          }
+        }
+      }
+    },
+    "一次记录，分别按各目标的约定读取。修改原记录后，相关目标一起重算。" : {
+
+    },
+    "一笔账、一个念头，或一次习惯打卡。" : {
+
+    },
+    "三步搞定：建指令 → 绑按钮 → 按一下记账。" : {
+
+    },
+    "上床至入睡约 %lld 分钟" : {
+
+    },
+    "上次的报告已被删除；可以重新分析" : {
+
+    },
+    "下一站" : {
+
+    },
+    "下次回顾 %@；现在也可以主动分析" : {
+
+    },
+    "不再进入现在的回答，仅作回看" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No longer used in answers; kept for reference"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不再進入現在的回答，僅作回看"
+          }
+        }
+      }
+    },
+    "不参与 AI" : {
+
+    },
+    "不参与 AI 分析" : {
+
+    },
+    "不太准确" : {
+
+    },
+    "不用做很多，留下一点就很好。" : {
+
+    },
+    "不符合" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not accurate"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不符合"
+          }
+        }
+      }
+    },
+    "不要求连续。归档保留积累，删除或撤销会调整当前数字；已经达成的里程碑保留为历史。" : {
+
+    },
+    "不需要连续" : {
+
+    },
+    "主睡眠 · 按真实时间排列" : {
+
+    },
+    "乐器" : {
+
+    },
+    "九态" : {
+
+    },
+    "习惯 · 原模块明细" : {
+
+    },
+    "习惯创建于今天，暂无可补录的日期" : {
+
+    },
+    "习惯已删除" : {
+
+    },
+    "习惯已删除或不存在，请重新选择来源" : {
+
+    },
+    "习惯已归档" : {
+
+    },
+    "习惯已记录 %lld/%lld" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "习惯已记录 %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "书本" : {
+
+    },
+    "书签" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "书签"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書籤"
+          }
+        }
+      }
+    },
+    "云端处理说明" : {
+
+    },
+    "云端深度分析当前未开放" : {
+
+    },
+    "亲子" : {
+
+    },
+    "人民币" : {
+
+    },
+    "人脉" : {
+
+    },
+    "人际情感" : {
+
+    },
+    "仅作参考" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reference only"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅作參考"
+          }
+        }
+      }
+    },
+    "仅作参考进入相关回答，不作为确定事实" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used as reference only, never as firm fact"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅作參考進入相關回答，不作為確定事實"
+          }
+        }
+      }
+    },
+    "仅可限定参考" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limited reference"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅可限定參考"
+          }
+        }
+      }
+    },
+    "仅应用到本条，文字与图片保留" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply to this thought, keeping text and photos"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅应用到本条，文字与图片保留"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅套用到本則，保留文字與圖片"
+          }
+        }
+      }
+    },
+    "仅用于本次分享" : {
+
+    },
+    "仅预览，尚未应用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview only"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仅预览，尚未应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅預覽，尚未套用"
+          }
+        }
+      }
+    },
+    "今天暂时没有待处理安排。" : {
+
+    },
+    "今天正在关注这个目标" : {
+
+    },
+    "今天没有其他待处理安排。" : {
+
+    },
+    "今天请直接打卡 · 超过 %lld 天的日期无法补录" : {
+
+    },
+    "从生活记录里，慢慢认识自己" : {
+
+    },
+    "从第一笔开始积累" : {
+
+    },
+    "任务完成 %lld/%lld" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "任务完成 %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "任务已删除" : {
+
+    },
+    "任务已删除或暂不可用" : {
+
+    },
+    "会随生活变化更新" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates as life changes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會隨生活變化更新"
+          }
+        }
+      }
+    },
+    "住所" : {
+
+    },
+    "余额查询失败，稍后重试" : {
+
+    },
+    "你主动添加" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You added this"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你主動添加"
+          }
+        }
+      }
+    },
+    "你改写过内容" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You rewrote this"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你改寫過內容"
+          }
+        }
+      }
+    },
+    "你曾经达成这个里程碑。当前积累为 %lld %@，已随记录调整。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "你曾经达成这个里程碑。当前积累为 %1$lld %2$@，已随记录调整。"
+          }
+        }
+      }
+    },
+    "你标记 · 不再使用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You marked · stop using"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你標記 · 不再使用"
+          }
+        }
+      }
+    },
+    "你标记 · 不准确" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You marked · inaccurate"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你標記 · 不準確"
+          }
+        }
+      }
+    },
+    "你添加" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You added"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你添加"
+          }
+        }
+      }
+    },
+    "你的草稿：%@" : {
+
+    },
+    "你确认过" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You confirmed"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你確認過"
+          }
+        }
+      }
+    },
+    "你确认过 Holo 的理解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You confirmed Holo's understanding"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你確認過 Holo 的理解"
+          }
+        }
+      }
+    },
+    "你纠正过" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You corrected"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你糾正過"
+          }
+        }
+      }
+    },
+    "你选择过「不想看这类」的观察类别会列在这里，可随时恢复偏好。" : {
+
+    },
+    "使用「" : {
+
+    },
+    "使用说明" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How it's used"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用說明"
+          }
+        }
+      }
+    },
+    "依据已变化" : {
+
+    },
+    "依据待积累" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Building evidence"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依據待積累"
+          }
+        }
+      }
+    },
+    "依据或计划已变化，上次的调整建议待刷新；重新分析后再确认" : {
+
+    },
+    "依据或计划已变化，这份调整建议需要重新分析后再确认。" : {
+
+    },
+    "保存中…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存中…"
+          }
+        }
+      }
+    },
+    "保存后以你的说法为准：回答、摘要与个人情境同步更新，原来源保留作参考。如果改成了另一件事，Holo 会提示另建一条。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your wording wins: answers, summaries and personal context all update; original sources stay for reference. If it becomes a different fact, Holo will suggest creating a new one."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存後以你的說法為準：回答、摘要與個人情境同步更新，原來源保留作參考。如果改成了另一件事，Holo 會提示另建一條。"
+          }
+        }
+      }
+    },
+    "保存没成功，内容没丢，稍后再试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save failed — nothing lost. Try again later."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存沒成功，內容沒丟，稍後再試。"
+          }
+        }
+      }
+    },
+    "保存确认" : {
+
+    },
+    "保留当前样式" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep current style"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留当前样式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留目前樣式"
+          }
+        }
+      }
+    },
+    "信用账户余额不代表可用资金" : {
+
+    },
+    "修改成果标准" : {
+
+    },
+    "修改成果标准（需单独确认）" : {
+
+    },
+    "修改的是计划，账户余额和过去已确认的期次不被覆盖。" : {
+
+    },
+    "修改财务预算（需单独确认）" : {
+
+    },
+    "借记卡" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debit Card"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "簽帳金融卡"
+          }
+        }
+      }
+    },
+    "停在成功页按一下，自动截屏入账。" : {
+
+    },
+    "停用 = 不再影响回答，内容保留、随时恢复；删除 = 清除内容本身。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled = no longer affects answers, content kept and restorable. Deleted = content itself is erased."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停用 = 不再影響回答，內容保留、隨時恢復；刪除 = 清除內容本身。"
+          }
+        }
+      }
+    },
+    "停用的内容会出现在这里。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled memories will appear here."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停用的內容會出現在這裡。"
+          }
+        }
+      }
+    },
+    "停车" : {
+
+    },
+    "健康相关来源仅保存在本设备。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health-related sources stay on this device only."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "健康相關來源僅保存在本設備。"
+          }
+        }
+      }
+    },
+    "健康身体" : {
+
+    },
+    "允许使用%@" : {
+
+    },
+    "允许理解%@" : {
+
+    },
+    "允许理解的范围" : {
+
+    },
+    "光影片刻" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A quiet frame"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "光影片刻"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "光影片刻"
+          }
+        }
+      }
+    },
+    "光影胶片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Film frame"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "光影胶片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "光影膠片"
+          }
+        }
+      }
+    },
+    "全账本净结余增加" : {
+
+    },
+    "全账本净结余增加（旧口径）" : {
+
+    },
+    "全账本净结余自 %@ 起的变化" : {
+
+    },
+    "全部取消" : {
+
+    },
+    "全部领域" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All areas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部領域"
+          }
+        }
+      }
+    },
+    "公交" : {
+
+    },
+    "关注中的目标" : {
+
+    },
+    "关联已有习惯" : {
+
+    },
+    "关联已有任务" : {
+
+    },
+    "关联既有习惯" : {
+
+    },
+    "关联既有任务" : {
+
+    },
+    "关联目标已删除" : {
+
+    },
+    "关闭「一个发现」？" : {
+
+    },
+    "关闭侧栏" : {
+
+    },
+    "关闭排除后，这些想法会重新参与 AI 归类与分析。" : {
+
+    },
+    "关闭提示" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dismiss"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉提示"
+          }
+        }
+      }
+    },
+    "关闭里程碑提醒" : {
+
+    },
+    "其他安排" : {
+
+    },
+    "内容已删除，来源随正文一并清除。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Content was deleted; sources were cleared with it."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "內容已刪除，來源隨正文一併清除。"
+          }
+        }
+      }
+    },
+    "再搜「" : {
+
+    },
+    "写下你的第一句话，让今天的一个片刻留在这里。" : {
+
+    },
+    "出行" : {
+
+    },
+    "出行交通" : {
+
+    },
+    "分析失败" : {
+
+    },
+    "分析所依据的计划版本已不存在" : {
+
+    },
+    "分析没有产生结果" : {
+
+    },
+    "分析生成中…可以先离开，完成后这里和 HoloAI 都会出现同一份报告。" : {
+
+    },
+    "分析目标" : {
+
+    },
+    "分析被系统暂停" : {
+
+    },
+    "切换、" : {
+
+    },
+    "划重点" : {
+
+    },
+    "删除了这条记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleted this memory"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除了這條記憶"
+          }
+        }
+      }
+    },
+    "删除后不再用于任何回答，且无法恢复" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After deletion it won't be used for answers and can't be recovered"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除後不再用於任何回答，且無法恢復"
+          }
+        }
+      }
+    },
+    "删除记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Memory"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除記憶"
+          }
+        }
+      }
+    },
+    "删除账号与数据" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Account & Data"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除帳號與資料"
+          }
+        }
+      }
+    },
+    "删除这条原记录？" : {
+
+    },
+    "删除这条记忆？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete this memory?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除這條記憶？"
+          }
+        }
+      }
+    },
+    "利息" : {
+
+    },
+    "到期时间暂不支持修改" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expiry dates can't be edited yet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到期時間暫不支持修改"
+          }
+        }
+      }
+    },
+    "前往记忆设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memory Settings"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前往記憶設置"
+          }
+        }
+      }
+    },
+    "剩余 %lld 期；已无剩余期次或已过截止，不能按期次分摊" : {
+
+    },
+    "功能滑到「" : {
+
+    },
+    "加油" : {
+
+    },
+    "加载失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load failed"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加載失敗"
+          }
+        }
+      }
+    },
+    "包含成果标准/总额/期限的修改，需要先勾选上面的单独确认。" : {
+
+    },
+    "半透明悬浮球" : {
+
+    },
+    "单点" : {
+
+    },
+    "单点悬浮球" : {
+
+    },
+    "单账户余额" : {
+
+    },
+    "历史分析" : {
+
+    },
+    "历史观测以保存的报告为准，不补画缺失的历史。" : {
+
+    },
+    "原功能（如手电筒）会被替换；iOS 26 可配多个功能：" : {
+
+    },
+    "原始记录（笔记、账单、聊天）不会被删除" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original records (notes, bills, chats) won't be deleted"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原始記錄（筆記、賬單、聊天）不會被刪除"
+          }
+        }
+      }
+    },
+    "原样" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原样"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原樣"
+          }
+        }
+      }
+    },
+    "原记录已删除，这条理解不能这样确认——可改为重新核对。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The original record was deleted, so this can't be confirmed — try Re-verify instead."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原記錄已刪除，這條理解不能這樣確認——可改為重新核對。"
+          }
+        }
+      }
+    },
+    "去 HoloAI" : {
+
+    },
+    "去习惯" : {
+
+    },
+    "去找 Holo 聊聊" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chat with Holo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "去找 Holo 聊聊"
+          }
+        }
+      }
+    },
+    "去财务" : {
+
+    },
+    "参考背景" : {
+
+    },
+    "又到回顾时间了" : {
+
+    },
+    "发票" : {
+
+    },
+    "取消，沿用原要求" : {
+
+    },
+    "另一台设备保存了新版本。你的草稿已保留，先看看新版本再决定，不会覆盖别人的修改。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another device saved a newer version. Your draft is kept — review it first; nothing gets overwritten."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "另一台設備保存了新版本。你的草稿已保留，先看看新版本再決定，不會覆蓋別人的修改。"
+          }
+        }
+      }
+    },
+    "只在对话页呈现，不发通知" : {
+
+    },
+    "只影响本目标。实际记录、共享习惯默认要求和其他目标保持原值。" : {
+
+    },
+    "只看已结束的归属日" : {
+
+    },
+    "可以不解释，也可以告诉 Holo 哪里不合适：" : {
+
+    },
+    "可以先去任务模块安排一件事，或去习惯、记账模块留下记录。" : {
+
+    },
+    "可点进对应记录核对" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to check the original record"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可點進對應記錄核對"
+          }
+        }
+      }
+    },
+    "可选 · 最多 %lld 张" : {
+
+    },
+    "各阶段占总睡眠时长的比例" : {
+
+    },
+    "合上对照" : {
+
+    },
+    "同一计划版本在多台设备上产生了不同修改，需要先核对实际安排、合并差异，暂不自动应用。" : {
+
+    },
+    "同意后回到这里再点「分析目标」即可；原计划不受影响。" : {
+
+    },
+    "和 Holo 相处的过程中，合适的信息会慢慢留下——不需要刻意做什么。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As you live with Holo, the right details will settle in naturally — nothing you need to do."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "和 Holo 相處的過程中，合適的信息會慢慢留下——不需要刻意做什麼。"
+          }
+        }
+      }
+    },
+    "咖啡杯" : {
+
+    },
+    "唱歌" : {
+
+    },
+    "喜爱" : {
+
+    },
+    "回到当前进展" : {
+
+    },
+    "回桌面" : {
+
+    },
+    "回顾与历史" : {
+
+    },
+    "回顾周期" : {
+
+    },
+    "回顾目标「%@」：这段时间行动做了多少、结果变化多少、差距在哪里，下一步该继续什么、调整什么。" : {
+
+    },
+    "回顾节奏" : {
+
+    },
+    "图片加载失败，轻点重试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image failed to load. Tap to retry."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片加载失败，轻点重试"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片載入失敗，輕點重試"
+          }
+        }
+      }
+    },
+    "图片暂不可用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image currently unavailable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片暂不可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片暫不可用"
+          }
+        }
+      }
+    },
+    "图片未就绪" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Image not ready"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片未就绪"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片未就緒"
+          }
+        }
+      }
+    },
+    "在 HoloAI 查看进度" : {
+
+    },
+    "在本目标中的作用" : {
+
+    },
+    "在这里标记的标签，Holo 不会交给 AI——不归类、不分析、不进任何报告。" : {
+
+    },
+    "地铁火车" : {
+
+    },
+    "基础计划版本无法读取（可能来自更新版本），不能应用修改" : {
+
+    },
+    "外带" : {
+
+    },
+    "天气" : {
+
+    },
+    "失败" : {
+
+    },
+    "夺冠" : {
+
+    },
+    "如果只是不想影响回答，「不再使用」更合适" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you just don't want it affecting answers, \"Stop using\" is a better fit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果只是不想影響回答，「不再使用」更合適"
+          }
+        }
+      }
+    },
+    "娱乐创造" : {
+
+    },
+    "存在改变这条解释的相反记录，边界已写进上方解释。" : {
+
+    },
+    "安排暂时读取失败，请到任务模块核对。" : {
+
+    },
+    "安排暂时读取失败，请稍后重试。" : {
+
+    },
+    "完成任务" : {
+
+    },
+    "完成输入" : {
+
+    },
+    "实际情况" : {
+
+    },
+    "宠物" : {
+
+    },
+    "家居生活" : {
+
+    },
+    "寄给自己" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To myself"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寄给自己"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寄給自己"
+          }
+        }
+      }
+    },
+    "对折" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fold"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对折"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對摺"
+          }
+        }
+      }
+    },
+    "对折手记" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Folded journal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对折手记"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對摺手記"
+          }
+        }
+      }
+    },
+    "对折看变化" : {
+
+    },
+    "将停止新的自动理解，并清除已生成的发现与派生缓存；你的原始记录与已有记忆不受影响。" : {
+
+    },
+    "小型电动车" : {
+
+    },
+    "少刷视频" : {
+
+    },
+    "尚未获得 HoloAI 数据处理授权" : {
+
+    },
+    "尚未选定资金账户" : {
+
+    },
+    "屏幕边缘出现" : {
+
+    },
+    "展开依据列表" : {
+
+    },
+    "展演" : {
+
+    },
+    "展览" : {
+
+    },
+    "工资" : {
+
+    },
+    "左侧、音量键上方" : {
+
+    },
+    "已与想法一致" : {
+
+    },
+    "已保存 · 暂不使用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved · paused"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存 · 暫不使用"
+          }
+        }
+      }
+    },
+    "已保存的内容没有丢，稍后再试一次。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing was lost — please try again later."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存的內容沒有丟，稍後再試一次。"
+          }
+        }
+      }
+    },
+    "已保存的记忆仍在这里正常管理，只是暂时不用于回答。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved memories are still managed here — they're just not used for answers right now."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存的記憶仍在這裡正常管理，只是暫時不用於回答。"
+          }
+        }
+      }
+    },
+    "已停用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已停用"
+          }
+        }
+      }
+    },
+    "已停用 · 不再影响回答" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled · no longer affects answers"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已停用 · 不再影響回答"
+          }
+        }
+      }
+    },
+    "已停用，不影响任何回答" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled; doesn't affect any answers"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已停用，不影響任何回答"
+          }
+        }
+      }
+    },
+    "已允许" : {
+
+    },
+    "已应用 %lld 项修改（计划第 %lld 版）。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已应用 %1$lld 项修改（计划第 %2$lld 版）。"
+          }
+        }
+      }
+    },
+    "已建好，跳过" : {
+
+    },
+    "已恢复参与 AI，稍后自动归类" : {
+
+    },
+    "已收到。这条反馈不会写进长期记忆。" : {
+
+    },
+    "已改好 · 回答将使用新的说法" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved · answers will use the new wording"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已改好 · 回答將使用新的說法"
+          }
+        }
+      }
+    },
+    "已标记不准确 · 不再用于回答" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marked inaccurate · no longer used for answers"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已標記不準確 · 不再用於回答"
+          }
+        }
+      }
+    },
+    "已标记过时 · 移入过去的记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marked outdated · moved to Past memories"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已標記過時 · 移入過去的記憶"
+          }
+        }
+      }
+    },
+    "已知 %lld 项 · 未知 %lld 项：%@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "已知 %1$lld 项 · 未知 %2$lld 项：%3$@"
+          }
+        }
+      }
+    },
+    "已确认 · 相关回答会参考这条信息" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmed · answers may reference this"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已確認 · 相關回答會參考這條信息"
+          }
+        }
+      }
+    },
+    "已经过时" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outdated"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已經過時"
+          }
+        }
+      }
+    },
+    "已经过期、被替代或来源失效的理解。只作回看，不会用于现在的回答。" : {
+
+    },
+    "已获得 HoloAI 数据处理授权" : {
+
+    },
+    "已被替代" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Superseded"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已被替代"
+          }
+        }
+      }
+    },
+    "已记住" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remembered"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已記住"
+          }
+        }
+      }
+    },
+    "已记录 %lld 天 · 查看积累" : {
+
+    },
+    "已过时" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outdated"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已過時"
+          }
+        }
+      }
+    },
+    "已退出 AI 分析，已有的 AI 归类正在撤下" : {
+
+    },
+    "已重新启用 · 重新校验通过后生效" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Re-enabled · takes effect after re-validation"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已重新啟用 · 重新校驗通過後生效"
+          }
+        }
+      }
+    },
+    "希望我怎么称呼你？（可选）" : {
+
+    },
+    "带「%@」标签的想法将退出所有 AI 处理：不归类主题、不打自动标签、不进洞察与复盘——AI 不会知道它们的存在。\n\n已有的 AI 归类会一并撤下，随时可以关闭恢复。" : {
+
+    },
+    "庆祝" : {
+
+    },
+    "开发者 AI 设置" : {
+
+    },
+    "开发预览" : {
+
+    },
+    "开启一个发现" : {
+
+    },
+    "开启排除" : {
+
+    },
+    "归档保留积累，删除会调整当前数字。已经达成的里程碑保留为历史，不会反复颁发；全量清空数据会同时清除里程碑。" : {
+
+    },
+    "当前范围" : {
+
+    },
+    "当前记录" : {
+
+    },
+    "当前资金 %@，剩余 %lld 期 → 每期应存 %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "当前资金 %1$@，剩余 %2$lld 期 → 每期应存 %3$@"
+          }
+        }
+      }
+    },
+    "当前资金未知（来源待补齐），期次保持建议日期、金额暂无法重算。" : {
+
+    },
+    "当前进展" : {
+
+    },
+    "当前阶段有效" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valid for the current phase"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當前階段有效"
+          }
+        }
+      }
+    },
+    "当前阶段（原范围保留）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current phase (original range kept)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當前階段（原範圍保留）"
+          }
+        }
+      }
+    },
+    "当天近况" : {
+
+    },
+    "形成方式" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Origin"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形成方式"
+          }
+        }
+      }
+    },
+    "影响对象：%@" : {
+
+    },
+    "待厘清" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Needs review"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待釐清"
+          }
+        }
+      }
+    },
+    "待澄清" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Awaiting clarification"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待澄清"
+          }
+        }
+      }
+    },
+    "待补齐" : {
+
+    },
+    "待记录" : {
+
+    },
+    "心情" : {
+
+    },
+    "必要成果条件" : {
+
+    },
+    "快捷指令" : {
+
+    },
+    "快递" : {
+
+    },
+    "快速眼动（REM）" : {
+
+    },
+    "怎样判断" : {
+
+    },
+    "怎样才算达成" : {
+
+    },
+    "总睡眠" : {
+
+    },
+    "恢复全部偏好" : {
+
+    },
+    "恢复参与 AI 分析" : {
+
+    },
+    "悬浮球常驻屏幕；把「闲置时不透明度」调低可变淡，不碍眼。" : {
+
+    },
+    "想法图片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thought photo"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想法图片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想法圖片"
+          }
+        }
+      }
+    },
+    "成果目标值" : {
+
+    },
+    "我了解并同意上述说明" : {
+
+    },
+    "我的积累" : {
+
+    },
+    "我确认修改成功条件、来源或期限" : {
+
+    },
+    "我确认修改成果标准 / 总额 / 期限" : {
+
+    },
+    "我确认修改这份预算" : {
+
+    },
+    "我确认采用本目标的新约定" : {
+
+    },
+    "截屏" : {
+
+    },
+    "房租" : {
+
+    },
+    "所有目标" : {
+
+    },
+    "打开「快捷指令」App，右上角 " : {
+
+    },
+    "打开原记录" : {
+
+    },
+    "打开导航侧栏，当前范围：%@" : {
+
+    },
+    "打开目标" : {
+
+    },
+    "打开这条发现的阅读面板" : {
+
+    },
+    "执行。" : {
+
+    },
+    "把「%@」留给自己？" : {
+
+    },
+    "把喜欢的念头夹好" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bookmark a favorite thought"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把喜欢的念头夹好"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把喜歡的念頭夾好"
+          }
+        }
+      }
+    },
+    "把片刻寄给自己" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send a moment to yourself"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把片刻寄给自己"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把片刻寄給自己"
+          }
+        }
+      }
+    },
+    "报告之后相关数据变了（比如补记了资金），旧建议不能直接采纳。" : {
+
+    },
+    "报告已删除" : {
+
+    },
+    "拨动长卷时间" : {
+
+    },
+    "拿不准的进「待复核」" : {
+
+    },
+    "按全账本收支净额计算，不是专项旅行资金" : {
+
+    },
+    "按原任务是否完成判断" : {
+
+    },
+    "按总睡眠时长计算，含小睡" : {
+
+    },
+    "按报告建议列出差异，逐项确认后才会真正改动；取消的项不会提交。确认前随时可以关闭，原计划不受影响。" : {
+
+    },
+    "按本自然月" : {
+
+    },
+    "按计划第 %lld 版分析" : {
+
+    },
+    "按起床日汇总" : {
+
+    },
+    "按起床日汇总 · 含小睡" : {
+
+    },
+    "换个说法，或清除筛选再试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try different words, or clear the filters."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "換個說法，或清除篩選再試。"
+          }
+        }
+      }
+    },
+    "提醒与自动生成互相独立：开启提醒不会自动生成，开启自动生成不会自动开启通知。时间与开关和「通知设置」共用同一份数据。" : {
+
+    },
+    "搜索记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search memories"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋記憶"
+          }
+        }
+      }
+    },
+    "摄影" : {
+
+    },
+    "撤回今天的打卡" : {
+
+    },
+    "撤回完成" : {
+
+    },
+    "撤回这一天的确认" : {
+
+    },
+    "撤销了上一次操作" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undid the last action"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤銷了上一次操作"
+          }
+        }
+      }
+    },
+    "操作 %@ 缺少必要参数" : {
+
+    },
+    "操作按钮" : {
+
+    },
+    "操作记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activity log"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作記錄"
+          }
+        }
+      }
+    },
+    "收下日常的小发现" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep little daily discoveries"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收下日常的小发现"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收下日常的小發現"
+          }
+        }
+      }
+    },
+    "收起依据 · %lld 段记录" : {
+
+    },
+    "收起依据列表" : {
+
+    },
+    "改个好认的名字，如「" : {
+
+    },
+    "改为" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change to"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改為"
+          }
+        }
+      }
+    },
+    "改写了内容" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rewrote the content"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改寫了內容"
+          }
+        }
+      }
+    },
+    "改安排，先看影响。" : {
+
+    },
+    "数 据 说 明" : {
+
+    },
+    "数据与同步" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data & Sync"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料與同步"
+          }
+        }
+      }
+    },
+    "数据概览 · 最近删除 · 清理缓存 · 清空所有数据" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Overview · Recently deleted · Clear cache · Erase all data"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料概覽 · 最近刪除 · 清理快取 · 清空所有資料"
+          }
+        }
+      }
+    },
+    "敲两下" : {
+
+    },
+    "整晚记录与近 7 天趋势" : {
+
+    },
+    "新建任务" : {
+
+    },
+    "新期限" : {
+
+    },
+    "新目标值" : {
+
+    },
+    "新计划已生效（同一目标，新版本）；日常记录仍回原模块，下次回顾会同时看「调整是否执行」和「结果是否改善」。" : {
+
+    },
+    "日出" : {
+
+    },
+    "日子里的小小积累" : {
+
+    },
+    "日常入口" : {
+
+    },
+    "日常观察" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily observations"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日常观察"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日常觀察"
+          }
+        }
+      }
+    },
+    "日期沿用各模块的业务时间和当前日历规则。较早记录未保存原始时区，跨时区查看时可能存在日期归属差异。" : {
+
+    },
+    "早期回顾" : {
+
+    },
+    "时长目标 %@" : {
+
+    },
+    "时长达标" : {
+
+    },
+    "显示最新一次真实测量。" : {
+
+    },
+    "晚" : {
+
+    },
+    "晴日观察" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Field notes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "晴日观察"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "晴日觀察"
+          }
+        }
+      }
+    },
+    "暂不作为事实使用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "aren't used as facts"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫不作為事實使用"
+          }
+        }
+      }
+    },
+    "暂不作为事实使用；确认后才会参与回答" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not used as fact yet; confirm it to include in answers"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫不作為事實使用；確認後才會參與回答"
+          }
+        }
+      }
+    },
+    "暂不可用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Temporarily unavailable"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫不可用"
+          }
+        }
+      }
+    },
+    "暂不接管，保持关闭" : {
+
+    },
+    "暂不用于回答" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not used for answers"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫不用於回答"
+          }
+        }
+      }
+    },
+    "暂不能查看调整" : {
+
+    },
+    "暂无来源。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No sources."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無來源。"
+          }
+        }
+      }
+    },
+    "暂时不说" : {
+
+    },
+    "暂时没做成，稍后再试一次。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Didn't go through — please try again later."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時沒做成，稍後再試一次。"
+          }
+        }
+      }
+    },
+    "暂时没能整理积累，点此重试" : {
+
+    },
+    "更正来源会刷新当前事实，已保存的报告保留生成时内容。" : {
+
+    },
+    "替换一项安排" : {
+
+    },
+    "最初约定" : {
+
+    },
+    "最近 %lld 天没有漏卡，无需补录" : {
+
+    },
+    "最近观测已超过 %lld 天" : {
+
+    },
+    "最近观测已过期" : {
+
+    },
+    "最近这段时间" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent phase"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近這段時間"
+          }
+        }
+      }
+    },
+    "最长睡眠" : {
+
+    },
+    "有些想法，只想留给自己。" : {
+
+    },
+    "有些标签下的想法，可以只属于你自己。标记后它们不参与任何 AI 归类与分析。" : {
+
+    },
+    "有可采纳的调整建议，确认前不会改动任何安排" : {
+
+    },
+    "有点像" : {
+
+    },
+    "有记录晚均" : {
+
+    },
+    "有轨电车" : {
+
+    },
+    "期次金额会按确认时点的真实资金自动重算，不采用报告里的旧数字；总目标金额不会因此自动降低。" : {
+
+    },
+    "未允许" : {
+
+    },
+    "未分期" : {
+
+    },
+    "未授予数据处理授权：自动处理处于暂停状态，不会在后台运行。" : {
+
+    },
+    "未来的里程碑" : {
+
+    },
+    "未设定期回顾；可随时主动分析" : {
+
+    },
+    "未读取到睡眠分期" : {
+
+    },
+    "本月免费补录" : {
+
+    },
+    "本条样式：" : {
+
+    },
+    "本次升级后，操作会记录在这里。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actions taken after this update will be logged here."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本次升級後，操作會記錄在這裡。"
+          }
+        }
+      }
+    },
+    "本目标要求" : {
+
+    },
+    "来源依据" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sources"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來源依據"
+          }
+        }
+      }
+    },
+    "来源已删除或暂不可用，请返回核对关联。" : {
+
+    },
+    "来源已失效" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source removed"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "來源已失效"
+          }
+        }
+      }
+    },
+    "查看%@" : {
+
+    },
+    "查看全部任务" : {
+
+    },
+    "查看回顾与历史 ↗" : {
+
+    },
+    "查看图片" : {
+
+    },
+    "查看报告" : {
+
+    },
+    "查看数据处理授权" : {
+
+    },
+    "查看新版本" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View new version"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看新版本"
+          }
+        }
+      }
+    },
+    "查看积累日期" : {
+
+    },
+    "查看调整" : {
+
+    },
+    "查看这项积累" : {
+
+    },
+    "查看进展长卷" : {
+
+    },
+    "标记不准确" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marked inaccurate"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標記不準確"
+          }
+        }
+      }
+    },
+    "标记已过时" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marked outdated"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標記已過時"
+          }
+        }
+      }
+    },
+    "树木" : {
+
+    },
+    "样式保存失败，请重试" : {
+
+    },
+    "样式：" : {
+
+    },
+    "根据现有记录统计 · 查看口径" : {
+
+    },
+    "桌游" : {
+
+    },
+    "橙色这颗就是操作按钮" : {
+
+    },
+    "次数按原记录条数计算；点某条改数值，误记请删除那一条。" : {
+
+    },
+    "正在使用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In use"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在使用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在使用"
+          }
+        }
+      }
+    },
+    "正在准备这次分析，请稍候" : {
+
+    },
+    "正在同步，积累会在同步后更新" : {
+
+    },
+    "正在整理你的积累" : {
+
+    },
+    "正在读取今天" : {
+
+    },
+    "正在读取约定" : {
+
+    },
+    "正在读取计划…" : {
+
+    },
+    "正在读取进展" : {
+
+    },
+    "正餐" : {
+
+    },
+    "此前已停用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previously disabled"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此前已停用"
+          }
+        }
+      }
+    },
+    "每一次小小的记录，都留下了痕迹。" : {
+
+    },
+    "每一次记录，都从这里开始。" : {
+
+    },
+    "每一种开始，都值得" : {
+
+    },
+    "每周提醒 · 每月提醒 · 后台自动生成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weekly & monthly reminders · Background auto-generation"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每週提醒 · 每月提醒 · 背景自動生成"
+          }
+        }
+      }
+    },
+    "每日确认" : {
+
+    },
+    "每期应存已按当前资金重算为 %@。" : {
+
+    },
+    "每条都会写明原因。如果某个「过去」又变回了现在，进详情重新核对即可。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each entry shows why. If a \"past\" becomes present again, just re-verify it in the detail page."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每條都會寫明原因。如果某個「過去」又變回了現在，進詳情重新核對即可。"
+          }
+        }
+      }
+    },
+    "水果" : {
+
+    },
+    "汇总由下面的原始记录计算；修改具体记录后会重新计算。" : {
+
+    },
+    "汽车" : {
+
+    },
+    "没应用成功：%@" : {
+
+    },
+    "没应用成功：%@。内容还在，稍后再试。" : {
+
+    },
+    "没有停用的记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No disabled memories"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有停用的記憶"
+          }
+        }
+      }
+    },
+    "没有匹配的记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching memories"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有匹配的記憶"
+          }
+        }
+      }
+    },
+    "没有结果量，只看执行情况" : {
+
+    },
+    "没有过去的记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No past memories"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有過去的記憶"
+          }
+        }
+      }
+    },
+    "没能发起分析" : {
+
+    },
+    "没能登记这次分析，请稍后再试" : {
+
+    },
+    "沿用本条样式" : {
+
+    },
+    "沿着纸页慢慢写" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write along a folded page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沿着纸页慢慢写"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沿著紙頁慢慢寫"
+          }
+        }
+      }
+    },
+    "沿途的里程碑" : {
+
+    },
+    "洗浴" : {
+
+    },
+    "测试。" : {
+
+    },
+    "深睡主要分布在前半夜" : {
+
+    },
+    "深睡主要分布在后半夜" : {
+
+    },
+    "深睡在前后半夜分布较均匀" : {
+
+    },
+    "添加操作：搜「" : {
+
+    },
+    "添加补充备注（可选）…" : {
+
+    },
+    "清醒不计入总睡眠时长；未记录表示没有该阶段样本。" : {
+
+    },
+    "清除你对「一个发现」的否定反馈与「不想看这类」的隐藏偏好；不影响任何业务数据。" : {
+
+    },
+    "火锅" : {
+
+    },
+    "点阵" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dots"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点阵"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點陣"
+          }
+        }
+      }
+    },
+    "点阵便笺" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dot-grid note"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点阵便笺"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點陣便箋"
+          }
+        }
+      }
+    },
+    "燃气" : {
+
+    },
+    "片段数不等于睡眠周期；单晚分期仅供参考，建议结合多晚趋势观察。" : {
+
+    },
+    "物业" : {
+
+    },
+    "现在" : {
+
+    },
+    "球类" : {
+
+    },
+    "生成于 %@ · 范围 %@–%@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "生成于 %1$@ · 范围 %2$@–%3$@"
+          }
+        }
+      }
+    },
+    "生活票根" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily ticket"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生活票根"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生活票根"
+          }
+        }
+      }
+    },
+    "用一句你说得出口的话" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Put it in your own words"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用一句你說得出口的話"
+          }
+        }
+      }
+    },
+    "由程序按下方范围计算，无单独原记录可打开" : {
+
+    },
+    "电影" : {
+
+    },
+    "电费" : {
+
+    },
+    "留下你的第一条记录" : {
+
+    },
+    "留住片刻" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep this moment"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留住片刻"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留住片刻"
+          }
+        }
+      }
+    },
+    "留存生活的入场券" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep a ticket to the day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留存生活的入场券"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留存生活的入場券"
+          }
+        }
+      }
+    },
+    "目前只有睡眠时长。阶段数据需由 Apple Watch 或兼容设备写入“健康”；可在系统“健康”App 中核对睡眠阶段与数据来源。" : {
+
+    },
+    "目标 %lld %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "目标 %1$lld %2$@"
+          }
+        }
+      }
+    },
+    "目标「%@」· 计划第 %lld 版" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "目标「%1$@」· 计划第 %2$lld 版"
+          }
+        }
+      }
+    },
+    "目标分析使用 HoloAI 的云端深度分析，需要先在 HoloAI 里同意一次「分析数据上云」。" : {
+
+    },
+    "目标已不存在。" : {
+
+    },
+    "目标已删除" : {
+
+    },
+    "目标已完成，专属回顾已停止。" : {
+
+    },
+    "目标已暂停，专属回顾已停止；恢复后从当前事实重估。" : {
+
+    },
+    "目标约定" : {
+
+    },
+    "目标计划数据损坏，无法分析" : {
+
+    },
+    "目标设置" : {
+
+    },
+    "目标设置与全部关联" : {
+
+    },
+    "相关回答会参考这条理解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Related answers may reference this"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "相關回答會參考這條理解"
+          }
+        }
+      }
+    },
+    "看看" : {
+
+    },
+    "看看依据 · %lld 段记录" : {
+
+    },
+    "看看观察中" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See Observing"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看看觀察中"
+          }
+        }
+      }
+    },
+    "真实的积累" : {
+
+    },
+    "眼下没有拿不准的理解。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing uncertain right now."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "眼下沒有拿不準的理解。"
+          }
+        }
+      }
+    },
+    "眼下还没有确定下来的理解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No settled understanding yet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "眼下還沒有確定下來的理解"
+          }
+        }
+      }
+    },
+    "确认了这条理解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmed this understanding"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認了這條理解"
+          }
+        }
+      }
+    },
+    "确认只说明这一天的事实。缺记录不当失败，今天未结束时不提前判断整日达成。" : {
+
+    },
+    "确认应用 %lld 项修改" : {
+
+    },
+    "确认采用新版本" : {
+
+    },
+    "礼物" : {
+
+    },
+    "社交" : {
+
+    },
+    "积累日期" : {
+
+    },
+    "积累统计说明" : {
+
+    },
+    "移除图片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove image"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除图片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移除圖片"
+          }
+        }
+      }
+    },
+    "符合现在的情况" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That's right for now"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "符合現在的情況"
+          }
+        }
+      }
+    },
+    "等你开始，这里会慢慢丰富起来。" : {
+
+    },
+    "管理一个发现" : {
+
+    },
+    "系统日历接入与任务双向同步" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System calendar access & two-way task sync"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系統行事曆接入與任務雙向同步"
+          }
+        }
+      }
+    },
+    "累计记录 %lld 天" : {
+
+    },
+    "累计记录天数：记账、想法和正向打卡型习惯所覆盖日期的并集。同一天有多种记录，也只算一天；它不表示连续使用天数。" : {
+
+    },
+    "约定" : {
+
+    },
+    "纸质小票：" : {
+
+    },
+    "绑定一键触发" : {
+
+    },
+    "结束一项安排" : {
+
+    },
+    "结束本目标的关联" : {
+
+    },
+    "结果习惯" : {
+
+    },
+    "结果尚无手动记录" : {
+
+    },
+    "结果最近记录于 %@" : {
+
+    },
+    "结果来源" : {
+
+    },
+    "结果来源不可用" : {
+
+    },
+    "结果来源习惯不可用" : {
+
+    },
+    "结果来源待补齐" : {
+
+    },
+    "结果来源待补齐：计划照常执行，报告里结果按未知处理" : {
+
+    },
+    "继续编辑草稿" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep editing draft"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繼續編輯草稿"
+          }
+        }
+      }
+    },
+    "维修" : {
+
+    },
+    "绿植" : {
+
+    },
+    "网络" : {
+
+    },
+    "网购 / 扫码支付：" : {
+
+    },
+    "翻新" : {
+
+    },
+    "聊天" : {
+
+    },
+    "胶片" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Film"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "胶片"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "膠片"
+          }
+        }
+      }
+    },
+    "自动形成已关闭" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-learning is off"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動形成已關閉"
+          }
+        }
+      }
+    },
+    "自动生成每周观察" : {
+
+    },
+    "自律戒除" : {
+
+    },
+    "自然植物" : {
+
+    },
+    "至少达到" : {
+
+    },
+    "至少选择一类；同时遵循「不参与 AI 的想法」排除规则。V1 不读取健康与财务记录。" : {
+
+    },
+    "航班" : {
+
+    },
+    "船艇" : {
+
+    },
+    "范围 %@–%@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "范围 %1$@–%2$@"
+          }
+        }
+      }
+    },
+    "茶" : {
+
+    },
+    "虚线区 = 轻敲位置" : {
+
+    },
+    "蛋糕" : {
+
+    },
+    "行动方法" : {
+
+    },
+    "补录不限时间窗口 · 记录会带「补」标记，与当日实时打卡如实区分" : {
+
+    },
+    "补录中…" : {
+
+    },
+    "补录后" : {
+
+    },
+    "补录失败，请重试" : {
+
+    },
+    "补录打卡" : {
+
+    },
+    "补录漏卡" : {
+
+    },
+    "补录的记录会带「补」标记，与当日实时打卡如实区分" : {
+
+    },
+    "补录记录" : {
+
+    },
+    "补录过去的记录" : {
+
+    },
+    "补录这一天" : {
+
+    },
+    "补记与导入按原记录日期计算，不会把过去的积累写成今天的坚持。未来日期暂不计入。" : {
+
+    },
+    "被这些目标使用" : {
+
+    },
+    "要「敲」不要摸；厚壳会减弱感应；平放桌面不触发。" : {
+
+    },
+    "要关联的习惯不存在" : {
+
+    },
+    "要关联的任务不存在" : {
+
+    },
+    "要替换的安排不在当前计划里" : {
+
+    },
+    "要结束的安排不在当前计划里" : {
+
+    },
+    "要调整的习惯不存在" : {
+
+    },
+    "要调整的任务不存在" : {
+
+    },
+    "要调整的预算不存在" : {
+
+    },
+    "覆盖范围" : {
+
+    },
+    "观察中的内容不会催办、不会计数上通知。逐条处理完可以随时离开，不需要清空。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Observing items never nag or badge you. Leave anytime — no need to clear them all."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觀察中的內容不會催辦、不會計數上通知。逐條處理完可以隨時離開，不需要清空。"
+          }
+        }
+      }
+    },
+    "观察中的内容会先放在另一个页签。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uncertain items are kept in the other tab."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "觀察中的內容會先放在另一個頁籤。"
+          }
+        }
+      }
+    },
+    "观察范围 %@" : {
+
+    },
+    "触发后拍一张就行。" : {
+
+    },
+    "计划存入" : {
+
+    },
+    "计划已被更新过（本机或其他设备），这份建议基于旧版本。" : {
+
+    },
+    "让 AI 从你允许的记录里，整理值得留意的变化与联系。" : {
+
+    },
+    "让 Holo 以你选择的方式理解你。" : {
+
+    },
+    "让 Holo 安静地理解一些记录。" : {
+
+    },
+    "让照片先说一句话" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Let the photo speak first"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让照片先说一句话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讓照片先說一句話"
+          }
+        }
+      }
+    },
+    "记住普通的一天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remember an ordinary day"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "记住普通的一天"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記住普通的一天"
+          }
+        }
+      }
+    },
+    "记录一笔" : {
+
+    },
+    "记录了" : {
+
+    },
+    "记录今天已做到" : {
+
+    },
+    "记录到快速眼动 %lld 个片段" : {
+
+    },
+    "记录明细与每日确认" : {
+
+    },
+    "记录本次数值" : {
+
+    },
+    "记录样式" : {
+
+    },
+    "记忆加载失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load memories"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記憶加載失敗"
+          }
+        }
+      }
+    },
+    "记忆设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memory Settings"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記憶設置"
+          }
+        }
+      }
+    },
+    "记忆辅助回答已关闭" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memory-assisted answers are off"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記憶輔助回答已關閉"
+          }
+        }
+      }
+    },
+    "设为今天关注的目标" : {
+
+    },
+    "设为这条想法的样式" : {
+
+    },
+    "设置本目标的要求" : {
+
+    },
+    "该回顾一下了：按计划回看最近 %lld 天的执行与结果。" : {
+
+    },
+    "请选择实际情况" : {
+
+    },
+    "读取什么" : {
+
+    },
+    "读取这条记录的目标都会重算，历史报告保留当时内容。" : {
+
+    },
+    "调整习惯" : {
+
+    },
+    "调整任务" : {
+
+    },
+    "调整回顾节奏" : {
+
+    },
+    "调整本目标约定" : {
+
+    },
+    "调整资金期次" : {
+
+    },
+    "调整这份计划" : {
+
+    },
+    "调整预算" : {
+
+    },
+    "账户「%@」余额" : {
+
+    },
+    "账户「%@」余额截至 %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "账户「%1$@」余额截至 %2$@"
+          }
+        }
+      }
+    },
+    "账户不存在，请重新选择来源" : {
+
+    },
+    "账户已删除或暂不可用" : {
+
+    },
+    "账户已删除，请重新选择来源" : {
+
+    },
+    "资金期次按当前情况重算" : {
+
+    },
+    "资金来源" : {
+
+    },
+    "资金现状未知，无法演算剩余期次" : {
+
+    },
+    "资金账户不存在" : {
+
+    },
+    "资金账户已删除" : {
+
+    },
+    "资金账户查询失败" : {
+
+    },
+    "走过的里程碑" : {
+
+    },
+    "跟随系统 · 浅色 · 深色" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Follow system · Light · Dark"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跟隨系統 · 淺色 · 深色"
+          }
+        }
+      }
+    },
+    "跨天延期保留原时刻；已设置的提醒会自动跟随新的截止时间。" : {
+
+    },
+    "跨阶段的稳定偏好与事实" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stable preferences and facts across phases"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跨階段的穩定偏好與事實"
+          }
+        }
+      }
+    },
+    "身心" : {
+
+    },
+    "轻按" : {
+
+    },
+    "轻点两下" : {
+
+    },
+    "轻点背面" : {
+
+    },
+    "辅助触控" : {
+
+    },
+    "达成时轻轻提醒，不发送系统推送。关闭后仍会保存里程碑。" : {
+
+    },
+    "过去的回顾，保留当时的事实与约定。" : {
+
+    },
+    "过去的记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Past memories"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "過去的記憶"
+          }
+        }
+      }
+    },
+    "过期或被替代的理解会出现在这里。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expired or superseded memories will appear here."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "過期或被替代的理解會出現在這裡。"
+          }
+        }
+      }
+    },
+    "过程型目标" : {
+
+    },
+    "近 7 晚尚无睡眠记录，暂无可比较的趋势。" : {
+
+    },
+    "近 7 晚记录" : {
+
+    },
+    "近期" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近期"
+          }
+        }
+      }
+    },
+    "还差 %lld %@，慢慢积累就好。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "还差 %1$lld %2$@，慢慢积累就好。"
+          }
+        }
+      }
+    },
+    "还有这些积累方式" : {
+
+    },
+    "还没有保存过回顾。" : {
+
+    },
+    "还没有修改，当前约定继续生效。" : {
+
+    },
+    "还没有分析记录" : {
+
+    },
+    "还没有可用标签" : {
+
+    },
+    "还没有沉淀下来的理解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing settled yet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有沉澱下來的理解"
+          }
+        }
+      }
+    },
+    "这个操作在这里不适用。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That action isn't available here."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個操作在這裡不適用。"
+          }
+        }
+      }
+    },
+    "这个目标已删除" : {
+
+    },
+    "这个目标的计划由更新版本的 Holo 写入（schema %lld），当前版本只能查看，不能分析或修改" : {
+
+    },
+    "这个范围还没有记录。可以记录一次真实发生，或在每日确认中核对这一天。" : {
+
+    },
+    "这个范围还没有记录，可以记录一次真实测量。" : {
+
+    },
+    "这个账户同周期已有预算：请改为调整既有预算，或取消这项。" : {
+
+    },
+    "这些修改此前已应用过，没有重复执行。" : {
+
+    },
+    "这些数字，怎么算？" : {
+
+    },
+    "这些理解还拿不准，" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These aren't confirmed yet and "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些理解還拿不準，"
+          }
+        }
+      }
+    },
+    "这份建议基于旧情况，需要重新分析刷新差异后再确认；原计划继续有效。" : {
+
+    },
+    "这份建议已超过有效期，需要重新分析后再确认。" : {
+
+    },
+    "这份建议已过期。" : {
+
+    },
+    "这份报告已不存在" : {
+
+    },
+    "这份调整包含对「想达到什么」的修改（成功标准 / 总目标金额 / 截止时间）。它只在你明确勾选下才会生效；不勾选则其余调整照常应用，原目标保持不变。" : {
+
+    },
+    "这像你吗？" : {
+
+    },
+    "这是财务模块的全局约定，影响所选账户的全部支出，不只是本目标；历史支出不会回改。" : {
+
+    },
+    "这是财务模块的全局约定，影响该账户%@的全部支出，不只是本目标。当前周期已花 %@ / 剩余 %@；历史支出不会回改。" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "这是财务模块的全局约定，影响该账户%1$@的全部支出，不只是本目标。当前周期已花 %2$@ / 剩余 %3$@；历史支出不会回改。"
+          }
+        }
+      }
+    },
+    "这条发现已撤下。" : {
+
+    },
+    "这条想法带有不参与 AI 的标签，AI 功能已停用。想到「想法设置 › AI 分析范围」可调整。" : {
+
+    },
+    "这条记忆已不存在——可能已被删除，或还在别的设备上没有同步过来。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This memory no longer exists — it may have been deleted, or hasn't synced from another device yet."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這條記憶已不存在——可能已被刪除，或還在別的設備上沒有同步過來。"
+          }
+        }
+      }
+    },
+    "这条记忆已不存在，列表已刷新。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This memory no longer exists. The list has been refreshed."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這條記憶已不存在，列表已刷新。"
+          }
+        }
+      }
+    },
+    "这条记忆已有新修改" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This memory was updated elsewhere"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這條記憶已有新修改"
+          }
+        }
+      }
+    },
+    "这条记忆已有新修改，先看看最新版本再操作。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This memory was updated elsewhere — review the latest version first."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這條記憶已有新修改，先看看最新版本再操作。"
+          }
+        }
+      }
+    },
+    "这条记忆已被删除。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This memory has been deleted."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這條記憶已被刪除。"
+          }
+        }
+      }
+    },
+    "这条记忆的数据版本暂不认识，先不动它。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This memory's data version isn't recognized — leaving it untouched."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這條記憶的數據版本暫不認識，先不動它。"
+          }
+        }
+      }
+    },
+    "这次没有保存成功，内容还在，请重试" : {
+
+    },
+    "这类推断不支持这样操作。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This kind of inference doesn't support that action."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這類推斷不支持這樣操作。"
+          }
+        }
+      }
+    },
+    "进展长卷" : {
+
+    },
+    "远行邮笺" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Postcard"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "远行邮笺"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠行郵箋"
+          }
+        }
+      }
+    },
+    "适用。入口都在：设置 → 辅助功能 → 触控。" : {
+
+    },
+    "适用。按钮在手机" : {
+
+    },
+    "适用时间" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active period"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "適用時間"
+          }
+        }
+      }
+    },
+    "适用至 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Until %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "適用至 %@"
+          }
+        }
+      }
+    },
+    "适用范围" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active range"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "適用範圍"
+          }
+        }
+      }
+    },
+    "选「" : {
+
+    },
+    "选择已有习惯" : {
+
+    },
+    "选择已有任务" : {
+
+    },
+    "选择想法样式" : {
+
+    },
+    "选择样式" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a style"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择样式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇樣式"
+          }
+        }
+      }
+    },
+    "选择要补录的日期 · 仅最近 %lld 天内" : {
+
+    },
+    "选择要补录的日期 · 最早至习惯创建日" : {
+
+    },
+    "通讯" : {
+
+    },
+    "那些看似平常的日子，都留下了痕迹。" : {
+
+    },
+    "邮笺" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Post"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "邮笺"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "郵箋"
+          }
+        }
+      }
+    },
+    "配置" : {
+
+    },
+    "酒" : {
+
+    },
+    "采用后会改变" : {
+
+    },
+    "采购" : {
+
+    },
+    "里程碑提醒" : {
+
+    },
+    "重新分析" : {
+
+    },
+    "重新启用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Re-enable"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新啟用"
+          }
+        }
+      }
+    },
+    "重新启用会重新校验来源、时效与适用范围，通过后才回到「已记住」。停用期间，相同说法的理解不会自动重建。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Re-enabling re-checks sources, freshness and range before it returns to \"Remembered\". While disabled, the same claim won't be rebuilt automatically."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新啟用會重新校驗來源、時效與適用範圍，通過後才回到「已記住」。停用期間，相同的說法不會自動重建。"
+          }
+        }
+      }
+    },
+    "重新核对" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Re-verify"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新核對"
+          }
+        }
+      }
+    },
+    "重新读取" : {
+
+    },
+    "重置本功能反馈" : {
+
+    },
+    "重置本功能反馈？" : {
+
+    },
+    "重要事项提示" : {
+
+    },
+    "金钱事务" : {
+
+    },
+    "金额按当前资金自动重算（见下方说明），日期保持建议值。" : {
+
+    },
+    "银行" : {
+
+    },
+    "长按" : {
+
+    },
+    "长按操作按钮" : {
+
+    },
+    "长期了解" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Long-term understanding"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "長期瞭解"
+          }
+        }
+      }
+    },
+    "长期有效" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Valid long-term"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "長期有效"
+          }
+        }
+      }
+    },
+    "闪光" : {
+
+    },
+    "限制" : {
+
+    },
+    "限制与安排" : {
+
+    },
+    "限制对应的习惯不可用" : {
+
+    },
+    "随手记" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Journal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "随手记"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隨手記"
+          }
+        }
+      }
+    },
+    "随手记下一个点子" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jot down a little idea"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "随手记下一个点子"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隨手記下一個點子"
+          }
+        }
+      }
+    },
+    "需要先同意云端分析" : {
+
+    },
+    "需要先在 HoloAI 同意云端分析" : {
+
+    },
+    "页边书签" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page bookmark"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页边书签"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁邊書籤"
+          }
+        }
+      }
+    },
+    "预算「%@」不可用" : {
+
+    },
+    "预算「%@」本期已花 %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "预算「%1$@」本期已花 %2$@"
+          }
+        }
+      }
+    },
+    "预算不存在或已删除" : {
+
+    },
+    "预算周期无效" : {
+
+    },
+    "预算（可选）" : {
+
+    },
+    "额度（可选）" : {
+
+    },
+    "飞机" : {
+
+    },
+    "食指在背面上半部" : {
+
+    },
+    "鼓掌" : {
+
+    },
+    "（内容已删除）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "(Content deleted)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（內容已刪除）"
+          }
+        }
+      }
+    },
+    "（若控制消费只能释放部分，仍有缺口需要另行安排，预计节省不会自动变成到账）" : {
+
+    },
+    "＋" : {
+
+    },
+    "，一点就记账。" : {
+
     },
     "，今天清一件？" : {
       "localizations" : {
@@ -622,6 +5574,9 @@
           }
         }
       }
+    },
+    "，跑起来即成功。" : {
+
     },
     "，跳过 %lld 条重复" : {
       "localizations" : {
@@ -4691,6 +9646,7 @@
       }
     },
     "%lld 天生活证据 · %lld 条记录" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -6505,6 +11461,15 @@
         }
       }
     },
+    "：背面上半部、摄像头下方。" : {
+
+    },
+    "；原计划继续有效，稍后可重试。" : {
+
+    },
+    "；记错 10 分钟内可撤销。" : {
+
+    },
     "｜本周重点：%@" : {
       "localizations" : {
         "en" : {
@@ -6728,6 +11693,9 @@
           }
         }
       }
+    },
+    "🌱" : {
+
     },
     "🎂 今天到了 · 生日快乐" : {
       "localizations" : {
@@ -9374,6 +14342,7 @@
       }
     },
     "HOLO  /  AFTER HOURS" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9422,6 +14391,7 @@
       }
     },
     "HOLO / NOTES" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9502,6 +14472,7 @@
       }
     },
     "Holo Plus · 无限补签" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9808,6 +14779,7 @@
       }
     },
     "Holo 已将这条想法归入主题%@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10654,6 +15626,7 @@
       }
     },
     "KEYWORDS" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -13498,6 +18471,7 @@
       }
     },
     "专注" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -14628,6 +19602,7 @@
       }
     },
     "习惯 %lld/%lld" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -14731,6 +19706,7 @@
       }
     },
     "习惯创建于今天，暂无可补记的日期" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -17188,6 +22164,7 @@
       }
     },
     "今天请直接打卡 · 超过 %lld 天的日期无法补签" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -18666,6 +23643,7 @@
       }
     },
     "任务关联" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19550,6 +24528,7 @@
       }
     },
     "低睡眠日，咖啡支出更容易上升。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20550,6 +25529,7 @@
       }
     },
     "佩戴 Apple Watch 入睡即可自动记录阶段结构与整晚时间轴。在此之前，时长趋势与作息规律分析不受影响。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -20822,7 +25802,6 @@
       }
     },
     "保存修改" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -22229,6 +27208,7 @@
       }
     },
     "健康生活" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -25006,6 +29986,7 @@
       }
     },
     "最近 %lld 天没有漏卡，无需补签" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -26223,6 +31204,7 @@
       }
     },
     "减少咖啡因" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -28751,6 +33733,7 @@
       }
     },
     "刷牙" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30045,6 +35028,7 @@
       }
     },
     "占总睡眠 --" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30061,6 +35045,7 @@
       }
     },
     "占总睡眠 %lld%%" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -32847,6 +37832,7 @@
       }
     },
     "含小睡" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -33345,6 +38331,7 @@
       }
     },
     "呼吸" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -35308,6 +40295,7 @@
       }
     },
     "坚持" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -35324,6 +40312,7 @@
       }
     },
     "坚持%@ %lld 天" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -35406,6 +40395,7 @@
       }
     },
     "坚持记账 %lld 笔" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -36007,6 +40997,7 @@
       }
     },
     "复盘" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -36792,6 +41783,7 @@
       }
     },
     "存钱" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -37066,6 +42058,7 @@
       }
     },
     "安静阅读" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -37960,6 +42953,7 @@
       }
     },
     "家务" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -39038,6 +44032,7 @@
       }
     },
     "少刷短视频" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -43637,6 +48632,7 @@
       }
     },
     "已连续 %@不间断" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -44018,6 +49014,7 @@
       }
     },
     "希望我怎么称呼你？（选填）" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -47268,6 +52265,7 @@
       }
     },
     "心脏" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -47597,6 +52595,7 @@
       }
     },
     "快速眼动" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -48255,6 +53254,7 @@
       }
     },
     "恢复洞察" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -48564,6 +53564,7 @@
       }
     },
     "情绪片刻" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -48984,6 +53985,7 @@
       }
     },
     "想看睡眠阶段（深睡 / REM）？" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -49277,6 +54279,7 @@
       }
     },
     "成就" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -49517,6 +54520,7 @@
       }
     },
     "戒酒" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -49549,6 +54553,7 @@
       }
     },
     "戒除/减少" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -49710,7 +54715,6 @@
       }
     },
     "截止" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -50506,6 +55510,7 @@
       }
     },
     "打卡计划" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -50717,6 +55722,7 @@
       }
     },
     "打开导航侧栏" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -52855,6 +57861,7 @@
       }
     },
     "掌握习惯「%@」" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -55400,7 +60407,20 @@
       }
     },
     "改一下" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改一下"
+          }
+        }
+      }
     },
     "改个名字" : {
       "localizations" : {
@@ -55900,6 +60920,7 @@
       }
     },
     "数据复盘" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -56430,6 +61451,7 @@
       }
     },
     "整理" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -58005,6 +63027,12 @@
             "value" : "Calendar"
           }
         },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日历"
+          }
+        },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
@@ -58272,6 +63300,7 @@
       }
     },
     "日常习惯" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -58563,6 +63592,7 @@
       }
     },
     "日记" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -60904,6 +65934,7 @@
       }
     },
     "暖纸手账" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -64211,6 +69242,7 @@
       }
     },
     "本月免费补签/补记" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -71277,6 +76309,7 @@
       }
     },
     "消费关联" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -71341,6 +76374,7 @@
       }
     },
     "深" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -71373,6 +76407,7 @@
       }
     },
     "深夜来信" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -71827,6 +76862,7 @@
       }
     },
     "添加补充备注（选填）..." : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -72031,6 +77067,7 @@
       }
     },
     "清晰整理" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -72804,6 +77841,7 @@
       }
     },
     "温暖记录" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -72900,6 +77938,7 @@
       }
     },
     "灵感档案" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -74365,6 +79404,7 @@
       }
     },
     "留白书页" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -77032,6 +82072,12 @@
             "value" : "Stubs"
           }
         },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "票根"
+          }
+        },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
@@ -77922,6 +82968,7 @@
       }
     },
     "笔记" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -79489,6 +84536,7 @@
       }
     },
     "累计记录 %lld 笔交易" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -81162,6 +86210,7 @@
       }
     },
     "联系" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -81712,6 +86761,7 @@
       }
     },
     "自我提升" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82134,6 +87184,7 @@
       }
     },
     "蔬果" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82315,6 +87366,7 @@
       }
     },
     "补签" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82365,6 +87417,7 @@
       }
     },
     "补签中…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82398,6 +87451,7 @@
       }
     },
     "补签后" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82414,6 +87468,7 @@
       }
     },
     "补签失败，请重试" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82430,6 +87485,7 @@
       }
     },
     "补签打卡" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82446,6 +87502,7 @@
       }
     },
     "补签漏卡" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82462,6 +87519,7 @@
       }
     },
     "补签这一天" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82478,6 +87536,7 @@
       }
     },
     "补记" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82494,6 +87553,7 @@
       }
     },
     "补记不限时间窗口 · 记录会带「补」标记，与当日实时打卡如实区分" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82510,6 +87570,7 @@
       }
     },
     "补记记录" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82526,6 +87587,7 @@
       }
     },
     "补记这一天" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82761,6 +87823,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Observe"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "观察"
           }
         },
         "zh-Hant" : {
@@ -83029,6 +88097,7 @@
       }
     },
     "计划" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -87298,6 +92367,7 @@
       }
     },
     "财务理财" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -88746,6 +93816,7 @@
       }
     },
     "跨天延期保留原时刻；提醒是「截止前 N 分钟」，会自动跟随。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -94826,6 +99897,7 @@
       }
     },
     "进步" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -95020,6 +100092,7 @@
       }
     },
     "连续完成 %@，习惯已融入生活" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -95830,6 +100903,7 @@
       }
     },
     "选填" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -95846,6 +100920,7 @@
       }
     },
     "选填 · 最多 %lld 张" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -96267,6 +101342,7 @@
       }
     },
     "选择要补的日期 · 仅最近 %lld 天内" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -96283,6 +101359,7 @@
       }
     },
     "选择要补记的日期 · 最早至习惯创建日" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -99811,6 +104888,7 @@
       }
     },
     "预算（选填）" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -100165,6 +105243,7 @@
       }
     },
     "额度（选填）" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -100213,6 +105292,7 @@
       }
     },
     "饮品" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -100245,6 +105325,7 @@
       }
     },
     "饮食营养" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -100519,6 +105600,7 @@
       }
     },
     "高睡眠日，任务完成率更稳定；低睡眠日，咖啡支出和压力记录更值得回看。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -100535,6 +105617,7 @@
       }
     },
     "高睡眠日，任务完成率更稳定。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -100709,8 +105792,7 @@
           }
         }
       }
-    }
-,
+    },
     "凌晨 0 点，按自然日" : {
       "localizations" : {
         "en" : {
@@ -100726,8 +105808,7 @@
           }
         }
       }
-    }
-,
+    },
     "%@ 前的记录算前一天" : {
       "localizations" : {
         "en" : {
@@ -100743,8 +105824,7 @@
           }
         }
       }
-    }
-,
+    },
     "0:00（默认）" : {
       "localizations" : {
         "en" : {
@@ -100760,8 +105840,7 @@
           }
         }
       }
-    }
-,
+    },
     "%@ 结算" : {
       "localizations" : {
         "en" : {
@@ -100777,8 +105856,7 @@
           }
         }
       }
-    }
-,
+    },
     "%@ · 每天 %@ 结算" : {
       "localizations" : {
         "en" : {
@@ -100794,8 +105872,7 @@
           }
         }
       }
-    }
-,
+    },
     "进度由你在目标里手动记录" : {
       "localizations" : {
         "en" : {
@@ -100811,8 +105888,7 @@
           }
         }
       }
-    }
-,
+    },
     "按全账本收入减支出的净增加衡量，不是专项资金" : {
       "localizations" : {
         "en" : {
@@ -100828,8 +105904,7 @@
           }
         }
       }
-    }
-,
+    },
     "这个目标不设量化来源，进度按任务与习惯的执行情况看" : {
       "localizations" : {
         "en" : {
@@ -100845,8 +105920,7 @@
           }
         }
       }
-    }
-,
+    },
     "待补齐：计划照常建立，报告里结果按未知处理；之后到习惯里选定来源" : {
       "localizations" : {
         "en" : {
@@ -100862,8 +105936,7 @@
           }
         }
       }
-    }
-,
+    },
     "待补齐：计划照常建立，报告里结果按未知处理；之后到财务完善账户再选定" : {
       "localizations" : {
         "en" : {
@@ -100879,8 +105952,7 @@
           }
         }
       }
-    }
-,
+    },
     "读哪个习惯" : {
       "localizations" : {
         "en" : {
@@ -100896,8 +105968,7 @@
           }
         }
       }
-    }
-,
+    },
     "稍后补齐" : {
       "localizations" : {
         "en" : {
@@ -100913,8 +105984,7 @@
           }
         }
       }
-    }
-,
+    },
     "新建 · %@" : {
       "localizations" : {
         "en" : {
@@ -100930,8 +106000,7 @@
           }
         }
       }
-    }
-,
+    },
     "既有 · %@" : {
       "localizations" : {
         "en" : {
@@ -100947,8 +106016,7 @@
           }
         }
       }
-    }
-,
+    },
     "怎么读" : {
       "localizations" : {
         "en" : {
@@ -100964,8 +106032,7 @@
           }
         }
       }
-    }
-,
+    },
     "取最新一次（体重类）" : {
       "localizations" : {
         "en" : {
@@ -100981,8 +106048,7 @@
           }
         }
       }
-    }
-,
+    },
     "累计相加（练习量类）" : {
       "localizations" : {
         "en" : {
@@ -100998,8 +106064,7 @@
           }
         }
       }
-    }
-,
+    },
     "窗口趋势" : {
       "localizations" : {
         "en" : {
@@ -101015,8 +106080,7 @@
           }
         }
       }
-    }
-,
+    },
     "哪个账户代表这笔资金" : {
       "localizations" : {
         "en" : {
@@ -101032,8 +106096,7 @@
           }
         }
       }
-    }
-,
+    },
     "达到" : {
       "localizations" : {
         "en" : {
@@ -101049,8 +106112,7 @@
           }
         }
       }
-    }
-,
+    },
     "不超过" : {
       "localizations" : {
         "en" : {
@@ -101066,8 +106128,7 @@
           }
         }
       }
-    }
-,
+    },
     "持续下降" : {
       "localizations" : {
         "en" : {
@@ -101083,8 +106144,7 @@
           }
         }
       }
-    }
-,
+    },
     "持续上升" : {
       "localizations" : {
         "en" : {
@@ -101100,8 +106160,7 @@
           }
         }
       }
-    }
-,
+    },
     "已选定的习惯" : {
       "localizations" : {
         "en" : {
@@ -101117,8 +106176,7 @@
           }
         }
       }
-    }
-,
+    },
     "已选定的账户" : {
       "localizations" : {
         "en" : {
@@ -101134,8 +106192,7 @@
           }
         }
       }
-    }
-,
+    },
     "预算名称" : {
       "localizations" : {
         "en" : {
@@ -101151,8 +106208,7 @@
           }
         }
       }
-    }
-,
+    },
     "复用这个账户%@已有的预算 %@" : {
       "localizations" : {
         "en" : {
@@ -101168,8 +106224,7 @@
           }
         }
       }
-    }
-,
+    },
     "同账户同周期不会再建第二份预算：复用它，或者换账户 / 换周期" : {
       "localizations" : {
         "en" : {
@@ -101185,8 +106240,7 @@
           }
         }
       }
-    }
-,
+    },
     "没有可用账户：可先取消预算，到财务添加账户后再设" : {
       "localizations" : {
         "en" : {
@@ -101202,8 +106256,7 @@
           }
         }
       }
-    }
-,
+    },
     "预算需要选定账户，金额大于 0" : {
       "localizations" : {
         "en" : {
@@ -101219,8 +106272,7 @@
           }
         }
       }
-    }
-,
+    },
     "资金期次" : {
       "localizations" : {
         "en" : {
@@ -101236,8 +106288,7 @@
           }
         }
       }
-    }
-,
+    },
     "加一期" : {
       "localizations" : {
         "en" : {
@@ -101253,8 +106304,7 @@
           }
         }
       }
-    }
-,
+    },
     "删除这一期" : {
       "localizations" : {
         "en" : {
@@ -101270,8 +106320,7 @@
           }
         }
       }
-    }
-,
+    },
     "共 %lld 期，合计 %@" : {
       "localizations" : {
         "en" : {
@@ -101287,8 +106336,7 @@
           }
         }
       }
-    }
-,
+    },
     "行为限制" : {
       "localizations" : {
         "en" : {
@@ -101304,8 +106352,7 @@
           }
         }
       }
-    }
-,
+    },
     "限制名称" : {
       "localizations" : {
         "en" : {
@@ -101321,8 +106368,7 @@
           }
         }
       }
-    }
-,
+    },
     "上限" : {
       "localizations" : {
         "en" : {
@@ -101338,8 +106384,7 @@
           }
         }
       }
-    }
-,
+    },
     "每 %lld 天" : {
       "localizations" : {
         "en" : {
@@ -101355,8 +106400,7 @@
           }
         }
       }
-    }
-,
+    },
     "记在哪个习惯" : {
       "localizations" : {
         "en" : {
@@ -101372,8 +106416,7 @@
           }
         }
       }
-    }
-,
+    },
     "选择习惯" : {
       "localizations" : {
         "en" : {
@@ -101389,8 +106432,7 @@
           }
         }
       }
-    }
-,
+    },
     "阶段性要求，到期自动结束" : {
       "localizations" : {
         "en" : {
@@ -101406,8 +106448,7 @@
           }
         }
       }
-    }
-,
+    },
     "这条限制要落在一个习惯上才能记数：选一个既有习惯，或保留上方新建的习惯" : {
       "localizations" : {
         "en" : {
@@ -101423,8 +106464,7 @@
           }
         }
       }
-    }
-,
+    },
     "定期回顾" : {
       "localizations" : {
         "en" : {
@@ -101440,8 +106480,7 @@
           }
         }
       }
-    }
-,
+    },
     "每两周" : {
       "localizations" : {
         "en" : {
@@ -101457,8 +106496,7 @@
           }
         }
       }
-    }
-,
+    },
     "下次回顾" : {
       "localizations" : {
         "en" : {
@@ -101474,8 +106512,7 @@
           }
         }
       }
-    }
-,
+    },
     "每次回看最近 %lld 天" : {
       "localizations" : {
         "en" : {
@@ -101491,8 +106528,7 @@
           }
         }
       }
-    }
-,
+    },
     "到期先出现待回顾提示，你点开才会生成报告，不会每次记录都打扰" : {
       "localizations" : {
         "en" : {
@@ -101508,8 +106544,7 @@
           }
         }
       }
-    }
-,
+    },
     "已关闭定期回顾；需要时仍可在目标里手动发起分析" : {
       "localizations" : {
         "en" : {
@@ -101525,8 +106560,10 @@
           }
         }
       }
-    }
+    },
+    "🫧" : {
 
+    }
   },
   "version" : "1.0"
 }
