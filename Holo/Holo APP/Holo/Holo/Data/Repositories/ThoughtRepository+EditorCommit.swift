@@ -30,6 +30,7 @@ extension ThoughtRepository {
     ///     manual 来源保留；ai/confirmedAI/rejectedAI 不参与本次提交。
     ///   - richContentJSON: 双层可选。外层 nil = 不改动；外层非 nil 写入（内层 nil = 清除）。
     ///   - references: 引用关系目标列表。nil = 不改动；非 nil 全量对齐（含清空）。
+    ///   - style: nil 保留本条最新样式；只有用户明确更改外观时才传值。
     ///   - createIfMissing: 实体不存在时创建（新建会话首次落库 / 草稿续写）。
     ///     编辑已有想法时传 false，避免已删除想法被静默复活。
     @discardableResult
@@ -39,6 +40,7 @@ extension ThoughtRepository {
         inlineTags: [String] = [],
         richContentJSON: String?? = nil,
         references: [ReferenceSnapshot]? = nil,
+        style: ThoughtStyle? = nil,
         createIfMissing: Bool
     ) throws -> ThoughtEditorCommitReceipt {
         let thought: Thought
@@ -54,6 +56,7 @@ extension ThoughtRepository {
         }
 
         let contentChanged = thought.content != content
+        if let style, thought.appearanceRaw != style.storedValue { thought.appearanceRaw = style.storedValue }
         var richChanged = false
         if let richContentJSON, thought.richContentJSON != richContentJSON {
             thought.richContentJSON = richContentJSON

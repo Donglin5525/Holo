@@ -892,3 +892,22 @@ extension View {
         modifier(HoloSurfaceStyle(role: role))
     }
 }
+
+// MARK: - 想法主题纸排版尺寸
+
+/// 主题纸的局部排版尺寸；不改变全 App 的导航和字体。
+enum ThoughtPaperMetrics {
+    static let inset: CGFloat = HoloSpacing.lg
+    static let foldRail: CGFloat = 24
+    static let foldInset: CGFloat = 44
+    static let corner: CGFloat = HoloSpacing.xs
+    static let bodySize: CGFloat = 17
+    static let titleSize: CGFloat = 24
+    static let calendarSize: CGFloat = 68
+    static let photoHeight: CGFloat = 176
+    static let previewPhotoHeight: CGFloat = 144
+    static let compactPhotoHeight: CGFloat = 92
+    static let metadataSize: CGFloat = 12
+    static let guideStep: CGFloat = 32
+    static let lineSpacing: CGFloat = 7
+}

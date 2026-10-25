@@ -111,6 +111,13 @@ extension CoreDataStack {
         thoughtRichContentJSON.isOptional = true
         thoughtAttributes.append(thoughtRichContentJSON)
 
+        // 增量可空字段：旧记录保持原样，通过轻量迁移保留既有数据及云端身份。
+        let thoughtAppearance = NSAttributeDescription()
+        thoughtAppearance.name = "appearanceRaw"
+        thoughtAppearance.attributeType = .stringAttributeType
+        thoughtAppearance.isOptional = true
+        thoughtAttributes.append(thoughtAppearance)
+
         // 首行摘要（@ 引用候选列表标题，保存时派生）
         let thoughtFirstLine = NSAttributeDescription()
         thoughtFirstLine.name = "firstLine"

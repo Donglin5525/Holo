@@ -25,6 +25,7 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
     var lineLimit: Int? = nil
     /// 卡片预览不接管点击，让外层卡片继续作为整体入口。
     var allowsTokenInteraction: Bool = true
+    var presentationStyle: ThoughtStyle = .plain
 
     func makeUIView(context: Context) -> UITextView {
         let textView = MarkdownTextView.makeTaskAwareTextView()
@@ -45,6 +46,8 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
         textView.inputAssistantItem.leadingBarButtonGroups = []
         textView.inputAssistantItem.trailingBarButtonGroups = []
         textView.attributedText = MarkdownTextView.makeAttributedText(from: nodes, deletedReferenceIds: deletedReferenceIds)
+        if presentationStyle != .plain { ThoughtEditorAppearance.apply(presentationStyle, to: textView) }
+        context.coordinator.lastPresentationStyle = presentationStyle
         textView.accessibilityLabel = String(localized: "想法内容")
         textView.accessibilityValue = MarkdownTextView.accessibilityText(from: nodes)
         textView.accessibilityCustomActions = allowsTokenInteraction
@@ -79,7 +82,7 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
         context.coordinator.onTokenTap = onTokenTap
 
         let sizeCategoryChanged = context.coordinator.lastSizeCategory != sizeCategory
-        let inputsChanged = sizeCategoryChanged || !context.coordinator.hasSameRenderInputs(
+        let inputsChanged = sizeCategoryChanged || context.coordinator.lastPresentationStyle != presentationStyle || !context.coordinator.hasSameRenderInputs(
             nodes: nodes,
             deletedReferenceIds: deletedReferenceIds,
             allowsTokenInteraction: allowsTokenInteraction
@@ -88,6 +91,8 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
 
         let rendered = MarkdownTextView.makeAttributedText(from: nodes, deletedReferenceIds: deletedReferenceIds)
         textView.attributedText = rendered
+        if presentationStyle != .plain { ThoughtEditorAppearance.apply(presentationStyle, to: textView) }
+        context.coordinator.lastPresentationStyle = presentationStyle
         textView.accessibilityLabel = String(localized: "想法内容")
         textView.accessibilityValue = MarkdownTextView.accessibilityText(from: nodes)
         textView.accessibilityCustomActions = allowsTokenInteraction
@@ -130,6 +135,7 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var onTokenTap: (HoloContentNode) -> Void
         var lastSizeCategory: ContentSizeCategory?
+        var lastPresentationStyle: ThoughtStyle = .plain
         // 渲染输入缓存：nodes 等输入不变时跳过 updateUIView 的全量重建。
         // lineLimit 刻意不入键：attributedText 内容与行数无关，行数只是
         // textContainer 属性（updateUIView 每次同步），把卡片预览的展开/收起
@@ -226,6 +232,7 @@ struct ReadOnlyRichTextPreview: View {
     /// 收起态压掉空白行（预览行数配额让给有效文字）；展开态还原原文格式。
     /// 列表卡片传 true；需要忠实原文格式的预览场景保持 false。
     var compressesBlankLines: Bool = false
+    var presentationStyle: ThoughtStyle = .plain
 
     @State private var availableWidth: CGFloat = 0
     @State private var isOverflowing = false
@@ -246,7 +253,8 @@ struct ReadOnlyRichTextPreview: View {
                 nodes: displayNodes,
                 onTokenTap: { _ in },
                 lineLimit: isExpanded ? nil : lineLimit,
-                allowsTokenInteraction: false
+                allowsTokenInteraction: false,
+                presentationStyle: presentationStyle
             )
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
@@ -292,6 +300,9 @@ struct ReadOnlyRichTextPreview: View {
         .onChange(of: nodes) { _, _ in
             updateOverflow()
         }
+        .onChange(of: presentationStyle) { _, _ in
+            updateOverflow()
+        }
         .onChange(of: lineLimit) { _, _ in
             updateOverflow()
         }
@@ -323,7 +334,8 @@ struct ReadOnlyRichTextPreview: View {
             nodes: judgingNodes,
             width: availableWidth,
             lineLimit: lineLimit,
-            sizeCategory: sizeCategory
+            sizeCategory: sizeCategory,
+            presentationStyle: presentationStyle
         )
     }
 }
@@ -347,14 +359,15 @@ enum ReadOnlyRichTextLayoutMetrics {
         nodes: [HoloContentNode],
         width: CGFloat,
         lineLimit: Int,
-        sizeCategory: ContentSizeCategory?
+        sizeCategory: ContentSizeCategory?,
+        presentationStyle: ThoughtStyle = .plain
     ) -> Bool {
-        let key = cacheKey(nodes: nodes, width: width, lineLimit: lineLimit, sizeCategory: sizeCategory)
+        let key = (String(cacheKey(nodes: nodes, width: width, lineLimit: lineLimit, sizeCategory: sizeCategory)) + "|" + presentationStyle.rawValue) as NSString
         if let cached = overflowCache.object(forKey: key) {
             return cached.boolValue
         }
 
-        let attributedText = MarkdownTextView.makeAttributedText(from: nodes)
+        let attributedText = ThoughtEditorAppearance.attributed(MarkdownTextView.makeAttributedText(from: nodes), style: presentationStyle)
         guard attributedText.length > 0 else {
             overflowCache.setObject(NSNumber(false), forKey: key)
             return false

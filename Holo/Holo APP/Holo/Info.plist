@@ -2,6 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>HoloNoteSerif-Regular.ttf</string>
+		<string>HoloNoteSerif-Bold.ttf</string>
+		<string>HoloNoteHand-Regular.ttf</string>
+		<string>HoloNoteHand-Bold.ttf</string>
+	</array>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.holo.app.memoryInsightRefresh</string>
