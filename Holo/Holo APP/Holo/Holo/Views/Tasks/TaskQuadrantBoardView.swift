@@ -2,18 +2,19 @@
 //  TaskQuadrantBoardView.swift
 //  Holo
 //
-//  四象限矩阵（多视图方案 §6）：固定 2×2 格、每格前 2 条预览 + 查看全部、
-//  每格新增、跨格拖动（onDrag + dropDestination，payload 只放任务 UUID）、
-//  待整理独立入口与规则说明。格内不滚动，四格同在一个竖向内容滚动区；
-//  大字号/窄内容宽降级单列。写入统一走 TaskPresentationActionCoordinator。
+//  四象限平铺版（2026-10-25 东林拍板）：单列五段依次铺开——四象限 + 待整理，
+//  每段彩色段头（名 + 数量 + 新增），段内任务全宽完整展示；空段只剩段头一行。
+//  格子只是数字牌，永不塞任务名。跨格拖动退役：归类走行内菜单
+//  「移动到象限」（TaskQuadrantMoveSheet）。规则说明收进任务页「···」菜单。
+//  写入统一走 TaskPresentationActionCoordinator。
 //
 
 import SwiftUI
 
-// MARK: - 象限展示扩展（副标题与空格引导，多视图 §6.1 表）
+// MARK: - 象限展示扩展（规则页语义副标题）
 
 extension TaskQuadrant {
-    /// 格副标题（两轴语义）
+    /// 两轴语义（象限规则页用；平铺页不再展示）
     var subtitleText: String {
         switch self {
         case .doFirst: return String(localized: "重要且紧急")
@@ -23,17 +24,6 @@ extension TaskQuadrant {
         case .unclassified: return String(localized: "重要性未判断")
         }
     }
-
-    /// 空格保留位置时的简短引导（不重复整页教学）
-    var emptyGuidance: String {
-        switch self {
-        case .doFirst: return String(localized: "眼前没有急事\n点 ＋ 添加任务")
-        case .scheduleTime: return String(localized: "给重要的事留一点时间\n点 ＋ 添加任务")
-        case .batchHandle: return String(localized: "把零碎小事集中处理\n点 ＋ 添加任务")
-        case .reviewLater: return String(localized: "暂时没有这类任务\n点 ＋ 添加任务")
-        case .unclassified: return String(localized: "没有待整理任务")
-        }
-    }
 }
 
 // MARK: - 矩阵主视图
@@ -41,51 +31,25 @@ extension TaskQuadrant {
 struct TaskQuadrantBoardView: View {
 
     @ObservedObject var model: TaskExperienceViewModel
-    @ObservedObject var session: TaskPresentationSession
     @ObservedObject private var completionCoordinator = HoloTaskCompletionCoordinator.shared
 
     let repository: TodoRepository
     let onOpenDetail: (UUID) -> Void
     let onCreateInQuadrant: (TaskQuadrant) -> Void
-    let onOpenTriage: () -> Void
 
-    @State private var dropTargetQuadrant: TaskQuadrant?
-    @State private var showRulesSheet = false
-    @State private var expandedQuadrant: TaskQuadrant?
     @State private var moveSheetTask: TaskRecordSnapshot?
 
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-    @Environment(\.holoContentWidth) private var contentWidth
-
-    /// 预览行字号（方案 B 图标槽位）：随动态字号缩放——
-    /// 标题基准 14 / subheadline，槽位文字 11、图标 9 / caption2
+    /// 任务行字号（随动态字号缩放）：标题基准 14 / subheadline，槽位 11、图标 9 / caption2
     @ScaledMetric(relativeTo: .subheadline) private var previewTitleSize: CGFloat = 14
     @ScaledMetric(relativeTo: .caption2) private var previewSlotTextSize: CGFloat = 11
     @ScaledMetric(relativeTo: .caption2) private var previewSlotIconSize: CGFloat = 9
 
-    /// §9.4：375pt 默认字体仍 2×2；字号达 accessibility 或有效内容宽 <350 才单列
-    private var usesSingleColumn: Bool {
-        dynamicTypeSize.isAccessibilitySize || (contentWidth ?? 430) < 350
-    }
-
     var body: some View {
-        VStack(spacing: HoloSpacing.md) {
-            introText
-            quadrantGrid
-            triageTray
-            rulesButton
-        }
-        .sheet(item: Binding(
-            get: { expandedQuadrant.map { QuadrantItem(quadrant: $0) } },
-            set: { expandedQuadrant = $0?.quadrant }
-        )) { item in
-            TaskQuadrantExpandedSheet(
-                quadrant: item.quadrant,
-                model: model,
-                repository: repository,
-                onOpenDetail: onOpenDetail,
-                onCreateInQuadrant: onCreateInQuadrant
-            )
+        VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+            ForEach(TaskQuadrant.overviewOrder, id: \.self) { quadrant in
+                quadrantSection(quadrant)
+            }
+            unclassifiedSection
         }
         .sheet(item: Binding(
             get: { moveSheetTask.map { SnapshotItem(snapshot: $0) } },
@@ -98,180 +62,106 @@ struct TaskQuadrantBoardView: View {
                 calendar: model.calendar
             )
         }
-        .sheet(isPresented: $showRulesSheet) {
-            TaskQuadrantRulesSheet()
-        }
     }
 
-    /// 轻教学一行（不重复整页教学，§6.1）
-    private var introText: some View {
-        Text("重要性决定取舍，紧急性决定先后。按住任务可拖动归类，也可以在详情中移动。")
-            .font(.holoCaption)
-            .foregroundColor(.holoTextSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, HoloSpacing.xs)
+    private func members(of quadrant: TaskQuadrant) -> [TaskRecordSnapshot] {
+        model.groupedMembers.first { $0.quadrant == quadrant }?.members ?? []
     }
 
-    private var quadrantGrid: some View {
-        let groups = model.groupedMembers
-        return Group {
-            if usesSingleColumn {
-                VStack(spacing: HoloSpacing.md) {
-                    Text("已按大字号展开")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextPlaceholder)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    ForEach(TaskQuadrant.overviewOrder, id: \.self) { quadrant in
-                        quadrantCell(quadrant, members: members(of: quadrant, in: groups))
-                    }
-                }
-            } else {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: HoloSpacing.md), GridItem(.flexible())], spacing: HoloSpacing.md) {
-                    ForEach(TaskQuadrant.overviewOrder, id: \.self) { quadrant in
-                        quadrantCell(quadrant, members: members(of: quadrant, in: groups))
-                    }
-                }
+    // MARK: - 单段（段头 + 全量任务；空段只剩段头）
+
+    private func quadrantSection(_ quadrant: TaskQuadrant) -> some View {
+        let members = members(of: quadrant)
+        return VStack(alignment: .leading, spacing: 8) {
+            sectionHeader(
+                title: quadrant.displayTitle,
+                count: members.count,
+                tint: quadrant.tintColor
+            ) {
+                onCreateInQuadrant(quadrant)
+            }
+            if !members.isEmpty {
+                taskListCard(members, quadrant: quadrant)
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(String(localized: "\(quadrant.displayTitle)，\(members.count)项"))
     }
 
-    private func members(of quadrant: TaskQuadrant, in groups: [(quadrant: TaskQuadrant, members: [TaskRecordSnapshot])]) -> [TaskRecordSnapshot] {
-        groups.first { $0.quadrant == quadrant }?.members ?? []
-    }
-
-    /// 空格引导：待整理有货时引导从待整理拖一件进来（doFirst 额外报归位数）；无货保留各自文案
-    private func emptyGuidance(for quadrant: TaskQuadrant) -> String {
-        let unclassified = model.unclassifiedCount
-        guard unclassified > 0 else { return quadrant.emptyGuidance }
-        if quadrant == .doFirst {
-            return String(localized: "有 \(unclassified) 件事等着归位\n从待整理挑一件放进来")
-        }
-        return String(localized: "从待整理挑一件放进来\n按住任务可拖动")
-    }
-
-    // MARK: - 单格
-
-    private func quadrantCell(_ quadrant: TaskQuadrant, members: [TaskRecordSnapshot]) -> some View {
-        VStack(spacing: 0) {
-            // 淡底标题区：上色线 + 标题/总数/副标题 + 44pt 新增热区（§9.2）
-            // 标题按钮必须撑满剩余宽度——HStack 里放 Spacer 会把它压缩到
-            // 文字不断行的最小宽度（走查实锤 73pt：副标题折行、与＋错位）
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Button {
-                        expandedQuadrant = quadrant
-                    } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack(spacing: 5) {
-                                Text(quadrant.displayTitle)
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundColor(quadrant.tintColor)
-                                    .lineLimit(1)
-                                Text(verbatim: "\(members.count)")
-                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                    .foregroundColor(quadrant.tintColor.opacity(0.75))
-                            }
-                            Text(quadrant.subtitleText)
-                                .font(.system(size: 11))
-                                .foregroundColor(quadrant.tintColor.opacity(0.8))
-                                .lineLimit(2)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(String(localized: "\(quadrant.displayTitle)，\(quadrant.subtitleText)，\(members.count)项"))
-
-                    Button {
-                        onCreateInQuadrant(quadrant)
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(quadrant.tintColor)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(String(localized: "在\(quadrant.displayTitle)中新增任务"))
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 10)
-            .background(quadrant.backgroundColor)
-
-            // 前 2 条预览 / 空态引导
-            if members.isEmpty {
-                Text(emptyGuidance(for: quadrant))
-                    .font(.holoCaption)
+    /// 待整理段：托盘图标 + 数量徽章；无新增钮（新建任务默认落这里）
+    private var unclassifiedSection: some View {
+        let members = model.unclassifiedMembers
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 7) {
+                Image(systemName: "tray")
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
-                    .frame(maxWidth: .infinity, minHeight: 88, alignment: .top)
-                    .padding(.top, 14)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(members.prefix(2).enumerated()), id: \.element.id) { index, member in
-                        if index > 0 {
-                            Rectangle()
-                                .fill(Color.holoDivider.opacity(0.5))
-                                .frame(height: 0.5)
-                                .padding(.leading, 42)
-                        }
-                        previewRow(member, quadrant: quadrant)
-                    }
-                }
-                .padding(.bottom, 6)
-                if members.count > 2 {
-                    Button {
-                        expandedQuadrant = quadrant
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text("查看全部 \(members.count) 项")
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 9, weight: .semibold))
-                        }
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(String(localized: "查看\(quadrant.displayTitle)全部\(members.count)项"))
-                }
+                Text("待整理")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .opacity(members.isEmpty ? 0.55 : 1)
+                HoloCountBadge(count: model.unclassifiedCount)
+                Spacer()
             }
-        }
-        // 高度自适应但同行等高：cell 撑满行高、内容顶对齐——四格边缘对齐恢复矩阵观感，
-        // 又不回到 244 强制最小高的大空白（东林挑刺两轮的平衡点）
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(
-                    dropTargetQuadrant == quadrant ? quadrant.tintColor : Color.clear,
-                    lineWidth: 2
-                )
-        )
-        .dropDestination(for: String.self) { items, _ in
-            defer { dropTargetQuadrant = nil }
-            guard let payload = items.first,
-                  let taskID = UUID(uuidString: payload) else { return false }
-            TaskPresentationActionCoordinator.shared.commitQuadrantMove(
-                taskID: taskID,
-                target: quadrant,
-                repository: repository,
-                now: model.now,
-                calendar: model.calendar
-            )
-            return true
-        } isTargeted: { hovering in
-            dropTargetQuadrant = hovering ? quadrant : nil
+            .frame(minHeight: 44)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(String(localized: "待整理，\(model.unclassifiedCount)项"))
+            if !members.isEmpty {
+                taskListCard(members, quadrant: .unclassified)
+            }
         }
     }
 
-    // MARK: - 预览行（方案 B 图标槽位：迷你进度环 + 标题 + 截止/计划两行槽位；长按正文拖动）
+    /// 段头：色题 + 数量 + 44pt 新增热区；零值色题降透明度（空段安静）
+    private func sectionHeader(
+        title: String,
+        count: Int,
+        tint: Color,
+        onCreate: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(tint)
+                .opacity(count == 0 ? 0.55 : 1)
+            Text(verbatim: "\(count)")
+                .font(.system(size: 12.5, weight: .semibold, design: .rounded))
+                .foregroundColor(tint.opacity(0.75))
+            Spacer()
+            Button(action: onCreate) {
+                Image(systemName: "plus")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(tint.opacity(count == 0 ? 0.55 : 1))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "在\(title)中新增任务"))
+        }
+        .frame(minHeight: 44)
+    }
+
+    /// 段内任务卡：全宽行依次铺开，最后一条移走后整卡消失（无空态文案）
+    private func taskListCard(_ members: [TaskRecordSnapshot], quadrant: TaskQuadrant) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(members.enumerated()), id: \.element.id) { index, member in
+                if index > 0 {
+                    Rectangle()
+                        .fill(Color.holoDivider.opacity(0.5))
+                        .frame(height: 0.5)
+                        .padding(.leading, 54)
+                }
+                previewRow(member, quadrant: quadrant)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.primary.opacity(0.03))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    // MARK: - 任务行（迷你进度环 + 标题 + 截止/计划两行槽位；长按菜单移动归类）
 
     private func previewRow(_ member: TaskRecordSnapshot, quadrant: TaskQuadrant) -> some View {
         let isPending = model.pendingCompletionTaskID == member.id
@@ -328,25 +218,21 @@ struct TaskQuadrantBoardView: View {
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(previewVoiceOverLabel(member))
-            .accessibilityAction(named: Text("移动到象限")) {
+        }
+        .contextMenu {
+            Button {
                 moveSheetTask = member
-            }
-            .onDrag {
-                // 拖动影像显示标题与原格色线（不是截图形式的新任务，§6.3-2）
-                HapticManager.light()
-                return NSItemProvider(object: member.id.uuidString as NSString)
-            } preview: {
-                TaskQuadrantDragPreview(member: member, quadrant: quadrant)
+            } label: {
+                Label(String(localized: "移动到象限"), systemImage: "square.grid.2x2")
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 14)
         .padding(.vertical, 7)
         .opacity(isDone ? 0.55 : 1)
     }
 
     /// 迷你进度环（口径同 TaskExperienceRow.progressRing，缩到 20pt）：
-    /// 无子任务是 1.5pt 细空环（极浅描边——深灰空环在彩色格子里像窟窿，东林挑刺后淡化）；
-    /// 有子任务画 2pt 进度弧（至少留 5% 起点弧、-90° 起始）；
+    /// 无子任务是 1.5pt 细空环（极浅描边）；有子任务画 2pt 进度弧；
     /// 完成/待确认叠对勾。点击行为仍是完成/撤回。
     private func miniProgressRing(_ member: TaskRecordSnapshot, isDone: Bool) -> some View {
         let items = member.checkItems
@@ -371,7 +257,7 @@ struct TaskQuadrantBoardView: View {
         .frame(width: 20, height: 20)
     }
 
-    /// 图标槽位行：图标与文字同色、单行尾截断（方案 B：每槽只放一个字段，永不拼接）
+    /// 图标槽位行：图标与文字同色、单行尾截断（每槽只放一个字段，永不拼接）
     private func previewSlot(text: String, icon: String?, color: Color) -> some View {
         HStack(spacing: 3) {
             if let icon {
@@ -445,87 +331,9 @@ struct TaskQuadrantBoardView: View {
         formatter.dateFormat = "HH:mm"
         return formatter
     }()
-
-    // MARK: - 待整理与规则
-
-    private var triageTray: some View {
-        Button {
-            onOpenTriage()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "tray")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 5) {
-                        Text("待整理")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.holoTextPrimary)
-                        HoloCountBadge(count: model.unclassifiedCount)
-                    }
-                    Text("先判断重要性，再决定放在哪里")
-                        .font(.system(size: 11))
-                        .foregroundColor(.holoTextSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextPlaceholder)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(minHeight: 48)
-            .background(Color.primary.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(String(localized: "待整理，\(model.unclassifiedCount)项"))
-    }
-
-    private var rulesButton: some View {
-        Button {
-            showRulesSheet = true
-        } label: {
-            Text("了解象限规则")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-                .frame(maxWidth: .infinity, minHeight: 44)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - 拖动影像（标题 + 原格色线）
-
-private struct TaskQuadrantDragPreview: View {
-    let member: TaskRecordSnapshot
-    let quadrant: TaskQuadrant
-
-    var body: some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 1.5)
-                .fill(quadrant.tintColor)
-                .frame(width: 3, height: 28)
-            Text(member.title)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.holoTextPrimary)
-                .lineLimit(2)
-                .frame(width: 150, alignment: .leading)
-        }
-        .padding(10)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
-    }
 }
 
 // MARK: - item 包装
-
-struct QuadrantItem: Identifiable {
-    let quadrant: TaskQuadrant
-    var id: String { String(describing: quadrant) }
-}
 
 /// 快照 sheet item 包装（多视图各弹层共用）
 struct SnapshotItem: Identifiable {
@@ -533,7 +341,7 @@ struct SnapshotItem: Identifiable {
     var id: UUID { snapshot.id }
 }
 
-// MARK: - 象限规则说明（§6.1 末段）
+// MARK: - 象限规则说明（入口在任务页「···」菜单）
 
 struct TaskQuadrantRulesSheet: View {
     @Environment(\.dismiss) private var dismiss

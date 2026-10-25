@@ -33,7 +33,7 @@ struct TaskExperienceView: View {
     @State private var showScopeSheet = false
     @State private var showCreationSheet = false
     @State private var creationContext: TaskCreationContext = TaskCreationContext()
-    @State private var showTriageSheet = false
+    @State private var showQuadrantRules = false
     @State private var showSearchView = false
     @State private var showNotificationSettings = false
     @State private var showArchiveManagement = false
@@ -165,9 +165,8 @@ struct TaskExperienceView: View {
             // 创建回执走 .taskExperienceCreated 统一通知（含底部+/统计页入口）
             TaskCreationSheet(repository: repository, context: creationContext)
         }
-        .sheet(isPresented: $showTriageSheet) {
-            TaskTriageSheet(repository: repository, queue: model.makeTriageQueue())
-                .onDisappear { model.reload() }
+        .sheet(isPresented: $showQuadrantRules) {
+            TaskQuadrantRulesSheet()
         }
         .sheet(item: Binding(
             get: { classificationTarget.map { ClassificationTarget(snapshot: $0) } },
@@ -307,11 +306,9 @@ struct TaskExperienceView: View {
         ScrollView {
             TaskQuadrantBoardView(
                 model: model,
-                session: session,
                 repository: repository,
                 onOpenDetail: { detailSelection = $0 },
-                onCreateInQuadrant: { openCreation(forQuadrant: $0) },
-                onOpenTriage: { showTriageSheet = true }
+                onCreateInQuadrant: { openCreation(forQuadrant: $0) }
             )
             .padding(.horizontal, HoloSpacing.page)
             .padding(.top, HoloSpacing.xs)
@@ -488,6 +485,13 @@ struct TaskExperienceView: View {
                 showNotificationSettings = true
             } label: {
                 Label(String(localized: "提醒设置"), systemImage: "bell")
+            }
+            if session.viewMode == .matrix {
+                Button {
+                    showQuadrantRules = true
+                } label: {
+                    Label(String(localized: "象限规则"), systemImage: "square.grid.2x2")
+                }
             }
             Button {
                 showArchiveManagement = true
