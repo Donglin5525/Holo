@@ -109,6 +109,8 @@ struct MarkdownTextView: UIViewRepresentable {
     var textContainerInset: UIEdgeInsets = UIEdgeInsets(top: 8, left: 4, bottom: 8, right: 4)
     /// 编辑已有想法时的结构化内容（恢复 Token；nil=纯文本）
     var initialRichJSON: String? = nil
+    /// 只影响纸上显示，不参与节点序列化。
+    var presentationStyle: ThoughtStyle = .plain
     /// 空内容占位提示（在 UITextView 内渲染，避免中文输入法组字阶段与 content 绑定不同步导致重叠）
     var placeholder: String? = nil
     /// 节点模型变化回调（保存时取 richContentJSON 用）
@@ -293,10 +295,13 @@ struct MarkdownTextView: UIViewRepresentable {
             label.isUserInteractionEnabled = false
             textView.addSubview(label)
             // 对齐文字起始：textContainerInset + textContainer 默认 lineFragmentPadding
-            NSLayoutConstraint.activate([
-                label.topAnchor.constraint(equalTo: textView.topAnchor, constant: textContainerInset.top),
-                label.leadingAnchor.constraint(equalTo: textView.leadingAnchor, constant: textContainerInset.left + textView.textContainer.lineFragmentPadding)
-            ])
+            let top = label.topAnchor.constraint(equalTo: textView.topAnchor, constant: textContainerInset.top)
+            let leading = label.leadingAnchor.constraint(equalTo: textView.leadingAnchor, constant: textContainerInset.left + textView.textContainer.lineFragmentPadding)
+            let trailing = label.trailingAnchor.constraint(lessThanOrEqualTo: textView.frameLayoutGuide.trailingAnchor, constant: -textContainerInset.right)
+            NSLayoutConstraint.activate([top, leading, trailing])
+            context.coordinator.placeholderTopConstraint = top
+            context.coordinator.placeholderLeadingConstraint = leading
+            context.coordinator.placeholderTrailingConstraint = trailing
             context.coordinator.placeholderLabel = label
         }
         context.coordinator.updatePlaceholderVisibility(in: textView)
@@ -307,10 +312,23 @@ struct MarkdownTextView: UIViewRepresentable {
             textView.autoFocusWhenAttached = true
         }
 
+        context.coordinator.presentationStyle = presentationStyle
+        context.coordinator.applyPresentation(to: textView)
         return textView
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
+        // 切换纸面时同步真实排版宽度；不能只改 SwiftUI 背景而保留首次创建的缩进。
+        // 这里只更新几何，不重建 attributedText，不打断输入法或丢失光标。
+        if textView.textContainerInset != textContainerInset {
+            textView.textContainerInset = textContainerInset
+            context.coordinator.placeholderTopConstraint?.constant = textContainerInset.top
+            context.coordinator.placeholderLeadingConstraint?.constant = textContainerInset.left + textView.textContainer.lineFragmentPadding
+            context.coordinator.placeholderTrailingConstraint?.constant = -textContainerInset.right
+            textView.setNeedsLayout()
+        }
+        context.coordinator.presentationStyle = presentationStyle
+        defer { context.coordinator.applyPresentation(to: textView) }
         // 同步可能变化的闭包引用（父视图重建时保持最新）
         context.coordinator.onConvertSelection = onConvertSelection
         context.coordinator.onConvertToTask = onConvertToTask
@@ -471,6 +489,20 @@ struct MarkdownTextView: UIViewRepresentable {
         @Binding var triggerContext: EditorTriggerContext?
         @Binding var selectedToken: HoloContentNode?
 
+        var presentationStyle: ThoughtStyle = .plain
+        private var hasStyledPresentation = false
+
+        func applyPresentation(to textView: UITextView) {
+            guard !isProgrammaticChange, textView.markedTextRange == nil else { return }
+            // 存量「原样」走原有编辑路径，避免给所有输入额外做逐段样式扫描。
+            guard presentationStyle != .plain || hasStyledPresentation else { return }
+            isProgrammaticChange = true
+            defer { isProgrammaticChange = false }
+            ThoughtEditorAppearance.apply(presentationStyle, to: textView)
+            placeholderLabel?.textColor = UIColor(presentationStyle.editorInk).withAlphaComponent(0.55)
+            hasStyledPresentation = presentationStyle != .plain
+        }
+
         var isProgrammaticChange = false
         var lastKnownMarkdown: String = ""
         /// 本次编辑会话是否已产生本地修改。为 true 后 UITextView 是正文事实源，
@@ -524,6 +556,9 @@ struct MarkdownTextView: UIViewRepresentable {
 
         /// 占位提示标签（makeUIView 创建，依据编辑器内容实时显隐）
         weak var placeholderLabel: UILabel?
+        var placeholderTopConstraint: NSLayoutConstraint?
+        var placeholderLeadingConstraint: NSLayoutConstraint?
+        var placeholderTrailingConstraint: NSLayoutConstraint?
 
         /// 刷新占位提示显隐：编辑器有任何文字（含 IME 组字阶段）即隐藏
         func updatePlaceholderVisibility(in textView: UITextView) {
@@ -589,6 +624,7 @@ struct MarkdownTextView: UIViewRepresentable {
         }
 
         func textViewDidChange(_ textView: UITextView) {
+            defer { applyPresentation(to: textView) }
             // 组字跳变上报必须先于任何守卫：组字开始/结束都要通知父视图
             reportCompositionState(textView)
             // 占位提示依据 attributedText 实时刷新，必须在 markedText guard 之前：
@@ -934,6 +970,7 @@ struct MarkdownTextView: UIViewRepresentable {
                 typingAttributes[.paragraphStyle] = mutableStyle
             }
             textView.typingAttributes = typingAttributes
+            applyPresentation(to: textView)
 
             notifyFormatState(typingAttributes)
         }

@@ -45,7 +45,7 @@ struct TaskPostponeSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 标题：任务名 + 当前时间胶囊 + 现在时刻
+            // 标题：任务名 + 当前时间胶囊 + 现在时刻 + 右上关闭（此前只能下滑关闭）
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Text(title)
@@ -54,6 +54,20 @@ struct TaskPostponeSheet: View {
                         .lineLimit(1)
 
                     currentDueTag
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoToolTextSecondary)
+                            .frame(width: 34, height: 34)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Text("关闭"))
                 }
 
                 Text("现在 \(nowText)，选择新的截止时间")
@@ -226,7 +240,7 @@ struct TaskPostponeSheet: View {
 
             Text(isAllDay
                  ? String(localized: "全天任务延期后仍是全天；已设置的提醒会自动跟随新日期。")
-                 : String(localized: "跨天延期保留原时刻；提醒是「截止前 N 分钟」，会自动跟随。"))
+                 : String(localized: "跨天延期保留原时刻；已设置的提醒会自动跟随新的截止时间。"))
                 .font(.system(size: 11))
                 .foregroundColor(.holoTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)

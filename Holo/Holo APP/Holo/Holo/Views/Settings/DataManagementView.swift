@@ -5,6 +5,7 @@
 //  设置 → 数据管理 子页
 //
 //  - 各模块数据概览
+//  - 存储与缓存（2026-10-25 规整：原一级页「存储与缓存」组收编至此）
 //  - 最近删除（回收站统一入口，D5：仅此处）
 //  - 清空所有数据（专用确认页 + 输入「清空」二字，D3；不注销账号，与「删除账号」区别）
 //
@@ -26,11 +27,16 @@ struct DataManagementView: View {
     /// 票根照片总占用（张数 + 字节汇总；nil=无票根不显示行）
     @State private var receiptStorageText: String? = nil
 
+    // 存储与缓存（原设置一级页 storageSection 平移）
+    @ObservedObject private var storageService = StorageCacheService.shared
+    @State private var showClearCacheAlert = false
+
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     overviewSection
+                    cacheSection
                     recycleBinSection
                     clearAllSection
                 }
@@ -47,6 +53,7 @@ struct DataManagementView: View {
         }
         .task {
             await reloadData()
+            await storageService.calculateCacheSize()
         }
         .sheet(isPresented: $showRecycleBin, onDismiss: {
             Task { await reloadData() }
@@ -140,6 +147,105 @@ struct DataManagementView: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 11)
+    }
+
+    // MARK: - 存储与缓存（原设置一级页收编）
+
+    private var cacheSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "internaldrive")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+                Text("存储与缓存")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoToolText)
+            }
+
+            VStack(spacing: 0) {
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(Color.holoInfo.opacity(0.1))
+                            .frame(width: 40, height: 40)
+
+                        if storageService.isCalculating {
+                            ProgressView()
+                                .tint(.holoInfo)
+                        } else {
+                            Image(systemName: "chart.bar")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.holoInfo)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("缓存大小")
+                            .font(.holoBody)
+                            .foregroundColor(.holoToolText)
+                        Text(storageService.formattedSize)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, 12)
+
+                Divider().padding(.leading, 56)
+
+                Button {
+                    showClearCacheAlert = true
+                } label: {
+                    HStack(spacing: HoloSpacing.md) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                .fill(storageService.isClearing || storageService.cacheSize == 0
+                                      ? Color.holoToolTextSecondary.opacity(0.1)
+                                      : Color.holoError.opacity(0.1))
+                                .frame(width: 40, height: 40)
+
+                            if storageService.isClearing {
+                                ProgressView()
+                                    .tint(.holoToolError)
+                            } else {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(storageService.cacheSize == 0 ? .holoToolTextSecondary : .holoToolError)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("清除缓存")
+                                .font(.holoBody)
+                                .foregroundColor(storageService.cacheSize == 0 ? .holoToolTextSecondary : .holoToolError)
+                            Text("清理诊断日志和过期数据，不会删除你的数据")
+                                .holoText(.metadata)
+                                .foregroundColor(.holoToolTextSecondary)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(storageService.isClearing || storageService.cacheSize == 0)
+            }
+            .background(Color.holoToolSurface)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        }
+        .alert("确认清除缓存？", isPresented: $showClearCacheAlert) {
+            Button("取消", role: .cancel) {}
+            Button("清除", role: .destructive) {
+                Task { await storageService.clearCache() }
+            }
+        } message: {
+            Text("将清理 AI 诊断日志和过期数据，你的对话、记忆和其他数据不会受影响。")
+        }
     }
 
     private var recycleBinSection: some View {
@@ -356,7 +462,8 @@ struct ClearAllDataConfirmSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭"))
                 }
             }
         }

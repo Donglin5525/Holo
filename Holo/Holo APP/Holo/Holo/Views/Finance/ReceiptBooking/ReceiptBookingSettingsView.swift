@@ -12,6 +12,7 @@ import UserNotifications
 struct ReceiptBookingSettingsView: View {
     @ObservedObject private var consent = HoloAIDataProcessingConsent.shared
     @Environment(\.openURL) private var openURL
+    @Environment(\.dismiss) private var dismiss
 
     @State private var results: [ReceiptBookingResultStore.StoredResult] = []
     @State private var draftCount = 0
@@ -158,6 +159,18 @@ struct ReceiptBookingSettingsView: View {
             }
         }
         .navigationTitle(Text("图片自动记账"))
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+                .accessibilityLabel(Text("关闭"))
+            }
+        }
         .contentMargins(.bottom, 92, for: .scrollContent)
         .holoSheetShell()
         .task {

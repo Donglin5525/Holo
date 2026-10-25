@@ -427,21 +427,28 @@ struct NotificationSettingsView: View {
         HStack(spacing: 10) {
             NotificationSettingsIconBlock(systemName: icon, tint: iconColor)
 
-            Text(title)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-                .lineLimit(1)
+            // 两行式行模板（同习惯「更多选项」行结构）：标题+徽章一行、摘要一行，
+            // 避免长标题被徽章和摘要挤成「周期账...」式截断
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
 
-            if plusBadge {
-                NotificationSettingsPlusBadge()
+                    if plusBadge {
+                        NotificationSettingsPlusBadge()
+                    }
+                }
+
+                Text(summary)
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoTextSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: HoloSpacing.sm)
-
-            Text(summary)
-                .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary)
-                .lineLimit(1)
 
             trailing()
         }
@@ -762,6 +769,17 @@ private struct InsightNotificationDetailView: View {
 
                         weeklyInsightTimeRow
                     }
+
+                    Divider().padding(.horizontal, 12)
+
+                    // 周观察自动生成（2026-10-23 独立开关）：控制后台+前台补偿两路的每周观察
+                    // 自动生成；与提醒互相独立（提醒开不自动生成）。默认开=此前行为。
+                    DetailToggleRow(
+                        icon: "wand.and.stars",
+                        iconColor: .holoAI,
+                        title: String(localized: "自动生成每周观察"),
+                        isOn: $insightSettings.weeklyAutoGenerationEnabled
+                    )
 
                     Divider().padding(.horizontal, 12)
 

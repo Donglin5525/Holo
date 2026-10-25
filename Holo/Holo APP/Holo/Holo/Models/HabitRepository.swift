@@ -875,6 +875,14 @@ class HabitRepository: ObservableObject {
         records(for: habit, on: day).contains { $0.isCompleted }
     }
 
+    /// 「一个发现」依据跳转用：打卡记录 id → 所属习惯 id（只读；记录不存在/已删返回 nil）。
+    func habitId(ofRecord recordID: UUID) -> UUID? {
+        let request = NSFetchRequest<HabitRecord>(entityName: "HabitRecord")
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", recordID as CVarArg)
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first?.habitId
+    }
+
     /// 查找今日打卡记录（「今日」按习惯结算时间：结算前仍是前一天）
     func findTodayCheckInRecord(for habit: Habit) -> HabitRecord? {
         records(for: habit, on: habit.currentDay()).first

@@ -105,7 +105,8 @@ enum MemorySignalDataAdapter {
 
     static func buildThoughtMemoryInputs(now: Date = Date()) -> [ThoughtMemoryInput] {
         let recentStart = Calendar.current.date(byAdding: .day, value: -180, to: now) ?? .distantPast
-        let thoughts = (try? ThoughtRepository().fetchAll(limit: 200)) ?? []
+        // fetchAll 同时服务 UI 与 AI，AI 侧取数后过滤「不参与 AI」标签的想法
+        let thoughts = ThoughtAIAudience.aiVisibleOnly((try? ThoughtRepository().fetchAll(limit: 200)) ?? [])
         let stanceCues = ["我认为", "我觉得", "我的观点", "我支持", "我反对", "我不认同", "我更认同"]
         return thoughts.compactMap { thought in
             guard thought.updatedAt >= recentStart,

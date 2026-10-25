@@ -9,6 +9,9 @@ import SwiftUI
 import EventKit
 
 struct ScheduleSettingsSection: View {
+    /// 二级页场景（2026-10-25 规整收进门）传 false：导航栏标题顶替组头，不再重复
+    var showsSectionHeader: Bool = true
+
     @ObservedObject private var store = ScheduleStore.shared
     private let syncEngine = ScheduleSyncEngine.shared
     @State private var isRequestingPermission = false
@@ -16,15 +19,16 @@ struct ScheduleSettingsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoPrimary)
+            if showsSectionHeader {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 18))
+                        .foregroundColor(.holoPrimary)
 
-                Text("日历")
-                    .font(.holoBody)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
+                    Text("日历")
+                        .font(.holoBody)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoToolText)
 
                 Spacer()
 
@@ -44,6 +48,7 @@ struct ScheduleSettingsSection: View {
                 .tint(.holoPrimary)
                 .labelsHidden()
                 .accessibilityLabel(Text("启用日历"))
+                }
             }
 
             if store.isEnabled {

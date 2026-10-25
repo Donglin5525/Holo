@@ -48,7 +48,8 @@ struct PeriodReplayPickerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭"))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("生成回放") {

@@ -22,6 +22,8 @@ struct ThoughtEditorRecoveryDraft: Codable, Identifiable, Equatable {
     /// staged 目录内的图片文件名（不含路径）
     var stagedImageFiles: [String]
     var updatedAt: Date
+    /// 可空保证旧恢复记录照常解码，选过的纸张跟随未提交内容恢复。
+    var styleRaw: String? = nil
 }
 
 /// 编辑器恢复日志存储（actor 串行化磁盘访问）。

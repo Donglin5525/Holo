@@ -68,32 +68,34 @@ struct AnniversaryDetailView: View {
     // MARK: - 沉浸背景（暮色发光 · 保留原有基因）
 
     private var immersiveBackground: some View {
-        ZStack {
-            Color(red: 0.06, green: 0.06, blue: 0.08).ignoresSafeArea()
+        // 底色铺满全屏；装饰光晕画在 overlay 里——它们只是固定尺寸的圆，
+        // 若参与布局测量会把整页内容列撑到 460pt，左右溢出屏幕
+        Color(red: 0.06, green: 0.06, blue: 0.08)
+            .ignoresSafeArea()
+            .overlay {
+                // 主光晕
+                Circle()
+                    .fill(RadialGradient(
+                        colors: [themeColor.opacity(0.20), themeColor.opacity(0)],
+                        center: .center, startRadius: 0, endRadius: 230))
+                    .frame(width: 460, height: 460)
+                    .offset(y: orbDrift * 8)
+                    .blur(radius: 70)
 
-            // 主光晕
-            Circle()
-                .fill(RadialGradient(
-                    colors: [themeColor.opacity(0.20), themeColor.opacity(0)],
-                    center: .center, startRadius: 0, endRadius: 230))
-                .frame(width: 460, height: 460)
-                .offset(y: orbDrift * 8)
-                .blur(radius: 70)
+                // 装饰弧线
+                Circle()
+                    .trim(from: 0, to: 0.3)
+                    .stroke(themeColor.opacity(0.16), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                    .frame(width: 330, height: 330)
+                    .rotationEffect(.degrees(-30 + arcRotation * 0.3))
 
-            // 装饰弧线
-            Circle()
-                .trim(from: 0, to: 0.3)
-                .stroke(themeColor.opacity(0.16), style: StrokeStyle(lineWidth: 1, lineCap: .round))
-                .frame(width: 330, height: 330)
-                .rotationEffect(.degrees(-30 + arcRotation * 0.3))
-
-            Circle()
-                .trim(from: 0.4, to: 0.7)
-                .stroke(themeColor.opacity(0.10), style: StrokeStyle(lineWidth: 1, lineCap: .round))
-                .frame(width: 300, height: 300)
-                .rotationEffect(.degrees(60 + arcRotation * 0.5))
-        }
-        .allowsHitTesting(false)
+                Circle()
+                    .trim(from: 0.4, to: 0.7)
+                    .stroke(themeColor.opacity(0.10), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                    .frame(width: 300, height: 300)
+                    .rotationEffect(.degrees(60 + arcRotation * 0.5))
+            }
+            .allowsHitTesting(false)
     }
 
     // MARK: - 顶部栏

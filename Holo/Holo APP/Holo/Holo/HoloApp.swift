@@ -117,6 +117,9 @@ struct HoloApp: App {
 
         // 监听周期回放生成，异步维护远期累计摘要（失败不影响主流程）
         HoloReplayDigestObserver.startObserving()
+
+        // 报告融合理解链路（2026-10-18 方案）：提取受内部开关保护，默认全关
+        HoloReportUnderstandingCoordinator.startObserving()
     }
 
     // MARK: - Body
@@ -233,6 +236,8 @@ struct HoloApp: App {
 
                 // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
                 await CoreDataStack.shared.waitUntilReady()
+                // 开发期一次性显式 schema 上报（UserDefaults 开关门控，仅 DEBUG）
+                CloudKitSchemaInitializer.runIfNeeded(container: CoreDataStack.shared.persistentContainer)
                 // 先恢复用户主动发起的周期回放，再执行低优先级自动洞察与历史回填。
                 await HoloPeriodReplayCoordinator.shared.appDidLaunch()
 
@@ -295,6 +300,8 @@ struct HoloApp: App {
                 if !appStoreScreenshotModeActive {
                     MemoryInsightBackgroundService.shared.scheduleBackgroundTask()
                     await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+                    // 「一个发现」：启动轻量检查（内部按调度决策排 utility 批次，不阻塞首屏）
+                    await DiscoveryCoordinator.shared.refresh()
                 }
 
                 // 启动时轻量聚合未消费反馈（更新 rerank 用的偏好）
@@ -409,6 +416,8 @@ struct HoloApp: App {
                         await BudgetOverrunNotificationService.shared.handleAppActivity()
                         await BudgetCarryoverNotificationService.shared.handleAppActivity()
                         await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+                        // 「一个发现」：前台激活轻量检查（资源让位决策在调度器内做）
+                        await DiscoveryCoordinator.shared.refresh()
                         await HoloReplayDigestService.shared.backfillIfNeeded(
                             historyRepo: MemoryInsightRepository()
                         )

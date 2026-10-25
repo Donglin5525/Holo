@@ -27,14 +27,13 @@ struct ThoughtCardView: View {
         /// 顶部/正文/底部三区块间距
         static let sectionSpacing: CGFloat = 12
         /// 主题弱徽章字色强度（绿=主题语义，降强度不当强调色用）
-        static let topicBadgeTintOpacity: Double = 0.75
         /// 标签 chip 底色透明度（统一值，前景仍用用户自选色）
         static let tagChipBackgroundOpacity: Double = 0.08
     }
 
     // MARK: - Properties
 
-    let thought: Thought
+    @ObservedObject var thought: Thought
     /// 点卡片进入编辑器（阅读与编辑合流后的唯一打开路径）
     var onNavigate: (() -> Void)?
     /// 待确认徽章点按：直达编辑器 AI 确认位（列表注入滚动意图；不传时回落 onNavigate）
@@ -103,14 +102,15 @@ struct ThoughtCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .fill(Color.holoToolSurface)
+                .fill(thought.appearanceStyle.listPaper)
                 // 2026-09-25 flomo 改版：去阴影改细描边——阴影是卡片厚重感的主要来源，
                 // 连续浏览时让注意力回到正文（容器安静原则）
                 .overlay(
                     RoundedRectangle(cornerRadius: HoloRadius.lg)
-                        .stroke(Color.holoToolBorder, lineWidth: 0.5)
+                        .stroke(thought.appearanceStyle.listBorder, lineWidth: 0.5)
                 )
         )
+        .overlay { ThoughtStyleCardDecoration(style: thought.appearanceStyle).allowsHitTesting(false) }
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .holoHover()
         .holoRecordArrival(thought.id, domain: .thought)
@@ -182,6 +182,16 @@ struct ThoughtCardView: View {
 
             Spacer()
 
+            ThoughtStyleSignature(style: thought.appearanceStyle)
+
+            // 标签级 AI 排除：淡金盾牌角标（提示而不喧宾，2026-10-21 方案画板⑤）
+            if ThoughtAIAudience.isExcluded(thought) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.holoAIShieldTint)
+                    .accessibilityLabel(String(localized: "不参与 AI"))
+            }
+
             // V3 新 UI：AI 整理状态（整理中/待确认/失败）不进主路径
             if !ThoughtSemanticFeatureFlags.uiEnabled {
                 ThoughtCardStatusBadge(
@@ -242,6 +252,9 @@ struct ThoughtCardView: View {
                     }
             }
         }
+        .overlay(alignment: .bottom) {
+            ThoughtStyleHeaderRule(style: thought.appearanceStyle).allowsHitTesting(false)
+        }
     }
 
     /// 是否存在至少一个可用的更多操作（含「编辑」兜底入口）
@@ -253,6 +266,9 @@ struct ThoughtCardView: View {
 
     private var contentView: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            if thought.appearanceStyle.photosLead, !thought.sortedAttachments.isEmpty { inlineAttachmentsView }
+            HStack(alignment: .top, spacing: HoloSpacing.md) {
+                if thought.appearanceStyle == .calendar { ThoughtCardDateMark(date: thought.createdAt) }
             // 内容渲染整体下沉到 ThoughtContentBody：它只依赖内容字符串本身，
             // 点「…」弹菜单、整理队列状态变化等状态型重算不会触碰解码与排版。
             // 正文入口用 Button 承载（2026-09-17 真机「无法编辑历史想法」事故修法）：
@@ -267,7 +283,8 @@ struct ThoughtCardView: View {
             } label: {
                 ThoughtContentBody(
                     richJSON: thought.richContentJSON,
-                    fallbackPlainText: thought.content
+                    fallbackPlainText: thought.content,
+                    style: thought.appearanceStyle
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -279,11 +296,14 @@ struct ThoughtCardView: View {
                 fallbackPlainText: thought.content
             ))
             .accessibilityHint(String(localized: "轻点编辑这条想法"))
+            }
 
-            if !thought.sortedAttachments.isEmpty {
+            if !thought.appearanceStyle.photosLead, !thought.sortedAttachments.isEmpty {
                 inlineAttachmentsView
             }
         }
+        .padding(.leading, thought.appearanceStyle == .fold ? HoloSpacing.md : 0)
+        .padding(.trailing, thought.appearanceStyle == .post ? HoloSpacing.lg : 0)
     }
 
     // MARK: - 底部区域
@@ -423,9 +443,10 @@ struct ThoughtCardView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
-            .foregroundColor(Color.holoSuccess.opacity(Metrics.topicBadgeTintOpacity))
+            .foregroundColor(Color.holoSuccessText)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
+            .frame(minHeight: 28)
             .background(Color.holoSuccess.opacity(0.09))
             .cornerRadius(HoloRadius.sm)
             .fixedSize(horizontal: false, vertical: true)
@@ -474,24 +495,14 @@ struct ThoughtCardView: View {
     }
 
     private var inlineAttachmentsView: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: HoloSpacing.sm) {
-                ForEach(Array(thought.sortedAttachments.enumerated()), id: \.element.id) { index, attachment in
-                    ThoughtAttachmentThumbnailView(
-                        thumbnailData: attachment.thumbnailData,
-                        fileName: attachment.thumbnailFileName,
-                        thoughtId: thought.id
-                    )
-                    .frame(width: 80, height: 80)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        HapticManager.light()
-                        galleryStartIndex = index
-                        showAttachmentGallery = true
-                    }
-                    .accessibilityLabel(String(localized: "查看图片"))
-                }
-            }
+        let sources = thought.sortedAttachments.map {
+            ThoughtPaperPhotoSource(id: $0.id, thumbnailData: $0.thumbnailData, fileName: $0.thumbnailFileName, thoughtId: thought.id)
+        }
+        return ThoughtCardPaperPhotos(sources: sources, style: thought.appearanceStyle) { id in
+            guard let index = thought.sortedAttachments.firstIndex(where: { $0.id == id }) else { return }
+            HapticManager.light()
+            galleryStartIndex = index
+            showAttachmentGallery = true
         }
     }
 
@@ -504,6 +515,8 @@ struct ThoughtCardView: View {
             // 展示叶段名（路径是存储结构，不进 UI 文案）；筛选仍用完整路径。
             // 有 emoji 图标时以图标代替 # 前缀，无 emoji 恢复 # 前缀（2026-09-26 R0 冒烟修复）
             let emoji = ThoughtTagEmojiStore.emoji(forKey: tag.name)
+            // 排除标签转淡金盾系配色（2026-10-21 标签级 AI 排除）
+            let chipColor = tag.excludeFromAI ? Color.holoAIShieldTint : tag.tagColor
             HStack(spacing: 3) {
                 if let emoji {
                     Text(emoji)
@@ -512,12 +525,16 @@ struct ThoughtCardView: View {
                 } else {
                     Text("#\(ThoughtTagNormalizer.lastSegment(tag.name))")
                 }
+                if tag.excludeFromAI {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                }
             }
                 .holoText(.metadata)
-                .foregroundColor(tag.tagColor)
+                .foregroundColor(chipColor)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(tag.tagColor.opacity(Metrics.tagChipBackgroundOpacity))
+                .background(chipColor.opacity(Metrics.tagChipBackgroundOpacity))
                 .cornerRadius(HoloRadius.sm)
                 .fixedSize(horizontal: true, vertical: false)
         }
@@ -538,8 +555,8 @@ struct ThoughtCardView: View {
                     .foregroundColor(.holoToolTextSecondary)
 
                 Text("AI")
-                    .font(.system(size: 8, weight: .semibold))
-                    // 8pt 微标不做半透明降档：深色下会跌破可读线
+                    .font(.system(size: 10, weight: .semibold))
+                    // 微标不做半透明降档：深色下会跌破可读线
                     .foregroundColor(.holoToolTextSecondary)
             }
             .padding(.horizontal, 8)
@@ -703,8 +720,9 @@ private struct ThoughtCardStatusBadge: View {
                 .font(.holoTinyLabel)
         }
         .foregroundColor(status.color)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .frame(minHeight: 28)
         .background(status.color.opacity(0.1))
         .clipShape(Capsule())
         // iOS 26 plain 按钮会把命中区收缩到文字内容：显式声明热区=可视胶囊
@@ -764,6 +782,7 @@ private struct ThoughtContentBody: View {
 
     let richJSON: String?
     let fallbackPlainText: String
+    var style: ThoughtStyle = .plain
 
     var body: some View {
         let nodes = RichContentSerializer.nodes(
@@ -777,7 +796,8 @@ private struct ThoughtContentBody: View {
         ReadOnlyRichTextPreview(
             nodes: nodes,
             lineLimit: 7,
-            compressesBlankLines: true
+            compressesBlankLines: true,
+            presentationStyle: style
         )
     }
 }

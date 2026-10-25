@@ -55,6 +55,13 @@ struct ThoughtEditorView: View {
 
     // MARK: - Original Values (for change detection)
     @State private var originalContent: String = ""
+    @State private var selectedStyle: ThoughtStyle = .plain
+    @State private var styleNeedsSaving = false
+    @State private var paperTextOrigin: CGPoint = .zero
+    @State private var paperHeaderHeight: CGFloat = 0
+    @State private var paperFooterHeight: CGFloat = 0
+    @State private var editorViewport: CGRect = .zero
+    @State private var showStylePicker = false
 
     // MARK: - 结构化编辑状态（#/@ Token）
     /// 当前 #/@ 触发上下文（候选面板数据源）
@@ -88,6 +95,8 @@ struct ThoughtEditorView: View {
     /// 工具栏色板显隐；光标活动或候选面板触发时自动关闭
     @State private var showsColorPalette: Bool = false
     @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
+    /// 当前想法命中「不参与 AI」标签（口径二：所有 AI 功能一刀切停用；想用先关标签排除）
+    @State private var aiExcluded: Bool = false
 
     // MARK: - 转为任务
     /// 提取确认面板的参数（用 item 模式确保弹窗拿到的参数是一次性写好的、自洽的）
@@ -217,12 +226,22 @@ struct ThoughtEditorView: View {
                         // 可回原文的旧想法；无命中安静留空，不打扰记录。
                         // id 随想法/正文版本变化——编辑后旧召回结果整体重建
                         if let currentThoughtId, hasLoadedEditorData {
-                            if ThoughtSemanticFeatureFlags.uiEnabled,
+                            if aiExcluded {
+                                // 标签级 AI 排除（口径二一刀切）：停用的不只是按钮，还要说清去哪恢复
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.shield.fill")
+                                        .font(.system(size: 12, weight: .semibold))
+                                    Text("这条想法带有不参与 AI 的标签，AI 功能已停用。想到「想法设置 › AI 分析范围」可调整。")
+                                }
+                                .font(.holoCaption)
+                                .foregroundStyle(Color.holoAIShieldTint)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            } else if ThoughtSemanticFeatureFlags.uiEnabled,
                                content.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10 {
                                 ThoughtInsightButton(content: content)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            if ThoughtSemanticFeatureFlags.resurfacingEnabled {
+                            if !aiExcluded && ThoughtSemanticFeatureFlags.resurfacingEnabled {
                                 ThoughtRelatedSection(
                                     thoughtID: currentThoughtId,
                                     content: content,
@@ -238,6 +257,7 @@ struct ThoughtEditorView: View {
                     .padding(.bottom, HoloSpacing.xl)  // 底部留白（工具栏已沉入编辑器卡片底部）
                 }
                 .background(Color.holoToolBackground)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { editorViewport = $0 }
                 // 长文编辑时允许用户下滑交互式收起键盘，避免只能点「完成」或额外点击空白处。
                 .scrollDismissesKeyboard(.interactively)
                 .navigationTitle(editingThoughtId != nil
@@ -277,9 +297,22 @@ struct ThoughtEditorView: View {
         .swipeBackToDismiss(isEnabled: onRequestClose == nil) {
             dismiss()
         }
+        .sheet(isPresented: $showStylePicker) {
+            ThoughtStylePicker(style: selectedStyle, content: content, photoCount: editingAttachments.count + pendingImageItems.count, createdAt: currentThoughtObject?.createdAt ?? Date(), nodes: editorNodesLoaded ? editorNodes : nil, photos: paperPhotoSources) { style in
+                guard selectedStyle != style else { return }
+                selectedStyle = style
+                styleNeedsSaving = true
+                HapticManager.selection()
+                scheduleAutoSave()
+                scheduleRecoverySnapshot()
+            }
+        }
         .sheet(isPresented: $showShareCard) {
             if let thought = currentThoughtObject {
-                ThoughtShareSheet(thought: thought)
+                ThoughtShareSheet(thought: thought, onStyleChange: {
+                    selectedStyle = $0
+                    styleNeedsSaving = false
+                })
             }
         }
         .sheet(isPresented: $showTopicPicker) {
@@ -328,6 +361,7 @@ struct ThoughtEditorView: View {
                 content: request.content,
                 sourceThought: request.sourceThought,
                 isFromSelection: request.isFromSelection,
+                isAIExcluded: aiExcluded,
                 visibleSourceText: visibleEditorText(for: request.sourceThought),
                 sourceRange: request.sourceRange,
                 onDismiss: {
@@ -353,7 +387,8 @@ struct ThoughtEditorView: View {
             )
         }
         .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
-            if smartSummaryEnabled {
+            // 排除想法不挂智能总结处理器：语音输入照常，只是不把内容交给 AI 整理
+            if smartSummaryEnabled && !aiExcluded {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .thought),
                     readySubtitle: String(localized: "确认后插入到想法内容"),
@@ -561,8 +596,10 @@ struct ThoughtEditorView: View {
                         inlineTags: [],
                         richContentJSON: .some(nil),
                         references: [],
+                        style: styleNeedsSaving ? selectedStyle : nil,
                         createIfMissing: false
                     )
+                    styleNeedsSaving = false
                     clearRecoveryRecordAfterCommit()
                     if notifyDataChange {
                         NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
@@ -617,6 +654,7 @@ struct ThoughtEditorView: View {
                 inlineTags: inlineTags,
                 richContentJSON: .some(richJSON),
                 references: referenceSnapshots,
+                style: styleNeedsSaving ? selectedStyle : nil,
                 createIfMissing: createIfMissing
             )
             persistedThoughtId = receipt.thoughtId
@@ -665,6 +703,7 @@ struct ThoughtEditorView: View {
 
         // 同步修改检测基线
         originalContent = content
+        styleNeedsSaving = false
 
         if notifyDataChange {
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
@@ -795,7 +834,8 @@ struct ThoughtEditorView: View {
             content: content,
             richContentJSON: richJSON,
             stagedImageFiles: pendingImageItems.compactMap(\.stagedFileName),
-            updatedAt: Date()
+            updatedAt: Date(),
+            styleRaw: selectedStyle.rawValue
         )
         await ThoughtEditorRecoveryStore.shared.save(draft)
     }
@@ -816,6 +856,10 @@ struct ThoughtEditorView: View {
         recoverableDraft = nil
         content = draft.content
         originalContent = draft.content
+        if let styleRaw = draft.styleRaw {
+            selectedStyle = ThoughtStyle(storedValue: styleRaw)
+            styleNeedsSaving = true
+        }
         if draft.richContentJSON != nil {
             initialRichJSON = draft.richContentJSON
         }
@@ -1015,43 +1059,62 @@ struct ThoughtEditorView: View {
     /// 卡片从上到下：正文输入区（弹性高度）→ 附件条 → 工具栏（沉底，与卡片一体）。
     private var contentSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            MarkdownTextView(
-                text: $content,
-                pendingAction: $pendingEditorAction,
-                dynamicHeight: $editorHeight,
-                formatState: $typingFormatState,
-                triggerContext: $triggerContext,
-                selectedToken: $selectedToken,
-                caretRect: $caretRect,
-                autoFocus: !isEditing || autoFocusExistingThought,
-                // 语音按钮已收进底部工具栏，正文区不再为悬浮入口预留大片底部空白
-                textContainerInset: UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16),
-                initialRichJSON: initialRichJSON,
-                placeholder: String(localized: "写点什么吧…"),
-                onNodesChange: { newNodes in
-                    editorNodes = newNodes
-                    editorNodesLoaded = true
-                },
-                onConvertToTask: { startTaskExtraction() },
-                onConvertSelection: { selectedText, selectedRange in
-                    startTaskExtraction(selectedText: selectedText, selectedRange: selectedRange)
-                },
-                onSuggestionCommand: handleSuggestionKeyboardCommand,
-                suggestionKeyboardEnabled: triggerContext != nil,
-                suggestionKeyboardHasItems: !suggestionViewModel.visibleItems.isEmpty,
-                onCompositionChange: handleCompositionChange,
-                onSelectionLengthChange: { length in
-                    if editorSelectionLength != length {
-                        editorSelectionLength = length
+            VStack(alignment: .leading, spacing: 0) {
+                ThoughtPaperHeader(style: selectedStyle, date: currentThoughtObject?.createdAt ?? Date())
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paperHeaderHeight = $0 }
+                if selectedStyle.photosLead { attachmentStrip }
+                MarkdownTextView(
+                    text: $content,
+                    pendingAction: $pendingEditorAction,
+                    dynamicHeight: $editorHeight,
+                    formatState: $typingFormatState,
+                    triggerContext: $triggerContext,
+                    selectedToken: $selectedToken,
+                    caretRect: $caretRect,
+                    autoFocus: !isEditing || autoFocusExistingThought,
+                    // 语音按钮已收进底部工具栏，正文区不再为悬浮入口预留大片底部空白
+                    textContainerInset: UIEdgeInsets(top: 16, left: selectedStyle == .plain ? 16 : selectedStyle.textInset, bottom: 16, right: selectedStyle == .plain ? 16 : selectedStyle.trailingInset),
+                    initialRichJSON: initialRichJSON,
+                    presentationStyle: selectedStyle,
+                    placeholder: String(localized: "写点什么吧…"),
+                    onNodesChange: { newNodes in
+                        editorNodes = newNodes
+                        editorNodesLoaded = true
+                    },
+                    onConvertToTask: { startTaskExtraction() },
+                    onConvertSelection: { selectedText, selectedRange in
+                        startTaskExtraction(selectedText: selectedText, selectedRange: selectedRange)
+                    },
+                    onSuggestionCommand: handleSuggestionKeyboardCommand,
+                    suggestionKeyboardEnabled: triggerContext != nil,
+                    suggestionKeyboardHasItems: !suggestionViewModel.visibleItems.isEmpty,
+                    onCompositionChange: handleCompositionChange,
+                    onSelectionLengthChange: { length in
+                        if editorSelectionLength != length {
+                            editorSelectionLength = length
+                        }
                     }
+                )
+                // G1：恢复草稿后必须换 identity 重建编辑器实例——发生过本地输入的
+                // UITextView 不会再消费外部 text binding，仅改绑定恢复不生效。
+                .id(editorReloadToken)
+                .frame(height: editorFrameHeight)
+                .background {
+                    ThoughtWritingGuide(style: selectedStyle)
+                        .padding(.leading, selectedStyle.textInset)
+                        .padding(.trailing, selectedStyle.trailingInset)
                 }
-            )
-            // G1：恢复草稿后必须换 identity 重建编辑器实例——发生过本地输入的
-            // UITextView 不会再消费外部 text binding，仅改绑定恢复不生效。
-            .id(editorReloadToken)
-            .frame(height: editorFrameHeight)
+                .onGeometryChange(for: CGPoint.self) { proxy in
+                    proxy.frame(in: .named("thought.paper")).origin
+                } action: { paperTextOrigin = $0 }
 
-            attachmentStrip
+                if !selectedStyle.photosLead { attachmentStrip }
+                if selectedStyle != .plain {
+                    ThoughtPaperFooter(style: selectedStyle)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { paperFooterHeight = $0 }
+                }
+            }
+            .overlay { ThoughtStationeryBackground(style: selectedStyle) }
 
             // 工具栏沉在卡片底部：同底色、同圆角，是输入框自身的一部分而不是键盘附属
             EditorFormatToolbar(
@@ -1092,8 +1155,10 @@ struct ThoughtEditorView: View {
                 formatState: typingFormatState,
                 showsColorPalette: $showsColorPalette
             )
+            .background(Color.holoToolSurface)
         }
-        .background(Color.holoToolSurface)
+        .coordinateSpace(name: "thought.paper")
+        .background(selectedStyle.editorPaper)
         .cornerRadius(HoloRadius.md)
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -1123,13 +1188,14 @@ struct ThoughtEditorView: View {
     @ViewBuilder
     private func suggestionPanelContainer(_ context: EditorTriggerContext) -> some View {
         GeometryReader { proxy in
+            let caret = caretRect.offsetBy(dx: paperTextOrigin.x, dy: paperTextOrigin.y)
             let gap: CGFloat = 6
             let horizontalInset: CGFloat = 8
             let maximumPanelWidth: CGFloat = 280
             let maximumPanelHeight = SuggestionPanelView.referenceRowHeight * 4
             let panelWidth = min(maximumPanelWidth, max(160, proxy.size.width - horizontalInset * 2))
-            let availableAbove = max(0, caretRect.minY - gap)
-            let availableBelow = max(0, proxy.size.height - caretRect.maxY - gap)
+            let availableAbove = max(0, caret.minY - gap)
+            let availableBelow = max(0, proxy.size.height - caret.maxY - gap)
             // 候选浮层允许越过编辑器的短内容边界，使用空白区域承载完整候选列表；
             // 否则 GeometryReader 会把面板压缩成两行并在卡片底部截断。
             let showBelow = availableBelow >= availableAbove
@@ -1139,11 +1205,11 @@ struct ThoughtEditorView: View {
                 maxHeight: maximumPanelHeight
             )
             let rawY = showBelow
-                ? caretRect.maxY + gap
-                : caretRect.minY - panelHeight - gap
+                ? caret.maxY + gap
+                : caret.minY - panelHeight - gap
             let offsetY = max(horizontalInset, rawY)
             let offsetX = min(
-                max(horizontalInset, caretRect.minX),
+                max(horizontalInset, caret.minX),
                 max(horizontalInset, proxy.size.width - panelWidth - horizontalInset)
             )
 
@@ -1256,8 +1322,8 @@ struct ThoughtEditorView: View {
                 .foregroundColor(isConfirmed ? .holoPrimary : .holoToolTextSecondary)
 
             Text("AI")
-                .font(.system(size: 8, weight: .semibold))
-                // 8pt 微标不做半透明降档：深色下半透橙/灰会跌破可读线
+                .font(.system(size: 10, weight: .semibold))
+                // 微标不做半透明降档：深色下半透橙/灰会跌破可读线
                 .foregroundColor(isConfirmed ? .holoToolWarning : .holoToolTextSecondary)
 
             if !isConfirmed {
@@ -1271,7 +1337,9 @@ struct ThoughtEditorView: View {
                 } label: {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.holoSuccess)
+                        .foregroundColor(.holoSuccessText)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
 
                 // FR-06′：× 默认仅本条不适合（与详情页一致），不写全局抑制
@@ -1285,7 +1353,9 @@ struct ThoughtEditorView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.holoError.opacity(0.7))
+                        .foregroundColor(.holoError)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
                 }
             }
         }
@@ -1331,6 +1401,16 @@ struct ThoughtEditorView: View {
     /// （管线内部：有选中转选中、无选中转整篇），补回工具栏按钮退役后的选区能力。
     private var editorOptionsMenu: some View {
         Menu {
+            Button {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                showStylePicker = true
+            } label: {
+                Label(String(localized: "记录样式"), systemImage: "paintpalette")
+            }
+            .accessibilityIdentifier("thought.style.choose")
+            .accessibilityValue(selectedStyle.title)
+
+            Divider()
             if editorSelectionLength > 0 {
                 Button {
                     pendingEditorAction = .convertToTask
@@ -1384,11 +1464,14 @@ struct ThoughtEditorView: View {
                 .font(.system(size: 18))
                 .foregroundColor(.holoToolText)
         }
+        .accessibilityLabel(String(localized: "更多操作"))
     }
 
-    /// skipped（<10 字）重试无意义不显示；failed / organized / disabled 均可手动重整
+    /// skipped（<10 字）重试无意义不显示；failed / organized / disabled 均可手动重整。
+    /// excluded（「不参与 AI」标签）不显示——恢复只能走标签开关，这里不能成为绕过门。
     private var canRetryOrganization: Bool {
         guard let status = organizedStatus else { return false }
+        guard status != ThoughtAIClassificationPolicy.excludedStatus else { return false }
         return status != "skipped" && status != "pending" && status != "processing"
     }
 
@@ -1592,7 +1675,7 @@ struct ThoughtEditorView: View {
 
     private var contentEditorMinimumHeight: CGFloat {
         // 起步画布给到约屏幕 40%：想法编辑器是「一页纸」的心智，而不是表单里的一个小格子。
-        min(380, UIScreen.main.bounds.height * 0.4)
+        selectedStyle == .plain ? min(380, UIScreen.main.bounds.height * 0.4) : (hasContent ? 120 : 180)
     }
 
     /// 编辑器显示高度：短内容给足起步画布，随内容自然增长；
@@ -1607,7 +1690,14 @@ struct ThoughtEditorView: View {
     private var editorHeightBudget: CGFloat {
         let attachmentHeight: CGFloat = hasAttachments ? 128 : 0
         let toolbarHeight: CGFloat = 46
-        return UIScreen.main.bounds.height - keyboardOverlapHeight - 110 - toolbarHeight - attachmentHeight
+        let paperChrome = selectedStyle == .plain ? 0 : paperHeaderHeight + paperFooterHeight
+        if selectedStyle != .plain, editorViewport.height > 0 {
+            // 用当前分栏/安全区的真实可视范围；键盘已让视口缩小时也不重复扣减。
+            let visibleBottom = min(editorViewport.maxY, UIScreen.main.bounds.height - keyboardOverlapHeight)
+            let visibleHeight = max(0, visibleBottom - editorViewport.minY)
+            return max(100, visibleHeight - toolbarHeight - attachmentHeight - paperChrome - HoloSpacing.md)
+        }
+        return max(100, UIScreen.main.bounds.height - keyboardOverlapHeight - 110 - toolbarHeight - attachmentHeight - paperChrome)
     }
 
     private var hasAttachments: Bool {
@@ -1641,132 +1731,44 @@ struct ThoughtEditorView: View {
         }
     }
 
-    /// 已添加图片的横向缩略图条（带可见删除按钮）。
-    /// G1：多种来源合并展示——已落库附件（点按进图库）+ 暂存图（转正失败带角标，
-    /// 点按立即重试）+ 渐进加载中图片（占位帧即显，失败留卡重试），
-    /// 失败图不再只是 toast 一闪而过。
-    @ViewBuilder
+    /// 展示层只持有快照，图片的持久化、失败重试与删除仍回到原来的动作。
+    private var paperPhotoSources: [ThoughtPaperPhotoSource] {
+        let saved = editingAttachments.map {
+            ThoughtPaperPhotoSource(id: $0.id, thumbnailData: $0.thumbnailData, fileName: $0.thumbnailFileName, thoughtId: currentThoughtId)
+        }
+        let pending = pendingImageItems.map {
+            ThoughtPaperPhotoSource(id: $0.id, image: $0.preview, status: $0.retryCount > 0 ? .failed : .ready)
+        }
+        let loading = inFlightImages.map { item in
+            let failed: Bool
+            if case .failed = item.phase { failed = true } else { failed = false }
+            return ThoughtPaperPhotoSource(id: item.id, image: item.placeholder, status: failed ? .failed : .loading)
+        }
+        return saved + pending + loading
+    }
+
     private var attachmentStrip: some View {
-        if !editingAttachments.isEmpty || !pendingImageItems.isEmpty || !inFlightImages.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: HoloSpacing.sm) {
-                    ForEach(Array(editingAttachments.enumerated()), id: \.element.id) { index, item in
-                        ThoughtAttachmentThumbnailView(
-                            thumbnailData: item.thumbnailData,
-                            fileName: item.thumbnailFileName,
-                            thoughtId: editingThoughtId ?? UUID()
-                        )
-                        .frame(width: 80, height: 80)
-                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-                        .overlay(alignment: .topTrailing) {
-                            Button {
-                                deleteEditingAttachment(item.objectID)
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.white)
-                                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                            }
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                        }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            galleryStartIndex = index
-                            showAttachmentGallery = true
-                        }
-                    }
-                    ForEach(pendingImageItems) { item in
-                        pendingImageThumbnail(item)
-                    }
-                    ForEach(inFlightImages) { item in
-                        inFlightThumbnail(item)
-                    }
-                }
-            }
-            .padding(HoloSpacing.md)
+        ThoughtEditorPaperPhotos(sources: paperPhotoSources, style: selectedStyle, onOpen: openPaperPhoto, onRemove: removePaperPhoto)
+    }
+
+    private func openPaperPhoto(_ id: UUID) {
+        if let index = editingAttachments.firstIndex(where: { $0.id == id }) {
+            galleryStartIndex = index
+            showAttachmentGallery = true
+        } else if let item = pendingImageItems.first(where: { $0.id == id }), item.retryCount > 0 {
+            retryPendingImage(item)
+        } else if let item = inFlightImages.first(where: { $0.id == id }), case .failed = item.phase {
+            retryInFlightImage(item)
         }
     }
 
-    /// 暂存图缩略块：右上删除；转正失败过（retryCount > 0）显示角标，点按立即重试
-    private func pendingImageThumbnail(_ item: PendingImageItem) -> some View {
-        Image(uiImage: item.preview)
-            .resizable()
-            .aspectRatio(1, contentMode: .fill)
-            .frame(width: 80, height: 80)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-            .overlay(alignment: .topTrailing) {
-                Button {
-                    removePendingImage(item)
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.white)
-                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-                }
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if item.retryCount > 0 {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoToolError)
-                        .padding(4)
-                }
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {
-                if item.retryCount > 0 {
-                    retryPendingImage(item)
-                }
-            }
-    }
-
-    /// 加载中图片缩略块：占位帧（本机缓存低清）立即显示，加载转圈；
-    /// 失败显示警示+重试字样，点按整卡重试；右上删除随时可撤。
-    private func inFlightThumbnail(_ item: InFlightImageItem) -> some View {
-        ZStack {
-            if let placeholder = item.placeholder {
-                Image(uiImage: placeholder)
-                    .resizable()
-                    .aspectRatio(1, contentMode: .fill)
-            } else {
-                Rectangle().fill(Color.holoToolSurface)
-            }
-            switch item.phase {
-            case .loading, .placeholderReady:
-                ProgressView()
-            case .failed:
-                VStack(spacing: 3) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 14))
-                        .foregroundColor(.holoToolError)
-                    Text("重试")
-                        .holoText(.metadata)
-                        .foregroundColor(.holoToolTextSecondary)
-                }
-            }
-        }
-        .frame(width: 80, height: 80)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-        .overlay(alignment: .topTrailing) {
-            Button {
-                removeInFlightImage(item)
-            } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(.white)
-                    .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
-            }
-            .frame(width: 44, height: 44)
-            .contentShape(Rectangle())
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if case .failed = item.phase {
-                retryInFlightImage(item)
-            }
+    private func removePaperPhoto(_ id: UUID) {
+        if let item = editingAttachments.first(where: { $0.id == id }) {
+            deleteEditingAttachment(item.objectID)
+        } else if let item = pendingImageItems.first(where: { $0.id == id }) {
+            removePendingImage(item)
+        } else if let item = inFlightImages.first(where: { $0.id == id }) {
+            removeInFlightImage(item)
         }
     }
 
@@ -1810,10 +1812,13 @@ struct ThoughtEditorView: View {
             // 设置当前值
             content = thought.content
             initialRichJSON = thought.richContentJSON
+            selectedStyle = thought.appearanceStyle
             // AI 归类标签只读回显（不写入行内标签，避免被 update 误处理）
             aiAssignments = (try? repo.fetchVisibleAIAssignments(thoughtId: thoughtId)) ?? []
             // 「…」菜单的「重新整理」可见性依据
             organizedStatus = thought.organizedStatus
+            // 标签级 AI 排除：AI 功能门控依据（编辑中打的标签保存后由 ChangeFeed 兜底收敛）
+            aiExcluded = ThoughtAIAudience.isExcluded(thought)
 
             // 设置原始值（用于比较是否有修改）
             originalContent = thought.content

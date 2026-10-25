@@ -64,7 +64,7 @@ struct GoalMetricLogSheet: View {
                         Text("备注")
                             .font(.holoLabel)
                             .foregroundColor(.holoToolTextSecondary)
-                        TextField("选填", text: $note, axis: .vertical)
+                        TextField("可选", text: $note, axis: .vertical)
                             .font(.holoBody)
                             .foregroundColor(.holoToolText)
                             .lineLimit(1...2)

@@ -287,7 +287,7 @@ struct AnniversaryListView: View {
                     .fill(Color.holoPrimary.opacity(0.12))
                     .frame(width: 88, height: 88)
 
-                Image(systemName: "calendar.badge.heart")
+                Image(systemName: "heart.circle")
                     .font(.system(size: 36, weight: .medium))
                     .foregroundColor(.holoPrimary)
             }

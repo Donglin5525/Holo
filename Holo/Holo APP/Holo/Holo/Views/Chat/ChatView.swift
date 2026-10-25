@@ -5,6 +5,14 @@
 //  AI 对话主界面
 //  消息列表 + 快捷栏 + 输入栏
 //
+//  🚨 红线文件：本文件有 1800 行硬上限，超线禁止改动（docs/standards/quality-redlines.md §6）。
+//  本文件视图链过深曾在真机三次栈溢出闪退（0917 / 0923 / 1022，主线程栈仅 1MB；
+//  模拟器 8MB 栈永远测不出，模拟器绿灯无证明力）。给本文件带来任何改动的构建，
+//  交付前必须真机门禁 AICrashDeviceReproUITests 两用例跑绿。
+//  行数由 HoloTests/ChatViewWeightGuardTests 自动把关，超线先拆存量再加新代码：
+//  新界面块一律建独立 struct 文件；只拆叶子子件、禁止新增中间容器层；
+//  大块构造拆独立 getter/方法帧（makeListActions / reportPane 是范本）。
+//
 
 import SwiftUI
 import Combine
@@ -38,20 +46,12 @@ struct ChatView: View {
     @State private var pendingVoiceTranscriptToSend: String?
     @State private var pendingDelete: PendingCardDelete?
     @State private var showDeleteConfirmation = false
-    @State private var pendingCategoryEditMessage: ChatMessageViewData?
-    /// 正在改分类的待确认项 ID：多卡消息里 dismiss 时按它定位，避免误关第一张 pending 卡
-    @State private var pendingCategoryEditItemID: String?
-    @State private var pendingEditPrefill: PendingTransactionPrefill?
-    /// 待确认任务卡的编辑会话（日期/提醒/清单/内容就地改）
-    @State private var pendingTaskEdit: PendingTaskEdit?
-    @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
+    /// 全屏 cover 单通道（弹层收敛 2026-10-23）：报告详情 / 回放阅读 / 财务证据搜索。
+    /// 窄屏由此呈现 fullScreenCover；宽屏（≥860）由 activeSidePanel 读同一状态走右侧栏——
+    /// 单一数据源双消费，替代原 agentDetailMessage / replayReaderMessage /
+    /// financeSearchRoute 三个 @State + 三个 cover 修饰符。
+    @State private var coverRoute: ChatCoverRoute?
     @State private var memoryInboxSnapshot: HoloMemoryInboxSnapshot?
-    /// 「待确认 N 件」直达确认队列（与个人页同通道）
-    @State private var showMemoryConfirmationQueue = false
-    /// 待举报的 AI 消息（驱动 ContentReportSheet）
-    @State private var reportingMessage: ChatMessageViewData?
-    /// 额度耗尽卡片「了解 Holo Plus」触发，sheet 呈现会员中心
-    @State private var showMembershipCenter = false
     /// 键盘遮挡内容区的高度（已扣除底部 Home Indicator 安全区）。
     /// ZStack 平级常驻模式下祖先视图忽略了键盘安全区，系统自动避让失效，
     /// 因此这里手动监听键盘 frame 变化并给内容加 bottom padding。
@@ -69,10 +69,6 @@ struct ChatView: View {
     /// 报告 pane 首次切换才构建（聊天页性能保护），之后常驻不销毁
     @State private var hasVisitedReportTab = false
     @StateObject private var reportViewModel = ChatReportTabViewModel()
-    /// 报告详情（宽屏侧栏 / 窄屏全屏）：报告 Tab 档案行 / 聊天分析卡 / 长廊门卡三处共用
-    @State private var agentDetailMessage: ChatMessageViewData?
-    /// 回放阅读版（宽屏侧栏 / 窄屏全屏）：报告 Tab 档案行进入
-    @State private var replayReaderMessage: ChatMessageViewData?
 
     // MARK: 依据侧栏（2026-09-16 可用性改造方案 2B）
     // 宽屏（内容宽 ≥860）：报告详情 / 回放阅读按需在右侧栏打开，聊天消息与
@@ -89,25 +85,25 @@ struct ChatView: View {
         case replayReader(ChatMessageViewData)
     }
 
+    /// 侧栏与全屏 cover 同读 coverRoute（单一数据源）：宽屏走侧栏，
+    /// 窄屏走 cover 修饰符，旋转跨档同一状态无缝迁移（原语义保留）。
     private var activeSidePanel: ChatSidePanel? {
         guard isWideLayout else { return nil }
-        if let message = agentDetailMessage { return .reportDetail(message) }
-        if let message = replayReaderMessage { return .replayReader(message) }
-        return nil
+        switch coverRoute {
+        case .reportDetail(let message):
+            return .reportDetail(message)
+        case .replayReader(let message):
+            return .replayReader(message)
+        case .financeSearch, nil:
+            return nil
+        }
     }
 
-    /// 窄屏全屏详情的门控绑定：宽屏详情走侧栏，cover 恒 nil 不弹
-    private var agentDetailCoverBinding: Binding<ChatMessageViewData?> {
+    /// 全屏 cover 门控绑定：宽屏详情走侧栏，cover 恒 nil 不弹（原方案 2B 语义）
+    private var coverBinding: Binding<ChatCoverRoute?> {
         Binding(
-            get: { isWideLayout ? nil : agentDetailMessage },
-            set: { agentDetailMessage = $0 }
-        )
-    }
-
-    private var replayReaderCoverBinding: Binding<ChatMessageViewData?> {
-        Binding(
-            get: { isWideLayout ? nil : replayReaderMessage },
-            set: { replayReaderMessage = $0 }
+            get: { isWideLayout ? nil : coverRoute },
+            set: { coverRoute = $0 }
         )
     }
 
@@ -180,24 +176,37 @@ struct ChatView: View {
         .sheet(item: $viewModel.goalWorkshopLaunch) { launch in
             GoalWorkshopFlowView(launch: launch)
         }
-        .sheet(isPresented: $showMemoryConfirmationQueue) {
-            MemoryConfirmationQueueView()
-        }
+        // 弹层收敛（2026-10-23 第四次发作二修）：原 5 个散装 sheet（记忆确认队列 /
+        // 会员中心 / 举报 / 改分类 / 任务卡编辑）并入 activeSheet 枚举单通道——
+        // 每层 sheet 修饰符都是 body 主链上的 AG 节点（约 100KB 真机栈/层，红线 §6）
         .sheet(item: $activeSheet, onDismiss: handleSheetDismiss) { sheet in
             sheetContent(sheet)
         }
-        .sheet(isPresented: $showMembershipCenter) {
-            NavigationStack {
-                HoloMembershipCenterView()
-            }
-        }
-        .sheet(item: $reportingMessage) { message in
-            ContentReportSheet(message: message)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+        // 「一个发现」阅读面板（01 §2）：打开期间不被新结果替换；撤权/失效由
+        // refreshDiscoveryState 强制关闭并显示失效说明
+        .sheet(isPresented: $viewModel.showsDiscoveryDetail) {
+            DiscoveryDetailSheet(
+                finding: viewModel.discoveryFinding,
+                invalidationText: viewModel.discoveryInvalidationText,
+                service: viewModel.discoveryService,
+                onOpenSource: { sourceRef in
+                    viewModel.openRecord(sourceRef: sourceRef)
+                },
+                onOpenSettings: {
+                    viewModel.closeDiscoveryDetail()
+                    activeSheet = .holoAIUserSettings
+                },
+                onStartConversation: { _ in
+                    viewModel.closeDiscoveryDetail()
+                },
+                onDismiss: {
+                    viewModel.closeDiscoveryDetail()
+                }
+            )
         }
         .task {
             await viewModel.setup()
+            await viewModel.refreshDiscoveryState()
             await loadMemoryInboxNoticeIfNeeded()
             reportViewModel.bind(chatViewModel: viewModel)
             // 跨模块请求切报告 Tab（聊天卡回执 / 长廊门卡）：常驻页用 onReceive 消费，
@@ -254,37 +263,11 @@ struct ChatView: View {
             }
         }
         #endif
-        .fullScreenCover(item: $financeSearchRoute) { route in
-            FinanceSearchView(
-                initialSearchText: route.keyword,
-                exactTransactionIDs: route.transactionIDs
-            )
-            .holoContentColumn()
-        }
-        .sheet(isPresented: Binding(
-            get: { pendingCategoryEditMessage != nil },
-            set: { if !$0 { pendingCategoryEditMessage = nil; pendingCategoryEditItemID = nil } }
-        )) {
-            if let prefill = pendingEditPrefill {
-                AddTransactionSheet(
-                    editingTransaction: nil,
-                    pendingPrefill: prefill
-                ) { savedTransaction in
-                    if let msg = pendingCategoryEditMessage {
-                        viewModel.dismissPendingCardAfterEdit(
-                            from: msg,
-                            itemID: pendingCategoryEditItemID,
-                            createdTransaction: savedTransaction
-                        )
-                    }
-                    pendingCategoryEditMessage = nil
-                    pendingCategoryEditItemID = nil
-                    pendingEditPrefill = nil
-                }
-            }
-        }
-        .sheet(item: $pendingTaskEdit) { edit in
-            ChatTaskEditSheet(viewModel: viewModel, edit: edit)
+        // 全屏 cover 单通道（弹层收敛 2026-10-23）：财务证据搜索 + 报告详情 +
+        // 回放阅读原为三个独立 fullScreenCover 修饰符，收敛为单通道；宽屏下
+        // 报告详情 / 回放走右侧栏（coverBinding 恒 nil 不弹，方案 2B 语义保留）
+        .fullScreenCover(item: coverBinding) { route in
+            coverContent(route)
         }
         .confirmationDialog(
             "删除确认",
@@ -329,29 +312,6 @@ struct ChatView: View {
             }
             .presentationDetents([.medium])
         }
-        // 报告详情：从 activeSheet 枚举迁出为独立全屏层（设计文档 §4.3）。
-        // 迁移原因：详情从「下拉即关的浮层」升级为正式全屏页；独立 item 绑定 +
-        // onDismiss 复位，不与既有 5 sheet + 3 cover 的状态机互相干扰。
-        // 统一走 ReportDetailRoute：详情内可直接追问（不弹回对话页），
-        // 追问出的新报告挂进本报告的追问记录。
-        // 宽屏（≥860 内容宽）走右侧栏，本 cover 恒 nil 不弹（方案 2B）。
-        .fullScreenCover(item: agentDetailCoverBinding, onDismiss: {
-            agentDetailMessage = nil
-        }) { message in
-            ReportDetailRoute(
-                message: message,
-                chatViewModel: viewModel,
-                onFinanceDrilldown: { drilldown in
-                    // HomeView 监听 deepLinkState 变化后自动切换 activeScreen 到 .finance，ChatView 自动隐藏。
-                    DeepLinkState.openFinanceEvidenceReview(drilldown)
-                }
-            )
-            .holoContentColumn()
-        }
-        .fullScreenCover(item: replayReaderCoverBinding) { message in
-            ReportReplayReaderView(message: message)
-                .holoContentColumn()
-        }
         .fullScreenCover(isPresented: $viewModel.showGoalDraftReview) {
             if let draft = viewModel.goalDraftForReview {
                 GoalDraftReviewView(
@@ -394,16 +354,18 @@ struct ChatView: View {
     private var chatColumn: some View {
         VStack(spacing: 0) {
             // 顶部导航栏
-            // AI 设置入口是调试专用（按钮在 Release 隐藏），Release 传空操作
+            // AI 设置入口（2026-10-23「一个发现」统一设置）：正式 HoloAI 用户页，Debug/Release 都可见；
+            // 开发者 AI 调试页入口移入正式页的 Debug 区
             let onOpenSettings: () -> Void = {
-                #if DEBUG
-                activeSheet = .aiSettings
-                #endif
+                activeSheet = .holoAIUserSettings
             }
             ChatNavBar(
                 onClose: {
                     viewModel.clearContinuationDraft()
                     close()
+                },
+                onOpenMemory: {
+                    activeSheet = .memoryCenter
                 },
                 onOpenSettings: onOpenSettings
             )
@@ -437,7 +399,10 @@ struct ChatView: View {
     /// 两 Tab 常驻不销毁（照搬记忆长廊 tabContent 模式）：
     /// 切走仅隐藏，聊天侧滚动位置与输入态跨切换存活。
     /// 报告 pane 延迟到首次切换才构建，避免加重聊天首帧。
-    /// ⚠️ 保持内联（理由见 chatColumn 注释的三修教训）。
+    /// ⚠️ 禁止在 ZStack 外再包中间容器 struct（三修教训，见 chatColumn 注释）。
+    /// 2026-10-23 三度发作随案：本闭包单帧曾内联 Actions 十一闭包构造 + 报告
+    /// Tab 构造，帧序言 chkstk 探针直接触栈保护页（.ips 实锤）——大块构造必须
+    /// 拆到独立 getter/方法帧（makeListActions / reportPane）：只拆帧、不加 View 层。
     private var pageTabContent: some View {
         ZStack {
             ChatContentColumn(
@@ -453,54 +418,66 @@ struct ChatView: View {
                 inputFocusTrigger: inputFocusTrigger,
                 internalLogAction: internalLogAction,
                 onVoiceInputTap: { activeSheet = .voiceInput },
-                actions: ChatMessageListPane.Actions(
-                    onIntentTagTap: { msg in handleIntentTagTap(msg) },
-                    onCardTap: { message, cardData in handleCardTap(message: message, cardData: cardData) },
-                    presentSheet: { activeSheet = $0 },
-                    onAgentDetail: { message in agentDetailMessage = message },
-                    onOpenTransaction: { transactionId in openTransactionDetail(transactionId) },
-                    onOpenFlexibleQuery: { queryData in openFlexibleQueryResults(queryData) },
-                    onShowMembership: { showMembershipCenter = true },
-                    onPendingCardDelete: { pendingDelete in
-                        self.pendingDelete = pendingDelete
-                        showDeleteConfirmation = true
-                    },
-                    onCategoryEditPrefill: { message, itemID, prefill in
-                        pendingCategoryEditMessage = message
-                        pendingCategoryEditItemID = itemID
-                        pendingEditPrefill = prefill
-                    },
-                    onReport: { message in reportingMessage = message },
-                    onTaskEdit: { edit in pendingTaskEdit = edit }
-                )
+                actions: makeListActions()
             )
             .opacity(selectedPageTab == .chat ? 1 : 0)
             .allowsHitTesting(selectedPageTab == .chat)
             .accessibilityHidden(selectedPageTab != .chat)
 
             if hasVisitedReportTab {
-                ChatReportTabView(
-                    viewModel: reportViewModel,
-                    onOpenEntry: { entry in
-                        openReportEntry(entry)
-                    },
-                    onLaunchInChat: {
-                        // 空态橱窗 CTA：切回对话并打开场景面板——
-                        // 新用户第一发起就看到全部能力目录，比静默预填一句更有教育意义
-                        withAnimation(HoloAnimation.standard) {
-                            selectedPageTab = .chat
-                        }
-                        reportViewModel.markHidden()
-                        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                            viewModel.showAnalysisScenarioPanel = true
-                        }
-                    }
-                )
-                .opacity(selectedPageTab == .report ? 1 : 0)
-                .allowsHitTesting(selectedPageTab == .report)
-                .accessibilityHidden(selectedPageTab != .report)
+                reportPane
             }
         }
+    }
+
+    /// 报告 Tab pane：从 pageTabContent 拆出的独立构造帧（if 保留原位，
+    /// ZStack 内容类型与 View 层零变化）。常驻隐藏不销毁，切换只动可见性。
+    @ViewBuilder
+    private var reportPane: some View {
+        ChatReportTabView(
+            viewModel: reportViewModel,
+            onOpenEntry: { entry in
+                openReportEntry(entry)
+            },
+            onLaunchInChat: {
+                // 空态橱窗 CTA：切回对话并打开场景面板——
+                // 新用户第一发起就看到全部能力目录，比静默预填一句更有教育意义
+                withAnimation(HoloAnimation.standard) {
+                    selectedPageTab = .chat
+                }
+                reportViewModel.markHidden()
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                    viewModel.showAnalysisScenarioPanel = true
+                }
+            }
+        )
+        .opacity(selectedPageTab == .report ? 1 : 0)
+        .allowsHitTesting(selectedPageTab == .report)
+        .accessibilityHidden(selectedPageTab != .report)
+    }
+
+    /// 消息卡交互回弹闭包集：从 pageTabContent 拆出的独立构造帧。
+    /// Actions 是纯数据 struct（非 View），构造不加 View 层；十一个捕获
+    /// self 的闭包复制发生在本方法帧内，不再撑大 ZStack 闭包帧。
+    private func makeListActions() -> ChatMessageListPane.Actions {
+        ChatMessageListPane.Actions(
+            onIntentTagTap: { msg in handleIntentTagTap(msg) },
+            onCardTap: { message, cardData in handleCardTap(message: message, cardData: cardData) },
+            presentSheet: { activeSheet = $0 },
+            onAgentDetail: { message in coverRoute = .reportDetail(message) },
+            onOpenTransaction: { transactionId in openTransactionDetail(transactionId) },
+            onOpenFlexibleQuery: { queryData in openFlexibleQueryResults(queryData) },
+            onShowMembership: { activeSheet = .membershipCenter },
+            onPendingCardDelete: { pendingDelete in
+                self.pendingDelete = pendingDelete
+                showDeleteConfirmation = true
+            },
+            onCategoryEditPrefill: { message, itemID, prefill in
+                activeSheet = .categoryEdit(message: message, itemID: itemID, prefill: prefill)
+            },
+            onReport: { message in activeSheet = .reportMessage(message) },
+            onTaskEdit: { edit in activeSheet = .taskEdit(edit) }
+        )
     }
 
     /// 记忆提示条主点击：回执已读 + 有待确认走确认队列，否则直达长廊
@@ -511,7 +488,7 @@ struct ChatView: View {
             && (memoryInboxSnapshot?.pendingConfirmationCount ?? 0) > 0
         memoryInboxSnapshot = nil
         if hadPending {
-            showMemoryConfirmationQueue = true
+            activeSheet = .memoryConfirmationQueue
         } else {
             DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: true))
         }
@@ -590,8 +567,7 @@ struct ChatView: View {
     }
 
     private func closeSidePanel() {
-        agentDetailMessage = nil
-        replayReaderMessage = nil
+        coverRoute = nil
     }
 
     private func switchToReportTab() {
@@ -635,9 +611,9 @@ struct ChatView: View {
         guard let message = reportViewModel.loadReportMessage(id: entry.id) else { return }
         switch entry.kind {
         case .deepAnalysis:
-            agentDetailMessage = message
+            coverRoute = .reportDetail(message)
         case .periodReplay:
-            replayReaderMessage = message
+            coverRoute = .replayReader(message)
         }
     }
 
@@ -680,7 +656,7 @@ struct ChatView: View {
 
     private func openFlexibleQueryResults(_ data: FlexibleQueryChatCardData) {
         if let route = FlexibleQueryFinanceSearchRoute(cardData: data) {
-            financeSearchRoute = route
+            coverRoute = .financeSearch(route)
         } else {
             // HomeView 监听 deepLinkState 变化后会切换 activeScreen 到 .finance，
             // ChatView 会自动隐藏，无需手动 dismiss。
@@ -819,6 +795,11 @@ struct ChatView: View {
                 AISettingsView()
             }
         #endif
+        case .holoAIUserSettings:
+            HoloAIUserSettingsView(
+                discoveryState: viewModel.discoveryService.settingsDetailState,
+                discoveryService: viewModel.discoveryService
+            )
         case .editTransaction(let transaction):
             let originalTransactionID = transaction.id
             AddTransactionSheet(editingTransaction: transaction) { savedTransaction in
@@ -857,6 +838,63 @@ struct ChatView: View {
                 pendingVoiceTranscriptToSend = transcript
                 activeSheet = nil
             }
+        case .memoryCenter:
+            NavigationStack {
+                HoloMemoryCenterView()
+            }
+        case .memoryConfirmationQueue:
+            MemoryConfirmationQueueView()
+        case .membershipCenter:
+            NavigationStack {
+                HoloMembershipCenterView()
+            }
+        case .reportMessage(let message):
+            ContentReportSheet(message: message)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        case .categoryEdit(let message, let itemID, let prefill):
+            AddTransactionSheet(
+                editingTransaction: nil,
+                pendingPrefill: prefill
+            ) { savedTransaction in
+                viewModel.dismissPendingCardAfterEdit(
+                    from: message,
+                    itemID: itemID,
+                    createdTransaction: savedTransaction
+                )
+                // item 关闭时状态整体释放（原三状态清空语义）
+                activeSheet = nil
+            }
+        case .taskEdit(let edit):
+            ChatTaskEditSheet(viewModel: viewModel, edit: edit)
+        }
+    }
+
+    /// 全屏 cover 单通道内容（弹层收敛 2026-10-23）：三路由原样迁入，
+    /// 呈现修饰与深链行为零变化。
+    @ViewBuilder
+    private func coverContent(_ route: ChatCoverRoute) -> some View {
+        switch route {
+        case .financeSearch(let route):
+            FinanceSearchView(
+                initialSearchText: route.keyword,
+                exactTransactionIDs: route.transactionIDs
+            )
+            .holoContentColumn()
+        case .reportDetail(let message):
+            // 详情内可直接追问（不弹回对话页），追问出的新报告挂进追问记录；
+            // 财务钻取深链经 HomeView 切换 activeScreen（设计文档 §4.3）
+            ReportDetailRoute(
+                message: message,
+                chatViewModel: viewModel,
+                onFinanceDrilldown: { drilldown in
+                    DeepLinkState.openFinanceEvidenceReview(drilldown)
+                }
+            )
+            .holoContentColumn()
+        case .replayReader(let message):
+            ReportReplayReaderView(message: message)
+                .holoContentColumn()
         }
     }
 
@@ -881,60 +919,6 @@ struct ChatView: View {
         HoloMemoryReceiptStore.markSummaryPresented()
         memoryInboxSnapshot = snapshot
     }
-}
-
-private enum ChatSheet: Identifiable {
-    case aiConsent
-    #if DEBUG
-    case aiSettings
-    #endif
-    case editTransaction(Transaction)
-    case analysisDetail(ChatMessageViewData)
-    case voiceInput
-    /// Matter「进行中的事」详情（内部路由，不占 Tab）
-    case matterDetail(UUID)
-    /// 方案卡已加入任务的详情（§8.1 单项「查看」）
-    case taskDetail(UUID)
-
-    var id: String {
-        switch self {
-        case .aiConsent:
-            return "aiConsent"
-        #if DEBUG
-        case .aiSettings:
-            return "aiSettings"
-        #endif
-        case .editTransaction(let transaction):
-            return "editTransaction-\(transaction.id)"
-        case .analysisDetail(let message):
-            return "analysisDetail-\(message.id)"
-        case .matterDetail(let id):
-            return "matterDetail-\(id)"
-        case .taskDetail(let id):
-            return "taskDetail-\(id)"
-        case .voiceInput:
-            return "voiceInput"
-        }
-    }
-}
-
-nonisolated struct FlexibleQueryFinanceSearchRoute: Identifiable {
-    let id = UUID()
-    let keyword: String?
-    let transactionIDs: [UUID]
-
-    init?(cardData: FlexibleQueryChatCardData) {
-        guard !cardData.resultTransactionIDs.isEmpty else { return nil }
-        keyword = cardData.searchKeyword
-        transactionIDs = cardData.resultTransactionIDs
-    }
-}
-
-/// 待删除卡片的信息（用于确认弹窗）
-private struct PendingCardDelete {
-    let category: EntityCategory
-    let entityId: UUID
-    let description: String
 }
 
 // MARK: - 聊天内容列 / 消息列表（结构体边界）
@@ -1194,529 +1178,6 @@ private struct ChatContentColumn: View {
     }
 }
 
-/// 消息滚动列表：滚动桥 / 历史分页 / 时间戳分隔 / 消息卡 / 回底按钮。
-/// 状态仍归 ChatView 单点持有，此处经 Binding 读写；卡片交互回弹见 Actions。
-private struct ChatMessageListPane: View {
-    @ObservedObject var viewModel: ChatViewModel
-    @ObservedObject var scrollController: ChatScrollController
-    let internalLogAction: ((ChatMessageViewData) -> Void)?
-
-    @Binding var didInitialScrollToBottom: Bool
-    @Binding var historyLoadGate: ChatHistoryLoadGate
-    @Binding var pendingNewMessageCount: Int
-    @Binding var hasUnseenStreamingUpdate: Bool
-    /// 深链定位请求：非 nil 时滚动到该消息（云端分析完成推送直达结果卡），消费后清空
-    @Binding var pendingScrollTargetMessageID: UUID?
-
-    /// 消息卡交互回弹：目标 @State 全在 ChatView（驱动 sheet / 全屏 cover / 侧栏），
-    /// 闭包由 ChatView 构造时注入，保持单一数据源。
-    struct Actions {
-        let onIntentTagTap: (ChatMessageViewData) -> Void
-        let onCardTap: (ChatMessageViewData, ChatCardData) -> Void
-        let presentSheet: (ChatSheet) -> Void
-        let onAgentDetail: (ChatMessageViewData) -> Void
-        let onOpenTransaction: (UUID) -> Void
-        let onOpenFlexibleQuery: (FlexibleQueryChatCardData) -> Void
-        let onShowMembership: () -> Void
-        let onPendingCardDelete: (PendingCardDelete) -> Void
-        let onCategoryEditPrefill: (ChatMessageViewData, String, PendingTransactionPrefill) -> Void
-        let onReport: (ChatMessageViewData) -> Void
-        /// 待确认任务卡设置行编辑入口：弹层状态归 ChatView，经此回传（单一数据源）
-        let onTaskEdit: (PendingTaskEdit) -> Void
-    }
-
-    let actions: Actions
-
-    var body: some View {
-        ScrollViewReader { proxy in
-        GeometryReader { viewport in
-        ScrollView(showsIndicators: false) {
-            // 当前会话首批最多 50 条、历史每次只增 16 条。这里用确定高度的 VStack，
-            // 避免 LazyVStack 在复杂卡片离屏后用估算高度占位，出现录屏中的大片空白和跳动。
-            VStack(spacing: 12) {
-                if viewModel.hasLoadedMessages
-                    && (viewModel.hasEarlierSessions
-                        || viewModel.isLoadingEarlierSession
-                        || viewModel.earlierHistoryLoadFailed) {
-                    historyLoadingHeader
-                }
-
-                ForEach(viewModel.messages, id: \.id) { message in
-                    messageRow(for: message, proxy: proxy)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 12)
-            // 短对话贴近输入栏；长对话由 UIScrollView 的真实 contentSize 决定位置。
-            // 不再使用 defaultScrollAnchor，避免它与手动 offset 同时重排内容。
-            .frame(minHeight: viewport.size.height, alignment: .bottom)
-            .background(alignment: .topLeading) {
-                ChatScrollViewBridge(controller: scrollController)
-                    .frame(width: 1, height: 1)
-                ChatScrollIndicator()
-                    .frame(width: 1, height: 1)
-            }
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .overlay(alignment: .bottomTrailing) {
-            if scrollController.viewport.showsJumpToLatest {
-                jumpToLatestButton
-                    .padding(.trailing, 14)
-                    .padding(.bottom, 12)
-                    .transition(.scale(scale: 0.82).combined(with: .opacity))
-            }
-        }
-        .animation(
-            .spring(response: 0.28, dampingFraction: 0.82),
-            value: scrollController.viewport.showsJumpToLatest
-        )
-        .onAppear {
-            performInitialScrollIfNeeded()
-        }
-        .onChange(of: messageListSignature) { previous, current in
-            handleMessageListMutation(previous: previous, current: current)
-        }
-        .onChange(of: pendingScrollTargetMessageID) { _, _ in
-            scrollToPendingTargetIfPossible(proxy: proxy)
-        }
-        .onChange(of: viewModel.hasLoadedMessages) { _, _ in
-            // 冷启动兜底：深链先到、消息后加载完成时补定位
-            scrollToPendingTargetIfPossible(proxy: proxy)
-        }
-        .onChange(of: scrollController.viewport) { _, viewport in
-            handleViewportChange(viewport)
-        }
-        .onChange(of: viewModel.streamingText) { _, _ in
-            if scrollController.viewport.showsJumpToLatest {
-                hasUnseenStreamingUpdate = true
-            }
-        }
-        .onChange(of: viewModel.isStreaming) { _, streaming in
-            guard streaming else { return }
-            // AI 开始回复时收起键盘；是否跟随到底部由当前视口决定，不打断历史浏览。
-            UIApplication.shared.sendAction(
-                #selector(UIResponder.resignFirstResponder),
-                to: nil, from: nil, for: nil
-            )
-            if scrollController.viewport.isNearBottom {
-                scrollController.scrollToBottom(animated: false)
-            }
-        }
-        }
-        }
-    }
-
-    // MARK: - Message Row
-
-    /// 单条消息行（时间分隔条 + 消息气泡）。
-    /// 从 body 原样拆出：ChatMessageListPane 的 body 表达式已在类型检查上限边缘，
-    /// 往 ForEach 内联的巨型初始化里再加参数会触发 "unable to type-check in reasonable time"。
-    @ViewBuilder
-    private func messageRow(for message: ChatMessageViewData, proxy: ScrollViewProxy) -> some View {
-        if message.showsTimestampSeparator {
-            ChatTimeStampSeparator(date: message.timestamp)
-        }
-
-        MessageBubbleView(
-            message: message,
-            streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
-            goalDraftForReview: viewModel.goalDraftForReview,
-            latestGoalPlanningAssistantMessageID: viewModel.latestGoalPlanningAssistantMessageID,
-            showsAIHeader: aiHeaderMessageIDs.contains(message.id),
-            onIntentTagTap: { msg in
-                actions.onIntentTagTap(msg)
-            },
-            onCardTap: { message, cardData in
-                actions.onCardTap(message, cardData)
-            },
-            onFlexibleQueryTransactionTap: { transactionId in
-                actions.onOpenTransaction(transactionId)
-            },
-            onFlexibleQueryViewAllTap: { queryData in
-                actions.onOpenFlexibleQuery(queryData)
-            },
-            onViewLog: internalLogAction,
-            onCompactAnalysisTap: {
-                guard message.metadataState == .loaded,
-                      message.analysisContext != nil else { return }
-                actions.presentSheet(.analysisDetail(message))
-            },
-            onAgentDeepAnalysisTap: {
-                guard message.agentResult != nil else { return }
-                actions.onAgentDetail(message)
-            },
-            onAgentScopeChange: { preset in
-                guard let result = message.agentResult else { return }
-                Task { await viewModel.changeAnalysisScope(from: result, preset: preset) }
-            },
-            onAgentResumePaused: {
-                viewModel.resumePausedAgentJobs(sourceMessageID: message.id)
-            },
-            onPeriodReplayExpansionChanged: { message, isExpanded in
-                // 收起方向：内容变短可能让偏移越过新边界，交给底层 UIScrollView 校正。
-                guard !isExpanded else {
-                    // 展开方向：内容只增不减，偏移天然合法；把被点击卡片柔和带回可视区，
-                    // 避免展开后的长内容把操作入口瞬间推离屏幕。
-                    Task { @MainActor in
-                        await Task.yield()
-                        withAnimation(HoloAnimation.standard) {
-                            proxy.scrollTo(message.id, anchor: .bottom)
-                        }
-                    }
-                    return
-                }
-                scrollController.requestOffsetClamp()
-            },
-            onGoalDraftCardTap: {
-                viewModel.showGoalDraftReview = true
-            },
-            onOpenMatter: { matterID in
-                actions.presentSheet(.matterDetail(matterID))
-            },
-            onOpenTask: { taskID in
-                actions.presentSheet(.taskDetail(taskID))
-            },
-            onSavedGoalCardTap: { goalId in
-                DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
-            },
-            onRetry: {
-                Task { await viewModel.retryMessage(message) }
-            },
-            onLearnPlus: {
-                actions.onShowMembership()
-            },
-            onCardDelete: { msg, entityId, category, description in
-                actions.onPendingCardDelete(PendingCardDelete(
-                    category: category,
-                    entityId: entityId,
-                    description: description
-                ))
-            },
-            onTaskConfirm: { msg, taskData in
-                viewModel.confirmPendingTask(from: msg, itemID: taskData.itemID)
-            },
-            onTaskCancel: { msg, taskData in
-                viewModel.cancelPendingTask(from: msg, itemID: taskData.itemID)
-            },
-            onTaskFollowUp: { msg, taskData in
-                viewModel.startTaskFollowUp(taskData)
-            },
-            onTaskEditDueDate: { msg, taskData in
-                actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .dueDate))
-            },
-            onTaskEditReminders: { msg, taskData in
-                actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .reminders))
-            },
-            onTaskEditList: { msg, taskData in
-                actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .list))
-            },
-            onTaskEditContent: { msg, taskData in
-                actions.onTaskEdit(PendingTaskEdit(messageID: msg.id, itemID: taskData.itemID, kind: .content))
-            },
-            onTransactionConfirm: { msg, txData in
-                viewModel.confirmPendingTransaction(from: msg, itemID: txData.itemID)
-            },
-            onTransactionCancel: { msg, txData in
-                viewModel.cancelPendingTransaction(from: msg, itemID: txData.itemID)
-            },
-            onTransactionModifyCategory: { msg, txData in
-                // 按 itemID 定位被点击卡片的待确认项；确认进行中的项不允许再改分类
-                guard let pending = viewModel.pendingFinanceItem(in: msg, itemID: txData.itemID),
-                      let renderData = pending.renderData else { return }
-                let type: TransactionType = pending.intent == .recordIncome ? .income : .expense
-                let prefill = PendingTransactionPrefill(
-                    amount: renderData["amount"] ?? "0",
-                    note: renderData["note"] ?? renderData["categoryCandidate"],
-                    type: type,
-                    category: nil,
-                    date: TransactionDateResolver.resolve(from: renderData)
-                )
-                actions.onCategoryEditPrefill(msg, pending.id, prefill)
-            },
-            onBudgetConfirm: { msg, budgetData in
-                viewModel.confirmPendingBudget(from: msg, itemID: budgetData.itemID)
-            },
-            onBudgetCancel: { msg, budgetData in
-                viewModel.cancelPendingBudget(from: msg, itemID: budgetData.itemID)
-            },
-            onAnniversaryConfirm: { msg, anniversaryData in
-                viewModel.confirmPendingAnniversary(from: msg, itemID: anniversaryData.itemID)
-            },
-            onAnniversaryCancel: { msg, anniversaryData in
-                viewModel.cancelPendingAnniversary(from: msg, itemID: anniversaryData.itemID)
-            },
-            onGoalChoiceSelect: { msg, choiceData, candidate in
-                viewModel.confirmPendingGoalChoice(
-                    from: msg,
-                    itemID: choiceData.itemID,
-                    goalId: candidate.goalId
-                )
-            },
-            onGoalChoiceCancel: { msg, choiceData in
-                viewModel.cancelPendingGoalChoice(from: msg, itemID: choiceData.itemID)
-            },
-            onReport: { msg in
-                actions.onReport(msg)
-            },
-            lifePlanSnapshotProvider: { msg in
-                viewModel.lifePlanSnapshot(for: msg)
-            },
-            lifePlanUndoPlanID: viewModel.lastPlanUndo?.planID,
-            onLifePlanOpenReview: { snapshot in
-                viewModel.openLifePlanReview(snapshot)
-            },
-            onLifePlanUndo: { snapshot in
-                if let undo = viewModel.lastPlanUndo, undo.planID == snapshot.id {
-                    viewModel.undoLifePlanConfirm(planID: undo.planID, token: undo.token)
-                }
-            },
-            onPlanningRunCancel: { msg in
-                viewModel.cancelPlanningRun(msg.id)
-            }
-        )
-        .equatable()
-        .id(message.id)
-        .onAppear {
-            viewModel.loadMetadataIfNeeded(for: message.id)
-        }
-    }
-
-    // MARK: - AI 名头分组
-
-    /// 当前消息列表中需要显示「Holo + AI」名头行的消息集合（各组组首）。
-    /// 声明为计算属性而非 body 内局部 let：ChatMessageListPane 的 body 表达式已接近
-    /// 类型检查上限，再往 ViewBuilder 里加语句会触发 "unable to type-check in reasonable time"。
-    private var aiHeaderMessageIDs: Set<UUID> {
-        Self.computeAIHeaderMessageIDs(in: viewModel.messages)
-    }
-
-    /// 计算需要显示「Holo + AI」名头行的消息集合（各组组首）：
-    /// 连续 Holo 普通消息并入同组，仅组首显示名头行（iMessage/微信分组惯例）。
-    /// 打断并重起分组的条件：上一条不是可并组的 Holo 消息（用户消息/独立类型卡），
-    /// 或本条上方有时间分隔条、本条自身是独立类型卡。
-    private static func computeAIHeaderMessageIDs(in messages: [ChatMessageViewData]) -> Set<UUID> {
-        var ids = Set<UUID>()
-        var previousContinuesGroup = false
-        for message in messages {
-            let isAI = message.role != "user"
-            let standalone = isStandaloneCardMessage(message)
-            if isAI && (!previousContinuesGroup || message.showsTimestampSeparator || standalone) {
-                ids.insert(message.id)
-            }
-            previousContinuesGroup = isAI && !standalone
-        }
-        return ids
-    }
-
-    /// 独立类型卡消息：分析 / 回放 / 方案 / 额度等整卡形态自成视觉单元，
-    /// 前后都不并入名头分组（其自身与下一条消息都会重起名头）。
-    private static func isStandaloneCardMessage(_ message: ChatMessageViewData) -> Bool {
-        message.messageType == .periodReplay
-            || message.messageType == .quotaExhausted
-            || message.messageType == .lifePlan
-            || message.messageType == .contextPlan
-            || message.messageType == .todayRelief
-            || message.messageType == .goalPlanning
-            || message.savedGoalCard != nil
-            || message.isQueryAnalysis
-            || !message.analysisCards.isEmpty
-            || message.flexibleQueryCard != nil
-    }
-
-    // MARK: - IM Scroll Behavior
-
-    /// 深链定位（云端分析完成推送直达结果卡）：目标消息已在列表中才滚动，消费后清空请求；
-    /// 消息未加载（冷启动恢复中）时保留请求，等加载完成再定位。
-    private func scrollToPendingTargetIfPossible(proxy: ScrollViewProxy) {
-        guard let targetID = pendingScrollTargetMessageID,
-              viewModel.messages.contains(where: { $0.id == targetID }) else { return }
-        pendingScrollTargetMessageID = nil
-        withAnimation(HoloAnimation.smooth) {
-            proxy.scrollTo(targetID, anchor: .center)
-        }
-    }
-
-    @ViewBuilder
-    private var historyLoadingHeader: some View {
-        Group {
-            if viewModel.isLoadingEarlierSession {
-                HStack(spacing: 7) {
-                    ProgressView()
-                        .scaleEffect(0.68)
-                    Text("正在加载更早的消息")
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoToolTextSecondary)
-                }
-                .transition(.opacity)
-            } else if viewModel.earlierHistoryLoadFailed {
-                Button {
-                    Task {
-                        await triggerLoadEarlier()
-                    }
-                } label: {
-                    Label("加载失败，点击重试", systemImage: "arrow.clockwise")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                }
-                .buttonStyle(.plain)
-            } else {
-                // 视觉上保持成熟 IM 的无按钮顶部；同时保留点击和 VoiceOver 的分页入口。
-                Button {
-                    Task {
-                        await triggerLoadEarlier()
-                    }
-                } label: {
-                    Color.clear
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "加载更早的消息"))
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 30)
-        .animation(HoloAnimation.enter, value: viewModel.isLoadingEarlierSession)
-        .animation(HoloAnimation.enter, value: viewModel.earlierHistoryLoadFailed)
-    }
-
-    private var jumpToLatestButton: some View {
-        Button {
-            pendingNewMessageCount = 0
-            hasUnseenStreamingUpdate = false
-            scrollController.scrollToBottom(animated: true)
-        } label: {
-            HStack(spacing: pendingLatestActivityCount > 0 ? 6 : 0) {
-                if pendingLatestActivityCount > 0 {
-                    Text(pendingLatestActivityCount > 99 ? "99+" : "\(pendingLatestActivityCount)")
-                        .font(.system(size: 11, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .frame(minWidth: 20, minHeight: 20)
-                        .background(Color.holoPrimary, in: Capsule())
-                }
-
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.holoToolText)
-                    .frame(width: 36, height: 36)
-            }
-            // 视觉与热区同源：iOS26 下 plain 按钮热区收缩到文字，材质胶囊必须画在 label 内，
-            // contentShape 也必须在 label 末尾（挂在 Button 外不扩展命中区）
-            .padding(.leading, pendingLatestActivityCount > 0 ? 7 : 0)
-            .padding(.trailing, pendingLatestActivityCount > 0 ? 2 : 0)
-            .background(.ultraThinMaterial, in: Capsule())
-            .overlay {
-                Capsule()
-                    .stroke(Color.holoToolTextSecondary.opacity(0.18), lineWidth: 0.5)
-            }
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
-        .accessibilityLabel(
-            pendingLatestActivityCount > 0
-                ? String(localized: "回到最新消息，\(pendingLatestActivityCount) 条新消息")
-                : String(localized: "回到最新消息")
-        )
-    }
-
-    private var pendingLatestActivityCount: Int {
-        max(pendingNewMessageCount, hasUnseenStreamingUpdate ? 1 : 0)
-    }
-
-    /// 只读取 count/首尾 ID，避免流式输出每个 token 都复制整份消息 ID 数组。
-    private var messageListSignature: ChatMessageListSignature {
-        ChatMessageListSignature(
-            count: viewModel.messages.count,
-            firstID: viewModel.messages.first?.id,
-            lastID: viewModel.messages.last?.id
-        )
-    }
-
-    private func performInitialScrollIfNeeded() {
-        guard !didInitialScrollToBottom,
-              !viewModel.messages.isEmpty else { return }
-        didInitialScrollToBottom = true
-        pendingNewMessageCount = 0
-        hasUnseenStreamingUpdate = false
-        scrollController.scrollToBottom(animated: false)
-    }
-
-    private func handleMessageListMutation(
-        previous: ChatMessageListSignature,
-        current: ChatMessageListSignature
-    ) {
-        let mutation = ChatMessageListMutation.classify(
-            previous: previous,
-            current: current
-        )
-
-        switch mutation {
-        case .unchanged:
-            break
-
-        case .initial(let count):
-            guard count > 0 else { return }
-            performInitialScrollIfNeeded()
-
-        case .prepended:
-            // 仅在 prepend 已发生、但新布局尚未落地的窗口开启保护。
-            // 避免异步查询期间把底部流式增长误当成顶部插入。
-            scrollController.beginPreservingPrepend()
-            scrollController.endPreservingPrependAfterLayout()
-
-        case .appended(let count):
-            let appendedMessages = Array(viewModel.messages.suffix(count))
-            if appendedMessages.contains(where: { $0.role == "user" }) {
-                // 用户主动发送是明确的“回到当前对话”意图。
-                pendingNewMessageCount = 0
-                hasUnseenStreamingUpdate = false
-                scrollController.scrollToBottom(animated: true)
-            } else if scrollController.viewport.isNearBottom {
-                scrollController.scrollToBottom(animated: false)
-            } else {
-                pendingNewMessageCount += count
-            }
-
-        case .replaced:
-            if current.count == 0 {
-                didInitialScrollToBottom = false
-                pendingNewMessageCount = 0
-                hasUnseenStreamingUpdate = false
-            } else if !didInitialScrollToBottom {
-                performInitialScrollIfNeeded()
-            }
-        }
-    }
-
-    private func handleViewportChange(_ viewport: ChatScrollViewportState) {
-        if viewport.isNearBottom {
-            pendingNewMessageCount = 0
-            hasUnseenStreamingUpdate = false
-        }
-
-        let shouldLoad = historyLoadGate.shouldLoad(
-            viewport: viewport,
-            canLoad: didInitialScrollToBottom && viewModel.hasEarlierSessions,
-            isLoading: viewModel.isLoadingEarlierSession
-        )
-        guard shouldLoad else { return }
-
-        Task {
-            await triggerLoadEarlier()
-        }
-    }
-
-    private func triggerLoadEarlier() async {
-        guard didInitialScrollToBottom,
-              viewModel.hasEarlierSessions,
-              !viewModel.isLoadingEarlierSession else { return }
-
-        _ = await viewModel.loadEarlierSession()
-    }
-}
-
 // MARK: - 对话页结构件（2026-09-17 真机栈溢出二修）
 //
 // 除 ChatContentColumn / ChatMessageListPane 两道内容边界外，导航栏、页签条、
@@ -1733,6 +1194,7 @@ private enum ChatPageTab {
 /// 顶部导航栏：关闭 / 标题 / 设置入口（DEBUG）
 private struct ChatNavBar: View {
     let onClose: () -> Void
+    let onOpenMemory: () -> Void
     let onOpenSettings: () -> Void
 
     var body: some View {
@@ -1754,7 +1216,20 @@ private struct ChatNavBar: View {
 
             Spacer()
 
-            #if DEBUG
+            // 2026-10-25 M08：聊天页「记忆」入口（方案 §3.1；文字按钮+44pt 热区，
+            // 大字体拥挤时设置齿轮保持本行，记忆入口不移除以保证可发现性）
+            Button(action: onOpenMemory) {
+                Text("记忆")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.holoToolAction)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(Text("记忆"))
+            .accessibilityIdentifier("chat.nav.memoryCenter")
+
+            // 2026-10-23「一个发现」统一设置：正式 HoloAI 用户页入口，Debug/Release 都可见
+            //（01 §4 正式入口一；开发者 AI 调试入口已移入该页 Debug 区）
             Button(action: onOpenSettings) {
                 Image(systemName: "gearshape")
                     .font(.system(size: 16, weight: .medium))
@@ -1763,10 +1238,8 @@ private struct ChatNavBar: View {
                     .background(Color.holoToolTextSecondary.opacity(0.1))
                     .cornerRadius(16)
             }
-            #else
-            Color.clear
-                .frame(width: 32, height: 32)
-            #endif
+            .accessibilityIdentifier("chat.nav.aiSettings")
+            .accessibilityLabel(Text("HoloAI 设置"))
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)

@@ -4,6 +4,7 @@
 //
 //  「关于 Holo」页面
 //  展示 App 图标、版本号与法律文档入口
+//  2026-10-25 设置页规整：原一级页「重看新手引导/重看新人笔记」收编至此
 //
 
 import SwiftUI
@@ -13,6 +14,11 @@ struct AboutView: View {
     @State private var showPrivacyPolicy = false
     @State private var showTermsOfUse = false
     @State private var copiedDeviceId = false
+
+    /// 重看首页导览：关于页是 sheet 叠 sheet 的第二层，由调用方负责先关掉两层弹层再触发
+    var onReplayCoachTour: (() -> Void)? = nil
+    /// 重看新人笔记（跳转预置欢迎笔记）：同上，两层 dismiss 后深链跳转
+    var onReplayWelcomeNote: (() -> Void)? = nil
 
     private var appVersionText: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
@@ -26,6 +32,7 @@ struct AboutView: View {
                 appHeader
                 deviceSection
                 legalSection
+                replaySection
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.vertical, HoloSpacing.md)
@@ -173,6 +180,44 @@ struct AboutView: View {
                     title: String(localized: "用户协议"),
                     subtitle: String(localized: "服务条款与使用规范")
                 )
+            }
+        }
+    }
+
+    // MARK: - 重看引导（2026-10-25 从设置一级页收编至此）
+
+    /// 点击后先关关于 sheet，等收起动画结束再交调用方关设置页并触发跳转
+    private var replaySection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            Button {
+                dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    onReplayCoachTour?()
+                }
+            } label: {
+                settingsRowContent(
+                    icon: "sparkles",
+                    iconColor: .holoPurple,
+                    title: String(localized: "重看新手引导"),
+                    subtitle: String(localized: "三步回顾首页的功能入口")
+                )
+            }
+
+            // 预置欢迎笔记被删后入口自动隐藏，不复活
+            if WelcomeNoteSeed.isNoteAlive() {
+                Button {
+                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        onReplayWelcomeNote?()
+                    }
+                } label: {
+                    settingsRowContent(
+                        icon: "book",
+                        iconColor: .holoPrimary,
+                        title: String(localized: "重看新人笔记"),
+                        subtitle: String(localized: "产品理念与功能速览")
+                    )
+                }
             }
         }
     }

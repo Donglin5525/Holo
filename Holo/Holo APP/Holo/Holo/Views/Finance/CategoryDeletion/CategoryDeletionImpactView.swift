@@ -109,7 +109,8 @@ struct CategoryDeletionImpactView: View {
             .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(submitTitle, role: .destructive) {

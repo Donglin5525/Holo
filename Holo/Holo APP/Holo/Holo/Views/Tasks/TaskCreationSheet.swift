@@ -465,7 +465,7 @@ struct TaskCreationSheet: View {
             }
             Rectangle().fill(Color.holoDivider).frame(height: 0.5).padding(.leading, HoloSpacing.md)
             planRow
-            if isPlanExpanded && draft.hasPlannedRange {
+            if isPlanExpanded {
                 planEditor
             }
             Rectangle().fill(Color.holoDivider).frame(height: 0.5).padding(.leading, HoloSpacing.md)
@@ -481,18 +481,14 @@ struct TaskCreationSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
     }
 
-    /// 计划时间行：打算什么时候做（与截止语义分离，§7.1/§7.2）
+    /// 计划时间行：打算什么时候做（与截止语义分离，§7.1/§7.2）。
+    /// 点行只展开编辑器，不预填时间（2026-10-21 拍板）——凌晨点开就被安排「03:15–04:15」
+    /// 是替用户做主；用户动了日期/时间控件才算「已安排」
     private var planRow: some View {
         Button {
             HapticManager.selection()
             withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
-                if draft.hasPlannedRange {
-                    isPlanExpanded.toggle()
-                } else {
-                    draft.hasPlannedRange = true
-                    isPlanExpanded = true
-                }
-                draft.markEdited()
+                isPlanExpanded.toggle()
             }
         } label: {
             HStack {
@@ -505,16 +501,10 @@ struct TaskCreationSheet: View {
                     .foregroundColor(draft.hasPlannedRange ? .holoPrimary : .holoTextSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
-                if draft.hasPlannedRange {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoTextPlaceholder)
-                        .rotationEffect(.degrees(isPlanExpanded ? 180 : 0))
-                } else {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoTextPlaceholder)
-                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextPlaceholder)
+                    .rotationEffect(.degrees(isPlanExpanded ? 90 : 0))
             }
             .padding(.horizontal, HoloSpacing.md)
             .padding(.vertical, 13)
@@ -553,6 +543,17 @@ struct TaskCreationSheet: View {
         }
         .padding(HoloSpacing.md)
         .transition(.opacity.combined(with: .move(edge: .top)))
+        // 用户动了日期/时间控件才算「已安排」；只展开不选不落计划
+        .onChange(of: draft.plannedStart) { _, _ in
+            guard isPlanExpanded, !draft.hasPlannedRange else { return }
+            draft.hasPlannedRange = true
+            draft.markEdited()
+        }
+        .onChange(of: draft.plannedEnd) { _, _ in
+            guard isPlanExpanded, !draft.hasPlannedRange else { return }
+            draft.hasPlannedRange = true
+            draft.markEdited()
+        }
     }
 
     /// 计划日期改天时起止跟随（保持同日合法性由校验兜底）
@@ -958,7 +959,8 @@ private struct TaskCreationListPickerSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
             }
         }

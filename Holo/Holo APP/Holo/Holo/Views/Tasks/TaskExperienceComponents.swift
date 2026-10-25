@@ -366,7 +366,8 @@ struct TaskDueQuickEditSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "保存")) { save() }
@@ -509,7 +510,8 @@ struct TaskPlannedRangeQuickSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "保存")) { save() }
@@ -676,7 +678,8 @@ struct TaskExperienceSearchView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
             }
         }

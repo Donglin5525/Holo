@@ -447,7 +447,7 @@ struct AccountDetailView: View {
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.lg)
 
-            Text(formatAmount(balance))
+            Text(formatSignedAmount(balance))
                 .font(.system(size: 36, weight: .bold, design: .rounded))
                 .foregroundColor(balance >= 0 ? .holoTextPrimary : .holoError)
                 .contentTransition(.numericText())
@@ -875,9 +875,11 @@ struct AccountDetailView: View {
                     Text("净变动")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
-                    Text(formatAmount(monthlySummary.net))
+                    Text(formatSignedAmount(monthlySummary.net))
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundColor(monthlySummary.net >= 0 ? .holoSuccess : .holoError)
+                        .foregroundColor(monthlySummary.net > 0 ? .holoSuccess
+                                         : monthlySummary.net < 0 ? .holoToolError
+                                         : .holoTextPrimary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -1019,6 +1021,12 @@ struct AccountDetailView: View {
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.maximumFractionDigits = 2
         return formatter.string(from: NSDecimalNumber(decimal: abs(amount))) ?? "¥0.00"
+    }
+
+    /// 带符号金额：净变动、账户余额这类「方向即信息」的数值必须保留负号，
+    /// 否则 -¥592 的欠款会被读成 ¥592 的存款
+    private func formatSignedAmount(_ amount: Decimal) -> String {
+        amount < 0 ? "-\(formatAmount(amount))" : formatAmount(amount)
     }
 
     /// 同年分组标题：「8月22日 星期六」

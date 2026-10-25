@@ -104,11 +104,13 @@ final class MemoryInsightBackgroundService {
             return
         }
 
-        // 上周洞察是产品基础能力，不依赖 legacy 日/月后台生成开关。
-        await generatePreviousWeekObservationIfNeeded(
-            service: service,
-            repository: repository
-        )
+        // 周观察自动生成受独立开关控制（2026-10-23 前=不受任何开关控制恒自动，迁移默认开保持原行为）。
+        if settings.weeklyAutoGenerationEnabled {
+            await generatePreviousWeekObservationIfNeeded(
+                service: service,
+                repository: repository
+            )
+        }
 
         guard canAttemptAutomaticInsight() else {
             finishBackgroundTask(task)
@@ -218,10 +220,12 @@ final class MemoryInsightBackgroundService {
 
         let repository = MemoryInsightRepository()
 
-        await generatePreviousWeekObservationIfNeeded(
-            service: service,
-            repository: repository
-        )
+        if settings.weeklyAutoGenerationEnabled {
+            await generatePreviousWeekObservationIfNeeded(
+                service: service,
+                repository: repository
+            )
+        }
 
         guard canAttemptAutomaticInsight() else { return }
 

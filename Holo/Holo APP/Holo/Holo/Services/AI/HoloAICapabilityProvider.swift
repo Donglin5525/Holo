@@ -24,8 +24,10 @@ struct HoloAICapabilityProviderContext: Equatable {
 enum HoloAICapabilityProvider {
 
     /// 空状态卡片展示的能力入口（首次进入空会话时的引导建议）。
-    /// - 未完成引导：突出「使用指南」，辅以「今日状态」。
+    /// - 未完成引导：突出「使用指南」。
     /// - 已完成引导：给三条常用建议问题。
+    /// （2026-10-23「一个发现」上线替换「今日状态」：发现胶囊仅在有效发现时出现在常驻行，
+    /// 不进空态建议；今日状态入口退役。）
     static func emptyStateCapabilities(context: HoloAICapabilityProviderContext) -> [HoloAICapability] {
         var capabilities: [HoloAICapability] = []
 
@@ -39,15 +41,6 @@ enum HoloAICapabilityProvider {
                 isEnabled: true
             ))
         }
-
-        // 今日状态：常驻建议
-        capabilities.append(HoloAICapability(
-            id: .todayState,
-            title: "今日状态",
-            systemImage: "sun.max",
-            isEmphasized: !context.onboardingCompleted,
-            isEnabled: true
-        ))
 
         // 已完成引导的老用户，补充数据类建议
         if context.onboardingCompleted {
@@ -73,8 +66,9 @@ enum HoloAICapabilityProvider {
     }
 
     /// 输入框上方常驻能力行的入口（对话全程可见）。
-    /// 顺序与原型一致（2026-08-22 东林拍板）：「深度分析」排第一——
-    /// 它是场景面板入口、本次能力显性化的主角；不含「使用指南」（新用户引导归空态卡）。
+    /// 顺序（2026-10-23「一个发现」替换「今日状态」后）：深度分析 / 一个发现（有效时才有，
+    /// 由 QuickActionBar 内 DiscoveryCapsuleView 渲染，不在此列）/ 周期回放 / 规划目标。
+    /// 「深度分析」排第一（2026-08-22 东林拍板）；不含「使用指南」（新用户引导归空态卡）。
     static func persistentCapabilities(context: HoloAICapabilityProviderContext = .empty) -> [HoloAICapability] {
         return [
             HoloAICapability(
@@ -82,13 +76,6 @@ enum HoloAICapabilityProvider {
                 title: "深度分析",
                 systemImage: "chart.line.uptrend.xyaxis",
                 isEmphasized: context.hasSufficientData,
-                isEnabled: true
-            ),
-            HoloAICapability(
-                id: .todayState,
-                title: "今日状态",
-                systemImage: "sun.max",
-                isEmphasized: false,
                 isEnabled: true
             ),
             HoloAICapability(

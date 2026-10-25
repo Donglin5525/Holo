@@ -1,0 +1,183 @@
+<div id="holo-discovery-review-fixed">
+  <div class="viz-row" aria-label="原型页面">
+    <button type="button" class="btn btn-ghost" data-screen="chat" aria-pressed="true">对话入口</button>
+    <button type="button" class="btn btn-ghost" data-screen="discovery" aria-pressed="false">发现详情</button>
+    <button type="button" class="btn btn-ghost" data-screen="settings" aria-pressed="false">HoloAI 设置</button>
+  </div>
+  <div class="hd-stage viz-dotted-background"><div class="hd-phone" aria-label="HoloAI 手机交互原型"></div></div>
+</div>
+<style>
+#holo-discovery-review-fixed .hd-stage{padding:22px 8px 24px;display:flex;justify-content:center}
+#holo-discovery-review-fixed .hd-phone{--hd-bg:light-dark(#f8f7f3,#1b1a18);--hd-paper:light-dark(#ffffff,#272420);--hd-fg:light-dark(#302d28,#ede8e0);--hd-sub:light-dark(#777169,#b5ada2);--hd-line:light-dark(#e9e4dc,#403b34);--hd-accent:light-dark(#b65123,#f7ad7f);--hd-soft:light-dark(#f9eee5,#3b2c22);--hd-quiet:light-dark(#f0ede6,#322e28);--hd-danger:light-dark(#b03f32,#f4a096);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif;font-size:14px;line-height:1.65;color:var(--hd-fg);background:var(--hd-bg);border:1px solid var(--hd-line);border-radius:34px;width:390px;max-width:100%;min-height:752px;display:flex;flex-direction:column;box-shadow:0 18px 50px light-dark(#34271012,#00000030);position:relative;overflow:hidden}
+#holo-discovery-review-fixed .hd-phone *{box-sizing:border-box}
+#holo-discovery-review-fixed .hd-phone button,#holo-discovery-review-fixed .hd-phone input,#holo-discovery-review-fixed .hd-phone textarea{font:inherit;color:inherit}
+#holo-discovery-review-fixed .hd-phone button{background:none;border:0}
+#holo-discovery-review-fixed .hd-phone button:disabled{opacity:.45}
+#holo-discovery-review-fixed .hd-phone button:focus-visible,#holo-discovery-review-fixed .hd-phone input:focus-visible,#holo-discovery-review-fixed .hd-phone textarea:focus-visible{outline:2px solid var(--hd-accent);outline-offset:3px}
+#holo-discovery-review-fixed .hd-status{display:flex;justify-content:space-between;padding:14px 24px 7px;font-size:12px;font-weight:500}
+#holo-discovery-review-fixed .hd-nav{padding:4px 16px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+#holo-discovery-review-fixed .hd-title{font-size:16px;font-weight:500;text-align:center}
+#holo-discovery-review-fixed .hd-icon{width:38px;min-height:38px;display:flex;align-items:center;justify-content:center;border-radius:50%;flex:none}
+#holo-discovery-review-fixed .hd-tabs{display:flex;justify-content:center;gap:28px;border-bottom:1px solid var(--hd-line);padding:0 0 9px;font-size:13px;color:var(--hd-sub)}
+#holo-discovery-review-fixed .hd-tabs strong{font-weight:500;color:var(--hd-fg);position:relative}
+#holo-discovery-review-fixed .hd-tabs strong:after{content:"";height:2px;position:absolute;bottom:-10px;left:0;right:0;background:var(--hd-accent)}
+#holo-discovery-review-fixed .hd-main{padding:18px 18px 24px;flex:1}
+#holo-discovery-review-fixed .hd-chatmain{padding:54px 26px 30px;flex:1;min-height:390px}
+#holo-discovery-review-fixed .hd-mark{color:var(--hd-accent);display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:12px;background:var(--hd-soft);margin-bottom:14px}
+#holo-discovery-review-fixed h2{font-size:25px;font-weight:500;line-height:1.5;letter-spacing:-.5px;margin:0 0 10px}
+#holo-discovery-review-fixed .hd-muted{color:var(--hd-sub);font-size:12px}
+#holo-discovery-review-fixed .hd-chatmain p{color:var(--hd-sub);font-size:14px;margin:0}
+#holo-discovery-review-fixed .hd-composearea{padding:12px 16px 16px}
+#holo-discovery-review-fixed .hd-capsules{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px;align-items:center}
+#holo-discovery-review-fixed .hd-capsule{display:flex;gap:4px;align-items:center;border:1px solid var(--hd-line)!important;border-radius:18px;padding:7px 10px!important;background:var(--hd-paper)!important;font-size:11px!important;min-height:34px}
+#holo-discovery-review-fixed .hd-capsule.hd-fresh{background:var(--hd-soft)!important;color:var(--hd-accent);border-color:transparent!important}
+#holo-discovery-review-fixed .hd-compose{border:1px solid var(--hd-line);border-radius:21px;padding:12px;background:var(--hd-paper)}
+#holo-discovery-review-fixed textarea{width:100%;height:54px;resize:vertical;border:0;background:transparent;line-height:1.5;font-size:16px!important;padding:0 3px}
+#holo-discovery-review-fixed textarea::placeholder{color:var(--hd-sub);font-size:14px}
+#holo-discovery-review-fixed .hd-tools{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+#holo-discovery-review-fixed .hd-send{width:34px;min-height:34px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--hd-accent)!important;color:var(--hd-bg)!important}
+#holo-discovery-review-fixed .hd-home{height:4px;border-radius:5px;width:110px;background:var(--hd-fg);margin:8px auto 13px;opacity:.7}
+#holo-discovery-review-fixed .hd-foot{text-align:center;font-size:11px;color:var(--hd-sub);padding:8px 18px 0}
+#holo-discovery-review-fixed .hd-sectionlabel{font-size:11px;letter-spacing:.7px;color:var(--hd-sub);margin:16px 12px 7px}
+#holo-discovery-review-fixed .hd-group{background:var(--hd-paper);border:1px solid var(--hd-line);border-radius:16px;overflow:hidden}
+#holo-discovery-review-fixed .hd-row{display:flex;align-items:center;gap:11px;width:100%;text-align:left;min-height:57px;padding:12px 14px!important;position:relative}
+#holo-discovery-review-fixed .hd-row+.hd-row:before{position:absolute;content:"";top:0;left:14px;right:0;height:1px;background:var(--hd-line)}
+#holo-discovery-review-fixed .hd-row .hd-miniicon{color:var(--hd-accent);display:flex;width:22px;flex:none}
+#holo-discovery-review-fixed .hd-rowtext{flex:1;min-width:0;font-size:14px}
+#holo-discovery-review-fixed .hd-rowtext small{display:block;color:var(--hd-sub);font-size:11px;margin-top:3px;line-height:1.5}
+#holo-discovery-review-fixed .hd-right{color:var(--hd-sub);font-size:11px;display:flex;gap:5px;align-items:center;text-align:right;flex:none}
+#holo-discovery-review-fixed .hd-description{margin:9px 12px 15px;font-size:12px;color:var(--hd-sub);line-height:1.75}
+#holo-discovery-review-fixed .hd-settinghero{padding:7px 12px 10px}
+#holo-discovery-review-fixed .hd-settinghero h2{font-size:23px;margin-top:2px}
+#holo-discovery-review-fixed .hd-settinghero p{margin:5px 0;color:var(--hd-sub);font-size:13px}
+#holo-discovery-review-fixed .hd-switch{appearance:none;-webkit-appearance:none;width:45px;height:27px;border-radius:20px;background:var(--hd-quiet);border:1px solid var(--hd-line);position:relative;flex:none;margin:0}
+#holo-discovery-review-fixed .hd-switch:before{content:"";position:absolute;left:3px;top:3px;width:19px;height:19px;background:var(--hd-paper);border-radius:50%;box-shadow:0 1px 4px light-dark(#0002,#0005)}
+#holo-discovery-review-fixed .hd-switch:checked{background:var(--hd-accent);border-color:var(--hd-accent)}
+#holo-discovery-review-fixed .hd-switch:checked:before{left:21px}
+#holo-discovery-review-fixed .hd-callout{background:var(--hd-soft);padding:13px 15px;border-radius:14px;font-size:12px;margin:14px 0;color:var(--hd-fg)}
+#holo-discovery-review-fixed .hd-button{display:flex;align-items:center;justify-content:center;gap:7px;background:var(--hd-accent)!important;color:var(--hd-bg)!important;min-height:44px;padding:11px 16px!important;border-radius:13px;width:100%;font-weight:500}
+#holo-discovery-review-fixed .hd-button.hd-secondary{background:var(--hd-quiet)!important;color:var(--hd-fg)!important}
+#holo-discovery-review-fixed .hd-link{color:var(--hd-accent)!important;display:inline-flex;align-items:center;gap:6px;padding:9px 0!important;font-size:13px!important;text-align:left;min-height:38px}
+#holo-discovery-review-fixed .hd-sheet{position:absolute;top:168px;left:0;right:0;min-height:584px;background:var(--hd-paper);border-top:1px solid var(--hd-line);border-radius:28px 28px 0 0;z-index:3;padding:14px 24px 24px;box-shadow:0 -30px 70px light-dark(#302d281c,#0005);display:flex;flex-direction:column}
+#holo-discovery-review-fixed .hd-sheethead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px}
+#holo-discovery-review-fixed .hd-eyebrow{font-size:11px;letter-spacing:1px;color:var(--hd-accent);display:flex;align-items:center;gap:7px}
+#holo-discovery-review-fixed .hd-sheet h2{font-size:23px;line-height:1.55;margin:0 0 15px}
+#holo-discovery-review-fixed .hd-sheet p{font-size:14px;line-height:1.85;margin:0 0 13px}
+#holo-discovery-review-fixed .hd-sheet .hd-muted{font-size:12px;color:var(--hd-sub);line-height:1.75}
+#holo-discovery-review-fixed .hd-sheetbody{flex:1}
+#holo-discovery-review-fixed .hd-feedback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--hd-sub);margin:16px 0}
+#holo-discovery-review-fixed .hd-feedback button{border:1px solid var(--hd-line);border-radius:14px;padding:5px 9px;font-size:11px}
+#holo-discovery-review-fixed .hd-evidence{background:var(--hd-bg);padding:11px 14px;border-radius:13px;margin:8px 0 12px}
+#holo-discovery-review-fixed .hd-evidence article{padding:10px 0;border-bottom:1px solid var(--hd-line)}
+#holo-discovery-review-fixed .hd-evidence article:last-child{border:0}
+#holo-discovery-review-fixed .hd-evidence small{font-size:11px;color:var(--hd-sub)}
+#holo-discovery-review-fixed .hd-evidence p{font-size:13px;margin:4px 0 0}
+#holo-discovery-review-fixed .hd-user{padding:12px 14px;background:var(--hd-quiet);border-radius:17px 17px 4px 17px;margin:15px 0 20px 30px;font-size:14px}
+#holo-discovery-review-fixed .hd-reply{font-size:14px;line-height:1.9;margin:12px 0}
+#holo-discovery-review-fixed .hd-edit{width:100%;border:1px solid var(--hd-line);border-radius:12px;background:var(--hd-paper);padding:12px;min-height:140px}
+@media(max-width:390px){#holo-discovery-review-fixed .hd-stage{padding:16px 0}#holo-discovery-review-fixed .hd-phone{border-radius:23px}#holo-discovery-review-fixed .hd-sheet{padding:14px 18px 22px}#holo-discovery-review-fixed .hd-capsule{padding:7px 8px!important}}
+</style>
+<script>
+(function(){
+const root=document.getElementById('holo-discovery-review-fixed'),phone=root.querySelector('.hd-phone');
+const initial={page:'chat',enabled:true,consent:true,cache:'ready',seen:false,modal:false,evidence:false,feedback:'',scope:['想法','任务','习惯'],memory:true,answerMemory:true,organize:true,weeklyObservation:true,replay:false,weekly:false,monthly:false,excluded:false,draft:'',sent:false,profile:'希望交流直接一点，先说具体观察，再说建议。'};
+const saved=window.openai?.widgetState?.privateContent;
+const s={...initial,...(saved?.prototype==='holo-discovery-v3'?saved.state:{})};
+if(!Array.isArray(s.scope))s.scope=[...initial.scope];
+const icons=n=>'<i data-lucide="'+n+'" aria-hidden="true"></i>';
+const esc=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const title={chat:'HOLO AI',settings:'HoloAI 设置',discoverySettings:'一个发现',scope:'发现使用范围',memory:'长期记忆',privacy:'数据处理授权',excluded:'不参与 AI 的想法',replay:'周期回放',organize:'想法智能整理',profile:'个人档案',cloud:'云端处理说明',capabilities:'HoloAI 能力'};
+function row(label,sub,right,action,icon){return '<button type="button" class="hd-row cursor-interaction" data-go="'+action+'">'+(icon?'<span class="hd-miniicon">'+icons(icon)+'</span>':'')+'<span class="hd-rowtext">'+label+(sub?'<small>'+sub+'</small>':'')+'</span><span class="hd-right">'+(right||'')+icons('chevron-right')+'</span></button>';}
+function toggle(label,sub,key,disabled=false){return '<label class="hd-row cursor-interaction"><span class="hd-rowtext">'+label+(sub?'<small>'+sub+'</small>':'')+'</span><input class="hd-switch cursor-interaction" type="checkbox" aria-label="'+label+'" data-toggle="'+key+'" '+(s[key]?'checked ':'')+(disabled?'disabled':'')+'></label>';}
+function group(x){return '<div class="hd-group">'+x+'</div>';}
+function desc(x){return '<p class="hd-description">'+x+'</p>';}
+function heading(x){return '<div class="hd-sectionlabel">'+x+'</div>';}
+function status(){if(!s.consent)return '授权已撤回';if(!s.enabled)return '已关闭';if(s.cache==='ready')return '有一个发现';if(s.cache==='preparing')return '正在准备';return '等待更多线索';}
+let revision=saved?.prototype==='holo-discovery-v3'?Number(saved.revision)||0:0;
+function storeState(){revision++;const snapshot=JSON.parse(JSON.stringify(s));window.openai?.setWidgetState?.({modelContent:{prototype:'一个发现与统一 HoloAI 设置',enabled:s.enabled,scope:s.scope},privateContent:{prototype:'holo-discovery-v3',revision,state:snapshot}})?.catch(()=>{});}
+function render(){
+root.querySelectorAll('[data-screen]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.screen==='settings'?s.page!=='chat':b.dataset.screen==='discovery'?s.modal==='discovery':s.page==='chat'&&!s.modal)));
+let content='';
+if(s.page==='chat'){
+content='<div class="hd-tabs"><strong>对话</strong><button type="button" data-go="replay" class="cursor-interaction">报告</button></div><main class="hd-chatmain" aria-live="polite">'+(s.sent?'<div class="hd-user">'+esc(s.sent)+'</div><div class="hd-eyebrow">'+icons('sparkles')+' HOLO</div><p class="hd-reply">可以先从一个具体例子核对。你现在想重新开始的那件事，最让你觉得难迈出的第一步是什么？</p><div class="hd-muted">示例回答 · 实际产品会携带发现与记录依据继续讨论。</div>':'<div class="hd-mark">'+icons('sparkles')+'</div><h2>今天，想聊些什么？</h2><p>说说此刻的想法，<br>也可以一起看看你的记录。</p>')+'</main><footer class="hd-composearea"><div class="hd-capsules"><button class="hd-capsule cursor-interaction" data-go="capabilities">深度分析'+icons('chevron-down')+'</button>'+(s.enabled&&s.consent&&s.cache==='ready'?'<button class="hd-capsule '+(!s.seen?'hd-fresh':'')+' cursor-interaction" data-go="discovery">'+icons('sparkle')+' 一个发现</button>':'')+'<button class="hd-capsule cursor-interaction" data-go="replay">周期回放</button><button class="hd-capsule cursor-interaction" data-go="capabilities">规划目标</button></div><div class="hd-compose"><textarea aria-label="对话输入" placeholder="说说你想聊的事…">'+esc(s.draft)+'</textarea><div class="hd-tools"><button class="hd-icon cursor-interaction" data-go="capabilities" aria-label="更多能力">'+icons('plus')+'</button><button class="hd-send cursor-interaction" data-send aria-label="发送" '+(!s.draft.trim()||!s.consent?'disabled':'')+'>'+icons('arrow-up')+'</button></div></div></footer>';
+}else if(s.page==='settings'){
+content='<main class="hd-main"><div class="hd-settinghero"><p>让 Holo 以你选择的方式理解你。</p></div>'+group(row('一个发现','安静整理记录中的变化与联系',status(),'discoverySettings','sparkles'))+heading('关于你')+group(row('个人档案','','','profile','user-round')+row('长期记忆','形成、使用与管理记忆','','memory','brain'))+heading('自动处理')+group(row('想法智能整理','主题归类与相关笔记',s.organize?'已开启':'已关闭','organize','notebook')+row('周期回放','自动生成与提醒','','replay','calendar-days'))+heading('数据与隐私')+group(row('数据处理授权','所有外部 AI 处理的总授权',s.consent?'已授权':'未授权','privacy','shield-check')+row('不参与 AI 的想法','按标签排除，适用于全部 AI',s.excluded?'1 个标签':'未设置','excluded','eye-off')+row('云端处理说明','','','cloud','cloud'))+'</main>';
+}else if(s.page==='discoverySettings'){
+content='<main class="hd-main"><div class="hd-settinghero"><div class="hd-mark">'+icons('sparkle')+'</div><h2>一个发现</h2><p>让 AI 从你允许的记录里，整理值得留意的变化与联系。</p></div>'+group(toggle('开启一个发现','只在对话页呈现，不发通知','enabled'))+desc('正式产品默认关闭。关闭后停止生成、清除本功能缓存并隐藏胶囊，不影响主动聊天。')+heading('当前状态')+group('<div class="hd-row"><span class="hd-rowtext">'+status()+'<small>'+(s.enabled?(s.cache==='ready'?'已核对记录依据，等你想看时打开。':s.cache==='preparing'?'需要一些准备时间，不必在这里等待。':'有足够依据时才会呈现，不保证每天更新。'):'由你决定什么时候开启。')+'</small></span></div>')+heading('使用范围')+group(row('允许使用的记录','同时遵循「不参与 AI 的想法」规则',s.scope.length+' 类','scope','list-filter'))+desc('不自动启用长期记忆。发现不是对你的定论，你可以查看依据、纠正或忽略。')+group(row('自动处理如何进行','了解必要数据的外部 AI 处理','','cloud','shield-check'))+'</main>';
+}else if(s.page==='scope'){
+content='<main class="hd-main"><div class="hd-settinghero"><p>选择「一个发现」可以理解哪些记录。</p></div>'+group(['想法','任务','习惯'].map(k=>'<label class="hd-row cursor-interaction"><span class="hd-rowtext">'+k+'</span><input type="checkbox" data-scope="'+k+'" aria-label="允许使用'+k+'" '+(s.scope.includes(k)?'checked':'')+'></label>').join(''))+desc('至少选择一类。未包含健康、财务记录；想法中涉及的敏感内容也须经过筛选。改变范围后，旧发现会重新核验。')+group(row('不参与 AI 的想法','全局排除优先于这里的选择',s.excluded?'1 个标签':'未设置','excluded','eye-off'))+'</main>';
+}else if(s.page==='memory'){
+content='<main class="hd-main">'+heading('形成与使用')+group(toggle('自动形成记忆','从记录中整理值得长期记住的内容','memory')+toggle('记忆辅助回答','回答时结合已记住的信息','answerMemory'))+desc('两个开关独立控制。关闭不会删除已有记忆；「一个发现」也不会代替你开启它们。')+heading('记忆内容')+group(row('查看与管理记忆','查看、纠正或删除 Holo 记住的内容','','memoryList','notebook-text'))+'</main>';
+}else if(s.page==='privacy'){
+content='<main class="hd-main">'+group(toggle('允许 HoloAI 处理必要数据','通过后端转交第三方 AI／语音服务处理','consent'))+desc('撤回后，新的外部 AI 处理暂停，「一个发现」关闭并清除派生缓存。恢复总授权不会自动重新开启发现。')+group(row('云端处理说明','了解不同功能的数据使用场景','','cloud','cloud'))+'</main>';
+}else if(s.page==='excluded'){
+content='<main class="hd-main"><div class="hd-settinghero"><p>这些标签下的想法不参与任何 AI 归类与分析，包括「一个发现」。</p></div>'+group(toggle('# 仅自己可见','示例标签 · 开启表示排除','excluded'))+desc('这是已有全局范围设置的统一入口。排除生效后，相关旧发现也会撤下。')+'</main>';
+}else if(s.page==='replay'){
+content='<main class="hd-main">'+heading('自动生成')+group(toggle('每周观察','整理上周记录中的观察','weeklyObservation',!s.consent)+toggle('日／月回放','沿用原「后台自动尝试生成」偏好','replay',!s.consent))+desc('分别控制；关闭日／月回放不会代替你关闭每周观察。iOS 不保证准时执行。与「一个发现」独立。')+heading('提醒')+group(toggle('每周提醒','示例：周一 09:00','weekly')+toggle('每月提醒','示例：每月 1 日 09:00','monthly'))+desc('与统一通知设置共用同一份时间和开关，不重复注册通知。')+'</main>';
+}else if(s.page==='organize'){
+content='<main class="hd-main">'+group(toggle('AI 智能整理','将想法归入主题，发现相关笔记','organize',!s.consent))+desc('复用想法模块现有设置。关闭后停止新的整理，已有主题和手动标签保留。')+group(row('不参与 AI 的想法','共享全局排除范围','','excluded','eye-off'))+'</main>';
+}else if(s.page==='profile'){
+content='<main class="hd-main"><label for="hd-profile-editor" class="hd-description">你希望 Holo 知道的背景与交流偏好</label><textarea id="hd-profile-editor" class="hd-edit" aria-label="个人档案">'+esc(s.profile)+'</textarea>'+desc('示例内容，仅保存于本次原型。正式产品复用已有档案编辑器。')+'<button type="button" class="hd-button cursor-interaction" data-save-profile>保存</button></main>';
+}else if(s.page==='cloud'){
+content='<main class="hd-main"><div class="hd-settinghero"><h2>自动理解，也由你选择。</h2><p>开启「一个发现」后，Holo 会在有新材料时，自动将必要片段通过后端交给外部 AI 理解与核验。</p></div>'+group('<div class="hd-row"><span class="hd-rowtext">只取允许的相关材料<small>不每次扫描全部记录，遵循全局排除。</small></span></div><div class="hd-row"><span class="hd-rowtext">先有依据，再呈现观察<small>记录不足或解释不可靠时，不展示。</small></span></div><div class="hd-row"><span class="hd-rowtext">关闭即可停止新的处理<small>已发出的请求尽力取消，迟到结果不再采纳。</small></span></div>')+desc('本页为拟议说明。最终传输、保留与删除承诺须以实际链路验收为准。')+'</main>';
+}else{
+content='<main class="hd-main"><div class="hd-settinghero"><h2>'+(s.page==='memoryList'?'记忆内容由原记忆长廊管理':'主动选择你需要的帮助')+'</h2><p>'+(s.page==='memoryList'?'本原型聚焦设置归拢，正式产品跳转到既有记忆长廊。':'深度分析与规划目标沿用原有场景和确认流程。')+'</p></div><button type="button" class="hd-button hd-secondary cursor-interaction" data-go="chat">返回对话</button></main>';
+}
+phone.innerHTML='<div class="hd-status"><span>9:41</span><span>▮▮▮　▰</span></div><header class="hd-nav"><button type="button" class="hd-icon cursor-interaction" data-back aria-label="返回">'+icons(s.page==='chat'?'x':'chevron-left')+'</button><div class="hd-title">'+(title[s.page]||'HoloAI')+'</div><button type="button" class="hd-icon cursor-interaction" data-go="settings" aria-label="HoloAI 设置">'+icons('settings-2')+'</button></header>'+content+'<div class="hd-foot">交互原型 · 记录与回答均为虚构<br>示例账号初始已开启；正式产品默认关闭</div><div class="hd-home"></div>';
+phone.style.minHeight='752px';
+if(s.modal)renderModal();
+if(globalThis.lucide)lucide.createIcons();
+const overlay=phone.querySelector('.hd-sheet');if(overlay)phone.style.minHeight=Math.max(752,168+overlay.offsetHeight+20)+'px';
+}
+function renderModal(){const sheet=document.createElement('section');sheet.className='hd-sheet';sheet.setAttribute('aria-label',s.modal==='discovery'?'一个发现':'开启说明');
+let body='';
+if(s.modal==='discovery'){
+body='<div class="hd-sheethead"><div class="hd-eyebrow">'+icons('sparkle')+' 记录里的一个发现</div><button class="hd-icon cursor-interaction" data-close aria-label="关闭发现">'+icons('x')+'</button></div><div class="hd-sheetbody"><h2>这两次重新开始，<br>你都把第一步变轻了。</h2><p>恢复运动时，你先出门走了十分钟；重新开始阅读时，你也放下了每天读完一章的要求。</p><p class="hd-muted">这两段记录有一个相似之处：先允许自己做少一点，再尝试继续。它还不足以说明，这种方式一直对你有效。</p><button class="hd-link cursor-interaction" data-evidence>'+icons('notebook-text')+' '+(s.evidence?'收起依据':'看看依据 · 2 段记录')+icons(s.evidence?'chevron-up':'chevron-down')+'</button>'+(s.evidence?'<div class="hd-evidence"><article><small>示例想法 · 10 月 8 日</small><p>停了一阵，今天先出去走十分钟。跑不跑都行。</p></article><article><small>示例想法 · 10 月 16 日</small><p>不要求一口气读一章了，今晚先翻两页。</p></article><div class="hd-muted">两段独立经历，只支持这两次的相似之处，不证明后续坚持或因果。</div></div>':'')+'<div class="hd-feedback"><span>'+(s.feedback||'这像你吗？')+'</span>'+(s.feedback?'':'<button class="cursor-interaction" data-feedback="like">有点像</button><button class="cursor-interaction" data-feedback="wrong">不太准确</button>')+'</div></div><button class="hd-button cursor-interaction" data-discuss>聊聊这个 '+icons('arrow-up-right')+'</button><button class="hd-link cursor-interaction" data-go="discoverySettings">管理「一个发现」</button>';
+}else if(s.modal==='enable'){
+body='<div class="hd-sheethead"><div class="hd-eyebrow">由你开启</div><button class="hd-icon cursor-interaction" data-close aria-label="取消开启">'+icons('x')+'</button></div><h2>让 Holo 安静地<br>理解一些记录。</h2><p>开启后，有新材料时会自动处理你选择的记录。必要片段会通过后端交给外部 AI 理解与核验。</p><p class="hd-muted">只在对话页呈现，不发通知。你可以随时关闭；开启不保证立刻有发现，也不会自动开启长期记忆。</p><div class="hd-callout">'+(s.consent?'已获得全局 AI 数据授权':'尚未获得全局 AI 数据授权。请先到「数据处理授权」了解并同意。')+'</div>'+(!s.consent?'<button class="hd-button cursor-interaction" data-go="privacy">查看数据处理授权</button>':'<div class="hd-group">'+['想法','任务','习惯'].map(k=>'<label class="hd-row cursor-interaction"><span class="hd-rowtext">'+k+'</span><input type="checkbox" aria-label="允许理解'+k+'" data-scope="'+k+'" '+(s.scope.includes(k)?'checked':'')+'></label>').join('')+'</div><div class="hd-description">至少选择一类，遵循已有想法排除规则。</div><button class="hd-button cursor-interaction" data-enable '+(!s.scope.length?'disabled':'')+'>同意并开启</button>');
+}else{
+body='<div class="hd-sheethead"><div class="hd-eyebrow">谢谢你纠正</div><button class="hd-icon cursor-interaction" data-close aria-label="关闭反馈">'+icons('x')+'</button></div><h2>这条发现已撤下。</h2><p>可以不解释，也可以告诉 Holo 哪里不合适。</p>'+group(['依据不对','理解不对','现在不适用','不想看这类'].map(x=>row(x,'','','reject:'+x)).join(''))+'<button class="hd-link cursor-interaction" data-close>暂时不说</button>';
+}
+sheet.innerHTML=body;phone.appendChild(sheet);}
+function go(page){s.modal=false;if(page==='discovery'){s.page='chat';if(s.enabled&&s.consent&&s.cache==='ready'){s.modal='discovery';s.seen=true;}else s.page='discoverySettings';}else if(page.startsWith('reject:')){s.feedback='已记录：'+page.slice(7);s.page='discoverySettings';}else s.page=page;render();storeState();}
+function updateToggle(key,checked){
+ if(key==='enabled'&&checked){s.scope=[];s.modal='enable';}
+ else{s[key]=checked;if(key==='enabled'||(key==='consent'&&!checked)){s.enabled=false;s.cache='none';s.modal=false;s.evidence=false;s.seen=false;}
+ if(key==='excluded'||(key==='answerMemory'&&!checked))s.cache='none';}
+ render();storeState();
+}
+function updateScope(key,checked){
+ s.scope=checked?[...new Set([...s.scope,key])]:s.scope.filter(x=>x!==key);
+ s.cache='none';if(!s.scope.length&&!s.modal)s.enabled=false;
+ render();storeState();
+}
+root.addEventListener('click',event=>{
+ const el=event.target.closest('button');if(!el||!root.contains(el)||el.disabled)return;
+ if(el.hasAttribute('data-screen')){go(el.dataset.screen);return;}
+ if(el.hasAttribute('data-go')){go(el.dataset.go);return;}
+ if(el.hasAttribute('data-back')){go(s.page==='settings'||s.page==='chat'?'chat':s.page==='scope'?'discoverySettings':'settings');return;}
+ if(el.hasAttribute('data-close')){s.modal=false;render();storeState();return;}
+ if(el.hasAttribute('data-enable')){if(!s.scope.length||!s.consent)return;s.enabled=true;s.cache='preparing';s.modal=false;s.page='discoverySettings';s.feedback='';render();storeState();return;}
+ if(el.hasAttribute('data-evidence')){s.evidence=!s.evidence;render();storeState();return;}
+ if(el.hasAttribute('data-feedback')){if(el.dataset.feedback==='wrong'){s.cache='none';s.modal='reject';}else s.feedback='已收到，不会直接变成长期记忆。';render();storeState();return;}
+ if(el.hasAttribute('data-discuss')){s.modal=false;s.draft='这两次重新开始，我都先降低了第一步的要求。结合这两段记录，陪我看看这个观察是否符合我的经历。';s.page='chat';render();storeState();return;}
+ if(el.hasAttribute('data-send')){if(!s.draft.trim()||!s.consent)return;s.sent=s.draft;s.draft='';render();storeState();return;}
+ if(el.hasAttribute('data-save-profile')){s.profile=phone.querySelector('#hd-profile-editor').value;go('settings');}
+});
+root.addEventListener('change',event=>{
+ const el=event.target;
+ if(el.hasAttribute('data-toggle'))updateToggle(el.dataset.toggle,el.checked);
+ else if(el.hasAttribute('data-scope'))updateScope(el.dataset.scope,el.checked);
+});
+root.addEventListener('input',event=>{
+ if(event.target.matches('.hd-compose textarea')){s.draft=event.target.value;const send=phone.querySelector('[data-send]');if(send)send.disabled=!s.draft.trim()||!s.consent;}
+});
+window.addEventListener('openai:set_globals',event=>{
+ const x=event.detail?.globals?.widgetState?.privateContent;
+ if(x?.prototype==='holo-discovery-v3'&&x.state&&Number(x.revision)>revision){
+  revision=Number(x.revision);Object.assign(s,initial,x.state);render();
+ }
+});
+render();
+})();
+</script>

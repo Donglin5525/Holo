@@ -306,13 +306,15 @@ actor ThoughtSemanticStore {
             .text(verifierResult), .text(state), .text(engineVersion), .date(expires), .text(verifierQuote))
     }
 
-    /// 该想法此正文版本是否已有 relate 记录（P0-C 补跑去重：跑过就不再重复入队）。
+    /// 该想法此正文版本是否已有 relate 记录。传入目录版本后统一补齐类别理解版本，
+    /// 与执行器的回执保持同一口径，避免有 brief 的笔记成功后仍反复入队。
     func hasRelationRecord(thoughtID: UUID, contentHash: String, evaluationVersion: String? = nil) throws -> Bool {
+        let currentVersion = try evaluationVersion.map { try relationEvaluationVersion(catalogVersion: $0) }
         let stmt = try prepare("""
             SELECT COUNT(*) FROM relation_candidate
             WHERE thought_id=?1 AND content_hash=?2 AND expires_at > ?3
                 AND (?4 IS NULL OR engine_version=?4)
-            """, .uuid(thoughtID), .text(contentHash), .date(Date()), .text(evaluationVersion))
+            """, .uuid(thoughtID), .text(contentHash), .date(Date()), .text(currentVersion))
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return false }
         return sqlite3_column_int64(stmt, 0) > 0
@@ -423,6 +425,12 @@ actor ThoughtSemanticStore {
             }
         }
         return keys.sorted()
+    }
+
+    /// 入队去重与整理回执共用完整指纹；沿用既有格式，可直接识别历史成功记录。
+    func relationEvaluationVersion(catalogVersion: String) throws -> String {
+        let briefKeys = try allCategoryBriefVersionKeys()
+        return briefKeys.isEmpty ? catalogVersion : catalogVersion + ":brief=" + briefKeys.joined(separator: "|")
     }
 
     func deleteCategoryBrief(topicID: UUID) throws {
@@ -634,6 +642,14 @@ actor ThoughtSemanticStore {
     /// 撤回授权：全部 pending/running 任务终态化（不做网络调用）。
     func cancelAllJobs() throws {
         try exec("UPDATE semantic_job SET state='cancelled', last_error_code='consent_revoked' WHERE state IN('pending','running')")
+    }
+
+    /// 代数自愈（2026-10-19）：把旧代数 pending 任务 re-stamp 到当前代数。
+    /// 设置开关每次变化递增 consentGeneration，旧代数任务永远不被 claimNextDueJob 领取
+    /// 且无任何回收——改一次开关就冻结当时在队的全部任务。pending 尚未执行、不存在迟到
+    /// 结果，re-stamp 安全；running 不碰（Executor/Verifier 落库侧的代数校验仍是防线）。
+    func restampStalePendingJobs(to generation: Int64) throws {
+        try bindExec("UPDATE semantic_job SET consent_generation=?1 WHERE state='pending' AND consent_generation < ?1", .int64(generation))
     }
 
     func pendingJobCount() throws -> Int {

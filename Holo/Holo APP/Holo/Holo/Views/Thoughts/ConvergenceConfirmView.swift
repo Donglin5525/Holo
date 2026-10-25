@@ -23,14 +23,22 @@ struct ConvergenceConfirmView: View {
     var body: some View {
         NavigationStack {
             content
+                .holoSheetShell()
                 .navigationTitle("发现新主题")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("关闭") {
+                        Button {
                             job.reset()
                             dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(Color.holoToolText)
+                                .frame(width: 34, height: 34)
+                                .contentShape(Circle())
                         }
+                        .accessibilityLabel(String(localized: "关闭"))
                     }
                 }
                 .alert("操作失败", isPresented: Binding(
@@ -41,6 +49,22 @@ struct ConvergenceConfirmView: View {
                 } message: {
                     Text(errorMessage ?? "")
                 }
+        }
+    }
+
+    /// 全屏状态页统一三区结构（§8.7 类型 6 修复）：内容居中，主操作贴底不再悬空。
+    @ViewBuilder
+    private func statusPage<Content: View, Action: View>(
+        @ViewBuilder content: () -> Content,
+        @ViewBuilder action: () -> Action) -> some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: HoloSpacing.xl)
+            content()
+            Spacer(minLength: HoloSpacing.xl)
+            action()
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.bottom, HoloSpacing.lg)
         }
     }
 
@@ -81,145 +105,152 @@ struct ConvergenceConfirmView: View {
     // MARK: - generating
 
     private var generatingView: some View {
-        VStack(spacing: HoloSpacing.md) {
-            ProgressView()
-                .scaleEffect(1.2)
-            Text("AI 正在分析你的想法…")
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
+        statusPage {
+            VStack(spacing: HoloSpacing.md) {
+                ProgressView()
+                    .scaleEffect(1.2)
+                    .tint(Color.holoToolAction)
+                Text("AI 正在分析你的想法…")
+                    .holoText(.body)
+                    .foregroundColor(.holoToolTextSecondary)
+            }
+        } action: {
+            EmptyView()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - idle（输入不足或未触发）
 
     private var idleView: some View {
-        VStack(spacing: HoloSpacing.md) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 40))
-                .foregroundColor(.holoPrimary)
-            Text("想法还不足够形成主题")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-            Text("继续记录，AI 会自动发现可归并的长期主题。")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-                .multilineTextAlignment(.center)
+        statusPage {
+            VStack(spacing: HoloSpacing.md) {
+                statusIcon("sparkles")
+                Text("想法还不足够形成主题")
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
+                Text("继续记录，AI 会自动发现可归并的长期主题。")
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
+                    .multilineTextAlignment(.center)
+            }
+        } action: {
+            EmptyView()
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// 状态页统一图标规格（原六处图标 36/40/44 三种尺寸）
+    private func statusIcon(_ systemName: String, tint: Color = .holoToolAction) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 40))
+            .foregroundColor(tint)
+            .accessibilityHidden(true)
     }
 
     // MARK: - unchanged（输入未变化，省掉重复 AI 调用）
 
     private var unchangedView: some View {
-        VStack(spacing: HoloSpacing.md) {
-            Image(systemName: "checkmark.seal.fill")
-                .font(.system(size: 40))
-                .foregroundColor(.holoPrimary)
-            Text("没有新的可归纳变化")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-            Text("上次归纳后，想法、标签和主题没有变化，本次已跳过 AI 调用。")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-                .multilineTextAlignment(.center)
+        statusPage {
+            VStack(spacing: HoloSpacing.md) {
+                statusIcon("checkmark.seal.fill")
+                Text("没有新的可归纳变化")
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
+                Text("上次归纳后，想法、标签和主题没有变化，本次已跳过 AI 调用。")
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
+                    .multilineTextAlignment(.center)
+            }
+        } action: {
             Button("关闭") {
                 job.reset()
                 dismiss()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(HoloActionStyle(role: .primary))
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - failed
 
     private func failedView(_ message: String) -> some View {
-        VStack(spacing: HoloSpacing.md) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 36))
-                .foregroundColor(.orange)
-            Text(message)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-                .multilineTextAlignment(.center)
+        statusPage {
+            VStack(spacing: HoloSpacing.md) {
+                statusIcon("exclamationmark.triangle", tint: .holoToolWarning)
+                Text(message)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
+                    .multilineTextAlignment(.center)
+            }
+        } action: {
             Button("重试") {
                 Task { await job.run() }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(HoloActionStyle(role: .primary))
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - done（全部处理完）
 
     private var doneView: some View {
-        VStack(spacing: HoloSpacing.md) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 44))
-                .foregroundColor(.holoPrimary)
-            Text("建议已处理完")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+        statusPage {
+            VStack(spacing: HoloSpacing.md) {
+                statusIcon("checkmark.circle.fill")
+                Text("建议已处理完")
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
+            }
+        } action: {
             Button("完成") {
                 job.completeReview()
                 dismiss()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(HoloActionStyle(role: .primary))
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - 自动应用完成
 
     private func appliedView(_ count: Int) -> some View {
-        VStack(spacing: HoloSpacing.md) {
-            Image(systemName: "folder.badge.plus")
-                .font(.system(size: 44))
-                .foregroundColor(.holoPrimary)
-            Text("已生成 \(count) 个主题")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-            Text("这些主题已经出现在你的主题列表里。")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-                .multilineTextAlignment(.center)
+        statusPage {
+            VStack(spacing: HoloSpacing.md) {
+                statusIcon("folder.badge.plus")
+                Text("已生成 \(count) 个主题")
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
+                Text("这些主题已经出现在你的主题列表里。")
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
+                    .multilineTextAlignment(.center)
+            }
+        } action: {
             Button("完成") {
                 job.reset()
                 dismiss()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(HoloActionStyle(role: .primary))
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - 无建议（AI 未发现可归并主题，非"处理成功"）
 
     private var noSuggestionView: some View {
-        VStack(spacing: HoloSpacing.md) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 40))
-                .foregroundColor(.holoPrimary)
-            Text("暂未发现可归并的主题")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-            Text("继续积累想法，AI 会自动发现长期主题。")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-                .multilineTextAlignment(.center)
+        statusPage {
+            VStack(spacing: HoloSpacing.md) {
+                statusIcon("sparkles")
+                Text("暂未发现可归并的主题")
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
+                Text("继续积累想法，AI 会自动发现长期主题。")
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
+                    .multilineTextAlignment(.center)
+            }
+        } action: {
             Button("关闭") {
                 job.reset()
                 dismiss()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(HoloActionStyle(role: .primary))
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     // MARK: - 建议列表

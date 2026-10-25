@@ -111,11 +111,9 @@ nonisolated enum ThoughtTopicVerifier {
         targetVector: [Float], store: ThoughtSemanticStore, index: (any LocalSemanticIndex)?,
         context: NSManagedObjectContext, provider: HoloBackendAIProvider,
         calibration: ThoughtSemanticCalibration, commit: Bool, consentGeneration: Int64) async throws -> [ThoughtRelationDecision]? {
-        var version = await evaluationVersion(context: context)
-        // 类别理解版本纳入重评指纹（2026-10-12 主题双通道）：brief 起草/精化升版后
-        // 受影响笔记自然重评，与主题目录变化同一机制，不需要额外触发器。
-        let briefKeys = (try? await store.allCategoryBriefVersionKeys()) ?? []
-        if !briefKeys.isEmpty { version += ":brief=" + briefKeys.joined(separator: "|") }
+        let catalogVersion = await evaluationVersion(context: context)
+        // 与入队去重共用完整指纹；类别理解升版才重评，读取失败时交给队列重试。
+        let version = try await store.relationEvaluationVersion(catalogVersion: catalogVersion)
         let recall = try await ThoughtTopicCandidateEngine.recall(targetVector: targetVector, thoughtID: thoughtID,
             store: store, index: index, context: context, calibration: calibration, provider: provider)
         // 类别定义来源：用户口径（categoryDefinition）优先，其次本机 AI brief（零打扰起草/精化）
@@ -134,7 +132,9 @@ nonisolated enum ThoughtTopicVerifier {
                 // 同 id 副本统一解析：抓到 merged 旧行会把候选在 AI 调用前静默丢掉
                 guard let topic = Topic.resolveValid(id: candidate.topicID, in: context) else { return nil }
                 let thoughtRequest = Thought.fetchRequest()
-                thoughtRequest.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO AND id != %@ AND ANY topicLinks.topic.id == %@", thoughtID as CVarArg, topic.id as CVarArg)
+                // 候选代表成员正文会上传：排除「不参与 AI」标签的想法
+                thoughtRequest.predicate = ThoughtAIAudience.aiVisible(
+                    NSPredicate(format: "deletedAt == nil AND isArchived == NO AND id != %@ AND ANY topicLinks.topic.id == %@", thoughtID as CVarArg, topic.id as CVarArg))
                 let members = ((try? context.fetch(thoughtRequest)) ?? []).filter { ThoughtTopicLinkProjection.isEffectiveMember($0, of: topic) }
                 // 类别候选代表例「用户确认优先」（doc §3：避免 AI 自己的历史选择定义类别）；
                 // 脉络候选维持最近优先。

@@ -54,9 +54,12 @@ extension ThoughtRepository {
             request.fetchLimit = limit
         }
         let results = try context.fetch(request)
-        guard let afterID, let afterUpdatedAt else { return Array(results.prefix(limit)) }
+        // 「不参与 AI」标签的想法不进情境萃取；在结果侧过滤而非改谓词，
+        // 不扰动同秒 count 自适应放大的游标逻辑（被跳过的想法下次重扫幂等跳过）
+        let aiVisible = results.filter { !ThoughtAIAudience.isExcluded($0) }
+        guard let afterID, let afterUpdatedAt else { return Array(aiVisible.prefix(limit)) }
         // 跳过游标位置及之前的记录（同 updatedAt 时按 id 比较）。
-        let filtered = results.drop { thought in
+        let filtered = aiVisible.drop { thought in
             if thought.updatedAt < afterUpdatedAt { return true }
             if thought.updatedAt == afterUpdatedAt, thought.id.uuidString <= afterID.uuidString {
                 return true
@@ -140,7 +143,7 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
 
     func existingContextRecords() async throws -> [HoloMemoryRecord] {
         // R1 四域归并：跨域候选参与同一归并池（多源聚合责任命题的基础）。
-        // M06：直连读者套统一资格判据，用户停用/删除的记忆不进个人情境。
+        // M06：直连读者必须套统一资格判据，用户停用/删除的记忆不进个人情境。
         try await repository.query(.all)
             .filter(HoloMemoryAnswerEligibility.isEligible)
             .filter { $0.personalContext != nil }

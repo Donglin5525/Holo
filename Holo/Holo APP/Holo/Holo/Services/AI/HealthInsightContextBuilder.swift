@@ -193,7 +193,7 @@ struct HoloHealthInsightDataSource: HealthInsightDataSource {
     @MainActor
     private static func extractThoughtCount(from start: Date, to end: Date) async -> [HealthInsightThoughtRecord] {
         // ThoughtRepository 非单例，方法内实例化（默认绑 viewContext，已在 @MainActor，安全）。
-        let counts = ThoughtRepository().getThoughtCountByDay(from: start, to: end)
+        let counts = ThoughtRepository().getThoughtCountByDay(from: start, to: end, aiVisibleOnly: true)
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)
         formatter.locale = Locale(identifier: "en_US_POSIX")

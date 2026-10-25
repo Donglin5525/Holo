@@ -55,10 +55,12 @@ nonisolated enum ThoughtTopicSummaryClient {
     private static let representativeTextMaxUTF16 = 240
 
     /// 组装请求（脱敏 + 截断）。代表片段按 createdAt 降序（最近优先，方案 §5.2 分层摘要首版口径）。
+    /// 「不参与 AI」标签的想法在此统一剔除——知识树/侧栏/主题详情等所有调用方都经过这里。
     static func makeRequest(title: String, thoughts: [Thought]) -> ThoughtTopicSummaryRequestDTO? {
         let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else { return nil }
         let representatives: [ThoughtTopicSummaryRequestDTO.Representative] = thoughts
+            .filter { !ThoughtAIAudience.isExcluded($0) }
             .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
             .prefix(representativeMaxCount)
             .compactMap { thought in
@@ -166,8 +168,10 @@ nonisolated struct ThoughtTopicNameResponseDTO: Codable {
 extension ThoughtTopicSummaryClient {
 
     /// 用簇成员组装命名请求（≤8 条，§5.2 新 Topic 命名上限；脱敏同摘要口径）。
+    /// 「不参与 AI」标签的想法在此统一剔除。
     static func makeNameRequest(thoughts: [Thought]) -> ThoughtTopicNameRequestDTO? {
         let representatives: [ThoughtTopicNameRequestDTO.Representative] = thoughts
+            .filter { !ThoughtAIAudience.isExcluded($0) }
             .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
             .prefix(8)
             .compactMap { thought in

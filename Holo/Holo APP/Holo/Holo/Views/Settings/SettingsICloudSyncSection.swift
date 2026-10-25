@@ -13,6 +13,9 @@ import CloudKit
 
 struct SettingsICloudSyncSection: View {
 
+    /// 二级页场景（2026-10-25 规整收进门）传 false：导航栏标题顶替组头，不再重复
+    var showsSectionHeader: Bool = true
+
     @ObservedObject private var iCloudSyncStatus = ICloudSyncStatusService.shared
     @ObservedObject private var authService = AppleSignInAuthService.shared
 
@@ -23,15 +26,17 @@ struct SettingsICloudSyncSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "icloud.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoPrimary)
+            if showsSectionHeader {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "icloud.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(.holoPrimary)
 
-                Text("iCloud 同步")
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
+                    Text("iCloud 同步")
+                        .holoText(.body)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoToolText)
+                }
             }
 
             VStack(spacing: 0) {

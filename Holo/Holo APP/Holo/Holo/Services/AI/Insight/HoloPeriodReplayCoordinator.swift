@@ -309,6 +309,55 @@ final class HoloPeriodReplayCoordinator {
         logger.info("[present-cached] 已生成洞察直接落卡 message=\(assistantMessageId.uuidString) period=\(insight.periodType)")
     }
 
+    /// 报告档案回填：已生成的洞察若从未被点开过（首页胶囊/通知直达），就没有
+    /// periodReplay 聊天消息，报告页签因此看不到它——数据概览却计入「AI 报告」。
+    /// 静默补一条 assistant 报告消息（不带用户气泡，区别于 presentCachedInsight
+    /// 的「用户主动查看」语义），让档案与数据概览同口径；已落过卡的洞察不重复补。
+    /// - Returns: 是否发生了回填（调用方可据此刷新档案）
+    @discardableResult
+    func backfillUnopenedInsightCards() -> Bool {
+        let insights = MemoryInsightRepository().fetchViewableInsights()
+        guard !insights.isEmpty else { return false }
+
+        let existing = repository.periodReplayCardTriples()
+        var didBackfill = false
+        for insight in insights {
+            guard let payload = insight.parsedPayload else { continue }
+            let job = HoloPeriodReplayJob(
+                periodType: insight.insightPeriodType,
+                periodStart: insight.periodStart,
+                periodEnd: insight.periodEnd,
+                state: .completed
+            )
+            guard let json = job.json else { continue }
+            let triple = "\(job.periodType.rawValue)|\(String(job.periodStart.timeIntervalSince1970))|\(String(job.periodEnd.timeIntervalSince1970))"
+            guard !existing.contains(triple) else { continue }
+
+            let assistantMessageId = repository.addStreamingMessage(
+                role: "assistant",
+                parentMessageId: nil,
+                messageType: .periodReplay,
+                extractedDataJSON: json
+            )
+            let fallbackText = [payload.title, payload.summary]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            repository.finalizeMessage(
+                assistantMessageId,
+                finalContent: fallbackText,
+                intent: nil,
+                extractedDataJSON: json,
+                parsedBatchJSON: nil,
+                executionBatchJSON: nil,
+                insightResultJSON: Self.encode(payload),
+                messageType: .periodReplay
+            )
+            didBackfill = true
+            logger.info("[archive-backfill] 未点开的洞察补落报告卡 message=\(assistantMessageId.uuidString) period=\(insight.periodType)")
+        }
+        return didBackfill
+    }
+
     /// 用户在失败卡片上点击“继续生成”。
     func continueGeneration(messageId: UUID) {
         guard var job = repository.periodReplayJob(messageId: messageId) else { return }
