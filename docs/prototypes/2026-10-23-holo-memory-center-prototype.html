@@ -1,0 +1,1283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 记忆 · 管理页原型 v1</title>
+<style>
+/* ============ 工作台（非 App 部分） ============ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body.wb {
+  background: #17171A;
+  color: #F5F5F5;
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+  min-height: 100vh;
+  padding: 30px 24px 70px;
+}
+.wb-head { text-align: center; margin-bottom: 22px; }
+.wb-head h1 { font-size: 21px; font-weight: 700; letter-spacing: 1px; }
+.wb-head p { font-size: 12.5px; color: #939393; margin-top: 8px; line-height: 1.7; max-width: 760px; margin-left: auto; margin-right: auto; }
+
+.wb-layout { display: flex; justify-content: center; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
+
+/* 左侧屏幕列表 */
+.rail { width: 232px; flex: none; }
+.rail-group { margin-bottom: 14px; }
+.rail-title { font-size: 11px; color: #939393; letter-spacing: 2px; margin: 0 0 7px 4px; }
+.rail button {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: transparent; border: 1px solid transparent; color: #C9C9C9;
+  font-size: 13px; font-family: inherit; text-align: left; cursor: pointer;
+  padding: 8px 12px; border-radius: 10px; transition: all .15s;
+}
+.rail button:hover { background: #232327; }
+.rail button.on { background: #2A2A30; color: #FF8A5C; font-weight: 600; border-color: #3A3A3C; }
+.rail .no { font-size: 10px; color: #6E6E6E; font-weight: 600; flex: none; }
+
+/* 主题切换 */
+.theme-chips { display: flex; gap: 8px; justify-content: center; margin-bottom: 20px; }
+.theme-chips button {
+  border: 1px solid #3A3A3C; background: transparent; color: #939393; cursor: pointer;
+  font-size: 12px; padding: 6px 16px; border-radius: 999px; font-family: inherit; transition: all .15s;
+}
+.theme-chips button.on { background: #F46D38; border-color: #F46D38; color: #fff; font-weight: 600; }
+
+/* 舞台与注释 */
+.stage-col { display: flex; flex-direction: column; align-items: center; }
+.note {
+  width: 390px; margin-top: 18px;
+  background: #1F1F23; border: 1px solid #3A3A3C; border-radius: 14px; padding: 13px 16px;
+}
+.note-title { font-size: 11px; color: #939393; letter-spacing: 2px; margin-bottom: 7px; }
+.note-body { font-size: 12.5px; color: #D8D8D8; line-height: 1.75; white-space: pre-line; }
+.note-variants { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.note-variants button {
+  border: 1px solid #3A3A3C; background: transparent; color: #939393; cursor: pointer;
+  font-size: 11.5px; padding: 5px 12px; border-radius: 999px; font-family: inherit; transition: all .15s;
+}
+.note-variants button.on { background: #F46D38; border-color: #F46D38; color: #fff; font-weight: 600; }
+
+/* ============ 手机壳与主题令牌 ============ */
+.phone {
+  --bg:#0E0E10; --surface:#2C2C2E; --inset:#3A3A3C; --text:#F5F5F5; --text2:#A8A8A8; --text3:#7B7B80;
+  --border:#48484A; --border-soft:rgba(72,72,74,.55);
+  --action:#FF8A5C; --on-action:#1C1C1E;
+  --success:#86EFAC; --success-bg:rgba(134,239,172,.10); --success-bd:rgba(134,239,172,.28);
+  --error:#FCA5A5; --error-bg:rgba(252,165,165,.10); --error-bd:rgba(252,165,165,.30);
+  --warn:#FFBE6A; --warn-bg:rgba(255,190,106,.10); --warn-bd:rgba(255,190,106,.28);
+  --info:#93C5FD; --info-bg:rgba(147,197,253,.10); --info-bd:rgba(147,197,253,.28);
+  width: 390px; height: 792px; flex: none;
+  background: var(--bg);
+  border: 3px solid #0A0A0B; border-radius: 54px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.55), inset 0 0 0 6px #26262A;
+  overflow: hidden; position: relative;
+  display: flex; flex-direction: column;
+}
+.phone[data-theme="light"] {
+  --bg:#FDFCF8; --surface:#FFFFFF; --inset:#F7F1EA; --text:#333333; --text2:#6E6E6E; --text3:#9B9B93;
+  --border:#E9E4DA; --border-soft:rgba(233,228,218,.8);
+  --action:#EA580C; --on-action:#FFFFFF;
+  --success:#166534; --success-bg:rgba(22,101,52,.07); --success-bd:rgba(22,101,52,.22);
+  --error:#B91C1C; --error-bg:rgba(185,28,28,.06); --error-bd:rgba(185,28,28,.22);
+  --warn:#93450A; --warn-bg:rgba(147,69,10,.07); --warn-bd:rgba(147,69,10,.22);
+  --info:#1D4ED8; --info-bg:rgba(29,78,216,.06); --info-bd:rgba(29,78,216,.20);
+  box-shadow: 0 24px 60px rgba(0,0,0,.35), inset 0 0 0 6px #D8D2C6;
+}
+
+.statusbar {
+  flex: none; height: 46px; display: flex; justify-content: space-between; align-items: center;
+  padding: 0 27px 0 33px; font-size: 13.5px; font-weight: 600; color: var(--text);
+}
+.statusbar .icons { display: flex; gap: 5px; align-items: center; }
+.batt { width: 22px; height: 11px; border: 1px solid var(--text3); border-radius: 3px; position: relative; opacity: .85; }
+.batt::after { content: ""; position: absolute; left: 1.5px; top: 1.5px; bottom: 1.5px; width: 60%; background: var(--text3); border-radius: 1.5px; }
+
+.screen { display: none; flex: 1; flex-direction: column; min-height: 0; }
+.screen.active { display: flex; }
+.scroll { flex: 1; overflow-y: auto; min-height: 0; padding: 0 20px 28px; }
+.scroll::-webkit-scrollbar { display: none; }
+
+/* ============ App 组件 ============ */
+.nav {
+  flex: none; height: 50px; display: flex; align-items: center; gap: 8px;
+  padding: 0 12px; position: relative; background: var(--bg);
+}
+.nav::after {
+  content: ""; position: absolute; left: 12px; right: 12px; bottom: 0; height: .5px;
+  background: linear-gradient(90deg, transparent, var(--border-soft), transparent);
+}
+.nav-icon {
+  width: 34px; height: 34px; border-radius: 50%; flex: none;
+  background: var(--surface); border: .5px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text); font-size: 16px; font-weight: 600;
+}
+.nav-mid { flex: 1; display: flex; justify-content: center; }
+.nav-title { font-size: 17px; font-weight: 600; color: var(--text); }
+.nav-right { display: flex; gap: 4px; align-items: center; }
+.nav-textbtn {
+  height: 34px; padding: 0 13px; border-radius: 999px; flex: none;
+  background: var(--surface); border: .5px solid var(--border);
+  color: var(--text); font-size: 13.5px; font-weight: 600; font-family: inherit;
+  display: flex; align-items: center; gap: 5px;
+}
+
+.page-head { padding: 10px 20px 0; }
+.page-title { font-size: 27px; font-weight: 700; color: var(--text); letter-spacing: .5px; }
+.page-sub { font-size: 13px; color: var(--text2); margin-top: 5px; line-height: 1.55; }
+
+/* 搜索 */
+.search {
+  margin: 14px 0 0; height: 40px; border-radius: 12px;
+  background: var(--inset); border: .5px solid var(--border);
+  display: flex; align-items: center; gap: 8px; padding: 0 13px;
+  color: var(--text3); font-size: 15px;
+}
+.search svg { flex: none; }
+
+/* 分段控件：灰轨道 + 浮起选中块（全 App 唯一样式） */
+.seg-row { display: flex; justify-content: center; padding: 14px 0 10px; }
+.seg { display: flex; gap: 2px; padding: 2.5px; border-radius: 999px; background: var(--inset); border: .5px solid var(--border); }
+.seg button {
+  border: none; cursor: pointer; font-family: inherit; background: transparent;
+  height: 32px; padding: 0 18px; border-radius: 999px;
+  font-size: 13.5px; font-weight: 500; color: var(--text2);
+  display: flex; align-items: center; gap: 5px; transition: all .18s;
+}
+.seg button .cnt { font-size: 11px; color: var(--text3); font-weight: 600; }
+.seg button.on { background: var(--surface); color: var(--action); font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,.18); }
+.seg button.on .cnt { color: var(--action); opacity: .75; }
+
+/* 筛选 chips */
+.chiprow { display: flex; gap: 8px; padding: 2px 0 12px; overflow-x: auto; }
+.chiprow::-webkit-scrollbar { display: none; }
+.fchip {
+  flex: none; height: 30px; padding: 0 13px; border-radius: 999px;
+  background: transparent; border: .5px solid var(--border); color: var(--text2);
+  font-size: 12.5px; font-family: inherit; cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+}
+.fchip svg { opacity: .7; }
+.fchip.on { background: var(--surface); color: var(--action); font-weight: 600; }
+
+/* 分组标题 */
+.group-h {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 16.5px; font-weight: 700; color: var(--text);
+  margin: 16px 2px 9px;
+}
+.group-h .sub { font-size: 12px; color: var(--text3); font-weight: 500; }
+
+/* 连续列表：单一容器 + 分隔线，不层层套卡 */
+.list { background: var(--surface); border: .5px solid var(--border); border-radius: 16px; overflow: hidden; }
+.row {
+  display: flex; align-items: center; gap: 10px; padding: 13px 15px;
+  position: relative; cursor: pointer;
+}
+.row + .row::before {
+  content: ""; position: absolute; top: 0; left: 15px; right: 15px; height: .5px;
+  background: var(--border-soft);
+}
+.row:active { background: var(--inset); }
+.row-main { flex: 1; min-width: 0; }
+.stmt { font-size: 15px; font-weight: 500; color: var(--text); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.meta { display: flex; align-items: center; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.chev { flex: none; color: var(--text3); font-size: 14px; margin-left: 2px; }
+
+/* 标签：文字承载状态，颜色只是辅助 */
+.tag {
+  flex: none; font-size: 11px; font-weight: 600; line-height: 1;
+  padding: 4.5px 8px; border-radius: 7px; letter-spacing: .3px;
+  color: var(--text2); background: var(--inset); white-space: nowrap;
+}
+.tag.ok    { color: var(--success); background: var(--success-bg); }
+.tag.ref   { color: var(--info);    background: var(--info-bg); }
+.tag.warn  { color: var(--warn);    background: var(--warn-bg); }
+.tag.err   { color: var(--error);   background: var(--error-bg); }
+.tag.plain { background: transparent; padding: 4.5px 0; color: var(--text3); }
+.src { font-size: 12px; color: var(--text3); white-space: nowrap; }
+
+/* 观察中的操作行 */
+.obs-actions { display: flex; gap: 8px; margin-top: 10px; }
+.obs-actions button {
+  flex: 1; height: 36px; border-radius: 10px; font-family: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.obs-actions .b-ok { background: var(--action); color: var(--on-action); border: none; }
+.obs-actions .b-edit { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.obs-actions .b-no { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+
+/* 页内说明条 */
+.explain {
+  display: flex; gap: 9px; align-items: flex-start;
+  background: var(--inset); border-radius: 12px; padding: 11px 13px;
+  font-size: 12.5px; color: var(--text2); line-height: 1.65; margin-top: 12px;
+}
+.explain svg { flex: none; margin-top: 2px; opacity: .75; }
+.explain b { color: var(--text); font-weight: 600; }
+
+/* 确认回试行 */
+.receipt-row {
+  background: var(--success-bg); border-radius: 12px; padding: 12px 14px;
+  display: flex; align-items: center; gap: 10px; margin: 0 2px;
+}
+.receipt-row .tick {
+  width: 26px; height: 26px; border-radius: 50%; flex: none;
+  background: var(--success); color: var(--bg);
+  display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800;
+}
+.receipt-main { flex: 1; min-width: 0; }
+.receipt-main .t1 { font-size: 13.5px; font-weight: 600; color: var(--text); line-height: 1.45; }
+.receipt-main .t2 { font-size: 12px; color: var(--text2); margin-top: 3px; }
+.undo-btn {
+  flex: none; height: 34px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--action); font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer;
+}
+
+/* 详情页 */
+.d-stmt {
+  background: var(--surface); border: .5px solid var(--border); border-radius: 16px;
+  padding: 16px; font-size: 16.5px; font-weight: 600; color: var(--text); line-height: 1.6;
+  margin-top: 14px;
+}
+.d-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.d-section { margin-top: 18px; }
+.d-section-h { font-size: 13px; font-weight: 700; color: var(--text2); letter-spacing: 1.5px; margin-bottom: 8px; }
+.d-kv { background: var(--surface); border: .5px solid var(--border); border-radius: 16px; overflow: hidden; }
+.d-kv .kv { display: flex; padding: 12px 15px; position: relative; }
+.d-kv .kv + .kv::before { content:""; position: absolute; top:0; left:15px; right:15px; height:.5px; background: var(--border-soft); }
+.d-kv .k { flex: none; width: 76px; font-size: 13px; color: var(--text2); padding-top: 1px; }
+.d-kv .v { flex: 1; font-size: 14px; color: var(--text); line-height: 1.55; }
+.src-card {
+  display: flex; align-items: center; gap: 11px; padding: 12px 15px; position: relative; cursor: pointer;
+}
+.src-card + .src-card::before { content:""; position:absolute; top:0; left:15px; right:15px; height:.5px; background: var(--border-soft); }
+.src-ico {
+  width: 34px; height: 34px; border-radius: 10px; flex: none;
+  background: var(--inset); display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.src-main { flex: 1; min-width: 0; }
+.src-main .s1 { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.src-main .s2 { font-size: 12.5px; color: var(--text2); line-height: 1.5; margin-top: 3px; }
+.src-card.dead .s2 { color: var(--warn); }
+.op-log { font-size: 12.5px; color: var(--text2); line-height: 1.7; }
+.op-log .dt { color: var(--text3); margin-right: 7px; font-variant-numeric: tabular-nums; }
+.op-foot { font-size: 11.5px; color: var(--text3); margin-top: 8px; }
+
+/* 详情操作区 */
+.act-zone { margin-top: 20px; display: flex; flex-direction: column; gap: 9px; }
+.btn {
+  height: 46px; border-radius: 12px; font-family: inherit; font-size: 15px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; border: none;
+}
+.btn.primary { background: var(--action); color: var(--on-action); }
+.btn.ghost { background: var(--surface); color: var(--text); border: .5px solid var(--border); }
+.btn.danger-solid { background: #C0392B; color: #fff; }
+.btn-danger-text {
+  height: 44px; display: flex; align-items: center; justify-content: center; gap: 6px;
+  color: var(--error); font-size: 14px; font-weight: 600; cursor: pointer;
+}
+
+/* 编辑页 */
+.form-label { font-size: 13px; font-weight: 700; color: var(--text2); letter-spacing: 1px; margin: 16px 2px 8px; }
+.form-readonly {
+  background: var(--inset); border-radius: 12px; padding: 13px 14px;
+  font-size: 14px; color: var(--text2); line-height: 1.6;
+}
+.form-input {
+  width: 100%; min-height: 108px; border-radius: 12px; resize: none;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); font-family: inherit; font-size: 15.5px; line-height: 1.6;
+  padding: 13px 14px; outline: none;
+}
+.form-input:focus { border-color: var(--action); }
+.kv-inline {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface); border: .5px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; font-size: 13.5px; color: var(--text2);
+}
+.kv-inline b { color: var(--text); font-weight: 600; }
+.kv-inline .lock { margin-left: auto; font-size: 11.5px; color: var(--text3); }
+.save-bar {
+  flex: none; padding: 12px 20px 26px; position: relative;
+}
+.save-bar::before { content:""; position: absolute; top:0; left:20px; right:20px; height:.5px; background: var(--border-soft); }
+.save-bar .btn { width: 100%; }
+
+/* 冲突横幅 */
+.conflict {
+  margin-top: 14px; border-radius: 14px; padding: 13px 14px;
+  background: var(--warn-bg); border: 1px solid var(--warn-bd);
+}
+.conflict .c1 { display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 700; color: var(--warn); }
+.conflict .c2 { font-size: 12.5px; color: var(--text2); line-height: 1.6; margin-top: 6px; }
+.conflict .c3 { display: flex; gap: 8px; margin-top: 10px; }
+.conflict .c3 button {
+  height: 34px; padding: 0 14px; border-radius: 999px; font-family: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.conflict .c3 .a { background: var(--surface); border: .5px solid var(--border); color: var(--text); }
+.conflict .c3 .b { background: transparent; border: 1px solid var(--warn-bd); color: var(--warn); }
+
+/* 弹层（底部 sheet，三区结构） */
+.sheet-mask { position: absolute; inset: 0; background: rgba(0,0,0,.45); z-index: 40; }
+.sheet {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 41;
+  background: var(--bg); border-radius: 24px 24px 0 0;
+  padding: 10px 20px 30px; border-top: .5px solid var(--border);
+}
+.grabber { width: 38px; height: 5px; border-radius: 999px; background: var(--border); margin: 0 auto 14px; }
+.sheet h3 { font-size: 18px; font-weight: 700; color: var(--text); }
+.sheet .s-body { font-size: 13.5px; color: var(--text2); line-height: 1.7; margin-top: 9px; text-align: left; }
+.sheet .s-body b { color: var(--text); font-weight: 600; }
+.sheet .s-list { margin: 13px 0 4px; display: flex; flex-direction: column; gap: 7px; }
+.sheet .s-item { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; color: var(--text); line-height: 1.6; }
+.sheet .s-item .dot { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--text3); margin-top: 7px; }
+.sheet .s-actions { display: flex; gap: 10px; margin-top: 18px; }
+.sheet .s-actions .btn { flex: 1; height: 48px; }
+
+/* 空态四件套 */
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 64px 36px 0; }
+.empty .e-ico {
+  width: 74px; height: 74px; border-radius: 22px; background: var(--inset);
+  display: flex; align-items: center; justify-content: center; font-size: 34px; margin-bottom: 20px;
+}
+.empty h4 { font-size: 18px; font-weight: 700; color: var(--text); }
+.empty p { font-size: 14px; color: var(--text2); line-height: 1.75; margin-top: 10px; }
+.empty .btn { margin-top: 22px; padding: 0 26px; width: auto; }
+
+/* 开关 */
+.kv-toggle { display: flex; align-items: center; gap: 10px; padding: 13px 15px; position: relative; }
+.kv-toggle + .kv-toggle::before, .kv-link + .kv-link::before { content:""; position:absolute; top:0; left:15px; right:15px; height:.5px; background: var(--border-soft); }
+.kv-toggle .t-main { flex: 1; }
+.kv-toggle .t1 { font-size: 15px; font-weight: 600; color: var(--text); }
+.kv-toggle .t2 { font-size: 12.5px; color: var(--text2); line-height: 1.55; margin-top: 4px; }
+.switch { flex: none; width: 50px; height: 30px; border-radius: 999px; background: var(--inset); border: .5px solid var(--border); position: relative; cursor: pointer; }
+.switch::after { content:""; position: absolute; top: 2px; left: 2px; width: 25px; height: 25px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: left .2s; }
+.switch.on { background: var(--action); border-color: var(--action); }
+.switch.on::after { left: 22px; }
+.kv-link { display: flex; align-items: center; gap: 9px; padding: 13px 15px; cursor: pointer; position: relative; }
+.kv-link .l1 { flex: 1; font-size: 15px; font-weight: 600; color: var(--text); }
+.footnote { font-size: 12px; color: var(--text3); line-height: 1.7; margin-top: 14px; }
+
+/* 顶栏暂停横幅 */
+.pause-banner {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--info-bg); border: 1px solid var(--info-bd); border-radius: 14px;
+  padding: 12px 14px; margin-top: 14px;
+}
+.pause-banner .p1 { font-size: 13px; font-weight: 600; color: var(--info); }
+.pause-banner .p2 { font-size: 12.5px; color: var(--text2); line-height: 1.6; margin-top: 3px; }
+.pause-banner a { color: var(--info); font-weight: 600; text-decoration: none; }
+
+/* 入口示意屏 */
+.entry-block { margin-top: 4px; }
+.entry-cap { font-size: 11px; font-weight: 700; letter-spacing: 2px; color: var(--text3); margin: 16px 2px 8px; }
+.chat-crop { background: var(--bg); border: .5px solid var(--border); border-radius: 16px; overflow: hidden; }
+.chat-area { padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 10px; }
+.bubble { max-width: 78%; border-radius: 16px; padding: 10px 13px; font-size: 13.5px; line-height: 1.6; }
+.bubble.user { align-self: flex-end; background: var(--action); color: var(--on-action); border-bottom-right-radius: 5px; }
+.bubble.holo { align-self: flex-start; background: var(--surface); color: var(--text); border: .5px solid var(--border); border-bottom-left-radius: 5px; }
+.personal-rows .row .p-sub { font-size: 12px; color: var(--text2); margin-top: 3px; }
+.fade { opacity: .4; pointer-events: none; }
+</style>
+</head>
+<body class="wb">
+
+<div class="wb-head">
+  <h1>Holo 记忆 · 管理页原型 v1</h1>
+  <p>依据《Holo 记忆管理独立与升级实施方案 v1.0》§15 关键状态清单绘制 · 仅评审用，非最终视觉稿<br>
+  覆盖：已记住（丰富/单条/空态）· 观察中 · 确认回执 · 详情与来源失效 · 编辑与版本冲突 · 删除确认 · 停用与恢复 · 开关关闭 · 本次参考 · 设置 · 入口<br>
+  未实现的能力（主动添加、批量整理）按「未实现不呈现」原则不设占位入口</p>
+</div>
+
+<div class="theme-chips">
+  <button data-t="dark" class="on">深色</button>
+  <button data-t="light">浅色</button>
+</div>
+
+<div class="wb-layout">
+  <div class="rail">
+    <div class="rail-group">
+      <div class="rail-title">入口</div>
+      <button data-s="entry"><span class="no">01</span>入口示意（聊天 / 个人页）</button>
+    </div>
+    <div class="rail-group">
+      <div class="rail-title">管理主页 · M01</div>
+      <button data-s="rich"><span class="no">02</span>已记住 · 丰富态</button>
+      <button data-s="single"><span class="no">03</span>已记住 · 单条态</button>
+      <button data-s="empty"><span class="no">04</span>空态（开 / 关）</button>
+      <button data-s="observing"><span class="no">05</span>观察中（可交互）</button>
+      <button data-s="receipt"><span class="no">06</span>确认回执</button>
+      <button data-s="paused"><span class="no">07</span>辅助回答已关闭</button>
+    </div>
+    <div class="rail-group">
+      <div class="rail-title">详情 · M02</div>
+      <button data-s="detail"><span class="no">08</span>详情 · 丰富态</button>
+      <button data-s="detail-dead"><span class="no">09</span>详情 · 来源已失效</button>
+    </div>
+    <div class="rail-group">
+      <div class="rail-title">编辑 · M03</div>
+      <button data-s="edit"><span class="no">10</span>校准 / 编辑</button>
+      <button data-s="conflict"><span class="no">11</span>版本冲突</button>
+    </div>
+    <div class="rail-group">
+      <div class="rail-title">弹层</div>
+      <button data-s="delete"><span class="no">12</span>删除确认</button>
+    </div>
+    <div class="rail-group">
+      <div class="rail-title">次级页</div>
+      <button data-s="past"><span class="no">13</span>过去的记忆</button>
+      <button data-s="stopped"><span class="no">14</span>已停用</button>
+    </div>
+    <div class="rail-group">
+      <div class="rail-title">参考与设置</div>
+      <button data-s="refs"><span class="no">15</span>本次参考的记忆 · M06</button>
+      <button data-s="settings"><span class="no">16</span>记忆设置 · M07</button>
+    </div>
+  </div>
+
+  <div class="stage-col">
+    <div class="phone" id="phone" data-theme="dark">
+
+      <!-- ============ 01 入口示意 ============ -->
+      <div class="screen" id="s-entry">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="scroll">
+          <div class="entry-block">
+            <div class="entry-cap">入口 A · HOLOAI 对话页右上角</div>
+            <div class="chat-crop">
+              <div class="nav" style="background:var(--bg)">
+                <div class="nav-icon">‹</div>
+                <div class="nav-mid"><span class="nav-title">Holo</span></div>
+                <div class="nav-right">
+                  <div class="nav-textbtn" style="color:var(--action)">记忆</div>
+                  <div class="nav-icon">⚙︎</div>
+                </div>
+              </div>
+              <div class="chat-area">
+                <div class="bubble user">我最近老是晚上跑步，帮我看看睡眠有什么影响</div>
+                <div class="bubble holo">好，我结合你近两周的健康记录说——先看过往的了解和你最近的记录。</div>
+              </div>
+            </div>
+            <div class="explain" style="margin-top:10px">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 7.5v3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="5" r=".8" fill="currentColor"/></svg>
+              <span>「记忆」为文字按钮，与设置按钮并列，热区均 ≥44pt；大字体拥挤时设置可收进更多菜单，记忆保持可发现。不新增对话页 Tab。</span>
+            </div>
+
+            <div class="entry-cap">入口 B · 个人页（入口文案不变，跳过设置中转页）</div>
+            <div class="list personal-rows">
+              <div class="row">
+                <div class="row-main">
+                  <div class="stmt" style="-webkit-line-clamp:1">Holo 记住的你</div>
+                  <div class="p-sub">管理 Holo 对你的理解 · 来源可查 · 随时可改</div>
+                </div>
+                <span class="chev">›</span>
+              </div>
+              <div class="row fade">
+                <div class="row-main"><div class="stmt" style="-webkit-line-clamp:1">iCloud 同步</div></div>
+                <span class="chev">›</span>
+              </div>
+              <div class="row fade">
+                <div class="row-main"><div class="stmt" style="-webkit-line-clamp:1">外观与主题</div></div>
+                <span class="chev">›</span>
+              </div>
+            </div>
+            <div class="explain" style="margin-top:10px">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 7.5v3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="5" r=".8" fill="currentColor"/></svg>
+              <span>熟悉的入口文案保留，但直达管理页（不再经过设置中转）；页面内部再提供「记忆设置」入口，避免出现第二份设置。</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 02 已记住 · 丰富态 ============ -->
+      <div class="screen" id="s-rich">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">‹</div>
+          <div class="nav-mid"></div>
+          <div class="nav-right"><div class="nav-icon">···</div></div>
+        </div>
+        <div class="scroll">
+          <div class="page-head" style="padding:6px 0 0">
+            <div class="page-title">Holo 记忆</div>
+            <div class="page-sub">Holo 对你的理解都保存在这里，来源可查，去留由你。</div>
+          </div>
+          <div class="search">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.5"/><path d="M11 11l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            搜索记忆
+          </div>
+          <div class="seg-row">
+            <div class="seg">
+              <button class="on">已记住 <span class="cnt">6</span></button>
+              <button>观察中 <span class="cnt">3</span></button>
+            </div>
+          </div>
+          <div class="chiprow">
+            <button class="fchip on">全部领域
+              <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="fchip">时间
+              <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="fchip">形成方式
+              <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M2 3.5l3 3 3-3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+
+          <div class="group-h">最近这段时间 <span class="sub">会随生活变化更新</span></div>
+          <div class="list">
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">最近把跑步从早上挪到了晚上</div>
+                <div class="meta"><span class="tag plain">Holo 推断</span><span class="src">聊天 · 10-19</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">最近在控制晚间的碳水摄入</div>
+                <div class="meta"><span class="tag ref">仅作参考</span><span class="src">聊天 · 10-21</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">最近项目冲刺，任务大多在深夜处理</div>
+                <div class="meta"><span class="tag ok">你确认过</span><span class="tag plain">适用至 11月</span><span class="src">你添加 · 10-16</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+          </div>
+
+          <div class="group-h">长期了解 <span class="sub">跨阶段的稳定偏好与事实</span></div>
+          <div class="list">
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">不喝咖啡，偏好无糖茶</div>
+                <div class="meta"><span class="tag ok">你确认过</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">不吃香菜</div>
+                <div class="meta"><span class="tag ok">你纠正过</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">周日晚上习惯过一遍下周安排</div>
+                <div class="meta"><span class="tag plain">Holo 推断</span><span class="src">习惯记录 · 印证 12 次</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 03 已记住 · 单条态 ============ -->
+      <div class="screen" id="s-single">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">‹</div>
+          <div class="nav-mid"></div>
+          <div class="nav-right"><div class="nav-icon">···</div></div>
+        </div>
+        <div class="scroll">
+          <div class="page-head" style="padding:6px 0 0">
+            <div class="page-title">Holo 记忆</div>
+          </div>
+          <div class="search">🔍 搜索记忆</div>
+          <div class="seg-row">
+            <div class="seg">
+              <button class="on">已记住 <span class="cnt">1</span></button>
+              <button>观察中 <span class="cnt">0</span></button>
+            </div>
+          </div>
+          <div class="list" style="margin-top:6px">
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">不喝咖啡，偏好无糖茶</div>
+                <div class="meta"><span class="tag ok">你确认过</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+          </div>
+          <div class="explain">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 7.5v3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="5" r=".8" fill="currentColor"/></svg>
+            <span>只有一条时正常单行展示，隐藏空分组，不强行填满屏幕，不编造人物画像。</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 04 空态 ============ -->
+      <div class="screen" id="s-empty">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">‹</div>
+          <div class="nav-mid"></div>
+          <div class="nav-right"><div class="nav-icon">···</div></div>
+        </div>
+        <div class="scroll">
+          <div class="page-head" style="padding:6px 0 0">
+            <div class="page-title">Holo 记忆</div>
+          </div>
+          <div class="seg-row">
+            <div class="seg">
+              <button class="on">已记住 <span class="cnt">0</span></button>
+              <button>观察中 <span class="cnt">0</span></button>
+            </div>
+          </div>
+
+          <div class="empty" data-v="on">
+            <div class="e-ico">🫧</div>
+            <h4>还没有沉淀下来的理解</h4>
+            <p>和 Holo 相处的过程中，合适的信息会慢慢留下——<br>不需要刻意做什么。</p>
+            <button class="btn ghost">去找 Holo 聊聊</button>
+          </div>
+
+          <div class="empty" data-v="off" style="display:none">
+            <div class="e-ico">🌱</div>
+            <h4>自动形成已关闭</h4>
+            <p>Holo 不会主动新增对你的理解。<br>已保存的内容仍在这里，随时可管理。</p>
+            <button class="btn ghost">前往记忆设置</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 05 观察中（可交互） ============ -->
+      <div class="screen" id="s-observing">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">‹</div>
+          <div class="nav-mid"></div>
+          <div class="nav-right"><div class="nav-icon">···</div></div>
+        </div>
+        <div class="scroll">
+          <div class="page-head" style="padding:6px 0 0">
+            <div class="page-title">Holo 记忆</div>
+          </div>
+          <div class="seg-row">
+            <div class="seg">
+              <button>已记住 <span class="cnt">6</span></button>
+              <button class="on">观察中 <span class="cnt">3</span></button>
+            </div>
+          </div>
+          <div class="explain">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><path d="M5 8.2l2 2 4-4.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>这些理解还拿不准，<b>暂不作为事实使用</b>。你可以查看依据，或告诉 Holo 更准确的情况。不处理也没关系，它们不会自己变成「已记住」。</span>
+          </div>
+
+          <div class="list" style="margin-top:14px">
+            <div class="row" style="cursor:default">
+              <div class="row-main">
+                <div class="stmt">最近在准备一场考试，多次提到在复习</div>
+                <div class="meta"><span class="tag warn">仅可限定参考</span><span class="src">依据：10 月聊天 17 次</span></div>
+                <div class="obs-actions">
+                  <button class="b-ok" onclick="confirmRow(this)">符合现在的情况</button>
+                  <button class="b-edit">改一下</button>
+                  <button class="b-no">不符合</button>
+                </div>
+              </div>
+            </div>
+            <div class="row" style="cursor:default">
+              <div class="row-main">
+                <div class="stmt">周末的支出集中在户外装备</div>
+                <div class="meta"><span class="tag warn">待厘清</span><span class="src">与「最近在控制支出」存在张力</span></div>
+                <div class="obs-actions">
+                  <button class="b-ok">符合现在的情况</button>
+                  <button class="b-edit">改一下</button>
+                  <button class="b-no">不符合</button>
+                </div>
+              </div>
+            </div>
+            <div class="row" style="cursor:default">
+              <div class="row-main">
+                <div class="stmt">通勤更偏好地铁而不是打车</div>
+                <div class="meta"><span class="tag plain">暂不用于回答</span><span class="src">依据还不够充分</span></div>
+                <div class="obs-actions">
+                  <button class="b-ok">符合现在的情况</button>
+                  <button class="b-edit">改一下</button>
+                  <button class="b-no">不符合</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="footnote">观察中的内容不会催办、不会计数上 App 图标或推送。逐条处理完可以随时离开，不需要清空。</div>
+        </div>
+      </div>
+
+      <!-- ============ 06 确认回执 ============ -->
+      <div class="screen" id="s-receipt">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">‹</div>
+          <div class="nav-mid"></div>
+          <div class="nav-right"><div class="nav-icon">···</div></div>
+        </div>
+        <div class="scroll">
+          <div class="page-head" style="padding:6px 0 0">
+            <div class="page-title">Holo 记忆</div>
+          </div>
+          <div class="seg-row">
+            <div class="seg">
+              <button>已记住 <span class="cnt">7</span></button>
+              <button class="on">观察中 <span class="cnt">2</span></button>
+            </div>
+          </div>
+          <div class="explain" style="background:var(--success-bg)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="var(--success)" stroke-width="1.3"/><path d="M5 8.2l2 2 4-4.4" stroke="var(--success)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="color:var(--text)">确认完成后，条目会移入「已记住」。原位置短暂保留一条回执，告诉你它去了哪里——不是弹一个全屏提示。</span>
+          </div>
+          <div style="margin-top:14px">
+            <div class="receipt-row">
+              <div class="tick">✓</div>
+              <div class="receipt-main">
+                <div class="t1">已确认 · 相关回答会参考「最近在准备考试」</div>
+                <div class="t2">适用于当前阶段 · 已移入已记住</div>
+              </div>
+              <button class="undo-btn">撤销</button>
+            </div>
+          </div>
+          <div class="list" style="margin-top:12px">
+            <div class="row" style="cursor:default">
+              <div class="row-main">
+                <div class="stmt">周末的支出集中在户外装备</div>
+                <div class="meta"><span class="tag warn">待厘清</span><span class="src">与「最近在控制支出」存在张力</span></div>
+                <div class="obs-actions">
+                  <button class="b-ok">符合现在的情况</button>
+                  <button class="b-edit">改一下</button>
+                  <button class="b-no">不符合</button>
+                </div>
+              </div>
+            </div>
+            <div class="row" style="cursor:default">
+              <div class="row-main">
+                <div class="stmt">通勤更偏好地铁而不是打车</div>
+                <div class="meta"><span class="tag plain">暂不用于回答</span><span class="src">依据还不够充分</span></div>
+                <div class="obs-actions">
+                  <button class="b-ok">符合现在的情况</button>
+                  <button class="b-edit">改一下</button>
+                  <button class="b-no">不符合</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="footnote">回执文案的范围来自这条记录本身（如「适用于当前阶段」），不固定写「以后都会记住」。撤销是新的受控写操作，遇到另一端有更新修改时会提示先查看，不静默覆盖。</div>
+        </div>
+      </div>
+
+      <!-- ============ 07 辅助回答已关闭 ============ -->
+      <div class="screen" id="s-paused">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">‹</div>
+          <div class="nav-mid"></div>
+          <div class="nav-right"><div class="nav-icon">···</div></div>
+        </div>
+        <div class="scroll">
+          <div class="page-head" style="padding:6px 0 0">
+            <div class="page-title">Holo 记忆</div>
+          </div>
+          <div class="pause-banner">
+            <div style="flex:1">
+              <div class="p1">记忆辅助回答已关闭</div>
+              <div class="p2">已保存的记忆仍在这里正常管理，只是暂时不用于回答。<a href="#">前往记忆设置</a></div>
+            </div>
+          </div>
+          <div class="seg-row">
+            <div class="seg">
+              <button class="on">已记住 <span class="cnt">6</span></button>
+              <button>观察中 <span class="cnt">3</span></button>
+            </div>
+          </div>
+          <div class="group-h">最近这段时间</div>
+          <div class="list">
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">最近把跑步从早上挪到了晚上</div>
+                <div class="meta"><span class="tag plain">已保存 · 暂不使用</span><span class="src">聊天 · 10-19</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">最近在控制晚间的碳水摄入</div>
+                <div class="meta"><span class="tag ref">仅作参考</span><span class="tag plain">已保存 · 暂不使用</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+          </div>
+          <div class="footnote">开关关闭只影响「是否用于回答」，不改变内容的分组与生命周期；管理能力（确认、纠正、停用、删除）全部照常可用。</div>
+        </div>
+      </div>
+
+      <!-- ============ 08 详情 · 丰富态 ============ -->
+      <div class="screen" id="s-detail">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">‹</div>
+          <div class="nav-mid"><span class="nav-title">这条记忆</span></div>
+          <div class="nav-right"></div>
+        </div>
+        <div class="scroll">
+          <div class="d-stmt">最近把跑步从早上改到了晚上</div>
+          <div class="d-tags">
+            <span class="tag ok">已记住</span>
+            <span class="tag plain">Holo 推断</span>
+            <span class="tag plain">当前阶段</span>
+          </div>
+
+          <div class="d-section">
+            <div class="d-section-h">基本情况</div>
+            <div class="d-kv">
+              <div class="kv"><div class="k">适用时间</div><div class="v">2026 年 9 月中旬起 · 当前阶段有效，未设到期日</div></div>
+              <div class="kv"><div class="k">形成方式</div><div class="v">Holo 依据聊天与健康记录自动形成</div></div>
+              <div class="kv"><div class="k">使用说明</div><div class="v">与运动、作息相关的回答会参考这条理解，不影响其他话题</div></div>
+            </div>
+          </div>
+
+          <div class="d-section">
+            <div class="d-section-h">来源依据</div>
+            <div class="d-kv">
+              <div class="src-card">
+                <div class="src-ico">💬</div>
+                <div class="src-main">
+                  <div class="s1">聊天 · 10 月 19 日</div>
+                  <div class="s2">「早上实在起不来，跑步都挪到晚上了」</div>
+                </div>
+                <span class="chev">›</span>
+              </div>
+              <div class="src-card">
+                <div class="src-ico">🏃</div>
+                <div class="src-main">
+                  <div class="s1">健康记录 · 仅此设备</div>
+                  <div class="s2">晚间跑步 6 次（9 月中旬起）</div>
+                </div>
+                <span class="chev">›</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="d-section">
+            <div class="d-section-h">操作记录</div>
+            <div class="d-kv" style="padding:12px 15px">
+              <div class="op-log">
+                <div><span class="dt">10-20</span>健康记录再次印证，维持当前阶段</div>
+                <div><span class="dt">10-19</span>自动形成（依据：聊天）</div>
+              </div>
+              <div class="op-foot">操作记录自本次升级后开始保存，更早的形成过程不做补写。</div>
+            </div>
+          </div>
+
+          <div class="act-zone">
+            <button class="btn primary">改一下</button>
+            <div style="display:flex;gap:9px">
+              <button class="btn ghost" style="flex:1;font-size:13.5px">已经过时</button>
+              <button class="btn ghost" style="flex:1;font-size:13.5px">不准确</button>
+              <button class="btn ghost" style="flex:1;font-size:13.5px">不再使用</button>
+            </div>
+            <div class="btn-danger-text">🗑 删除记忆</div>
+          </div>
+          <div style="height:20px"></div>
+        </div>
+      </div>
+
+      <!-- ============ 09 详情 · 来源已失效 ============ -->
+      <div class="screen" id="s-detail-dead">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">‹</div>
+          <div class="nav-mid"><span class="nav-title">这条记忆</span></div>
+          <div class="nav-right"></div>
+        </div>
+        <div class="scroll">
+          <div class="d-stmt" style="opacity:.85">上个月项目冲刺期，支出明显偏高</div>
+          <div class="d-tags">
+            <span class="tag warn">过去的记忆</span>
+            <span class="tag warn">来源已失效</span>
+          </div>
+
+          <div class="d-section">
+            <div class="d-section-h">来源依据</div>
+            <div class="d-kv">
+              <div class="src-card dead">
+                <div class="src-ico">🧾</div>
+                <div class="src-main">
+                  <div class="s1">账单记录</div>
+                  <div class="s2">原记录已于 10-22 删除，无法再核对</div>
+                </div>
+              </div>
+            </div>
+            <div class="explain" style="margin-top:10px">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 7.5v3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="5" r=".8" fill="currentColor"/></svg>
+              <span>来源删除后，这条理解<b>不再用于回答</b>，也不展示已失效的旧摘要。如果你确认它仍然成立，可以重新核对后恢复使用。</span>
+            </div>
+          </div>
+
+          <div class="act-zone">
+            <button class="btn primary">重新核对</button>
+            <button class="btn ghost">已经不再需要</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 10 校准 / 编辑 ============ -->
+      <div class="screen" id="s-edit">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">✕</div>
+          <div class="nav-mid"><span class="nav-title">改一下</span></div>
+          <div class="nav-right"></div>
+        </div>
+        <div class="scroll">
+          <div class="form-label">原来的说法</div>
+          <div class="form-readonly">最近把跑步从早上改到了晚上</div>
+
+          <div class="form-label">改为</div>
+          <textarea class="form-input">最近改成晚上跑步，周末是早上</textarea>
+
+          <div class="form-label">适用范围</div>
+          <div class="kv-inline">
+            <b>当前阶段</b>（原范围保留）
+            <span class="lock">到期时间暂不支持修改</span>
+          </div>
+
+          <div class="explain">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.3"/><path d="M8 7.5v3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="5" r=".8" fill="currentColor"/></svg>
+            <span>保存后<b>以你的说法为准</b>：回答、摘要与个人情境同步更新，原来源保留作参考。如果改成了另一件事（比如从运动偏好改成饮食过敏），Holo 会提示另建一条，而不是沿用这条的身份。</span>
+          </div>
+        </div>
+        <div class="save-bar"><button class="btn primary">保存修改</button></div>
+      </div>
+
+      <!-- ============ 11 版本冲突 ============ -->
+      <div class="screen" id="s-conflict">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">✕</div>
+          <div class="nav-mid"><span class="nav-title">改一下</span></div>
+          <div class="nav-right"></div>
+        </div>
+        <div class="scroll">
+          <div class="conflict">
+            <div class="c1">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l6.5 12h-13L8 1.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 6v3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="11.4" r=".8" fill="currentColor"/></svg>
+              这条记忆已有新修改
+            </div>
+            <div class="c2">另一台设备在今天 14:32 保存了新版本。你的草稿已保留，先看看新版本再决定，不会覆盖别人的修改。</div>
+            <div class="c3">
+              <button class="a">查看新版本</button>
+              <button class="b">继续编辑草稿</button>
+            </div>
+          </div>
+
+          <div class="form-label">原来的说法（最新版本）</div>
+          <div class="form-readonly">最近改成晚上跑步，周末是早上</div>
+
+          <div class="form-label">你的草稿</div>
+          <textarea class="form-input">最近只在晚上跑步，周末也是</textarea>
+        </div>
+        <div class="save-bar"><button class="btn ghost" style="color:var(--action)">基于新版本重新保存</button></div>
+      </div>
+
+      <!-- ============ 12 删除确认 ============ -->
+      <div class="screen" id="s-delete" style="position:relative">
+        <div style="flex:1;display:flex;flex-direction:column;filter:brightness(.72)">
+          <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+          <div class="nav">
+            <div class="nav-icon">‹</div>
+            <div class="nav-mid"><span class="nav-title">这条记忆</span></div>
+            <div class="nav-right"></div>
+          </div>
+          <div class="scroll">
+            <div class="d-stmt">不吃香菜</div>
+            <div class="d-tags"><span class="tag ok">已记住</span><span class="tag ok">你纠正过</span></div>
+            <div class="act-zone">
+              <button class="btn primary">改一下</button>
+              <div style="display:flex;gap:9px">
+                <button class="btn ghost" style="flex:1;font-size:13.5px">已经过时</button>
+                <button class="btn ghost" style="flex:1;font-size:13.5px">不准确</button>
+                <button class="btn ghost" style="flex:1;font-size:13.5px">不再使用</button>
+              </div>
+              <div class="btn-danger-text">🗑 删除记忆</div>
+            </div>
+          </div>
+        </div>
+        <div class="sheet-mask"></div>
+        <div class="sheet">
+          <div class="grabber"></div>
+          <h3>删除这条记忆？</h3>
+          <div class="s-body">删除后，这条理解<b>不再用于任何回答，且无法恢复</b>。</div>
+          <div class="s-list">
+            <div class="s-item"><span class="dot"></span><span>原始记录（笔记、账单、聊天）<b>不会被删除</b></span></div>
+            <div class="s-item"><span class="dot"></span><span>Holo 不会再用原来的证据自动重建这条理解</span></div>
+            <div class="s-item"><span class="dot"></span><span>如果只是不想让它影响回答，用「不再使用」更合适，随时可恢复</span></div>
+          </div>
+          <div class="s-actions">
+            <button class="btn ghost">取消</button>
+            <button class="btn danger-solid">删除</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ 13 过去的记忆 ============ -->
+      <div class="screen" id="s-past">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">‹</div>
+          <div class="nav-mid"><span class="nav-title">过去的记忆</span></div>
+          <div class="nav-right"></div>
+        </div>
+        <div class="scroll">
+          <div class="page-head" style="padding:8px 0 0">
+            <div class="page-sub" style="margin-top:0">已经过期、被替代或来源失效的理解。只作回看，不会用于现在的回答。</div>
+          </div>
+          <div class="list" style="margin-top:14px">
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">以前习惯早上跑步</div>
+                <div class="meta"><span class="tag plain">已被替代</span><span class="src">9 月起改为晚间</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">上一台手机是 iPhone 12</div>
+                <div class="meta"><span class="tag plain">已过期</span><span class="src">适用至 9 月</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="stmt">上个月冲刺期支出明显偏高</div>
+                <div class="meta"><span class="tag warn">来源已失效</span><span class="src">相关账单已删除</span></div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+          </div>
+          <div class="footnote">每条都会写明原因。如果某个「过去」又变回了现在，进详情重新核对即可，不需要从零重建。</div>
+        </div>
+      </div>
+
+      <!-- ============ 14 已停用 ============ -->
+      <div class="screen" id="s-stopped">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">‹</div>
+          <div class="nav-mid"><span class="nav-title">已停用</span></div>
+          <div class="nav-right"></div>
+        </div>
+        <div class="scroll">
+          <div class="page-head" style="padding:8px 0 0">
+            <div class="page-sub" style="margin-top:0">停用 = 不再影响回答，内容保留、随时恢复；删除 = 清除内容本身。</div>
+          </div>
+          <div class="list" style="margin-top:14px">
+            <div class="row" style="cursor:default">
+              <div class="row-main">
+                <div class="stmt">喜欢极简风格的界面</div>
+                <div class="meta"><span class="tag err">你标记 · 不再使用</span><span class="src">10-18</span></div>
+              </div>
+              <button class="undo-btn">重新启用</button>
+            </div>
+            <div class="row" style="cursor:default">
+              <div class="row-main">
+                <div class="stmt">不擅长早起</div>
+                <div class="meta"><span class="tag err">你标记 · 不准确</span><span class="src">10-02</span></div>
+              </div>
+              <button class="undo-btn">重新启用</button>
+            </div>
+            <div class="row" style="cursor:default">
+              <div class="row-main">
+                <div class="stmt">常去的健身房在公司附近</div>
+                <div class="meta"><span class="tag plain">此前已停用</span><span class="src">原因未记录（升级前停用）</span></div>
+              </div>
+              <button class="undo-btn">重新启用</button>
+            </div>
+          </div>
+          <div class="footnote">重新启用会重新校验来源、时效与适用范围，通过后才回到「已记住」。停用期间，相同说法的理解不会自动重建。</div>
+        </div>
+      </div>
+
+      <!-- ============ 15 本次参考的记忆 ============ -->
+      <div class="screen" id="s-refs" style="position:relative">
+        <div style="flex:1;display:flex;flex-direction:column;filter:brightness(.7)">
+          <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+          <div class="nav">
+            <div class="nav-icon">‹</div>
+            <div class="nav-mid"><span class="nav-title">Holo</span></div>
+            <div class="nav-right">
+              <div class="nav-textbtn" style="color:var(--action)">记忆</div>
+              <div class="nav-icon">⚙︎</div>
+            </div>
+          </div>
+          <div class="chat-area" style="padding-top:16px">
+            <div class="bubble user">我最近老是晚上跑步，帮我看看睡眠有什么影响</div>
+            <div class="bubble holo">结合你的记录，晚上跑步后入睡时间平均推迟了 25 分钟……<br><span style="color:var(--action);font-size:12.5px;font-weight:600">本次参考的记忆 ›</span></div>
+          </div>
+        </div>
+        <div class="sheet-mask"></div>
+        <div class="sheet">
+          <div class="grabber"></div>
+          <h3>本次参考的记忆</h3>
+          <div class="s-body">这些内容提供给了 Holo 作参考；<b>不代表回答直接引用了它们</b>。</div>
+          <div class="s-list" style="gap:0;margin-top:8px">
+            <div class="src-card" style="border-radius:12px">
+              <div class="src-main">
+                <div class="s1" style="font-size:14px">不喝咖啡，偏好无糖茶</div>
+                <div class="s2">已保存 · 版本 2</div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+            <div class="src-card" style="border-radius:12px">
+              <div class="src-main">
+                <div class="s1" style="font-size:14px">最近把跑步挪到了晚上</div>
+                <div class="s2">已保存 · 版本 1</div>
+              </div>
+              <span class="chev">›</span>
+            </div>
+            <div class="src-card" style="border-radius:12px">
+              <div class="src-main">
+                <div class="s1" style="font-size:14px;color:var(--text2)">常去的健身房在公司附近</div>
+                <div class="s2" style="color:var(--warn)">已不可用 · 这条记忆已被删除</div>
+              </div>
+            </div>
+          </div>
+          <div class="s-actions"><button class="btn ghost">关闭</button></div>
+        </div>
+      </div>
+
+      <!-- ============ 16 记忆设置 ============ -->
+      <div class="screen" id="s-settings">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav">
+          <div class="nav-icon">‹</div>
+          <div class="nav-mid"><span class="nav-title">记忆设置</span></div>
+          <div class="nav-right"></div>
+        </div>
+        <div class="scroll">
+          <div class="d-section" style="margin-top:14px">
+            <div class="d-section-h">记忆</div>
+            <div class="d-kv">
+              <div class="kv-toggle">
+                <div class="t-main">
+                  <div class="t1">自动形成记忆</div>
+                  <div class="t2">Holo 从你的记录与对话中逐渐形成理解</div>
+                </div>
+                <div class="switch on" onclick="this.classList.toggle('on')"></div>
+              </div>
+              <div class="kv-toggle">
+                <div class="t-main">
+                  <div class="t1">记忆辅助回答</div>
+                  <div class="t2">回答时参考已保存的记忆</div>
+                </div>
+                <div class="switch on" onclick="this.classList.toggle('on')"></div>
+              </div>
+              <div class="kv-link">
+                <div class="l1">管理记忆</div>
+                <span class="chev">›</span>
+              </div>
+            </div>
+          </div>
+          <div class="footnote">记忆保存在你的设备上，并通过 iCloud 在你的设备间同步；健康相关的记忆仅保存在本机，不参与同步。两个开关沿用你原有的设置，不会因升级被重置。</div>
+        </div>
+      </div>
+
+    </div><!-- /phone -->
+
+    <div class="note">
+      <div class="note-title">本屏评审点</div>
+      <div class="note-body" id="note-body"></div>
+      <div class="note-variants" id="note-variants" style="display:none">
+        <button data-v="on" class="on">空态 · 自动形成开启</button>
+        <button data-v="off">空态 · 自动形成关闭</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const NOTES = {
+  "entry": "① 聊天页右上角「记忆」文字按钮 + 设置图标并列，两者热区 ≥44pt，是否拥挤？\n② 个人页入口文案保留「Holo 记住的你」、副标题改为管理语义，直达新页——名字（Holo 记住的你）与页面名（Holo 记忆）不一致是否有碍理解？\n③ 首页、底部导航完全不动（本原型未绘制首页）。",
+  "rich": "① 两个分组「最近这段时间 / 长期了解」的措辞是否第一眼可懂？\n② 「Holo 推断 / 你确认过 / 你纠正过 / 仅作参考」四种标识并存的区分度——重点看「已记住里的仅作参考」与「观察中」的差异是否直觉。\n③ 列表为单一容器 + 分隔线，不层层套卡；正 reading 中后台有更新时不重排、显示「有更新」（原型未演示）。\n④ 分段控件带数量（无红色催办），筛选 chips 三枚：领域 / 时间 / 形成方式。",
+  "single": "最惨稀疏态：只有一条时单行呈现、隐藏空分组，下方说明不编造画像。看是否显得「空得心慌」。",
+  "empty": "空态四件套（图标/标题/说明/动作）两种：自动形成开启 vs 关闭。关闭态给「前往记忆设置」而非擅自开启。",
+  "observing": "① 页内说明 + 每条明确标注实际状态（仅可限定参考 / 待厘清 / 暂不用于回答）——不用总说明掩盖差异。\n② 点「符合现在的情况」可体验确认交互（演示范例）。\n③ 三个操作：符合 / 改一下 / 不符合；无红色角标、无推送催办。",
+  "receipt": "确认成功后的行内回执：说明去了哪里 + 撤销按钮。不弹全屏 Toast、不自动跳走；回执范围来自记录本身（当前阶段），不写「以后都会记住」。",
+  "paused": "「记忆辅助回答」关闭时：顶部说明横幅 + 行内「已保存 · 暂不使用」标注。管理能力照常，分组不变。",
+  "detail": "① 陈述 / 状态 / 适用时间 / 形成方式 / 来源（可点进原始记录）/ 使用说明 / 操作记录（诚实标注「升级后开始记录」）。\n② 操作区：改一下（主）+ 已经过时 / 不准确 / 不再使用（次）+ 删除（危险，分离摆放）。\n③ 健康来源标注「仅此设备」。",
+  "detail-dead": "来源已删除：不展示失效摘要，明确「不再用于回答」+ 重新核对出路。对应验收 A21/A22。",
+  "edit": "编辑表单：原说法只读对照 + 新说法 + 适用范围（V1 不可改到期，如实标注）+ 保存贴底。换命题（如运动偏好改饮食过敏）会提示另建新条，不沿用旧身份。",
+  "conflict": "另一端已保存新版本：横幅提示 + 草稿保留 + 查看新版本。不静默覆盖、不静默二选一。对应验收 A18。",
+  "delete": "删除确认弹层三区结构：标题 + 左对齐要点（不删原始记录 / 不自动重建 / 停用替代方案）+ 底部双按钮。删除为不可恢复操作，确认文案把边界说清。",
+  "past": "过去的记忆：过期 / 被替代 / 来源失效三类原因各自标注，只作回看，不进入现在的回答。",
+  "stopped": "① 停用 vs 删除的差别在页首一句话说清。\n② 第三行「此前已停用 · 原因未记录」= 存量数据迁移的诚实处理（无法区分旧「判错」与「不再使用」时不编造原因）。\n③ 重新启用会重新校验来源与时效，通过才回到已记住。",
+  "refs": "回答下方「本次参考的记忆」轻量面板：区分「提供参考」与「直接引用」；已删除条目如实显示不可用。对应验收 A27。",
+  "settings": "复用既有两个开关（不重置用户已有选择）+ 管理入口 + 数据说明（iCloud 同步 / 健康仅本机）。只有一份设置，管理页内不再复制开关。"
+};
+
+let current = "rich";
+const phone = document.getElementById("phone");
+
+function show(id){
+  current = id;
+  document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === "s-" + id));
+  document.querySelectorAll(".rail button").forEach(b => b.classList.toggle("on", b.dataset.s === id));
+  document.getElementById("note-body").textContent = NOTES[id] || "";
+  const hasVariants = (id === "empty");
+  document.getElementById("note-variants").style.display = hasVariants ? "flex" : "none";
+  if (hasVariants) setVariant(document.querySelector("#note-variants button.on")?.dataset.v || "on");
+  location.hash = id;
+}
+function setVariant(v){
+  document.querySelectorAll("#s-empty .empty").forEach(e => e.style.display = e.dataset.v === v ? "flex" : "none");
+  document.querySelectorAll("#note-variants button").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+}
+
+document.querySelectorAll(".rail button").forEach(b => b.addEventListener("click", () => show(b.dataset.s)));
+document.querySelectorAll("#note-variants button").forEach(b => b.addEventListener("click", () => setVariant(b.dataset.v)));
+document.querySelectorAll(".theme-chips button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".theme-chips button").forEach(x => x.classList.toggle("on", x === b));
+  phone.dataset.theme = b.dataset.t;
+}));
+
+/* 观察中确认交互演示：点「符合现在的情况」→ 行变为回执，可撤销还原 */
+function confirmRow(btn){
+  const row = btn.closest(".row");
+  const original = row.innerHTML;
+  row.innerHTML = '<div class="receipt-row" style="margin:0">' +
+    '<div class="tick">✓</div>' +
+    '<div class="receipt-main"><div class="t1">已确认 · 相关回答会参考这条信息</div>' +
+    '<div class="t2">适用于当前阶段 · 已移入「已记住」</div></div>' +
+    '<button class="undo-btn">撤销</button></div>';
+  row.style.cursor = "default";
+  row.querySelector(".undo-btn").addEventListener("click", function(){
+    row.innerHTML = original;
+    row.style.cursor = "";
+    rebind(row);
+  });
+}
+function rebind(row){
+  const ok = row.querySelector(".b-ok");
+  if (ok) ok.addEventListener("click", () => confirmRow(ok));
+}
+
+/* URL 定位：#screen / ?t=light / ?b=1（当前屏滚动到底部，用于验证滚动区内容） */
+const params = new URLSearchParams(location.search);
+if (params.get("t") === "light") {
+  phone.dataset.theme = "light";
+  document.querySelectorAll(".theme-chips button").forEach(b => b.classList.toggle("on", b.dataset.t === "light"));
+}
+show(location.hash.replace("#", "") || "rich");
+if (params.get("b") === "1") {
+  setTimeout(() => {
+    const sc = document.querySelector(".screen.active .scroll");
+    if (sc) sc.scrollTop = sc.scrollHeight;
+  }, 300);
+}
+</script>
+</body>
+</html>

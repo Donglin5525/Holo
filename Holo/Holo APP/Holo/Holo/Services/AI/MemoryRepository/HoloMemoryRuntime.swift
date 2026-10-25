@@ -14,6 +14,13 @@ final class HoloMemoryRuntime {
 
     private let logger = Logger(subsystem: "com.holo.app", category: "MemoryRuntime")
     private var cachedRepository: CoreDataHoloMemoryRepository?
+    private var cachedController: HoloMemoryPersistenceController?
+
+    /// 仓库背后的持久化控制器（控制事件账本等需直连容器的组件共用同一实例）。
+    func persistenceController() async throws -> HoloMemoryPersistenceController {
+        _ = try await repository()
+        return cachedController!
+    }
 
     /// 敏感字段目录（加密实体正文等）的统一落点
     private static var memoryDirectoryURL: URL {
@@ -32,6 +39,7 @@ final class HoloMemoryRuntime {
             )
             let repository = CoreDataHoloMemoryRepository(controller: controller)
             cachedRepository = repository
+            cachedController = controller
             return repository
         }
         #endif
@@ -44,6 +52,7 @@ final class HoloMemoryRuntime {
         )
         let repository = CoreDataHoloMemoryRepository(controller: controller)
         cachedRepository = repository
+        cachedController = controller
         return repository
     }
 

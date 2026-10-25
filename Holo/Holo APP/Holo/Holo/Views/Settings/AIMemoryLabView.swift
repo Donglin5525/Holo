@@ -57,6 +57,16 @@ struct AIMemoryLabView: View {
 
     var body: some View {
         List {
+            // 「Holo 记忆」管理页预览（M07 开发期专用；正式入口 M08 接线后移除）
+            Section("开发预览") {
+                NavigationLink("Holo 记忆 · 管理页") {
+                    HoloMemoryCenterView(
+                        onBack: {},
+                        onOpenMemorySettings: {},
+                        onOpenChat: {}
+                    )
+                }
+            }
             operatingModeSection
             domainOverviewSection
             personalContextSection

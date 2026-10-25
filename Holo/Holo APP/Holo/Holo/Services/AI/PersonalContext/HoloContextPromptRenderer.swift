@@ -45,7 +45,9 @@ enum HoloContextPromptRenderer {
             repo = try? await HoloMemoryRuntime.shared.repository()
         }
         guard let repo else { return nil }
-        let records = ((try? await repo.query(.all)) ?? []).filter { $0.personalContext != nil }
+        let records = ((try? await repo.query(.all)) ?? [])
+            .filter(HoloMemoryAnswerEligibility.isEligible)
+            .filter { $0.personalContext != nil }
         guard !records.isEmpty else { return nil }
 
         let policy = HoloContextAccessPolicy.selectAdviceCandidates(records: records)

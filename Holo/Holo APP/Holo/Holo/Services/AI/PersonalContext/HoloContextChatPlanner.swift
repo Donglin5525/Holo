@@ -49,7 +49,10 @@ enum HoloContextChatPlanner {
         let loadContextRecords: @Sendable () async throws -> [HoloMemoryRecord] = {
             // 候选记录来自本机情境库（personalContext 载荷）。
             let records = (try? await repository.query(.all)) ?? []
-            let contexts = records.filter { $0.personalContext != nil }
+            // M06：直连读者套统一资格判据，停用/删除不进规划候选。
+            let contexts = records
+                .filter(HoloMemoryAnswerEligibility.isEligible)
+                .filter { $0.personalContext != nil }
             contextCountOut.value = contexts.count
             logger.error("PLAN-DIAG records=\(records.count) contexts=\(contexts.count)")
             return contexts

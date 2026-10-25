@@ -414,7 +414,12 @@ struct PersonalView: View {
             }
 
             NavigationLink {
-                PersonalMemorySettingsView(onOpenMemoryGallery: onOpenMemoryGallery)
+                // 记忆中心灰度位（默认关=原设置中转页；开=直达管理页，M08）
+                if HoloMemoryCenterRollout.isEnabled {
+                    HoloMemoryCenterView()
+                } else {
+                    PersonalMemorySettingsView(onOpenMemoryGallery: onOpenMemoryGallery)
+                }
             } label: {
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {

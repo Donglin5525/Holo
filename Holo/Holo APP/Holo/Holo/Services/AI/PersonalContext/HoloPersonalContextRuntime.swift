@@ -140,7 +140,10 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
 
     func existingContextRecords() async throws -> [HoloMemoryRecord] {
         // R1 四域归并：跨域候选参与同一归并池（多源聚合责任命题的基础）。
-        try await repository.query(.all).filter { $0.personalContext != nil }
+        // M06：直连读者套统一资格判据，用户停用/删除的记忆不进个人情境。
+        try await repository.query(.all)
+            .filter(HoloMemoryAnswerEligibility.isEligible)
+            .filter { $0.personalContext != nil }
     }
 
     func write(records: [HoloMemoryRecord], batchKey: String) async throws {

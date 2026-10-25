@@ -15,12 +15,24 @@ nonisolated enum HoloMemoryManagedObjectModelFactory {
         "HoloMemoryAnchorAliasMO",
         "HoloMemoryObservationRunMO",
         "HoloMemoryTombstoneMO",
-        "HoloMemoryControlStateMO"
+        "HoloMemoryControlStateMO",
+        "HoloMemoryControlEventMO"
     ]
 
     static func makeModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
         model.entities = makeEntities()
+        return model
+    }
+
+    /// 迁移演练/快照测试用：按子集建「上一版模型」创建旧库，
+    /// 再用 makeModel() 加载复现真实升级路径。生产代码只用 makeModel()。
+    static func makeModel(excludingEntityNames excluded: Set<String>) -> NSManagedObjectModel {
+        let model = NSManagedObjectModel()
+        model.entities = makeEntities().filter { entity in
+            guard let name = entity.name else { return true }
+            return !excluded.contains(name)
+        }
         return model
     }
 
@@ -31,7 +43,8 @@ nonisolated enum HoloMemoryManagedObjectModelFactory {
             anchorAliasEntity(),
             observationRunEntity(),
             tombstoneEntity(),
-            controlStateEntity()
+            controlStateEntity(),
+            controlEventEntity()
         ]
     }
 
@@ -132,6 +145,31 @@ nonisolated enum HoloMemoryManagedObjectModelFactory {
                 attribute("stateData", .binaryDataAttributeType, defaultValue: Data()),
                 attribute("userDecisionVersion", .integer64AttributeType, defaultValue: 0),
                 attribute("updatedAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0), indexed: true)
+            ]
+        )
+    }
+
+    // 用户控制事件（方案 §11.4）：只记录控制事实与必要差异摘要，不存记忆正文。
+    // 随记录落同域容器（敏感记录的事件在敏感库，§9.3）；因果只看 priorEventIDs，
+    // 时间戳仅供展示。appliedAt 为空 = 记录状态尚未体现该控制（崩溃恢复按事件重放）。
+    private static func controlEventEntity() -> NSEntityDescription {
+        entity(
+            name: "HoloMemoryControlEventMO",
+            className: NSStringFromClass(HoloMemoryControlEventMO.self),
+            attributes: [
+                attribute("id", .stringAttributeType, defaultValue: "", indexed: true),
+                attribute("targetRecordID", .stringAttributeType, defaultValue: "", indexed: true),
+                attribute("kind", .stringAttributeType, defaultValue: "", indexed: true),
+                attribute("priorEventIDsJSON", .stringAttributeType, defaultValue: "[]"),
+                attribute("basedOnContentVersion", .integer64AttributeType, defaultValue: 0),
+                attribute("resultingContentVersion", .integer64AttributeType, defaultValue: 0),
+                attribute("occurredAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0), indexed: true),
+                attribute("operationID", .stringAttributeType, defaultValue: "", indexed: true),
+                attribute("payloadDigest", .stringAttributeType, optional: true),
+                attribute("appliedAt", .dateAttributeType, optional: true),
+                attribute("schemaVersion", .integer64AttributeType, defaultValue: 1),
+                attribute("deletedAt", .dateAttributeType, optional: true),
+                attribute("deletedBatchId", .UUIDAttributeType, optional: true)
             ]
         )
     }
