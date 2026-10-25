@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 设置页规整 v3 · 用户视角修订版</title>
+<style>
+  :root{
+    --primary:#F46D38; --error:#EF4444; --success:#22C55E; --info:#60A5FA; --purple:#C084FC;
+    --canvas:#EDEAE4; --canvas-text:#3A3A3A;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+    background:var(--canvas); color:var(--canvas-text);
+    padding:36px 20px 60px; -webkit-font-smoothing:antialiased;
+  }
+  header{max-width:1120px;margin:0 auto 24px;}
+  header h1{font-size:22px;font-weight:700;letter-spacing:.5px;}
+  header p.sub{font-size:13px;color:#7A756C;margin-top:6px;line-height:1.7;}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;}
+  .chip{background:#fff;border-radius:12px;padding:10px 14px;font-size:12px;line-height:1.5;box-shadow:0 1px 3px rgba(0,0,0,.06);max-width:250px;}
+  .chip b{display:block;font-size:13px;color:var(--primary);font-weight:700;margin-bottom:2px;}
+  .toolbar{margin-top:16px;}
+  .theme-btn{border:none;background:#fff;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08);color:#3A3A3A;}
+  .theme-btn.active{background:var(--primary);color:#fff;}
+
+  .phones{display:flex;gap:30px;justify-content:center;flex-wrap:wrap;margin-top:6px;}
+  .phone-wrap{display:flex;flex-direction:column;align-items:center;}
+  .phone-wrap>h3{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+  .tag-old{background:#FDE8E8;color:#C0392B;font-size:11px;padding:3px 8px;border-radius:99px;font-weight:600;}
+  .tag-new{background:#E8F6EE;color:#1E8E4E;font-size:11px;padding:3px 8px;border-radius:99px;font-weight:600;}
+
+  .phone{width:393px;border-radius:54px;background:#1B1B1D;padding:12px;box-shadow:0 24px 60px rgba(0,0,0,.25), inset 0 0 0 2px #3A3A3C;}
+  .screen{border-radius:44px;overflow:hidden;height:812px;display:flex;flex-direction:column;position:relative;
+    --bg:#FDFCF8; --surface:#FFFFFF; --inset:#F7F1EA; --text:#333333; --text2:#6E6E6E; --border:#E9E4DA; --hair:rgba(0,0,0,.06);
+    background:var(--bg);
+  }
+  .screen.dark{--bg:#0E0E10; --surface:#2C2C2E; --inset:#3A3A3C; --text:#F5F5F5; --text2:#A8A8A8; --border:#48484A; --hair:rgba(255,255,255,.08);}
+  .statusbar{height:54px;flex:none;display:flex;justify-content:space-between;align-items:flex-end;padding:0 32px 6px;font-size:15px;font-weight:600;color:var(--text);}
+  .sb-right{display:flex;align-items:center;gap:6px;}
+  .sig{display:flex;align-items:flex-end;gap:2px;}
+  .sig i{width:3px;background:var(--text);border-radius:1px;display:block;}
+  .sig i:nth-child(1){height:4px}.sig i:nth-child(2){height:6px}.sig i:nth-child(3){height:8px}.sig i:nth-child(4){height:10px}
+  .battery{width:25px;height:12px;border:1.5px solid var(--text2);border-radius:4px;position:relative;opacity:.9;}
+  .battery::before{content:"";position:absolute;left:1.5px;top:1.5px;bottom:1.5px;width:70%;background:var(--text);border-radius:2px;}
+  .battery::after{content:"";position:absolute;right:-4px;top:3.5px;width:2px;height:5px;background:var(--text2);border-radius:0 2px 2px 0;}
+  .navbar{height:44px;flex:none;display:flex;align-items:center;position:relative;border-bottom:.5px solid var(--hair);}
+  .navbar .x{position:absolute;left:16px;font-size:14px;color:var(--text2);font-weight:500;}
+  .navbar .t{position:absolute;left:50%;transform:translateX(-50%);font-size:16px;font-weight:600;color:var(--text);}
+  .content{flex:1;overflow-y:auto;padding:14px 18px 28px;scrollbar-width:none;}
+  .content::-webkit-scrollbar{display:none;}
+  .content .inner{display:flex;flex-direction:column;gap:18px;}
+
+  /* 分组 */
+  .group{position:relative;}
+  .ghead{display:flex;align-items:center;gap:8px;margin-bottom:9px;padding-left:2px;}
+  .ghead .gt{font-size:13px;font-weight:700;color:var(--text2);letter-spacing:.3px;}
+  .card{background:var(--surface);border-radius:16px;overflow:hidden;}
+  .row{display:flex;align-items:center;gap:12px;padding:12px 14px;position:relative;min-height:56px;}
+  .row + .row{border-top:.5px solid var(--hair);}
+  .ic{width:38px;height:38px;border-radius:10px;flex:none;display:flex;align-items:center;justify-content:center;}
+  .ic svg{width:21px;height:21px;}
+  .rt{flex:1;min-width:0;}
+  .rt .l1{font-size:15.5px;font-weight:600;color:var(--text);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .rt .l2{font-size:12px;color:var(--text2);line-height:1.35;margin-top:2.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .chev{color:var(--text2);opacity:.5;font-size:18px;font-weight:600;flex:none;}
+  .val{font-size:13.5px;color:var(--text2);flex:none;}
+  .toggle{width:51px;height:31px;border-radius:99px;background:#D8D3CA;position:relative;flex:none;transition:background .2s;}
+  .screen.dark .toggle{background:#3A3A3C;}
+  .toggle.on{background:var(--success);}
+  .toggle i{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.2);transition:left .2s;}
+  .toggle.on i{left:22px;}
+  .danger .l1{color:var(--error);}
+  /* 从属子行：缩进 + 细图标 */
+  .subrow{padding-left:40px;}
+  .subrow .ic{width:28px;height:28px;border-radius:8px;}
+  .subrow .ic svg{width:16px;height:16px;}
+  .subrow .l1{font-size:13.5px;font-weight:500;color:var(--text2);}
+
+  /* 用户卡 */
+  .ucard{background:var(--surface);border-radius:16px;padding:14px;}
+  .urow{display:flex;align-items:center;gap:12px;}
+  .avatar{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#F46D38,#FB923C);color:#fff;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;position:relative;flex:none;}
+  .avatar .dot{position:absolute;right:0;bottom:2px;width:12px;height:12px;border-radius:50%;background:var(--success);border:2.5px solid var(--surface);}
+  .signout{margin-top:12px;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(239,68,68,.08);color:var(--error);border-radius:12px;height:42px;font-size:15px;font-weight:600;}
+
+  /* 图标色板（按组配色） */
+  .c-ai{color:#F46D38;background:rgba(244,109,56,.10);}
+  .c-data{color:#60A5FA;background:rgba(96,165,250,.10);}
+  .c-priv{color:#22C55E;background:rgba(34,197,94,.10);}
+  .c-gen{color:#8E8A80;background:rgba(120,115,105,.12);}
+  .screen.dark .c-gen{color:#A8A8A8;background:rgba(168,168,168,.12);}
+  .c-danger{color:#EF4444;background:rgba(239,68,68,.10);}
+
+  /* v2 屏专用：emoji 老样式 + 问题标注 */
+  .emoji-ic{width:40px;height:40px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;font-size:19px;}
+  .flagp{position:absolute;top:-9px;right:-6px;z-index:2;background:#E74C3C;color:#fff;font-size:10px;font-weight:700;min-width:19px;height:19px;border-radius:99px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.25);padding:0 5px;}
+  .flagc{position:absolute;top:-9px;right:0;z-index:2;background:#1E8E4E;color:#fff;font-size:10px;font-weight:600;padding:3px 8px;border-radius:99px;box-shadow:0 2px 6px rgba(0,0,0,.18);max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  .below{max-width:1120px;margin:38px auto 0;display:flex;gap:24px;flex-wrap:wrap;}
+  .panel{background:#fff;border-radius:16px;padding:22px 24px;flex:1;min-width:320px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+  .panel h4{font-size:14px;font-weight:700;margin-bottom:12px;}
+  .panel ol{list-style:none;display:flex;flex-direction:column;gap:10px;}
+  .panel ol li{font-size:12.5px;line-height:1.65;color:#4A453D;display:flex;gap:9px;}
+  .num{flex:none;width:19px;height:19px;border-radius:99px;background:#FDE8E8;color:#C0392B;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+  .fix{flex:none;width:19px;height:19px;border-radius:6px;background:#E8F6EE;color:#1E8E4E;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;font-size:11px;color:#8A857B;font-weight:600;padding:0 8px 8px;border-bottom:1px solid #EFECE6;}
+  td{padding:8px;border-bottom:1px solid #F5F2EC;color:#4A453D;line-height:1.5;}
+  td.from{color:#8A857B;}
+  .foot-note{max-width:1120px;margin:22px auto 0;font-size:12px;color:#8A857B;line-height:1.8;}
+</style>
+</head>
+<body>
+
+<!-- ===== SVG 图标库（内联线条图标，stroke=currentColor，不依赖任何字体） ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-sparkle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3.5l1.8 4.4 4.4 1.8-4.4 1.8L12 15.9l-1.8-4.4-4.4-1.8 4.4-1.8z"/>
+      <path d="M18.8 15.2v4.6M16.5 17.5h4.6M5.2 17.2v3.4M3.5 18.9h3.4"/>
+    </symbol>
+    <symbol id="i-thought" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20.5 8.2a3.4 3.4 0 0 0-3.4-3.4H7.9a3.4 3.4 0 0 0-3.4 3.4v3.6a3.4 3.4 0 0 0 3.4 3.4h.8v3.2l3.8-3.2h4.6a3.4 3.4 0 0 0 3.4-3.4z"/>
+      <path d="M8.6 9.9h.01M12.5 9.9h.01M16.4 9.9h.01"/>
+    </symbol>
+    <symbol id="i-playback" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.6"/><path d="M10.2 8.6l5.6 3.4-5.6 3.4z"/>
+    </symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M7.2 18.4a4.3 4.3 0 0 1-.3-8.6 5.7 5.7 0 0 1 11.1 1.3 3.4 3.4 0 0 1-.5 7.3z"/>
+    </symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="5.5" width="16" height="14.5" rx="2.6"/><path d="M4.3 10.2h15.4M8.5 3.4v3.2M15.5 3.4v3.2"/>
+    </symbol>
+    <symbol id="i-database" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <ellipse cx="12" cy="6.1" rx="7" ry="2.7"/><path d="M5 6.1v11.7c0 1.5 3.1 2.7 7 2.7s7-1.2 7-2.7V6.1M5 12c0 1.5 3.1 2.7 7 2.7s7-1.2 7-2.7"/>
+    </symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="5.5" y="10.5" width="13" height="9.4" rx="2.4"/><path d="M8.5 10.5V8.1a3.5 3.5 0 0 1 7 0v2.4M12 14.3v2.3"/>
+    </symbol>
+    <symbol id="i-timing" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.4"/><path d="M12 7.6V12l3.1 2.1"/>
+    </symbol>
+    <symbol id="i-widget" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3.6" y="3.6" width="16.8" height="16.8" rx="3.2"/><path d="M3.9 9.4h16.2M14.6 9.4V20"/>
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20.6 13.2A8.8 8.8 0 1 1 10.8 3.4a6.9 6.9 0 0 0 9.8 9.8z"/>
+    </symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6.2 8.6a5.8 5.8 0 0 1 11.6 0c0 6.5 2.7 8.4 2.7 8.4H3.5s2.7-1.9 2.7-8.4"/><path d="M10.4 20.6a1.9 1.9 0 0 0 3.2 0"/>
+    </symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 11.6a8.3 8.3 0 0 1-8.3 8.3c-1.5 0-3-.4-4.2-1.1L3 20.5l1.7-5A8.3 8.3 0 1 1 21 11.6z"/>
+    </symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="8.6"/><path d="M12 11.2v4.6M12 7.9h.01"/>
+    </symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3.1"/><path d="M12 3v2.6M12 18.4V21M3 12h2.6M18.4 12H21M5.7 5.7l1.8 1.8M16.5 16.5l1.8 1.8M18.3 5.7l-1.8 1.8M7.5 16.5l-1.8 1.8"/>
+      <circle cx="12" cy="12" r="6.9"/>
+    </symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 6.6h16M9.2 6.6V5a1.7 1.7 0 0 1 1.7-1.7h2.2A1.7 1.7 0 0 1 14.8 5v1.6M6.3 6.6l.8 12.7a1.9 1.9 0 0 0 1.9 1.8h6a1.9 1.9 0 0 0 1.9-1.8l.8-12.7M10 10.6v6.4M14 10.6v6.4"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header>
+  <h1>Holo 设置页规整 v3 · 用户视角修订版</h1>
+  <p class="sub">左屏是上一版（v2）的真实样子——问题用红点标出；右屏是这一版。这一版的核心不是再砍功能，而是把「看着乱」的感官问题治掉：图标必然显示、颜色成组、文字大幅变少。</p>
+  <div class="chips">
+    <div class="chip"><b>① 图标治本</b>emoji 全部换内联 SVG 线条图标——不依赖系统字体，任何设备必然显示，且贴近 App 单色图标观感</div>
+    <div class="chip"><b>② 颜色成组</b>每组一个颜色（AI 橙 / 数据蓝 / 隐私绿 / 通用灰 / 危险红），扫一眼就知道自己在哪个区</div>
+    <div class="chip"><b>③ 文字减半</b>13 条小字副标题砍到 5 条，只留「状态值」类信息；行变矮，标题成为唯一主角</div>
+    <div class="chip"><b>④ 隐私重排</b>应用锁 + 从属的锁定时机（缩进小行）+ 小组件开关，层级一眼分明</div>
+  </div>
+  <div class="toolbar">
+    <button class="theme-btn active" id="btnLight">浅色</button>
+    <button class="theme-btn" id="btnDark">深色</button>
+  </div>
+</header>
+
+<div class="phones">
+
+  <!-- ================= 左屏：v2（问题实况） ================= -->
+  <section class="phone-wrap">
+    <h3><span class="tag-old">上一版 v2</span>问题实况</h3>
+    <div class="phone">
+      <div class="screen" id="screenOld">
+        <div class="statusbar"><span>9:41</span><span class="sb-right"><span class="sig"><i></i><i></i><i></i><i></i></span><span class="battery"></span></span></div>
+        <div class="navbar"><span class="x">✕</span><span class="t">设置</span></div>
+        <div class="content"><div class="inner">
+
+          <div class="ucard">
+            <div class="urow">
+              <div class="avatar">东<div class="dot"></div></div>
+              <div class="rt"><div class="l1">东林</div><div class="l2">已登录，iCloud 云同步已开启</div></div>
+              <span class="chev">›</span>
+            </div>
+            <div class="signout">⎋ 退出登录</div>
+          </div>
+
+          <div class="group"><span class="flagp">❶</span>
+            <div class="ghead"><span class="gt">AI 与记忆</span></div>
+            <div class="card">
+              <div class="row"><div class="emoji-ic" style="background:rgba(244,109,56,.1)">✨</div><div class="rt"><div class="l1">HoloAI</div><div class="l2">一个发现 · 记忆 · 自动处理 · 数据与隐私</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="emoji-ic" style="background:rgba(244,109,56,.1)">✋</div><div class="rt"><div class="l1">HoloAI 数据授权</div><div class="l2">已授权，可随时撤回</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="emoji-ic" style="background:rgba(244,109,56,.1)">💭</div><div class="rt"><div class="l1">想法设置</div><div class="l2">智能整理、主题与标签管理</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="emoji-ic" style="background:rgba(244,109,56,.1)">🎞️</div><div class="rt"><div class="l1">AI 回放</div><div class="l2">每周提醒 · 每月提醒 · 后台自动生成</div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagp">❶</span>
+            <div class="ghead"><span class="gt">数据与同步</span></div>
+            <div class="card">
+              <div class="row"><div class="emoji-ic" style="background:rgba(96,165,250,.1)">☁️</div><div class="rt"><div class="l1">iCloud 同步</div><div class="l2">登录 Holo 后检查云同步状态</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="emoji-ic" style="background:rgba(96,165,250,.1)">📅</div><div class="rt"><div class="l1">日历</div><div class="l2">系统日历接入与任务双向同步</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="emoji-ic" style="background:rgba(244,109,56,.1)">🗃️</div><div class="rt"><div class="l1">数据管理</div><div class="l2">数据概览 · 最近删除 · 清理缓存 · 清空所有数据</div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagp">❷</span>
+            <div class="ghead"><span class="gt">隐私与安全</span></div>
+            <div class="card">
+              <div class="row"><div class="emoji-ic" style="background:rgba(244,109,56,.1)">🔑</div><div class="rt"><div class="l1">应用锁</div><div class="l2">已开启 · 退出 5 分钟后锁定</div></div><span class="toggle on"><i></i></span></div>
+              <div class="row"><div class="emoji-ic" style="background:rgba(244,109,56,.1)">⏱️</div><div class="rt"><div class="l1">锁定时机</div><div class="l2">5 分钟</div></div><span class="val">5 分钟</span><span class="chev">›</span></div>
+              <div class="row"><div class="emoji-ic" style="background:rgba(244,109,56,.1)">📱</div><div class="rt"><div class="l1">桌面小组件显示想法原文</div><div class="l2">关闭后「想法随机漫步」小组件只显示来源提示，不显示内容</div></div><span class="toggle on"><i></i></span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagp">❸</span>
+            <div class="ghead"><span class="gt">通用</span></div>
+            <div class="card">
+              <div class="row"><div class="emoji-ic" style="background:rgba(244,109,56,.1)">🌗</div><div class="rt"><div class="l1">外观</div><div class="l2">跟随系统 · 浅色 · 深色</div></div><span class="val">跟随系统</span><span class="chev">›</span></div>
+              <div class="row"><div class="emoji-ic" style="background:rgba(244,109,56,.1)">🔔</div><div class="rt"><div class="l1">通知设置</div><div class="l2">每日早报 · 习惯提醒 · 周一晨报 · AI 回放</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="emoji-ic" style="background:rgba(244,109,56,.1)">💬</div><div class="rt"><div class="l1">反馈给开发者</div><div class="l2">建议、问题、吐槽都欢迎，留个联系方式我们能找你</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="emoji-ic" style="background:rgba(96,165,250,.1)">ℹ️</div><div class="rt"><div class="l1">关于 Holo</div><div class="l2">版本 1.1.3 (35)</div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group">
+            <div class="card">
+              <div class="row danger"><div class="emoji-ic" style="background:rgba(239,68,68,.1)">🚫</div><div class="rt"><div class="l1">删除账号与 Holo 数据</div><div class="l2">清除本机数据、附件、AI 记忆和登录状态</div></div></div>
+            </div>
+          </div>
+
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 右屏：v3 ================= -->
+  <section class="phone-wrap">
+    <h3><span class="tag-new">本版 v3</span>治乱之后</h3>
+    <div class="phone">
+      <div class="screen" id="screenNew">
+        <div class="statusbar"><span>9:41</span><span class="sb-right"><span class="sig"><i></i><i></i><i></i><i></i></span><span class="battery"></span></span></div>
+        <div class="navbar"><span class="x">✕</span><span class="t">设置</span></div>
+        <div class="content"><div class="inner">
+
+          <div class="ucard">
+            <div class="urow">
+              <div class="avatar">东<div class="dot"></div></div>
+              <div class="rt"><div class="l1">东林</div><div class="l2">已登录，iCloud 云同步已开启</div></div>
+              <span class="chev">›</span>
+            </div>
+            <div class="signout">⎋ 退出登录</div>
+          </div>
+
+          <div class="group"><span class="flagc">图标换成 SVG；「数据授权」并入 HoloAI 页</span>
+            <div class="ghead"><span class="gt" style="color:#E2713A">AI 与记忆</span></div>
+            <div class="card">
+              <div class="row"><div class="ic c-ai"><svg><use href="#i-sparkle"/></svg></div><div class="rt"><div class="l1">HoloAI</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic c-ai"><svg><use href="#i-thought"/></svg></div><div class="rt"><div class="l1">想法整理</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic c-ai"><svg><use href="#i-playback"/></svg></div><div class="rt"><div class="l1">AI 回放</div><div class="l2">周提醒 · 月提醒 · 自动生成</div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagc">整组蓝色，副标题只留状态</span>
+            <div class="ghead"><span class="gt" style="color:#4A84D8">数据与同步</span></div>
+            <div class="card">
+              <div class="row"><div class="ic c-data"><svg><use href="#i-cloud"/></svg></div><div class="rt"><div class="l1">iCloud 同步</div><div class="l2">已开启 · 刚刚同步</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic c-data"><svg><use href="#i-calendar"/></svg></div><div class="rt"><div class="l1">日历</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic c-data"><svg><use href="#i-database"/></svg></div><div class="rt"><div class="l1">数据管理</div><div class="l2">最近删除 · 清空 · 缓存</div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagc">锁定时机变从属小行；开关只留两个</span>
+            <div class="ghead"><span class="gt" style="color:#1E9E4E">隐私与安全</span></div>
+            <div class="card">
+              <div class="row"><div class="ic c-priv"><svg><use href="#i-lock"/></svg></div><div class="rt"><div class="l1">应用锁</div></div><span class="toggle on"><i></i></span></div>
+              <div class="row subrow"><div class="ic c-priv"><svg><use href="#i-timing"/></svg></div><div class="rt"><div class="l1">锁定时机</div></div><span class="val">5 分钟</span><span class="chev">›</span></div>
+              <div class="row"><div class="ic c-priv"><svg><use href="#i-widget"/></svg></div><div class="rt"><div class="l1">小组件显示想法原文</div><div class="l2">关闭后桌面只显示来源提示</div></div><span class="toggle on"><i></i></span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagc">副标题全砍，只留当前值</span>
+            <div class="ghead"><span class="gt" style="color:#8E8A80">通用</span></div>
+            <div class="card">
+              <div class="row"><div class="ic c-gen"><svg><use href="#i-moon"/></svg></div><div class="rt"><div class="l1">外观</div></div><span class="val">跟随系统</span><span class="chev">›</span></div>
+              <div class="row"><div class="ic c-gen"><svg><use href="#i-bell"/></svg></div><div class="rt"><div class="l1">通知</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic c-gen"><svg><use href="#i-chat"/></svg></div><div class="rt"><div class="l1">反馈</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic c-gen"><svg><use href="#i-info"/></svg></div><div class="rt"><div class="l1">关于 Holo</div></div><span class="val">1.1.3</span><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagc">副标题砍掉，红行更克制</span>
+            <div class="card">
+              <div class="row danger"><div class="ic c-danger"><svg><use href="#i-trash"/></svg></div><div class="rt"><div class="l1">删除账号与数据</div></div></div>
+            </div>
+          </div>
+
+        </div></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="below">
+  <div class="panel">
+    <h4>🔍 我以挑剔用户身份重走一遍，抓出的问题（左屏红点）</h4>
+    <ol>
+      <li><span class="num">❶</span><b>图标杂乱且会消失</b>：彩色 emoji 风格不统一（✨💭🎞️☁️ 各画各的），部分设备直接不显示；行与行颜色跳（橙/蓝/紫乱序），扫视时眼睛无处安放。</li>
+      <li><span class="num">❷</span><b>隐私组三种语义混排</b>：「应用锁」是开关、「锁定时机」是它的附属设置、「小组件」是另一件事，却以同等身份并排三行；还有一条 26 字的长副标题压底。</li>
+      <li><span class="num">❸</span><b>文字墙</b>：全页 13 条副标题几乎每行两条小字，「数据概览 · 最近删除 · 清理缓存 · 清空所有数据」这类罗列没人读；标题反而被淹没。</li>
+      <li><span class="num">❹</span><b>入口分不清</b>：「HoloAI」和「HoloAI 数据授权」两个入口并列，新用户不知道点哪个、它们的边界是什么。</li>
+    </ol>
+  </div>
+  <div class="panel">
+    <h4>🛠️ v3 对应的四个修法（右屏绿标）</h4>
+    <table>
+      <tr><th>改动</th><th>效果</th></tr>
+      <tr><td class="from">emoji → 内联 SVG 线条图标</td><td>必然显示；单色线条贴近 App 真实图标质感</td></tr>
+      <tr><td class="from">图标按组配色</td><td>AI 橙 / 数据蓝 / 隐私绿 / 通用灰 / 危险红，分区一眼可辨</td></tr>
+      <tr><td class="from">副标题 13 → 5 条</td><td>只留「状态值」（同步状态/当前值/版本号），罗列式文案全砍</td></tr>
+      <tr><td class="from">锁定时机降为从属行</td><td>缩进小字行，仅在应用锁开启时出现，层级分明</td></tr>
+      <tr><td class="from">「数据授权」并入 HoloAI 页</td><td>AI 组 4 行 → 3 行，入口不再撞车（撤回授权在 HoloAI 页首屏顶栏，仍然直达）</td></tr>
+      <tr><td class="from">行文更短</td><td>「想法设置→想法整理」「通知设置→通知」「反馈给开发者→反馈」「删除账号与 Holo 数据→删除账号与数据」</td></tr>
+    </table>
+  </div>
+</div>
+
+<p class="foot-note">
+  · 全页只剩 5 条副标题：iCloud 状态（动态）、AI 回放功能提示、数据管理范围、小组件行为说明、关于版本号——全是「不看会错过信息」的状态型内容。<br>
+  · 你拍板后我按这版改代码：图标按组配色、砍副标题、改短标题、锁定时机缩进从属、数据授权并入 HoloAI 页首屏。结构（5 组+危险区）不变。
+</p>
+
+<script>
+  const btnL=document.getElementById('btnLight'), btnD=document.getElementById('btnDark');
+  const sOld=document.getElementById('screenOld'), sNew=document.getElementById('screenNew');
+  function setTheme(dark){
+    sOld.classList.toggle('dark',dark); sNew.classList.toggle('dark',dark);
+    btnL.classList.toggle('active',!dark); btnD.classList.toggle('active',dark);
+  }
+  btnL.onclick=()=>setTheme(false); btnD.onclick=()=>setTheme(true);
+</script>
+</body>
+</html>
