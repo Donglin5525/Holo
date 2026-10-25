@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import CoreData
 
 enum HoloMemoryRecordDetailChange {
     case updated(HoloMemoryRecord)
@@ -23,7 +22,6 @@ struct HoloMemoryRecordDetailView: View {
     @State private var correctionText = ""
     @State private var showForgetConfirmation = false
     @State private var selectedEvidence: HoloMemoryEvidenceRef?
-    @State private var liveEvidenceText: String?
 
     let onChange: (HoloMemoryRecordDetailChange) -> Void
 
@@ -64,7 +62,7 @@ struct HoloMemoryRecordDetailView: View {
             correctionSheet
         }
         .sheet(item: $selectedEvidence) { evidence in
-            evidencePreviewSheet(evidence)
+            HoloMemoryEvidencePreviewSheet(evidence: evidence)
         }
         .confirmationDialog(
             "不再使用这条记忆？",
@@ -178,10 +176,10 @@ struct HoloMemoryRecordDetailView: View {
     private func evidenceRowContent(_ evidence: HoloMemoryEvidenceRef) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: HoloSpacing.xs) {
-                Image(systemName: evidenceIcon(evidence.kind))
+                Image(systemName: HoloMemoryEvidencePreviewSheet.evidenceIcon(evidence.kind))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.holoPrimary)
-                Text("\(evidence.sourceDomain.userFacingName) · \(evidenceTitle(evidence.kind))")
+                Text("\(evidence.sourceDomain.userFacingName) · \(HoloMemoryEvidencePreviewSheet.evidenceTitle(evidence.kind))")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
@@ -207,7 +205,7 @@ struct HoloMemoryRecordDetailView: View {
     private func handleEvidenceTap(_ evidence: HoloMemoryEvidenceRef) {
         if let target = HoloMemoryEvidenceRouter.deepLinkTarget(for: evidence) {
             // 跳转前校验原始记录仍存活（不存在或已进回收站都视为已清除，让用户有感知）
-            guard isEvidenceSourceAlive(evidence) else {
+            guard HoloMemoryEvidenceSourceAliveCheck.isAlive(evidence) else {
                 HoloToastCenter.shared.show("该记录已被清除", type: .info)
                 return
             }
@@ -216,74 +214,6 @@ struct HoloMemoryRecordDetailView: View {
         } else {
             selectedEvidence = evidence
         }
-    }
-
-    /// 可路由证据的 sourceID 是否仍指向一条未删除的原始记录
-    private func isEvidenceSourceAlive(_ evidence: HoloMemoryEvidenceRef) -> Bool {
-        guard let entityName = HoloMemoryEvidenceRouter.sourceEntityName(for: evidence),
-              let sourceID = evidence.sourceID,
-              let uuid = UUID(uuidString: sourceID) else { return false }
-        let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
-        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", uuid as CVarArg)
-        request.fetchLimit = 1
-        return ((try? CoreDataStack.shared.viewContext.count(for: request)) ?? 0) > 0
-    }
-
-    private func evidencePreviewSheet(_ evidence: HoloMemoryEvidenceRef) -> some View {
-        NavigationStack {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                    Label(
-                        "\(evidence.sourceDomain.userFacingName) · \(evidenceTitle(evidence.kind))",
-                        systemImage: evidenceIcon(evidence.kind)
-                    )
-                    .font(.holoLabel)
-                    .foregroundColor(.holoPrimary)
-
-                    Text(previewBody(for: evidence))
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text("观察时间：\(evidence.observedAt.formatted(.dateTime.year().month().day()))")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextPlaceholder)
-
-                    Text(evidence.kind == .explicitUserStatement
-                         ? "这是你在对话里明确表达过的内容，Holo 据此形成了这条记忆。"
-                         : "这是 Holo 形成这条记忆时依据的原始记录。")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary)
-                }
-                .padding(HoloSpacing.lg)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .background(Color.holoBackground.ignoresSafeArea())
-            .navigationTitle("记忆出处")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") { selectedEvidence = nil }
-                }
-            }
-            .task(id: evidence.id) {
-                liveEvidenceText = nil
-                liveEvidenceText = await HoloMemoryEvidenceSourceLookup.liveText(for: evidence)
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    /// 存量证据未保存摘要时按 sourceID 回查原文；查不到（已删除/不存在）才落占位文案。
-    private func previewBody(for evidence: HoloMemoryEvidenceRef) -> String {
-        if let summary = evidence.summary?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !summary.isEmpty {
-            return summary
-        }
-        if let liveEvidenceText, !liveEvidenceText.isEmpty {
-            return liveEvidenceText
-        }
-        return "原始记录已删除，无法显示当时的原文。"
     }
 
     private var feedbackSection: some View {
@@ -440,19 +370,4 @@ struct HoloMemoryRecordDetailView: View {
         isWorking = false
     }
 
-    private func evidenceTitle(_ kind: HoloMemoryEvidenceKind) -> String {
-        switch kind {
-        case .entityRef: return "具体记录"
-        case .aggregateSnapshot: return "一段时间的汇总"
-        case .explicitUserStatement: return "你明确说过的内容"
-        }
-    }
-
-    private func evidenceIcon(_ kind: HoloMemoryEvidenceKind) -> String {
-        switch kind {
-        case .entityRef: return "doc.text"
-        case .aggregateSnapshot: return "chart.bar"
-        case .explicitUserStatement: return "person.crop.circle.badge.checkmark"
-        }
-    }
 }

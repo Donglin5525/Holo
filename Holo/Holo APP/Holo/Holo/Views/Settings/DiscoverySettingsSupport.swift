@@ -8,6 +8,35 @@
 //
 
 import SwiftUI
+import Combine
+
+/// 「一个发现」设置状态的 SwiftUI 桥：把 DiscoveryService 的拉取模型
+/// （plain var 快照）变成可观察发布，供统一设置页主条目摘要与子页共用同一份。
+///
+/// 服务协议没有变化回调（协调器非 ObservableObject，V1 拉取模型），所以本桥
+/// 不猜变化时机：页面每次动作完成（开启/关闭/重置）后显式调 reload()，
+/// onAppear 时也重拉一次——操作之后页面立即跟上，不再依赖重新进页。
+@MainActor
+final class DiscoverySettingsWatcher: ObservableObject {
+
+    @Published private(set) var detailState: DiscoverySettingsDetailState
+    /// 本机允许范围真源（开启时选定；修改需服务端 scope 语义，V1 只读展示）
+    @Published private(set) var allowedDomains: Set<DiscoverySourceDomain>
+
+    private let service: any DiscoveryService
+
+    init(service: any DiscoveryService) {
+        self.service = service
+        self.detailState = service.settingsDetailState
+        self.allowedDomains = DiscoverySettings.shared.snapshot().allowedDomains
+    }
+
+    /// 重拉服务状态与本机范围（纯读，无网络无副作用）
+    func reload() {
+        detailState = service.settingsDetailState
+        allowedDomains = DiscoverySettings.shared.snapshot().allowedDomains
+    }
+}
 
 /// 九态 → 设置页文案（主行 + 说明行）的唯一定义处
 enum DiscoverySettingsCopy {
@@ -91,4 +120,41 @@ struct DiscoveryDomainMeta: Identifiable {
         DiscoveryDomainMeta(domain: .task, title: "任务", subtitle: "待办的创建与完成情况", icon: "checklist"),
         DiscoveryDomainMeta(domain: .habit, title: "习惯", subtitle: "习惯打卡记录", icon: "flame")
     ]
+}
+
+/// 「自动处理如何进行」说明子页：设置页的边界与透明度说明收进这里，
+/// 主页保持轻（原型 discoverySettings 页即为一行入口）。
+struct DiscoveryProcessingNoteView: View {
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                bullet("有新材料时，Holo 自动把你允许范围内的必要片段，通过 Holo 后端交给第三方 AI 理解并核验；不承诺只在本地推理。", icon: "arrow.triangle.branch")
+                bullet("先有依据、再呈现：记录不足或解释不可靠时不展示；呈现的发现都附可打开的记录依据。", icon: "checkmark.shield")
+                bullet("不承诺每日、实时或一定有发现；不发通知、不打扰。", icon: "bell.slash")
+                bullet("关闭即停止：取消未完成任务并删除派生内容；已发出的请求尽力取消，迟到结果不再采纳。", icon: "stop.circle")
+                bullet("不读取长期记忆，也不写入长期记忆。", icon: "brain")
+            }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.vertical, HoloSpacing.md)
+        }
+        .background(Color.holoToolBackground.ignoresSafeArea())
+        .navigationTitle("自动处理如何进行")
+        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityIdentifier("settings.discovery.processingNote")
+    }
+
+    private func bullet(_ text: String, icon: String) -> some View {
+        HStack(alignment: .top, spacing: HoloSpacing.sm) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .frame(width: 18)
+                .accessibilityHidden(true)
+            Text(text)
+                .holoText(.supporting)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
 }

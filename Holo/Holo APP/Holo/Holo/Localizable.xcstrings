@@ -562,85 +562,6 @@
         }
       }
     },
-    "关闭后桌面只显示来源提示" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "When off, widgets only show the source"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "關閉後桌面只顯示來源提示"
-          }
-        }
-      }
-    },
-    "将停止自动理解，并清除已生成的发现；你的原始记录与已有记忆不受影响。" : {
-
-    },
-    "小组件显示想法原文" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Widgets show thought text"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "小工具顯示想法原文"
-          }
-        }
-      }
-    },
-    "已重置，之前隐藏过的类别之后可能再次出现。" : {
-
-    },
-    "最近删除 · 清空 · 缓存" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recently deleted · Erase · Cache"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最近刪除 · 清空 · 快取"
-          }
-        }
-      }
-    },
-    "查看来源：%@记录" : {
-
-    },
-    "清除你给过的「不太准确」与「不想看这类」反馈；不影响任何业务数据。" : {
-
-    },
-    "自动处理如何进行" : {
-
-    },
-    "通知" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Notifications"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "通知"
-          }
-        }
-      }
-    },
     "，一点就记账。" : {
 
     },
@@ -3356,6 +3277,7 @@
       }
     },
     "%@，%@，%lld项" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -8547,6 +8469,7 @@
       }
     },
     "AI 与记忆" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -9066,6 +8989,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI 服務暫時不可用，請稍後重試"
+          }
+        }
+      }
+    },
+    "AI 服务的 API 密钥（出于安全考虑）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API keys for AI services (kept out for security)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服務的 API 金鑰（基於安全考量）"
           }
         }
       }
@@ -11167,6 +11106,7 @@
       }
     },
     "iOS 不保证准时执行，下次打开 App 时会补生成" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -16080,6 +16020,7 @@
       }
     },
     "了解象限规则" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19080,6 +19021,7 @@
       }
     },
     "从待整理挑一件放进来\n按住任务可拖动" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -23367,6 +23309,22 @@
         }
       }
     },
+    "健康数据（在系统健康 App 中，不在 App 数据库内）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health data (lives in the Health app, not in the app's database)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "健康資料（在系統健康 App 中，不在 App 資料庫內）"
+          }
+        }
+      }
+    },
     "健康数据不可用" : {
       "localizations" : {
         "en" : {
@@ -23779,6 +23737,7 @@
 
     },
     "允许后台自动尝试生成" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -23931,6 +23890,7 @@
       }
     },
     "先判断重要性，再决定放在哪里" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -24783,6 +24743,22 @@
         }
       }
     },
+    "全部模块数据：财务、任务、想法、习惯、目标、纪念日、计划、聊天与 AI 记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All module data: finance, tasks, thoughts, habits, goals, anniversaries, plans, chats, and AI memories"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部模組資料：財務、任務、想法、習慣、目標、紀念日、計劃、聊天與 AI 記憶"
+          }
+        }
+      }
+    },
     "全部模块数据进入 30 天回收站；不影响账号、订阅与设置" : {
       "localizations" : {
         "en" : {
@@ -25625,6 +25601,7 @@
       }
     },
     "关闭后「想法随机漫步」小组件只显示来源提示，不显示内容" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -25685,6 +25662,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉後新想法不再自動請求 AI，但歷史標籤不受影響；你仍可對單條想法點「重新整理」，或在想法列表手動批次整理。"
+          }
+        }
+      }
+    },
+    "关闭后桌面只显示来源提示" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When off, widgets only show the source"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉後桌面只顯示來源提示"
           }
         }
       }
@@ -26759,6 +26752,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最近刪除"
+          }
+        }
+      }
+    },
+    "最近删除 · 清空 · 缓存" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recently deleted · Erase · Cache"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近刪除 · 清空 · 快取"
           }
         }
       }
@@ -27861,6 +27870,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享圖片"
+          }
+        }
+      }
+    },
+    "分享备份文件" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share Backup File"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分享備份檔案"
           }
         }
       }
@@ -29762,6 +29787,7 @@
       }
     },
     "删除账号与 Holo 数据" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -33097,6 +33123,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取消完成%@"
+          }
+        }
+      }
+    },
+    "取消导出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel Export"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消匯出"
           }
         }
       }
@@ -37852,6 +37894,22 @@
         }
       }
     },
+    "备份文件为明文 ZIP，其中包含敏感记忆（仅本机、不参与 iCloud 同步的部分），请妥善保管。当前版本支持导出，暂不支持从备份恢复。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The backup is a plain (unencrypted) ZIP file and includes your sensitive memories (the part kept only on this device, not synced through iCloud). Keep it safe. This version exports data only; restoring from a backup is not supported yet."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備份檔案為明文 ZIP，其中包含敏感記憶（僅本機、不參與 iCloud 同步的部分），請妥善保管。目前版本支援匯出，暫不支援從備份還原。"
+          }
+        }
+      }
+    },
     "备份本机数据未完成（" : {
       "localizations" : {
         "en" : {
@@ -40665,6 +40723,22 @@
         }
       }
     },
+    "导出全部数据" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export All Data"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出全部資料"
+          }
+        }
+      }
+    },
     "导出失败" : {
       "localizations" : {
         "en" : {
@@ -40677,6 +40751,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "匯出失敗"
+          }
+        }
+      }
+    },
+    "导出完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export Complete"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出完成"
           }
         }
       }
@@ -40825,6 +40915,9 @@
           }
         }
       }
+    },
+    "将停止自动理解，并清除已生成的发现；你的原始记录与已有记忆不受影响。" : {
+
     },
     "将全局重命名「%@」；若与已有标签同名会自动合并" : {
       "localizations" : {
@@ -41323,6 +41416,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "小確幸正在悄悄積累"
+          }
+        }
+      }
+    },
+    "小组件显示想法原文" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Widgets show thought text"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "小工具顯示想法原文"
           }
         }
       }
@@ -43720,6 +43829,7 @@
       }
     },
     "已开启 · %@" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -44094,6 +44204,7 @@
       }
     },
     "已按大字号展开" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -44126,6 +44237,7 @@
       }
     },
     "已授权，可随时撤回" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -46667,6 +46779,9 @@
         }
       }
     },
+    "已重置，之前隐藏过的类别之后可能再次出现。" : {
+
+    },
     "已重置：可以立即重新运行；用户记忆和业务数据未改动" : {
       "localizations" : {
         "en" : {
@@ -47389,6 +47504,7 @@
       }
     },
     "建议、问题、吐槽都欢迎，留个联系方式我们能找你" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -47773,6 +47889,7 @@
       }
     },
     "开启后打开 App 需面容 ID 或手机密码验证" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -47947,6 +48064,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開始前，確認一項授權"
+          }
+        }
+      }
+    },
+    "开始导出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start Export"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始匯出"
           }
         }
       }
@@ -53338,6 +53471,22 @@
         }
       }
     },
+    "打包全部模块数据为 ZIP 备份，含附件与敏感记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Package all module data into a ZIP backup, with attachments and sensitive memories"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將全部模組資料打包為 ZIP 備份，含附件與敏感記憶"
+          }
+        }
+      }
+    },
     "打卡" : {
       "localizations" : {
         "en" : {
@@ -54043,6 +54192,22 @@
     "把「%@」留给自己？" : {
 
     },
+    "把你的全部数据打包带走" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take all your data with you in one backup"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把你的全部資料打包帶走"
+          }
+        }
+      }
+    },
     "把你的财务、习惯、任务、想法放在一起看，找出单看一处发现不了的规律。" : {
       "localizations" : {
         "en" : {
@@ -54285,6 +54450,7 @@
       }
     },
     "把零碎小事集中处理\n点 ＋ 添加任务" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -58956,6 +59122,22 @@
         }
       }
     },
+    "敏感记忆：仅存在本机的那部分记忆" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sensitive memories: the ones stored only on this device"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "敏感記憶：僅存在本機的那部分記憶"
+          }
+        }
+      }
+    },
     "散步" : {
       "localizations" : {
         "en" : {
@@ -59410,6 +59592,7 @@
       }
     },
     "数据概览 · 最近删除 · 清理缓存 · 清空所有数据" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -59966,6 +60149,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檔案"
+          }
+        }
+      }
+    },
+    "文件包含敏感记忆，请妥善保管。建议保存到「文件」App 或其他安全位置。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This file contains sensitive memories. Keep it safe — saving it to the Files app or another secure location is recommended."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案包含敏感記憶，請妥善保管。建議儲存到「檔案」App 或其他安全位置。"
           }
         }
       }
@@ -63095,6 +63294,7 @@
       }
     },
     "智能整理、主题与标签管理" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -64367,6 +64567,7 @@
       }
     },
     "暂时没有这类任务\n点 ＋ 添加任务" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -65059,6 +65260,7 @@
       }
     },
     "有 %lld 件事等着归位\n从待整理挑一件放进来" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -66431,6 +66633,7 @@
       }
     },
     "未授权，AI 功能暂停" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -69276,6 +69479,7 @@
       }
     },
     "查看%@全部%lld项" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -69885,6 +70089,9 @@
           }
         }
       }
+    },
+    "查看来源：%@记录" : {
+
     },
     "查看来源想法" : {
       "localizations" : {
@@ -70787,6 +70994,7 @@
 
     },
     "桌面小组件显示想法原文" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -71494,6 +71702,38 @@
         }
       }
     },
+    "正在导出，请保持 App 在前台" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporting — please keep the app in the foreground"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在匯出，請保持 App 在前景"
+          }
+        }
+      }
+    },
+    "正在导出：%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exporting: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在匯出：%@"
+          }
+        }
+      }
+    },
     "正在将语音整理成更适合想法记录的表达" : {
       "localizations" : {
         "en" : {
@@ -71587,6 +71827,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在想清楚"
+          }
+        }
+      }
+    },
+    "正在打包备份文件" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Packaging the backup file"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在打包備份檔案"
           }
         }
       }
@@ -72877,6 +73133,7 @@
       }
     },
     "每%@ %@:00" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -73147,6 +73404,7 @@
       }
     },
     "每周提醒 · 每月提醒 · 后台自动生成" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -73486,6 +73744,7 @@
       }
     },
     "每日早报 · 习惯提醒 · 周一晨报 · AI 回放" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -73601,6 +73860,7 @@
       }
     },
     "每月%lld日 %@:00" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -74461,6 +74721,7 @@
       }
     },
     "没有待整理任务" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -76763,6 +77024,9 @@
         }
       }
     },
+    "清除你给过的「不太准确」与「不想看这类」反馈；不影响任何业务数据。" : {
+
+    },
     "清除所有" : {
       "localizations" : {
         "en" : {
@@ -76812,6 +77076,7 @@
       }
     },
     "清除本机数据、附件、AI 记忆和登录状态" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -80214,6 +80479,7 @@
       }
     },
     "眼前没有急事\n点 ＋ 添加任务" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -83409,6 +83675,7 @@
       }
     },
     "系统日历接入与任务双向同步" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -84518,6 +84785,7 @@
       }
     },
     "给重要的事留一点时间\n点 ＋ 添加任务" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -85977,6 +86245,9 @@
           }
         }
       }
+    },
+    "自动处理如何进行" : {
+
     },
     "自动形成已关闭" : {
       "extractionState" : "stale",
@@ -93733,6 +94004,7 @@
       }
     },
     "跟随系统 · 浅色 · 深色" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -102217,6 +102489,22 @@
         }
       }
     },
+    "通知" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知"
+          }
+        }
+      }
+    },
     "通知只用于提示已入账或需要复核。关闭后仍会正常识别和记账，快捷指令也会显示结果。" : {
       "localizations" : {
         "en" : {
@@ -103717,6 +104005,7 @@
       }
     },
     "重要性决定取舍，紧急性决定先后。按住任务可拖动归类，也可以在详情中移动。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -104762,6 +105051,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "附件"
+          }
+        }
+      }
+    },
+    "附件图片：小票、任务与想法图片、头像" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attachments: receipts, task and thought images, and your avatar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附件圖片：小票、任務與想法圖片、頭像"
           }
         }
       }
@@ -106646,6 +106951,7 @@
       }
     },
     "默认关闭" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

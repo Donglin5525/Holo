@@ -501,6 +501,9 @@ nonisolated final class DiscoveryStore {
     private let feedbackKey: SymmetricKey
     private let feedbackSalt: String
 
+    /// 只读外部读取入口（全局导出等），不暴露写路径
+    var persistentContainer: NSPersistentContainer { container }
+
     private static let jsonEncoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

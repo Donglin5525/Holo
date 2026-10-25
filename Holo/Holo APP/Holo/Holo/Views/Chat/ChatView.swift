@@ -796,10 +796,7 @@ struct ChatView: View {
             }
         #endif
         case .holoAIUserSettings:
-            HoloAIUserSettingsView(
-                discoveryState: viewModel.discoveryService.settingsDetailState,
-                discoveryService: viewModel.discoveryService
-            )
+            HoloAIUserSettingsView(discoveryService: viewModel.discoveryService)
         case .editTransaction(let transaction):
             let originalTransactionID = transaction.id
             AddTransactionSheet(editingTransaction: transaction) { savedTransaction in

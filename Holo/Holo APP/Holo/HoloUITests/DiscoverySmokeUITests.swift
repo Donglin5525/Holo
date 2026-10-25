@@ -107,6 +107,8 @@ final class DiscoverySmokeUITests: XCTestCase {
                 if btn.exists { return btn }
                 let cell = app.cells[id].firstMatch
                 if cell.exists { return cell }
+                let sw = app.switches[id].firstMatch
+                if sw.exists { return sw }
             }
         }
         if let labels {
@@ -115,8 +117,81 @@ final class DiscoverySmokeUITests: XCTestCase {
                 if el.exists { return el }
                 let btn = app.buttons[label].firstMatch
                 if btn.exists { return btn }
+                let sw = app.switches[label].firstMatch
+                if sw.exists { return sw }
             }
         }
         return nil
+    }
+
+    /// 2026-10-25 设置子页重设计回归：开关→首开弹层→提交反馈整条链
+    /// （idb 合成点击对 iOS 26 开关不生效，XCUITest 走 AX 通道是开关交互的验证通道）
+    func test_发现子页_开关可开出首开弹层_提交后有反馈() {
+        skipOnboardingIfNeeded()
+        // 首页 → AI 对话页（闪光入口；首 tap 可能被吞，未进页则补点）
+        let chatEntry = app.buttons["闪光"].firstMatch
+        XCTAssertTrue(chatEntry.waitForExistence(timeout: 8), "首页应有闪光入口")
+        chatEntry.tap()
+        sleep(2)
+        // 齿轮 → 统一设置 → 一个发现子页（行可能是 button/other 两种形态，故用助手）
+        var row: XCUIElement?
+        for _ in 0..<2 where row == nil {
+            let gear = app.buttons["chat.nav.aiSettings"].firstMatch
+            XCTAssertTrue(gear.waitForExistence(timeout: 8))
+            gear.tap()
+            sleep(2)
+            row = firstExisting(identifiers: ["settings.holoai.main.discovery"], labels: ["一个发现"])
+        }
+        guard let row else {
+            XCTFail("统一设置页应有「一个发现」主条目")
+            return
+        }
+        row.tap()
+        sleep(2)
+        // 开关 → 首开弹层（必须点开关本体；行标题文本点了没作用）
+        var toggle = app.switches["settings.discovery.toggle"].firstMatch
+        if !toggle.exists {
+            toggle = app.switches.matching(
+                NSPredicate(format: "label == '开启一个发现'")
+            ).firstMatch
+        }
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "子页应有功能开关")
+        toggle.tap()
+        // 弹层内：选一类来源 + 同意 + 提交
+        let domainRow = firstExisting(identifiers: ["chat.discovery.enable.domain.thought"], labels: ["想法"])
+        guard let domainRow else {
+            print("=== ENABLE SHEET AX DUMP START ===")
+            print(app.debugDescription)
+            print("=== ENABLE SHEET AX DUMP END ===")
+            XCTFail("首开弹层应出现且含来源选择")
+            return
+        }
+        domainRow.tap()
+        sleep(1)
+        // 同意勾选在首屏折叠线以下，先滚出来再找
+        app.swipeUp()
+        sleep(1)
+        let agree = firstExisting(identifiers: ["chat.discovery.enable.agree"], labels: ["我了解并同意上述说明"])
+        guard let agree else {
+            print("=== AGREE AX DUMP START ===")
+            print(app.debugDescription)
+            print("=== AGREE AX DUMP END ===")
+            XCTFail("应有同意勾选")
+            return
+        }
+        agree.tap()
+        sleep(1)
+        let submit = app.buttons["同意并开启"].firstMatch
+        XCTAssertTrue(submit.waitForExistence(timeout: 3))
+        submit.tap()
+        // 提交后必有反馈：后端未开闸=弹层内说明保持关闭；开闸=开关变开
+        let outcome = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS '开关' OR label CONTAINS '暂不支持' OR label CONTAINS '稍后'")
+        ).firstMatch
+        let outcomeShown = outcome.waitForExistence(timeout: 12)
+        let toggleAfter = firstExisting(identifiers: ["settings.discovery.toggle"], labels: nil)
+        let turnedOn = toggleAfter?.exists == true && (toggleAfter?.value as? String) == "1"
+        XCTAssertTrue(outcomeShown || turnedOn == true, "提交后应出现结果反馈或开关变为开启")
+        XCTAssertEqual(app.state, .runningForeground, "整链存活")
     }
 }

@@ -95,6 +95,10 @@ final class HoloMemoryCenterDetailViewModel: ObservableObject {
 struct HoloMemoryCenterDetailView: View {
     @StateObject private var viewModel: HoloMemoryCenterDetailViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedEvidence: HoloMemoryEvidenceRef?
+    /// 证据行展示原始记录自身的事件时间（任务完成日/交易发生日），
+    /// 而不是萃取观察时间——用户要能对上「我那天做了什么」。回查不到回落观察时间。
+    @State private var evidenceEventDates: [String: Date] = [:]
 
     /// autoOpenEdit：从观察行「改一下」直达时自动打开编辑弹层。
     init(recordID: String, autoOpenEdit: Bool = false) {
@@ -170,6 +174,12 @@ struct HoloMemoryCenterDetailView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         case .loaded(let record, let projection, let events):
             detailBody(record: record, projection: projection, events: events)
+                .task(id: record.id) {
+                    await loadEvidenceEventDates(for: record.evidenceRefs)
+                }
+                .sheet(item: $selectedEvidence) { evidence in
+                    HoloMemoryEvidencePreviewSheet(evidence: evidence)
+                }
         }
     }
 
@@ -285,7 +295,29 @@ struct HoloMemoryCenterDetailView: View {
         .padding(.horizontal, 15)
     }
 
+    @ViewBuilder
     private func sourceRow(_ evidence: HoloMemoryEvidenceRef) -> some View {
+        // 汇总类证据没有单一出处，保持纯展示；其余可点：有详情页的直达，否则弹出处预览。
+        if evidence.kind == .aggregateSnapshot {
+            sourceRowContent(evidence)
+        } else {
+            Button {
+                handleEvidenceTap(evidence)
+            } label: {
+                HStack(spacing: 11) {
+                    sourceRowContent(evidence)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.holoToolTextSecondary.opacity(0.6))
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("查看来源：\(domainTitle(evidence.sourceDomain))记录")
+        }
+    }
+
+    private func sourceRowContent(_ evidence: HoloMemoryEvidenceRef) -> some View {
         HStack(spacing: 11) {
             Image(systemName: evidenceIconName(evidence.sourceDomain))
                 .font(.system(size: 15))
@@ -293,7 +325,7 @@ struct HoloMemoryCenterDetailView: View {
                 .frame(width: 34, height: 34)
                 .background(Color.holoToolInset, in: RoundedRectangle(cornerRadius: 10))
             VStack(alignment: .leading, spacing: 3) {
-                Text("\(domainTitle(evidence.sourceDomain))记录 · \(shortDate(evidence.observedAt))")
+                Text("\(domainTitle(evidence.sourceDomain))记录 · \(shortDate(evidenceEventDates[evidence.id] ?? evidence.observedAt))")
                     .font(.system(size: 13.5, weight: .semibold)).foregroundStyle(Color.holoToolText)
                 Text("可点进对应记录核对")
                     .font(.system(size: 12.5)).foregroundStyle(Color.holoToolTextSecondary)
@@ -302,6 +334,28 @@ struct HoloMemoryCenterDetailView: View {
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func handleEvidenceTap(_ evidence: HoloMemoryEvidenceRef) {
+        if let target = HoloMemoryEvidenceRouter.deepLinkTarget(for: evidence) {
+            // 跳转前校验原始记录仍存活（不存在或已进回收站都视为已清除，让用户有感知）
+            guard HoloMemoryEvidenceSourceAliveCheck.isAlive(evidence) else {
+                HoloToastCenter.shared.show("该记录已被清除", type: .info)
+                return
+            }
+            DeepLinkState.shared.navigate(to: target)
+        } else {
+            selectedEvidence = evidence
+        }
+    }
+
+    private func loadEvidenceEventDates(for evidenceRefs: [HoloMemoryEvidenceRef]) async {
+        for evidence in evidenceRefs where evidenceEventDates[evidence.id] == nil {
+            if let date = await HoloMemoryEvidenceSourceLookup.sourceEventDate(for: evidence) {
+                evidenceEventDates[evidence.id] = date
+            }
+        }
     }
 
     // MARK: - 操作区（投影 allowedActions 唯一判据）

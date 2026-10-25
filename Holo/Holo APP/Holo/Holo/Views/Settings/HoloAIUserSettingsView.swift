@@ -19,17 +19,26 @@ import SwiftUI
 
 struct HoloAIUserSettingsView: View {
 
-    /// 「一个发现」主条目状态摘要（主会话观察服务后传入）
-    let discoveryState: DiscoverySettingsDetailState
     let discoveryService: any DiscoveryService
+    /// 「一个发现」状态源：主条目摘要与子页共用，动作后即时刷新
+    @StateObject private var discoveryWatcher: DiscoverySettingsWatcher
     /// 长期记忆子页内「查看与管理记忆」（记忆长廊）的路由由主会话接
     var onOpenMemoryGallery: () -> Void = {}
+
+    init(
+        discoveryService: any DiscoveryService,
+        onOpenMemoryGallery: @escaping () -> Void = {}
+    ) {
+        self.discoveryService = discoveryService
+        self._discoveryWatcher = StateObject(wrappedValue: DiscoverySettingsWatcher(service: discoveryService))
+        self.onOpenMemoryGallery = onOpenMemoryGallery
+    }
 
     var body: some View {
         NavigationStack {
             HoloAIUserSettingsContent(
-                discoveryState: discoveryState,
                 discoveryService: discoveryService,
+                discoveryWatcher: discoveryWatcher,
                 onOpenMemoryGallery: onOpenMemoryGallery
             )
         }
@@ -40,8 +49,8 @@ struct HoloAIUserSettingsView: View {
 
 struct HoloAIUserSettingsContent: View {
 
-    let discoveryState: DiscoverySettingsDetailState
     let discoveryService: any DiscoveryService
+    @ObservedObject var discoveryWatcher: DiscoverySettingsWatcher
     var onOpenMemoryGallery: () -> Void = {}
 
     private enum Destination: String, Hashable {
@@ -83,7 +92,11 @@ struct HoloAIUserSettingsContent: View {
         .navigationDestination(for: Destination.self) { destination in
             switch destination {
             case .discovery:
-                DiscoverySettingsView(state: discoveryState, service: discoveryService)
+                DiscoverySettingsView(
+                    service: discoveryService,
+                    watcher: discoveryWatcher,
+                    onOpenGlobalConsent: { showsAIConsent = true }
+                )
             case .memory:
                 PersonalMemorySettingsView(onOpenMemoryGallery: onOpenMemoryGallery)
             case .replay:
@@ -112,7 +125,7 @@ struct HoloAIUserSettingsContent: View {
                 HoloSettingsRow(
                     icon: "sparkles",
                     title: "一个发现",
-                    subtitle: "安静整理记录中的变化与联系 · \(DiscoverySettingsCopy.summaryText(for: discoveryState))",
+                    subtitle: "安静整理记录中的变化与联系 · \(DiscoverySettingsCopy.summaryText(for: discoveryWatcher.detailState))",
                     trailing: { HoloSettingsChevron() }
                 )
             }

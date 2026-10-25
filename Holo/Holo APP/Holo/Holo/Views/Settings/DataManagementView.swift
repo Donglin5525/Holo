@@ -19,6 +19,7 @@ struct DataManagementView: View {
     @State private var moduleCounts: [RecycleBinModule: Int] = [:]
     @State private var isLoadingCounts = true
     @State private var showRecycleBin = false
+    @State private var showGlobalExport = false
     @State private var showClearAllConfirm = false
     @State private var showCleanupImportedConfirm = false
     @State private var isCleaningImported = false
@@ -36,6 +37,7 @@ struct DataManagementView: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     overviewSection
+                    globalExportSection
                     cacheSection
                     recycleBinSection
                     clearAllSection
@@ -59,6 +61,9 @@ struct DataManagementView: View {
             Task { await reloadData() }
         }) {
             RecycleBinView()
+        }
+        .sheet(isPresented: $showGlobalExport) {
+            GlobalExportView()
         }
         .sheet(isPresented: $showClearAllConfirm, onDismiss: {
             Task { await reloadData() }
@@ -147,6 +152,46 @@ struct DataManagementView: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 11)
+    }
+
+    // MARK: - 导出全部数据（正向操作，与删除类区块分开）
+
+    private var globalExportSection: some View {
+        Button {
+            showGlobalExport = true
+        } label: {
+            HStack(spacing: HoloSpacing.md) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
+                        .fill(Color.holoPrimary.opacity(0.1))
+                        .frame(width: 40, height: 40)
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("导出全部数据")
+                        .font(.holoBody)
+                        .foregroundColor(.holoToolText)
+                    Text("打包全部模块数据为 ZIP 备份，含附件与敏感记忆")
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.holoToolTextSecondary)
+            }
+            .padding(HoloSpacing.md)
+            .background(Color.holoToolSurface)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
     }
 
     // MARK: - 存储与缓存（原设置一级页收编）
