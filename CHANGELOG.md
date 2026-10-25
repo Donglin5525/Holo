@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-10-25] 真机首页「卡死」根治——开发期 CloudKit 工具堵主线程被看门狗连杀，顺带排查全库 67 处后台任务
+
+> 东林实报：Xcode 构建装真机后首页直接卡死。拉设备 .ips 实锤为 watchdog `0x8BADF00D` 三连杀（20:49:40 / 20:49:49 / 20:50:04，另 17:59 首版一次），主线程全部钉在 `-[NSPersistentCloudKitContainer initializeCloudKitSchemaWithOptions:]`（同步阻塞含网络）。该工具为 10-25 下午修 CloudKit 新表上报失灵所加，仅 DEBUG 构建生效，App Store 包不受影响。
+
+- **根因 = 工程默认主线程隔离让「扔后台」静默失效**：工程全 target 开 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`（Xcode 26 新项目默认），未标注的 async 函数被推断为 @MainActor；`Task.detached { await run() }` 闭包虽在后台启动，一 `await` 就把 `run` 拽回主线程执行。首版直接挂主线程卡死后改成 Task.detached 当作修复，实际没逃出去，编译零告警。swiftc 探针三态复现：无默认隔离→后台 ✓ / `-default-isolation MainActor`→主线程 ✗ / 标 `nonisolated` 或改 GCD→后台 ✓；单开 Approachable Concurrency 不复现，主凶是默认隔离。
+- **两刀根治 `CloudKitSchemaInitializer`**：①执行体 `nonisolated` + `DispatchQueue.global(qos: .utility).async` 同步闭包派发——同步闭包内无 await 即无 hop 可能，物理保证线程归属；②触发方式从「每设备自动跑一次 + doneKey 幂等标记」改为启动参数 `-HoloCloudKitSchemaInit` 按需触发——工具使命（Development 上报 + Production 部署）当日已完成，日常构建零执行，此类事故结构性绝迹。下次发版含新表时在 scheme Arguments 加参数，或 `devicectl device process launch <bundle> -- -HoloCloudKitSchemaInit`（**必须 `--` 分隔**，否则被 devicectl 当成自身 `-l` 选项报 Missing value）。
+- **全库排查 67 处 `Task.detached`**：脚本提取闭包内 await 目标→核对声明隔离。≈30 处 CoreData `context.perform` 自带队列安全；≈28 处闭包无 await 纯同步（图片解码 / Keychain `*OffMain` / 文件读）安全；9 处 await 项目函数中 8 处目标已是 `nonisolated`/`actor`。**真隐患仅 1 处 = `HoloReportUnderstandingCoordinator`**（报告融合理解链路协调器 enum 漏标，同链路 Extractor / Adapter / Resolver 均已标注、Ledger / Repository 为 actor，属作者遗漏）——当前开关默认全关故未发作，开关一开整条提取管线落主线程。修法：`nonisolated enum` + 监听注册与静态可变状态显式 `@MainActor` + 开关读取收口为 `@MainActor flagSnapshot()` 各入口一次 hop（`HoloAIFeatureFlags` 本体不动）；探针证 await 主线程快照后回到后台继续。
+- **验证**：模拟器正常启动 15s 存活且工具零执行、加参数派发路径跑通（模拟器无 iCloud 走 CloudKit 不可用分支，未达阻塞调用）；真机（东林 iPhone 17 Pro，Debug 自装）正常启动 15s 存活、带参数启动存活 >5 分钟、修复后设备零新增 .ips；增量构建绿、三文件零新警告。排查方法与两份修复范本入记忆档供新增后台任务复查；防复发闸门（扫描脚本入库 + AGENTS 红线）待东林拍板。纯客户端改动，无后端发版。
+- **顺带记录**：macOS 无 GNU `timeout`，管道中静默失败会把「命令没跑」伪装成「无结果」——本次验证链一度因此断裂，去掉包装重跑后结论不变。
+
+---
+
 ## [2026-10-25] 想法新增八套主题纸，统一编辑、列表与分享排版
 
 - **八套版式、三类字体**：新增远行邮笺、晴日观察、生活票根、一日一页、对折手记、光影胶片、页边书签与点阵便笺；字体随模板自动匹配系统体、宋体类或手写感，照片按模板构图呈现。编辑与列表自动适配明暗，分享固定浅色成图；随包字体保留 OFL 许可与来源，四个 TTF 原始资源约 19.5 MB，非 App Store 下载增量测量。

@@ -236,7 +236,7 @@ struct HoloApp: App {
 
                 // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
                 await CoreDataStack.shared.waitUntilReady()
-                // 开发期一次性显式 schema 上报（UserDefaults 开关门控，仅 DEBUG）
+                // 开发期显式 schema 上报：仅 DEBUG 且加启动参数 -HoloCloudKitSchemaInit 才跑
                 CloudKitSchemaInitializer.runIfNeeded(container: CoreDataStack.shared.persistentContainer)
                 // 先恢复用户主动发起的周期回放，再执行低优先级自动洞察与历史回填。
                 await HoloPeriodReplayCoordinator.shared.appDidLaunch()

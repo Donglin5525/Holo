@@ -9,13 +9,16 @@
 //    统一仓库 upsert（observationKey=处理键）→ 台账终态 + 影子统计；
 //  - 撤销：报告删除不即时挂钩——启动时对账档案存在性，缺档即撤销该报告证据
 //    （无剩余证据 → suppressed 停用；尚有独立证据 → 保留并已按 lineageKey 去除，R20）。
+//  - 线程：本工程默认 MainActor 隔离，管线整体 nonisolated（与 Extractor/Adapter/
+//    Resolver 同口径），否则 Task.detached 一 await 就被拽回主线程；只有监听注册与
+//    开关读取归主线程，各入口开头一次 hop 读齐开关快照后全程后台。
 //
 
 import CoreData
 import Foundation
 import OSLog
 
-enum HoloReportUnderstandingCoordinator {
+nonisolated enum HoloReportUnderstandingCoordinator {
 
     private static let logger = Logger(
         subsystem: "com.holo.app",
@@ -23,13 +26,28 @@ enum HoloReportUnderstandingCoordinator {
     )
 
     static let sharedLedger = HoloReportUnderstandingLedger()
-    private static var observer: NSObjectProtocol?
-    private static var replayObserver: NSObjectProtocol?
-    private static var started = false
+    @MainActor private static var observer: NSObjectProtocol?
+    @MainActor private static var replayObserver: NSObjectProtocol?
+    @MainActor private static var started = false
+
+    /// 开关本体（HoloAIFeatureFlags）归主线程；管线各入口开头读一次快照，之后不再回主线程。
+    private struct FlagSnapshot {
+        let extraction: Bool
+        let shadow: Bool
+        let memoryWrite: Bool
+    }
+
+    @MainActor private static func flagSnapshot() -> FlagSnapshot {
+        FlagSnapshot(
+            extraction: HoloAIFeatureFlags.reportUnderstandingExtractionEnabled,
+            shadow: HoloAIFeatureFlags.reportUnderstandingShadowEnabled,
+            memoryWrite: HoloAIFeatureFlags.longTermMemoryWriteEnabled
+        )
+    }
 
     // MARK: - 启动与监听
 
-    static func startObserving() {
+    @MainActor static func startObserving() {
         guard !started else { return }
         started = true
 
@@ -81,7 +99,7 @@ enum HoloReportUnderstandingCoordinator {
         }
     }
 
-    static func stopObserving() {
+    @MainActor static func stopObserving() {
         if let obs = observer { NotificationCenter.default.removeObserver(obs); observer = nil }
         if let obs = replayObserver { NotificationCenter.default.removeObserver(obs); replayObserver = nil }
         started = false
@@ -93,14 +111,13 @@ enum HoloReportUnderstandingCoordinator {
         descriptor: HoloReportDescriptor,
         evidence: [HoloReportEvidenceMaterial]
     ) async {
-        let extractionEnabled = HoloAIFeatureFlags.reportUnderstandingExtractionEnabled
-        let shadowEnabled = HoloAIFeatureFlags.reportUnderstandingShadowEnabled
-        guard extractionEnabled || shadowEnabled else { return }
+        let flags = await flagSnapshot()
+        guard flags.extraction || flags.shadow else { return }
         // 用户记忆总开关为最高约束（R23 前置；写库前还有二次检查）
-        guard HoloAIFeatureFlags.longTermMemoryWriteEnabled else { return }
+        guard flags.memoryWrite else { return }
 
         // 影子模式：只算不写（不动台账，避免污染正式认领）
-        if shadowEnabled && !extractionEnabled {
+        if flags.shadow && !flags.extraction {
             await runShadow(descriptor: descriptor, evidence: evidence)
             return
         }
@@ -123,8 +140,8 @@ enum HoloReportUnderstandingCoordinator {
             unknownIndependence += resolution.independenceUnknownCount
             guard resolution.shouldUpsert else { continue }
             // R23：提取后、写入前再核开关（用户可能在处理期间关闭自动记忆）
-            guard HoloAIFeatureFlags.longTermMemoryWriteEnabled,
-                  HoloAIFeatureFlags.reportUnderstandingExtractionEnabled else {
+            let recheck = await flagSnapshot()
+            guard recheck.memoryWrite, recheck.extraction else {
                 await sharedLedger.markRejected(
                     descriptor.processingKey,
                     reason: "memory-switch-off-mid-flight"
@@ -165,7 +182,7 @@ enum HoloReportUnderstandingCoordinator {
         descriptor: HoloReportDescriptor,
         evidence: [HoloReportEvidenceMaterial]
     ) async {
-        guard HoloAIFeatureFlags.longTermMemoryWriteEnabled else { return }
+        guard await flagSnapshot().memoryWrite else { return }
         let output = HoloReportFindingExtractor.extract(descriptor: descriptor, evidence: evidence)
         guard let repository = try? await HoloMemoryRuntime.shared.repository() else { return }
         var increments: [HoloReportFindingIncrement: Int] = [:]
@@ -184,14 +201,14 @@ enum HoloReportUnderstandingCoordinator {
     /// 旧链路写入权查询（HoloLongTermMemoryCandidateObserver 切换用，§九）：
     /// 该回放已由新链路成功处理时旧链路跳过，禁止双写晋升。
     static func ownsReplay(insightID: String) async -> Bool {
-        guard HoloAIFeatureFlags.reportUnderstandingExtractionEnabled else { return false }
+        guard await flagSnapshot().extraction else { return false }
         return await sharedLedger.isOwnedReport(canonicalReportID: "replay-\(insightID)")
     }
 
     // MARK: - 冷启动重扫（R28/R02）
 
     static func rescanPending() async {
-        guard HoloAIFeatureFlags.reportUnderstandingExtractionEnabled else { return }
+        guard await flagSnapshot().extraction else { return }
         let candidates = await sharedLedger.rescanCandidates()
         guard !candidates.isEmpty else { return }
         logger.info("重扫报告理解台账：\(candidates.count, privacy: .public) 条")
@@ -229,7 +246,7 @@ enum HoloReportUnderstandingCoordinator {
 
     /// 启动时对账：台账成功的报告若档案已删除 → 撤销该报告证据。
     static func sweepRevocations() async {
-        guard HoloAIFeatureFlags.reportUnderstandingExtractionEnabled else { return }
+        guard await flagSnapshot().extraction else { return }
         guard let repository = try? await HoloMemoryRuntime.shared.repository() else { return }
         let entries = await sharedLedger.allSucceeded()
         guard !entries.isEmpty else { return }
