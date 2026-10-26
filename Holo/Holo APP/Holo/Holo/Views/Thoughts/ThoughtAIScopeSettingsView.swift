@@ -27,7 +27,9 @@ struct ThoughtAIScopeSettingsView: View {
             }
             .tint(.holoPrimary)
             .navigationTitle("AI 分析范围")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }

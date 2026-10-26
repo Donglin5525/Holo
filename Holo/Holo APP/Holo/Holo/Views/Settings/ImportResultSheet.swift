@@ -198,7 +198,9 @@ struct ImportResultSheet: View {
                 .padding(.bottom, HoloSpacing.lg)
             }
             .background(Color.holoBackground)
+            #if canImport(UIKit)
             .navigationBarHidden(true)
+            #endif
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)

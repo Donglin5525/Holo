@@ -9,7 +9,9 @@
 import Foundation
 import CoreData
 import CloudKit
+#if canImport(UIKit)
 import BackgroundTasks
+#endif
 import os.log
 
 /// 记账功能数据仓库
@@ -1554,7 +1556,8 @@ final class SpendingProjectBackgroundService {
 
     func registerBackgroundTask() {
         // BGTaskScheduler 的注册/提交接口仅限主 App 进程调用（小组件扩展 target 下编译不可用）
-        #if !HOLO_APP_EXTENSION
+        // macOS 无 BGTaskScheduler：前台启动的幂等补账已覆盖同一路径
+        #if !HOLO_APP_EXTENSION && canImport(UIKit)
         BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
             Task { @MainActor in
                 guard let refreshTask = task as? BGAppRefreshTask else { return }
@@ -1571,7 +1574,7 @@ final class SpendingProjectBackgroundService {
     }
 
     func scheduleNextTask() {
-        #if !HOLO_APP_EXTENSION
+        #if !HOLO_APP_EXTENSION && canImport(UIKit)
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
 
         let nextDate = SpendingProjectRepository.shared.allProjects()

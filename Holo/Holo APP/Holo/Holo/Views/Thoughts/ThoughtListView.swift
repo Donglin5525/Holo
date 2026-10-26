@@ -299,6 +299,7 @@ struct ThoughtListView: View {
         // 窄屏全屏 cover、宽屏内联右栏，同一个选中态驱动；
         // 编辑器内保存/删除通过通知与 onSave 回调刷新列表。
         .environment(\.holoMotionSurfaceIsActive, parentMotionSurfaceActive && selectedThoughtId == nil)
+        #if canImport(UIKit)
         .fullScreenCover(item: editorCoverBinding, onDismiss: {
             selectedThoughtFocusConfirmation = false
         }) { thoughtId in
@@ -313,6 +314,22 @@ struct ThoughtListView: View {
             )
             .holoContentColumn()
         }
+        #else
+                .sheet(item: editorCoverBinding, onDismiss: {
+            selectedThoughtFocusConfirmation = false
+        }) { thoughtId in
+            ThoughtEditorView(
+                onSave: {
+                    loadThoughts()
+                    loadTags()
+                    loadUnprocessedCount()
+                },
+                editingThoughtId: thoughtId,
+                focusAIConfirmation: selectedThoughtFocusConfirmation
+            )
+            .holoContentColumn()
+        }
+        #endif
         // 编辑器内发起的跨模块跳转（如「问问 Holo」）请求关闭整个 fullScreenCover，
         // 否则 cover 仍盖在目标页之上（dismiss 只能 pop 一层 NavigationStack）。
         .onReceive(NotificationCenter.default.publisher(for: .holoRequestCloseThoughtEditor)) { _ in
@@ -342,6 +359,7 @@ struct ThoughtListView: View {
                 }
             }
         }
+        #if canImport(UIKit)
         .fullScreenCover(item: $selectedTopicId, onDismiss: {
             reloadByDrawer()
         }) { topicId in
@@ -356,6 +374,22 @@ struct ThoughtListView: View {
             )
             .holoContentColumn()
         }
+        #else
+                .sheet(item: $selectedTopicId, onDismiss: {
+            reloadByDrawer()
+        }) { topicId in
+            TopicDetailView(
+                topicId: topicId,
+                topicRepository: topicRepository,
+                thoughtRepository: thoughtRepository,
+                onTopicDeleted: {
+                    selectedTopicId = nil
+                    drawerSelection = nil
+                }
+            )
+            .holoContentColumn()
+        }
+        #endif
         .sheet(isPresented: $showTopicManagement, onDismiss: {
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         }) {
@@ -363,6 +397,7 @@ struct ThoughtListView: View {
                 TopicManagementView(topicRepository: topicRepository, thoughtRepository: thoughtRepository)
             }
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showConfirmationQueue, onDismiss: {
             loadPendingConfirmationCount()
         }) {
@@ -373,6 +408,18 @@ struct ThoughtListView: View {
             )
             .holoContentColumn()
         }
+        #else
+                .sheet(isPresented: $showConfirmationQueue, onDismiss: {
+            loadPendingConfirmationCount()
+        }) {
+            TopicConfirmationQueueView(
+                thoughtRepository: thoughtRepository,
+                topicRepository: topicRepository,
+                onQueueDrained: { loadPendingConfirmationCount() }
+            )
+            .holoContentColumn()
+        }
+        #endif
         // Cmd+F：聚焦搜索栏；知识树视图下先切回列表视图（搜索栏只在列表视图）
         .onReceive(HoloShortcutBus.shared.$lastEvent) { event in
             guard event?.action == .searchInCurrentModule else { return }

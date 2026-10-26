@@ -280,9 +280,11 @@ struct HoloPlusComparisonView: View {
             }
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("权益对比")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("关闭") { dismiss() }
                 }
             }

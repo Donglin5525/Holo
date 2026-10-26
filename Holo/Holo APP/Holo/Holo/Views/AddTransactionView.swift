@@ -129,9 +129,11 @@ struct AddTransactionView: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle("记一笔")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消") {
                         dismiss()
                     }

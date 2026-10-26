@@ -111,10 +111,17 @@ struct ChatMessageListPane: View {
         .onChange(of: viewModel.isStreaming) { _, streaming in
             guard streaming else { return }
             // AI 开始回复时收起键盘；是否跟随到底部由当前视口决定，不打断历史浏览。
+#if canImport(UIKit)
             UIApplication.shared.sendAction(
                 #selector(UIResponder.resignFirstResponder),
                 to: nil, from: nil, for: nil
             )
+            #else
+            NSApp.keyWindow?.firstResponder?.tryToPerform(
+                #selector(NSResponder.resignFirstResponder),
+                with: nil
+            )
+            #endif
             if scrollController.viewport.isNearBottom {
                 scrollController.scrollToBottom(animated: false)
             }

@@ -29,9 +29,11 @@ struct CategoryDetailSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(category.name)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button("完成") { dismiss() }
                         .foregroundColor(.holoTextSecondary)
                 }

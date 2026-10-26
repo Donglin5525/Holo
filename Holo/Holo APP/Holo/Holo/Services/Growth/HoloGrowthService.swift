@@ -2,7 +2,11 @@
 import Foundation
 import CoreData
 import Combine
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 import OSLog
 
 extension Notification.Name {
@@ -92,7 +96,11 @@ final class HoloGrowthService: ObservableObject {
             Task { @MainActor [weak self] in self?.schedule(metric: metric) }
         })
         observe(.holoCloudDataDidSync) { [weak self] in self?.schedule(metric: nil) }
+        #if canImport(UIKit)
         observe(UIApplication.didBecomeActiveNotification) { [weak self] in self?.schedule(metric: nil) }
+        #else
+        observe(NSApplication.didBecomeActiveNotification) { [weak self] in self?.schedule(metric: nil) }
+        #endif
         observe(.NSCalendarDayChanged) { [weak self] in self?.schedule(metric: nil) }
         observe(.NSSystemTimeZoneDidChange) { [weak self] in self?.schedule(metric: nil) }
         observe(.holoGrowthDidReset) { [weak self] in

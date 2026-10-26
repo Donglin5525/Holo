@@ -1,3 +1,4 @@
+#if canImport(UIKit)
 //
 //  HoloHangDiagnosticCollector.swift
 //  Holo
@@ -83,3 +84,4 @@ final class HoloHangDiagnosticCollector: NSObject, MXMetricManagerSubscriber {
         return formatter
     }()
 }
+#endif

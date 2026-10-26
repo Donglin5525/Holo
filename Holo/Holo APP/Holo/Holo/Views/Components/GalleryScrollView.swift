@@ -7,10 +7,13 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 // MARK: - UIScrollView 包装，支持双指缩放 + 拖动平移
 
+#if canImport(UIKit)
 struct ZoomableScrollView: UIViewRepresentable {
     let image: UIImage
     /// 缩放状态变化回调（zoomScale > 1 = 已放大）；宿主用于让位下拉关闭等手势
@@ -139,3 +142,25 @@ class GalleryScrollView: UIScrollView {
         return super.gestureRecognizerShouldBegin(gestureRecognizer)
     }
 }
+
+#else
+/// macOS：双指缩放滚视图（UIScrollView 桥）无直接对应；桌面端用原生 ScrollView，Phase A 不做捏合缩放
+struct ZoomableScrollView: View {
+    let image: UIImage
+    var onZoomingChanged: ((Bool) -> Void)? = nil
+
+    var body: some View {
+        ScrollView([.horizontal, .vertical]) {
+            #if canImport(UIKit)
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+            #else
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFit()
+            #endif
+        }
+    }
+}
+#endif

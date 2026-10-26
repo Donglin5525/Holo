@@ -102,13 +102,15 @@ struct TopicDetailView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(topic?.title ?? String(localized: "主题"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("返回") { dismiss() }
                         .foregroundColor(.holoPrimary)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Menu {
                         Button {
                             showIconPicker = true
@@ -167,12 +169,21 @@ struct TopicDetailView: View {
             .sheet(isPresented: $showDefinitionEditor) {
                 categoryDefinitionEditorSheet
             }
+            #if canImport(UIKit)
             .fullScreenCover(item: $selectedThoughtId) { thoughtId in
                 ThoughtEditorView(
                     editingThoughtId: thoughtId
                 )
                 .holoContentColumn()
             }
+            #else
+                        .sheet(item: $selectedThoughtId) { thoughtId in
+                ThoughtEditorView(
+                    editingThoughtId: thoughtId
+                )
+                .holoContentColumn()
+            }
+            #endif
             .overlay(alignment: .top) { actionToast }
         }
         .task { await loadData() }
@@ -792,13 +803,15 @@ struct TopicDetailView: View {
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.md)
             .navigationTitle(String(localized: "这个主题收什么"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消") { showDefinitionEditor = false }
                         .foregroundColor(.holoPrimary)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("保存") { saveCategoryDefinition() }
                         .foregroundColor(.holoPrimary)
                         .fontWeight(.semibold)

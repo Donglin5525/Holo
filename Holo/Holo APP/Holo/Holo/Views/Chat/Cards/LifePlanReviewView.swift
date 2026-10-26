@@ -46,7 +46,9 @@ struct LifePlanReviewView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("确认本周重点")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消", action: onCancel)

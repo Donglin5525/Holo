@@ -28,9 +28,11 @@ struct PromptTestSheet: View {
             .padding(HoloSpacing.lg)
             .background(Color.holoBackground)
             .navigationTitle("测试 Prompt")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("关闭") { dismiss() }
                 }
             }

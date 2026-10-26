@@ -95,9 +95,11 @@ struct PersonalView: View {
             // 挂栈内后：根层右滑=关闭个人页；子页面（系统导航栏可见）push 时自动让位给系统返回。
             .swipeBackToDismiss { dismiss() }
             .navigationTitle("个人")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button {
                         close()
                     } label: {

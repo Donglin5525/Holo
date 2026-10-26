@@ -97,7 +97,9 @@ struct TaskCreationSheet: View {
             .scrollDismissesKeyboard(.interactively)
             .background(Color.holoBackground)
             .navigationTitle(String(localized: "添加任务"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "取消")) { handleCancel() }
@@ -341,6 +343,7 @@ struct TaskCreationSheet: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(pendingImages.indices, id: \.self) { index in
+                    #if canImport(UIKit)
                     Image(uiImage: pendingImages[index])
                         .resizable()
                         .scaledToFill()
@@ -359,6 +362,26 @@ struct TaskCreationSheet: View {
                             }
                             .buttonStyle(.plain)
                         }
+                    #else
+                    Image(nsImage: pendingImages[index])
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous))
+                        .overlay(alignment: .topTrailing) {
+                            Button {
+                                pendingImages.remove(at: index)
+                                draft.markEdited()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white)
+                                    .shadow(radius: 2)
+                                    .frame(width: 24, height: 24, alignment: .topTrailing)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    #endif
                 }
                 if pendingImages.count < 9 {
                     Button {
@@ -956,7 +979,9 @@ private struct TaskCreationListPickerSheet: View {
                 }
             }
             .navigationTitle(String(localized: "选择清单"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }

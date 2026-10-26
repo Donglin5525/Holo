@@ -1,3 +1,4 @@
+#if canImport(UIKit)
 //
 //  ThoughtEditorView.swift
 //  Holo
@@ -8,7 +9,10 @@
 
 import SwiftUI
 import CoreData
+#if canImport(UIKit)
 import PhotosUI
+#endif
+import Foundation
 import AVFoundation
 
 import os.log
@@ -263,7 +267,9 @@ struct ThoughtEditorView: View {
                 .navigationTitle(editingThoughtId != nil
                     ? String(localized: "编辑想法")
                     : String(localized: "记录想法"))
+                #if canImport(UIKit)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 // 「待确认」徽章进入：数据就绪、区块渲染后滚到 AI 归类确认位
                 .onChange(of: hasLoadedEditorData) { _, loaded in
                     scrollToConfirmationIfRequested(loaded, proxy: proxy)
@@ -276,7 +282,7 @@ struct ThoughtEditorView: View {
                 .toolbar {
                     // fullScreenCover 无系统返回键：左上关闭钮与底部「完成」走同一条
                     // finishEditing 收口（先落库再关闭，宽屏右栏形态由 closeEditor 分流）。
-                    ToolbarItem(placement: .topBarLeading) {
+                    ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                         Button {
                             finishEditing()
                         } label: {
@@ -286,7 +292,7 @@ struct ThoughtEditorView: View {
                         }
                     }
 
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                    ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                         editorOptionsMenu
                     }
                 }
@@ -505,6 +511,7 @@ struct ThoughtEditorView: View {
             guard !newValue.isEmpty else { return }
             loadAttachmentPhotos(newValue)
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showAttachmentCamera, onDismiss: {
             handleCapturedImageData()
         }) {
@@ -518,6 +525,22 @@ struct ThoughtEditorView: View {
                 }
             )
         }
+        #else
+                .sheet(isPresented: $showAttachmentCamera, onDismiss: {
+            handleCapturedImageData()
+        }) {
+            CameraView(
+                onCapture: { imageData in
+                    pendingCameraImageData = imageData
+                    showAttachmentCamera = false
+                },
+                onDismiss: {
+                    showAttachmentCamera = false
+                }
+            )
+        }
+        #endif
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showAttachmentGallery, onDismiss: nil) {
             if let thought = currentThoughtObject {
                 ThoughtGalleryView(
@@ -526,6 +549,16 @@ struct ThoughtEditorView: View {
                 )
             }
         }
+        #else
+                .sheet(isPresented: $showAttachmentGallery, onDismiss: nil) {
+            if let thought = currentThoughtObject {
+                ThoughtGalleryView(
+                    attachments: thought.sortedAttachments,
+                    startIndex: galleryStartIndex
+                )
+            }
+        }
+        #endif
     }
 
     // MARK: - 自动保存
@@ -1402,7 +1435,11 @@ struct ThoughtEditorView: View {
     private var editorOptionsMenu: some View {
         Menu {
             Button {
+                #if canImport(UIKit)
                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                #else
+                NSApp.keyWindow?.firstResponder?.tryToPerform(#selector(NSResponder.resignFirstResponder), with: nil)
+                #endif
                 showStylePicker = true
             } label: {
                 Label(String(localized: "记录样式"), systemImage: "paintpalette")
@@ -1675,7 +1712,7 @@ struct ThoughtEditorView: View {
 
     private var contentEditorMinimumHeight: CGFloat {
         // 起步画布给到约屏幕 40%：想法编辑器是「一页纸」的心智，而不是表单里的一个小格子。
-        selectedStyle == .plain ? min(380, UIScreen.main.bounds.height * 0.4) : (hasContent ? 120 : 180)
+        selectedStyle == .plain ? min(380, holoScreenHeight() * 0.4) : (hasContent ? 120 : 180)
     }
 
     /// 编辑器显示高度：短内容给足起步画布，随内容自然增长；
@@ -1693,11 +1730,11 @@ struct ThoughtEditorView: View {
         let paperChrome = selectedStyle == .plain ? 0 : paperHeaderHeight + paperFooterHeight
         if selectedStyle != .plain, editorViewport.height > 0 {
             // 用当前分栏/安全区的真实可视范围；键盘已让视口缩小时也不重复扣减。
-            let visibleBottom = min(editorViewport.maxY, UIScreen.main.bounds.height - keyboardOverlapHeight)
+            let visibleBottom = min(editorViewport.maxY, holoScreenHeight() - keyboardOverlapHeight)
             let visibleHeight = max(0, visibleBottom - editorViewport.minY)
             return max(100, visibleHeight - toolbarHeight - attachmentHeight - paperChrome - HoloSpacing.md)
         }
-        return max(100, UIScreen.main.bounds.height - keyboardOverlapHeight - 110 - toolbarHeight - attachmentHeight - paperChrome)
+        return max(100, holoScreenHeight() - keyboardOverlapHeight - 110 - toolbarHeight - attachmentHeight - paperChrome)
     }
 
     private var hasAttachments: Bool {
@@ -2120,3 +2157,35 @@ private struct PendingImageItem: Identifiable, Equatable {
 #Preview {
     ThoughtEditorView()
 }
+
+#else
+import SwiftUI
+import Foundation
+
+/// macOS（Phase A 骨架）：UIKit 编辑器不可用，编辑入口给占位说明；后续阶段做 NSTextView 版编辑器
+struct ThoughtEditorView: View {
+    var onSave: (() -> Void)?
+    var editingThoughtId: UUID?
+    var focusAIConfirmation: Bool = false
+    var onRequestClose: (() -> Void)? = nil
+
+    init(
+        onSave: (() -> Void)? = nil,
+        editingThoughtId: UUID? = nil,
+        focusAIConfirmation: Bool = false,
+        onRequestClose: (() -> Void)? = nil
+    ) {
+        self.onSave = onSave
+        self.editingThoughtId = editingThoughtId
+        self.focusAIConfirmation = focusAIConfirmation
+        self.onRequestClose = onRequestClose
+    }
+
+    var body: some View {
+        Text("想法编辑将在 Mac 版后续阶段提供")
+            .font(.title3)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+#endif

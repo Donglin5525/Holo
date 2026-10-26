@@ -1353,6 +1353,10 @@ private struct ReportQuestionCard: View {
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             context: nil
         )
+        #if canImport(UIKit)
         needsExpansion = bounds.height > font.lineHeight * 3 + 1
+        #else
+        needsExpansion = bounds.height > font.boundingRectForFont.height * 3 + 1
+        #endif
     }
 }

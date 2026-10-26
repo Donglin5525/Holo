@@ -448,7 +448,9 @@ private struct CalendarScaleDatePickerSheet: View {
             .tint(.holoPrimary)
             .padding()
             .navigationTitle(navigationTitle)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { isPresented = false }

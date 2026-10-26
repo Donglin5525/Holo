@@ -43,7 +43,9 @@ struct TaskTriageSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(String(localized: "开始整理"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     // 随时关闭：已保存的保留，当前未提交的选择放弃（§6.1）

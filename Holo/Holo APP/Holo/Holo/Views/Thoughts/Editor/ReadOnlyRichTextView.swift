@@ -7,11 +7,15 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
+import Foundation
 
 // MARK: - ReadOnlyRichTextView
 
 /// 阅读态富文本：渲染 ContentNode（含 Token），点击 Token 回调
+#if canImport(UIKit)
 struct ReadOnlyRichTextView: UIViewRepresentable {
 
     @Environment(\.sizeCategory) private var sizeCategory
@@ -218,11 +222,28 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
 
 // MARK: - ReadOnlyRichTextPreview
 
-/// 列表卡片的只读正文预览。
-///
-/// 列表不承担全文阅读，避免长卡片把信息流撑成一篇篇详情；但截断必须可感知，
-/// 否则用户会把预览误认为正文已经结束。这里用同一份富文本节点和同一套 UIKit
-/// 排版测量判断是否超过行数，只在确实溢出时显示“点击查看全文”提示。
+#else
+/// macOS：无 UITextView 渲染管线，用共享的节点渲染扩展 + AttributedString 直出
+/// （Token 点击交互不接入，Phase A 为只读骨架）
+struct ReadOnlyRichTextView: View {
+    let nodes: [HoloContentNode]
+    var deletedReferenceIds: Set<UUID> = []
+    var onTokenTap: (HoloContentNode) -> Void
+    var lineLimit: Int? = nil
+    var allowsTokenInteraction: Bool = true
+    var presentationStyle: ThoughtStyle = .plain
+
+    var body: some View {
+        Text(AttributedString(
+            MarkdownTextView.makeAttributedText(from: nodes, deletedReferenceIds: deletedReferenceIds)
+        ))
+        .lineLimit(lineLimit)
+    }
+}
+#endif
+
+// MARK: - 列表卡片的只读正文预览
+
 struct ReadOnlyRichTextPreview: View {
 
     @Environment(\.sizeCategory) private var sizeCategory
@@ -394,6 +415,7 @@ enum ReadOnlyRichTextLayoutMetrics {
     /// 对中文折行的判定存在临界差：同一内容测量算 7 行整、渲染实际 8 行，
     /// 造成"正文已被截断、溢出提示却不出现"。测量必须与渲染同引擎才可信。
     /// 主线程专用（视图生命周期回调内调用）；结果经 overflowCache 缓存，频率低。
+    #if canImport(UIKit)
     private static let measuringTextView: UITextView = {
         let textView = UITextView(frame: .zero)
         textView.isScrollEnabled = false
@@ -419,6 +441,20 @@ enum ReadOnlyRichTextLayoutMetrics {
         )
         return ceil(fitted.height)
     }
+    #else
+    /// macOS：无离屏 UITextView 同引擎测量，用 NSAttributedString.boundingRect 折行测量
+    private static func measuredHeight(
+        for attributedText: NSAttributedString,
+        width: CGFloat,
+        maximumNumberOfLines: Int
+    ) -> CGFloat {
+        let bounds = attributedText.boundingRect(
+            with: CGSize(width: max(1, width), height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+        return ceil(bounds.height)
+    }
+    #endif
 
     /// 宽度按 1pt 取整成档（过滤亚像素抖动）；其余维度原样入键。
     private static func cacheKey(

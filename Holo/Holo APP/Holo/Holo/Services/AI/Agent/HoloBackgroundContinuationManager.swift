@@ -12,36 +12,63 @@
 //  后台租约实现见 Execution/HoloAgentLegacyBackgroundLease（绑定具体 jobID）。
 //
 
+#if canImport(UIKit)
 import UIKit
+#endif
 import Foundation
 import Network
+
+#if canImport(UIKit)
+/// iOS 系统后台任务句柄
+typealias HoloBackgroundTaskIdentifier = UIBackgroundTaskIdentifier
+#else
+/// macOS 无 UIApplication 后台时间租约：哑句柄恒为 invalid，租约退化为立即空转
+struct HoloBackgroundTaskIdentifier: Equatable {
+    static let invalid = HoloBackgroundTaskIdentifier()
+}
+#endif
 
 @MainActor
 protocol HoloBackgroundTaskClient {
     func beginBackgroundTask(
         named name: String,
         expirationHandler: @escaping @MainActor @Sendable () -> Void
-    ) -> UIBackgroundTaskIdentifier
-    func endBackgroundTask(_ identifier: UIBackgroundTaskIdentifier)
+    ) -> HoloBackgroundTaskIdentifier
+    func endBackgroundTask(_ identifier: HoloBackgroundTaskIdentifier)
 }
 
+#if canImport(UIKit)
 @MainActor
 struct UIApplicationBackgroundTaskClient: HoloBackgroundTaskClient {
     func beginBackgroundTask(
         named name: String,
         expirationHandler: @escaping @MainActor @Sendable () -> Void
-    ) -> UIBackgroundTaskIdentifier {
+    ) -> HoloBackgroundTaskIdentifier {
         UIApplication.shared.beginBackgroundTask(withName: name, expirationHandler: expirationHandler)
     }
 
-    func endBackgroundTask(_ identifier: UIBackgroundTaskIdentifier) {
+    func endBackgroundTask(_ identifier: HoloBackgroundTaskIdentifier) {
         UIApplication.shared.endBackgroundTask(identifier)
     }
 }
+#else
+/// macOS：无后台时间租约，begin 恒返 invalid、不触发 expiration，end 为空操作
+@MainActor
+struct UIApplicationBackgroundTaskClient: HoloBackgroundTaskClient {
+    func beginBackgroundTask(
+        named name: String,
+        expirationHandler: @escaping @MainActor @Sendable () -> Void
+    ) -> HoloBackgroundTaskIdentifier {
+        .invalid
+    }
+
+    func endBackgroundTask(_ identifier: HoloBackgroundTaskIdentifier) {}
+}
+#endif
 
 @MainActor
 final class HoloBackgroundTaskLease {
-    private var taskID: UIBackgroundTaskIdentifier = .invalid
+    private var taskID: HoloBackgroundTaskIdentifier = .invalid
     private let client: any HoloBackgroundTaskClient
     private let onExpiration: (() -> Void)?
 

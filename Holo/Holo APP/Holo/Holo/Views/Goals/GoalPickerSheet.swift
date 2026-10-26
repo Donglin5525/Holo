@@ -51,7 +51,9 @@ struct GoalPickerSheet: View {
             }
             .listStyle(.plain)
             .navigationTitle("选择目标")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

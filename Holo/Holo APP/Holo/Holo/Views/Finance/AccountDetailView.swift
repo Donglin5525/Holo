@@ -91,9 +91,11 @@ struct AccountDetailView: View {
             Color.clear.frame(height: 160)
         }
         .navigationTitle(account.name)
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                 Menu {
                     Button {
                         showEditSheet = true
@@ -260,7 +262,9 @@ struct AccountDetailView: View {
                 .environment(\.locale, Locale(identifier: "zh_CN"))
                 .padding(.horizontal, HoloSpacing.lg)
                 .navigationTitle("复制到")
+                #if canImport(UIKit)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("取消") {

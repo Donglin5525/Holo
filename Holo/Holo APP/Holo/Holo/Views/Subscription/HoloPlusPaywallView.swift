@@ -42,9 +42,11 @@ struct HoloPlusPaywallView: View {
             }
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("Holo Plus")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("关闭") {
                         HoloPlusActionCoordinator.shared.dismissPaywall()
                         dismiss()

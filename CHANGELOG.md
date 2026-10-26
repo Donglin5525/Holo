@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-10-26] Holo Mac 原生版首次交付——想法模块全功能 + iCloud 双向同步
+
+> 东林需求：Mac 上记想法、与 iPhone 数据互通。同一工程新增原生 macOS target（HoloMac，非 Catalyst），Phase A 工程骨架 → B 三栏浏览 → C+D 富文本编辑器 → E AI 整理一口气交付，东林已实测跑通。
+
+- **工程形态**：新 target `HoloMac`（bundle `com.tangyuxuan.holo-app.mac`，macOS 14+，签名 team 同源），挂同一 iCloud 容器 `iCloud.com.tangyuxuan.Holo` 与 App Group；iOS 四个 target（Holo/Widgets/Tests/UITests）配置与签名逐对象比对零改动。共享源码以「全量纳入 + 平台守卫」接入：258 个共享文件加 `#if canImport(UIKit)` 双分支（iOS 分支逐字保留），Mac 专属代码独立 `HoloMac/` 目录。坑：pbxproj 新式同步组的 membershipExceptions 只认精确文件路径不认目录；macOS AppIcon 必须经典 10 槽位格式（1024 单尺寸格式 actool 静默不编）。
+- **iCloud 双向同步**：与 iPhone 共用开发库，端到端实测 Mac 写入 → iPhone 1 分钟内可见、双向互读无损。修 `CloudKitRuntimeAvailability` 描述文件名平台差异（macOS 为 `embedded.provisionprofile`，原代码只认 iOS 名导致 Mac 端静默降级本地-only）。首跑采用只读验证 + 单条写入验证策略，未触碰 CloudKit Console。
+- **三栏浏览工作台**：侧栏（全部/置顶/主题含计数/#标签树/归档，复用 ThoughtBrowseScope 数据层）+ 列表（⌘F 搜索/排序，复用 ThoughtCardView 与 Repository 同一谓词）+ 详情右栏（富文本全文/标签 chips/心情/附件缩略图与大图/引用关系跳转/元信息），选中联动。
+- **富文本编辑器（NSTextView 重写）**：与 iPhone 共用同一节点模型（HoloContentNode）、序列化器与保存管线（+EditorCommit），双端互写无损；⌘N 新建、⌘B/I/U、#/@ token 触发与候选面板（↑↓/回车/Esc）、行首 `-`+空格快打、列表续行、fileImporter 插图（AttachmentFileManager 同管线，上限 9 张）、附件删除、心情/纸感样式、2 秒防抖自动保存、草稿恢复、语义复制粘贴、IME 组字安全。
+- **AI 自动整理**：整理队列冷启动恢复、单条 AI 确认、批量归并确认、整理设置（与 iPhone 同存储口径）、想法转任务（ThoughtTaskExtractionSheet 宿主）、「你之前也写过」语义召回（USearch/语义库 macOS 可编译直接复用）；后端零改动、无需发版。未授权前静默不请求。
+- **交付中实抓并修复的硬伤**：①沙盒缺出站网络授权（`com.apple.security.network.client`），AI 请求会静默全挂——entitlements 补齐并加验证页连通实测按钮；②IME 灾难事故：编辑会话中 reloadToken/onAppear 二次触发导致编辑器被旧快照整体重建——表现为已打内容消失+拼音字母直出落库；修复三道防线（reloadToken 分支守卫、rehydrateContent 函数级守卫、loadEditingData 防重入）并新增 DEBUG 自检机（9 探针走真实 setMarkedText/insertText 通道，修复前实锤复现、修复后 9/9 PASS）；③dark 模式编辑器文字隐形：`NSColor(SwiftUI Color)` 把 Asset 动态色烘焙成 light 固定值 + Colors 资产未入 Mac 包——改 `NSColor(named:)` 动态加载并将 24 个色卡入包；④组字期占位提示与拼音重叠（macOS 组字不触发 textDidChange，显隐改含 hasMarkedText 判定）；⑤补齐删除（二次确认+回收站 30 天，对齐 iOS 文案）与归档/移出归档入口（卡片右键/详情/编辑器三处）；⑥KVStore entitlements 补齐对齐 iOS。
+- **验证**：HoloMac 与 iOS 模拟器构建全绿（含测试 target 编译）；Mac 本机 30 秒冒烟无崩溃；IME 自检机 9/9；东林实测中文连续打字、dark 模式可见性、双端同步通过。纯客户端改动，无后端发版。
+- **已知降级**：编辑面正文用标准字体（纸感在阅读端/卡片照常，避免打字属性与序列化相互干扰）；语音输入与相机不适用 Mac；回收站恢复入口暂在 iPhone 端；心情「无」存空串（各端展示无差异）。
+
+---
+
 ## [2026-10-25] 想法新增八套主题纸，统一编辑、列表与分享排版
 
 - **八套版式、三类字体**：新增远行邮笺、晴日观察、生活票根、一日一页、对折手记、光影胶片、页边书签与点阵便笺；字体随模板自动匹配系统体、宋体类或手写感，照片按模板构图呈现。编辑与列表自动适配明暗，分享固定浅色成图；随包字体保留 OFL 许可与来源，四个 TTF 原始资源约 19.5 MB，非 App Store 下载增量测量。

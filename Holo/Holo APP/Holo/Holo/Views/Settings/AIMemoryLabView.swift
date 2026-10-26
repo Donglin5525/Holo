@@ -74,7 +74,9 @@ struct AIMemoryLabView: View {
             recentTraceSection
         }
         .navigationTitle("AI 记忆实验室")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task { await refresh() }
         .refreshable { await refresh() }
     }

@@ -135,12 +135,21 @@ struct ThoughtCardView: View {
             ThoughtShareSheet(thought: thought)
         }
         // 附件大图（挂卡片根与编辑器明细页同款）：点缩略图进全屏，单击屏幕任意处关闭
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showAttachmentGallery) {
             ThoughtGalleryView(
                 attachments: thought.sortedAttachments,
                 startIndex: galleryStartIndex
             )
         }
+        #else
+                .sheet(isPresented: $showAttachmentGallery) {
+            ThoughtGalleryView(
+                attachments: thought.sortedAttachments,
+                startIndex: galleryStartIndex
+            )
+        }
+        #endif
         // 「为什么归这里」理由面板（长按菜单入口；confirmationDialog 收起后再弹，
         // 与 pendingMenuAction 同理走一小段延迟避免连环弹层被系统丢弃）
         .sheet(item: $reasonSheetTopic) { topic in
@@ -223,9 +232,11 @@ struct ThoughtCardView: View {
                     .confirmationDialog("操作", isPresented: $showActionSheet, titleVisibility: .visible) {
                         // 编辑兜底入口：正文触摸链路（Button 命中）万一再失效，
                         // 历史想法仍有保底的编辑路径（2026-09-17 双击编辑丢失事故）
+                        #if canImport(UIKit)
                         if let onNavigate {
                             Button(String(localized: "编辑")) { onNavigate() }
                         }
+                        #endif
                         Button(String(localized: "复制文字")) {
                             copyThoughtToPasteboard(thought)
                         }
@@ -637,13 +648,15 @@ private struct TopicMembershipReasonSheet: View {
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.md)
             .navigationTitle(String(localized: "为什么归这里"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("关闭") { dismiss() }
                         .foregroundColor(.holoPrimary)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button(String(localized: "查看主题")) {
                         onOpenTopic?(topic)
                     }

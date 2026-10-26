@@ -1,3 +1,8 @@
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
 //
 //  DailyReplayEventCard.swift
 //  Holo
@@ -143,7 +148,7 @@ struct DailyReplayEventCard: View {
             moment.title,
             lines: 6,
             fontSize: 15 * typeScale,
-            availableWidth: UIScreen.main.bounds.width - 116
+            availableWidth: holoScreenWidth() - 116
         )
     }
 

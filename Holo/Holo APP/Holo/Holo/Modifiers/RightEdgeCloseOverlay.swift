@@ -12,7 +12,9 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+import Foundation
 
+#if canImport(UIKit)
 /// 右边缘左滑关闭手势覆盖层
 struct RightEdgeCloseOverlay: UIViewRepresentable {
 
@@ -89,3 +91,12 @@ class RightEdgeHostView: UIView {
         return super.hitTest(point, with: event)
     }
 }
+#else
+/// macOS：无 UIScreenEdgePan 手势体系，抽屉关闭走遮罩点击与Esc，覆盖层退化为空视图
+struct RightEdgeCloseOverlay: View {
+    var isEnabled: Bool = false
+    var onClose: () -> Void = {}
+
+    var body: some View { EmptyView() }
+}
+#endif

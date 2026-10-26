@@ -6,6 +6,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import EventKit
 
 struct ScheduleSettingsSection: View {
@@ -212,8 +216,14 @@ struct ScheduleSettingsSection: View {
     }
 
     private func openSystemSettings() {
+        #if canImport(UIKit)
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
+        #else
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+            NSWorkspace.shared.open(url)
+        }
+        #endif
     }
 
     // MARK: - 来源日历汇总入口

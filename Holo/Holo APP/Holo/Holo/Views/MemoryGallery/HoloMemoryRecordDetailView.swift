@@ -54,9 +54,11 @@ struct HoloMemoryRecordDetailView: View {
         }
         .background(Color.holoBackground.ignoresSafeArea())
         .navigationTitle("这条记忆")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                 Button("完成") { dismiss() }
             }
         }
@@ -260,9 +262,11 @@ struct HoloMemoryRecordDetailView: View {
             }
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("记忆出处")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("完成") { selectedEvidence = nil }
                 }
             }
@@ -371,7 +375,9 @@ struct HoloMemoryRecordDetailView: View {
             .padding(HoloSpacing.lg)
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("纠正记忆")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { showCorrection = false }

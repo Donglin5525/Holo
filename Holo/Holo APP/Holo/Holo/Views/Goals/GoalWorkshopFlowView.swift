@@ -57,7 +57,9 @@ struct GoalWorkshopFlowView: View {
         NavigationStack {
             content
                 .navigationTitle("一起想清楚")
+                #if canImport(UIKit)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .holoSheetShell()
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -277,7 +279,7 @@ struct GoalWorkshopFlowView: View {
                 }
             }
             .padding()
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+            .background(Color.holoSystemBackground, in: RoundedRectangle(cornerRadius: 16))
             .sheet(item: $correctingFact) { fact in
                 correctionSheet(fact)
             }
@@ -306,7 +308,9 @@ struct GoalWorkshopFlowView: View {
                 }
             }
             .navigationTitle("纠正这条")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { correctingFact = nil }

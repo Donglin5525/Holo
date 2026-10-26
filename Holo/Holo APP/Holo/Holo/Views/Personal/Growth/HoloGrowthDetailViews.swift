@@ -72,7 +72,9 @@ struct HoloGrowthMetricView: View {
         .foregroundStyle(Color.holoToolText)
         .background(Color.holoToolBackground)
         .navigationTitle(metric.title)
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .sheet(item: $selectedEvent) { event in NavigationStack { HoloGrowthMilestoneView(event: event, service: service) } }
         .accessibilityIdentifier("growth.detail.\(metric.rawValue)")
     }
@@ -104,7 +106,9 @@ struct HoloGrowthDatesView: View {
         }
         .scrollIndicators(.hidden)
         .navigationTitle("积累日期")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
 
@@ -123,7 +127,9 @@ struct HoloGrowthHistoryView: View {
         }
         .background(Color.holoToolBackground)
         .navigationTitle("走过的里程碑")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }
 
@@ -179,7 +185,7 @@ struct HoloGrowthMilestoneView: View {
         }
         .background(Color.holoToolBackground)
         .foregroundStyle(Color.holoToolText)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("关闭") { dismiss() } } }
+        .toolbar { ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) { Button("关闭") { dismiss() } } }
         .accessibilityIdentifier("growth.milestone")
     }
 }
@@ -214,8 +220,10 @@ struct HoloGrowthRulesView: View {
                 }
             }
             .navigationTitle("积累统计说明")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("完成") { dismiss() } } }
+            #endif
+            .toolbar { ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) { Button("完成") { dismiss() } } }
         }
     }
 }

@@ -6,7 +6,13 @@
 //
 
 import CoreData
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
+import ImageIO
+import Foundation
 import os.log
 
 extension TodoRepository {
@@ -18,6 +24,7 @@ extension TodoRepository {
     /// 为任务添加图片附件（图片数据存入 CoreData，支持 iCloud 同步）。
     /// R07（2026-10-04 体检）：图片处理是长挂起点，期间父任务可能被删除/清理/远端同步删除——
     /// 只持稳定 objectID 跨挂起点，回来后重新解析并确认仍存在，绝不写回已删除对象。
+#if canImport(UIKit)
     @discardableResult
     func addAttachment(image: UIImage, to task: TodoTask, sourceType: String = "photoLibrary") async throws -> TaskAttachment {
         let attachmentId = UUID()
@@ -53,6 +60,27 @@ extension TodoRepository {
         notifyDataChange(taskId: liveTask.id)
         return attachment
     }
+#else
+    /// macOS：UIImage 即 NSImage（模块内 typealias）；转 JPEG 后走同一入库管线
+    @discardableResult
+    func addAttachment(image: UIImage, to task: TodoTask, sourceType: String = "photoLibrary") async throws -> TaskAttachment {
+        guard let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let cgImage = rep.cgImage else {
+            throw AttachmentError.saveFailed
+        }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil) else {
+            throw AttachmentError.saveFailed
+        }
+        CGImageDestinationAddImage(destination, cgImage, [kCGImageDestinationLossyCompressionQuality: 0.95] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else {
+            throw AttachmentError.saveFailed
+        }
+        return try await addAttachment(imageData: output as Data, to: task, sourceType: sourceType)
+    }
+#endif
+
 
     /// 为任务添加相册图片附件。视图层只传原始 Data，解码/压缩全部后台执行，数据存入 CoreData。
     /// R07：挂起后重解析父任务，同上。

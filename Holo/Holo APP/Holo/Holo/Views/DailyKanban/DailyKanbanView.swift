@@ -178,7 +178,9 @@ struct DailyKanbanView: View {
                 openChat(matterID: matterID)
             }
             .navigationTitle(String(localized: "进行中的事"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
         case .matterDetail(let matterID, _):
             MatterDetailView(matterID: matterID) { discussID in
                 openChat(matterID: discussID)
@@ -362,14 +364,16 @@ struct DailyKanbanView: View {
                 onCancel: { showGoalCreate = false }
             )
         }
+        #if canImport(UIKit)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
             guard let endFrame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
             let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
-            let height = endFrame.origin.y >= UIScreen.main.bounds.height ? 0 : endFrame.height
+            let height = endFrame.origin.y >= holoScreenHeight() ? 0 : endFrame.height
             withAnimation(.easeInOut(duration: duration)) {
                 keyboardHeight = height
             }
         }
+        #endif
         .swipeBackToDismiss { dismiss() }
         .task {
             // 等 Core Data 就绪，避免未就绪时 fetch 静默返回空、内容分批出现
@@ -459,7 +463,9 @@ struct DailyKanbanView: View {
                     .focused($isInputFocused)
                     .font(.system(size: 36, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
+                    #if canImport(UIKit)
                     .keyboardType(.decimalPad)
+                    #endif
                     .padding(.vertical, 16)
                     .background(Color.holoToolBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))

@@ -70,7 +70,9 @@ struct EmojiCatalogGrid: View {
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
                 .autocorrectionDisabled()
+                #if canImport(UIKit)
                 .textInputAutocapitalization(.never)
+                #endif
 
             if !searchText.isEmpty {
                 Button {
@@ -170,7 +172,9 @@ struct EmojiIconPickerSheet: View {
                 dismiss()
             }
             .navigationTitle("选择图标")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }

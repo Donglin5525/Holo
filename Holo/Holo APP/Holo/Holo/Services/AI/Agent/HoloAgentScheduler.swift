@@ -67,11 +67,13 @@ actor HoloAgentScheduler {
     /// iOS 26 持续处理 client（§9）：注入值优先（测试 fake）；否则 iOS 26+ 用生产实现，低版本 nil。
     private func resolvedContinuedClient() async -> (any HoloContinuedProcessingClient)? {
         if let continuedClient { return continuedClient }
+        #if canImport(UIKit)
         if #available(iOS 26.0, *) {
             let created = await MainActor.run { HoloSystemContinuedProcessingClient() }
             continuedClient = created
             return created
         }
+        #endif
         return nil
     }
 

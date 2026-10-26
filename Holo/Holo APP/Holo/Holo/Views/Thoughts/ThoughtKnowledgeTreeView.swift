@@ -130,6 +130,7 @@ struct ThoughtKnowledgeTreeView: View {
         } message: {
             Text("按你的名字创建主题；AI 以后不会自动改这个名字。")
         }
+        #if canImport(UIKit)
         .fullScreenCover(item: $topicDetailId) { topicId in
             TopicDetailView(
                 topicId: topicId,
@@ -139,6 +140,18 @@ struct ThoughtKnowledgeTreeView: View {
             )
             .holoContentColumn()
         }
+        #else
+                .sheet(item: $topicDetailId) { topicId in
+            TopicDetailView(
+                topicId: topicId,
+                topicRepository: topicRepository,
+                thoughtRepository: thoughtRepository,
+                onTopicDeleted: { topicDetailId = nil }
+            )
+            .holoContentColumn()
+        }
+        #endif
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showConfirmationQueue) {
             TopicConfirmationQueueView(
                 thoughtRepository: thoughtRepository,
@@ -147,6 +160,16 @@ struct ThoughtKnowledgeTreeView: View {
             )
             .holoContentColumn()
         }
+        #else
+                .sheet(isPresented: $showConfirmationQueue) {
+            TopicConfirmationQueueView(
+                thoughtRepository: thoughtRepository,
+                topicRepository: topicRepository,
+                onQueueDrained: { Task { await loadData() } }
+            )
+            .holoContentColumn()
+        }
+        #endif
     }
 
     // MARK: - 数据

@@ -110,7 +110,9 @@ struct HoloMemoryBucketListView: View {
         .background(Color.holoToolBackground)
         .buttonStyle(.plain)
         .navigationBarBackButtonHidden(true)
+        #if canImport(UIKit)
         .toolbar(.hidden, for: .navigationBar)
+        #endif
         .task { await viewModel.load() }
     }
 

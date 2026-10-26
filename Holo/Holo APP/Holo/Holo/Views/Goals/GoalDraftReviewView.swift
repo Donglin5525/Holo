@@ -93,7 +93,9 @@ struct GoalDraftReviewView: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle("确认目标计划")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消", action: requestCancel)

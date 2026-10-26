@@ -40,9 +40,15 @@ struct UserAvatarView: View {
     @ViewBuilder
     private var avatarContent: some View {
         if let image = repository.image {
+            #if canImport(UIKit)
             Image(uiImage: image)
                 .resizable()
                 .scaledToFill()
+            #else
+            Image(nsImage: image)
+                .resizable()
+                .scaledToFill()
+            #endif
         } else if let initial = displayInitial {
             ZStack {
                 Circle().fill(Color.holoPrimary.opacity(0.12))

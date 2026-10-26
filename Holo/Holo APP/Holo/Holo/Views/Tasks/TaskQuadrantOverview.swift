@@ -7,15 +7,27 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 
 // MARK: - 象限语义色（§10.1 原型色值，Light/Dark 双值；hex 不散写进各 View）
 
 private func quadrantDynamicColor(light: UInt32, dark: UInt32) -> Color {
+    #if canImport(UIKit)
     Color(uiColor: UIColor { traits in
         traits.userInterfaceStyle == .dark
             ? UIColor(rgb: dark)
             : UIColor(rgb: light)
     })
+    #else
+    Color(nsColor: NSColor(name: nil) { appearance in
+        appearance.bestMatch(from: [.darkAqua, .vibrantDark]) != nil
+            ? NSColor(rgb: dark)
+            : NSColor(rgb: light)
+    })
+    #endif
 }
 
 private extension UIColor {

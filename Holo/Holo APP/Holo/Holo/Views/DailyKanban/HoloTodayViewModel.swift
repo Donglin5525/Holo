@@ -13,6 +13,10 @@
 
 import Foundation
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import Combine
 
 @MainActor
@@ -150,10 +154,18 @@ final class HoloTodayViewModel: ObservableObject {
             .store(in: &cancellables)
         // 前台恢复 / 显著时间变化（午夜边界）/ 时区变化：刷新 scope，
         // 跨日的会话级稍后键随 scope 失效清理（§7.1/§9.3）。
+        #if canImport(UIKit)
+        let activeName = UIApplication.didBecomeActiveNotification
+        let significantTimeChange = UIApplication.significantTimeChangeNotification
+        #else
+        let activeName = NSApplication.didBecomeActiveNotification
+        // macOS 无「显著时间变化」通知：用日更变化通知近似（跨午夜场景靠前台刷新兜底）
+        let significantTimeChange = Notification.Name.NSCalendarDayChanged
+        #endif
         let timeNames = [
-            UIApplication.significantTimeChangeNotification,
+            significantTimeChange,
             Notification.Name.NSSystemTimeZoneDidChange,
-            UIApplication.didBecomeActiveNotification,
+            activeName,
         ]
         for name in timeNames {
             NotificationCenter.default.publisher(for: name)

@@ -164,9 +164,11 @@ struct ChatView: View {
         // 系统避让本就到不了这里；统一由上面的 keyboardOverlap padding 手动控制，
         // 避免 sheet/NavigationStack 场景下系统避让与手动 padding 叠加）
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        #if canImport(UIKit)
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
             updateKeyboardOverlap(note)
         }
+        #endif
         .swipeBackToDismiss(isResidentScreenRoot: true) {
             viewModel.clearContinuationDraft()
             close()
@@ -253,6 +255,7 @@ struct ChatView: View {
             goalPlanningRequest = nil
         }
         #if DEBUG || INTERNAL_DIAGNOSTICS
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: Binding(
             get: { viewingLog != nil },
             set: { if !$0 { viewingLog = nil } }
@@ -262,13 +265,30 @@ struct ChatView: View {
                     .holoContentColumn()
             }
         }
+        #else
+                .sheet(isPresented: Binding(
+            get: { viewingLog != nil },
+            set: { if !$0 { viewingLog = nil } }
+        )) {
+            if let viewingLog {
+                ChatLogView(log: viewingLog)
+                    .holoContentColumn()
+            }
+        }
+        #endif
         #endif
         // 全屏 cover 单通道（弹层收敛 2026-10-23）：财务证据搜索 + 报告详情 +
         // 回放阅读原为三个独立 fullScreenCover 修饰符，收敛为单通道；宽屏下
         // 报告详情 / 回放走右侧栏（coverBinding 恒 nil 不弹，方案 2B 语义保留）
+        #if canImport(UIKit)
         .fullScreenCover(item: coverBinding) { route in
             coverContent(route)
         }
+        #else
+                .sheet(item: coverBinding) { route in
+            coverContent(route)
+        }
+        #endif
         .confirmationDialog(
             "删除确认",
             isPresented: $showDeleteConfirmation,
@@ -312,6 +332,7 @@ struct ChatView: View {
             }
             .presentationDetents([.medium])
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $viewModel.showGoalDraftReview) {
             if let draft = viewModel.goalDraftForReview {
                 GoalDraftReviewView(
@@ -326,6 +347,23 @@ struct ChatView: View {
                 .holoContentColumn()
             }
         }
+        #else
+                .sheet(isPresented: $viewModel.showGoalDraftReview) {
+            if let draft = viewModel.goalDraftForReview {
+                GoalDraftReviewView(
+                    draft: draft,
+                    onCancel: {
+                        viewModel.cancelGoalPlanning()
+                    },
+                    onSaved: { result in
+                        viewModel.finishGoalPlanningSave(result)
+                    }
+                )
+                .holoContentColumn()
+            }
+        }
+        #endif
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $viewModel.showLifePlanReview) {
             if let snapshot = viewModel.lifePlanForReview {
                 LifePlanReviewView(
@@ -341,6 +379,23 @@ struct ChatView: View {
                 .holoContentColumn()
             }
         }
+        #else
+                .sheet(isPresented: $viewModel.showLifePlanReview) {
+            if let snapshot = viewModel.lifePlanForReview {
+                LifePlanReviewView(
+                    snapshot: snapshot,
+                    onConfirm: { selection in
+                        confirmLifePlanSelection(selection)
+                    },
+                    onCancel: {
+                        viewModel.lifePlanForReview = nil
+                        viewModel.showLifePlanReview = false
+                    }
+                )
+                .holoContentColumn()
+            }
+        }
+        #endif
     }
 
     // MARK: - Navigation Bar
@@ -579,9 +634,15 @@ struct ChatView: View {
         Task { await reportViewModel.reload() }
         viewModel.showAnalysisScenarioPanel = false
         // 隐藏的聊天 pane 不会自动释放第一响应者，切走时手动收起键盘
+#if canImport(UIKit)
         UIApplication.shared.sendAction(
             #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
         )
+        #else
+        NSApp.keyWindow?.firstResponder?.tryToPerform(
+            #selector(NSResponder.resignFirstResponder), with: nil
+        )
+        #endif
     }
 
     /// 消费 .memoryInsight 深链（首页洞察胶囊 / 系统通知）：
@@ -667,6 +728,7 @@ struct ChatView: View {
     // MARK: - Keyboard Avoidance
 
 
+    #if canImport(UIKit)
     /// 根据键盘目标 frame 计算其遮挡内容区的高度，并跟随键盘动画曲线更新。
     private func updateKeyboardOverlap(_ note: Notification) {
         guard let endFrame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
@@ -708,6 +770,7 @@ struct ChatView: View {
             keyboardOverlap = overlap
         }
     }
+    #endif
 
     // MARK: - Intent Tag Navigation
 
@@ -1072,9 +1135,15 @@ private struct ChatContentColumn: View {
         .onChange(of: viewModel.showAnalysisScenarioPanel) { _, isOpen in
             // 面板展开时收起键盘，保证场景目录完整可见
             if isOpen {
+#if canImport(UIKit)
                 UIApplication.shared.sendAction(
                     #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
                 )
+                #else
+                NSApp.keyWindow?.firstResponder?.tryToPerform(
+                    #selector(NSResponder.resignFirstResponder), with: nil
+                )
+                #endif
                 // 展开即刷新额度快照：用户此刻正在读「今日剩余」，不能拿启动时的旧值
                 Task { await HoloSubscriptionService.shared.refreshStatus() }
             }

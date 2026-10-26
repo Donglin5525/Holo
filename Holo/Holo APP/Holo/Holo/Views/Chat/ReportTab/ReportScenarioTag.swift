@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import UIKit
 
 enum ReportScenarioTag: String, CaseIterable, Sendable {
     case crossDomain
@@ -53,30 +52,30 @@ enum ReportScenarioTag: String, CaseIterable, Sendable {
             return .holoStarTint
         case .habit:
             return Color.holoDynamic(
-                light: UIColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1),
-                dark: UIColor(red: 0.45, green: 0.88, blue: 0.60, alpha: 1)
+                light: HoloDynamicColor(red: 0.08, green: 0.50, blue: 0.24, alpha: 1),
+                dark: HoloDynamicColor(red: 0.45, green: 0.88, blue: 0.60, alpha: 1)
             )
         case .health:
             return .holoFollowUpTint
         case .task:
             return Color.holoDynamic(
-                light: UIColor(red: 0.26, green: 0.23, blue: 0.79, alpha: 1),
-                dark: UIColor(red: 0.68, green: 0.67, blue: 1.00, alpha: 1)
+                light: HoloDynamicColor(red: 0.26, green: 0.23, blue: 0.79, alpha: 1),
+                dark: HoloDynamicColor(red: 0.68, green: 0.67, blue: 1.00, alpha: 1)
             )
         case .thought:
             return Color.holoDynamic(
-                light: UIColor(red: 0.75, green: 0.09, blue: 0.36, alpha: 1),
-                dark: UIColor(red: 1.00, green: 0.55, blue: 0.72, alpha: 1)
+                light: HoloDynamicColor(red: 0.75, green: 0.09, blue: 0.36, alpha: 1),
+                dark: HoloDynamicColor(red: 1.00, green: 0.55, blue: 0.72, alpha: 1)
             )
         case .goal:
             return Color.holoDynamic(
-                light: UIColor(red: 0.76, green: 0.26, blue: 0.05, alpha: 1),
-                dark: UIColor(red: 1.00, green: 0.65, blue: 0.42, alpha: 1)
+                light: HoloDynamicColor(red: 0.76, green: 0.26, blue: 0.05, alpha: 1),
+                dark: HoloDynamicColor(red: 1.00, green: 0.65, blue: 0.42, alpha: 1)
             )
         case .longTermPattern:
             return Color.holoDynamic(
-                light: UIColor(red: 0.06, green: 0.46, blue: 0.43, alpha: 1),
-                dark: UIColor(red: 0.45, green: 0.85, blue: 0.80, alpha: 1)
+                light: HoloDynamicColor(red: 0.06, green: 0.46, blue: 0.43, alpha: 1),
+                dark: HoloDynamicColor(red: 0.45, green: 0.85, blue: 0.80, alpha: 1)
             )
         case .replay, .general:
             return .secondary

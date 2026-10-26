@@ -45,9 +45,11 @@ struct HoloGrowthView: View {
         }
         .background(Color.holoToolBackground)
         .navigationTitle("我的积累")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                 Button { showRules = true } label: { Image(systemName: "info.circle") }
                     .accessibilityLabel("积累统计说明")
             }

@@ -300,7 +300,9 @@ struct GoalResultSourceConfirmCard: View {
                 get: { source.targetValue },
                 set: { value in updateSource { $0.targetValue = value } }
             ), format: .number)
+            #if canImport(UIKit)
             .keyboardType(.decimalPad)
+            #endif
             .goalConfirmField()
 
             TextField(String(localized: "单位"), text: Binding(
@@ -413,7 +415,9 @@ struct GoalConstraintsConfirmCard: View {
 
                 HStack(spacing: HoloSpacing.sm) {
                     TextField(String(localized: "金额"), value: budgetBinding(\.amount), format: .number)
+                        #if canImport(UIKit)
                         .keyboardType(.decimalPad)
+                        #endif
                         .goalConfirmField()
                         .disabled(isReusing)
                         .opacity(isReusing ? 0.6 : 1)
@@ -501,7 +505,9 @@ struct GoalConstraintsConfirmCard: View {
                     DatePicker("", selection: installmentDate(index), displayedComponents: .date)
                         .labelsHidden()
                     TextField(String(localized: "金额"), value: installmentAmount(index), format: .number)
+                        #if canImport(UIKit)
                         .keyboardType(.decimalPad)
+                        #endif
                         .goalConfirmField()
                         .frame(maxWidth: 120)
                     Spacer(minLength: 0)
@@ -588,7 +594,9 @@ struct GoalConstraintsConfirmCard: View {
                                 .font(.holoLabel)
                                 .foregroundColor(.holoToolTextSecondary)
                             TextField(String(localized: "数量"), value: $constraint.limitValue, format: .number)
+                                #if canImport(UIKit)
                                 .keyboardType(.decimalPad)
+                                #endif
                                 .goalConfirmField()
                                 .frame(maxWidth: 80)
                             TextField(String(localized: "单位"), text: Binding(

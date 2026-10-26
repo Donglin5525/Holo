@@ -108,8 +108,17 @@ struct AnniversaryShareSheet: View {
         self.tint = tint
         let renderer = ImageRenderer(content: card)
         renderer.scale = 2.5
-        if let uiImage = renderer.uiImage {
+        #if canImport(UIKit)
+        let renderedUIImage: UIImage? = renderer.uiImage
+        #else
+        let renderedUIImage: UIImage? = renderer.nsImage
+        #endif
+        if let uiImage = renderedUIImage {
+            #if canImport(UIKit)
             self.renderedImage = Image(uiImage: uiImage)
+            #else
+            self.renderedImage = Image(nsImage: uiImage)
+            #endif
         } else {
             self.renderedImage = Image(systemName: "photo")
         }

@@ -126,7 +126,9 @@ struct ActualDurationSheet: View {
                 .padding(.bottom, HoloSpacing.lg)
             }
             .navigationTitle("实际用时")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }

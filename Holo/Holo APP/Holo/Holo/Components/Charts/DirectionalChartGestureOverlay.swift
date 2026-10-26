@@ -8,12 +8,16 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
+import Foundation
 
 // MARK: - 图表方向手势
 
 /// UIKit 的 pan delegate 能在识别开始前拒绝纵向拖动。
 /// 这与“识别后不处理纵向值”不同：拒绝后父级 ScrollView 可直接接管，不会出现首帧卡顿。
+#if canImport(UIKit)
 final class DirectionalChartGestureView: UIView {
     var onHierarchyReady: ((UIView) -> Void)?
 
@@ -163,3 +167,35 @@ struct DirectionalChartGestureOverlay: UIViewRepresentable {
         }
     }
 }
+
+#else
+/// macOS：无 UIKit 手势仲裁体系。DragGesture 天然无「与父级 ScrollView 抢手势」问题，
+/// 横向判定沿用 ChartGestureArbitration 的纯函数口径；点击用 onTapGesture 带位置版本。
+struct DirectionalChartGestureOverlay: View {
+    let onChanged: (CGPoint) -> Void
+    let onEnded: (CGPoint) -> Void
+    let onCancelled: () -> Void
+    var onTap: ((CGPoint) -> Void)? = nil
+
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        onChanged(value.location)
+                    }
+                    .onEnded { value in
+                        onEnded(value.location)
+                    }
+            )
+            .onTapGesture { location in
+                if let onTap {
+                    onTap(location)
+                } else {
+                    onEnded(location)
+                }
+            }
+    }
+}
+#endif

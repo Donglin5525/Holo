@@ -79,17 +79,25 @@ struct ThoughtTagManagementView: View {
                 }
             }
             .navigationTitle("标签治理")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .holoSheetShell()
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("完成") { dismiss() }
                 }
             }
             .onAppear { loadData() }
+            #if canImport(UIKit)
             .fullScreenCover(item: $viewingTag) { tag in
                 TagThoughtListView(tagName: tag.name)
             }
+            #else
+                        .sheet(item: $viewingTag) { tag in
+                TagThoughtListView(tagName: tag.name)
+            }
+            #endif
             .alert("重命名标签", isPresented: renameBinding) {
                 TextField("新标签名", text: $renameText)
                 Button("取消", role: .cancel) { renameTarget = nil }
@@ -361,16 +369,25 @@ private struct TagThoughtListView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("#\(ThoughtTagNormalizer.displayName(tagName))")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
                 }
             }
+            #if canImport(UIKit)
             .fullScreenCover(item: $selectedThoughtId) { thoughtId in
                 ThoughtEditorView(editingThoughtId: thoughtId)
                     .holoContentColumn()
             }
+            #else
+                        .sheet(item: $selectedThoughtId) { thoughtId in
+                ThoughtEditorView(editingThoughtId: thoughtId)
+                    .holoContentColumn()
+            }
+            #endif
             .task { load() }
             .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
                 load()

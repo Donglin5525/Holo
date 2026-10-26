@@ -27,10 +27,17 @@ struct ThoughtAttachmentThumbnailView: View {
     var body: some View {
         Group {
             if let resolvedImage {
+                #if canImport(UIKit)
                 Image(uiImage: resolvedImage)
                     .resizable()
                     .aspectRatio(1, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+                #else
+                Image(nsImage: resolvedImage)
+                    .resizable()
+                    .aspectRatio(1, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+                #endif
             } else {
                 RoundedRectangle(cornerRadius: HoloRadius.sm)
                     .fill(Color.holoBackground)

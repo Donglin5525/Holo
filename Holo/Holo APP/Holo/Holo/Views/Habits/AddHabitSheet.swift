@@ -690,7 +690,9 @@ struct AddHabitSheet: View {
                 HStack(spacing: 8) {
                     TextField("目标次数", text: $targetCount)
                         .font(.holoBody)
+                        #if canImport(UIKit)
                         .keyboardType(.numberPad)
+                        #endif
                         .foregroundColor(.holoToolText)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
@@ -705,7 +707,9 @@ struct AddHabitSheet: View {
                 HStack(spacing: 8) {
                     TextField("目标值", text: $targetValue)
                         .font(.holoBody)
+                        #if canImport(UIKit)
                         .keyboardType(.decimalPad)
+                        #endif
                         .foregroundColor(.holoToolText)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)

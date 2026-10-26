@@ -8,6 +8,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
 
 /// 全局自适应布局常量（集中管理，禁止在业务视图里散落魔法数字）
 enum HoloAdaptiveLayout {
@@ -59,6 +64,7 @@ enum HoloAdaptiveLayout {
     /// 视图内一律用 `holoWindowWidth` 环境（旋转时自动刷新），避免读屏幕尺寸的
     /// static 值不触发 SwiftUI 重算的问题。
     static var currentWindowWidth: CGFloat? {
+        #if canImport(UIKit)
         for scene in UIApplication.shared.connectedScenes {
             guard let windowScene = scene as? UIWindowScene else { continue }
             if let keyWindow = windowScene.windows.first(where: { $0.isKeyWindow }) {
@@ -66,6 +72,9 @@ enum HoloAdaptiveLayout {
             }
         }
         return nil
+        #else
+        return NSApp?.keyWindow?.frame.width
+        #endif
     }
 }
 
@@ -199,11 +208,16 @@ extension View {
         modifier(HoloSheetWidthModifier(kind: kind))
     }
 
+    #if canImport(UIKit)
     /// 通宵冲刺 2026-09-08：宽屏 hover 反馈（触控板/妙控键盘指针）。
     /// iPhone/无指针环境无任何效果；仅在 regular 宽度挂载，保证手机端零变化。
     func holoHover(_ style: HoverEffect = .highlight) -> some View {
         modifier(HoloHoverModifier(style: style))
     }
+    #else
+    /// macOS：hoverEffect 体系不可用，恒等透传
+    func holoHover(_ style: AnyObject? = nil) -> some View { self }
+    #endif
 }
 
 // MARK: - 弹层宽度政策（v2 阶段 3）
@@ -245,6 +259,7 @@ struct HoloSheetWidthModifier: ViewModifier {
 
 // MARK: - hover 反馈基建（通宵冲刺 E 轮铺量用）
 
+#if canImport(UIKit)
 struct HoloHoverModifier: ViewModifier {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
@@ -258,6 +273,7 @@ struct HoloHoverModifier: ViewModifier {
         }
     }
 }
+#endif
 
 // MARK: - 列表-详情双栏容器（2026-09-16 可用性改造重写）
 

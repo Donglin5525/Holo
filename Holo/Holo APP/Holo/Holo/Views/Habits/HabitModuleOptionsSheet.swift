@@ -92,7 +92,9 @@ struct HabitModuleOptionsSheet: View {
                 }
             }
             .navigationTitle(String(localized: "更多选项"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "关闭")) { dismiss() }
@@ -209,7 +211,9 @@ private struct LifecycleListPage: View {
         }
         .background(Color.holoToolBackground)
         .navigationTitle(String(localized: "已暂停与已归档"))
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     private func sectionHeader(_ text: String) -> some View {
@@ -374,7 +378,9 @@ struct SortPage: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle(String(localized: "今天列表排序"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .onAppear {
                 reorder.scrollProxy = proxy
                 if baselineIds.isEmpty {
@@ -537,7 +543,9 @@ private struct VisibilityPage: View {
         .navigationTitle(kind == .review
                          ? String(localized: "回顾展示与顺序")
                          : String(localized: "今日看板展示"))
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .onAppear { initializeDraft() }
     }
 
@@ -716,7 +724,9 @@ private struct DataManagementPage: View {
         }
         .background(Color.holoToolBackground)
         .navigationTitle(String(localized: "数据管理"))
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .sheet(isPresented: $showClearSheet) {
             ModuleClearSheet(module: .habit)
         }

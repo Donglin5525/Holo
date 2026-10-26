@@ -24,7 +24,9 @@ struct VoiceRecognitionSettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
         .navigationTitle("语音识别设置")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             await viewModel.loadConfig()
         }
@@ -72,7 +74,9 @@ struct VoiceRecognitionSettingsView: View {
         Section {
             SecureField("DashScope API Key", text: $viewModel.apiKey)
                 .font(.holoBody)
+                #if canImport(UIKit)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
         } header: {
             Text("API Key")
@@ -87,12 +91,16 @@ struct VoiceRecognitionSettingsView: View {
         Section {
             TextField("模型", text: $viewModel.model)
                 .font(.holoBody)
+                #if canImport(UIKit)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
 
             TextField("语言", text: $viewModel.language)
                 .font(.holoBody)
+                #if canImport(UIKit)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
 
             HStack {

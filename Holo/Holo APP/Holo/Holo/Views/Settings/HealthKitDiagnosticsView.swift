@@ -6,7 +6,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 struct HealthKitDiagnosticsView: View {
     @State private var syncRotation = 0.0
@@ -29,9 +33,11 @@ struct HealthKitDiagnosticsView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("健康诊断")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
+            ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                 Button {
                     dismiss()
                 } label: {
@@ -140,7 +146,12 @@ struct HealthKitDiagnosticsView: View {
 
     private func copyReport() {
         guard !reportText.isEmpty else { return }
+        #if canImport(UIKit)
         UIPasteboard.general.string = reportText
+        #else
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(reportText, forType: .string)
+        #endif
         copyStatusText = String(localized: "已复制")
 
         Task {

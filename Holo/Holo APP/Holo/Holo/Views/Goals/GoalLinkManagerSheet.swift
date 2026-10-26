@@ -59,9 +59,15 @@ struct GoalLinkManagerSheet: View {
                     Text("习惯")
                 }
             }
+            #if canImport(UIKit)
             .listStyle(.insetGrouped)
+            #else
+            .listStyle(.inset)
+            #endif
             .navigationTitle("管理关联")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

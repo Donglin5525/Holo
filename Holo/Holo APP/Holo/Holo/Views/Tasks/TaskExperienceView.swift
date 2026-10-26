@@ -156,6 +156,7 @@ struct TaskExperienceView: View {
             .clipped()
             .overlay(alignment: .bottom) {
                 undoBannerIfVisible
+                    .animation(HoloAnimation.snappy, value: showsCompletionUndoBanner)
             }
         }
         .sheet(isPresented: $showScopeSheet) {
@@ -225,10 +226,17 @@ struct TaskExperienceView: View {
                 calendar: model.calendar
             )
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showSearchView) {
             TaskExperienceSearchView(model: model)
                 .holoContentColumn()
         }
+        #else
+                .sheet(isPresented: $showSearchView) {
+            TaskExperienceSearchView(model: model)
+                .holoContentColumn()
+        }
+        #endif
         .sheet(isPresented: $showNotificationSettings) {
             NotificationSettingsView()
         }
@@ -702,9 +710,17 @@ struct TaskExperienceView: View {
     /// 键盘高度（真机实报：展开态输「加一步」时完成任务的撤回 toast 被键盘盖住）
     @State private var keyboardHeight: CGFloat = 0
 
+    /// 完成横条只在完成由本页（列表视图）发起时展示；跨页来源由发起页自己出横条
+    private var showsCompletionUndoBanner: Bool {
+        model.pendingCompletionTaskID != nil
+            && completionCoordinator.pending?.source == .taskList
+    }
+
     @ViewBuilder
     private var undoBannerIfVisible: some View {
-        if model.pendingCompletionTaskID != nil {
+        // 完成横条只展示本页发起的完成：pending 是跨页共享的单一状态，
+        // 不按 source 过滤会同一次完成在首页/详情各弹一条。
+        if showsCompletionUndoBanner {
             HoloUndoToast(
                 message: String(localized: "已完成 · \(Int(HoloTaskCompletionCoordinator.confirmDelay)) 秒内可撤回"),
                 onUndo: {
@@ -715,12 +731,14 @@ struct TaskExperienceView: View {
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.bottom, 80 + keyboardHeight)
             .transition(.move(edge: .bottom).combined(with: .opacity))
+            #if canImport(UIKit)
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
                 let end = (note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue ?? .zero
                 withAnimation(HoloAnimation.quick) {
-                    keyboardHeight = end.minY >= UIScreen.main.bounds.height - 1 ? 0 : end.height
+                    keyboardHeight = end.minY >= holoScreenHeight() - 1 ? 0 : end.height
                 }
             }
+            #endif
         } else if let undoable = actionCoordinator.undoable {
             HoloUndoToast(
                 message: undoable.message,

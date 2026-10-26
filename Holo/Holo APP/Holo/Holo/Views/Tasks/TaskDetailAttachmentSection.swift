@@ -7,6 +7,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import CoreData
 import AVFoundation
 import OSLog
@@ -70,9 +74,15 @@ struct TaskDetailAttachmentSection: View {
         .alert("无法访问", isPresented: $showCameraPermissionAlert) {
             Button("取消", role: .cancel) {}
             Button("去设置") {
+                #if canImport(UIKit)
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
+                #else
+                if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") {
+                    NSWorkspace.shared.open(url)
+                }
+                #endif
             }
         } message: {
             Text(String(localized: "请在系统设置中允许 Holo 访问相机"))
@@ -116,6 +126,7 @@ struct TaskDetailAttachmentSection: View {
                     GridItem(.flexible(), spacing: 8)
                 ], spacing: 8) {
                     ForEach(Array(pendingImages.enumerated()), id: \.offset) { index, image in
+                        #if canImport(UIKit)
                         Image(uiImage: image)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
@@ -133,6 +144,25 @@ struct TaskDetailAttachmentSection: View {
                                 }
                                 .padding(4)
                             }
+                        #else
+                        Image(nsImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity)
+                            .aspectRatio(1, contentMode: .fit)
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+                            .overlay(alignment: .topTrailing) {
+                                Button {
+                                    pendingImages.remove(at: index)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.white)
+                                        .shadow(color: .black.opacity(0.3), radius: 2)
+                                }
+                                .padding(4)
+                            }
+                        #endif
                     }
 
                     if pendingImages.count < 9 {

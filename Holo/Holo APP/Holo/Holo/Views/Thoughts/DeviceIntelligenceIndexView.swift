@@ -44,7 +44,7 @@ struct DeviceIntelligenceIndexView: View {
             .padding(.bottom, HoloSpacing.xl)
         }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                 Button {
                     dismiss()
                 } label: {
@@ -57,7 +57,9 @@ struct DeviceIntelligenceIndexView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle(String(localized: "设备智能索引"))
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task { await loadStatus() }
         .alert("删除设备智能索引？", isPresented: $showDestroyConfirm) {
             Button("取消", role: .cancel) {}

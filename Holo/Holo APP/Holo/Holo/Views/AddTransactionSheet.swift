@@ -298,7 +298,9 @@ struct AddTransactionSheet: View {
                 if showProjectPicker { projectPopup }
                 if showReceiptSourcePicker { receiptSourcePopup }
             }
+            #if canImport(UIKit)
             .navigationBarHidden(true)
+            #endif
             .confirmationDialog("确认删除", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
                 Button("删除这笔交易", role: .destructive) {
                     deleteTransaction()
@@ -391,9 +393,13 @@ struct AddTransactionSheet: View {
         .alert(String(localized: "无法访问"), isPresented: $showReceiptPermissionAlert) {
             Button(String(localized: "取消"), role: .cancel) {}
             Button(String(localized: "去设置")) {
+                #if canImport(UIKit)
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
+                #else
+                // macOS：票根权限弹窗场景不适用，去设置暂无对应入口
+                #endif
             }
         } message: {
             Text(receiptPermissionMessage)
@@ -409,7 +415,9 @@ struct AddTransactionSheet: View {
                 .environment(\.locale, Locale(identifier: "zh_CN"))
                 .padding(.horizontal, HoloSpacing.lg)
                 .navigationTitle("复制到")
+                #if canImport(UIKit)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("取消") {
@@ -426,9 +434,15 @@ struct AddTransactionSheet: View {
             }
                 .presentationDetents([.medium])
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showReceiptGallery) {
             receiptGalleryCover
         }
+        #else
+                .sheet(isPresented: $showReceiptGallery) {
+            receiptGalleryCover
+        }
+        #endif
     }
 
     // MARK: - Top Bar
@@ -705,7 +719,9 @@ struct RefundEntrySheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle(editingRefund == nil ? String(localized: "记退款") : String(localized: "编辑退款"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
@@ -1061,11 +1077,17 @@ struct RefundPickerSheet: View {
                     .buttonStyle(.plain)
                 }
             }
+            #if canImport(UIKit)
             .listStyle(.insetGrouped)
+            #else
+            .listStyle(.inset)
+            #endif
             .scrollContentBackground(.hidden)
             .background(Color.holoToolBackground)
             .navigationTitle(String(localized: "退款记录"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }

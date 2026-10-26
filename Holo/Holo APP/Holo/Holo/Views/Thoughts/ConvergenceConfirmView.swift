@@ -25,7 +25,9 @@ struct ConvergenceConfirmView: View {
             content
                 .holoSheetShell()
                 .navigationTitle("发现新主题")
+                #if canImport(UIKit)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button {

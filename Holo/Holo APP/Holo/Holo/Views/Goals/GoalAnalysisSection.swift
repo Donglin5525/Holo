@@ -117,10 +117,17 @@ struct GoalAnalysisSection: View {
             model.observe(goalID: goal.id, goal: goal)
             model.load(goal: goal)
         }
+        #if canImport(UIKit)
         .fullScreenCover(item: $reportMessage) { message in
             ReportDetailRoute(message: message, chatViewModel: nil, onDismiss: { model.load(goal: goal) })
                 .holoContentColumn()
         }
+        #else
+                .sheet(item: $reportMessage) { message in
+            ReportDetailRoute(message: message, chatViewModel: nil, onDismiss: { model.load(goal: goal) })
+                .holoContentColumn()
+        }
+        #endif
         .sheet(isPresented: $showHistory) {
             GoalReviewHistorySheet(goalTitle: goal.title, entries: model.state?.history ?? []) { messageID in
                 showHistory = false
@@ -432,7 +439,9 @@ struct GoalReviewHistorySheet: View {
             }
             .listStyle(.plain)
             .navigationTitle("历史分析")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
             }
@@ -474,7 +483,9 @@ struct GoalReviewConsentHintSheet: View {
             }
             .padding(HoloSpacing.lg)
             .navigationTitle("需要先同意云端分析")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("关闭") { dismiss() } }
             }

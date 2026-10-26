@@ -105,7 +105,9 @@ struct CategoryDeletionImpactView: View {
                 transactionListSection
             }
             .navigationTitle(String(localized: "删除「\(sourceName)」"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .holoSheetShell()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

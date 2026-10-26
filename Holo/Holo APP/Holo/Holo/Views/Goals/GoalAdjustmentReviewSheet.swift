@@ -67,7 +67,9 @@ struct GoalAdjustmentReviewSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle("调整这份计划")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -475,7 +477,9 @@ struct GoalAdjustmentOperationRow: View {
                         get: { op.criteriaChange?.newTargetValue },
                         set: { op.criteriaChange?.newTargetValue = $0 }
                     ), format: .number)
+                    #if canImport(UIKit)
                     .keyboardType(.decimalPad)
+                    #endif
                     .padding(HoloSpacing.sm)
                     .background(Color.holoToolBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))

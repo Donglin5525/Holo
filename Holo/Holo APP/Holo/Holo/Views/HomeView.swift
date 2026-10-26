@@ -371,6 +371,7 @@ struct HomeView: View {
             refreshFirstStepCard()
         }
         // 轻量新人引导（欢迎笔记优先：完成引导先深链读笔记，读完回首页再接三步导览）
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
             if WelcomeNoteSeed.isPendingPresentation {
                 welcomeNoteDeferredTour = true
@@ -390,6 +391,27 @@ struct HomeView: View {
             }
             .holoContentColumn()
         }
+        #else
+                .sheet(isPresented: $showOnboarding, onDismiss: {
+            if WelcomeNoteSeed.isPendingPresentation {
+                welcomeNoteDeferredTour = true
+                presentWelcomeNoteIfNeeded()
+            } else {
+                startHomeCoachTourIfNeeded()
+            }
+            // 引导完成（或跳过）后行动卡才具备出现条件
+            refreshFirstStepCard()
+        }) {
+            HoloLightweightOnboardingView { choice in
+                // 整体跳过引导的用户不强制跳欢迎笔记（尊重跳过），笔记仍在想法列表顶部
+                if choice != .skippedOnboarding {
+                    WelcomeNoteSeed.markPendingPresentation()
+                }
+                showOnboarding = false
+            }
+            .holoContentColumn()
+        }
+        #endif
         // 设置页面（Sheet 形式）
         .sheet(isPresented: $showSettingsView) {
             LazyView {
@@ -397,6 +419,7 @@ struct HomeView: View {
             }
         }
         // 今日看板（Full Screen Cover：临时展开层，不参与跨模块跳转，保留 cover）
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showDailyKanban, onDismiss: {
             // 晨报信号只在本次打开期间有效，手动进看板不残留小结卡
             showWeeklyBriefCard = false
@@ -437,6 +460,48 @@ struct HomeView: View {
                 .holoContentColumn()
             }
         }
+        #else
+                .sheet(isPresented: $showDailyKanban, onDismiss: {
+            // 晨报信号只在本次打开期间有效，手动进看板不残留小结卡
+            showWeeklyBriefCard = false
+        }) {
+            LazyView {
+                DailyKanbanView(
+                    showWeeklyBrief: showWeeklyBriefCard,
+                    todayViewModel: todayViewModel,
+                    onOpenChatWithMatter: { matterID in
+                        // Today 详情页讨论：上下文已由调用方保存，这里只负责关闭后进 Chat。
+                        openRootScreen(.ai)
+                    },
+                    onOpenAI: {
+                        // 「＋开始一件事」：关看板 → 预填引导语 → 进 AI（只预填不发送，
+                        // 方案 §5.2；用户补后半句发送即走情境规划 → 方案卡 → 加入进行中的事）
+                        showDailyKanban = false
+                        chatPrefillText = String(localized: "我想开始一件事：")
+                        openRootScreen(.ai)
+                    },
+                    onOpenFinance: {
+                        showDailyKanban = false
+                        navigateToScreen(.finance)
+                    },
+                    onAddTask: {
+                        showDailyKanban = false
+                        showAddTaskSheet = true
+                    },
+                    onQuickRecord: {
+                        // 「对 Holo 说」/看板 calm 态出口：关看板 → 进 AI → 落焦输入框。
+                        // 不预填示例句（「午饭花了 35 元」曾让用户误以为已记假账），
+                        // 输入框 placeholder 承担「说什么」的提示职责
+                        showDailyKanban = false
+                        chatFocusTrigger += 1
+                        openRootScreen(.ai)
+                    }
+                )
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+                .holoContentColumn()
+            }
+        }
+        #endif
         // 个人页面（Sheet 形式，与 SettingsView 一致，支持内部弹出子页面）
         .sheet(isPresented: $showPersonalView, onDismiss: {
             selectedTab = .ai
@@ -507,6 +572,7 @@ struct HomeView: View {
         // Deep Link / 小组件 - 记录想法
         // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容。
         // 显式 onSave: 防止 trailing closure 绑到编辑器的其他可选闭包参数。
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showThoughtEditor) {
             LazyView {
                 ThoughtEditorView(onSave: {
@@ -515,6 +581,16 @@ struct HomeView: View {
                 .holoContentColumn()
             }
         }
+        #else
+                .sheet(isPresented: $showThoughtEditor) {
+            LazyView {
+                ThoughtEditorView(onSave: {
+                    NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                })
+                .holoContentColumn()
+            }
+        }
+        #endif
         // 监听 Deep Link：冷启动时 onAppear 读取已有值
         // 方案 11：先记录是否携带 Deep Link → 处理 Deep Link → 再判断轻量 onboarding
         .onAppear {
@@ -843,7 +919,7 @@ struct HomeView: View {
 
     /// 小屏机型（高度不足）自动降档为紧凑条，不挤占中央大按钮（方案 §13.2）。
     private var shouldCompactMatterCard: Bool {
-        UIScreen.main.bounds.height < 700
+        holoScreenHeight() < 700
     }
 
     private var matterFocusItem: MatterFocusCard.Item? {

@@ -101,9 +101,11 @@ struct AddAnniversarySheet: View {
                 }
             }
             .navigationTitle(isEditMode ? String(localized: "编辑纪念日") : String(localized: "新建纪念日"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button(String(localized: "取消")) { requestDismiss() }
                         .foregroundColor(.holoTextSecondary)
                 }

@@ -59,7 +59,9 @@ struct TaskQuadrantMoveSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(String(localized: "移动到象限"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }

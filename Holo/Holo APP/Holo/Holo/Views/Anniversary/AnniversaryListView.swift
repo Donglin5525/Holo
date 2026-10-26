@@ -53,7 +53,9 @@ struct AnniversaryListView: View {
                 }
             }
         }
+        #if canImport(UIKit)
         .navigationBarHidden(true)
+        #endif
         .task {
             await CoreDataStack.shared.waitUntilReady()
             repository.setup()
@@ -78,12 +80,21 @@ struct AnniversaryListView: View {
                 AddAnniversarySheet(editingAnniversary: item)
             }
         }
+        #if canImport(UIKit)
         .fullScreenCover(item: $detailAnniversary) { item in
             AnniversaryDetailView(anniversary: item) {
                 detailAnniversary = nil
             }
             .holoContentColumn()
         }
+        #else
+                .sheet(item: $detailAnniversary) { item in
+            AnniversaryDetailView(anniversary: item) {
+                detailAnniversary = nil
+            }
+            .holoContentColumn()
+        }
+        #endif
         .confirmationDialog(
             "确认删除",
             isPresented: Binding(

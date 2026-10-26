@@ -41,9 +41,11 @@ struct BudgetCategoryDetailSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(overview?.categoryName ?? String(localized: "分类预算"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button(String(localized: "完成")) { dismiss() }
                         .foregroundColor(.holoTextSecondary)
                 }

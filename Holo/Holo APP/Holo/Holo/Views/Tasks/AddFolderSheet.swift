@@ -44,9 +44,11 @@ struct AddFolderSheet: View {
                 .padding(.top, HoloSpacing.md)
             }
             .navigationTitle("新建文件夹")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消") {
                         if !name.trimmingCharacters(in: .whitespaces).isEmpty {
                             showDismissAlert = true
@@ -57,7 +59,7 @@ struct AddFolderSheet: View {
                     .foregroundColor(.holoTextSecondary)
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("创建") {
                         createFolder()
                     }

@@ -7,7 +7,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 // MARK: - 暖家族色板
 
@@ -117,7 +121,12 @@ enum AccountCardNoise {
             return ctx.makeImage()
         }
         // 生成失败时退化为空图（仅损失噪点肌理，无功能影响）
+        #if canImport(UIKit)
         return cgImage.map(UIImage.init) ?? UIImage()
+        #else
+        return cgImage.map { NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height)) }
+            ?? NSImage()
+        #endif
     }()
 }
 
@@ -154,10 +163,17 @@ struct AccountCardMaterial: ViewModifier {
                         ],
                         startPoint: .topLeading, endPoint: .bottomTrailing
                     )
+                    #if canImport(UIKit)
                     Image(uiImage: AccountCardNoise.image)
                         .resizable()
                         .blendMode(.overlay)
                         .opacity(0.05)
+                    #else
+                    Image(nsImage: AccountCardNoise.image)
+                        .resizable()
+                        .blendMode(.overlay)
+                        .opacity(0.05)
+                    #endif
                 }
             )
             .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))

@@ -454,13 +454,15 @@ struct HabitTileView: View {
             .padding(HoloSpacing.lg)
             .background(Color.holoToolBackground)
             .navigationTitle("打卡备注")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消") { showCheckInNote = false }
                         .foregroundColor(.holoToolTextSecondary)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("保存") { saveCheckInNote() }
                         .holoText(.body)
                         .foregroundColor(.holoPrimary)
@@ -863,7 +865,9 @@ struct HabitTileView: View {
                 TextField("输入数值", text: $inputValue)
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
+                    #if canImport(UIKit)
                     .keyboardType(.decimalPad)
+                    #endif
                     .focused($isValueInputFocused)
                     .padding()
                     .background(Color.holoToolSurface)
@@ -884,16 +888,18 @@ struct HabitTileView: View {
             .padding(HoloSpacing.lg)
             .background(Color.holoToolBackground)
             .navigationTitle("记录数值")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消") {
                         showValueInput = false
                     }
                     .foregroundColor(.holoToolTextSecondary)
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("保存") {
                         saveValue()
                     }

@@ -1,4 +1,8 @@
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import CoreData
 
 private struct GoalPlanCriteriaFields: View {
@@ -12,7 +16,9 @@ private struct GoalPlanCriteriaFields: View {
             if payload.resultSource != nil {
                 GoalJourneyField(title: "成果目标值 · " + (payload.resultSource?.unit ?? "数值")) {
                     TextField("成果目标值", value: Binding<Double>(get: { payload.resultSource?.targetValue ?? 0 }, set: { payload.resultSource?.targetValue = $0 }), format: .number)
+                        #if canImport(UIKit)
                         .keyboardType(.decimalPad).accessibilityIdentifier("goal-plan-result-target")
+                        #endif
                 }
             }
             if payload.resultSource?.sourceType == .ledger {
@@ -38,7 +44,9 @@ private struct GoalFundScheduleFields: View {
                 ForEach(payload.fundSchedule.indices, id: \.self) { index in
                     GoalJourneyField(title: GoalAnalysisSection.dayText(payload.fundSchedule[index].dueDate) + " · 计划存入（元）") {
                         TextField("计划存入", value: $payload.fundSchedule[index].amount, format: .number)
+                            #if canImport(UIKit)
                             .keyboardType(.decimalPad).disabled(payload.fundSchedule[index].dueDate < Date())
+                            #endif
                     }
                 }
                 Text("修改的是计划，账户余额和过去已确认的期次不被覆盖。")
@@ -98,7 +106,13 @@ struct GoalPlanEditorSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { cancel() }.disabled(saving) }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("完成输入") { UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil) }
+                    Button("完成输入") {
+                        #if canImport(UIKit)
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        #else
+                        NSApp.keyWindow?.firstResponder?.tryToPerform(#selector(NSResponder.resignFirstResponder), with: nil)
+                        #endif
+                    }
                 }
             }
             .sheet(isPresented: $showHabitPicker) {

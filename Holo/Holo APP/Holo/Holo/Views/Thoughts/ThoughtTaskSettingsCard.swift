@@ -376,7 +376,9 @@ private struct ThoughtTaskCustomDatePickerSheet: View {
             }
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("选择日期")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消", action: onCancel)
@@ -428,9 +430,11 @@ private struct ThoughtTaskListPickerSheet: View {
             }
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("选择清单")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("完成") {
                         onSelect(selectedList)
                     }

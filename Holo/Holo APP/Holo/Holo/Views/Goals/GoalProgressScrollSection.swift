@@ -1,4 +1,8 @@
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import Combine
 import CoreData
 
@@ -127,11 +131,19 @@ struct GoalProgressScrollSection: View {
         }
         .sheet(item: $source, onDismiss: { model.load(goal) }) { item in GoalOriginalSourceSheet(selection: item) }
         .sheet(isPresented: $showPlan, onDismiss: { model.load(goal) }) { GoalPlanEditorSheet(goal: goal) }
+        #if canImport(UIKit)
         .fullScreenCover(item: $report) { message in ReportDetailRoute(message: message, chatViewModel: nil, onDismiss: { model.load(goal) }) }
+        #else
+                .sheet(item: $report) { message in ReportDetailRoute(message: message, chatViewModel: nil, onDismiss: { model.load(goal) }) }
+        #endif
         .task { await CoreDataStack.shared.waitUntilReady(); model.load(goal) }
         .onReceive(changes.debounce(for: .milliseconds(100), scheduler: RunLoop.main)) { _ in model.load(goal) }
         .onReceive(NotificationCenter.default.publisher(for: .goalDataDidChange)) { _ in model.load(goal) }
+        #if canImport(UIKit)
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in model.load(goal) }
+        #else
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in model.load(goal) }
+        #endif
     }
 
     private func initial(_ state: GoalReviewState) -> some View {

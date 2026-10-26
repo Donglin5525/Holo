@@ -75,9 +75,11 @@ struct GoalListView: View {
         }
         .background(Color.holoToolBackground)
         .navigationTitle("我的目标")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                 Menu {
                     if workshopEnabled {
                         Button {
@@ -409,9 +411,11 @@ struct GoalManualCreateSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle("创建目标")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button {
                         onCancel()
                         dismiss()

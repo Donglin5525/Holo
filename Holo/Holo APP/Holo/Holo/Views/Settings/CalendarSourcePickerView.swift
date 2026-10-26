@@ -37,9 +37,11 @@ struct CalendarSourcePickerView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("显示的日历")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                 Text("已选 \(selectedCount)/\(store.availableCalendars.count)")
                     .font(.system(size: 13))
                     .foregroundColor(.holoTextSecondary)

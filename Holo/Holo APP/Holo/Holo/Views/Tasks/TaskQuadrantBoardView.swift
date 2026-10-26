@@ -574,7 +574,9 @@ struct TaskQuadrantRulesSheet: View {
                 .padding(.bottom, HoloSpacing.xl)
             }
             .navigationTitle(String(localized: "象限规则"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "完成")) { dismiss() }

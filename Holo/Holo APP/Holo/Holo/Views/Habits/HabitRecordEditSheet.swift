@@ -36,7 +36,9 @@ struct HabitRecordEditSheet: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
                         TextField(String(localized: "数值"), text: $valueText)
+                            #if canImport(UIKit)
                             .keyboardType(.decimalPad)
+                            #endif
                 .accessibilityIdentifier("habit-record-edit-value")
                             .font(.system(size: 22, weight: .semibold).monospacedDigit())
                             .foregroundColor(.holoToolText)

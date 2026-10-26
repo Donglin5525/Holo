@@ -59,7 +59,9 @@ struct ThoughtGalleryView: View {
                         .tag(index)
                     }
                 }
+                #if canImport(UIKit)
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                #endif
 
                 // 页码指示器
                 Text("\(currentIndex + 1)/\(attachments.count)")

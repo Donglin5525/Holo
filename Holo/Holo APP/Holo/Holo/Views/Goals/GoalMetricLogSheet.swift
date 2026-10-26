@@ -46,7 +46,9 @@ struct GoalMetricLogSheet: View {
                             .font(.holoLabel)
                             .foregroundColor(.holoToolTextSecondary)
                         TextField(isTargetKind ? String(localized: "如 72.5") : String(localized: "如 5"), text: $valueText)
+                            #if canImport(UIKit)
                             .keyboardType(.decimalPad)
+                            #endif
                             .font(.holoBody)
                             .foregroundColor(.holoToolText)
                             .padding(HoloSpacing.sm)
@@ -92,7 +94,9 @@ struct GoalMetricLogSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle(isTargetKind ? String(localized: "记当前水平") : String(localized: "记一笔"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消", action: requestDismiss)

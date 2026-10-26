@@ -8,6 +8,10 @@
 
 import Foundation
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import Combine
 
 @MainActor
@@ -99,7 +103,12 @@ final class TaskStatsViewModel: ObservableObject {
             .sink { [weak self] _ in self?.reload(markUpdated: true) }
             .store(in: &cancellables)
 
-        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+        #if canImport(UIKit)
+        let activeName = UIApplication.didBecomeActiveNotification
+        #else
+        let activeName = NSApplication.didBecomeActiveNotification
+        #endif
+        NotificationCenter.default.publisher(for: activeName)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.reload(markUpdated: true) }
             .store(in: &cancellables)

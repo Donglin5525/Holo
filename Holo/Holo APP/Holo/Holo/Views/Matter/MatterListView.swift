@@ -37,9 +37,11 @@ struct MatterListView: View {
             }, scope: .single(selectedScope))
             .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle(Text(verbatim: "正在推进"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.large)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Menu {
                         Picker(selection: $selectedScope) {
                             Text(verbatim: "正在推进").tag(HoloMatterLifecycleStatus.active)
@@ -53,7 +55,7 @@ struct MatterListView: View {
                     }
                     .accessibilityLabel(Text(verbatim: "筛选"))
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button {
                         onAddTapped?()
                     } label: {
@@ -61,7 +63,7 @@ struct MatterListView: View {
                     }
                     .accessibilityLabel(Text(verbatim: "添加正在推进的事"))
                 }
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button(String(localized: "完成")) { dismiss() }
                 }
             }
@@ -164,7 +166,7 @@ struct MatterListContent: View {
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color(.secondarySystemGroupedBackground)))
+                    .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color.holoSecondaryGroupedBackground))
             } else {
                 ForEach(archived, id: \.id) { matter in
                     row(matter)
@@ -195,7 +197,7 @@ struct MatterListContent: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(Color(.systemBackground))
+                    .fill(Color.holoSystemBackground)
                     .shadow(color: Color.black.opacity(0.04), radius: 6, y: 2)
             )
         }

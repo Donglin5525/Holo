@@ -6,7 +6,10 @@
 //
 
 import CoreData
+#if canImport(UIKit)
 import UIKit
+#endif
+import Foundation
 import os.log
 
 extension ThoughtRepository {

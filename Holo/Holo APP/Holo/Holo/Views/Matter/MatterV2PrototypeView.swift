@@ -165,7 +165,7 @@ struct MatterV2PlanCardPreview: View {
             }
         }
         .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.holoSecondaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -215,7 +215,7 @@ private struct MatterV2DetailPreview: View {
             }
         }
         .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.holoSecondaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -261,7 +261,7 @@ private struct MatterV2DetailPreview: View {
                         .controlSize(.small)
                     }
                     .padding(12)
-                    .background(Color(.tertiarySystemGroupedBackground))
+                    .background(Color.holoTertiaryGroupedBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             } else {
@@ -338,7 +338,7 @@ private struct MatterV2DetailPreview: View {
             }
         }
         .padding(12)
-        .background(Color(.tertiarySystemGroupedBackground))
+        .background(Color.holoTertiaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -401,7 +401,7 @@ private struct MatterV2TodayPreview: View {
             placeholderSection("概况（占位：收支/步数）")
         }
         .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.holoSecondaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -425,7 +425,7 @@ private struct MatterV2TodayPreview: View {
                 Spacer()
             }
             .padding(14)
-            .background(Color(.tertiarySystemGroupedBackground))
+            .background(Color.holoTertiaryGroupedBackground)
             .clipShape(RoundedRectangle(cornerRadius: 14))
         }
     }
@@ -472,7 +472,7 @@ private struct MatterV2TodayPreview: View {
                 .foregroundStyle(.secondary)
         }
         .padding(12)
-        .background(Color(.tertiarySystemGroupedBackground))
+        .background(Color.holoTertiaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -533,9 +533,11 @@ struct MatterV2PrototypeView: View {
             }
             .padding(16)
         }
-        .background(Color(.systemGroupedBackground))
+        .background(Color.holoSystemBackground)
         .navigationTitle(Text(verbatim: "Matter V2 样机"))
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {

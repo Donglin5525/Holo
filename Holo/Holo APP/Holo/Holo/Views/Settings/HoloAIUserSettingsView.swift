@@ -79,7 +79,9 @@ struct HoloAIUserSettingsContent: View {
         }
         .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle("HoloAI 设置")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .navigationDestination(for: Destination.self) { destination in
             switch destination {
             case .discovery:
@@ -259,7 +261,9 @@ struct HoloAIUserSettingsContent: View {
         }
         .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle("周期回放")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     private func replayToggleRow(title: String, subtitle: String, isOn: Binding<Bool>, axID: String) -> some View {

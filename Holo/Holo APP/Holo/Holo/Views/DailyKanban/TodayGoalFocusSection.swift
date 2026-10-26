@@ -1,4 +1,8 @@
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import CoreData
 import Combine
 
@@ -52,7 +56,11 @@ private struct TodayFocusedGoalCard: View {
         }.buttonStyle(.plain).accessibilityIdentifier("today-focus-goal")
         .task { model.load(goal) }
         .onReceive(updates) { _ in model.load(goal) }
+        #if canImport(UIKit)
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in model.load(goal) }
+        #else
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in model.load(goal) }
+        #endif
     }
     @ViewBuilder private func metrics(_ snapshot: GoalEvaluationSnapshot) -> some View {
         let hasResult = snapshot.result.sourceKind != nil

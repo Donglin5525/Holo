@@ -30,7 +30,9 @@ struct AIDataProcessingConsentView: View {
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
         .navigationTitle("HoloAI 数据授权")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("完成") { dismiss() }

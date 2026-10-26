@@ -37,16 +37,25 @@ struct HoloMembershipCenterView: View {
         }
         .background(Color.holoBackground.ignoresSafeArea())
         .navigationTitle("Holo Plus")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             await HoloSubscriptionService.shared.refreshStatus()
         }
         // 会员中心位于「个人」sheet 内，付费墙必须由当前可见层级发起。
         // 交给 App 根视图弹出会被既有 sheet 挡住，表现为按钮点击无响应。
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $isPaywallPresented) {
             HoloPlusPaywallView(context: .membershipCenter)
                 .holoContentColumn()
         }
+        #else
+                .sheet(isPresented: $isPaywallPresented) {
+            HoloPlusPaywallView(context: .membershipCenter)
+                .holoContentColumn()
+        }
+        #endif
         .onChange(of: entitlementState.isPlusActive) { _, isPlusActive in
             if isPlusActive {
                 isPaywallPresented = false

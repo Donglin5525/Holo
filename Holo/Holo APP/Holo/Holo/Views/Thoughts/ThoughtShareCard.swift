@@ -85,6 +85,7 @@ struct ThoughtShareCard: View {
 
     /// 导出渲染：先按 3x，尺寸超渲染上限时降 scale 重渲（超限会得到尺寸正确但全透明的空图）
     @MainActor static func renderExportImage(_ card: ThoughtShareCard) -> UIImage? {
+        #if canImport(UIKit)
         let renderer = ImageRenderer(content: card)
         renderer.scale = 3
         var image = renderer.uiImage
@@ -102,6 +103,12 @@ struct ThoughtShareCard: View {
             image = UIImage(cgImage: cg.cropping(to: CGRect(x: 0, y: 0, width: cg.width, height: cg.height - 1)) ?? cg, scale: image?.scale ?? 1, orientation: .up)
         }
         return image
+        #else
+        // macOS：ImageRenderer 走 NSImage 出口（无底行杂色问题，无需裁剪）
+        let renderer = ImageRenderer(content: card)
+        renderer.scale = 3
+        return renderer.nsImage
+        #endif
     }
 
     var body: some View {
@@ -271,12 +278,21 @@ struct ThoughtShareSheet: View {
                     // 长图极端宽高比下「整图缩放适配」会缩成细丝，改为预览区内全宽可滚动
                     GeometryReader { geo in
                         ScrollView(.vertical) {
+                            #if canImport(UIKit)
                             Image(uiImage: previewImage)
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: geo.size.width)
                                 .frame(maxWidth: .infinity)
                                 .shadow(color: .black.opacity(0.55), radius: 24, y: 12)
+                            #else
+                            Image(nsImage: previewImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: geo.size.width)
+                                .frame(maxWidth: .infinity)
+                                .shadow(color: .black.opacity(0.55), radius: 24, y: 12)
+                            #endif
                         }
                         .scrollIndicators(.hidden)
                     }
@@ -348,11 +364,16 @@ struct ThoughtShareSheet: View {
 
             HStack(spacing: 10) {
                 if let renderedImage {
+                    #if canImport(UIKit)
+                    let shareItemImage = Image(uiImage: renderedImage)
+                    #else
+                    let shareItemImage = Image(nsImage: renderedImage)
+                    #endif
                     ShareLink(
-                        item: Image(uiImage: renderedImage),
+                        item: shareItemImage,
                         preview: SharePreview(
                             String(localized: "HOLO · 人生数据库"),
-                            image: Image(uiImage: renderedImage)
+                            image: shareItemImage
                         )
                     ) {
                         actionLabel(title: String(localized: "分享图片"), icon: "square.and.arrow.up", filled: true)
@@ -477,6 +498,7 @@ struct ThoughtShareSheet: View {
 
     /// 把超大位图缩到 GPU 纹理上限以内（模拟器/老设备常见上限 4096，取 3500 留余量），仅供预览上屏
     private static func downsampledPreview(_ image: UIImage, maxPixel: CGFloat = 3500) -> UIImage {
+        #if canImport(UIKit)
         let widthPx = image.size.width * image.scale
         let heightPx = image.size.height * image.scale
         let maxDimension = max(widthPx, heightPx)
@@ -490,6 +512,10 @@ struct ThoughtShareSheet: View {
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: targetSize))
         }
+        #else
+        // macOS：Phase A 预览不降采样（GPU 纹理上限问题在桌面端不成立）
+        return image
+        #endif
     }
 
     private var displayTagNames: [String] {
@@ -503,6 +529,7 @@ struct ThoughtShareSheet: View {
         return UserDisplayNameSettings.normalizedDisplayName(raw)
     }
 
+#if canImport(UIKit)
     private func saveToAlbum(_ image: UIImage) {
         // 必须等系统回调再报结果：权限被拒/写入失败时立刻显示「已保存」是假成功（2026-10-22 挑刺修复）
         let target = PhotoAlbumSaveTarget { error in
@@ -524,8 +551,15 @@ struct ThoughtShareSheet: View {
             #selector(PhotoAlbumSaveTarget.image(_:didFinishSavingWithError:contextInfo:)),
             Unmanaged.passRetained(target).toOpaque())
     }
+#else
+    /// macOS：无系统相册写入 API；保存按钮给出如实反馈（Phase A）
+    private func saveToAlbum(_ image: UIImage) {
+        HoloToastCenter.shared.show(String(localized: "Mac 版暂不支持保存到相册"), type: .warning)
+    }
+#endif
 }
 
+#if canImport(UIKit)
 /// UIImageWriteToSavedPhotosAlbum 只认 ObjC selector 回调；contextInfo 携带自持引用，回调后释放。
 private final class PhotoAlbumSaveTarget: NSObject {
     private let completion: (Error?) -> Void
@@ -539,3 +573,4 @@ private final class PhotoAlbumSaveTarget: NSObject {
         Unmanaged<PhotoAlbumSaveTarget>.fromOpaque(contextInfo).release()
     }
 }
+#endif

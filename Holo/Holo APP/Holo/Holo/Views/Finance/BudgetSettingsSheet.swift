@@ -107,7 +107,9 @@ struct BudgetSettingsSheet: View {
                                 .foregroundColor(.holoToolText)
                             TextField("0.00", text: $amountString)
                                 .font(.system(size: 24, weight: .semibold, design: .rounded))
+                                #if canImport(UIKit)
                                 .keyboardType(.decimalPad)
+                                #endif
                         }
                         .padding(HoloSpacing.md)
                         .background(Color.holoToolSurface)
@@ -183,14 +185,16 @@ struct BudgetSettingsSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle(isEditMode ? String(localized: "预算设置") : String(localized: "新建预算"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
                             .accessibilityLabel(Text("关闭"))
                         .foregroundColor(.holoToolTextSecondary)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button(isEditMode ? String(localized: "保存") : String(localized: "创建")) {
                         saveBudget()
                     }

@@ -6,6 +6,119 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
+
+#if canImport(UIKit)
+/// 双模式色构造的参数类型：iOS 为 UIColor，macOS 为 NSColor（RGB 分量语义一致）
+typealias HoloDynamicColor = UIColor
+#else
+typealias HoloDynamicColor = NSColor
+#endif
+
+// MARK: - macOS 兼容的 iOS 专属视图修饰符（空实现）
+
+#if !canImport(UIKit)
+/// macOS 空实现占位枚举：让 iOS 专属修饰符的调用点在 macOS 原样编译（成员查找可解析）。
+/// 桌面端这些修饰符语义不成立（无软键盘/无导航栏标题模式），统一恒等透传。
+enum HoloMacKeyboardTypeCompat { case URL, decimalPad, numberPad, emailAddress, phonePad, asciiCapable, `default` }
+enum HoloMacTextAutocapitalizationCompat { case never, words, sentences, characters }
+enum HoloMacNavTitleModeCompat { case automatic, inline, large }
+
+extension View {
+    func keyboardType(_ type: HoloMacKeyboardTypeCompat) -> some View { self }
+    func textInputAutocapitalization(_ mode: HoloMacTextAutocapitalizationCompat) -> some View { self }
+    func autocapitalization(_ mode: HoloMacTextAutocapitalizationCompat) -> some View { self }
+    func navigationBarTitleDisplayMode(_ mode: HoloMacNavTitleModeCompat) -> some View { self }
+    func navigationBarHidden(_ hidden: Bool) -> some View { self }
+    func listRowSpacing(_ spacing: CGFloat?) -> some View { self }
+}
+#endif
+
+// MARK: - 跨平台系统底色
+
+extension Color {
+    /// iOS systemGroupedBackground 系列的跨平台映射（macOS 用 AppKit 等价底色）
+    static var holoSecondaryGroupedBackground: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .secondarySystemGroupedBackground)
+        #else
+        Color(nsColor: .controlBackgroundColor)
+        #endif
+    }
+
+    static var holoTertiaryGroupedBackground: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .tertiarySystemGroupedBackground)
+        #else
+        Color(nsColor: .underPageBackgroundColor)
+        #endif
+    }
+
+    static var holoSystemGray6: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .systemGray6)
+        #else
+        Color(nsColor: .controlBackgroundColor)
+        #endif
+    }
+
+    static var holoSystemBackground: Color {
+        #if canImport(UIKit)
+        Color(uiColor: .systemBackground)
+        #else
+        Color(nsColor: .windowBackgroundColor)
+        #endif
+    }
+}
+
+// MARK: - 跨平台屏幕宽度
+
+/// iOS 主屏宽度；macOS 取主屏可见区域宽度（个别卡片排版测量用）
+func holoScreenWidth() -> CGFloat {
+    #if canImport(UIKit)
+    return UIScreen.main.bounds.width
+    #else
+    if let screen = NSScreen.main {
+        return screen.visibleFrame.width
+    }
+    return 1280
+    #endif
+}
+
+/// iOS 主屏高度；macOS 取主屏可见区域高度（个别卡片排版测量用）
+func holoScreenHeight() -> CGFloat {
+    #if canImport(UIKit)
+    return UIScreen.main.bounds.height
+    #else
+    if let screen = NSScreen.main {
+        return screen.visibleFrame.height
+    }
+    return 800
+    #endif
+}
+
+// MARK: - 跨平台导航工具栏位
+
+/// iOS 的导航栏左右位在 macOS 无直接对应：映射到 .navigation / .primaryAction（语义降级，位置仍合理）
+#if canImport(UIKit)
+enum HoloToolbarPlacement {
+    static let navLeading: ToolbarItemPlacement = .navigationBarLeading
+    static let navTrailing: ToolbarItemPlacement = .navigationBarTrailing
+    static let topBarLeading: ToolbarItemPlacement = .topBarLeading
+    static let topBarTrailing: ToolbarItemPlacement = .topBarTrailing
+}
+#else
+enum HoloToolbarPlacement {
+    static let navLeading: ToolbarItemPlacement = .navigation
+    static let navTrailing: ToolbarItemPlacement = .primaryAction
+    static let topBarLeading: ToolbarItemPlacement = .navigation
+    static let topBarTrailing: ToolbarItemPlacement = .primaryAction
+}
+#endif
 
 // MARK: - 颜色系统
 
@@ -23,23 +136,29 @@ extension Color {
     /// 徽标/彩条类前景色：亮暗各一版，底色统一用自身低透明（两种模式都自然）。
     /// 禁止再手写「浅底 Color(red:) + 深字」的单模式组合——深色模式下不可读。
     /// 收藏星标金
-    static let holoStarTint = Color.holoDynamic(light: UIColor(red: 0.71, green: 0.33, blue: 0.04, alpha: 1),
-                                                dark: UIColor(red: 0.98, green: 0.75, blue: 0.15, alpha: 1))
+    static let holoStarTint = Color.holoDynamic(light: HoloDynamicColor(red: 0.71, green: 0.33, blue: 0.04, alpha: 1),
+                                                dark: HoloDynamicColor(red: 0.98, green: 0.75, blue: 0.15, alpha: 1))
     /// 追问徽标蓝
-    static let holoFollowUpTint = Color.holoDynamic(light: UIColor(red: 0.11, green: 0.31, blue: 0.85, alpha: 1),
-                                                    dark: UIColor(red: 0.58, green: 0.77, blue: 0.99, alpha: 1))
+    static let holoFollowUpTint = Color.holoDynamic(light: HoloDynamicColor(red: 0.11, green: 0.31, blue: 0.85, alpha: 1),
+                                                    dark: HoloDynamicColor(red: 0.58, green: 0.77, blue: 0.99, alpha: 1))
     /// 追问血统紫
-    static let holoLineageTint = Color.holoDynamic(light: UIColor(red: 0.36, green: 0.22, blue: 0.71, alpha: 1),
-                                                   dark: UIColor(red: 0.77, green: 0.71, blue: 0.99, alpha: 1))
+    static let holoLineageTint = Color.holoDynamic(light: HoloDynamicColor(red: 0.36, green: 0.22, blue: 0.71, alpha: 1),
+                                                   dark: HoloDynamicColor(red: 0.77, green: 0.71, blue: 0.99, alpha: 1))
     /// 想法「不参与 AI」盾牌淡金（2026-10-21 标签级 AI 排除：排除态标签/角标，亮=麦金 暗=亮金）
-    static let holoAIShieldTint = Color.holoDynamic(light: UIColor(red: 0.66, green: 0.45, blue: 0.24, alpha: 1),
-                                                    dark: UIColor(red: 0.91, green: 0.72, blue: 0.45, alpha: 1))
+    static let holoAIShieldTint = Color.holoDynamic(light: HoloDynamicColor(red: 0.66, green: 0.45, blue: 0.24, alpha: 1),
+                                                    dark: HoloDynamicColor(red: 0.91, green: 0.72, blue: 0.45, alpha: 1))
 
     /// 双模式色构造：语义色走 Asset Catalog，此工具用于少量品牌衍生色。
-    static func holoDynamic(light: UIColor, dark: UIColor) -> Color {
+    static func holoDynamic(light: HoloDynamicColor, dark: HoloDynamicColor) -> Color {
+        #if canImport(UIKit)
         Color(UIColor { trait in
             trait.userInterfaceStyle == .dark ? dark : light
         })
+        #else
+        Color(NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .vibrantDark]) != nil ? dark : light
+        })
+        #endif
     }
     
     // MARK: - 背景色 (支持 Dark Mode)
@@ -50,11 +169,11 @@ extension Color {
     /// 嵌套卡片背景色：用于已经位于卡片容器内的次级信息块，避免深色模式下与父卡片融为一体
     static let holoNestedCardBackground = Color("NestedCardBackground")
     /// 册页纸色 - 记忆长廊日回放底色（米白纸感 / 暗纸）
-    static let holoPaper = Color.holoDynamic(light: UIColor(red: 0.980, green: 0.973, blue: 0.949, alpha: 1),
-                                             dark: UIColor(red: 0.106, green: 0.098, blue: 0.086, alpha: 1))
+    static let holoPaper = Color.holoDynamic(light: HoloDynamicColor(red: 0.980, green: 0.973, blue: 0.949, alpha: 1),
+                                             dark: HoloDynamicColor(red: 0.106, green: 0.098, blue: 0.086, alpha: 1))
     /// 印章红棕 - 册页风照片计数印章
-    static let holoSealRed = Color.holoDynamic(light: UIColor(red: 0.702, green: 0.275, blue: 0.235, alpha: 1),
-                                               dark: UIColor(red: 0.780, green: 0.360, blue: 0.320, alpha: 1))
+    static let holoSealRed = Color.holoDynamic(light: HoloDynamicColor(red: 0.702, green: 0.275, blue: 0.235, alpha: 1),
+                                               dark: HoloDynamicColor(red: 0.780, green: 0.360, blue: 0.320, alpha: 1))
     
     // MARK: - 文字颜色 (支持 Dark Mode)
     /// 主文字颜色 - 深灰色 / 浅色模式
@@ -72,8 +191,8 @@ extension Color {
     /// 成功状态浅色背景
     static let holoSuccessLight = Color(red: 209/255, green: 250/255, blue: 229/255)  // #D1FAE5
     /// 成功状态文字级绿色（白/纸底对比 ≥4.5:1；#22C55E 仅 2.3:1 禁止再直接作文字色）
-    static let holoSuccessText = Color.holoDynamic(light: UIColor(red: 21/255, green: 128/255, blue: 61/255, alpha: 1),
-                                                   dark: UIColor(red: 74/255, green: 222/255, blue: 128/255, alpha: 1))  // 浅#15803D / 暗#4ADE80
+    static let holoSuccessText = Color.holoDynamic(light: HoloDynamicColor(red: 21/255, green: 128/255, blue: 61/255, alpha: 1),
+                                                   dark: HoloDynamicColor(red: 74/255, green: 222/255, blue: 128/255, alpha: 1))  // 浅#15803D / 暗#4ADE80
     /// 错误/支出状态 - 红色
     static let holoError = Color(red: 239/255, green: 68/255, blue: 68/255)  // #EF4444
     /// 错误状态深色（渐变收尾用）
@@ -141,7 +260,7 @@ extension Color {
 
     /// 格子与徽章共用的前景规则：从黑白中选择对比度较高者，避免深底黑字或浅底白字。
     static func holoHeatmapForeground(level: Int, palette: HoloHeatmapPalette, colorScheme: ColorScheme) -> Color {
-        let color = UIColor(holoHeatmapColor(level: level, palette: palette, colorScheme: colorScheme))
+        let color = HoloDynamicColor(holoHeatmapColor(level: level, palette: palette, colorScheme: colorScheme))
         var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
         color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
         let linear = [red, green, blue].map { value in
@@ -476,46 +595,46 @@ enum HoloTaskPaperTheme {
     // MARK: 纸页行（未完成任务卡）
     /// 纸页行底：暖纸白 / 深色暗纸
     static let rowBackground = Color.holoDynamic(
-        light: UIColor(red: 1.000, green: 0.992, blue: 0.969, alpha: 1),   // 原型 #FFFDF7
-        dark:  UIColor(red: 0.145, green: 0.129, blue: 0.114, alpha: 1))
+        light: HoloDynamicColor(red: 1.000, green: 0.992, blue: 0.969, alpha: 1),   // 原型 #FFFDF7
+        dark:  HoloDynamicColor(red: 0.145, green: 0.129, blue: 0.114, alpha: 1))
     /// 纸页细边
     static let rowBorder = Color.holoDynamic(
-        light: UIColor(red: 0.882, green: 0.835, blue: 0.780, alpha: 1),   // 原型 #E1D5C7
-        dark:  UIColor(red: 0.263, green: 0.235, blue: 0.204, alpha: 1))
+        light: HoloDynamicColor(red: 0.882, green: 0.835, blue: 0.780, alpha: 1),   // 原型 #E1D5C7
+        dark:  HoloDynamicColor(red: 0.263, green: 0.235, blue: 0.204, alpha: 1))
 
     // MARK: 今日事簿记录行（完成任务收页后的记录）
     /// 记录行底：牛皮纸浅 / 暗棕
     static let recordBackground = Color.holoDynamic(
-        light: UIColor(red: 0.969, green: 0.933, blue: 0.890, alpha: 1),   // 原型 #F7EEE3
-        dark:  UIColor(red: 0.180, green: 0.153, blue: 0.125, alpha: 1))
+        light: HoloDynamicColor(red: 0.969, green: 0.933, blue: 0.890, alpha: 1),   // 原型 #F7EEE3
+        dark:  HoloDynamicColor(red: 0.180, green: 0.153, blue: 0.125, alpha: 1))
     /// 记录行左色条 + 印章描边的棕红
     static let recordStripe = Color.holoDynamic(
-        light: UIColor(red: 0.722, green: 0.396, blue: 0.271, alpha: 1),   // 原型 #B86545
-        dark:  UIColor(red: 0.784, green: 0.478, blue: 0.353, alpha: 1))
+        light: HoloDynamicColor(red: 0.722, green: 0.396, blue: 0.271, alpha: 1),   // 原型 #B86545
+        dark:  HoloDynamicColor(red: 0.784, green: 0.478, blue: 0.353, alpha: 1))
 
     // MARK: 完成回执（印章 + 衬线标题）
     /// 回执底：暖光纸
     static let receiptBackground = Color.holoDynamic(
-        light: UIColor(red: 1.000, green: 0.969, blue: 0.918, alpha: 1),   // 原型 #FFF7EA
-        dark:  UIColor(red: 0.196, green: 0.161, blue: 0.129, alpha: 1))
+        light: HoloDynamicColor(red: 1.000, green: 0.969, blue: 0.918, alpha: 1),   // 原型 #FFF7EA
+        dark:  HoloDynamicColor(red: 0.196, green: 0.161, blue: 0.129, alpha: 1))
     /// 回执描边
     static let receiptBorder = Color.holoDynamic(
-        light: UIColor(red: 0.894, green: 0.784, blue: 0.659, alpha: 1),   // 原型 #E4C8A8
-        dark:  UIColor(red: 0.302, green: 0.247, blue: 0.192, alpha: 1))
+        light: HoloDynamicColor(red: 0.894, green: 0.784, blue: 0.659, alpha: 1),   // 原型 #E4C8A8
+        dark:  HoloDynamicColor(red: 0.302, green: 0.247, blue: 0.192, alpha: 1))
     /// 印章字色（「成」）
     static let sealText = Color.holoDynamic(
-        light: UIColor(red: 0.718, green: 0.357, blue: 0.235, alpha: 1),   // 原型 #B75B3C
-        dark:  UIColor(red: 0.910, green: 0.608, blue: 0.471, alpha: 1))
+        light: HoloDynamicColor(red: 0.718, green: 0.357, blue: 0.235, alpha: 1),   // 原型 #B75B3C
+        dark:  HoloDynamicColor(red: 0.910, green: 0.608, blue: 0.471, alpha: 1))
 
     // MARK: 撤回 toast（深底横条）
     /// toast 底：深墨（两模式同走深底；深色模式提亮一档并靠描边分层）
     static let undoToastBackground = Color.holoDynamic(
-        light: UIColor(red: 0.188, green: 0.169, blue: 0.157, alpha: 1),   // 原型 #302B28
-        dark:  UIColor(red: 0.243, green: 0.220, blue: 0.196, alpha: 1))
+        light: HoloDynamicColor(red: 0.188, green: 0.169, blue: 0.157, alpha: 1),   // 原型 #302B28
+        dark:  HoloDynamicColor(red: 0.243, green: 0.220, blue: 0.196, alpha: 1))
     /// toast 主文字：暖白
     static let undoToastText = Color.holoDynamic(
-        light: UIColor(red: 1.000, green: 0.980, blue: 0.949, alpha: 1),
-        dark:  UIColor(red: 1.000, green: 0.980, blue: 0.949, alpha: 1))
+        light: HoloDynamicColor(red: 1.000, green: 0.980, blue: 0.949, alpha: 1),
+        dark:  HoloDynamicColor(red: 1.000, green: 0.980, blue: 0.949, alpha: 1))
     /// toast 撤回动作色：杏仁橙
     static let undoAction = Color(red: 1.000, green: 0.780, blue: 0.647)   // 原型 #FFC7A5
 
@@ -523,10 +642,10 @@ enum HoloTaskPaperTheme {
     /// 纸页头渐变：暖光入纸白（深色模式走暗纸两级）
     static let headerGradient = LinearGradient(
         colors: [
-            Color.holoDynamic(light: UIColor(red: 1.000, green: 0.961, blue: 0.910, alpha: 1),   // #FFF5E8
-                              dark:  UIColor(red: 0.196, green: 0.169, blue: 0.137, alpha: 1)),
-            Color.holoDynamic(light: UIColor(red: 1.000, green: 0.992, blue: 0.973, alpha: 1),   // #FFFDF8
-                              dark:  UIColor(red: 0.149, green: 0.129, blue: 0.106, alpha: 1))
+            Color.holoDynamic(light: HoloDynamicColor(red: 1.000, green: 0.961, blue: 0.910, alpha: 1),   // #FFF5E8
+                              dark:  HoloDynamicColor(red: 0.196, green: 0.169, blue: 0.137, alpha: 1)),
+            Color.holoDynamic(light: HoloDynamicColor(red: 1.000, green: 0.992, blue: 0.973, alpha: 1),   // #FFFDF8
+                              dark:  HoloDynamicColor(red: 0.149, green: 0.129, blue: 0.106, alpha: 1))
         ],
         startPoint: .topLeading,
         endPoint: .bottomTrailing
@@ -691,9 +810,17 @@ extension Color {
     /// 用户的绿色不能变橙）。存量任意旧色一并治理；深色模式把亮度钳进可见区间。
     static func holoHabitSurface(_ base: Color, scheme: ColorScheme) -> Color {
         var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
-        guard UIColor(base).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else {
+        #if canImport(UIKit)
+        guard HoloDynamicColor(base).getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else {
             return base
         }
+        #else
+        // NSColor.getHue 不返回成功标记（UIColor 才有）；转换失败时保持基色
+        guard let rgbBase = HoloDynamicColor(base).usingColorSpace(.deviceRGB) else {
+            return base
+        }
+        _ = rgbBase.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        #endif
         if scheme == .dark {
             let clamped = min(max(brightness, 0.60), 0.88)
             return Color(hue: hue, saturation: min(saturation, 0.70), brightness: clamped, opacity: alpha)

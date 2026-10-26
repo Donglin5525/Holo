@@ -54,9 +54,11 @@ struct GoalDetailView: View {
         }
         .background(Color.holoToolBackground)
         .navigationTitle("目标详情")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .tint(GoalJourneyStyle.action)
-        .toolbar { ToolbarItem(placement: .topBarTrailing) {
+        .toolbar { ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
             Button { showGoalSettings = true } label: { Image(systemName: "ellipsis") }.accessibilityLabel("目标设置")
         } }
         .sheet(isPresented: $showGoalSettings) { settingsPanel }
@@ -82,7 +84,9 @@ struct GoalDetailView: View {
                         aiContextToggle; proactiveNudgeToggle; taskSection; habitSection; metricLogSection; actionSection
                     }.padding(GoalJourneyStyle.pageInset)
                 }.background(Color.holoToolBackground).navigationTitle("目标设置")
+                    #if canImport(UIKit)
                     .navigationBarTitleDisplayMode(.inline)
+                    #endif
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("完成") { showGoalSettings = false } } }
             }
         .confirmationDialog("删除目标", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
@@ -614,9 +618,11 @@ struct GoalEditSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle("编辑目标")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button {
                         dismiss()
                     } label: {

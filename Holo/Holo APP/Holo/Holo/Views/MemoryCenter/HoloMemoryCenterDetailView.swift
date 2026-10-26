@@ -111,7 +111,9 @@ struct HoloMemoryCenterDetailView: View {
         .background(Color.holoToolBackground)
         .buttonStyle(.plain)
         .navigationBarBackButtonHidden(true)
+        #if canImport(UIKit)
         .toolbar(.hidden, for: .navigationBar)
+        #endif
         .task {
             await viewModel.load()
             if viewModel.autoOpenEdit { viewModel.showEditSheet = true }

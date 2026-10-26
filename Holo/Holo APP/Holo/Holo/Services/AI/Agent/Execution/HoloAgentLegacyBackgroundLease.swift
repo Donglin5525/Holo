@@ -9,7 +9,9 @@
 //    → 尽快调系统完成接口；不承担 checkpoint 保存（正常推进中已持续落盘）。
 //
 
+#if canImport(UIKit)
 import UIKit
+#endif
 import Foundation
 
 @MainActor
@@ -21,7 +23,7 @@ final class HoloAgentLegacyBackgroundLease: HoloAgentExecutionLease {
 
     private let client: any HoloBackgroundTaskClient
     private let onExpiration: @Sendable (String) -> Void
-    private var taskID: UIBackgroundTaskIdentifier = .invalid
+    private var taskID: HoloBackgroundTaskIdentifier = .invalid
     private var didExpire = false
     private var didFinish = false
 

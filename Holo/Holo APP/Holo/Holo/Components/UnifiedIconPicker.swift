@@ -195,7 +195,9 @@ struct UnifiedIconPickerSheet<Footer: View>: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle("选择图标")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: {

@@ -1,5 +1,8 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
+import Foundation
 
 /// 只携带展示快照，异步图片仍由编辑器原来的上传/重试/删除链路处理。
 struct ThoughtPaperPhotoSource: Identifiable {
@@ -105,9 +108,15 @@ private struct ThoughtPaperPhotoCell: View {
     private var photo: some View {
         ZStack {
             if let image {
+                #if canImport(UIKit)
                 Image(uiImage: image).resizable().scaledToFill()
                     .frame(width: max(1, width - (style == .film || style == .post ? 8 : 0)), height: max(1, height))
                     .clipped()
+                #else
+                Image(nsImage: image).resizable().scaledToFill()
+                    .frame(width: max(1, width - (style == .film || style == .post ? 8 : 0)), height: max(1, height))
+                    .clipped()
+                #endif
             } else {
                 Rectangle().fill(style.listBorder.opacity(0.45))
             }

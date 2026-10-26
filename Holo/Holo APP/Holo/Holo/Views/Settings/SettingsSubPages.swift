@@ -149,9 +149,11 @@ struct SettingsSheetShell<Content: View>: View {
                     .padding(.vertical, HoloSpacing.md)
             }
             .background(Color.holoToolBackground)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button {
                         dismiss()
                     } label: {

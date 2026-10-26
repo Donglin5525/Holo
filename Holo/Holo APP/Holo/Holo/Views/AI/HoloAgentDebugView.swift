@@ -76,7 +76,9 @@ struct HoloAgentDebugView: View {
             }
         }
         .navigationTitle("Agent 调试")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .scrollDismissesKeyboard(.immediately)
     }
 

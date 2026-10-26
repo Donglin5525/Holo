@@ -38,6 +38,7 @@ struct ReportShareCard: View {
 
     /// 导出渲染：先按 3x，尺寸超渲染上限时降 scale 重渲（超限会得到尺寸正确但全透明的空图）
     @MainActor static func renderExportImage(_ card: ReportShareCard) -> UIImage? {
+        #if canImport(UIKit)
         let renderer = ImageRenderer(content: card)
         renderer.scale = 3
         var image = renderer.uiImage
@@ -50,6 +51,12 @@ struct ReportShareCard: View {
             }
         }
         return image
+        #else
+        // macOS：ImageRenderer 走 NSImage 出口（3x）
+        let renderer = ImageRenderer(content: card)
+        renderer.scale = 3
+        return renderer.nsImage
+        #endif
     }
 
     // 暖纸手账固定色板（与 ThoughtShareCard 同源，刻意不随系统深色模式变）
@@ -387,12 +394,21 @@ struct ReportShareSheet: View {
                     // 长图极端宽高比下「整图缩放适配」会缩成细丝，预览区内全宽可滚动
                     GeometryReader { geo in
                         ScrollView(.vertical) {
+                            #if canImport(UIKit)
                             Image(uiImage: previewImage)
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: geo.size.width)
                                 .frame(maxWidth: .infinity)
                                 .shadow(color: .black.opacity(0.55), radius: 24, y: 12)
+                            #else
+                            Image(nsImage: previewImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: geo.size.width)
+                                .frame(maxWidth: .infinity)
+                                .shadow(color: .black.opacity(0.55), radius: 24, y: 12)
+                            #endif
                         }
                         .scrollIndicators(.hidden)
                     }
@@ -431,11 +447,16 @@ struct ReportShareSheet: View {
 
             HStack(spacing: 10) {
                 if let renderedImage {
+                    #if canImport(UIKit)
+                    let shareItemImage = Image(uiImage: renderedImage)
+                    #else
+                    let shareItemImage = Image(nsImage: renderedImage)
+                    #endif
                     ShareLink(
-                        item: Image(uiImage: renderedImage),
+                        item: shareItemImage,
                         preview: SharePreview(
                             String(localized: "HOLO · 人生数据库"),
-                            image: Image(uiImage: renderedImage)
+                            image: shareItemImage
                         )
                     ) {
                         actionLabel(title: String(localized: "分享图片"), icon: "square.and.arrow.up", filled: true)
@@ -543,6 +564,7 @@ struct ReportShareSheet: View {
 
     /// 把超大位图缩到 GPU 纹理上限以内（与 ThoughtShareSheet 同源策略，取 3500 留余量），仅供预览上屏
     private static func downsampledPreview(_ image: UIImage, maxPixel: CGFloat = 3500) -> UIImage {
+        #if canImport(UIKit)
         let widthPx = image.size.width * image.scale
         let heightPx = image.size.height * image.scale
         let maxDimension = max(widthPx, heightPx)
@@ -556,10 +578,18 @@ struct ReportShareSheet: View {
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: targetSize))
         }
+        #else
+        // macOS：预览不降采样（桌面端无 GPU 纹理上限问题）
+        return image
+        #endif
     }
 
     private func saveToAlbum(_ image: UIImage) {
+        #if canImport(UIKit)
         UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+        #else
+        // macOS：无系统相册 API；分享走 ShareLink（保存图片可用分享面板落盘）
+        #endif
         // 写入请求已提交；系统仅在没有相册写入授权时弹窗，结果通过回调不可用于此简化入口
         saveState = .saved
         HapticManager.success()

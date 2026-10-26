@@ -319,9 +319,11 @@ struct TaskDetailView: View {
                 }
             }
             .navigationTitle("")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button {
                         handleBack()
                     } label: {
@@ -334,7 +336,7 @@ struct TaskDetailView: View {
                 }
 
                 // 破坏性操作收进「⋯」菜单，不常驻编辑视图
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     if existingTask != nil {
                         Menu {
                             Button(role: .destructive) {
@@ -352,20 +354,12 @@ struct TaskDetailView: View {
                 }
             }
         }
-        // 撤回窗口 banner（与任务列表同一样式；confirm 落库前可撤回）
+        // 撤回窗口 banner（与任务列表同一样式；confirm 落库前可撤回）。
+        // 只展示本页发起的完成：pending 是跨页共享的单一状态，
+        // 不按 source 过滤会同一次完成在详情/列表各弹一条。
         .overlay(alignment: .bottom) {
             completionUndoBanner
-        }
-        // 完成回执：保留一次性收页节奏，视觉使用 Holo 标准卡片，不挡操作。
-        .overlay(alignment: .top) {
-            if isCompletionPending,
-               HoloTaskMotionRolloutPolicy.isEnabled,
-               let task = existingTask {
-                TaskPaperCompletionReceipt(title: task.title)
-                    .id(task.id)
-                    .padding(.top, 72)
-                    .allowsHitTesting(false)
-            }
+                .animation(HoloAnimation.snappy, value: showsUndoBanner)
         }
         .onAppear {
             appearedAt = Date()
@@ -497,6 +491,7 @@ struct TaskDetailView: View {
                 }
             }
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showAttachmentGallery) {
             if let task = existingTask {
                 AttachmentGalleryView(
@@ -506,6 +501,17 @@ struct TaskDetailView: View {
                 )
             }
         }
+        #else
+                .sheet(isPresented: $showAttachmentGallery) {
+            if let task = existingTask {
+                AttachmentGalleryView(
+                    attachments: task.sortedAttachments,
+                    startIndex: galleryStartIndex,
+                    taskId: task.id
+                )
+            }
+        }
+        #endif
         .photosPicker(
             isPresented: $showAttachmentPhotoPicker,
             selection: $selectedAttachmentPhotos,
@@ -516,6 +522,7 @@ struct TaskDetailView: View {
         .onChange(of: selectedAttachmentPhotos) { _, newItems in
             loadAttachmentPhotos(newItems)
         }
+        #if canImport(UIKit)
         .fullScreenCover(
             isPresented: $showAttachmentCamera,
             onDismiss: {
@@ -531,6 +538,23 @@ struct TaskDetailView: View {
                 showAttachmentCamera = false
             })
         }
+        #else
+                .sheet(
+            isPresented: $showAttachmentCamera,
+            onDismiss: {
+                guard let data = pendingCameraImageData else { return }
+                pendingCameraImageData = nil
+                handleCapturedImageData(data)
+            }
+        ) {
+            CameraView(onCapture: { imageData in
+                pendingCameraImageData = imageData
+                showAttachmentCamera = false
+            }, onDismiss: {
+                showAttachmentCamera = false
+            })
+        }
+        #endif
         // ignoreNavigationStack: true —— 本页是 NavigationStack 根视图，
         // 系统 pop 无内容可 pop；不传则 SwipeBackModifier 会因窗口内任意 push
         // 的 NavigationStack 而让位，导致右滑失效（与 HealthDetailView 一致）。
@@ -718,6 +742,11 @@ struct TaskDetailView: View {
         return completionCoordinator.pending?.taskID == task.id
     }
 
+    /// 撤回横条只在完成由本页发起时展示；跨页来源的完成由发起页自己出横条
+    private var showsUndoBanner: Bool {
+        isCompletionPending && completionCoordinator.pending?.source == .taskDetail
+    }
+
     /// - Parameter trigger: 由「子任务全勾」联动触发时带出触发子任务快照，撤回时恢复其原勾选状态
     private func toggleCompletion(trigger: (checkItemID: UUID, wasChecked: Bool)? = nil) {
         guard let task = existingTask else { return }
@@ -751,7 +780,7 @@ struct TaskDetailView: View {
     /// 撤回窗口 banner：使用 Holo 统一操作回执。
     @ViewBuilder
     private var completionUndoBanner: some View {
-        if isCompletionPending {
+        if showsUndoBanner {
             if HoloTaskMotionRolloutPolicy.isEnabled {
                 HoloUndoToast(
                     message: String(localized: "已完成 · \(Int(HoloTaskCompletionCoordinator.confirmDelay)) 秒内可撤回"),

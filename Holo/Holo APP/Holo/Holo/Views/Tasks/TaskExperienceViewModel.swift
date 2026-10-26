@@ -9,6 +9,10 @@
 
 import Foundation
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import Combine
 import CoreData
 
@@ -91,14 +95,24 @@ final class TaskExperienceViewModel: ObservableObject {
             .store(in: &cancellables)
 
         // 前台恢复兜底（§9.3）
-        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+        #if canImport(UIKit)
+        let activeName = UIApplication.didBecomeActiveNotification
+        #else
+        let activeName = NSApplication.didBecomeActiveNotification
+        #endif
+        NotificationCenter.default.publisher(for: activeName)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.reload() }
             .store(in: &cancellables)
 
         // 显著时间变化（运营商时间同步/跨时区旅行）与时区切换：
         // today、逾期、自动紧急、月索引按新时刻重算（多视图方案 §8）
-        NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)
+        #if canImport(UIKit)
+        let significantTimeChange = UIApplication.significantTimeChangeNotification
+        #else
+        let significantTimeChange = Notification.Name.NSCalendarDayChanged
+        #endif
+        NotificationCenter.default.publisher(for: significantTimeChange)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.reload() }
             .store(in: &cancellables)

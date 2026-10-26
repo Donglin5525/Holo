@@ -453,7 +453,9 @@ struct HabitMeasureInputSheet: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     TextField(unitPlaceholder, text: $valueText)
+                        #if canImport(UIKit)
                         .keyboardType(.decimalPad)
+                        #endif
                         .font(.system(size: 26, weight: .semibold).monospacedDigit())
                         .foregroundColor(.holoToolText)
                         .focused($valueFocused)
@@ -584,7 +586,9 @@ private struct RetroactiveHabitPicker: View {
                 .buttonStyle(.plain)
             }
             .navigationTitle(String(localized: "选择要补录的习惯"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }

@@ -40,7 +40,9 @@ struct TaskDueDateTimeSheet: View {
                 }
             }
             .navigationTitle("日期与时间")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {

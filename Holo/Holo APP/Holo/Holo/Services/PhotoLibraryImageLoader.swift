@@ -18,11 +18,16 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 import PhotosUI
 import Photos
 import CoreTransferable
 import UniformTypeIdentifiers
+import ImageIO
 import os.log
 
 nonisolated enum PhotoLibraryImageLoader {
@@ -233,10 +238,27 @@ nonisolated enum PhotoLibraryImageLoader {
             if let originalData {
                 return .data(originalData)
             }
+            #if canImport(UIKit)
             guard let jpeg = image.jpegData(compressionQuality: 0.95) else {
                 return .unavailable
             }
             return .data(jpeg)
+            #else
+            // macOS：NSImage 无 jpegData，走 CGImageDestination 等价编码（口径一致）
+            guard let tiff = image.tiffRepresentation,
+                  let cgImage = NSBitmapImageRep(data: tiff)?.cgImage else {
+                return .unavailable
+            }
+            let output = NSMutableData()
+            guard let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil) else {
+                return .unavailable
+            }
+            CGImageDestinationAddImage(destination, cgImage, [kCGImageDestinationLossyCompressionQuality: 0.95] as CFDictionary)
+            guard CGImageDestinationFinalize(destination) else {
+                return .unavailable
+            }
+            return .data(output as Data)
+            #endif
         case .failed(let outcome):
             return outcome
         }

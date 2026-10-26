@@ -116,9 +116,11 @@ struct ThoughtTaskExtractionSheet: View {
             }
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("提取任务")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消", action: onDismiss)
                         .font(.holoBody)
                         .foregroundColor(.holoTextSecondary)
@@ -144,7 +146,7 @@ struct ThoughtTaskExtractionSheet: View {
                         .disabled(isExtracting || isCreating)
                     }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button {
                         createTasks()
                     } label: {

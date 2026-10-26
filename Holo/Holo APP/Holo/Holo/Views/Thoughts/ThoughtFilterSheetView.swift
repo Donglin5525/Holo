@@ -64,9 +64,11 @@ struct ThoughtFilterSheetView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("筛选")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("完成") {
                         dismiss()
                     }

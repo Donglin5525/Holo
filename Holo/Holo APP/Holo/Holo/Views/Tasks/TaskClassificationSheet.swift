@@ -47,7 +47,9 @@ struct TaskClassificationSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(String(localized: "轻重缓急"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }

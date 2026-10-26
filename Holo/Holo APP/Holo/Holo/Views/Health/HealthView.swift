@@ -6,6 +6,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 
 // MARK: - HealthView
 
@@ -96,7 +100,9 @@ struct HealthView: View {
             .navigationDestination(isPresented: $showVitals) {
                 VitalsView()
             }
+            #if canImport(UIKit)
             .toolbar(.hidden, for: .navigationBar)
+            #endif
         }
         // 手势挂在 NavigationStack 外面时让位判断恒失效（见 SwipeBackModifier 文档），
         // 必须按 push 状态显式门控：详情页/身体状态页在前台时整层失效，
@@ -491,9 +497,15 @@ struct HealthView: View {
         .onTapGesture {
             // 部分连接时点按跳转系统设置，引导用户补全健康权限
             guard !daySwipeState.isSwiping, repository.dataSourceState == .partiallyConnected else { return }
+            #if canImport(UIKit)
             if let url = URL(string: UIApplication.openSettingsURLString) {
                 UIApplication.shared.open(url)
             }
+            #else
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Health") {
+                NSWorkspace.shared.open(url)
+            }
+            #endif
         }
     }
 
@@ -732,9 +744,15 @@ struct HealthView: View {
 
             if repository.dataSourceState == .denied {
                 Button("打开系统设置") {
+                    #if canImport(UIKit)
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
+                    #else
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.Health") {
+                        NSWorkspace.shared.open(url)
+                    }
+                    #endif
                 }
                 .holoText(.body)
                 .foregroundColor(.holoPrimary)

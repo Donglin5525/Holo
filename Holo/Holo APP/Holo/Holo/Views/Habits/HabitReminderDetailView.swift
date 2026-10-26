@@ -56,7 +56,9 @@ struct HabitReminderDetailView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("习惯打卡提醒")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             loadSchedulerSettings()
             loadHabits()
@@ -358,16 +360,18 @@ private struct HabitReminderEditSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("打卡提醒")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消") {
                         dismiss()
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("确定") {
                         confirm()
                     }

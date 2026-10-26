@@ -378,7 +378,9 @@ struct ExportOptionsSheet: View {
                 }
             }
             .background(Color.holoBackground)
+            #if canImport(UIKit)
             .navigationBarHidden(true)
+            #endif
         }
         .presentationDetents([.height(545)])
         .presentationDragIndicator(.hidden)

@@ -11,7 +11,9 @@
 //
 
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 
 @MainActor
 final class ReceiptBookingCoordinator {

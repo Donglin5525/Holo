@@ -658,6 +658,7 @@ final class HoloPeriodReplayCoordinator {
     }
 
     private func acquireContinuedLease(messageId: UUID) {
+        #if canImport(UIKit)
         guard #available(iOS 26.0, *),
               HoloAIFeatureFlags.aiDataProcessingConsentGranted else { return }
 
@@ -673,6 +674,9 @@ final class HoloPeriodReplayCoordinator {
         } else {
             logger.info("[continued] 系统未接纳，保持当前执行 message=\(messageId.uuidString)")
         }
+        #else
+        // macOS 无 BGContinuedProcessing，息屏接管不适用
+        #endif
     }
 
     private func continuedLeaseDidExpire(messageId: UUID) {

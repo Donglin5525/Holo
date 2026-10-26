@@ -48,7 +48,9 @@ struct AISettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
         .navigationTitle("AI 设置")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             await viewModel.loadConfig()
         }
@@ -162,12 +164,22 @@ struct AISettingsView: View {
             if viewModel.selectedProvider == .custom {
                 TextField("Base URL", text: $viewModel.customBaseURL)
                     .font(.holoBody)
+                    #if canImport(UIKit)
                     .autocapitalization(.none)
+                    #else
+                    // macOS：无该修饰符
+                    #endif
+                    #if canImport(UIKit)
                     .keyboardType(.URL)
+                    #endif
 
                 TextField("模型名称", text: $viewModel.customModel)
                     .font(.holoBody)
+                    #if canImport(UIKit)
                     .autocapitalization(.none)
+                    #else
+                    // macOS：无该修饰符
+                    #endif
             }
 
             VStack(alignment: .leading) {

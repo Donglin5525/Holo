@@ -10,12 +10,14 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+import Foundation
 
 // MARK: - SwipeBackModifier
 
 /// 右滑返回手势修饰器
 /// 基于 UIScreenEdgePanGestureRecognizer，从屏幕左侧边缘右滑触发页面关闭
 /// 不会与内部 ScrollView 的滚动手势冲突
+#if canImport(UIKit)
 struct SwipeBackModifier: ViewModifier {
 
     // MARK: - Properties
@@ -331,6 +333,18 @@ private class EdgeGestureHostView: UIView {
     }
 }
 
+#else
+/// macOS：无 UIScreenEdgePan 手势体系，右滑返回恒等透传
+struct SwipeBackModifier: ViewModifier {
+    var isEnabled: Bool = true
+    var ignoreNavigationStack: Bool = false
+    var isResidentScreenRoot: Bool = false
+    var onDismiss: () -> Void = {}
+
+    func body(content: Content) -> some View { content }
+}
+#endif
+
 // MARK: - View Extension
 
 extension View {
@@ -386,9 +400,16 @@ extension View {
 
 /// window 手势弹出层闸门。全屏编辑器、sheet、alert 盖住列表时，
 /// 卡片滑动和侧栏关闭 pan 仍能收到 window 触摸；弹出期间不接收新触摸。
+
+
 enum HoloWindowGestureGate {
+    #if canImport(UIKit)
     static func isOverlayPresented(_ window: UIWindow?) -> Bool {
         guard let root = window?.rootViewController else { return false }
         return root.presentedViewController != nil
     }
+    #else
+    // macOS：无 UIWindow 弹出层体系，恒无闸门
+    static func isOverlayPresented(_ window: AnyObject?) -> Bool { false }
+    #endif
 }

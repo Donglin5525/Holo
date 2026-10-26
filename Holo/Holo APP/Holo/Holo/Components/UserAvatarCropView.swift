@@ -1,3 +1,4 @@
+#if canImport(UIKit)
 //
 //  UserAvatarCropView.swift
 //  Holo
@@ -220,3 +221,4 @@ private struct UserAvatarCropMask: Shape {
         return path
     }
 }
+#endif

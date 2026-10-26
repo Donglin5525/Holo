@@ -335,7 +335,11 @@ struct TaskReminderEditor: View {
                 selection: $draftDate,
                 displayedComponents: [.date, .hourAndMinute]
             )
+            #if canImport(UIKit)
             .datePickerStyle(.wheel)
+            #else
+            .datePickerStyle(.automatic)
+            #endif
             .labelsHidden()
             .environment(\.locale, Locale(identifier: "zh_CN"))
 
@@ -480,7 +484,9 @@ struct TaskReminderPickerSheet: View {
                 }
             }
             .navigationTitle(mode == .relative ? "截止前提醒" : "提醒时刻")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") {

@@ -39,9 +39,11 @@ struct ReceiptTriggerBindingGuideView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle(Text("绑定一键触发"))
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                 Button {
                     dismiss()
                 } label: {

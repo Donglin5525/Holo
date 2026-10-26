@@ -89,7 +89,9 @@ struct HabitRetroactiveSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(mode == .backfill ? String(localized: "补录记录") : String(localized: "补录打卡"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
@@ -438,7 +440,9 @@ struct HabitRetroactiveSheet: View {
             TextField("输入数值", text: $inputValue)
                 .font(.system(size: 26, weight: .bold, design: .rounded))
                 .multilineTextAlignment(.center)
+                #if canImport(UIKit)
                 .keyboardType(.decimalPad)
+                #endif
                 .focused($isValueInputFocused)
                 .padding(12)
                 .background(Color.holoCardBackground)

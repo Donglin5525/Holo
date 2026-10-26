@@ -81,7 +81,9 @@ struct HabitTodayRecordSheet: View {
                 }
             }
             .navigationTitle(row?.name ?? String(localized: "今天的记录"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "关闭")) { dismiss() }

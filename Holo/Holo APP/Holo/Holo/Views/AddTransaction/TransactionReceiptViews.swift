@@ -128,9 +128,15 @@ struct ReceiptStubCard: View {
         ZStack {
             Color(red: 0.93, green: 0.92, blue: 0.90)
             if let thumb = item.thumb {
+                #if canImport(UIKit)
                 Image(uiImage: thumb)
                     .resizable()
                     .scaledToFill()
+                #else
+                Image(nsImage: thumb)
+                    .resizable()
+                    .scaledToFill()
+                #endif
             } else {
                 Image(systemName: "photo")
                     .font(.system(size: 18))
@@ -242,6 +248,7 @@ struct TearOffEffect: ViewModifier {
 /// 相册选图（UIImagePickerController 版）：delegate 回调直返原图 Data。
 /// 不用 SwiftUI photosPicker——其 selection onChange 在本表单环境（sheet + 多 presentation）
 /// 下不送达（iOS 26 模拟器实测）；UIImagePickerController 与 CameraView 同构，回调可靠
+#if canImport(UIKit)
 struct PhotoLibraryPickerView: UIViewControllerRepresentable {
     let onPicked: (Data) -> Void
     let onCancel: () -> Void
@@ -285,6 +292,24 @@ struct PhotoLibraryPickerView: UIViewControllerRepresentable {
         }
     }
 }
+#else
+/// macOS：UIImagePickerController 为 iOS 专属；Phase A 相册选图入口给占位说明
+struct PhotoLibraryPickerView: View {
+    let onPicked: (Data) -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "photo.on.rectangle")
+                .font(.largeTitle)
+            Text("相册选图将在 Mac 版后续阶段提供")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { onCancel() }
+    }
+}
+#endif
 
 /// 票根选图服务 modifier：承载系统相册 picker 与相机全屏页。
 /// 来源选择用自定义覆盖弹窗（receiptSourcePopup）——iOS 26 上本表单环境里
@@ -297,6 +322,7 @@ struct ReceiptImagePickerServicesModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            #if canImport(UIKit)
             .fullScreenCover(isPresented: $showPhotoPicker) {
                 PhotoLibraryPickerView(onPicked: { data in
                     showPhotoPicker = false
@@ -306,6 +332,18 @@ struct ReceiptImagePickerServicesModifier: ViewModifier {
                 })
                 .ignoresSafeArea()
             }
+            #else
+            .sheet(isPresented: $showPhotoPicker) {
+                PhotoLibraryPickerView(onPicked: { data in
+                    showPhotoPicker = false
+                    onSelect(data, .photoLibrary)
+                }, onCancel: {
+                    showPhotoPicker = false
+                })
+                .ignoresSafeArea()
+            }
+            #endif
+            #if canImport(UIKit)
             .fullScreenCover(isPresented: $showCamera) {
                 CameraView(onCapture: { data in
                     showCamera = false
@@ -314,6 +352,16 @@ struct ReceiptImagePickerServicesModifier: ViewModifier {
                     showCamera = false
                 })
             }
+            #else
+            .sheet(isPresented: $showCamera) {
+                CameraView(onCapture: { data in
+                    showCamera = false
+                    onSelect(data, .camera)
+                }, onDismiss: {
+                    showCamera = false
+                })
+            }
+            #endif
     }
 
 }
@@ -402,7 +450,9 @@ struct ReceiptGalleryView: View {
                         .tag(index)
                     }
                 }
+                #if canImport(UIKit)
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                #endif
 
                 HStack(spacing: 16) {
                     if currentIndex < liveItems.count {
@@ -547,9 +597,15 @@ struct TransactionReceiptDetailSection: View {
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
             reload()
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showGallery) {
             ReceiptGalleryView(items: items, startIndex: galleryStart, onDetach: detachAt)
         }
+        #else
+                .sheet(isPresented: $showGallery) {
+            ReceiptGalleryView(items: items, startIndex: galleryStart, onDetach: detachAt)
+        }
+        #endif
     }
 
     private func reload() {
@@ -567,7 +623,11 @@ struct TransactionReceiptDetailSection: View {
         guard let data = attachment.thumbnailData else { return }
         let id = attachment.id
         Task.detached(priority: .userInitiated) {
+            #if canImport(UIKit)
             let image = UIImage(data: data)?.preparingForDisplay() ?? UIImage(data: data)
+            #else
+            let image = UIImage(data: data)
+            #endif
             await MainActor.run {
                 if let index = items.firstIndex(where: { $0.id == id }) {
                     items[index].thumb = image

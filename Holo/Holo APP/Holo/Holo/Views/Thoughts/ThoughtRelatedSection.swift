@@ -341,9 +341,11 @@ struct ThoughtInsightSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(String(localized: "帮我想想"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("完成") { dismiss() }
                 }
             }

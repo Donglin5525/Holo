@@ -7,7 +7,9 @@
 //
 
 import Foundation
+#if canImport(UIKit)
 import BackgroundTasks
+#endif
 import os.log
 
 @MainActor
@@ -42,6 +44,7 @@ final class MemoryInsightBackgroundService {
 
     /// 在 App 启动时注册后台任务
     func registerBackgroundTask() {
+        #if canImport(UIKit)
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: taskIdentifier,
             using: nil
@@ -51,10 +54,18 @@ final class MemoryInsightBackgroundService {
                 await self.handleBackgroundTask(bgTask)
             }
         }
+        #endif
     }
 
     /// 调度后台任务（用户开启后台自动生成后调用）
     func scheduleBackgroundTask() {
+        #if canImport(UIKit)
+        bgScheduleBackgroundTask()
+        #endif
+    }
+
+    #if canImport(UIKit)
+    private func bgScheduleBackgroundTask() {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
         // 正常最早 1 小时后；额度耗尽时延后到 resetAt，避免系统唤醒后再次撞 429；
@@ -74,15 +85,19 @@ final class MemoryInsightBackgroundService {
             logger.error("调度后台任务失败：\(error.localizedDescription)")
         }
     }
+    #endif
 
     /// 取消后台任务
     func cancelScheduledTask() {
+        #if canImport(UIKit)
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         logger.info("后台洞察生成任务已取消")
+        #endif
     }
 
     // MARK: - Task Handler
 
+    #if canImport(UIKit)
     private func handleBackgroundTask(_ task: BGAppRefreshTask) async {
         // 设置过期处理
         task.expirationHandler = {
@@ -194,6 +209,7 @@ final class MemoryInsightBackgroundService {
         task.setTaskCompleted(success: true)
         scheduleBackgroundTask()
     }
+    #endif
 
     // MARK: - Foreground Compensation
 

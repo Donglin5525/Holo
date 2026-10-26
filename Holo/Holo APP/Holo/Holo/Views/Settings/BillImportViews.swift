@@ -271,7 +271,9 @@ struct BillExportTutorialSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("如何导出账单")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
@@ -322,7 +324,9 @@ struct BillPrivacyNoticeSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("数据与隐私说明")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("我知道了") { dismiss() }

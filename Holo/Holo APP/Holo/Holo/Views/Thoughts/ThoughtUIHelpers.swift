@@ -7,6 +7,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import CoreData
 
 // MARK: - 心情枚举
@@ -264,7 +268,12 @@ extension Thought {
 /// 想法列表长按菜单、主题详情成员卡长按菜单、卡片「…」更多操作共用，避免口径漂移。
 @MainActor
 func copyThoughtToPasteboard(_ thought: Thought) {
+    #if canImport(UIKit)
     UIPasteboard.general.string = thought.visibleCopyText
+    #else
+    NSPasteboard.general.clearContents()
+    NSPasteboard.general.setString(thought.visibleCopyText, forType: .string)
+    #endif
     HapticManager.light()
     HoloToastCenter.shared.show(String(localized: "已复制"), type: .success)
 }

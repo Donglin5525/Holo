@@ -99,11 +99,21 @@ struct AccountListView: View {
                 Color.clear.frame(height: 88)
             }
             .navigationTitle(pageMode == .accounts ? "账户" : "项目")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(Color.holoBackground, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(.visible, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button {
                         onBack()
                     } label: {
@@ -112,7 +122,7 @@ struct AccountListView: View {
                             .foregroundColor(.holoTextPrimary)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button {
                         if pageMode == .accounts {
                             showAddAccount = true

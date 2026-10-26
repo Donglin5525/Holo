@@ -57,14 +57,16 @@ struct AddProjectSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle(isEditMode ? "编辑项目" : "新建项目")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
                             .accessibilityLabel(Text("关闭"))
                         .foregroundColor(.holoToolTextSecondary)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("保存") { save() }
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(canSave ? .holoPrimary : .holoToolTextSecondary)
@@ -208,7 +210,9 @@ struct AddProjectSheet: View {
 
                 TextField("0.00", text: $budgetText)
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    #if canImport(UIKit)
                     .keyboardType(.decimalPad)
+                    #endif
                     .accessibilityIdentifier("projectSheet.budgetField")
             }
             .padding(HoloSpacing.md)

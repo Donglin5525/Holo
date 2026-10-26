@@ -7,6 +7,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
 
 // MARK: - 侧边栏目的地
 
@@ -326,11 +331,21 @@ struct HoloSidebarView: View {
     // MARK: - 辅助
 
     /// 侧边栏底色：比内容区深一档（深色）/ 浅一档（浅色），让两区有层次
-    static let sidebarBackground = Color(UIColor { trait in
-        trait.userInterfaceStyle == .dark
-            ? UIColor(red: 0.075, green: 0.075, blue: 0.082, alpha: 1)
-            : UIColor(red: 0.945, green: 0.941, blue: 0.925, alpha: 1)
-    })
+    static let sidebarBackground: Color = {
+        #if canImport(UIKit)
+        return Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.075, green: 0.075, blue: 0.082, alpha: 1)
+                : UIColor(red: 0.945, green: 0.941, blue: 0.925, alpha: 1)
+        })
+        #else
+        return Color(NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .vibrantDark]) != nil
+                ? NSColor(red: 0.075, green: 0.075, blue: 0.082, alpha: 1)
+                : NSColor(red: 0.945, green: 0.941, blue: 0.925, alpha: 1)
+        })
+        #endif
+    }()
 
     /// 「9月5日 周五」
     private static var dateLine: String {

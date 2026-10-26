@@ -36,9 +36,11 @@ struct TodayReliefSheet: View {
                 }
             }
             .navigationTitle(String(localized: "帮我理一理"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button {
                         viewModel.teardown()
                         dismiss()

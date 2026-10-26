@@ -1,5 +1,8 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
+import Foundation
 
 struct HoloHeatmapDay: Identifiable, Equatable {
     let date: Date
@@ -117,6 +120,7 @@ struct HoloHeatmap: View {
     }
 }
 
+#if canImport(UIKit)
 private struct HoloHeatmapGestureOverlay: UIViewRepresentable {
     let onSelect: (CGPoint) -> Void
     func makeCoordinator() -> Coordinator { Coordinator(onSelect: onSelect) }
@@ -144,3 +148,24 @@ private struct HoloHeatmapGestureOverlay: UIViewRepresentable {
         }
     }
 }
+
+#else
+/// macOS：无 UILongPress/UITap 体系，用带位置的点按 + 长按拖动等价实现
+private struct HoloHeatmapGestureOverlay: View {
+    let onSelect: (CGPoint) -> Void
+
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onTapGesture { location in
+                onSelect(location)
+            }
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        onSelect(value.location)
+                    }
+            )
+    }
+}
+#endif

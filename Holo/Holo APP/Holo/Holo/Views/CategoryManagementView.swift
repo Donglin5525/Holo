@@ -55,9 +55,11 @@ struct CategoryManagementView: View {
             }
         }
         .navigationTitle("分类管理")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                 HStack(spacing: HoloSpacing.sm) {
                     // 新增一级分类按钮（右上角只保留新增；删除从具体分类行侧滑发起，
                     // 清理导入分类入口已挪至「设置 → 数据管理」）
@@ -72,7 +74,7 @@ struct CategoryManagementView: View {
             }
             // 「完成」是主动作，放在导航栏最右（声明顺序决定同侧多个按钮的左右排列）
             if showsDoneButton {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("完成") { dismiss() }
                 }
             }
@@ -227,7 +229,11 @@ struct CategoryManagementView: View {
             }
             .buttonStyle(.plain)
         }
+        #if canImport(UIKit)
         .listStyle(.insetGrouped)
+        #else
+        .listStyle(.inset)
+        #endif
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -310,9 +316,11 @@ struct CategoryManagementView: View {
         let subs = subCategoriesMap[parent.id] ?? []
         return subCategoryContent(for: parent, subs: subs)
         .navigationTitle(parent.name)
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                 Button {
                     openAddSubCategory(parent)
                 } label: {
@@ -416,7 +424,11 @@ struct CategoryManagementView: View {
             }
             .buttonStyle(.plain)
         }
+        #if canImport(UIKit)
         .listStyle(.insetGrouped)
+        #else
+        .listStyle(.inset)
+        #endif
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -593,7 +605,9 @@ struct AddCategorySheet: View {
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)
             .navigationTitle(parentId != nil ? String(localized: "新增二级分类") : String(localized: "新增一级分类"))
-            .navigationBarTitleDisplayMode(.inline)
+            #if canImport(UIKit)
+        .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {
@@ -707,7 +721,9 @@ struct EditCategorySheet: View {
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)
             .navigationTitle("编辑分类")
-            .navigationBarTitleDisplayMode(.inline)
+            #if canImport(UIKit)
+        .navigationBarTitleDisplayMode(.inline)
+            #endif
             .onAppear {
                 name = category.name
                 iconName = category.icon

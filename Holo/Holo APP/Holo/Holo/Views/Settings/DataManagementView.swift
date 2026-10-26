@@ -44,7 +44,9 @@ struct DataManagementView: View {
             }
             .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle("数据管理")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
@@ -459,7 +461,9 @@ struct ClearAllDataConfirmSheet: View {
             }
             .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle("清空所有数据")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }

@@ -17,9 +17,15 @@ struct AttachmentThumbnailView: View {
     var body: some View {
         Group {
             if let image {
+                #if canImport(UIKit)
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                #else
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                #endif
             } else {
                 Color.holoCardBackground
                     .overlay(

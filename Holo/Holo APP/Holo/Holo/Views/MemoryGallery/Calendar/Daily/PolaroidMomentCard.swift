@@ -20,6 +20,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 
 struct PolaroidMomentCard: View {
     let moment: DailyReplayMoment
@@ -354,7 +358,7 @@ struct PolaroidMomentCard: View {
             moment.title,
             lines: 6,
             fontSize: 14.5,
-            availableWidth: UIScreen.main.bounds.width - 124
+            availableWidth: holoScreenWidth() - 124
         )
     }
 
@@ -434,9 +438,15 @@ private struct PolaroidLayer: View, Equatable {
     var body: some View {
         Group {
             if let image {
+                #if canImport(UIKit)
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                #else
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                #endif
             } else {
                 Rectangle()
                     .fill(Color.holoNestedCardBackground)

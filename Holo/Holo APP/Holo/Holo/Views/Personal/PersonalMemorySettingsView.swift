@@ -26,7 +26,9 @@ struct PersonalMemorySettingsView: View {
         }
         .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle("长期记忆")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     private var memoryControlsSection: some View {

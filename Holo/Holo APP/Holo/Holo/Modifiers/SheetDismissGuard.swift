@@ -21,7 +21,9 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+import Foundation
 
+#if canImport(UIKit)
 // MARK: - SheetDismissGuard
 
 struct SheetDismissGuard: UIViewControllerRepresentable {
@@ -95,13 +97,20 @@ struct SheetDismissGuard: UIViewControllerRepresentable {
         }
     }
 }
+#endif
 
 // MARK: - View Extension
 
 extension View {
     /// 卡片下拉关闭守卫：用户下拉试图关闭、但被 .interactiveDismissDisabled 拦下时触发 onAttempt。
     /// 必须与 .interactiveDismissDisabled 同用——手势未被拦时系统直接关闭，不会走到回调。
+    /// macOS 无下拉关闭手势，空实现。
+    @ViewBuilder
     func sheetDismissGuard(onAttempt: @escaping () -> Void) -> some View {
+        #if canImport(UIKit)
         background(SheetDismissGuard(onAttempt: onAttempt))
+        #else
+        self
+        #endif
     }
 }

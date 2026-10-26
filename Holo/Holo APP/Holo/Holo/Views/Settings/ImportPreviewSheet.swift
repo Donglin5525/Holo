@@ -90,7 +90,9 @@ struct ImportPreviewSheet: View {
                 bottomActions
             }
             .background(Color.holoToolBackground)
+            #if canImport(UIKit)
             .navigationBarHidden(true)
+            #endif
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)

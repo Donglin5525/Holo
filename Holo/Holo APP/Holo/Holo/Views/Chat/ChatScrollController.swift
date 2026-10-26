@@ -10,9 +10,12 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 import Combine
 
+#if canImport(UIKit)
 final class ChatScrollController: ObservableObject {
 
     @Published private(set) var viewport: ChatScrollViewportState = .initial
@@ -471,6 +474,9 @@ final class ChatScrollController: ObservableObject {
     }
 }
 
+#endif
+
+#if canImport(UIKit)
 /// 放在 SwiftUI ScrollView 内容中，自动找到祖先 UIScrollView 并交给协调器。
 struct ChatScrollViewBridge: UIViewRepresentable {
     let controller: ChatScrollController
@@ -532,3 +538,26 @@ struct ChatScrollViewBridge: UIViewRepresentable {
         return nil
     }
 }
+
+#else
+/// macOS（Phase A 骨架）：无 UIScrollView 协调层，视口状态恒为初始值（视为常在底部），
+/// 历史加载位置保持/回底钉住等 IM 手势精细行为留待 NSTextView/NSScrollView 版实现
+final class ChatScrollController: ObservableObject {
+    @Published private(set) var viewport: ChatScrollViewportState = .initial
+
+    func attach(to candidate: AnyObject?) {}
+    func detach() {}
+    func beginPreservingPrepend() {}
+    func endPreservingPrependAfterLayout() {}
+    func scrollToBottom(animated: Bool, pinDuration: TimeInterval = 0.45) {}
+    func requestOffsetClamp() {}
+    func beginOffsetSettling() {}
+}
+
+/// macOS 空桥（SwiftUI ScrollView 原生滚动即可用）
+struct ChatScrollViewBridge: View {
+    let controller: ChatScrollController
+
+    var body: some View { EmptyView() }
+}
+#endif

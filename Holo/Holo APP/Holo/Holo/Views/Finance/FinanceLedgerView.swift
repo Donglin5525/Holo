@@ -233,10 +233,17 @@ struct FinanceLedgerView: View {
                 }
             }
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showSearch) {
             FinanceSearchView()
                 .holoContentColumn()
         }
+        #else
+                .sheet(isPresented: $showSearch) {
+            FinanceSearchView()
+                .holoContentColumn()
+        }
+        #endif
         .onChange(of: searchTrigger) { _, _ in
             showSearch = true
         }
@@ -268,7 +275,9 @@ struct FinanceLedgerView: View {
                 .environment(\.locale, Locale(identifier: "zh_CN"))
                 .padding(.horizontal, HoloSpacing.lg)
                 .navigationTitle("复制到")
+                #if canImport(UIKit)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("取消") {
@@ -965,8 +974,8 @@ struct DaySwipeContainer<Content: View>: View {
     private func performDaySwipe(forward: Bool) {
         // 阶段1: 快速滑出
         let slideOut: CGFloat = forward
-            ? -UIScreen.main.bounds.width * 0.3
-            : UIScreen.main.bounds.width * 0.3
+            ? -holoScreenWidth() * 0.3
+            : holoScreenWidth() * 0.3
 
         withAnimation(HoloAnimation.enter) {
             offset = slideOut

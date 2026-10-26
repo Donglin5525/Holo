@@ -11,9 +11,12 @@
 
 import Foundation
 import UserNotifications
+#if canImport(UIKit)
 import UIKit
+#endif
 import os.log
 
+#if canImport(UIKit)
 @MainActor
 final class HoloCloudPushTokenService {
 
@@ -84,3 +87,4 @@ final class HoloPushAppDelegate: NSObject, UIApplicationDelegate {
         }
     }
 }
+#endif

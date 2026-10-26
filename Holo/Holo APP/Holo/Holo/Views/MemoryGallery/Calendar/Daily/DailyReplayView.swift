@@ -620,7 +620,9 @@ private struct DailyReplayDatePickerSheet: View {
             .datePickerStyle(.graphical)
             .padding()
             .navigationTitle("回到某一天")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { isPresented = false }

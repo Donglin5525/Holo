@@ -12,6 +12,14 @@
 
 import SwiftUI
 
+#if canImport(UIKit)
+/// iOS 上 Category 与系统类型同名冲突，用模块限定 Holo.Category；macOS 模块名是 HoloMac，
+/// 统一经此别名引用（两端都指向本 App 的记账分类实体；本文件仅主 App 与 Mac target 编译）
+typealias HoloFinanceCategory = Holo.Category
+#else
+typealias HoloFinanceCategory = Category
+#endif
+
 struct ReceiptReviewDetailView: View {
     let draft: ReceiptBookingResultStore.StoredDraft
     var onFinished: () -> Void
@@ -39,8 +47,8 @@ struct ReceiptReviewDetailView: View {
     @State private var itemStates: [ItemEditState] = []
     @State private var accounts: [Account] = []
     @State private var projects: [FinanceProject] = []
-    @State private var expenseCategories: [Holo.Category] = []
-    @State private var incomeCategories: [Holo.Category] = []
+    @State private var expenseCategories: [HoloFinanceCategory] = []
+    @State private var incomeCategories: [HoloFinanceCategory] = []
     @State private var evidenceImage: UIImage?
     @State private var evidenceExpanded = false
     @State private var isCommitting = false
@@ -75,11 +83,13 @@ struct ReceiptReviewDetailView: View {
             .padding(.bottom, HoloSpacing.xl)
         }
         .background(
-            Color(UIColor.systemGroupedBackground)
+            Color.holoSecondaryGroupedBackground
                 .ignoresSafeArea()
         )
         .navigationTitle(itemStates.count > 1 ? Text("确认这几笔账") : Text("确认这笔账"))
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .safeAreaInset(edge: .bottom) {
             actionButtons
                 .padding(.horizontal, HoloSpacing.lg)
@@ -125,11 +135,19 @@ struct ReceiptReviewDetailView: View {
             DisclosureGroup("查看原图核对", isExpanded: $evidenceExpanded) {
                 VStack(spacing: 8) {
                     if let evidenceImage {
+                        #if canImport(UIKit)
                         Image(uiImage: evidenceImage)
                             .resizable()
                             .scaledToFit()
                             .frame(maxHeight: 220)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
+                        #else
+                        Image(nsImage: evidenceImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 220)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        #endif
                     }
                     Text("仅在本机暂存，确认或删除后自动清理")
                         .font(.caption2)
@@ -204,7 +222,7 @@ struct ReceiptReviewDetailView: View {
                         .padding(.vertical, 9)
                         .background(
                             RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(UIColor.systemGray6))
+                                .fill(Color.holoSystemGray6)
                         )
                 }
 
@@ -212,7 +230,9 @@ struct ReceiptReviewDetailView: View {
                         Text("¥").font(.title2.weight(.semibold))
                         TextField("0.00", text: state.amountText)
                             .font(.system(.title, design: .rounded).weight(.bold))
+                            #if canImport(UIKit)
                             .keyboardType(.decimalPad)
+                            #endif
                             .monospacedDigit()
                     }
                     Picker("方向", selection: state.typeIsIncome) {
@@ -267,11 +287,19 @@ struct ReceiptReviewDetailView: View {
                 evidenceExpanded.toggle()
             } label: {
                 HStack(spacing: 12) {
+                    #if canImport(UIKit)
                     Image(uiImage: image)
                         .resizable()
                         .scaledToFill()
                         .frame(width: 72, height: 52)
                         .clipShape(RoundedRectangle(cornerRadius: 7))
+                    #else
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 72, height: 52)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                    #endif
                     VStack(alignment: .leading, spacing: 2) {
                         Text("查看原图核对")
                             .font(.footnote.weight(.medium))
@@ -288,16 +316,24 @@ struct ReceiptReviewDetailView: View {
                 .padding(8)
                 .background(
                     RoundedRectangle(cornerRadius: 10)
-                        .fill(Color(UIColor.systemGray6))
+                        .fill(Color.holoSystemGray6)
                 )
             }
             .buttonStyle(.plain)
             if evidenceExpanded {
+                #if canImport(UIKit)
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
                     .frame(maxHeight: 220)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                #else
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                #endif
             }
         }
     }
@@ -486,16 +522,16 @@ struct ReceiptReviewDetailView: View {
         }
     }
 
-    private func topLevelCategories(in categories: [Holo.Category]) -> [Holo.Category] {
+    private func topLevelCategories(in categories: [HoloFinanceCategory]) -> [HoloFinanceCategory] {
         categories.filter { $0.isTopLevel }
     }
 
-    private func subCategories(of top: Holo.Category, in categories: [Holo.Category]) -> [Holo.Category] {
+    private func subCategories(of top: HoloFinanceCategory, in categories: [HoloFinanceCategory]) -> [HoloFinanceCategory] {
         categories.filter { !$0.isTopLevel && $0.parentId == top.id }
     }
 
     /// 当前生效科目名：用户改选 > AI 解析建议
-    private func currentCategoryTitle(for state: ItemEditState, categories: [Holo.Category]) -> String {
+    private func currentCategoryTitle(for state: ItemEditState, categories: [HoloFinanceCategory]) -> String {
         if let selectedCategoryID = state.selectedCategoryID,
            let selected = categories.first(where: { $0.id == selectedCategoryID }) {
             return selected.name
@@ -631,7 +667,13 @@ struct ReceiptReviewDetailView: View {
         // 本机暂存的复核证据图（确认/删除后随之删除）；降采样加载防整幅原图解码
         if let url = ReceiptBookingResultStore.evidenceImageURL(for: draft.id) {
             Task { @MainActor in
+                #if canImport(UIKit)
                 evidenceImage = await ImageDownsampler.image(at: url)
+                #else
+                if let data = try? Data(contentsOf: url) {
+                    evidenceImage = UIImage(data: data)
+                }
+                #endif
             }
         }
     }
@@ -685,7 +727,7 @@ struct ReceiptReviewDetailView: View {
 
                 // 科目：用户改选 > 完整分类链重解析 > 待分类
                 let categories = item.typeIsIncome ? incomeCategories : expenseCategories
-                let category: Holo.Category?
+                let category: HoloFinanceCategory?
                 if let selectedCategoryID = item.selectedCategoryID {
                     category = repo.findCategory(by: selectedCategoryID)
                 } else {
@@ -703,7 +745,7 @@ struct ReceiptReviewDetailView: View {
                         category = nil
                     }
                 }
-                let finalCategory: Holo.Category = category ?? repo.ensurePendingCategory(type: item.typeIsIncome ? .income : .expense)
+                let finalCategory: HoloFinanceCategory = category ?? repo.ensurePendingCategory(type: item.typeIsIncome ? .income : .expense)
                 let names = repo.resolveCategoryNames(from: finalCategory)
                 // 分类学习写回：用户在确认页改选过科目才学，AI 建议被直接确认不学；
                 // 用户所选科目已失效（解析落空）时目标不可信，同样不学

@@ -95,7 +95,9 @@ struct HealthDetailView: View {
             }
         }
         .background(Color.holoToolBackground)
+        #if canImport(UIKit)
         .toolbar(.hidden, for: .navigationBar)
+        #endif
         .swipeBackToDismiss(ignoreNavigationStack: true) {
             dismiss()
         }

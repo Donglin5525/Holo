@@ -59,7 +59,9 @@ struct CategoryMatchEditor: View {
                 }
             }
             .background(Color.holoToolBackground)
-            .navigationBarHidden(true)
+            #if canImport(UIKit)
+        .navigationBarHidden(true)
+            #endif
         }
         .holoSheetShell()
         .presentationDetents([.medium, .large])

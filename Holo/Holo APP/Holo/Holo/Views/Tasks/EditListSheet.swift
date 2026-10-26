@@ -171,9 +171,11 @@ struct EditListSheet: View {
                 .padding(.top, HoloSpacing.md)
             }
             .navigationTitle("编辑清单")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消") {
                         if name != list.name
                             || color != (list.color ?? "#007AFF")
@@ -187,7 +189,7 @@ struct EditListSheet: View {
                     .foregroundColor(.holoTextSecondary)
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("保存") {
                         saveList()
                     }

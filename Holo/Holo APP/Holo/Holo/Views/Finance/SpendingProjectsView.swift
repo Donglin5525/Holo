@@ -31,11 +31,21 @@ struct SpendingProjectsView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("固定支出")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(Color.holoBackground, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(.visible, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button {
                         onBack()
                     } label: {
@@ -44,7 +54,7 @@ struct SpendingProjectsView: View {
                             .foregroundColor(.holoTextPrimary)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button { showAdd = true } label: { Image(systemName: "plus") }
                 }
             }
@@ -194,9 +204,19 @@ struct SpendingProjectDetailView: View {
         .background(Color.holoBackground)
         .tint(Color.holoPrimary)
         .navigationTitle(project.name)
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
+        #if canImport(UIKit)
         .toolbarBackground(Color.holoBackground, for: .navigationBar)
+        #else
+        // macOS：导航栏背景恒等
+        #endif
+        #if canImport(UIKit)
         .toolbarBackground(.visible, for: .navigationBar)
+        #else
+        // macOS：导航栏背景恒等
+        #endif
         .toolbar {
             ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
             ToolbarItem(placement: .destructiveAction) { Button(role: .destructive) { showDeleteConfirmation = true } label: { Image(systemName: "trash") } }
@@ -279,9 +299,19 @@ struct SpendingProjectEndConditionSheet: View {
             .background(Color.holoBackground)
             .tint(Color.holoPrimary)
             .navigationTitle("编辑周期项目")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(Color.holoBackground, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(.visible, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
                             .accessibilityLabel(Text("关闭")) }
@@ -361,9 +391,19 @@ struct SpendingProjectOneOffEditorSheet: View {
             .background(Color.holoBackground)
             .tint(Color.holoPrimary)
             .navigationTitle("编辑一次性购买")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(Color.holoBackground, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(.visible, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
                             .accessibilityLabel(Text("关闭")) }
@@ -445,7 +485,9 @@ struct AddSpendingProjectSheet: View {
             .background(Color.holoBackground)
             .tint(Color.holoPrimary)
             .navigationTitle("添加固定支出")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
                             .accessibilityLabel(Text("关闭")) }

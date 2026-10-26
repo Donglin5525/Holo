@@ -10,7 +10,11 @@
 
 import SwiftUI
 import EventKit
+#if canImport(UIKit)
 import EventKitUI
+#else
+import AppKit
+#endif
 
 /// 缓存的日期格式器：首页/看板高频取用，内联新建是每次刷新的持续 CPU 开销（体检 R0-4）
 private enum ScheduleFormatters {
@@ -43,8 +47,14 @@ struct ScheduleOnboardingBar: View {
 
     /// 权限被拒后的引导跳系统设置
     private func openSystemSettings() {
+        #if canImport(UIKit)
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
+        #else
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars") {
+            NSWorkspace.shared.open(url)
+        }
+        #endif
     }
 
     var body: some View {
@@ -516,7 +526,9 @@ struct ScheduleDetailSheet: View {
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.md)
             .navigationTitle(item.title)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -573,6 +585,7 @@ struct ScheduleDetailSheet: View {
 }
 
 /// 用 EventKitUI 呈现系统原始日程（只读查看，编辑去系统日历）
+#if canImport(UIKit)
 private struct OriginalEventSheet: UIViewControllerRepresentable {
     let item: ScheduleItem
 
@@ -589,3 +602,16 @@ private struct OriginalEventSheet: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: UINavigationController, context: Context) {}
 }
+
+#else
+/// macOS：EventKitUI 无 macOS 对应；系统原始日程查看引导去系统日历 App
+private struct OriginalEventSheet: View {
+    let item: ScheduleItem
+
+    var body: some View {
+        Text("请在系统日历中查看原始日程")
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+#endif

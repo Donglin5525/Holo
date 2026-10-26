@@ -9,7 +9,18 @@ import CoreData
 import Combine
 import Foundation
 import OSLog
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
+
+#if canImport(UIKit)
+/// 头像图像的平台类型（macOS 为 NSImage）
+typealias HoloAvatarImage = UIImage
+#else
+typealias HoloAvatarImage = NSImage
+#endif
 
 enum UserAvatarState: String {
     case unset
@@ -24,7 +35,7 @@ final class UserAvatarRepository: ObservableObject {
     static let primaryProfileKey = "primary"
 
     @Published private(set) var state: UserAvatarState = .unset
-    @Published private(set) var image: UIImage?
+    @Published private(set) var image: HoloAvatarImage?
 
     var hasCustomAvatar: Bool { state == .custom && image != nil }
 
@@ -54,7 +65,7 @@ final class UserAvatarRepository: ObservableObject {
 
     func saveAvatarData(_ data: Data) throws {
         guard data.count <= UserAvatarImageProcessor.maximumOutputBytes,
-              UIImage(data: data) != nil else {
+              HoloAvatarImage(data: data) != nil else {
             throw UserAvatarImageProcessor.ProcessingError.encodingFailed
         }
         try persist(state: .custom, avatarData: data)
@@ -136,7 +147,7 @@ final class UserAvatarRepository: ObservableObject {
         state = resolvedState
         if resolvedState == .custom,
            let data = entity.avatarData,
-           let decoded = UIImage(data: data) {
+           let decoded = HoloAvatarImage(data: data) {
             image = decoded
         } else {
             image = nil

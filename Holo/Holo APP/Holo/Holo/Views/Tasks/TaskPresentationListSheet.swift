@@ -68,7 +68,9 @@ struct TaskPresentationListSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(title)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "关闭")) { dismiss() }

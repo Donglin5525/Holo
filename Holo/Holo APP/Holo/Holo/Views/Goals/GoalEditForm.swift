@@ -242,7 +242,9 @@ struct GoalEditForm: View {
                         .font(.holoLabel)
                         .foregroundColor(.holoToolTextSecondary)
                     TextField(draft.goalKind == .target ? String(localized: "如 70") : String(localized: "如 300"), text: $metricTargetText)
+                        #if canImport(UIKit)
                         .keyboardType(.decimalPad)
+                        #endif
                         .font(.holoBody)
                         .foregroundColor(.holoToolText)
                         .padding(HoloSpacing.sm)
@@ -275,7 +277,9 @@ struct GoalEditForm: View {
                         .font(.holoLabel)
                         .foregroundColor(.holoToolTextSecondary)
                     TextField("如 75", text: $metricBaselineText)
+                        #if canImport(UIKit)
                         .keyboardType(.decimalPad)
+                        #endif
                         .font(.holoBody)
                         .foregroundColor(.holoToolText)
                         .padding(HoloSpacing.sm)

@@ -7,7 +7,28 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+
+// macOS：共享渲染扩展里的 UIKit 字体/颜色 API 就地映射到 AppKit 等价类型
+// （NSFont/NSColor 的成员子集——pointSize/lineHeight/systemFont(ofSize:weight:)/init(_ color: Color)——
+// 与 UIFont/UIColor 同形，渲染管线零分叉）
+typealias UIImage = NSImage
+typealias UIFont = NSFont
+typealias UIColor = NSColor
+typealias UIFontDescriptor = NSFontDescriptor
+
+/// macOS 无 UIFontMetrics（Dynamic Type 为 iOS 专属体系）：正文基线直接透传原字体
+struct HoloMacFontMetrics {
+    enum TextStyle { case body, caption1 }
+    init(forTextStyle style: TextStyle) {}
+    func scaledFont(for font: NSFont) -> NSFont { font }
+}
+typealias UIFontMetrics = HoloMacFontMetrics
+#endif
+import Foundation
 import os.log
 
 // MARK: - MarkdownEditorAction
@@ -80,6 +101,7 @@ struct TypingFormatState: Equatable {
 
 /// 支持 Markdown 编辑的文本视图
 /// 编辑时展示富文本效果，底层仍使用 markdown 字符串存储
+#if canImport(UIKit)
 struct MarkdownTextView: UIViewRepresentable {
 
     @Environment(\.sizeCategory) private var sizeCategory
@@ -2233,6 +2255,13 @@ struct MarkdownTextView: UIViewRepresentable {
         }
     }
 }
+#else
+/// macOS：UIKit 编辑器主体不可用（Phase A 不做编辑）；
+/// 共享渲染扩展挂在本壳上——卡片/详情的富文本渲染在 macOS 照常工作
+struct MarkdownTextView {
+    static let semanticPasteboardType = "com.holo.thoughts.rich-content"
+}
+#endif
 
 // MARK: - 富文本转换
 
@@ -2253,7 +2282,16 @@ extension MarkdownTextView {
         UIFontMetrics(forTextStyle: .body)
             .scaledFont(for: UIFont.systemFont(ofSize: 17, weight: .regular))
     }
-    static let baseTextColor = UIColor(Color.holoTextPrimary)
+    static let baseTextColor: UIColor = {
+        #if canImport(UIKit)
+        return UIColor(Color.holoTextPrimary)
+        #else
+        // macOS：NSColor(SwiftUI Color) 会把 Asset 动态色烘焙成固定值（深色模式下
+        // 固定成 light 深灰 → 深底深字不可见）。NSColor(named:) 从 bundle 资产加载，
+        // 保留动态性随 appearance 切换（资产随 HoloMac/Assets.xcassets/Colors 打包）。
+        return NSColor(named: "TextPrimary") ?? .labelColor
+        #endif
+    }()
     /// 列表缩进随正文 Dynamic Type 放大，默认字号保持约 24pt 的紧凑阅读基线。
     private static var listContentIndent: CGFloat {
         max(24, baseFont.pointSize * 1.4)
@@ -2276,7 +2314,13 @@ extension MarkdownTextView {
     /// 阅读态（列表卡片/详情页）维持 6pt 的紧凑基线：编辑器优先输入体验，列表优先信息密度。
     /// 行距按当前字号计算，Dynamic Type 放大后比例不漂移。
     static func editorLineSpacing(for font: UIFont) -> CGFloat {
-        max(0, font.pointSize * 1.5 - font.lineHeight)
+        #if canImport(UIKit)
+        let lineHeight = font.lineHeight
+        #else
+        // NSFont 无 lineHeight 成员：取字形包围盒高度（含行距语义等价）
+        let lineHeight = font.boundingRectForFont.height.rounded()
+        #endif
+        return max(0, font.pointSize * 1.5 - lineHeight)
     }
 
     /// 把整段富文本的行距统一替换为编辑态基线（保留列表悬挂缩进等其他段落设置）。
@@ -2767,11 +2811,19 @@ extension MarkdownTextView {
               let data = json.data(using: .utf8) else { return }
 
         let plainText = visiblePlainText(from: nodes)
+        #if canImport(UIKit)
         UIPasteboard.general.setItems([[
             "public.utf8-plain-text": plainText,
             "public.text": plainText,
             semanticPasteboardType: data
         ]])
+        #else
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.declareTypes([.string, NSPasteboard.PasteboardType(semanticPasteboardType)], owner: nil)
+        pasteboard.setString(plainText, forType: .string)
+        pasteboard.setData(data, forType: NSPasteboard.PasteboardType(semanticPasteboardType))
+        #endif
     }
 
     /// 节点模型 → 富文本：text 节点走 Markdown 渲染，Token 节点渲染为带身份属性的整体样式
@@ -2932,11 +2984,19 @@ extension MarkdownTextView {
         } else {
             // 品牌主色用于背景和强调控件；作为浅色模式正文色时对比度偏低。
             // Token 改用深橙，深色模式使用浅橙，既保留品牌识别又保证长标题可读。
+            #if canImport(UIKit)
             tokenColor = UIColor { traits in
                 traits.userInterfaceStyle == .dark
                     ? UIColor(Color.holoPrimaryLight)
                     : UIColor(Color.holoPrimaryDark)
             }
+            #else
+            tokenColor = NSColor(name: nil) { appearance in
+                appearance.bestMatch(from: [.darkAqua, .vibrantDark]) != nil
+                    ? NSColor(Color.holoPrimaryLight)
+                    : NSColor(Color.holoPrimaryDark)
+            }
+            #endif
             attributes[.foregroundColor] = tokenColor
             attributes[.backgroundColor] = UIColor(Color.holoPrimary.opacity(0.12))
         }
@@ -2984,7 +3044,14 @@ extension MarkdownTextView {
         attributes[.holoTaskId] = taskId.uuidString
         attributes[.holoDisplayText] = displayText
         attributes[.holoTaskSourceLength] = max(0, sourceLength)
+        #if canImport(UIKit)
         let result = NSMutableAttributedString(attachment: TaskLinkAttachment(displayText: displayText))
+        #else
+        // macOS：无 NSTextAttachment 的 UIKit 渲染路径，任务标记降级为可见文本
+        let result = NSMutableAttributedString(
+            string: displayText.isEmpty ? String(localized: "任务") : displayText
+        )
+        #endif
         result.addAttributes(attributes, range: NSRange(location: 0, length: result.length))
         return result
     }
@@ -3240,10 +3307,15 @@ extension MarkdownTextView {
 
         guard isItalic else { return base }
 
+        #if canImport(UIKit)
         var traits = base.fontDescriptor.symbolicTraits
         traits.insert(.traitItalic)
         guard let italicDescriptor = base.fontDescriptor.withSymbolicTraits(traits) else { return base }
         return UIFont(descriptor: italicDescriptor, size: baseFont.pointSize)
+        #else
+        let italicDescriptor = base.fontDescriptor.withSymbolicTraits(.italic)
+        return NSFont(descriptor: italicDescriptor, size: baseFont.pointSize) ?? base
+        #endif
     }
 
     static func clampedRange(_ range: NSRange, for length: Int) -> NSRange {
@@ -3443,10 +3515,19 @@ extension MarkdownTextView {
     static func resolvedTextColor(for hex: String) -> UIColor {
         let normalized = hex.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         if normalized == "#000000" || normalized == "000000" {
+            #if canImport(UIKit)
             return UIColor { traits in
                 guard traits.userInterfaceStyle == .dark else { return .black }
                 return UIColor(Color.holoTextPrimary).resolvedColor(with: traits)
             }
+            #else
+            // macOS：深色模式沿用动态正文色，语义与 iOS 一致
+            return NSColor(name: nil) { appearance in
+                appearance.bestMatch(from: [.darkAqua, .vibrantDark]) != nil
+                    ? NSColor(Color.holoTextPrimary)
+                    : NSColor.black
+            }
+            #endif
         }
         return UIColor(Color(hex: hex))
     }
@@ -3460,6 +3541,7 @@ private extension NSAttributedString.Key {
 // MARK: - Task token presentation
 
 /// 单字符附件保证任务标记不会被换行拆开；无底色、无边框，维持 iOS 编辑器的内容优先层级。
+#if canImport(UIKit)
 private final class TaskLinkAttachment: NSTextAttachment {
 
     override init(data contentData: Data?, ofType uti: String?) {
@@ -3526,11 +3608,13 @@ private final class TaskLinkAttachment: NSTextAttachment {
             .scaledFont(for: UIFont.systemFont(ofSize: 12, weight: .medium))
     }
 }
+#endif
 
 // MARK: - SelfSizingTextView
 
 /// 自动计算内容高度的 UITextView
 /// 通过 sizeThatFits 在布局完成后计算正确高度，避免 intrinsicContentSize 反馈循环
+#if canImport(UIKit)
 private final class SelfSizingTextView: UITextView {
 
     /// 应用内复制保留 Holo 节点身份；外部粘贴只保留可见纯文字。
@@ -3707,3 +3791,4 @@ private final class SelfSizingTextView: UITextView {
         super.paste(sender)
     }
 }
+#endif

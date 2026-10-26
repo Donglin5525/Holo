@@ -68,9 +68,11 @@ struct CalendarEventDetailSheet: View {
             }
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("详情")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("关闭") { dismiss() }
                 }
             }
@@ -331,9 +333,11 @@ struct CalendarEventGroupDetailSheet: View {
             }
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle(group.title)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("关闭") { dismiss() }
                 }
             }

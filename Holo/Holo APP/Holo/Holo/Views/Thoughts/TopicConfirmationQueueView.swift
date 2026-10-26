@@ -49,13 +49,15 @@ struct TopicConfirmationQueueView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("待确认")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("返回") { dismiss() }
                         .foregroundColor(.holoPrimary)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     if !thoughts.isEmpty {
                         Button("全部跳过") { dismiss() }
                             .foregroundColor(.holoTextSecondary)

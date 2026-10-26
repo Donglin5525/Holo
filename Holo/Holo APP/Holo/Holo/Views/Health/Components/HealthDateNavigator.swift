@@ -187,7 +187,9 @@ private struct HealthDatePickerSheet: View {
             .frame(maxWidth: .infinity)
             .padding(.horizontal, HoloSpacing.md)
             .navigationTitle("选择日期")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button {

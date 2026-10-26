@@ -198,6 +198,11 @@ struct TaskListView: View {
     /// 正在完成中的任务 ID（来自完成协调层的全局撤回状态）
     private var pendingCompletionTaskId: UUID? { completionCoordinator.pending?.taskID }
 
+    /// 撤回横条只在完成由本页发起时展示；跨页来源的完成由发起页自己出横条
+    private var showsUndoBanner: Bool {
+        pendingCompletionTaskId != nil && completionCoordinator.pending?.source == .taskList
+    }
+
     /// 未完成的过期任务数（Hero 副行警示）
     private var overdueCount: Int {
         tasks.filter { $0.isOverdue }.count
@@ -262,27 +267,16 @@ struct TaskListView: View {
                     }
                     .padding(.horizontal, HoloSpacing.lg)
                     .padding(.top, HoloSpacing.xs)
-                    .padding(.bottom, pendingCompletionTaskId != nil ? 80 : 100)
+                    .padding(.bottom, showsUndoBanner ? 80 : 100)
                     // 完成状态只改变卡片内容，不更换卡片结构，避免列表跳变。
-                    .animation(HoloAnimation.paperSettle, value: pendingCompletionTaskId)
+                    .animation(HoloAnimation.paperSettle, value: showsUndoBanner)
                 }
 
-                // 完成回执（B 一次性收页反馈）：印章纸页随完成升起、播完自隐，
-                // 不参与命中；连续完成时换实例重播，前一项已被显式确认（G1 契约）
-                if let pending = completionCoordinator.pending,
-                   HoloTaskMotionRolloutPolicy.isEnabled,
-                   let pendingTask = tasks.first(where: { $0.id == pending.taskID })
-                        ?? repository.findTask(by: pending.taskID) {
-                    TaskPaperCompletionReceipt(title: pendingTask.title)
-                        .id(pending.taskID)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .padding(.top, 96)
-                        .allowsHitTesting(false)
-                }
-
-                // 撤回 banner（完成 / 延期可能短时并存，纵向堆叠防重叠）
+                // 撤回 banner（完成 / 延期可能短时并存，纵向堆叠防重叠）。
+                // 只展示本页发起的完成：pending 是跨页共享的单一状态，
+                // 不按 source 过滤会同一次完成在详情/列表各弹一条。
                 VStack(spacing: 8) {
-                    if pendingCompletionTaskId != nil {
+                    if showsUndoBanner {
                         undoBanner
                     }
 
@@ -290,6 +284,7 @@ struct TaskListView: View {
                         postponeUndoBanner
                     }
                 }
+                .animation(HoloAnimation.snappy, value: showsUndoBanner)
             }
         }
     }
@@ -439,10 +434,17 @@ struct TaskListView: View {
         .sheet(isPresented: $showNotificationSettings) {
             NotificationSettingsView()
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showSearchView) {
             TaskSearchView(repository: repository)
                 .holoContentColumn()
         }
+        #else
+                .sheet(isPresented: $showSearchView) {
+            TaskSearchView(repository: repository)
+                .holoContentColumn()
+        }
+        #endif
         .onChange(of: searchTrigger) { _, _ in
             showSearchView = true
         }

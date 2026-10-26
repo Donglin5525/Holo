@@ -87,7 +87,9 @@ struct AIMemoryLabQuerySimulatorView: View {
             }
         }
         .navigationTitle("查询模拟器")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     @MainActor

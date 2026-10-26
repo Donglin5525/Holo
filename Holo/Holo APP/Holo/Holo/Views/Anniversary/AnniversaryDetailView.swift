@@ -40,7 +40,9 @@ struct AnniversaryDetailView: View {
             .padding(.horizontal, 24)
         }
         .preferredColorScheme(.dark)
+        #if canImport(UIKit)
         .navigationBarHidden(true)
+        #endif
         .swipeBackToDismiss(ignoreNavigationStack: true) {
             onBack()
         }

@@ -16,7 +16,10 @@
 import Foundation
 import CoreData
 import os.log
+#if canImport(UIKit)
 import UIKit
+#endif
+import ImageIO
 
 // MARK: - DTO
 
@@ -123,6 +126,7 @@ enum HoloVisionImagePipeline {
     /// 逐级降尺寸兜底（2000→1400→980→686px）：极端图在低质量档仍超 1MB 时缩尺寸重来，
     /// 保证产出 ≤ 服务端 1.5MB 上限。aggressive=true 是服务端 413 后的二次尝试（1200px 起步）。
     static func compressedJPEG(from rawData: Data, aggressive: Bool = false) -> Data? {
+        #if canImport(UIKit)
         guard let source = UIImage(data: rawData) else { return nil }
         let pixelWidth = source.size.width * source.scale
         let pixelHeight = source.size.height * source.scale
@@ -153,7 +157,49 @@ enum HoloVisionImagePipeline {
             maxDimension *= 0.7
         }
         return best
+        #else
+        // macOS：UIGraphicsImageRenderer 不可用，走 ImageIO 等价管线
+        // （缩到 maxDimension 上限 + 逐级降质至 ≤ maxBytes，产物语义一致：剥离 EXIF 的 JPEG）
+        guard let cgImage = Self.cgDownsample(rawData, maxPixel: aggressive ? 1200 : 2000) else { return nil }
+        var best: Data?
+        var quality: CGFloat = aggressive ? 0.6 : 0.75
+        var data = Self.cgJPEG(cgImage, quality: quality)
+        while let current = data, current.count > FeedbackImageCompressor.maxBytes, quality > 0.3 {
+            quality -= 0.15
+            data = Self.cgJPEG(cgImage, quality: quality)
+        }
+        if let data, data.count <= FeedbackImageCompressor.maxBytes {
+            return data
+        }
+        if let data, best == nil || data.count < best!.count {
+            best = data
+        }
+        return best
+        #endif
     }
+
+    #if !canImport(UIKit)
+    private static func cgDownsample(_ data: Data, maxPixel: CGFloat) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
+
+    private static func cgJPEG(_ image: CGImage, quality: CGFloat) -> Data? {
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil) else {
+            return nil
+        }
+        let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: quality]
+        CGImageDestinationAddImage(destination, image, options as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
+    }
+    #endif
 
     /// 后台压缩：原图解码/重绘/JPEG 编码是几百毫秒级的 CPU 重活，同步跑在调用方
     /// 线程（识图/聊天入口都是 MainActor）会直接顶掉系统转场与弹层动画帧；

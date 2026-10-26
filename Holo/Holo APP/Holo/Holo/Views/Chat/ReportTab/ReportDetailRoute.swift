@@ -61,6 +61,7 @@ struct ReportDetailRoute: View {
                         GoalReportLinkBar(scope: scope, draft: result.goalAdjustmentDraft, reportMessageID: message.id)
                     }
                 }
+                #if canImport(UIKit)
                 .fullScreenCover(item: $childMessage) { child in
                     ReportDetailRoute(
                         message: child,
@@ -69,6 +70,16 @@ struct ReportDetailRoute: View {
                     )
                     .holoContentColumn()
                 }
+                #else
+                                .sheet(item: $childMessage) { child in
+                    ReportDetailRoute(
+                        message: child,
+                        chatViewModel: chatViewModel,
+                        onFinanceDrilldown: onFinanceDrilldown
+                    )
+                    .holoContentColumn()
+                }
+                #endif
             } else {
                 ReportReplayReaderView(message: message)
             }

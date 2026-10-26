@@ -44,9 +44,11 @@ struct MatterDetailView: View {
         }
         .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle(matter?.title ?? String(localized: "详情"))
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                 Button(String(localized: "关闭")) { dismiss() }
             }
         }
@@ -369,7 +371,7 @@ struct MatterDetailView: View {
 
     @ToolbarContentBuilder
     private var toolbarTrailing: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
             Menu {
                 if matter?.lifecycle == .active {
                     Button {
@@ -629,7 +631,7 @@ struct MatterDetailView: View {
                                 .font(.caption)
                                 .padding(.horizontal, 11)
                                 .padding(.vertical, 6)
-                                .background(Capsule().fill(Color(.secondarySystemGroupedBackground)))
+                                .background(Capsule().fill(Color.holoSecondaryGroupedBackground))
                         }
                     }
                 }

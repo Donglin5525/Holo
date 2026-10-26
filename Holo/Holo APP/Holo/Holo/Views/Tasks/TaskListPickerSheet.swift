@@ -115,7 +115,9 @@ struct TaskListPickerSheet: View {
                 }
             }
             .navigationTitle("选择清单")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {

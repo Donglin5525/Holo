@@ -6,7 +6,12 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
+import Foundation
 
 // MARK: - Category Icon View Builder
 
@@ -53,7 +58,7 @@ func entityIconGlyph(_ iconName: String, size: CGFloat, color: Color) -> some Vi
     } else if CategoryIconCatalog.isCustomIcon(iconName) {
         HoloFallbackCategoryIcon(kind: iconName, size: size)
             .foregroundColor(color)
-    } else if UIImage(systemName: iconName) != nil {
+    } else if isSystemSymbolName(iconName) {
         Image(systemName: iconName)
             .font(.system(size: size, weight: .medium))
             .foregroundColor(color)
@@ -73,6 +78,15 @@ private func isEmojiIconName(_ name: String) -> Bool {
     name.unicodeScalars.contains {
         $0.properties.isEmojiPresentation || $0.value == 0xFE0F
     }
+}
+
+/// 名称是否为系统 SF Symbol（iOS 走 UIImage 探测，macOS 走 NSImage 等价探测）
+private func isSystemSymbolName(_ name: String) -> Bool {
+    #if canImport(UIKit)
+    UIImage(systemName: name) != nil
+    #else
+    NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
+    #endif
 }
 
 private struct HoloFallbackCategoryIcon: View {

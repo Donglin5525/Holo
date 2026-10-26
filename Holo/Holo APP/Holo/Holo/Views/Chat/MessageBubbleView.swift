@@ -752,9 +752,15 @@ struct VisionChatThumbnail: View {
     var body: some View {
         Group {
             if let image {
+                #if canImport(UIKit)
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
+                #else
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+                #endif
             } else {
                 Color.holoToolSurface
             }

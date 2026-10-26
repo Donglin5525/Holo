@@ -363,7 +363,9 @@ struct TaskDueQuickEditSheet: View {
                 }
             }
             .navigationTitle(String(localized: "截止日期"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
@@ -507,7 +509,9 @@ struct TaskPlannedRangeQuickSheet: View {
                 }
             }
             .navigationTitle(hasExistingPlan ? String(localized: "调整计划时间") : String(localized: "安排时间"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
@@ -675,7 +679,9 @@ struct TaskExperienceSearchView: View {
                 }
             }
             .navigationTitle(String(localized: "搜索任务"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
@@ -683,11 +689,18 @@ struct TaskExperienceSearchView: View {
                 }
             }
         }
+        #if canImport(UIKit)
         .searchable(
             text: $keyword,
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: String(localized: "标题、描述、清单名")
         )
+        #else
+        .searchable(
+            text: $keyword,
+            prompt: String(localized: "标题、描述、清单名")
+        )
+        #endif
         .holoEdgeSwipeBack { dismiss() }
     }
 

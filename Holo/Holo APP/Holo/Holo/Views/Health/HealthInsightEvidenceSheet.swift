@@ -79,10 +79,12 @@ struct HealthInsightEvidenceSheet: View {
                 .padding(HoloSpacing.md)
             }
             .navigationTitle("为什么这么说")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .holoSheetShell()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("关闭") { dismiss() }
                 }
             }

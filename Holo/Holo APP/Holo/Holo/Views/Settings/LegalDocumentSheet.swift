@@ -6,7 +6,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 import WebKit
 
 // MARK: - 法律文档查看器
@@ -22,9 +26,11 @@ struct LegalDocumentSheet: View {
         NavigationStack {
             LegalWebView(htmlContent: documentType.htmlContent)
                 .navigationTitle(documentType.title)
+                #if canImport(UIKit)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                    ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                         Button("完成") {
                             dismiss()
                         }
@@ -57,6 +63,7 @@ enum LegalDocumentType {
 
 // MARK: - WebView
 
+#if canImport(UIKit)
 private struct LegalWebView: UIViewRepresentable {
 
     let htmlContent: String
@@ -93,6 +100,43 @@ private struct LegalWebView: UIViewRepresentable {
         }
     }
 }
+#else
+/// macOS：WKWebView 走 NSViewRepresentable 桥
+private struct LegalWebView: NSViewRepresentable {
+
+    let htmlContent: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.navigationDelegate = context.coordinator
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        webView.loadHTMLString(htmlContent, baseURL: nil)
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            if let url = navigationAction.request.url, url.scheme?.lowercased() == "mailto" {
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
+        }
+    }
+}
+#endif
 
 // MARK: - HTML 模板
 

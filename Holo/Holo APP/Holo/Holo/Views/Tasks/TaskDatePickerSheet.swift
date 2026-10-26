@@ -130,7 +130,9 @@ struct TaskDatePickerSheet: View {
                 }
             }
             .navigationTitle("日期与时间")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {
@@ -223,7 +225,11 @@ struct TaskDatePickerSheet: View {
                     selection: $draftDueDate,
                     displayedComponents: draftIsAllDay ? .date : [.date, .hourAndMinute]
                 )
+                #if canImport(UIKit)
                 .datePickerStyle(.wheel)
+                #else
+                .datePickerStyle(.automatic)
+                #endif
                 .labelsHidden()
                 .environment(\.locale, Locale(identifier: "zh_CN"))
             }
@@ -648,7 +654,9 @@ struct TaskDatePickerSheet: View {
                 .padding()
             }
             .navigationTitle("选择结束日期")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {

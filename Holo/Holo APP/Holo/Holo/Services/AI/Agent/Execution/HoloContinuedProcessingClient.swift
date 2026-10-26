@@ -10,7 +10,9 @@
 //
 
 import Foundation
+#if canImport(UIKit)
 import BackgroundTasks
+#endif
 
 /// 系统持续处理请求（§9.3：提交策略 .fail —— 不接纳即回落，不把互动任务排队）。
 struct HoloContinuedTaskRequest: Sendable, Equatable {
@@ -53,6 +55,7 @@ protocol HoloContinuedProcessingClient: AnyObject {
 
 // MARK: - 生产实现（iOS 26+）
 
+#if canImport(UIKit)
 @available(iOS 26.0, *)
 nonisolated final class HoloSystemContinuedProcessingClient: HoloContinuedProcessingClient {
 
@@ -141,3 +144,4 @@ nonisolated final class HoloSystemContinuedTask: HoloContinuedTask {
         task.setTaskCompleted(success: success)
     }
 }
+#endif

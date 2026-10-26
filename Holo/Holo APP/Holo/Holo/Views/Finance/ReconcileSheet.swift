@@ -70,14 +70,16 @@ struct ReconcileSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle("对账")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
                             .accessibilityLabel(Text("关闭"))
                         .foregroundColor(.holoToolTextSecondary)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     if !reconciled {
                         Button(isFlat ? "确认对平" : "补齐差额") { reconcile() }
                             .font(.system(size: 16, weight: .semibold))
@@ -128,7 +130,9 @@ struct ReconcileSheet: View {
                     .foregroundColor(.holoToolText)
                 TextField("0.00", text: $actualBalanceString)
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    #if canImport(UIKit)
                     .keyboardType(.decimalPad)
+                    #endif
                     .focused($isAmountFocused)
             }
             .padding(HoloSpacing.md)

@@ -65,7 +65,9 @@ struct RecycleBinView: View {
             }
             .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle("最近删除")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { dismiss() }
@@ -213,7 +215,9 @@ struct RecycleBinBatchDetailView: View {
         }
         .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle("删除事件")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .alert("恢复数据", isPresented: $showRestoreConfirm) {
             Button("取消", role: .cancel) {}
             Button("恢复", role: .none) {
@@ -432,7 +436,9 @@ struct RestoreConflictSheet: View {
             }
             .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle("恢复预览")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }

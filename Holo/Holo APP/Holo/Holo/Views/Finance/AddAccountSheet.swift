@@ -87,14 +87,16 @@ struct AddAccountSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle(isEditMode ? "编辑账户" : "新建账户")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
                             .accessibilityLabel(Text("关闭"))
                         .foregroundColor(.holoToolTextSecondary)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("保存") { save() }
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(canSave ? .holoPrimary : .holoToolTextSecondary)
@@ -263,7 +265,9 @@ struct AddAccountSheet: View {
 
                 TextField("0.00", text: $initialBalance)
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    #if canImport(UIKit)
                     .keyboardType(.decimalPad)
+                    #endif
             }
             .padding(HoloSpacing.md)
             .background(Color.holoToolSurface)
@@ -355,7 +359,9 @@ struct AddAccountSheet: View {
                         .foregroundColor(.holoToolText)
                     TextField("如 30000", text: $creditLimit)
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        #if canImport(UIKit)
                         .keyboardType(.decimalPad)
+                        #endif
                         .multilineTextAlignment(.trailing)
                         .frame(width: 100)
                 }

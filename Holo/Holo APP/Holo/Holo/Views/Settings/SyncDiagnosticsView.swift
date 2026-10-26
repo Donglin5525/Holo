@@ -24,9 +24,11 @@ struct SyncDiagnosticsView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("同步诊断")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
+            ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                 Button {
                     dismiss()
                 } label: {

@@ -156,9 +156,11 @@ struct TaskDetailListPickerSheet: View {
                 }
             }
             .navigationTitle("选择清单")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("完成") {
                         showListPicker = false
                     }

@@ -85,9 +85,11 @@ struct HoloProfileEditorView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("个人档案")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                 Button {
                     requestClose()
                 } label: {
@@ -97,7 +99,7 @@ struct HoloProfileEditorView: View {
                 }
             }
 
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                 Menu {
                     Button(role: .destructive) {
                         showResetConfirmation = true

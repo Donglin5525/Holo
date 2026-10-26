@@ -1,3 +1,7 @@
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 //
 //  ScheduleStore.swift
 //  Holo
@@ -74,8 +78,13 @@ final class ScheduleStore: ObservableObject {
             Task { await activate() }
         }
         // 回前台：权限可能在外部被改；后台期间日历可能有变更而变更通知未必送达 → 双兜底
+        #if canImport(UIKit)
+        let willEnterForeground = UIApplication.willEnterForegroundNotification
+        #else
+        let willEnterForeground = NSApplication.willBecomeActiveNotification
+        #endif
         NotificationCenter.default.addObserver(
-            forName: UIApplication.willEnterForegroundNotification,
+            forName: willEnterForeground,
             object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor in

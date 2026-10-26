@@ -61,9 +61,11 @@ struct ChecklistView: View {
                 }
             }
             .navigationTitle("子任务")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button {
                         dismiss()
                     } label: {
@@ -73,7 +75,7 @@ struct ChecklistView: View {
                     }
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("完成") {
                         dismiss()
                     }

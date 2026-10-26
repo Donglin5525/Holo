@@ -1,8 +1,12 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
+import Foundation
 
 /// 模板只改显示属性，文字、Token、选色与语义格式仍由原编辑管线保存。
 enum ThoughtEditorAppearance {
+    #if canImport(UIKit)
     static func apply(_ style: ThoughtStyle, to textView: UITextView) {
         guard textView.markedTextRange == nil else { return }
         let selection = textView.selectedRange
@@ -21,6 +25,7 @@ enum ThoughtEditorAppearance {
         textView.typingAttributes = typing
         textView.tintColor = UIColor(style == .plain ? Color.holoToolAction : style.accent)
     }
+    #endif
 
     /// 只读测量、卡片与导出复用同样的显示转换，不触碰绑定或数据库。
     static func attributed(_ source: NSAttributedString, style: ThoughtStyle) -> NSAttributedString {

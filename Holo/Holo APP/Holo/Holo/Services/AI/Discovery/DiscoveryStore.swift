@@ -527,11 +527,13 @@ nonisolated final class DiscoveryStore {
                 url: directory.appendingPathComponent("HoloDiscoveryModel.sqlite")
             )
             description.type = NSSQLiteStoreType
-            // 02 §9.3：正文缓存文件保护（锁屏后首次解锁前不可读）
+            // 02 §9.3：正文缓存文件保护（锁屏后首次解锁前不可读）；文件保护为 iOS 专属机制
+            #if canImport(UIKit)
             description.setOption(
                 FileProtectionType.completeUntilFirstUserAuthentication.rawValue as NSString,
                 forKey: NSPersistentStoreFileProtectionKey
             )
+            #endif
         }
         description.shouldAddStoreAsynchronously = false
         container.persistentStoreDescriptions = [description]

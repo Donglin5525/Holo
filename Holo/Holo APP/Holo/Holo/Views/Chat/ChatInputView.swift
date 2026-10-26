@@ -209,6 +209,7 @@ struct ChatInputView: View {
             matching: .images,
             photoLibrary: .shared()
         )
+        #if canImport(UIKit)
         .fullScreenCover(
             isPresented: $showCamera,
             onDismiss: {
@@ -227,6 +228,26 @@ struct ChatInputView: View {
             )
             .ignoresSafeArea()
         }
+        #else
+                .sheet(
+            isPresented: $showCamera,
+            onDismiss: {
+                // 捕获数据在 dismiss 后处理（任务/想法附件同范式，规避 sheet 竞态）
+                guard let data = pendingCameraData else { return }
+                pendingCameraData = nil
+                onImagePicked?(data)
+            }
+        ) {
+            CameraView(
+                onCapture: { data in
+                    pendingCameraData = data
+                    showCamera = false
+                },
+                onDismiss: { showCamera = false }
+            )
+            .ignoresSafeArea()
+        }
+        #endif
         .onChange(of: pickedItems) { _, newItems in
             guard let newItem = newItems.last else { return }
             pickedItems = []

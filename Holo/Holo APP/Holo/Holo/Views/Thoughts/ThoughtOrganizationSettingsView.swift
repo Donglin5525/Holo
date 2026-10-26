@@ -130,7 +130,10 @@ struct ThoughtOrganizationSettingsView: View {
                 } footer: { Text("清理的数据进入回收站，自动整理不会代替你删除笔记。") }
             }
             .tint(.holoPrimary)
-            .navigationTitle("想法设置").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("想法设置")
+            #if canImport(UIKit)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
             .holoSheetShell()
             .sheet(item: $destination) { target in

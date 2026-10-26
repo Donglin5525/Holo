@@ -310,6 +310,7 @@ struct SettingsICloudSyncSection: View {
                     SyncDiagnosticsView()
                 }
             }
+            #if canImport(UIKit)
             .fullScreenCover(isPresented: $showCloudRepull) {
                 CloudRepullView()
                     .task {
@@ -317,6 +318,15 @@ struct SettingsICloudSyncSection: View {
                         await CloudRepullService.shared.start()
                     }
             }
+            #else
+                        .sheet(isPresented: $showCloudRepull) {
+                CloudRepullView()
+                    .task {
+                        // 弹层即启动：确认弹层是唯一的入口闸，这里不再二次确认
+                        await CloudRepullService.shared.start()
+                    }
+            }
+            #endif
             // 手动同步的真实结果异步到达（探针上传事件落地或超时），转发到按钮下的提示位
             .onReceive(iCloudSyncStatus.$refreshToast) { toast in
                 guard let toast else { return }

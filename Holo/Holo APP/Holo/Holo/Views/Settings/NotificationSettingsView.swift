@@ -9,6 +9,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import CoreData
 import UserNotifications
 
@@ -100,9 +104,11 @@ struct NotificationSettingsView: View {
                 }
             }
             .navigationTitle("通知设置")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("关闭") {
                         dismiss()
                     }
@@ -115,9 +121,15 @@ struct NotificationSettingsView: View {
             .alert("通知权限", isPresented: $showPermissionAlert) {
                 Button("取消", role: .cancel) { }
                 Button("去设置") {
+                    #if canImport(UIKit)
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
+                    #else
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.notifications") {
+                        NSWorkspace.shared.open(url)
+                    }
+                    #endif
                 }
             } message: {
                 Text("请在系统设置中开启 Holo 的通知权限")
@@ -131,9 +143,15 @@ struct NotificationSettingsView: View {
                 loadRowStates()
                 loadCounts()
             }
+            #if canImport(UIKit)
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 loadCounts()
             }
+            #else
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.willBecomeActiveNotification)) { _ in
+                loadCounts()
+            }
+            #endif
             .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
                 loadCounts()
             }
@@ -656,7 +674,9 @@ private struct DailyBriefNotificationDetailView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("每日早报")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             enabled = DailyBriefScheduler.shared.isEnabled
             time = notificationTimeDate(DailyBriefScheduler.shared.reminderTime)
@@ -727,7 +747,9 @@ private struct WeeklyBriefNotificationDetailView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("周一晨报")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             enabled = WeeklyBriefScheduler.shared.isEnabled
             time = notificationTimeDate(WeeklyBriefScheduler.shared.reminderTime)
@@ -806,7 +828,9 @@ private struct InsightNotificationDetailView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("AI 回放")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     /// 周回放时间：周几 + 小时
@@ -902,7 +926,9 @@ private struct BillDueNotificationDetailView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("周期账单到期提醒")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             let scheduler = BillDueReminderScheduler.shared
             enabled = scheduler.isEnabled
@@ -1064,7 +1090,9 @@ private struct BudgetOverrunNotificationDetailView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("预算超支提醒")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             enabled = BudgetOverrunNotificationService.shared.isEnabled
         }

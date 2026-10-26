@@ -11,6 +11,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import Combine
 import os.log
 
@@ -93,7 +97,12 @@ class HomeScheduleService: ObservableObject {
         }
 
         /// 监听 App 回到前台
-        NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)
+        #if canImport(UIKit)
+        let willEnterForeground = UIApplication.willEnterForegroundNotification
+        #else
+        let willEnterForeground = NSApplication.willBecomeActiveNotification
+        #endif
+        NotificationCenter.default.publisher(for: willEnterForeground)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.refreshNow(source: "foreground")

@@ -14,8 +14,12 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
+import Foundation
 
+#if canImport(UIKit)
 struct EdgeSwipeBackRepresentable: UIViewControllerRepresentable {
     var onBack: () -> Void
     /// false 时不识别手势：用于「同一视图多形态」的页面（如全屏详情/导航栈 push 共用），
@@ -112,11 +116,26 @@ struct EdgeSwipeBackRepresentable: UIViewControllerRepresentable {
     }
 }
 
+#else
+/// macOS：无 UIScreenEdgePan 体系，边缘右滑返回退化为空视图
+struct EdgeSwipeBackRepresentable: View {
+    var onBack: () -> Void = {}
+    var isEnabled: Bool = true
+
+    var body: some View { EmptyView() }
+}
+#endif
+
 extension View {
     /// 全屏页边缘右滑返回。挂在使用 fullScreenCover 呈现的页面根部。
     /// isEnabled=false 时不识别（多形态页面 push 形态让位给系统返回）。
     /// 挂载必须是 overlay 而非 background：background 在内容层之后，触摸到不了识别器。
+    @ViewBuilder
     func holoEdgeSwipeBack(isEnabled: Bool = true, action: @escaping () -> Void) -> some View {
+        #if canImport(UIKit)
         overlay(EdgeSwipeBackRepresentable(onBack: action, isEnabled: isEnabled))
+        #else
+        self
+        #endif
     }
 }

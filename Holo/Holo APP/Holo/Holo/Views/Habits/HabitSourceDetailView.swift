@@ -117,12 +117,16 @@ struct HabitSourceDetailView: View {
                 .listRowInsets(EdgeInsets(top: 0, leading: GoalJourneyStyle.pageInset, bottom: 0, trailing: GoalJourneyStyle.pageInset))
             }
             .listStyle(.plain).environment(\.defaultMinListRowHeight, 0)
+            #if canImport(UIKit)
             .listRowSpacing(0)
+            #endif
             .scrollContentBackground(.hidden)
             .background(Color.holoToolBackground)
             .tint(GoalJourneyStyle.action)
             .navigationTitle(habit?.name ?? "习惯来源")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("完成") { dismiss() } } }
             .sheet(item: $editor) { target in editorView(target) }
             .confirmationDialog("删除这条原记录？", isPresented: Binding(get: { deleteID != nil }, set: { if !$0 { deleteID = nil } })) {
@@ -314,7 +318,10 @@ struct HabitDayConfirmationSheet: View {
                         .goalJourneyText(.supporting).frame(maxWidth: .infinity, minHeight: 44).disabled(saving)
                 }.padding(GoalJourneyStyle.pageInset)
             }.background(Color.holoToolBackground).foregroundStyle(Color.holoToolText).tint(GoalJourneyStyle.action)
-            .navigationTitle("每日确认").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("每日确认")
+            #if canImport(UIKit)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
                             .accessibilityLabel(Text("关闭")).disabled(saving) } }
         }.interactiveDismissDisabled(saving)

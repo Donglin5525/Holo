@@ -123,9 +123,11 @@ struct SettingsView: View {
         NavigationStack {
             settingsContent
                 .background(Color.holoToolBackground)
+                #if canImport(UIKit)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
-                    ToolbarItem(placement: .navigationBarLeading) {
+                    ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                         Button {
                             close()
                         } label: {

@@ -114,7 +114,9 @@ struct TaskQuadrantExpandedSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(quadrant.displayTitle)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "关闭")) { dismiss() }

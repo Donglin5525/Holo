@@ -406,7 +406,9 @@ final class ChatViewModel: ObservableObject {
         }
         // 云端轨道启动即请求通知授权+注册 APNs（「分析完成」推送）；
         // 权限拒绝/注册失败不影响分析本身（打开 App 照常领取结果）
-        HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
+        #if canImport(UIKit)
+HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
+#endif
         switch await HoloCloudAnalysisService.shared.attempt(
             question: question,
             sourceMessageID: aiMessageId,
@@ -4090,7 +4092,9 @@ final class ChatViewModel: ObservableObject {
             showCloudPrivacySheet = true
         } else if HoloCloudAnalysisService.shared.canTakeCloudTask() {
             // 云端接管即注册推送（「回放已生成」通知）；拒绝不影响生成
+            #if canImport(UIKit)
             HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
+            #endif
         }
         await HoloPeriodReplayCoordinator.shared.start(
             periodType: periodType,

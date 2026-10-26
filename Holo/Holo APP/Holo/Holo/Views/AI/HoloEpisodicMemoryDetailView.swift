@@ -104,7 +104,9 @@ struct HoloEpisodicMemoryDetailView: View {
             .scrollContentBackground(.hidden)
             .background(Color.holoToolBackground)
             .navigationTitle(memory.title)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") {

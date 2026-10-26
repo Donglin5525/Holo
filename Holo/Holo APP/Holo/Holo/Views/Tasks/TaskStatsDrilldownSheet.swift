@@ -188,7 +188,9 @@ struct TaskStatsDrilldownSheet: View {
                 }
             }
             .navigationTitle(title)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "完成")) { dismiss() }
@@ -321,7 +323,9 @@ struct TaskStatsBucketDrilldownSheet: View {
                 }
             }
             .navigationTitle(bucketTitle)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "完成")) { dismiss() }
@@ -482,7 +486,9 @@ struct TaskStatsTrendDrilldownSheet: View {
                 .background(Color.holoCardBackground)
             }
             .navigationTitle(String(localized: "趋势明细"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "完成")) { dismiss() }
@@ -531,7 +537,9 @@ struct TaskStatsListDrilldownSheet: View {
                 }
             }
             .navigationTitle(String(localized: "\(stat.name) · \(stat.count) 项完成"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "完成")) { dismiss() }
@@ -636,7 +644,9 @@ struct TaskStatsMatterDrilldownSheet: View {
                     .background(Color.holoCardBackground)
             }
             .navigationTitle(String(localized: "\(stat.title) · \(stat.count) 项完成"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "完成")) { dismiss() }

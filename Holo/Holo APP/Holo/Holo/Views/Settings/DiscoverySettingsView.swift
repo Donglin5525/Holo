@@ -49,7 +49,9 @@ struct DiscoverySettingsView: View {
         }
         .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle("一个发现")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .sheet(isPresented: $showsEnableSheet) {
             DiscoveryFirstEnableSheet(
                 service: service,

@@ -8,7 +8,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 // MARK: - Quick Tag Bar
 
@@ -63,11 +67,19 @@ extension Color {
     }
 
     static var transactionQuickTagChipBackground: Color {
+        #if canImport(UIKit)
         Color(UIColor { trait in
             trait.userInterfaceStyle == .dark
                 ? UIColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)
                 : UIColor.white
         })
+        #else
+        Color(NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .vibrantDark]) != nil
+                ? NSColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)
+                : NSColor.white
+        })
+        #endif
     }
 }
 

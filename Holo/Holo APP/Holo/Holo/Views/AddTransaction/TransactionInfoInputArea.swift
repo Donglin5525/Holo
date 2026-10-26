@@ -354,7 +354,11 @@ extension AddTransactionSheet {
                                 TextField("", text: $customPeriodsText)
                                     .font(.system(size: 14, weight: .medium))
                                     .foregroundColor(.white)
+                                    #if canImport(UIKit)
                                     .keyboardType(.numberPad)
+                                    #else
+                                    // macOS：无数字键盘类型
+                                    #endif
                                     .frame(width: 30)
                                     .multilineTextAlignment(.center)
                                     .onChange(of: customPeriodsText) { _, newValue in
@@ -398,7 +402,9 @@ extension AddTransactionSheet {
                         .foregroundColor(.holoTextSecondary)
                     TextField("0.00", text: $feePerPeriod)
                         .font(.holoBody)
+                        #if canImport(UIKit)
                         .keyboardType(.decimalPad)
+                        #endif
                         .frame(width: 80)
                 }
                 .padding(.horizontal, 8)

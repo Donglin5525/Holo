@@ -895,6 +895,7 @@ struct TimelineReplayView: View {
 /// UIScrollView 的滚动 pan 默认并行识别——手指一动长按即失败、滚动不受影响；
 /// 只有静止按住 0.5 秒长按才成立。松手前的位移由识别器持续回报（拖出行外坐标依然连续）。
 /// 实例按小时行铺在空白背景上：任务块/热区在上层照常命中，桥只兜住空白触摸。
+#if canImport(UIKit)
 private struct TimelineLongPressBridge: UIViewRepresentable {
     /// 本行在轴内容坐标系中的起点 y（行内触摸 y 与之相加得轴坐标）
     let axisYOffset: CGFloat
@@ -941,3 +942,15 @@ private struct TimelineLongPressBridge: UIViewRepresentable {
         }
     }
 }
+
+#else
+/// macOS：UILongPress 桥不适用，长按交互（时间轴定位）留待后续阶段；空白区不接管事件
+private struct TimelineLongPressBridge: View {
+    var axisYOffset: CGFloat = 0
+    var onPressBegan: (CGFloat) -> Void = { _ in }
+    var onPressMoved: (CGFloat) -> Void = { _ in }
+    var onPressEnded: (CGFloat) -> Void = { _ in }
+
+    var body: some View { EmptyView() }
+}
+#endif

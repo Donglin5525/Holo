@@ -8,6 +8,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
@@ -38,11 +42,13 @@ struct AboutView: View {
             .padding(.vertical, HoloSpacing.md)
         }
         .background(Color.holoBackground)
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
             // sheet 自带 NavigationStack 且无系统返回键，没有关闭钮用户就退不出去
             // （2026-10-17 设计走查实锤：只能靠重启 App 脱身）；对齐 §8.8 左上关闭惯例
-            ToolbarItem(placement: .topBarLeading) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                 Button {
                     dismiss()
                 } label: {
@@ -100,7 +106,12 @@ struct AboutView: View {
     /// 设备号用于反馈问题时定位账号（客服/测试期权益调整），点击整行复制
     private var deviceSection: some View {
         Button {
+            #if canImport(UIKit)
             UIPasteboard.general.string = HoloBackendDeviceIdentity.shared.deviceId
+            #else
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(HoloBackendDeviceIdentity.shared.deviceId, forType: .string)
+            #endif
             copiedDeviceId = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 copiedDeviceId = false

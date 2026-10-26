@@ -43,8 +43,12 @@ struct HoloMemoryCenterView: View {
         }
         .background(Color.holoToolBackground)
         .buttonStyle(.plain)
+        #if canImport(UIKit)
         .navigationBarBackButtonHidden(true)
+        #if canImport(UIKit)
         .toolbar(.hidden, for: .navigationBar)
+        #endif
+        #endif
         .navigationDestination(isPresented: $showPastList) {
             HoloMemoryBucketListView(bucket: .history)
         }

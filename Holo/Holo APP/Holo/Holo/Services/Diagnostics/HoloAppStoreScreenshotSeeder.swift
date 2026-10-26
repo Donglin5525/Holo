@@ -8,7 +8,9 @@
 
 import CoreData
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 
 @MainActor
 enum HoloAppStoreScreenshotSeeder {
@@ -1610,6 +1612,7 @@ enum HoloAppStoreScreenshotSeeder {
 
         let repository = ThoughtRepository(context: context)
         for name in photoNames {
+            #if canImport(UIKit)
             guard let image = UIImage(named: name),
                   let imageData = image.jpegData(compressionQuality: 0.9) else {
                 throw ScreenshotSeedError.missingMemoryPhoto(name)
@@ -1619,6 +1622,10 @@ enum HoloAppStoreScreenshotSeeder {
                 to: thought,
                 sourceType: "screenshotSeed"
             )
+            #else
+            // 宣传图种子仅在 iOS 模拟器拍摄场景使用；macOS 无 UIImage(named:) 管线
+            throw ScreenshotSeedError.missingMemoryPhoto(name)
+            #endif
         }
     }
 

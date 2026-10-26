@@ -16,7 +16,12 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
+import Foundation
 
 private struct HoloScreenDismissKey: EnvironmentKey {
     /// 默认 nil：未注入时由调用方 fallback 到 @Environment(\.dismiss)
@@ -57,7 +62,12 @@ enum HoloScreenTransitionMetrics {
 
     /// 全屏移动与局部按压遵循同一展示开关，减少动态效果时仅淡入淡出。
     static var allowsMovement: Bool {
-        !UIAccessibility.isReduceMotionEnabled &&
+        #if canImport(UIKit)
+        let reduceMotion = UIAccessibility.isReduceMotionEnabled
+        #else
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        #endif
+        return !reduceMotion &&
         HoloMotionPreferencePolicy.isEnabled(HoloMotionRollout.interactionKey)
     }
 }

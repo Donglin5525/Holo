@@ -52,11 +52,21 @@ struct FinanceProjectDetailView: View {
             Color.clear.frame(height: 160)
         }
         .navigationTitle(project.name)
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
+        #if canImport(UIKit)
         .toolbarBackground(Color.holoToolBackground, for: .navigationBar)
+        #else
+        // macOS：导航栏背景恒等
+        #endif
+        #if canImport(UIKit)
         .toolbarBackground(.visible, for: .navigationBar)
+        #else
+        // macOS：导航栏背景恒等
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                 Menu {
                     Section {
                         Button {
@@ -519,7 +529,9 @@ struct ProjectHistoryPickerSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle("选择交易")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }

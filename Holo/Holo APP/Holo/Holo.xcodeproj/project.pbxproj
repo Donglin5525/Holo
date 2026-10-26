@@ -70,6 +70,9 @@
 		490F7DBD3033647500155EB1 /* CoreXLSX in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000002 /* CoreXLSX */; };
 		490F7DBE3033647500155EB1 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000004 /* ZIPFoundation */; };
 		490F7DBF3033647500155EB1 /* USearch in Frameworks */ = {isa = PBXBuildFile; productRef = B1000000000000000000006 /* USearch */; };
+		MAC000000000000000000000F /* CoreXLSX in Frameworks */ = {isa = PBXBuildFile; productRef = MAC000000000000000000000C /* CoreXLSX */; };
+		MAC0000000000000000000010 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = MAC000000000000000000000D /* ZIPFoundation */; };
+		MAC0000000000000000000011 /* USearch in Frameworks */ = {isa = PBXBuildFile; productRef = MAC000000000000000000000E /* USearch */; };
 		4B6A953DB90277DC3F7E13F1 /* HoloMemoryAccessPolicyStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD9072B04A04CEFFDFC02564 /* HoloMemoryAccessPolicyStandaloneTests.swift */; };
 		4D19A0A328F74F68A72C9E57 /* HoloAgentEvalRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49A92723E7D4B2892C4D8BF /* HoloAgentEvalRunner.swift */; };
 		4FA341DFA8EA75735380FEE3 /* EffectiveRecordDayStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F3D728A02350F1B7FE3B608 /* EffectiveRecordDayStandaloneTests.swift */; };
@@ -578,6 +581,7 @@
 		436D7BF8CA5DB0D60F1129E3 /* HoloWidgetModelsStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloWidgetModelsStandaloneTests.swift; sourceTree = "<group>"; };
 		439BD0F9196830BEB35DD79D /* WaveformSampleMapperTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WaveformSampleMapperTests.swift; sourceTree = "<group>"; };
 		49E199F42F54389E0070AE1B /* Holo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Holo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		MAC0000000000000000000008 /* HoloMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HoloMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		4A52B151F00E0ECCC55E165C /* HoloMemoryContextEnvelopeStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryContextEnvelopeStandaloneTests.swift; sourceTree = "<group>"; };
 		4B7DA35E2C86901D5E6F7A2C /* HoloMemoryUserControlServiceStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryUserControlServiceStandaloneTests.swift; sourceTree = "<group>"; };
 		4C56E2AB37A815D00F57579A /* HealthInsightGenerationModelsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightGenerationModelsTests.swift; sourceTree = "<group>"; };
@@ -984,9 +988,54 @@
 		TSAFE0A000000000000000001 /* ThoughtSemanticSafetyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtSemanticSafetyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		MAC0000000000000000000003 /* Exceptions for "Holo" folder in "HoloMac" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AppIntents/ReceiptBooking/HoloAccountChoiceEntity.swift,
+				AppIntents/ReceiptBooking/HoloProjectChoiceEntity.swift,
+				AppIntents/ReceiptBooking/OpenReviewIntent.swift,
+				AppIntents/ReceiptBooking/ReceiptBackgroundProbeIntent.swift,
+				AppIntents/ReceiptBooking/ReceiptBookingAppShortcuts.swift,
+				AppIntents/ReceiptBooking/RecognizeAndBookReceiptIntent.swift,
+				Assets.xcassets,
+				ContentView.swift,
+				Holo.entitlements,
+				HoloApp.swift,
+				HoloRelease.entitlements,
+				LaunchScreen.storyboard,
+				LaunchScreenV2.storyboard,
+				Localizable.xcstrings,
+				Preview/DailyKanbanIconPreview.swift,
+				PrivacyInfo.xcprivacy,
+				Resources/ThoughtFonts/HoloNoteHand-Bold.ttf,
+				Resources/ThoughtFonts/HoloNoteHand-Regular.ttf,
+				Resources/ThoughtFonts/HoloNoteSerif-Bold.ttf,
+				Resources/ThoughtFonts/HoloNoteSerif-Regular.ttf,
+				Resources/ThoughtFonts/SOURCES.json,
+				Resources/ThoughtFonts/hand-OFL.txt,
+				Resources/ThoughtFonts/serif-OFL.txt,
+			);
+			target = MAC0000000000000000000007 /* HoloMac */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		49E199F62F54389E0070AE1B /* Holo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Holo;
+			sourceTree = "<group>";
+		};
+		MAC0000000000000000000001 /* HoloMac */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = HoloMac;
+			sourceTree = "<group>";
+		};
+		MAC0000000000000000000002 /* Holo */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				MAC0000000000000000000003 /* Exceptions for "Holo" folder in "HoloMac" target */,
+			);
 			path = Holo;
 			sourceTree = "<group>";
 		};
@@ -1015,6 +1064,16 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		MAC0000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				MAC0000000000000000000010 /* ZIPFoundation in Frameworks */,
+				MAC0000000000000000000011 /* USearch in Frameworks */,
+				MAC000000000000000000000F /* CoreXLSX in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1409,6 +1468,8 @@
 			children = (
 				49E199F62F54389E0070AE1B /* Holo */,
 				A10000000000000000000007 /* HoloWidgets */,
+				MAC0000000000000000000001 /* HoloMac */,
+				MAC0000000000000000000002 /* Holo */,
 				49E199F52F54389E0070AE1B /* Products */,
 				CA9B89C813D74E853A35475D /* Frameworks */,
 				8D9FDE44AC903B6747A6C03F /* HoloTests */,
@@ -1424,6 +1485,7 @@
 				A10000000000000000000004 /* HoloWidgets.appex */,
 				1A5692DC8F9BFCC11917CEDF /* HoloTests.xctest */,
 				FE1000000000000000000002 /* HoloUITests.xctest */,
+				MAC0000000000000000000008 /* HoloMac.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -1931,6 +1993,32 @@
 			productReference = FE1000000000000000000002 /* HoloUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		MAC0000000000000000000007 /* HoloMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = MAC0000000000000000000009 /* Build configuration list for PBXNativeTarget "HoloMac" */;
+			buildPhases = (
+				MAC0000000000000000000004 /* Sources */,
+				MAC0000000000000000000005 /* Frameworks */,
+				MAC0000000000000000000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				MAC0000000000000000000002 /* Holo */,
+				MAC0000000000000000000001 /* HoloMac */,
+			);
+			name = HoloMac;
+			packageProductDependencies = (
+				MAC000000000000000000000C /* CoreXLSX */,
+				MAC000000000000000000000D /* ZIPFoundation */,
+				MAC000000000000000000000E /* USearch */,
+			);
+			productName = HoloMac;
+			productReference = MAC0000000000000000000008 /* HoloMac.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -1945,6 +2033,9 @@
 						CreatedOnToolsVersion = 26.3;
 					};
 					A1000000000000000000000C = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					MAC0000000000000000000007 = {
 						CreatedOnToolsVersion = 26.3;
 					};
 				};
@@ -1974,6 +2065,7 @@
 				A1000000000000000000000C /* HoloWidgets */,
 				76F4261AC45012D682D2175F /* HoloTests */,
 				FE1000000000000000000008 /* HoloUITests */,
+				MAC0000000000000000000007 /* HoloMac */,
 			);
 		};
 /* End PBXProject section */
@@ -1987,6 +2079,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		49E199F22F54389E0070AE1B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		MAC0000000000000000000006 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -2048,6 +2147,13 @@
 
 /* Begin PBXSourcesBuildPhase section */
 		49E199F02F54389E0070AE1B /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		MAC0000000000000000000004 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -2948,6 +3054,67 @@
 			};
 			name = Release;
 		};
+		MAC000000000000000000000A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = HoloMac/HoloMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Holo Mac";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tangyuxuan.holo-app.mac;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		MAC000000000000000000000B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = HoloMac/HoloMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Holo Mac";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tangyuxuan.holo-app.mac;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -2996,6 +3163,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		MAC0000000000000000000009 /* Build configuration list for PBXNativeTarget "HoloMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				MAC000000000000000000000A /* Debug */,
+				MAC000000000000000000000B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -3023,6 +3199,18 @@
 			productName = ZIPFoundation;
 		};
 		B1000000000000000000006 /* USearch */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = USearch;
+		};
+		MAC000000000000000000000C /* CoreXLSX */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = CoreXLSX;
+		};
+		MAC000000000000000000000D /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ZIPFoundation;
+		};
+		MAC000000000000000000000E /* USearch */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = USearch;
 		};
