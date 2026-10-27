@@ -24,6 +24,7 @@ extension FinanceRepository {
             NSSortDescriptor(key: "sortOrder", ascending: true)
         ]
         return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
+            .sorted(by: Category.precedesInUserOrder)
     }
     
     func getCategories(by type: TransactionType) async throws -> [Category] {
@@ -34,6 +35,7 @@ extension FinanceRepository {
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
         return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
+            .sorted(by: Category.precedesInUserOrder)
     }
     
     /// 获取一级分类（parentId == nil）
@@ -45,6 +47,7 @@ extension FinanceRepository {
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
         return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
+            .sorted(by: Category.precedesInUserOrder)
     }
     
     /// 获取指定父分类下的二级子分类
@@ -56,6 +59,7 @@ extension FinanceRepository {
         ])
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
         return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
+            .sorted(by: Category.precedesInUserOrder)
     }
     
     @discardableResult
@@ -67,6 +71,20 @@ extension FinanceRepository {
         isDefault: Bool = false,
         parentId: UUID? = nil
     ) async throws -> Category {
+        let siblings: [Category]
+        if let parentId {
+            siblings = try await getSubCategories(parentId: parentId)
+        } else {
+            siblings = try await getTopLevelCategories(by: type)
+        }
+        var nextRank = Int(siblings.map(\.sortOrder).max() ?? -1) + 1
+        if nextRank > Int(Int16.max) {
+            guard siblings.count <= Int(Int16.max) else {
+                throw FinanceCategoryOrderingError.tooManyCategories
+            }
+            try reorderCategories(ids: siblings.map(\.id), type: type, parentID: parentId)
+            nextRank = siblings.count
+        }
         let category = Category.create(
             in: context,
             name: name,
@@ -74,7 +92,7 @@ extension FinanceRepository {
             color: color,
             type: type.rawValue,
             isDefault: isDefault,
-            sortOrder: Int16((try? context.count(for: Category.fetchRequest())) ?? 0),
+            sortOrder: Int16(nextRank),
             parentId: parentId
         )
         try context.save()

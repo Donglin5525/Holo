@@ -101,6 +101,7 @@ struct HoloSettingsRow<Trailing: View>: View {
             trailing
         }
         .padding(.vertical, HoloSpacing.sm)
+        .holoRowHitArea()
     }
 }
 

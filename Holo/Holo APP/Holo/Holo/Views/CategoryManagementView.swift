@@ -40,6 +40,8 @@ struct CategoryManagementView: View {
     @State private var deleteConfirmSummary = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var isSorting = false
+    @State private var visibleParentID: UUID?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -59,23 +61,27 @@ struct CategoryManagementView: View {
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
-            ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
-                HStack(spacing: HoloSpacing.sm) {
-                    // 新增一级分类按钮（右上角只保留新增；删除从具体分类行侧滑发起，
-                    // 清理导入分类入口已挪至「设置 → 数据管理」）
-                    Button {
-                        openAddTopLevelCategory()
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundColor(.holoPrimary)
+            if visibleParentID == nil {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
+                    HStack(spacing: HoloSpacing.sm) {
+                        sortingButton(count: topLevelCategories.count)
+                        // 编辑、删除从具体分类行侧滑发起，避免行内嵌套按钮。
+                        Button {
+                            openAddTopLevelCategory()
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 22))
+                                .foregroundColor(.holoPrimary)
+                        }
+                        .disabled(isSorting)
+                        .accessibilityLabel("新增一级分类")
                     }
                 }
-            }
-            // 「完成」是主动作，放在导航栏最右（声明顺序决定同侧多个按钮的左右排列）
-            if showsDoneButton {
-                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
-                    Button("完成") { dismiss() }
+                // 「完成」是主动作，放在导航栏最右（声明顺序决定同侧多个按钮的左右排列）
+                if showsDoneButton {
+                    ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
+                        Button("完成") { dismiss() }
+                    }
                 }
             }
         }
@@ -152,6 +158,12 @@ struct CategoryManagementView: View {
         .task {
             await loadData()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
+            Task { await loadData(showsLoading: false) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSPersistentStoreRemoteChange)) { _ in
+            Task { await loadData(showsLoading: false) }
+        }
     }
     
     private var typePicker: some View {
@@ -164,6 +176,7 @@ struct CategoryManagementView: View {
         .padding(.vertical, HoloSpacing.sm)
         .background(Color.holoBackground)
         .onChange(of: transactionType) { _, _ in
+            isSorting = false
             Task { await loadData() }
         }
     }
@@ -183,52 +196,68 @@ struct CategoryManagementView: View {
 
             Spacer()
 
-            if !category.isSystem {
-                editCategoryButton(category)
-            }
         }
         .padding(.vertical, 4)
+        .holoRowHitArea()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(String(localized: "\(category.name)，\(subCategoriesMap[category.id]?.count ?? 0) 个子分类"))
     }
 
     // MARK: - Category List
 
     private var categoryList: some View {
         List {
-            ForEach(topLevelCategories, id: \.id) { parent in
-                NavigationLink {
-                    subCategoryList(for: parent)
+            Section {
+                ForEach(topLevelCategories, id: \.id) { parent in
+                    Group {
+                        // 二级页排序时保留背后 NavigationLink 的身份，避免导航被移除后复位。
+                        if isSorting && visibleParentID == nil {
+                            topLevelCategoryRow(parent)
+                        } else {
+                            NavigationLink {
+                                subCategoryList(for: parent)
+                            } label: {
+                                topLevelCategoryRow(parent)
+                            }
+                            .accessibilityIdentifier("finance.category.primary.\(parent.id.uuidString)")
+                        }
+                    }
+                    .moveDisabled(topLevelCategories.count < 2)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        if !parent.isSystem {
+                            Button {
+                                editingCategory = parent
+                            } label: {
+                                Label("编辑", systemImage: "pencil")
+                            }
+                            .tint(.holoPrimary)
+                        }
+                        if !parent.isSystem {
+                            Button(role: .destructive) {
+                                Task { await prepareDelete(parent) }
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+                .onMove(perform: moveTopLevelCategories)
+            } header: {
+                sortingHint
+            }
+            if !isSorting {
+                Button {
+                    openAddTopLevelCategory()
                 } label: {
-                    topLevelCategoryRow(parent)
+                    addCategoryRow(
+                        title: String(localized: "新增一级分类"),
+                        subtitle: String(localized: "创建新的一级科目分组")
+                    )
                 }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    if !parent.isSystem {
-                        Button {
-                            editingCategory = parent
-                        } label: {
-                            Label("编辑", systemImage: "pencil")
-                        }
-                        .tint(.holoPrimary)
-                    }
-                    if !parent.isSystem {
-                        Button(role: .destructive) {
-                            Task { await prepareDelete(parent) }
-                        } label: {
-                            Label("删除", systemImage: "trash")
-                        }
-                    }
-                }
+                .buttonStyle(.plain)
             }
-
-            Button {
-                openAddTopLevelCategory()
-            } label: {
-                addCategoryRow(
-                    title: String(localized: "新增一级分类"),
-                    subtitle: String(localized: "创建新的一级科目分组")
-                )
-            }
-            .buttonStyle(.plain)
         }
+        .categorySortingMode(isSorting)
         #if canImport(UIKit)
         .listStyle(.insetGrouped)
         #else
@@ -241,7 +270,6 @@ struct CategoryManagementView: View {
         }
     }
 
-    @ViewBuilder
     private func categoryRow(_ category: Category) -> some View {
         HStack(spacing: HoloSpacing.md) {
             CategoryIconBadge(category: category, diameter: 40)
@@ -252,17 +280,16 @@ struct CategoryManagementView: View {
 
             Spacer()
 
-            if !category.isSystem {
-                editCategoryButton(category)
+            if !category.isSystem && !isSorting {
+                Image(systemName: "pencil")
+                    .foregroundColor(.holoTextSecondary)
+                    .accessibilityHidden(true)
             }
         }
         .padding(.vertical, 4)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if !category.isSystem {
-                editingCategory = category
-            }
-        }
+        .holoRowHitArea()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(category.name)
     }
 
     private func addCategoryRow(title: String, subtitle: String) -> some View {
@@ -293,23 +320,9 @@ struct CategoryManagementView: View {
                 .foregroundColor(.holoTextPlaceholder)
         }
         .padding(.vertical, 4)
-        .contentShape(Rectangle())
+        .holoRowHitArea()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(title)
-    }
-
-    private func editCategoryButton(_ category: Category) -> some View {
-        Button {
-            editingCategory = category
-        } label: {
-            Image(systemName: "pencil.circle")
-                .font(.system(size: 22, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
-                .frame(width: 36, height: 36)
-                .contentShape(Circle())
-        }
-        .buttonStyle(.borderless)
-        .accessibilityLabel(String(localized: "编辑\(category.name)"))
     }
 
     private func subCategoryList(for parent: Category) -> some View {
@@ -328,7 +341,36 @@ struct CategoryManagementView: View {
                         .font(.system(size: 22))
                         .foregroundColor(.holoPrimary)
                 }
+                .disabled(isSorting)
+                .accessibilityLabel("新增二级分类")
             }
+            ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
+                sortingButton(count: subCategoriesMap[parent.id]?.count ?? 0)
+            }
+            if !parent.isSystem {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
+                    Button {
+                        editingCategory = parent
+                    } label: {
+                        Image(systemName: "ellipsis")
+                    }
+                    .disabled(isSorting)
+                    .accessibilityLabel("编辑当前一级分类")
+                }
+            }
+            if showsDoneButton {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .onAppear {
+            visibleParentID = parent.id
+            isSorting = false
+        }
+        .onDisappear {
+            visibleParentID = nil
+            isSorting = false
         }
         // 删除确认弹窗统一挂在根页：本页曾重复挂载同一 showDeleteConfirmation，
         // 双 alert 会触发双次执行（先成功后 notFound），造成「假成功」与错误弹窗
@@ -393,8 +435,18 @@ struct CategoryManagementView: View {
 
     private func subCategoryRowsList(for parent: Category, subs: [Category]) -> some View {
         List {
-            ForEach(subs, id: \.id) { child in
-                categoryRow(child)
+            Section {
+                ForEach(subs, id: \.id) { child in
+                    Group {
+                        if child.isSystem || isSorting {
+                            categoryRow(child)
+                        } else {
+                            Button { editingCategory = child } label: { categoryRow(child) }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("finance.category.secondary.\(child.id.uuidString)")
+                        }
+                    }
+                    .moveDisabled(subs.count < 2)
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         if !child.isSystem {
                             Button {
@@ -412,18 +464,26 @@ struct CategoryManagementView: View {
                             }
                         }
                     }
+                }
+                .onMove { source, destination in
+                    moveSubCategories(parentID: parent.id, from: source, to: destination)
+                }
+            } header: {
+                sortingHint
             }
-
-            Button {
-                openAddSubCategory(parent)
-            } label: {
-                addCategoryRow(
-                    title: String(localized: "在「\(parent.name)」下新增二级分类"),
-                    subtitle: String(localized: "会自动归属到当前一级分类")
-                )
+            if !isSorting {
+                Button {
+                    openAddSubCategory(parent)
+                } label: {
+                    addCategoryRow(
+                        title: String(localized: "在「\(parent.name)」下新增二级分类"),
+                        subtitle: String(localized: "会自动归属到当前一级分类")
+                    )
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
+        .categorySortingMode(isSorting)
         #if canImport(UIKit)
         .listStyle(.insetGrouped)
         #else
@@ -439,6 +499,46 @@ struct CategoryManagementView: View {
     private func openAddTopLevelCategory() {
         addCategoryParentId = nil
         showAddCategory = true
+    }
+
+    private var sortingHint: some View {
+        Text(isSorting ? "拖动右侧手柄调整顺序" : "长按整行拖动排序")
+            .font(.holoLabel)
+            .textCase(nil)
+    }
+
+    @ViewBuilder
+    private func sortingButton(count: Int) -> some View {
+        if count > 1 || isSorting {
+            Button(isSorting ? "完成排序" : "排序") {
+                withAnimation(HoloAnimation.standard) { isSorting.toggle() }
+            }
+            .accessibilityIdentifier("finance.category.sort")
+        }
+    }
+
+    private func moveTopLevelCategories(from source: IndexSet, to destination: Int) {
+        var reordered = topLevelCategories
+        reordered.move(fromOffsets: source, toOffset: destination)
+        do {
+            try repository.reorderCategories(ids: reordered.map(\.id), type: transactionType, parentID: nil)
+            topLevelCategories = reordered
+        } catch {
+            errorMessage = error.localizedDescription
+            Task { await loadData(showsLoading: false) }
+        }
+    }
+
+    private func moveSubCategories(parentID: UUID, from source: IndexSet, to destination: Int) {
+        var reordered = subCategoriesMap[parentID] ?? []
+        reordered.move(fromOffsets: source, toOffset: destination)
+        do {
+            try repository.reorderCategories(ids: reordered.map(\.id), type: transactionType, parentID: parentID)
+            subCategoriesMap[parentID] = reordered
+        } catch {
+            errorMessage = error.localizedDescription
+            Task { await loadData(showsLoading: false) }
+        }
     }
 
     private func openAddSubCategory(_ parent: Category) {
@@ -526,9 +626,9 @@ struct CategoryManagementView: View {
     }
     
     @MainActor
-    private func loadData() async {
-        isLoading = true
-        defer { isLoading = false }
+    private func loadData(showsLoading: Bool = true) async {
+        if showsLoading { isLoading = true }
+        defer { if showsLoading { isLoading = false } }
         do {
             topLevelCategories = try await repository.getTopLevelCategories(by: transactionType)
                 .filter { !$0.isDeleted }
@@ -541,6 +641,18 @@ struct CategoryManagementView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+private extension View {
+    /// iOS 使用系统列表手柄；macOS 保留 List 自带的拖动排序，不依赖 EditMode。
+    @ViewBuilder
+    func categorySortingMode(_ isSorting: Bool) -> some View {
+        #if canImport(UIKit)
+        environment(\.editMode, .constant(isSorting ? .active : .inactive))
+        #else
+        self
+        #endif
     }
 }
 
