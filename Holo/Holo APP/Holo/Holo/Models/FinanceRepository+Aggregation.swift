@@ -192,26 +192,15 @@ extension FinanceRepository {
 
         // 按一级分类聚合（如果是二级分类则归入父分类）
         var categoryMap: [UUID: (category: Category, amount: Decimal, count: Int)] = [:]
-        // 父一级不在活分类缓存（软删/悬空）的孤儿子分类：会在此冒充一级混入饼图
-        // 第一层。CategoryOrphanRepair 负责把数据拉回正常态，这里留痕供异常排查，
-        // 按分类去重避免热路径刷屏。
-        var orphanFallbackCategoryNames: Set<String> = []
+        // 归属异常的账目仍计入总收支，但不让二级分类冒充一级混入分类饼图。
+        // 分类管理会显示修复入口；读路径只记录数量，不猜测或写回父级。
+        var unresolvedCategoryIDs = Set<UUID>()
         for tx in filtered {
             guard let txCategory = tx.category else { continue }
-            // 获取一级分类
-            let topCategory: Category
-            if txCategory.isTopLevel {
-                topCategory = txCategory
-            } else if let parentId = txCategory.parentId {
-                // 从缓存中查找父分类
-                if let parent = categoryCache[parentId] {
-                    topCategory = parent
-                } else {
-                    orphanFallbackCategoryNames.insert(txCategory.name ?? "-")
-                    topCategory = txCategory
-                }
-            } else {
-                topCategory = txCategory
+            guard !txCategory.isInvalidated else { continue }
+            guard let topCategory = FinanceCategoryIntegrity.topLevelCategory(for: txCategory, roots: categoryCache) else {
+                unresolvedCategoryIDs.insert(txCategory.id)
+                continue
             }
 
             let catId = topCategory.id
@@ -234,10 +223,8 @@ extension FinanceRepository {
             )
         }.sorted { $0.amount > $1.amount }
 
-        if !orphanFallbackCategoryNames.isEmpty {
-            NSLog("统计分析：孤儿子分类冒充一级 %d 个（%@），等待 CategoryOrphanRepair 修复数据",
-                  orphanFallbackCategoryNames.count,
-                  orphanFallbackCategoryNames.sorted().joined(separator: "、"))
+        if !unresolvedCategoryIDs.isEmpty {
+            NSLog("统计分析：%d 个分类归属待修复，已保留总收支，暂不进入一级分类明细", unresolvedCategoryIDs.count)
         }
 
         return aggregations

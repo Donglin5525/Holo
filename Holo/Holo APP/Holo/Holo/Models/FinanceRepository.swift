@@ -316,8 +316,8 @@ class FinanceRepository {
     // MARK: - Seed Data
     
     func seedDefaultData() {
-        // 先修复云同步竞态产生的重复数据（卸载重装后种子与 iCloud 恢复并存），再补种
-        Category.repairDuplicateCategories(in: context)
+        // 不按名称删除不同 UUID 的分类，迟到的同步记录仍可能引用这些身份。
+        // 相同 UUID 的真实同步副本由后台 FinanceDuplicateRepair 合并。
         Account.repairDuplicateAccounts(in: context)
         Category.seedDefaultCategories(in: context)
         Account.seedDefaultAccounts(in: context)
@@ -756,6 +756,7 @@ class FinanceRepository {
         guard category.isSubCategory else {
             throw FinanceError.subCategoryRequired
         }
+        try FinanceCategoryIntegrity.validateForBooking(category, in: context)
     }
 
     /// 查询子分类所属的一级分类名称

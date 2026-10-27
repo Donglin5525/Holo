@@ -9,6 +9,8 @@ final class FinanceCategoryNameCache: ObservableObject {
     static let shared = FinanceCategoryNameCache(context: CoreDataStack.shared.viewContext)
 
     @Published private(set) var names: [UUID: String] = [:]
+    @Published private(set) var revision = 0
+    private var types: [UUID: String] = [:]
     private let context: NSManagedObjectContext
     private var observer: NSObjectProtocol?
     private var refreshScheduled = false
@@ -47,6 +49,11 @@ final class FinanceCategoryNameCache: ObservableObject {
         }
     }
 
+    func parentName(for category: Category) -> String? {
+        guard let parentID = category.parentId, types[parentID] == category.type else { return nil }
+        return names[parentID]
+    }
+
     private func reload() {
         let request = Category.fetchRequest()
         request.predicate = NSPredicate(format: "parentId == nil AND deletedAt == nil")
@@ -54,7 +61,10 @@ final class FinanceCategoryNameCache: ObservableObject {
             let categories = DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
             let updated = Dictionary(categories.map { ($0.id, $0.name) },
                                      uniquingKeysWith: { first, _ in first })
+            types = Dictionary(categories.map { ($0.id, $0.type) }, uniquingKeysWith: { first, _ in first })
             if updated != names { names = updated }
+            // 子分类归属变化也必须通知账单行，即使一级名称没有变化。
+            revision &+= 1
         } catch {
             logger.error("分类名称索引刷新失败：\(error.localizedDescription)")
         }

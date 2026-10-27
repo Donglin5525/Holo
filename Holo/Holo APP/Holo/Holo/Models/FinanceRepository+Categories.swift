@@ -73,6 +73,15 @@ extension FinanceRepository {
     ) async throws -> Category {
         let siblings: [Category]
         if let parentId {
+            let parentRequest = Category.fetchRequest()
+            parentRequest.predicate = NSPredicate(
+                format: "id == %@ AND type == %@ AND parentId == nil AND deletedAt == nil",
+                parentId as CVarArg, type.rawValue
+            )
+            parentRequest.fetchLimit = 1
+            guard try !context.fetch(parentRequest).isEmpty else {
+                throw FinanceCategoryIntegrityError.invalidTarget
+            }
             siblings = try await getSubCategories(parentId: parentId)
         } else {
             siblings = try await getTopLevelCategories(by: type)

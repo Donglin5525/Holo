@@ -42,6 +42,9 @@ struct CategoryManagementView: View {
     @State private var errorMessage: String?
     @State private var isSorting = false
     @State private var visibleParentID: UUID?
+    @State private var parentRepairPreviews: [CategoryParentRepairPreview] = []
+    @State private var parentRepairTargets: [CategoryParentRepairTarget] = []
+    @State private var selectedParentRepair: CategoryParentRepairPreview?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -93,6 +96,12 @@ struct CategoryManagementView: View {
         .sheet(item: $editingCategory) { category in
             EditCategorySheet(category: category) {
                 Task { await loadData() }
+            }
+        }
+        .sheet(item: $selectedParentRepair) { preview in
+            CategoryParentRepairSheet(preview: preview, targets: parentRepairTargets) { target in
+                try await repository.repairCategoryParent(preview, target: target)
+                await loadData(showsLoading: false)
             }
         }
         // 有引用分类的影响处理页：二级走明细去向页，一级走子分类去向页（纯值快照）
@@ -207,6 +216,11 @@ struct CategoryManagementView: View {
 
     private var categoryList: some View {
         List {
+            if !parentRepairPreviews.isEmpty && !isSorting {
+                CategoryParentRepairSection(previews: parentRepairPreviews) { preview in
+                    selectedParentRepair = preview
+                }
+            }
             Section {
                 ForEach(topLevelCategories, id: \.id) { parent in
                     Group {
@@ -638,6 +652,8 @@ struct CategoryManagementView: View {
                     .filter { !$0.isDeleted }
             }
             subCategoriesMap = map
+            parentRepairPreviews = try repository.categoryParentRepairPreviews(type: transactionType)
+            parentRepairTargets = CategoryParentRepairService.targets(from: topLevelCategories, type: transactionType.rawValue)
         } catch {
             errorMessage = error.localizedDescription
         }

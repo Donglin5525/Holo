@@ -2,15 +2,15 @@
 //  SeedRevivalRepair.swift
 //  Holo
 //
-//  修复「卸载重装后误种的默认账户/分类复活」。
+//  修复「卸载重装后误种的默认账户/欢迎笔记复活」；分类身份保留。
 //
 //  原理：种子逻辑只凭「本地为空」判断新用户，而重装后 iCloud 恢复的数据要到
 //  启动后数分钟才落地，期间老用户被误判为新用户、默认数据被重铺一遍。其中
 //  「用户删过的默认项」云端没有对应行，去重合并挤不掉它，于是复活。
 //
 //  判定铁证：云端回流行的 createdAt 是卸载前写入的时刻，必早于本次种子时刻；
-//  一旦发现这种行即为老用户 → 清掉「名字仍在默认清单、从未挂交易/预算/支出
-//  项目/子分类、从未被编辑」的种子行。真新用户永远没有铁证，默认数据原样保留。
+//  一旦发现这种行即为老用户，再检查未编辑且无引用的默认账户和欢迎笔记。
+//  分类没有可证明来源的时间字段，不能自动按名称清理。
 //
 
 import CoreData
@@ -46,12 +46,7 @@ enum SeedRevivalRepair {
         accountRequest.predicate = NSPredicate(format: "deletedAt == nil")
         let accounts = (try? context.fetch(accountRequest)) ?? []
 
-        let categoryRequest = Category.fetchRequest()
-        categoryRequest.includesSubentities = false
-        let categories = (try? context.fetch(categoryRequest)) ?? []
-
         // 铁证：存在创建时间早于本次种子时刻的账户行 = iCloud 已把卸载前的数据带回来
-        // （分类实体无时间字段，其动手信号在下方以「交易数据已恢复」单独判定）
         let hasPreexistingAccount = accounts.contains { $0.createdAt < seedMoment }
 
         // 欢迎笔记铁证独立判定（Thought 有 createdAt）：存在任何早于种子时刻的
@@ -68,9 +63,7 @@ enum SeedRevivalRepair {
         let budgets = (try? context.fetch(Budget.fetchRequest())) ?? []
         let projects = (try? context.fetch(NSFetchRequest<SpendingProject>(entityName: "SpendingProject"))) ?? []
         let budgetAccountRefs = Set(budgets.map(\.accountId))
-        let budgetCategoryRefs = Set(budgets.compactMap(\.categoryId))
         let projectAccountRefs = Set(projects.compactMap(\.accountId))
-        let projectCategoryRefs = Set(projects.compactMap(\.categoryId))
 
         var changed = false
 
@@ -92,32 +85,8 @@ enum SeedRevivalRepair {
             }
         }
 
-        // 分类实体没有时间字段，无法像账户那样逐行识别种子行；
-        // 改用「交易数据已恢复」作为动手信号：用户的交易通常占 iCloud 导入大头，
-        // 交易到齐后分类的挂靠判断（交易/预算/项目）才可靠，避免把在用分类误删。
-        let transactionRequest = Transaction.fetchRequest()
-        transactionRequest.predicate = NSPredicate(format: "createdAt < %@", seedMoment as NSDate)
-        transactionRequest.fetchLimit = 1
-        let hasPreexistingTransaction = ((try? context.count(for: transactionRequest)) ?? 0) > 0
-
-        if hasPreexistingTransaction {
-            let keepNames = Self.defaultCategoryNames
-            for category in categories {
-                // 只清本次误种的种子行（isDefault == true）；
-                // 用户自建的同名分类（isDefault == false）有真实创建意图，保留
-                guard keepNames.contains(category.name),
-                      category.isDefault,
-                      !category.isSystem,
-                      (category.transactions ?? []).isEmpty,
-                      !categories.contains(where: { $0.parentId == category.id }),
-                      !budgetCategoryRefs.contains(category.id),
-                      !projectCategoryRefs.contains(category.id)
-                else { continue }
-                logger.info("清除误种分类：\(category.name, privacy: .public)")
-                context.delete(category)
-                changed = true
-            }
-        }
+        // 分类没有可证明其来源的种子标识或时间字段；“当前没有引用”也无法排除云端迟到引用。
+        // 保留分类身份，避免清理时删掉父级、后续同步子分类却仍引用旧 UUID。
 
         // 欢迎笔记：只清从未被编辑过的 fresh 种子行（铁证见函数开头 Thought 判定）。
         // 用户删过欢迎笔记再重装时：恢复的软删行构成铁证 → 误种的 fresh 行被清，
@@ -144,18 +113,4 @@ enum SeedRevivalRepair {
         }
     }
 
-    /// 全部默认分类名称（一级 + 二级 + 系统分类），与种子来源同一份清单
-    private static var defaultCategoryNames: Set<String> {
-        var names = Set<String>()
-        for group in Category.expenseHierarchy + Category.incomeHierarchy {
-            names.insert(group.name)
-            for child in group.children {
-                names.insert(child.name)
-            }
-        }
-        for systemCat in Category.systemCategories {
-            names.insert(systemCat.name)
-        }
-        return names
-    }
 }

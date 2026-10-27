@@ -2,13 +2,8 @@
 //  MatchCategoryResilienceTests.swift
 //  HoloTests
 //
-//  2026-09-25 酸汤肥牛落待分类治理：分类匹配对异常库形态（孤儿子分类/
-//  一级分类重复）的容错测试。背景：真实库的父子挂接断裂（CloudKit 同步/
-//  历史恢复遗留）曾让按 parentId 的子类查找全链失配，AI 明确给出「餐饮」
-//  语义也静默落「待分类」。容错原则：实体在、名字对 → 就能落位。
-//
-//  与 CategoryOrphanRepairTests 互补：那边修库（接回连线），这边保证
-//  连线接好前匹配链也不再失败。
+//  分类匹配必须有完整父链；同名一级的健康分类可以复用，孤儿不能继续入账。
+//  与 CategoryOrphanRepairTests 互补：父链恢复前保留历史，但拒绝新的孤儿引用。
 //
 
 import XCTest
@@ -83,9 +78,9 @@ final class MatchCategoryResilienceTests: XCTestCase {
         )
     }
 
-    // MARK: - 场景A：孤儿子分类（parentId 悬空），语义提示兜底仍能落位
+    // MARK: - 场景A：孤儿子分类不可作为新账目候选
 
-    func test孤儿库_语义提示餐饮_落当前餐次() async throws {
+    func test孤儿库_语义提示餐饮_拒绝孤儿() async throws {
         let dining = makeCategory(name: "餐饮")
         let meal = makeCategory(name: currentMealSub, parentId: UUID()) // 悬空父
         try context.save()
@@ -95,7 +90,7 @@ final class MatchCategoryResilienceTests: XCTestCase {
             categories: [dining, meal]
         )
 
-        XCTAssertEqual(matched?.id, meal.id, "孤儿子类应按名字落位，而非掉进待分类")
+        XCTAssertNil(matched, "缺失父级的二级分类不得继续入账")
     }
 
     // MARK: - 场景B：一级分类重复（first 命中无子类的那条），兜底仍能落位
@@ -114,9 +109,9 @@ final class MatchCategoryResilienceTests: XCTestCase {
         XCTAssertEqual(matched?.id, meal.id, "一级重复时按名字退化查找，不落待分类")
     }
 
-    // MARK: - 场景C：AI 直选（primary+sub 都给出），孤儿子类仍精确落位
+    // MARK: - 场景C：AI 直选也不能绕过父链校验
 
-    func testAI直选_孤儿子类_第2步严格匹配通过() async throws {
+    func testAI直选_孤儿子类_拒绝匹配() async throws {
         let dining = makeCategory(name: "餐饮")
         let meal = makeCategory(name: currentMealSub, parentId: UUID()) // 悬空父
         try context.save()
@@ -126,7 +121,7 @@ final class MatchCategoryResilienceTests: XCTestCase {
             categories: [dining, meal]
         )
 
-        XCTAssertEqual(matched?.id, meal.id, "AI 直选 + 孤儿子类：名字精确匹配应放行")
+        XCTAssertNil(matched, "AI 给出名字不能代替真实父级身份")
     }
 
     // MARK: - 场景D（回归）：健康库 + AI 直选，正常挂接命中
@@ -143,4 +138,35 @@ final class MatchCategoryResilienceTests: XCTestCase {
 
         XCTAssertEqual(matched?.id, meal.id)
     }
+    func test同名二级_先出现错误父级_仍命中正确父级() throws {
+        let shopping = makeCategory(name: "购物")
+        let dining = makeCategory(name: "餐饮")
+        let wrong = makeCategory(name: "饮品", parentId: shopping.id)
+        let correct = makeCategory(name: "饮品", parentId: dining.id)
+        try context.save()
+        let matched = CategoryMatcherService.shared.matchSingle(primaryCategory: "餐饮", subCategory: "饮品",
+            type: .expense, categories: [shopping, dining, wrong, correct])
+        XCTAssertEqual(matched.matchedCategory?.id, correct.id)
+    }
+
+    func test缺省一级_同名二级分属不同父级_不猜归属() throws {
+        let dining = makeCategory(name: "餐饮")
+        let shopping = makeCategory(name: "购物")
+        let a = makeCategory(name: "饮品", parentId: dining.id)
+        let b = makeCategory(name: "饮品", parentId: shopping.id)
+        try context.save()
+        XCTAssertNil(CategoryMatcherService.shared.matchExistingCategoryByCandidate("饮品",
+            primaryCategory: "", type: .expense, categories: [dining, shopping, a, b]))
+    }
+
+    func test语义提示_其他一级下同名餐次_不能跨父级兜底() async throws {
+        let dining = makeCategory(name: "餐饮")
+        let shopping = makeCategory(name: "购物")
+        let wrong = makeCategory(name: currentMealSub, parentId: shopping.id)
+        try context.save()
+        let matched = await match(primary: nil, sub: nil, candidate: "酸汤肥牛", hint: "餐饮",
+            categories: [dining, shopping, wrong])
+        XCTAssertNil(matched)
+    }
+
 }

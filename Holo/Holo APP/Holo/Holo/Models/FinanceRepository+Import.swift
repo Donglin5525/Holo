@@ -50,12 +50,12 @@ extension FinanceRepository {
         let preloadCategoryRequest = Category.fetchRequest()
         preloadCategoryRequest.predicate = NSPredicate(format: "deletedAt == nil")
         if let allCategories = try? context.fetch(preloadCategoryRequest) {
-            for cat in allCategories {
+            for cat in FinanceCategoryIntegrity.selectableCategories(in: allCategories) {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
                 } else if let pid = cat.parentId {
                     // 查找父级名称用于组合 key
-                    if let parent = allCategories.first(where: { $0.id == pid }) {
+                    if let parent = allCategories.first(where: { $0.id == pid && $0.parentId == nil && $0.deletedAt == nil && $0.type == cat.type }) {
                         categoryCache["\(cat.type):\(parent.name):\(cat.name)"] = cat
                     }
                 }
@@ -228,11 +228,11 @@ extension FinanceRepository {
         let streamCategoryRequest = Category.fetchRequest()
         streamCategoryRequest.predicate = NSPredicate(format: "deletedAt == nil")
         if let allCategories = try? context.fetch(streamCategoryRequest) {
-            for cat in allCategories {
+            for cat in FinanceCategoryIntegrity.selectableCategories(in: allCategories) {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
                 } else if let pid = cat.parentId {
-                    if let parent = allCategories.first(where: { $0.id == pid }) {
+                    if let parent = allCategories.first(where: { $0.id == pid && $0.parentId == nil && $0.deletedAt == nil && $0.type == cat.type }) {
                         categoryCache["\(cat.type):\(parent.name):\(cat.name)"] = cat
                     }
                 }
@@ -871,11 +871,11 @@ extension FinanceRepository {
         // 直接构造 NSFetchRequest，绕开被推断为 main-actor 的 fetchRequest() 类方法（本函数跑在后台 context 队列）
         let categoryRequest = NSFetchRequest<Category>(entityName: "Category")
         if let allCategories = try? context.fetch(categoryRequest) {
-            for cat in allCategories {
+            for cat in FinanceCategoryIntegrity.selectableCategories(in: allCategories) {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
                 } else if let pid = cat.parentId {
-                    if let parent = allCategories.first(where: { $0.id == pid }) {
+                    if let parent = allCategories.first(where: { $0.id == pid && $0.parentId == nil && $0.deletedAt == nil && $0.type == cat.type }) {
                         categoryCache["\(cat.type):\(parent.name):\(cat.name)"] = cat
                     }
                 }
@@ -961,11 +961,11 @@ extension FinanceRepository {
         let reloadCategoryRequest = Category.fetchRequest()
         reloadCategoryRequest.predicate = NSPredicate(format: "deletedAt == nil")
         if let allCategories = try? context.fetch(reloadCategoryRequest) {
-            for cat in allCategories {
+            for cat in FinanceCategoryIntegrity.selectableCategories(in: allCategories) {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
                 } else if let pid = cat.parentId {
-                    if let parent = allCategories.first(where: { $0.id == pid }) {
+                    if let parent = allCategories.first(where: { $0.id == pid && $0.parentId == nil && $0.deletedAt == nil && $0.type == cat.type }) {
                         categoryCache["\(cat.type):\(parent.name):\(cat.name)"] = cat
                     }
                 }

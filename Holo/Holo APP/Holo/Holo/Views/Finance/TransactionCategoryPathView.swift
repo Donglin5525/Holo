@@ -5,7 +5,7 @@ struct TransactionCategoryPathView: View {
     let presentation: FinanceCategoryRowPresentation
 
     var body: some View {
-        if presentation.parentName != nil || presentation.categoryName != nil {
+        if presentation.parentName != nil || presentation.categoryName != nil || presentation.requiresParentRepair {
             HStack(spacing: HoloSpacing.xs) {
                 if let parentName = presentation.parentName {
                     Text(parentName)
@@ -25,6 +25,11 @@ struct TransactionCategoryPathView: View {
                         .foregroundColor(.holoToolText)
                         .lineLimit(1)
                         .layoutPriority(1)
+                }
+                if presentation.requiresParentRepair {
+                    Text("归属待修复")
+                        .foregroundColor(.holoToolTextSecondary)
+                        .lineLimit(1)
                 }
             }
             .font(.holoLabel)

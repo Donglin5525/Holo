@@ -202,7 +202,8 @@ struct TransactionRowView: View {
         return FinanceCategoryRowPresentation(
             note: transaction.note,
             categoryName: category?.name,
-            parentName: category?.parentId.flatMap { categoryNames.names[$0] }
+            parentName: category.flatMap { categoryNames.parentName(for: $0) },
+            requiresParentRepair: category.map { $0.parentId != nil && categoryNames.parentName(for: $0) == nil } ?? false
         )
     }
 

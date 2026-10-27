@@ -21,6 +21,9 @@ extension Color {
 public class Transaction: NSManagedObject {
     @NSManaged public var id: UUID
     @NSManaged public var category: Category?
+    @NSManaged public var deletedAt: Date?
+    @NSManaged public var amount: Double
+    @NSManaged public var note: String?
 }
 extension Category {
     @NSManaged var deletedAt: Date?
@@ -93,7 +96,9 @@ struct FinanceCategoryRegressionTests {
         let transaction = NSEntityDescription()
         transaction.name = "Transaction"
         transaction.managedObjectClassName = NSStringFromClass(Transaction.self)
-        transaction.properties = [attribute("id", .UUIDAttributeType)]
+        transaction.properties = [attribute("id", .UUIDAttributeType),
+            attribute("deletedAt", .dateAttributeType, true), attribute("amount", .doubleAttributeType, false, 0),
+            attribute("note", .stringAttributeType, true)]
         let txCategory = NSRelationshipDescription()
         txCategory.name = "category"; txCategory.destinationEntity = category
         txCategory.minCount = 0; txCategory.maxCount = 1; txCategory.isOptional = true
@@ -232,16 +237,20 @@ struct FinanceCategoryRegressionTests {
 }
 '''
 
-with tempfile.TemporaryDirectory(prefix="holo-finance-category-") as directory:
-    work = Path(directory)
-    support = work / "CategoryTestSupport.swift"
-    tests = work / "CategoryRegressionTests.swift"
-    support.write_text(SUPPORT)
-    tests.write_text(TESTS)
-    binary = work / "category-tests"
-    sources = [APP / "Models/Category.swift", APP / "Models/FinanceRepository+CategoryOrdering.swift",
-               APP / "Models/Finance/FinanceCategoryRowPresentation.swift",
-               APP / "Services/Finance/FinanceCategoryNameCache.swift", support, tests]
-    subprocess.run(["swiftc", "-parse-as-library", "-module-cache-path", str(work / "modules"),
-                    *map(str, sources), "-o", str(binary)], check=True)
-    subprocess.run([str(binary)], check=True, timeout=30)
+def run_suite(test_source=TESTS, extra_sources=()):
+    with tempfile.TemporaryDirectory(prefix="holo-finance-category-") as directory:
+        work = Path(directory)
+        support = work / "CategoryTestSupport.swift"
+        tests = work / "CategoryRegressionTests.swift"
+        support.write_text(SUPPORT)
+        tests.write_text(test_source)
+        binary = work / "category-tests"
+        sources = [APP / "Models/Category.swift", APP / "Models/FinanceRepository+CategoryOrdering.swift",
+                   APP / "Models/Finance/FinanceCategoryRowPresentation.swift",
+                   APP / "Services/Finance/FinanceCategoryNameCache.swift", support, tests, *extra_sources]
+        subprocess.run(["swiftc", "-parse-as-library", "-module-cache-path", str(work / "modules"),
+                        *map(str, sources), "-o", str(binary)], check=True)
+        subprocess.run([str(binary)], check=True, timeout=30)
+
+if __name__ == "__main__":
+    run_suite()

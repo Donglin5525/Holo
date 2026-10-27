@@ -172,9 +172,7 @@ final class FinanceTransactionDraftResolver {
         )
     }
 
-    /// 分类解析主体（categories 注入版）。独立出来供单测构造孤儿/一级重复等
-    /// 异常库形态（2026-09-25 酸汤肥牛落待分类治理：真实库的父子挂接断裂
-    /// 曾让全部按 parentId 的子类查找失配，静默掉进「待分类」）。
+    /// 分类解析主体。孤儿分类不参与新入账，一级同名副本只在完整父级范围内兼容。
     func matchCategory(
         primaryCategory: String?,
         subCategory: String?,
@@ -185,6 +183,7 @@ final class FinanceTransactionDraftResolver {
         type: TransactionType,
         categories: [Category]
     ) async -> Category? {
+        let categories = FinanceCategoryIntegrity.selectableCategories(in: categories, type: type.rawValue)
         let candidates = CategoryCandidateResolver.orderedCandidates(
             categoryCandidate: categoryCandidate,
             normalizedCategoryCandidate: normalizedCategoryCandidate,
@@ -322,25 +321,31 @@ final class FinanceTransactionDraftResolver {
         return nil
     }
 
-    /// 子类查找：优先按 parentId 挂接关系；挂接断裂（孤儿子类/一级分类重复导致
-    /// first 拿到的 parent 不是子类实际挂靠的那条）时退化为同名子类——
-    /// 「实体在、名字对」的库仍能落位，不静默掉进「待分类」
+    /// 一级同名时允许在同名、同类型的有效父级之间查找，不跨父级语义猜测归属。
     static func subCategory(named name: String, under parent: Category, in categories: [Category]) -> Category? {
+        let categories = FinanceCategoryIntegrity.selectableCategories(in: categories, type: parent.type)
+        let parentIDs = Set(categories.filter {
+            $0.isTopLevel && $0.name == parent.name
+        }.map(\.id))
         if let sub = categories.first(where: { $0.parentId == parent.id && $0.name == name }) {
             return sub
         }
-        return categories.first(where: { $0.isSubCategory && $0.name == name })
+        return categories.first(where: { $0.parentId.map { parentIDs.contains($0) } == true && $0.name == name })
     }
 
     /// 同上（忽略大小写变体，供 normalizedCategoryCandidate 路径）
     private static func subCategory(namedLower name: String, under parent: Category, in categories: [Category]) -> Category? {
+        let categories = FinanceCategoryIntegrity.selectableCategories(in: categories, type: parent.type)
+        let parentIDs = Set(categories.filter {
+            $0.isTopLevel && $0.name.lowercased() == parent.name.lowercased()
+        }.map(\.id))
         if let sub = categories.first(where: {
             $0.parentId == parent.id && $0.name.lowercased() == name.lowercased()
         }) {
             return sub
         }
         return categories.first(where: {
-            $0.isSubCategory && $0.name.lowercased() == name.lowercased()
+            $0.parentId.map { parentIDs.contains($0) } == true && $0.name.lowercased() == name.lowercased()
         })
     }
 }
