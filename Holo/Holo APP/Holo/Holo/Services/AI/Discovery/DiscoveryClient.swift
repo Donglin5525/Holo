@@ -39,6 +39,38 @@ nonisolated final class DiscoveryClient {
             let inputBudgetTokens: Int
         }
         let budget: Budget
+
+        enum CodingKeys: String, CodingKey {
+            case protocolVersion, enabled, policyVersion, allowedDomains, budget
+        }
+
+        init(protocolVersion: Int, enabled: Bool, policyVersion: Int, allowedDomains: [String], budget: Budget) {
+            self.protocolVersion = protocolVersion
+            self.enabled = enabled
+            self.policyVersion = policyVersion
+            self.allowedDomains = allowedDomains
+            self.budget = budget
+        }
+
+        init(from decoder: Decoder) throws {
+            let values = try decoder.container(keyedBy: CodingKeys.self)
+            protocolVersion = try values.decode(Int.self, forKey: .protocolVersion)
+            enabled = try values.decode(Bool.self, forKey: .enabled)
+            // 服务端使用 v1/v2；保留数字版本的兼容，冻结与失效仍比较同一个版本号。
+            if let number = try? values.decode(Int.self, forKey: .policyVersion), number > 0 {
+                policyVersion = number
+            } else {
+                let raw = try values.decode(String.self, forKey: .policyVersion)
+                let digits = raw.hasPrefix("v") ? String(raw.dropFirst()) : raw
+                guard let number = Int(digits), number > 0 else {
+                    throw DecodingError.dataCorruptedError(forKey: .policyVersion, in: values,
+                        debugDescription: "不支持的发现策略版本：\(raw)")
+                }
+                policyVersion = number
+            }
+            allowedDomains = try values.decode([String].self, forKey: .allowedDomains)
+            budget = try values.decode(Budget.self, forKey: .budget)
+        }
     }
 
     struct ControlResponse: Decodable, Sendable {

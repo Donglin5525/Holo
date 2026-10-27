@@ -12,6 +12,7 @@
 // 待挂载 HoloTests target
 import XCTest
 import CoreData
+import SwiftUI
 @testable import Holo
 
 // MARK: - Mock 客户端
@@ -27,8 +28,13 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
     }
 
     var capabilitiesFlag = true
+    var capabilitiesError: Error?
+    var controlError: Error?
+    var enableError: Error?
+    var onEnable: (() -> Void)?
     var capabilitiesPolicyVersion = 1
     var controlRevisionValue = 1
+    var controlEnabled = true
     var controlOwnerDeviceId: String?
     var disableError: Error?
     var candidatesSpec: CandidatesSpec = .happy
@@ -54,6 +60,7 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
 
     func capabilities() async throws -> DiscoveryClient.CapabilitiesResponse {
         capabilitiesCallCount += 1
+        if let capabilitiesError { throw capabilitiesError }
         return DiscoveryClient.CapabilitiesResponse(
             protocolVersion: 1,
             enabled: capabilitiesFlag,
@@ -65,8 +72,9 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
 
     func control() async throws -> DiscoveryClient.ControlResponse {
         controlCallCount += 1
+        if let controlError { throw controlError }
         return DiscoveryClient.ControlResponse(
-            enabled: true,
+            enabled: controlEnabled,
             revision: controlRevisionValue,
             ownerDeviceId: controlOwnerDeviceId,
             scopeRevision: 1,
@@ -83,6 +91,8 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
         requestID: String
     ) async throws -> DiscoveryClient.EnableResponse {
         enableCallCount += 1
+        if let enableError { throw enableError }
+        onEnable?()
         controlRevisionValue += 1
         return DiscoveryClient.EnableResponse(
             enabled: true,
@@ -393,7 +403,7 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         )
     }
 
-    private func makeCoordinator() -> DiscoveryCoordinator {
+    private func makeCoordinator(consentProvider: @escaping () -> Bool = { true }) -> DiscoveryCoordinator {
         let coordinator = DiscoveryCoordinator(
             settings: settings,
             store: store,
@@ -407,7 +417,7 @@ final class DiscoveryCoordinatorTests: XCTestCase {
             clock: { self.fixedNow },
             calendar: shanghaiCalendar,
             deviceIdProvider: { "device-A" },
-            consentProvider: { true },
+            consentProvider: consentProvider,
             idProvider: { "req-\(UUID().uuidString)" },
             resourceSnapshotProvider: { self.resourceBox.value },
             sideStore: DiscoveryCoordinatorSideStore(defaults: defaults)
@@ -685,5 +695,98 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         // ID 不匹配同样拒绝
         let mismatch = await coordinator.validateConversationDraftForSend(findingID: "not-a-finding")
         XCTAssertFalse(mismatch)
+    }
+    func test_线上能力响应_v前缀策略版本可以解码() throws {
+        let payload = #"{"protocolVersion":1,"enabled":true,"policyVersion":"v1","allowedDomains":["thought","task","habit"],"budget":{"runsPerDay":1,"candidateMaxTokens":3072,"verifyMaxTokens":4096,"inputBudgetTokens":16384}}"#
+        let response = try JSONDecoder().decode(DiscoveryClient.CapabilitiesResponse.self, from: Data(payload.utf8))
+        XCTAssertEqual(response.policyVersion, 1)
+        XCTAssertTrue(response.enabled)
+        for version in ["2", #""v2""#, #""2""#] {
+            let updated = payload.replacingOccurrences(of: #""v1""#, with: version)
+            XCTAssertEqual(try JSONDecoder().decode(DiscoveryClient.CapabilitiesResponse.self, from: Data(updated.utf8)).policyVersion, 2)
+        }
+        let invalid = payload.replacingOccurrences(of: #""v1""#, with: #""unknown""#)
+        XCTAssertThrowsError(try JSONDecoder().decode(DiscoveryClient.CapabilitiesResponse.self, from: Data(invalid.utf8)))
+    }
+
+    func test_Plus标识在宽布局中仍保持声明尺寸() {
+        for tier in [HoloPlusEmblemTier.free, .plus] {
+            let host = UIHostingController(rootView: HoloPlusEmblem(size: 36, tier: tier))
+            let size = host.sizeThatFits(in: CGSize(width: 402, height: 160))
+            XCTAssertEqual(size.width, 36, accuracy: 0.5)
+            XCTAssertEqual(size.height, 36, accuracy: 0.5)
+        }
+    }
+
+    func test_开启_能力请求断网提示具体原因且不进入控制流程() async {
+        settings.disable()
+        mock.capabilitiesError = APIError.networkUnavailable
+        let outcome = await makeCoordinator().enable(selectedDomains: [.thought], confirmTakeoverIfOwnedByOtherDevice: false)
+        XCTAssertEqual(outcome, .failed(.networkUnavailable))
+        XCTAssertEqual(mock.controlCallCount, 0)
+        XCTAssertFalse(settings.snapshot().isEnabled)
+    }
+
+    func test_开启_主动取消不误报为网络失败() async {
+        settings.disable()
+        mock.capabilitiesError = CancellationError()
+        let outcome = await makeCoordinator().enable(selectedDomains: [.thought], confirmTakeoverIfOwnedByOtherDevice: false)
+        XCTAssertEqual(outcome, .cancelled)
+        XCTAssertEqual(mock.controlCallCount, 0)
+        XCTAssertFalse(settings.snapshot().isEnabled)
+    }
+
+    func test_开启_控制读取失败保留具体原因() async {
+        settings.disable()
+        mock.controlError = APIError.timeout
+        let outcome = await makeCoordinator().enable(selectedDomains: [.thought], confirmTakeoverIfOwnedByOtherDevice: false)
+        XCTAssertEqual(outcome, .failed(.timeout))
+        XCTAssertEqual(mock.enableCallCount, 0)
+        XCTAssertFalse(settings.snapshot().isEnabled)
+    }
+
+    func test_开启_控制冲突不伪装为取消或成功() async {
+        settings.disable()
+        mock.enableError = APIError.backendError(statusCode: 409, code: "DISCOVERY_REVISION_CONFLICT", message: "Control revision mismatch", requestId: "test")
+        let outcome = await makeCoordinator().enable(selectedDomains: [.thought], confirmTakeoverIfOwnedByOtherDevice: false)
+        XCTAssertEqual(outcome, .failed(.conflict))
+        XCTAssertFalse(settings.snapshot().isEnabled)
+    }
+
+    func test_开启_离线关闭后重开先补交关闭意图() async {
+        let coordinator = makeCoordinator()
+        mock.disableError = URLError(.notConnectedToInternet)
+        await coordinator.disable()
+        XCTAssertTrue(coordinator.isDisableIntentPending)
+        mock.disableError = nil
+        let outcome = await coordinator.enable(selectedDomains: [.thought], confirmTakeoverIfOwnedByOtherDevice: false)
+        XCTAssertEqual(outcome, .enabled)
+        XCTAssertFalse(coordinator.isDisableIntentPending)
+        XCTAssertEqual(mock.disableCallCount, 2)
+        XCTAssertTrue(settings.snapshot().isEnabled)
+        await coordinator.batchTask?.value
+    }
+
+    func test_开启_已关闭的其他设备不要求无效接管() async {
+        settings.disable()
+        mock.controlEnabled = false
+        mock.controlOwnerDeviceId = "device-other"
+        let coordinator = makeCoordinator()
+        let outcome = await coordinator.enable(selectedDomains: [.thought], confirmTakeoverIfOwnedByOtherDevice: false)
+        XCTAssertEqual(outcome, .enabled)
+        XCTAssertEqual(mock.enableCallCount, 1)
+        await coordinator.batchTask?.value
+    }
+
+    func test_开启_服务端确认时已撤回总授权则回滚() async {
+        settings.disable()
+        var consent = true
+        mock.onEnable = { consent = false }
+        let coordinator = makeCoordinator(consentProvider: { consent })
+        let outcome = await coordinator.enable(selectedDomains: [.thought], confirmTakeoverIfOwnedByOtherDevice: false)
+        XCTAssertEqual(outcome, .needsGlobalConsent)
+        XCTAssertFalse(settings.snapshot().isEnabled)
+        XCTAssertEqual(mock.disableCallCount, 1)
+        XCTAssertEqual(mock.createRunCallCount, 0)
     }
 }

@@ -183,7 +183,19 @@ struct HoloGrowthValidationView: View {
                 let context = try HoloGrowthValidation.context()
                 if !HoloGrowthValidation.isEmpty { try HoloGrowthValidation.seed(context, now: now) }
                 let fixtureService = HoloGrowthService(validationContext: context)
+                fixtureService.setValidationDownloading(true)
                 await fixtureService.refresh()
+                guard fixtureService.snapshot != nil, fixtureService.milestones.isEmpty else {
+                    throw NSError(domain: "GrowthValidation", code: 27, userInfo: [NSLocalizedDescriptionKey: "同步期间应展示本机统计，但不颁发里程碑"])
+                }
+                guard fixtureService.snapshot?.recordedDays == (HoloGrowthValidation.isEmpty ? 0 : 86) else {
+                    throw NSError(domain: "GrowthValidation", code: 28, userInfo: [NSLocalizedDescriptionKey: "同步状态不能阻断真实计数"])
+                }
+                fixtureService.setValidationDownloading(false)
+                await fixtureService.refresh()
+                guard fixtureService.celebration == nil else {
+                    throw NSError(domain: "GrowthValidation", code: 29, userInfo: [NSLocalizedDescriptionKey: "同步收尾不能把历史积累当作新成就庆祝"])
+                }
                 let trustedDays = fixtureService.snapshot?.recordedDays
                 let corrupt = HoloGrowthValidation.insert("UserPreferenceEntity", into: context,
                     values: ["key": HoloGrowthStore.eventPrefix + "v1.corrupt", "value": "broken"])
@@ -205,7 +217,7 @@ struct HoloGrowthValidationView: View {
                 }
                 await fixtureService.setRemindersEnabled(true)
                 service = fixtureService
-                report = "PASS · \(checks + 3) 项存储/状态验收 · 独立内存库"
+                report = "PASS · \(checks + 6) 项存储/状态验收 · 独立内存库"
                 try Data(report.utf8).write(to: URL.documentsDirectory.appendingPathComponent("growth-validation.txt"))
             } catch {
                 report = "FAIL · \(error.localizedDescription)"

@@ -31,6 +31,7 @@ final class HoloGrowthService: ObservableObject {
     private var pendingMetric: HoloGrowthMetric?
     private var generation = 0
     private var isRefreshing = false
+    private var snapshotIsProvisional = false
     private let logger = Logger(subsystem: "com.holo.app", category: "Growth")
     private let loadResult: (Bool) async throws -> HoloGrowthStore.Result
     private let saveReminders: (Bool) async throws -> Void
@@ -63,6 +64,11 @@ final class HoloGrowthService: ObservableObject {
                 try HoloGrowthStore.load(context: validationContext, now: Date(), persist: persist)
             }
         }
+    }
+
+    func setValidationDownloading(_ downloading: Bool) {
+        precondition(!observesChanges, "仅隔离验收服务允许注入同步状态")
+        isDownloading = downloading
     }
     #endif
 
@@ -154,16 +160,21 @@ final class HoloGrowthService: ObservableObject {
                 let shouldPersist = !isDownloading
                 let result = try await loadResult(shouldPersist)
                 guard revision == generation else { continue }
+                let eventsChanged = milestones != result.events
+                // 同步只阻止颁发和庆祝里程碑，不能阻止展示本机已有记录。
+                // 第一份完整快照建立前的局部数字不作为下一轮庆祝的基准。
                 if shouldPersist && !isDownloading {
-                    let eventsChanged = milestones != result.events
                     if result.remindersEnabled {
-                        celebration = HoloGrowthRules.celebration(previous: snapshot, current: result.snapshot,
+                        celebration = HoloGrowthRules.celebration(previous: snapshotIsProvisional ? nil : snapshot, current: result.snapshot,
                             existing: result.previousEvents, events: result.events, localMetric: metric) ?? celebration
                     } else { celebration = nil }
-                    snapshot = result.snapshot
-                    milestones = result.events
-                    remindersEnabled = result.remindersEnabled
-                    if eventsChanged { NotificationCenter.default.post(name: .holoGrowthDidChange, object: nil) }
+                }
+                snapshot = result.snapshot
+                milestones = result.events
+                remindersEnabled = result.remindersEnabled
+                snapshotIsProvisional = !shouldPersist || isDownloading
+                if eventsChanged && !snapshotIsProvisional {
+                    NotificationCenter.default.post(name: .holoGrowthDidChange, object: nil)
                 }
                 errorMessage = nil
             } catch {

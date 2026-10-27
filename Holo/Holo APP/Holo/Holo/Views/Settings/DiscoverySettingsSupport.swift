@@ -47,7 +47,7 @@ enum DiscoverySettingsCopy {
         case .revoked:
             return "数据处理授权已撤回；恢复总授权不会自动重新开启。"
         case .serverUnsupported:
-            return "当前版本暂不支持，开关无法完成开启。"
+            return "发现服务暂未开放，尚未开启；服务恢复后可重新尝试。"
         }
     }
 

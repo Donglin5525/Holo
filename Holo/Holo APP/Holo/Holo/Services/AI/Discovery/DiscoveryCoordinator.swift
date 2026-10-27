@@ -19,6 +19,7 @@
 //
 
 import Foundation
+import OSLog
 
 // MARK: - 客户端服务面（测试替身挂接点；真实实现即 DiscoveryClient）
 
@@ -1157,9 +1158,11 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         let capabilities: DiscoveryClient.CapabilitiesResponse
         do {
             capabilities = try await client.capabilities()
+            try Task.checkCancellation()
         } catch {
-            return .cancelled   // 任一步失败保持关闭
+            return enableFailure(error, stage: "capabilities")
         }
+        guard capabilities.protocolVersion == 1 else { return .failed(.incompatibleResponse) }
         guard capabilities.enabled else {
             serverCapabilitiesEnabled = false
             recomputePresentation()
@@ -1171,19 +1174,31 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         // 全局授权缺失 → 引导授权（不自动打开）
         guard consentProvider() else { return .needsGlobalConsent }
 
+        // 离线关闭的意图必须先得到确认，不能开启成功后仍被旧关闭意图挡住。
+        if sideStore.hasPendingDisableIntent {
+            do {
+                _ = try await client.disable(requestID: idProvider(), reason: "pending_disable_before_enable")
+                sideStore.clearPendingDisableIntent()
+            } catch {
+                return enableFailure(error, stage: "pending-disable")
+            }
+        }
+
         // 控制快照：他设备占用需用户确认接管（V1 单设备租约）
         let control: DiscoveryClient.ControlResponse
         do {
             control = try await client.control()
+            try Task.checkCancellation()
         } catch {
-            return .cancelled
+            return enableFailure(error, stage: "control")
         }
         let myDevice = deviceIdProvider()
-        let ownedByOther = control.ownerDeviceId != nil && control.ownerDeviceId != myDevice
+        let ownedByOther = control.enabled && control.ownerDeviceId != nil && control.ownerDeviceId != myDevice
         if ownedByOther && !confirmTakeoverIfOwnedByOtherDevice, let owner = control.ownerDeviceId {
             return .needsTakeoverConfirmation(ownerDeviceID: owner)
         }
 
+        var serverEnabled = false
         do {
             let response = try await client.enable(
                 expectedRevision: control.revision,
@@ -1192,21 +1207,53 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
                 confirmTakeover: ownedByOther,
                 requestID: idProvider()
             )
-            // 服务端确认后本机才保存（任一步失败保持关闭）
-            try settings.enable(domains: selectedDomains)
+            guard response.enabled else { return .failed(.serverUnavailable) }
+            serverEnabled = true
+            try Task.checkCancellation()
+            // 先完成可能失败的本机持久化，再发布开启状态，避免 UI 报失败却实际开启。
             try store.upsertControlSnapshot(DiscoveryControlSnapshotRecord(
                 revision: response.revision,
                 payloadJSON: "{\"revision\":\(response.revision),\"enabled\":true}",
                 digest: DiscoveryContentDigest.sourceRevision(from: ["discovery.control.v1", String(response.revision), "true"]),
                 fetchedAt: clock()
             ))
+            guard consentProvider() else {
+                await rollbackEnable()
+                return .needsGlobalConsent
+            }
+            try settings.enable(domains: selectedDomains)
             firstRunPending = true   // 受限历史准备（不等待新增记录）
             recomputePresentation()
             runBatch(reason: .enableFirstRun)
             return .enabled
         } catch {
-            return .cancelled
+            if serverEnabled {
+                await rollbackEnable()
+                if error is CancellationError { return .cancelled }
+                _ = enableFailure(error, stage: "local-save")
+                return .failed(.localSave)
+            }
+            return enableFailure(error, stage: "enable")
         }
+    }
+
+    private func enableFailure(_ error: Error, stage: String) -> DiscoveryEnableOutcome {
+        if error is CancellationError { return .cancelled }
+        let apiError = error as? APIError
+        Logger(subsystem: "com.holo.app", category: "Discovery").error(
+            "发现开启失败 stage=\(stage, privacy: .public) category=\(apiError?.diagnosticCategory ?? String(describing: type(of: error)), privacy: .public) requestID=\(apiError?.requestId ?? "none", privacy: .public)")
+        return .failed(DiscoveryEnableFailure.from(error))
+    }
+
+    private func rollbackEnable() async {
+        settings.disable()
+        do {
+            _ = try await client.disable(requestID: idProvider(), reason: "enable_not_committed")
+            sideStore.clearPendingDisableIntent()
+        } catch {
+            sideStore.setPendingDisableIntent()
+        }
+        recomputePresentation()
     }
 
     func disable() async {

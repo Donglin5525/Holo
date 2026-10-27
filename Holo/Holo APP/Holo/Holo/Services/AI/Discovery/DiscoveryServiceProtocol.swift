@@ -76,7 +76,7 @@ protocol DiscoveryService: AnyObject {
 
     /// 首次开启流程（01 §5）：检查登录与 capability → 全局授权（缺失时引导）→
     /// 来源范围选择 → 同意并开启（服务端确认+单设备租约）→ 本机保存并排队。
-    /// 任一步取消/失败保持关闭；范围至少一类；返回 false=未开启。
+    /// 任一步取消/失败保持关闭；范围至少一类；失败返回可呈现的具体原因。
     func enable(selectedDomains: Set<DiscoverySourceDomain>, confirmTakeoverIfOwnedByOtherDevice: Bool) async -> DiscoveryEnableOutcome
 
     /// 关闭流程（01 §5）：本机先关（递增代数→隐藏→取消任务→删派生数据）→
@@ -101,7 +101,8 @@ protocol DiscoveryService: AnyObject {
 
 enum DiscoveryEnableOutcome: Sendable, Equatable {
     case enabled
-    case cancelled                   // 用户取消/任一步失败保持关闭
+    case cancelled                   // 用户取消
+    case failed(DiscoveryEnableFailure)
     case needsGlobalConsent          // 缺全局授权，UI 先引导授权
     case needsTakeoverConfirmation(ownerDeviceID: String)   // 他设备占用，需用户确认接管
     case serverUnsupported

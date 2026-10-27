@@ -22,6 +22,7 @@ struct DiscoveryFirstEnableSheet: View {
     @State private var selectedDomains: Set<DiscoverySourceDomain> = []
     @State private var agreed = false
     @State private var isProcessing = false
+    @State private var enableTask: Task<Void, Never>?
     /// 终态内联说明（失败保持关闭）
     @State private var outcomeMessage: String?
     /// 接管确认页（他设备占用）
@@ -37,11 +38,14 @@ struct DiscoveryFirstEnableSheet: View {
     }
 
     var body: some View {
-        if let ownerDeviceID = takeoverOwnerDeviceID {
-            takeoverScaffold(ownerDeviceID: ownerDeviceID)
-        } else {
-            formScaffold
+        Group {
+            if let ownerDeviceID = takeoverOwnerDeviceID {
+                takeoverScaffold(ownerDeviceID: ownerDeviceID)
+            } else {
+                formScaffold
+            }
         }
+        .onDisappear { enableTask?.cancel() }
     }
 
     // MARK: - 表单态
@@ -49,44 +53,53 @@ struct DiscoveryFirstEnableSheet: View {
     private var formScaffold: some View {
         HoloSheetScaffold(
             title: "开启一个发现",
-            onClose: { onFinished(false) },
-            primaryTitle: "同意并开启",
+            onClose: close,
+            primaryTitle: isProcessing ? "正在开启…" : (outcomeMessage == nil ? "同意并开启" : "重试开启"),
             primaryAction: { submit() },
             primaryDisabled: !canSubmit
         ) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                    explanationCard
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                        explanationCard
 
-                    consentStatusCard
+                        consentStatusCard
 
-                    domainCard
+                        domainCard.disabled(isProcessing)
 
-                    agreeToggle
+                        agreeToggle.disabled(isProcessing)
 
-                    if isProcessing {
-                        HoloInlineState(kind: .loading, message: "正在开启…")
-                            .accessibilityIdentifier("chat.discovery.enable.processing")
-                    }
-
-                    if let outcomeMessage {
-                        Label {
-                            Text(outcomeMessage)
-                                .holoText(.supporting)
-                                .foregroundStyle(Color.holoToolText)
-                                .fixedSize(horizontal: false, vertical: true)
-                        } icon: {
-                            Image(systemName: "info.circle")
-                                .foregroundStyle(Color.holoToolTextSecondary)
+                        if isProcessing {
+                            HoloInlineState(kind: .loading, message: "正在开启…")
+                                .accessibilityIdentifier("chat.discovery.enable.processing")
                         }
-                        .accessibilityIdentifier("chat.discovery.enable.outcome")
+
+                        if let outcomeMessage {
+                            Label {
+                                Text(outcomeMessage)
+                                    .holoText(.supporting)
+                                    .foregroundStyle(Color.holoToolText)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } icon: {
+                                Image(systemName: "info.circle")
+                                    .foregroundStyle(Color.holoToolTextSecondary)
+                            }
+                            .accessibilityIdentifier("chat.discovery.enable.outcome")
+                            .id("enableOutcome")
+                        }
+                    }
+                    .padding(.horizontal, HoloSpacing.page)
+                    .padding(.vertical, HoloSpacing.md)
+                }
+                .onChange(of: outcomeMessage) { _, message in
+                    if message != nil {
+                        withAnimation(HoloAnimation.quick) { proxy.scrollTo("enableOutcome", anchor: .bottom) }
                     }
                 }
-                .padding(.horizontal, HoloSpacing.page)
-                .padding(.vertical, HoloSpacing.md)
             }
         }
         .presentationDetents([.large])
+        .interactiveDismissDisabled(isProcessing)
     }
 
     // MARK: 说明卡（01 §5 必须明示的三件事）
@@ -174,7 +187,7 @@ struct DiscoveryFirstEnableSheet: View {
                 .holoText(.body)
                 .fontWeight(.semibold)
                 .foregroundStyle(Color.holoToolText)
-            Text("至少选择一类；同时遵循「不参与 AI 的想法」排除规则。V1 不读取健康与财务记录。")
+            Text("至少选择一类；已设为「不参与 AI」的想法始终排除。不读取健康与财务记录。")
                 .holoText(.metadata)
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -258,14 +271,20 @@ struct DiscoveryFirstEnableSheet: View {
         guard canSubmit || confirmTakeover else { return }
         isProcessing = true
         outcomeMessage = nil
-        Task {
+        enableTask = Task {
             let outcome = await service.enable(
                 selectedDomains: selectedDomains,
                 confirmTakeoverIfOwnedByOtherDevice: confirmTakeover
             )
+            guard !Task.isCancelled else { return }
             isProcessing = false
             handle(outcome)
         }
+    }
+
+    private func close() {
+        enableTask?.cancel()
+        onFinished(false)
     }
 
     /// needsTakeoverConfirmation 重入时允许直接提交（勾选与范围已确认过）
@@ -278,11 +297,13 @@ struct DiscoveryFirstEnableSheet: View {
         case .needsGlobalConsent:
             outcomeMessage = "缺少 HoloAI 数据处理授权，请先完成授权；开关保持关闭。"
         case .serverUnsupported:
-            outcomeMessage = "当前版本暂不支持此功能，开关保持关闭。"
+            outcomeMessage = "发现服务暂未开放，一个发现尚未开启。请稍后再试。"
         case .noDomainSelected:
             outcomeMessage = "至少选择一类来源后再开启。"
         case .cancelled:
-            outcomeMessage = "未能开启，设置保持关闭。你可以稍后再试。"
+            outcomeMessage = "本次开启已取消，一个发现保持关闭。"
+        case .failed(let failure):
+            outcomeMessage = failure.message
         }
     }
 
@@ -291,8 +312,8 @@ struct DiscoveryFirstEnableSheet: View {
     private func takeoverScaffold(ownerDeviceID: String) -> some View {
         HoloSheetScaffold(
             title: "开启一个发现",
-            onClose: { onFinished(false) },
-            primaryTitle: "在本设备接管",
+            onClose: close,
+            primaryTitle: isProcessing ? "正在切换设备…" : "在本设备接管",
             primaryAction: { submit(confirmTakeover: true) },
             primaryDisabled: isProcessing
         ) {
@@ -316,8 +337,13 @@ struct DiscoveryFirstEnableSheet: View {
                         HoloInlineState(kind: .loading, message: "正在切换设备…")
                     }
 
+                    if let outcomeMessage {
+                        HoloInlineState(kind: .failure, message: outcomeMessage)
+                            .accessibilityIdentifier("chat.discovery.enable.takeover.outcome")
+                    }
+
                     Button {
-                        onFinished(false)
+                        close()
                     } label: {
                         Text("暂不接管，保持关闭")
                             .holoText(.supporting)
@@ -326,6 +352,7 @@ struct DiscoveryFirstEnableSheet: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .disabled(isProcessing)
                     .accessibilityIdentifier("chat.discovery.enable.takeover.cancel")
                 }
                 .padding(.horizontal, HoloSpacing.page)
@@ -333,6 +360,7 @@ struct DiscoveryFirstEnableSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .interactiveDismissDisabled(isProcessing)
     }
 }
 

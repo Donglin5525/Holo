@@ -174,6 +174,12 @@ struct DiscoverySettingsView: View {
                 Spacer(minLength: 0)
             }
             .padding(.vertical, HoloSpacing.sm)
+
+            if state == .serverUnsupported {
+                Button("重新尝试开启") { showsEnableSheet = true }
+                    .buttonStyle(HoloActionStyle(role: .secondary))
+                    .accessibilityIdentifier("settings.discovery.retryEnable")
+            }
         }
         .accessibilityIdentifier("settings.discovery.status")
     }
@@ -199,7 +205,7 @@ struct DiscoverySettingsView: View {
             // TODO(协议缺口 ①)：改动需走服务端 scope 语义（撤销旧批次/更新范围版本/
             // 扩大需再次确认），DiscoveryService 暂无 updateAllowedDomains；补上后
             // 打开编辑并把本机展示切到服务状态，见文件头说明。
-            HoloSettingsFootnote(text: "改动后会重新核验已有发现；同时遵循「不参与 AI 的想法」的排除规则。")
+            HoloSettingsFootnote(text: "如需更改范围，请先关闭，再重新开启并选择。已设为「不参与 AI」的想法始终排除。")
         }
         .accessibilityIdentifier("settings.discovery.domains")
     }
@@ -242,7 +248,7 @@ struct DiscoverySettingsView: View {
             // TODO(协议缺口 ②)：被抑制类别/主题列表不在 DiscoveryService，补上后替换空态；
             // 列表不得泄露被排除原文（01 §3），只展示类别与操作。
             VStack(alignment: .leading, spacing: 2) {
-                Text("你选择过「不想看这类」的观察类别会列在这里，可随时恢复偏好。")
+                Text("选择「不想看这类」后，Holo 会在本机保留隐藏偏好。你可以在这里一次恢复全部偏好。")
                     .holoText(.metadata)
                     .foregroundColor(.holoToolTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -306,7 +312,7 @@ struct DiscoverySettingsView: View {
                 processingBullet("先有依据、再呈现：记录不足或解释不可靠时不展示；呈现的发现都附可打开的记录依据。", icon: "checkmark.shield")
                 processingBullet("不承诺每日、实时或一定有发现；不发通知、不打扰。", icon: "bell.slash")
                 processingBullet("关闭即停止：取消未完成任务并删除派生内容；已发出的请求尽力取消，迟到结果不再采纳。", icon: "stop.circle")
-                processingBullet("V1 不读取长期记忆，也不写入长期记忆。", icon: "brain")
+                processingBullet("自动发现不读取长期记忆，也不会自动写入长期记忆。", icon: "brain")
             }
             .padding(.vertical, HoloSpacing.sm)
         }

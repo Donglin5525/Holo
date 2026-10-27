@@ -70,7 +70,8 @@ struct HoloGrowthMetricView: View {
             .holoContentColumn(paintsBackground: false)
         }
         .foregroundStyle(Color.holoToolText)
-        .background(Color.holoToolBackground)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle(metric.title)
         #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
@@ -105,6 +106,8 @@ struct HoloGrowthDatesView: View {
             }
         }
         .scrollIndicators(.hidden)
+        .scrollContentBackground(.hidden)
+        .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle("积累日期")
         #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
@@ -125,7 +128,8 @@ struct HoloGrowthHistoryView: View {
             .padding(HoloSpacing.page)
             .holoContentColumn(paintsBackground: false)
         }
-        .background(Color.holoToolBackground)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle("走过的里程碑")
         #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
@@ -183,7 +187,8 @@ struct HoloGrowthMilestoneView: View {
             .frame(maxWidth: .infinity)
             .holoContentColumn(paintsBackground: false)
         }
-        .background(Color.holoToolBackground)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.holoToolBackground.ignoresSafeArea())
         .foregroundStyle(Color.holoToolText)
         .toolbar { ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) { Button("关闭") { dismiss() } } }
         .accessibilityIdentifier("growth.milestone")
@@ -219,6 +224,8 @@ struct HoloGrowthRulesView: View {
                     if let message = service.errorMessage { Text(message).foregroundStyle(Color.holoToolError) }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle("积累统计说明")
             #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)

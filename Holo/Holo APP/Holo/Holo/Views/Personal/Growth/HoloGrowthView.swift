@@ -21,17 +21,19 @@ struct HoloGrowthView: View {
                     HoloGrowthStatusView(service: service)
                 }
                 if let snapshot = service.snapshot {
-                    HoloGrowthHero(days: snapshot.recordedDays)
-                    metricList(snapshot)
-                    if let next = stableNext(snapshot) {
-                        NavigationLink {
-                            HoloGrowthMetricView(metric: next.metric, service: service, onOpenModule: onOpenModule)
-                        } label: { HoloGrowthNextStop(progress: next) }
-                        .buttonStyle(.plain)
-                    } else if snapshot.recordedDays == 0 {
-                        firstRecord
+                    HoloGrowthHero(days: snapshot.recordedDays, isSyncing: service.isDownloading)
+                    if snapshot.recordedDays > 0 || !service.isDownloading {
+                        metricList(snapshot)
+                        if let next = stableNext(snapshot) {
+                            NavigationLink {
+                                HoloGrowthMetricView(metric: next.metric, service: service, onOpenModule: onOpenModule)
+                            } label: { HoloGrowthNextStop(progress: next) }
+                            .buttonStyle(.plain)
+                        } else if snapshot.recordedDays == 0 {
+                            firstRecord
+                        }
+                        history
                     }
-                    history
                     Button { showRules = true } label: {
                         Text("根据现有记录统计 · 查看口径")
                             .holoText(.metadata)
@@ -40,17 +42,24 @@ struct HoloGrowthView: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(HoloSpacing.page)
             .holoContentColumn(paintsBackground: false)
         }
-        .background(Color.holoToolBackground)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.holoToolBackground.ignoresSafeArea())
+        #if canImport(UIKit)
+        .toolbarBackground(Color.holoToolBackground, for: .navigationBar)
+        #endif
         .navigationTitle("我的积累")
         #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
         #endif
         .toolbar {
             ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
-                Button { showRules = true } label: { Image(systemName: "info.circle") }
+                Button { showRules = true } label: {
+                    Image(systemName: "info.circle").frame(minWidth: 44, minHeight: 44)
+                }
                     .accessibilityLabel("积累统计说明")
             }
         }
@@ -146,12 +155,13 @@ struct HoloGrowthView: View {
 
 struct HoloGrowthHero: View {
     let days: Int
+    var isSyncing = false
     @ScaledMetric(relativeTo: .largeTitle) private var numberSize: CGFloat = 64
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("日子里的小小积累").holoText(.metadata).foregroundStyle(Color.holoToolTextSecondary)
             if days == 0 {
-                Text("从第一笔开始积累").holoText(.pageTitle)
+                Text(isSyncing ? "正在接收你的记录" : "从第一笔开始积累").holoText(.pageTitle)
             } else {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -162,7 +172,7 @@ struct HoloGrowthHero: View {
                     Text("累计记录 \(days) 天").holoText(.pageTitle)
                 }
             }
-            Text(days == 0 ? "不用做很多，留下一点就很好。" : "那些看似平常的日子，都留下了痕迹。")
+            Text(days == 0 ? (isSyncing ? "本机还没有可统计的记录，同步后会在这里更新。" : "不用做很多，留下一点就很好。") : "那些看似平常的日子，都留下了痕迹。")
                 .holoText(.supporting).foregroundStyle(Color.holoToolTextSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -244,7 +254,7 @@ struct HoloGrowthStatusView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if service.isDownloading {
-                Label("正在同步，积累会在同步后更新", systemImage: "icloud.and.arrow.down")
+                Label("iCloud 正在同步，先展示本机已有积累；数字会随同步更新。", systemImage: "icloud.and.arrow.down")
                     .holoText(.supporting).foregroundStyle(Color.holoToolTextSecondary)
             } else if service.snapshot == nil && service.errorMessage == nil {
                 ProgressView("正在整理你的积累").holoText(.supporting)
@@ -254,6 +264,7 @@ struct HoloGrowthStatusView: View {
                 Button("重试") { Task { await service.refresh() } }.frame(minHeight: 44)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
