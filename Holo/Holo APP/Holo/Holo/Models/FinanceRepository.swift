@@ -136,8 +136,9 @@ class FinanceRepository {
             }
         }
         let container = CoreDataStack.shared.persistentContainer
+        let repairHierarchies = FinanceCategoryRepairCatalog.standardHierarchies()
         container.performBackgroundTask { bgContext in
-            self.runRepairPass(on: bgContext)
+            self.runRepairPass(on: bgContext, repairHierarchies: repairHierarchies)
             Task { @MainActor in
                 self.completeScanRun(runID: runID)
             }
@@ -161,7 +162,8 @@ class FinanceRepository {
     /// 全程不触碰 viewContext；有删除时回主线程广播刷新。
     /// 每轮结果无条件进日志（节流下每分钟最多一行）：真机上「清不动」时
     /// 靠它区分「没在跑 / 全组等同步身份 / 全组内容冲突」三种卡点。
-    nonisolated private func runRepairPass(on bgContext: NSManagedObjectContext) {
+    nonisolated private func runRepairPass(on bgContext: NSManagedObjectContext,
+                                         repairHierarchies: [FinanceCategoryRepairHierarchy]) {
         SeedRevivalRepair.repairIfNeeded(context: bgContext)
         do {
             let orphanResult = try CategoryOrphanRepair.repair(in: bgContext)
@@ -176,6 +178,22 @@ class FinanceRepository {
             }
         } catch {
             NSLog("孤儿分类修复未保存：%@", error.localizedDescription)
+        }
+        do {
+            let directory = URL.applicationSupportDirectory.appendingPathComponent("FinanceCategoryRepairReceipts", isDirectory: true)
+            let result = try CategoryParentRepairService.repairAutomatically(in: bgContext,
+                hierarchies: repairHierarchies, receiptDirectory: directory)
+            if result.repairedGroups > 0 {
+                NSLog("分类父级自动恢复：%d 组，%d 个分类", result.repairedGroups, result.repairedCategories)
+                Task { @MainActor in
+                    NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+                }
+            }
+            if result.deferredGroups > 0 {
+                NSLog("分类父级诊断：%d 组缺少可靠归属证据，保留原数据供开发排查", result.deferredGroups)
+            }
+        } catch {
+            NSLog("分类父级自动恢复未保存：%@", error.localizedDescription)
         }
         guard let cloudContainer = CoreDataStack.shared.persistentContainer as? NSPersistentCloudKitContainer else { return }
         do {

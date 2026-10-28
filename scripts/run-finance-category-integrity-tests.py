@@ -28,8 +28,8 @@ TESTS = suite.TESTS.split('    @MainActor static func main() async throws {')[0]
         let nested = category(context, "三级", rank: 8, parent: healthy.id)
         let underDeleted = category(context, "死父", rank: 9, parent: deletedRoot.id)
         let selfParent = category(context, "自引用", rank: 10); selfParent.parentId = selfParent.id
-        let tx = Transaction(context: context); tx.id = UUID(); tx.category = orphan; tx.amount = 9.9; tx.note = "合成测试"
-        let deletedTx = Transaction(context: context); deletedTx.id = UUID(); deletedTx.category = recycled; deletedTx.deletedAt = Date()
+        let tx = transaction(context); tx.id = UUID(); tx.category = orphan; tx.amount = 9.9; tx.note = "合成测试"
+        let deletedTx = transaction(context); deletedTx.id = UUID(); deletedTx.category = recycled; deletedTx.deletedAt = Date()
         try context.save()
         let all = try context.fetch(Category.fetchRequest())
         expect(!CategoryParentRepairService.targets(from: all, type: "expense").contains { $0.id == systemRoot.id }, "归属恢复不能选系统余额调整")
@@ -68,7 +68,7 @@ TESTS = suite.TESTS.split('    @MainActor static func main() async throws {')[0]
         let next = category(context, "待修复", rank: 0, parent: nextMissing)
         try context.save()
         let stale = try CategoryParentRepairService.previews(in: context, type: "expense").first { $0.missingParentID == nextMissing }!
-        let lateTx = Transaction(context: context); lateTx.id = UUID(); lateTx.category = next
+        let lateTx = transaction(context); lateTx.id = UUID(); lateTx.category = next
         try context.save()
         denies({ _ = try CategoryParentRepairService.apply(stale, to: target, in: context) }, "晚到交易必须重新确认影响")
         let fresh = try CategoryParentRepairService.previews(in: context, type: "expense").first { $0.missingParentID == nextMissing }!
@@ -109,9 +109,84 @@ TESTS = suite.TESTS.split('    @MainActor static func main() async throws {')[0]
         try await Task.sleep(for: .milliseconds(50))
         expect(cache.revision > revision && cache.parentName(for: orphan) == "购物", "只改子分类父级也会通知账单刷新")
         expect(cache.parentName(for: crossType) == nil, "名称缓存不接受跨类型父级")
-        let status = FinanceCategoryRowPresentation(note: nil, categoryName: "饮品", parentName: nil, requiresParentRepair: true)
-        expect(status.requiresParentRepair && status.title == "饮品", "无备注孤儿也保留修复提示")
-        print("PASS \(checks) checks：完整父链、修复预览、版本冲突、保存失败、回收站隔离与跨 context 写回")
+        let status = FinanceCategoryRowPresentation(note: nil, categoryName: "饮品", parentName: nil)
+        expect(status.title == "饮品" && status.parentName == nil, "后台处理期间保留真实分类，不暴露修库文案")
+
+        let hierarchies = [FinanceCategoryRepairHierarchy(type: "expense", parentNames: ["餐饮", "dining"],
+            childNames: ["午餐", "晚餐", "饮品", "咖啡", "水果", "啤酒", "夜宵"],
+            childIcons: Dictionary(["午餐", "晚餐", "饮品", "咖啡", "水果", "啤酒", "夜宵"].map { ($0, Set(["tag"])) }, uniquingKeysWith: { $0.union($1) }),
+            color: "#F46D38")]
+        let automatic = try makeContext()
+        let autoRoot = category(automatic, "餐饮", rank: 0); autoRoot.isDefault = true
+        let autoMissing = UUID()
+        let autoChildren = ["午餐", "晚餐", "饮品", "咖啡", "水果", "啤酒", "夜宵"].map { name in
+            let child = category(automatic, name, rank: 1, parent: autoMissing)
+            child.isDefault = true
+            return child
+        }
+        let oldChild = category(automatic, "夜宵", rank: 1, parent: autoMissing)
+        oldChild.isDefault = true; oldChild.deletedAt = Date()
+        let healthyCopy = category(automatic, "饮品", rank: 1, parent: autoRoot.id)
+        healthyCopy.isDefault = true
+        let autoTx = transaction(automatic); autoTx.id = UUID(); autoTx.category = autoChildren[0]
+        autoTx.amount = 9.9; autoTx.note = "仅用于合成测试"
+        let deletedAutoTx = transaction(automatic); deletedAutoTx.id = UUID(); deletedAutoTx.category = oldChild
+        deletedAutoTx.deletedAt = Date()
+        try automatic.save()
+        let receiptDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("holo-category-audit-" + UUID().uuidString)
+        let autoResult = try CategoryParentRepairService.repairAutomatically(in: automatic,
+            hierarchies: hierarchies, receiptDirectory: receiptDirectory)
+        expect(autoResult.repairedGroups == 1 && autoResult.repairedCategories == 8, "启动后台整组恢复，包含回收站分类")
+        expect(autoChildren.allSatisfy { $0.parentId == autoRoot.id }, "所有有效二级自动恢复正确一级")
+        expect(oldChild.deletedAt != nil && deletedAutoTx.deletedAt != nil, "自动修复不复活最近删除内容")
+        expect(autoTx.amount == 9.9 && autoTx.note == "仅用于合成测试" && autoTx.category == autoChildren[0], "自动修复保留账目与身份")
+        expect(healthyCopy.id != autoChildren[2].id && healthyCopy.parentId == autoRoot.id, "不删除或合并同名项")
+        let receipts = try FileManager.default.contentsOfDirectory(at: receiptDirectory, includingPropertiesForKeys: nil)
+        expect(receipts.count == 1, "写回前保存一份回退映射")
+        let receipt = try JSONSerialization.jsonObject(with: Data(contentsOf: receipts[0])) as! [String: Any]
+        expect(receipt["previousParentID"] as? String == autoMissing.uuidString, "回退映射保留原父级")
+        let repeatResult = try CategoryParentRepairService.repairAutomatically(in: automatic,
+            hierarchies: hierarchies, receiptDirectory: receiptDirectory)
+        expect(repeatResult.repairedGroups == 0 && !automatic.hasChanges, "重复启动和同步后重跑零修改")
+
+
+        let singleFixture = try makeContext()
+        let singleRoot = category(singleFixture, "餐饮", rank: 0); singleRoot.isDefault = true
+        let singleChild = category(singleFixture, "饮品", rank: 0, parent: UUID()); singleChild.isDefault = true
+        try singleFixture.save()
+        let singleResult = try CategoryParentRepairService.repairAutomatically(in: singleFixture,
+            hierarchies: hierarchies, receiptDirectory: receiptDirectory)
+        expect(singleResult.repairedCategories == 1 && singleChild.parentId == singleRoot.id,
+            "仅同步到一个二级时，完整默认标识一致也能自动修复")
+
+        // 编辑过默认外观、自定义和多个候选父级不凭名字猜测。
+        for mode in ["changedIcon", "changedColor", "custom", "ambiguous", "parentExists", "saveFailure", "auditFailure"] {
+            let fixture = try makeContext()
+            let root = category(fixture, "餐饮", rank: 0); root.isDefault = true
+            let missing = UUID()
+            let first = category(fixture, "饮品", rank: 0, parent: missing); first.isDefault = true
+            let second = category(fixture, "午餐", rank: 0, parent: missing); second.isDefault = true
+            if mode == "changedIcon" { first.icon = "用户自定义图标" }
+            if mode == "changedColor" { first.color = "#000000" }
+            if mode == "custom" { second.isDefault = false }
+            if mode == "ambiguous" {
+                category(fixture, "餐饮", rank: 0).isDefault = true
+            }
+            if mode == "parentExists" { _ = category(fixture, "用户已有父级", rank: 0, type: .income, id: missing) }
+            try fixture.save()
+            if mode == "saveFailure" { fixture.failNextSave = true }
+            let audit = FileManager.default.temporaryDirectory.appendingPathComponent("holo-category-audit-" + UUID().uuidString)
+            if mode == "auditFailure" { try Data("禁止覆盖文件".utf8).write(to: audit) }
+            do {
+                let result = try CategoryParentRepairService.repairAutomatically(in: fixture,
+                    hierarchies: hierarchies, receiptDirectory: audit)
+                expect(result.repairedGroups == 0 && result.deferredGroups == 1, "缺证或歧义不猜测归属：" + mode)
+            } catch {
+                expect(mode == "saveFailure" || mode == "auditFailure", "仅预设故障允许抛错")
+            }
+            expect(first.parentId == missing, "失败或证据不足保留原数据：" + mode)
+        }
+        print("PASS \(checks) checks：后台自动恢复、回退映射、幂等、失败隔离、完整父链、回收站与历史账目保护")
     }
 }
 '''

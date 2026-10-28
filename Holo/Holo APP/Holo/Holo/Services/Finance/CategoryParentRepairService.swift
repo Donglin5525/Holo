@@ -27,8 +27,30 @@ nonisolated struct CategoryParentRepairPreview: Identifiable, Equatable, Sendabl
     var activeCategoryCount: Int { items.filter { !$0.isDeleted }.count }
 }
 
-/// 先预览、后按版本指纹恢复归属。保留分类与记账身份，不按名称合并或删除任何记录。
+/// 只读默认分类目录的纯值快照，可安全交给后台 context。
+nonisolated struct FinanceCategoryRepairHierarchy: Sendable {
+    let type: String
+    let parentNames: Set<String>
+    let childNames: Set<String>
+    let childIcons: [String: Set<String>]
+    let color: String
+}
+
+/// 按版本指纹恢复归属，保留分类与记账身份，不按名称合并或删除记录。
 nonisolated enum CategoryParentRepairService {
+    struct AutomaticResult {
+        var repairedGroups = 0
+        var repairedCategories = 0
+        var deferredGroups = 0
+    }
+
+    private struct RollbackReceipt: Codable {
+        let revision: String
+        let type: String
+        let categoryIDs: [UUID]
+        let previousParentID: UUID
+        let restoredParentID: UUID
+    }
     private struct GroupKey: Hashable {
         let parentID: UUID
         let type: String
@@ -88,6 +110,74 @@ nonisolated enum CategoryParentRepairService {
             guard Set(copies.map(\.name)).count == 1 else { return nil }
             return CategoryParentRepairTarget(id: id, name: copies[0].name, type: type)
         }.sorted { ($0.name, $0.id.uuidString) < ($1.name, $1.id.uuidString) }
+    }
+
+    /// 只修复原始默认名称、图标、颜色及目录均一致且可唯一还原的缺失父级。
+    /// 不依赖用户选择，也不按金额、备注或 AI 推测归属。
+    static func repairAutomatically(in context: NSManagedObjectContext,
+                                    hierarchies: [FinanceCategoryRepairHierarchy],
+                                    receiptDirectory: URL) throws -> AutomaticResult {
+        guard !context.hasChanges else { throw FinanceCategoryIntegrityError.unsavedChanges }
+        var result = AutomaticResult()
+        let previousPolicy = context.mergePolicy
+        let previousAuthor = context.transactionAuthor
+        context.mergePolicy = NSErrorMergePolicy
+        context.transactionAuthor = "finance.categoryParentRepair.automatic.v1"
+        defer {
+            context.mergePolicy = previousPolicy
+            context.transactionAuthor = previousAuthor
+        }
+
+        for type in Set(hierarchies.map(\.type)).sorted() {
+            for preview in try previews(in: context, type: type) {
+                let categories = try context.fetch(NSFetchRequest<Category>(entityName: "Category"))
+                let ids = Set(preview.items.map(\.id))
+                let rows = categories.filter { ids.contains($0.id) }
+                let names = Set(rows.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+                // 原父级尚在（包括回收站、错类型或多级）时，不能把同步中间态当成丢失来改挂。
+                guard !categories.contains(where: { $0.id == preview.missingParentID }),
+                      !names.isEmpty, !rows.isEmpty, rows.allSatisfy({
+                          $0.isDefault && !$0.isSystem && $0.parentId == preview.missingParentID && $0.type == type
+                      }),
+                      Dictionary(grouping: rows, by: \.id).values.allSatisfy({ Set($0.map(\.name)).count == 1 }) else {
+                    result.deferredGroups += 1
+                    continue
+                }
+                let matchingHierarchies = hierarchies.filter { hierarchy in
+                    hierarchy.type == type && names.isSubset(of: hierarchy.childNames)
+                        && rows.allSatisfy { row in
+                            let name = row.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                            return hierarchy.childIcons[name]?.contains(row.icon) == true
+                                && row.color.lowercased() == hierarchy.color.lowercased()
+                        }
+                }
+                guard matchingHierarchies.count == 1, let hierarchy = matchingHierarchies.first else {
+                    result.deferredGroups += 1
+                    continue
+                }
+                let eligibleRootIDs = Set(categories.filter {
+                    FinanceCategoryIntegrity.isActive($0) && $0.isDefault && !$0.isSystem && $0.parentId == nil
+                        && $0.type == type && hierarchy.parentNames.contains($0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+                }.map(\.id))
+                let eligibleTargets = targets(from: categories, type: type).filter { eligibleRootIDs.contains($0.id) }
+                guard eligibleTargets.count == 1, let target = eligibleTargets.first else {
+                    result.deferredGroups += 1
+                    continue
+                }
+
+                let receipt = RollbackReceipt(revision: preview.revision, type: type,
+                    categoryIDs: preview.items.map(\.id), previousParentID: preview.missingParentID,
+                    restoredParentID: target.id)
+                // 回退映射必须先落盘；磁盘不可写时零数据变更，下次后台检查重试。
+                try FileManager.default.createDirectory(at: receiptDirectory, withIntermediateDirectories: true)
+                let receiptURL = receiptDirectory.appendingPathComponent(preview.revision + ".json")
+                try JSONEncoder().encode(receipt).write(to: receiptURL, options: .atomic)
+                let changed = try apply(preview, to: target, in: context)
+                result.repairedGroups += 1
+                result.repairedCategories += changed.count
+            }
+        }
+        return result
     }
 
     /// 必须在专用、干净的 context 队列执行，避免把其他模块编辑连带保存。

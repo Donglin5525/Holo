@@ -169,4 +169,28 @@ final class MatchCategoryResilienceTests: XCTestCase {
         XCTAssertNil(matched)
     }
 
+    func test默认目录_三语名称与历史图标均可识别() throws {
+        let catalog = FinanceCategoryRepairCatalog.standardHierarchies()
+        let dining = try XCTUnwrap(catalog.first { $0.type == "expense" && $0.parentNames.contains("餐饮") })
+        XCTAssertTrue(dining.parentNames.contains("food & drink"))
+        XCTAssertTrue(Set(["午餐", "晚餐", "饮品", "咖啡", "水果", "啤酒", "夜宵"]).isSubset(of: dining.childNames))
+        XCTAssertEqual(dining.childIcons["饮品"], ["finance_drink"])
+        XCTAssertEqual(dining.childIcons["飲品"], ["finance_drink"])
+        XCTAssertEqual(dining.childIcons["drinks"], ["finance_drink"])
+    }
+
+    func test后台恢复_单个默认饮品无需用户确认() throws {
+        let parent = makeCategory(name: "餐饮"); parent.isDefault = true
+        let child = makeCategory(name: "饮品", parentId: UUID())
+        child.isDefault = true; child.icon = "finance_drink"
+        try context.save()
+        let auditDirectory = FileManager.default.temporaryDirectory.appendingPathComponent("category-automatic-" + UUID().uuidString)
+        let result = try CategoryParentRepairService.repairAutomatically(in: context,
+            hierarchies: FinanceCategoryRepairCatalog.standardHierarchies(), receiptDirectory: auditDirectory)
+        XCTAssertEqual(result.repairedCategories, 1)
+        XCTAssertEqual(child.parentId, parent.id)
+        XCTAssertEqual(try CategoryParentRepairService.repairAutomatically(in: context,
+            hierarchies: FinanceCategoryRepairCatalog.standardHierarchies(), receiptDirectory: auditDirectory).repairedCategories, 0)
+    }
+
 }

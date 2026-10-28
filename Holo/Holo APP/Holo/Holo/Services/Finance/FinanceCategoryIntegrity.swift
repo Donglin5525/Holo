@@ -10,13 +10,13 @@ enum FinanceCategoryIntegrityError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .missingParent:
-            return String(localized: "这个分类的一级归属不完整，请先在分类管理中修复，或重新选择分类。")
+            return String(localized: "这个分类暂时不可用，请稍后重试。")
         case .dataChanged:
-            return String(localized: "分类或关联记录已发生变化，请关闭后重新核对修复预览。")
+            return String(localized: "分类或关联记录已发生变化，本次操作未执行。")
         case .invalidTarget:
-            return String(localized: "请选择同一收支类型下仍然有效的一级分类。")
+            return String(localized: "当前没有可确认的有效一级分类。")
         case .unsavedChanges:
-            return String(localized: "当前还有未保存的修改，请保存后再修复分类归属。")
+            return String(localized: "存在尚未保存的数据，本次操作未执行。")
         }
     }
 }

@@ -119,10 +119,14 @@ struct FinanceCategoryRegressionTests {
     @MainActor static func category(_ context: NSManagedObjectContext, _ name: String,
                                     rank: Int16, type: TransactionType = .expense,
                                     parent: UUID? = nil, id: UUID = UUID()) -> Category {
-        let value = Category(context: context)
+        let value = Category(entity: NSEntityDescription.entity(forEntityName: "Category", in: context)!, insertInto: context)
         value.id = id; value.name = name; value.icon = "tag"; value.color = "#F46D38"
         value.type = type.rawValue; value.sortOrder = rank; value.parentId = parent
         return value
+    }
+
+    @MainActor static func transaction(_ context: NSManagedObjectContext) -> Transaction {
+        Transaction(entity: NSEntityDescription.entity(forEntityName: "Transaction", in: context)!, insertInto: context)
     }
 
     @MainActor static func reject(_ repository: FinanceRepository, ids: [UUID],
@@ -146,7 +150,7 @@ struct FinanceCategoryRegressionTests {
         let lunch = category(context, "午餐", rank: 10, parent: a.id)
         let dinner = category(context, "晚餐", rank: 20, parent: a.id)
         let taxi = category(context, "打车", rank: 30, parent: b.id)
-        let tx = Transaction(context: context); tx.id = UUID(); tx.category = lunch
+        let tx = transaction(context); tx.id = UUID(); tx.category = lunch
         income.sortOrder = -5
         expect(Category.precedesInUserOrder(a, income), "全量分类仍按收支类型分组")
         income.sortOrder = 40
