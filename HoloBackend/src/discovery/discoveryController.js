@@ -8,6 +8,12 @@ import { validateDiscoveryOutput } from "./discoveryOutputSchema.js";
 /**
  * 「一个发现」专用控制器与路由（实施包 03 §3）。
  *
+ * ⚠️ 跨端契约纪律：本文件每个 context.json(...) 返回体是 iOS 解码模型的唯一真源
+ * （Holo/Services/AI/Discovery/DiscoveryClient.swift）。改任何返回体的字段/类型/嵌套结构，
+ * 必须同一批同步 iOS 模型与 HoloTests/.../DiscoveryContractTests.swift 的字面量并跑绿——
+ * 否则后端 200、客户端解码失败（2026-10-28 grant 事故实录）。规范：
+ * docs/standards/跨端接口契约规范.md
+ *
  * 八个端点 + 通用 chat 防旁路。所有阶段端点每步复核（03 §5）：
  * 设备会话 → 主体导出（服务端派生，body 不信任）→ run 归属（subject+device）
  * → control/scope 代数仍匹配 → 日批次（run 行即预留）→ 租约未过期 → token 有效。
