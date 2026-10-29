@@ -71,7 +71,7 @@ struct NotificationSettingsView: View {
             ZStack {
                 Color.holoBackground.ignoresSafeArea()
 
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: HoloSpacing.md) {
                         // 通知权限状态（已授权=不显眼的一行小字）
                         permissionSection
@@ -479,7 +479,7 @@ struct NotificationSettingsView: View {
         .onTapGesture(perform: action)
     }
 
-    /// 入口行：右侧 chevron，点击展开/收起底部说明
+    /// 按条提醒在原记录中设置；这里明确提供设置方法，不伪装成跳转入口。
     private func entryRow(
         icon: String,
         iconColor: Color = .holoPrimary,
@@ -488,50 +488,23 @@ struct NotificationSettingsView: View {
         note: EntryNote,
         noteText: String
     ) -> some View {
-        VStack(spacing: HoloSpacing.xs) {
-            HStack(spacing: 10) {
-                NotificationSettingsIconBlock(systemName: icon, tint: iconColor)
-
-                Text(title)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-                    .lineLimit(1)
-
-                Spacer(minLength: HoloSpacing.sm)
-
-                Text(summary)
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary)
-                    .lineLimit(1)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoTextPlaceholder)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.holoCardBackground)
-            .cornerRadius(HoloRadius.md)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(HoloAnimation.standard) {
-                    expandedEntry = expandedEntry == note ? nil : note
-                }
-            }
-
-            if expandedEntry == note {
-                Text(noteText)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color.holoCardBackground)
-                    .cornerRadius(HoloRadius.md)
-                    .transition(.opacity)
-            }
+        DisclosureGroup(isExpanded: Binding(
+            get: { expandedEntry == note },
+            set: { expandedEntry = $0 ? note : nil }
+        )) {
+            Text(noteText)
+                .holoText(.supporting)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, HoloSpacing.sm)
+        } label: {
+            HoloSettingsRow(icon: icon, iconColor: iconColor, title: title,
+                            subtitle: summary + String(localized: " · 查看设置方法"))
         }
+        .tint(.holoToolTextSecondary)
+        .padding(.horizontal, HoloSpacing.md)
+        .holoSurface()
+        .animation(HoloAnimation.standard, value: expandedEntry)
     }
 
     /// 行内 Toggle（未授权时禁用）

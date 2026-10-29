@@ -15,6 +15,9 @@ struct SettingsICloudSyncSection: View {
 
     /// 二级页场景（2026-10-25 规整收进门）传 false：导航栏标题顶替组头，不再重复
     var showsSectionHeader: Bool = true
+    /// iCloud 使用系统账号，与 Holo 的 Apple 登录独立；默认展示真实同步状态。
+    /// 保留参数以兼容既有宿主，旧页面可显式要求先展示 Holo 登录提示。
+    var requiresHoloSignIn: Bool = false
 
     @ObservedObject private var iCloudSyncStatus = ICloudSyncStatusService.shared
     @ObservedObject private var authService = AppleSignInAuthService.shared
@@ -340,15 +343,13 @@ struct SettingsICloudSyncSection: View {
     }
 
     private var iCloudAccountSubtitle: String {
-        guard authService.isSignedIn else {
+        // requiresHoloSignIn == false（Mac 宿主）时跳过登录门槛，直接落到
+        // iCloud 账号状态如实呈现——Mac 版没有 Holo 账号登录体系
+        if requiresHoloSignIn, !authService.isSignedIn {
             return String(localized: "登录 Holo 后检查云同步状态")
         }
 
-        if iCloudSyncStatus.accountStatus == .available {
-            return String(localized: "iCloud 可用，云同步已开启")
-        }
-
-        return iCloudSyncStatus.accountStatusText
+        return SettingsSyncCopy.summary(for: iCloudSyncStatus)
     }
 
     /// iCloud 同步区块的上传/下载方向行：进行中转圈、成功带时间、失败带原因，

@@ -11,11 +11,13 @@ func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
 }
 
 let chat = try read("Holo/Holo APP/Holo/Holo/Views/Chat/ChatView.swift")
+let chatSheet = try read("Holo/Holo APP/Holo/Holo/Views/Chat/ChatSheet.swift")
 let settings = try read("Holo/Holo APP/Holo/Holo/Views/Settings/SettingsView.swift")
 let developerSettings = try read("Holo/Holo APP/Holo/Holo/Views/Settings/AISettingsView.swift")
 let personal = try read("Holo/Holo APP/Holo/Holo/Views/Personal/PersonalView.swift")
 
-expect(chat.contains("case aiConsent"), "聊天页缺少正式授权路由")
+// 路由枚举已从聊天视图拆出，授权接线仍在 ChatView 中分别检查。
+expect(chatSheet.contains("case aiConsent"), "聊天页缺少正式授权路由")
 expect(chat.contains("AIDataProcessingConsentView()"), "聊天授权仍未使用正式授权页")
 expect(chat.contains("#if DEBUG\n        case .aiSettings"), "开发 AI 设置未被 DEBUG 隔离")
 expect(developerSettings.contains("#if DEBUG"), "AISettingsView 未整体放入 DEBUG 编译边界")

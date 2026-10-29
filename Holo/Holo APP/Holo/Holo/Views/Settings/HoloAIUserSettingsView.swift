@@ -18,6 +18,7 @@
 import SwiftUI
 
 struct HoloAIUserSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
 
     /// 「一个发现」主条目状态摘要（主会话观察服务后传入）
     let discoveryState: DiscoverySettingsDetailState
@@ -32,6 +33,12 @@ struct HoloAIUserSettingsView: View {
                 discoveryService: discoveryService,
                 onOpenMemoryGallery: onOpenMemoryGallery
             )
+            .toolbar {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
+                    Button("关闭") { dismiss() }
+                        .accessibilityIdentifier("settings.holoai.close")
+                }
+            }
         }
     }
 }
@@ -57,13 +64,14 @@ struct HoloAIUserSettingsContent: View {
     @State private var showsProfileEditor = false
     @State private var showsThoughtOrganization = false
     @State private var showsAIConsent = false
+    @State private var showsCloudProcessingDetails = false
     @State private var showsThoughtAIScope = false
     #if DEBUG
     @State private var showsDeveloperAISettings = false
     #endif
 
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                 Text("让 Holo 以你选择的方式理解你。")
                     .holoText(.supporting)
@@ -76,6 +84,7 @@ struct HoloAIUserSettingsContent: View {
                 privacyGroup
             }
             .padding(.vertical, HoloSpacing.md)
+            .holoContentColumn(paintsBackground: false)
         }
         .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle("HoloAI 设置")
@@ -114,7 +123,7 @@ struct HoloAIUserSettingsContent: View {
                 HoloSettingsRow(
                     icon: "sparkles",
                     title: "一个发现",
-                    subtitle: "安静整理记录中的变化与联系 · \(DiscoverySettingsCopy.summaryText(for: discoveryState))",
+                    subtitle: DiscoverySettingsCopy.summaryText(for: discoveryState),
                     trailing: { HoloSettingsChevron() }
                 )
             }
@@ -134,7 +143,7 @@ struct HoloAIUserSettingsContent: View {
                     icon: "person.crop.circle",
                     iconColor: .holoInfo,
                     title: "个人档案",
-                    subtitle: "描述你的角色与偏好，HoloAI 对话时会参考",
+                    subtitle: "你的角色与偏好",
                     trailing: { HoloSettingsChevron() }
                 )
             }
@@ -148,7 +157,7 @@ struct HoloAIUserSettingsContent: View {
                     icon: "brain",
                     iconColor: .holoPurple,
                     title: "长期记忆",
-                    subtitle: "自动形成记忆、记忆辅助回答与记忆长廊管理",
+                    subtitle: "记忆开关与内容管理",
                     trailing: { HoloSettingsChevron() }
                 )
             }
@@ -168,7 +177,7 @@ struct HoloAIUserSettingsContent: View {
                     HoloSettingsRow(
                         icon: "notebook",
                         iconColor: .holoAI,
-                        title: "想法智能整理",
+                        title: "想法设置",
                         subtitle: thoughtOrganizeAutomatic ? "已开启 · 主题归类与相关笔记" : "已关闭",
                         trailing: { HoloSettingsChevron() }
                     )
@@ -213,19 +222,19 @@ struct HoloAIUserSettingsContent: View {
     /// 周期回放开关区（单一真源 MemoryInsightScheduleSettings；与通知设置共用同一份
     /// 开关与时间，不重复注册通知——改的是同一个 shared 对象）
     private var replayTogglesCard: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                 HoloSettingsSection(title: "自动生成") {
                     replayToggleRow(
                         title: "自动生成每周观察",
-                        subtitle: "整理上周记录中的观察；与日/月回放独立控制",
+                        subtitle: "整理上周记录中的变化与联系",
                         isOn: $insightSettings.weeklyAutoGenerationEnabled,
                         axID: "settings.holoai.replay.weeklyObservation"
                     )
                     HoloSettingsDivider()
                     replayToggleRow(
                         title: "自动生成日/月回放",
-                        subtitle: "沿用原「后台自动尝试生成」偏好；iOS 不保证准时执行，打开 App 时会补生成",
+                        subtitle: "后台整理日/月回放，未完成时在打开 Holo 后补充",
                         isOn: $insightSettings.backgroundAutoGenerationEnabled,
                         axID: "settings.holoai.replay.autoGeneration"
                     )
@@ -251,13 +260,21 @@ struct HoloAIUserSettingsContent: View {
                     )
                 }
 
-                Text("提醒与自动生成互相独立：开启提醒不会自动生成，开启自动生成不会自动开启通知。时间与开关和「通知设置」共用同一份数据。")
+                if !consent.isGranted {
+                    Text("AI 数据授权已关闭，自动生成暂停。可在「设置 → 隐私与安全 → AI 数据授权」中开启。")
+                        .holoText(.metadata)
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .padding(.horizontal, HoloSpacing.lg)
+                }
+
+                Text("提醒与自动生成分别控制。提醒时间可在「通知设置」中调整。")
                     .holoText(.metadata)
                     .foregroundStyle(Color.holoToolTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, HoloSpacing.lg)
             }
             .padding(.vertical, HoloSpacing.md)
+            .holoContentColumn(paintsBackground: false)
         }
         .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle("周期回放")
@@ -356,35 +373,26 @@ struct HoloAIUserSettingsContent: View {
 
     /// 云端处理说明（静态说明区：区分「主动分析」与「发现自动理解」两类场景）
     private var cloudProcessingRow: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "cloud")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(Color.holoPrimary.opacity(0.12)))
-                    .accessibilityHidden(true)
-                Text("云端处理说明")
-                    .holoText(.body)
-                    .foregroundColor(.holoToolText)
-            }
-
+        DisclosureGroup(isExpanded: $showsCloudProcessingDetails) {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                 cloudBullet(
                     title: "主动分析（你发起）",
-                    detail: "深度分析、对话、周/月回放等。你输入的内容，加上完成这次回答所需的必要记录片段，会经 Holo 后端交给第三方 AI 或语音服务处理。"
+                    detail: "对话、深度分析和周期回放会将你的问题及本次回答所需的必要记录片段，经 Holo 后端交给第三方 AI 或语音服务处理。"
                 )
                 cloudBullet(
-                    title: "发现自动理解（后台自动）",
-                    detail: "只有「一个发现」会在后台自动处理：仅发送你允许范围内的必要片段，先由程序核验依据，再决定是否呈现；不发送与本次理解无关的内容。"
+                    title: "自动处理（按你的设置）",
+                    detail: "想法智能整理、一个发现与周期回放按各自开关运行，只处理所需的必要内容；一个发现还受你选择的数据范围约束。"
                 )
                 cloudBullet(
                     title: "共同的边界",
-                    detail: "两类场景都受「数据处理授权」总开关约束；撤回总授权后立即停止新的外部处理，「一个发现」随之关闭。"
+                    detail: "撤回数据处理授权后，停止新的外部处理，一个发现随之关闭。你的原始记录不会被删除。"
                 )
             }
+            .padding(.bottom, HoloSpacing.sm)
+        } label: {
+            HoloSettingsRow(icon: "cloud", title: "云端处理说明", subtitle: "查看 AI 会处理哪些内容")
         }
-        .padding(.vertical, HoloSpacing.sm)
+        .tint(.holoToolTextSecondary)
         .accessibilityIdentifier("settings.holoai.privacy.cloudNote")
     }
 

@@ -654,7 +654,12 @@ struct HoloMemoryCenterView: View {
             RoundedRectangle(cornerRadius: 22)
                 .fill(Color.holoToolInset)
                 .frame(width: 74, height: 74)
-                .overlay(Text(viewModel.automaticMemoryEnabled ? "🫧" : "🌱").font(.system(size: 34)))
+                .overlay {
+                    Image(systemName: viewModel.automaticMemoryEnabled ? "brain.head.profile" : "leaf")
+                        .font(.system(size: 34, weight: .regular))
+                        .foregroundStyle(Color.holoToolAI)
+                        .accessibilityHidden(true)
+                }
             if viewModel.automaticMemoryEnabled {
                 emptyCopy(
                     title: "还没有沉淀下来的理解",

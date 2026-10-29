@@ -87,7 +87,7 @@ struct HoloPlusPaywallView: View {
 
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
                 HStack(spacing: HoloSpacing.md) {
-                    HoloPlusEmblem(size: 54, showsShine: true)
+                    HoloPlusEmblem(size: 72, showsShine: true)
 
                     Text("Holo Plus")
                         .font(.system(size: 27, weight: .bold))

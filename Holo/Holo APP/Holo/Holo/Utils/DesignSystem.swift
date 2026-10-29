@@ -530,6 +530,21 @@ enum HoloAnimation {
 /// 全 App 任何 Plus 相关页面的配色只从这里取，禁止再内联金色/橙色 hex。
 /// 配色以品牌橙（holoPrimary #F46D38）为基调，深底卡片保留高级感的暖调深色。
 enum HoloPlusTheme {
+    // MARK: A2 肖像麦穗与原生角标
+    static let emblemGoldGradient = LinearGradient(
+        colors: [Color(hex: "#FFE7AE"), Color(hex: "#F2C063"), Color(hex: "#D8992B")],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+    static let emblemSilverGradient = LinearGradient(
+        colors: [Color(hex: "#C9BFB4"), Color(hex: "#8F857A")],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    static let emblemBadgeText = Color(hex: "#5C3A08")
+    static let freeEmblemBackground = Color(hex: "#453D36").opacity(0.5)
+    static let freeEmblemBorder = Color(hex: "#9A8E82").opacity(0.5)
+
     // MARK: 深色卡片底（状态卡 / 入口卡）
     /// 三段暖调深色渐变（去掉了原来的冷紫调，统一到橙系暖底）
     static let darkGradient = LinearGradient(

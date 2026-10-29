@@ -109,6 +109,12 @@ qa-shots/
 /.tmp/
 *.trace/
 *.xcresult/
+__pycache__/
+*.pyc
+
+# 本机构建与安装归档
+/Holo-*.zip
+/Holo/Holo APP/Holo/build-*/
 
 # 睡眠详情页本机评审截图与验收输出（合成数据）
 outputs/sleep-detail-review-20261021/

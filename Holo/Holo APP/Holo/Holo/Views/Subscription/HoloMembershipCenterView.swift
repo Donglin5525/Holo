@@ -10,17 +10,19 @@ import SwiftUI
 
 struct HoloMembershipCenterView: View {
     @ObservedObject private var entitlementState = HoloEntitlementState.shared
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.openURL) private var openURL
     @State private var isPaywallPresented = false
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
         formatter.setLocalizedDateFormatFromTemplate("yMMMd")
         return formatter
     }()
 
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                 statusCard
                 primaryAction
@@ -33,7 +35,8 @@ struct HoloMembershipCenterView: View {
                 developmentAcceptanceSection
                 #endif
             }
-            .padding(HoloSpacing.lg)
+            .padding(HoloSpacing.page)
+            .holoContentColumn(paintsBackground: false)
         }
         .background(Color.holoBackground.ignoresSafeArea())
         .navigationTitle("Holo Plus")
@@ -78,12 +81,12 @@ struct HoloMembershipCenterView: View {
 
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
                 HStack(alignment: .top, spacing: HoloSpacing.md) {
-                    HoloPlusEmblem(size: 56, tier: entitlementState.isPlusActive ? .plus : .free)
+                    HoloPlusEmblem(size: 72, tier: entitlementState.isPlusActive ? .plus : .free)
 
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: HoloSpacing.xs) {
                             Text(entitlementState.isPlusActive ? "Holo Plus" : String(localized: "免费版"))
-                                .font(.system(size: 24, weight: .bold))
+                                .holoText(.sectionTitle)
                                 .foregroundColor(HoloPlusTheme.accentText)
 
                             if entitlementState.isPlusActive {
@@ -102,12 +105,12 @@ struct HoloMembershipCenterView: View {
                                 ? String(localized: "会员权益已生效")
                                 : String(localized: "升级解锁 2 倍 AI 额度与全部小组件")
                         )
-                        .font(.system(size: 14, weight: .medium))
+                        .holoText(.supporting)
                         .foregroundColor(HoloPlusTheme.subtleText)
 
                         if entitlementState.isPlusActive, let expiresAt = entitlementState.expiresAt {
                             Text("到期/续费日期：\(Self.dateFormatter.string(from: expiresAt))")
-                                .font(.system(size: 12, weight: .medium))
+                                .holoText(.metadata)
                                 .foregroundColor(HoloPlusTheme.subtleText)
                         }
                     }
@@ -115,14 +118,14 @@ struct HoloMembershipCenterView: View {
                     Spacer(minLength: 0)
                 }
 
-                HStack(spacing: HoloSpacing.sm) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2), spacing: HoloSpacing.sm) {
                     membershipMetric("HoloAI", entitlementState.isPlusActive ? String(localized: "30/天") : String(localized: "15/天"))
                     membershipMetric(String(localized: "深度洞察"), entitlementState.isPlusActive ? String(localized: "10/天") : String(localized: "2/天"))
                     membershipMetric(String(localized: "语音识别"), entitlementState.isPlusActive ? String(localized: "50/天") : String(localized: "20/天"))
                     membershipMetric(String(localized: "任务"), entitlementState.isPlusActive ? String(localized: "50/天") : String(localized: "20/天"))
                 }
             }
-            .padding(18)
+            .padding(HoloSpacing.lg)
         }
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
@@ -135,18 +138,17 @@ struct HoloMembershipCenterView: View {
     private func membershipMetric(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.system(size: 10, weight: .medium))
+                .holoText(.metadata)
                 .foregroundColor(HoloPlusTheme.subtleText)
 
             Text(value)
-                .font(.system(size: 12, weight: .bold))
+                .holoText(.body)
+                .fontWeight(.semibold)
                 .foregroundColor(HoloPlusTheme.accentText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, HoloSpacing.sm)
         .background(Color.holoPrimary.opacity(0.1))
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
     }

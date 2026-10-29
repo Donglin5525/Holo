@@ -84,12 +84,14 @@ struct HoloSettingsRow<Trailing: View>: View {
                 .foregroundColor(iconColor)
                 .frame(width: 36, height: 36)
                 .background(Circle().fill(iconColor.opacity(0.12)))
+                .fixedSize()
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .holoText(.body)
                     .foregroundColor(titleColor)
+                    .fixedSize(horizontal: false, vertical: true)
                 if let subtitle {
                     Text(subtitle)
                         .holoText(.metadata)
@@ -101,6 +103,7 @@ struct HoloSettingsRow<Trailing: View>: View {
             Spacer(minLength: HoloSpacing.sm)
 
             trailing
+                .fixedSize(horizontal: true, vertical: false)
         }
         .padding(.vertical, HoloSpacing.sm)
         .holoRowHitArea()
@@ -154,10 +157,10 @@ struct HoloSettingsFootnote: View {
 
 // MARK: - 卡内分隔线
 
-/// 设置卡内分隔线：左缩进 60 = 卡内水平边距 16 + 图标底座 36 + 图标-文字间距 8
+/// HoloSettingsSection 已提供 16pt 内边距，这里只跨过图标与文字间距。
 struct HoloSettingsDivider: View {
     var body: some View {
         Divider()
-            .padding(.leading, 60)
+            .padding(.leading, 36 + HoloSpacing.sm)
     }
 }

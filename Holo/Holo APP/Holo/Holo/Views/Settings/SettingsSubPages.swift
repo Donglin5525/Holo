@@ -3,66 +3,61 @@
 //  Holo
 //
 //  设置页规整（2026-10-25）拆出的轻量二级页与共享行组件：
-//  · SettingsNavRow / SettingsToggleRow —— 原 SettingsView 私有行视图提为共享组件，
-//    视觉规格（40pt 圆角方砖 + 图标 + 标题副标题 + 尾随元素）与原设置页逐像素一致
+//  · SettingsNavRow / SettingsToggleRow —— 与 HoloSettingsRow 共用圆形图标、文字与点击区域
 //  · SettingsSheetShell —— 设置二级页统一外壳（X 关闭 + 居中标题 + 工具页背景）
 //  · SettingsAppearancePage —— 外观三选一（原一级页 3 行平铺收成入口行后的选择页）
-//  · SettingsAIPlaybackPage —— AI 回放三开关（原独立分组收进门）
+//  周期回放统一使用 HoloAIUserSettingsContent 中的完整设置页。
 //
 
 import SwiftUI
+import CloudKit
 
-// MARK: - 共享行组件（从 SettingsView 提取，规格不变）
+// MARK: - 共享行组件（与 HoloSettingsRow 使用同一套规格）
 
 /// 设置页通用入口行：点击进二级页/触发动作，尾随箭头
 struct SettingsNavRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let icon: String
     let iconColor: Color
     let title: String
-    let subtitle: String
-    /// 尾随值文本（如外观当前值），显示在箭头左侧
+    var subtitle: String = ""
     var value: String? = nil
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: HoloSpacing.md) {
-                iconTile(icon: icon, iconColor: iconColor)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .holoText(.body)
-                        .foregroundColor(.holoToolText)
-                        .lineLimit(1)
-
-                    Text(subtitle)
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoToolTextSecondary)
-                        .lineLimit(2)
+            HoloSettingsRow(
+                icon: icon,
+                iconColor: iconColor,
+                title: title,
+                subtitle: detailText
+            ) {
+                HStack(spacing: HoloSpacing.sm) {
+                    if let value, !dynamicTypeSize.isAccessibilitySize {
+                        Text(value)
+                            .holoText(.metadata)
+                            .foregroundStyle(Color.holoToolTextSecondary)
+                            .fixedSize()
+                    }
+                    HoloSettingsChevron()
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(1)
-
-                if let value {
-                    Text(value)
-                        .font(.system(size: 13))
-                        .foregroundColor(.holoToolTextSecondary)
-                }
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoToolTextSecondary.opacity(0.5))
             }
-            .padding(HoloSpacing.md)
-            .background(Color.holoToolSurface)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.vertical, HoloSpacing.xs)
             .contentShape(Rectangle())
         }
-        .buttonStyle(PlainButtonStyle())
+        .buttonStyle(.plain)
+    }
+
+    /// 大字体下将当前值放回正文列，避免挤掉图标或标题。
+    private var detailText: String? {
+        let parts = [subtitle.isEmpty ? nil : subtitle,
+                     dynamicTypeSize.isAccessibilitySize ? value : nil].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 
-/// 设置页通用开关行
+/// 开关保留完整文字标签，系统朗读与大字体布局都使用同一份标题。
 struct SettingsToggleRow: View {
     let icon: String
     let iconColor: Color
@@ -71,59 +66,35 @@ struct SettingsToggleRow: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        HStack(spacing: HoloSpacing.md) {
-            iconTile(icon: icon, iconColor: iconColor)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .holoText(.body)
-                    .foregroundColor(.holoToolText)
-                    .lineLimit(1)
-
-                Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .layoutPriority(1)
-
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .tint(.holoPrimary)
+        Toggle(isOn: $isOn) {
+            HoloSettingsRow(icon: icon, iconColor: iconColor, title: title, subtitle: subtitle)
         }
+        .tint(.holoPrimary)
         .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, 12)
+        .padding(.vertical, HoloSpacing.xs)
     }
 }
 
-/// 40pt 圆角方砖图标底座（原 SettingsView 行内嵌套规格）
+/// 与 HoloSettingsRow 共用 36pt 圆形底座；显式固定尺寸，防止长文案挤掉图标。
 struct SettingsIconTile: View {
     let icon: String
     let iconColor: Color
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: HoloRadius.sm)
-                .fill(iconColor.opacity(0.1))
-                .frame(width: 40, height: 40)
-
-            Image(systemName: icon)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundColor(iconColor)
-        }
+        Image(systemName: icon)
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(iconColor)
+            .frame(width: 36, height: 36)
+            .background(Circle().fill(iconColor.opacity(0.12)))
+            .fixedSize()
+            .accessibilityHidden(true)
     }
 }
 
-private extension SettingsNavRow {
-    func iconTile(icon: String, iconColor: Color) -> some View {
-        SettingsIconTile(icon: icon, iconColor: iconColor)
-    }
-}
-
-private extension SettingsToggleRow {
-    func iconTile(icon: String, iconColor: Color) -> some View {
-        SettingsIconTile(icon: icon, iconColor: iconColor)
+/// 用在未包裹 HoloSettingsSection 的整张设置卡内，与正文起点对齐。
+struct SettingsRowDivider: View {
+    var body: some View {
+        Divider().padding(.leading, HoloSpacing.md + 36 + HoloSpacing.sm)
     }
 }
 
@@ -145,8 +116,9 @@ struct SettingsSheetShell<Content: View>: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 content
-                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.horizontal, HoloSpacing.page)
                     .padding(.vertical, HoloSpacing.md)
+                    .holoContentColumn(paintsBackground: false)
             }
             .background(Color.holoToolBackground)
             #if canImport(UIKit)
@@ -160,6 +132,7 @@ struct SettingsSheetShell<Content: View>: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.holoToolTextSecondary)
+                            .frame(minWidth: 44, minHeight: 44)
                     }
                     .accessibilityLabel(String(localized: "关闭"))
                 }
@@ -243,59 +216,17 @@ struct SettingsAppearancePage: View {
     }
 }
 
-// MARK: - AI 回放二级页
-
-/// AI 回放三开关（原一级页「AI 回放」独立组收进门）
-struct SettingsAIPlaybackPage: View {
-    @ObservedObject private var insightSettings = MemoryInsightScheduleSettings.shared
-
-    var body: some View {
-        SettingsSheetShell(String(localized: "AI 回放")) {
-            VStack(spacing: 0) {
-                SettingsToggleRow(
-                    icon: "calendar.badge.clock",
-                    iconColor: .holoPrimary,
-                    title: String(localized: "每周提醒我生成周回放"),
-                    subtitle: weeklyReminderSubtitle,
-                    isOn: $insightSettings.weeklyReminderEnabled
-                )
-
-                Divider().padding(.leading, 56)
-
-                SettingsToggleRow(
-                    icon: "calendar.circle",
-                    iconColor: .holoSuccess,
-                    title: String(localized: "每月提醒我生成月回放"),
-                    subtitle: monthlyReminderSubtitle,
-                    isOn: $insightSettings.monthlyReminderEnabled
-                )
-
-                Divider().padding(.leading, 56)
-
-                SettingsToggleRow(
-                    icon: "arrow.triangle.2.circlepath",
-                    iconColor: .holoInfo,
-                    title: String(localized: "允许后台自动尝试生成"),
-                    subtitle: String(localized: "iOS 不保证准时执行，下次打开 App 时会补生成"),
-                    isOn: $insightSettings.backgroundAutoGenerationEnabled
-                )
-            }
-            .background(Color.holoToolSurface)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+/// 账号可用不等于同步成功；入口与详情统一优先提示失败、进行中与首次等待。
+@MainActor
+enum SettingsSyncCopy {
+    static func summary(for status: ICloudSyncStatusService) -> String {
+        guard CloudKitRuntimeAvailability.isAvailable else {
+            return String(localized: "当前构建未启用 iCloud 同步")
         }
-    }
-
-    private var weeklyReminderSubtitle: String {
-        if insightSettings.weeklyReminderEnabled {
-            return String(localized: "每\(insightSettings.weeklyReminderWeekdayName) \(String(format: "%02d", insightSettings.weeklyReminderHour)):00")
-        }
-        return String(localized: "默认关闭")
-    }
-
-    private var monthlyReminderSubtitle: String {
-        if insightSettings.monthlyReminderEnabled {
-            return String(localized: "每月\(insightSettings.monthlyReminderDay)日 \(String(format: "%02d", insightSettings.monthlyReminderHour)):00")
-        }
-        return String(localized: "默认关闭")
+        if status.lastErrorMessage != nil { return String(localized: "同步遇到问题 · 查看详情") }
+        if status.isSyncing { return String(localized: "正在同步") }
+        if status.isInitialSyncPending { return String(localized: "正在等待首次同步") }
+        if status.accountStatus == .available { return String(localized: "iCloud 可用") }
+        return status.accountStatusText
     }
 }
