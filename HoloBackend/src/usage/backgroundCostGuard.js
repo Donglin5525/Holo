@@ -47,6 +47,9 @@ const hash = (value) => createHash("sha256").update(value).digest("hex");
 const micro = (cny) => Math.ceil(cny * 1_000_000);
 const validTokens = (value) => Number.isSafeInteger(value) && value >= 0;
 
+/** 发现专用池的 purpose 集合（subject 级限额按此拆池；global 级不受影响）。 */
+const DISCOVERY_POOL_PURPOSES = new Set(["discovery_candidate_v1", "discovery_verify_v1"]);
+
 export function backgroundSubject(deviceId, entitlement) {
   // 只采用服务端已验证的原始交易号；验收模式切换不重置预算。
   return hash(entitlement?.originalTransactionId
@@ -65,7 +68,8 @@ function periods(now) {
 }
 
 export function createBackgroundCostGuard(db, config, now = Date.now) {
-  for (const key of ["dailyCNY", "monthlyCNY", "globalDailyCNY", "globalMonthlyCNY",
+  for (const key of ["dailyCNY", "monthlyCNY", "discoveryDailyCNY", "discoveryMonthlyCNY",
+    "globalDailyCNY", "globalMonthlyCNY",
     "inputPerMillionCNY", "outputPerMillionCNY", "cachedPerMillionCNY", "maxInputBytes", "minBuild"]) {
     if (!Number.isFinite(config[key]) || config[key] <= 0) {
       throw new Error(`Invalid background cost guard setting: ${key}`);
@@ -87,26 +91,34 @@ export function createBackgroundCostGuard(db, config, now = Date.now) {
   db.prepare("DELETE FROM background_cost_calls WHERE created_at < ?").run(now() - 90 * 86400_000);
   db.prepare("DELETE FROM background_brief_attempts WHERE retry_at <= ?").run(now());
   const scope = new AsyncLocalStorage();
+  // 2026-10-30 拆池：发现两 purpose 与后台整理分池止损——后台池被想法整理类任务烧穿时
+  // 连坐饿死「一个发现」的首次体验（10-28 东林真机事故：月池 ¥2 已耗 ¥200，首跑
+  // candidate 必 429）。subject 级日/月限额按池独立；global 级仍聚合全部调用兜底。
+  // discoveryOnly 参数：1=只聚合发现池，0=只聚合后台池，-1=全部（global 检查用）。
   const sum = db.prepare(`SELECT COALESCE(SUM(COALESCE(charged_micro, reserved_micro)), 0) AS spent
-    FROM background_cost_calls WHERE (day = @period OR month = @period)
-    AND (@subject IS NULL OR subject = @subject)`);
+    FROM background_cost_calls
+    WHERE (day = @period OR month = @period)
+    AND (@subject IS NULL OR subject = @subject)
+    AND (@discoveryOnly < 0
+      OR (@discoveryOnly = 1 AND purpose IN ('discovery_candidate_v1','discovery_verify_v1'))
+      OR (@discoveryOnly = 0 AND purpose NOT IN ('discovery_candidate_v1','discovery_verify_v1')))`);
   const insert = db.prepare(`INSERT INTO background_cost_calls
     (id, subject, day, month, purpose, reserved_micro, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`);
-  const settle = db.prepare("UPDATE background_cost_calls SET charged_micro = ? WHERE id = ? AND charged_micro IS NULL");
+  const settle = db.prepare(`UPDATE background_cost_calls SET charged_micro = ? WHERE id = ? AND charged_micro IS NULL`);
 
-  function limits(subject) {
+  function limits(subject, isDiscovery) {
     const p = periods(now());
     return [
-      [subject, p.day, config.dailyCNY, p.resetDay],
-      [subject, p.month, config.monthlyCNY, p.resetMonth],
-      [null, p.day, config.globalDailyCNY, p.resetDay],
-      [null, p.month, config.globalMonthlyCNY, p.resetMonth],
+      [subject, p.day, isDiscovery ? config.discoveryDailyCNY : config.dailyCNY, p.resetDay, isDiscovery ? 1 : 0],
+      [subject, p.month, isDiscovery ? config.discoveryMonthlyCNY : config.monthlyCNY, p.resetMonth, isDiscovery ? 1 : 0],
+      [null, p.day, config.globalDailyCNY, p.resetDay, -1],
+      [null, p.month, config.globalMonthlyCNY, p.resetMonth, -1],
     ];
   }
 
-  function checkBudget(subject, amount) {
-    for (const [owner, period, cny, reset] of limits(subject)) {
-      const spent = sum.get({ subject: owner, period }).spent;
+  function checkBudget(subject, amount, isDiscovery) {
+    for (const [owner, period, cny, reset, pool] of limits(subject, isDiscovery)) {
+      const spent = sum.get({ subject: owner, period, discoveryOnly: pool }).spent;
       if (spent + amount > micro(cny)) {
         throw new GatewayError("BACKGROUND_BUDGET_EXCEEDED", "Background budget exceeded", 429, {
           resetAt: new Date(reset).toISOString(),
@@ -128,7 +140,7 @@ export function createBackgroundCostGuard(db, config, now = Date.now) {
     // UTF-8 字节数是文本 token 的保守上界；另留消息协议开销，不依赖中文字符估算。
     const reserved = Math.ceil((bytes + 64 * ((request.messages?.length ?? 0) + 1))
       * config.inputPerMillionCNY + request.maxTokens * config.outputPerMillionCNY);
-    checkBudget(subject, reserved);
+    checkBudget(subject, reserved, DISCOVERY_POOL_PURPOSES.has(request.purpose));
     const id = randomUUID();
     const p = periods(now());
     insert.run(id, subject, p.day, p.month, request.purpose, reserved, now());

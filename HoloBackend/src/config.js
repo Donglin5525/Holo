@@ -778,6 +778,10 @@ export function loadConfig(overrides = {}) {
     backgroundCost: {
       dailyCNY: Number(process.env.HOLO_BACKGROUND_DAILY_CNY ?? 0.30),
       monthlyCNY: Number(process.env.HOLO_BACKGROUND_MONTHLY_CNY ?? 2),
+      // 发现池独立止损（2026-10-30 拆池）：后台整理池被烧穿时连坐饿死「一个发现」
+      // 首次体验（10-28 事故）；一次 candidate+verify 全流程按现价约 ¥0.05，月 ¥5 富余。
+      discoveryDailyCNY: Number(process.env.HOLO_DISCOVERY_DAILY_CNY ?? 1),
+      discoveryMonthlyCNY: Number(process.env.HOLO_DISCOVERY_MONTHLY_CNY ?? 5),
       globalDailyCNY: Number(process.env.HOLO_BACKGROUND_GLOBAL_DAILY_CNY ?? 3),
       globalMonthlyCNY: Number(process.env.HOLO_BACKGROUND_GLOBAL_MONTHLY_CNY ?? 60),
       maxInputBytes: Number(process.env.HOLO_BACKGROUND_MAX_INPUT_BYTES ?? 98304),

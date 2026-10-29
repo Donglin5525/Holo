@@ -561,7 +561,7 @@ test("T21 阶段调用不占 chat/deepAnalysis 会员池", async () => {
 
 test("T22 后台金额预算不足：上游零触达，当日名额释放", async () => {
   const { app, stub, database } = createTestApp({
-    backgroundCost: { dailyCNY: 0.0000001, monthlyCNY: 0.0000001 },
+    backgroundCost: { discoveryDailyCNY: 0.0000001, discoveryMonthlyCNY: 0.0000001 },
   });
   await enableControl(app, DEVICE_A);
   const runID = `run-${randomUUID()}`;

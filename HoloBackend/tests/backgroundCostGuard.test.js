@@ -55,6 +55,36 @@ test("月预算跨北京时间午夜保留，下月恢复；全局预算阻止�
   await guard.run("u1", () => provider.complete(request));
 });
 
+// 2026-10-30 拆池：后台整理池烧穿不得连坐「一个发现」（10-28 事故：月池 ¥2 已耗 ¥200，
+// 发现首跑 candidate 必 429）。发现池 subject 级独立限额；global 级仍聚合全部兜底。
+test("拆池：后台月池烧穿不连坐发现调用", async () => {
+  const time = Date.parse("2026-10-30T10:00:00+08:00");
+  const { guard } = setup({ monthlyCNY: 0.002, globalDailyCNY: 10, globalMonthlyCNY: 60 }, () => time);
+  const discoveryRequest = { ...request, purpose: "discovery_candidate_v1" };
+  const provider = wrap(guard, { async complete() { return {}; } });
+  await guard.run("u1", () => provider.complete(request));
+  await assert.rejects(guard.run("u1", () => provider.complete(request)), code("BACKGROUND_BUDGET_EXCEEDED"));
+  await guard.run("u1", () => provider.complete(discoveryRequest));
+});
+
+test("拆池：发现池独立烧穿只拒发现，后台整理不受影响", async () => {
+  const time = Date.parse("2026-10-30T10:00:00+08:00");
+  const { guard } = setup({ discoveryMonthlyCNY: 0.002, monthlyCNY: 10, globalDailyCNY: 10, globalMonthlyCNY: 60 }, () => time);
+  const provider = wrap(guard, { async complete() { return {}; } });
+  await guard.run("u1", () => provider.complete({ ...request, purpose: "discovery_candidate_v1" }));
+  await assert.rejects(guard.run("u1", () => provider.complete({ ...request, purpose: "discovery_verify_v1" })), code("BACKGROUND_BUDGET_EXCEEDED"));
+  await guard.run("u1", () => provider.complete(request));
+});
+
+test("拆池：global 总池耗尽时两个池都被拒（全服止损不拆）", async () => {
+  const time = Date.parse("2026-10-30T10:00:00+08:00");
+  const { guard } = setup({ monthlyCNY: 10, discoveryMonthlyCNY: 10, globalMonthlyCNY: 0.002 }, () => time);
+  const provider = wrap(guard, { async complete() { return {}; } });
+  await guard.run("u1", () => provider.complete(request));
+  await assert.rejects(guard.run("u1", () => provider.complete({ ...request, purpose: "discovery_candidate_v1" })), code("BACKGROUND_BUDGET_EXCEEDED"));
+  await assert.rejects(guard.run("u1", () => provider.complete(request)), code("BACKGROUND_BUDGET_EXCEEDED"));
+});
+
 test("跨设备同一已验证交易共享主体；切换验收状态不重置无订阅设备", () => {
   const purchase = { originalTransactionId: "verified-id", environment: "Production" };
   assert.equal(backgroundSubject("d1", purchase), backgroundSubject("d2", purchase));
