@@ -15,14 +15,14 @@ enum DiscoverySettingsCopy {
     /// 设置子页主状态文案（01 §1 状态表第 3 列）
     static func statusText(for state: DiscoverySettingsDetailState) -> String {
         switch state {
-        case .disabled: return "已关闭，可开启"
+        case .disabled: return "已关闭"
         case .preparing: return "正在准备"
-        case .waitingForMaterial: return "有足够依据时再呈现"
+        case .waitingForMaterial: return "还在等足够的记录"
         case .hasFinding(viewed: false): return "有一个发现"
         case .hasFinding(viewed: true): return "已看，可重读"
         case .stale: return "等待新的线索"
         case .pausedTemporarily: return "暂未更新"
-        case .revoked: return "已关闭 / 授权已撤回"
+        case .revoked: return "授权已撤回，已关闭"
         case .serverUnsupported: return "暂不可用"
         }
     }
@@ -31,11 +31,11 @@ enum DiscoverySettingsCopy {
     static func statusDetailText(for state: DiscoverySettingsDetailState) -> String {
         switch state {
         case .disabled:
-            return "由你决定什么时候开启；开启前不会分析你的记录。"
+            return "开启前，不会分析你的任何记录。"
         case .preparing:
             return "需要一些准备时间，不必在这里等待。"
         case .waitingForMaterial:
-            return "记录不足或解释不可靠时不呈现，不保证每天更新。"
+            return "记录还不够，或者解释还不够可靠；不保证每天都有。"
         case .hasFinding(viewed: false):
             return "已核对记录依据，等你想看时在对话页打开。"
         case .hasFinding(viewed: true):
@@ -45,7 +45,7 @@ enum DiscoverySettingsCopy {
         case .pausedTemporarily:
             return "暂未更新，不需要你做任何操作。"
         case .revoked:
-            return "数据处理授权已撤回；恢复总授权不会自动重新开启。"
+            return "数据处理授权已撤回。恢复授权后，需要你再手动开启一次。"
         case .serverUnsupported:
             return "发现服务暂未开放，尚未开启；服务恢复后可重新尝试。"
         }

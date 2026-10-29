@@ -84,6 +84,7 @@ struct HoloSettingsRow<Trailing: View>: View {
                 .foregroundColor(iconColor)
                 .frame(width: 36, height: 36)
                 .background(Circle().fill(iconColor.opacity(0.12)))
+                .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -93,6 +94,7 @@ struct HoloSettingsRow<Trailing: View>: View {
                     Text(subtitle)
                         .holoText(.metadata)
                         .foregroundColor(.holoToolTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 

@@ -85,7 +85,7 @@ final class DiscoverySmokeUITests: XCTestCase {
         // 子页：功能开关 + 状态行（settings.discovery.toggle / status）
         XCTAssertTrue(
             firstExisting(identifiers: ["settings.discovery.toggle"], labels: nil) != nil
-                || firstExisting(identifiers: nil, labels: ["已关闭，可开启", "有一个发现", "正在准备", "暂不可用"]) != nil,
+                || firstExisting(identifiers: nil, labels: ["已关闭", "有一个发现", "正在准备", "暂不可用"]) != nil,
             "发现子页应有开关或状态行"
         )
         XCTAssertEqual(app.state, .runningForeground, "发现子页存活")

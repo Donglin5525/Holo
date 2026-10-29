@@ -2,16 +2,20 @@
 //  DiscoverySettingsView.swift
 //  Holo
 //
-//  「一个发现」功能子页（01 §4 主条目行点入）：开关（含首开流程触发）、
-//  状态行（九态映射文案）、允许来源、「已隐藏的发现」管理、重置本功能反馈、处理说明。
+//  「一个发现」功能子页（01 §4 主条目行点入），结构对齐原型 discoverySettings：
+//  hero（底座图标 + 标题 + 一句说明）→ 开关卡 → 当前状态（九态文案）→ 使用范围入口
+//  → 反馈重置 → 「自动处理如何进行」入口。范围与处理说明各自下挂一页，见
+//  DiscoverySettingsSubpages.swift。
 //
 //  状态由主会话观察服务后传入（UI 不自行观察服务实现）；动作走注入的 any DiscoveryService。
 //
+//  布局约定：HoloSettingsSection 自带 24pt 水平边距，本页外层 VStack 不得再包水平边距
+//  （2026-10-28 挑刺：双重边距致卡片两侧各窄 24pt、与 hero 左缘错位）。
+//
 //  协议缺口（TODO 标注，主会话补协议后接线）：
-//  ① 允许来源的读取/修改不在 DiscoveryService（当前展示读 DiscoverySettings 本机真源，
-//     修改走服务端 scope 语义的入口待补，编辑态 disabled）；
-//  ② 被抑制类别列表不在 DiscoveryService（「已隐藏的发现」列表暂空态，恢复走
-//     resetFeedbackSuppression 全量入口）。
+//  ① 允许来源的修改不在 DiscoveryService（展示读 DiscoverySettings 本机真源；修改走
+//     服务端 scope 语义的入口待补，范围页只读）；
+//  ② 被抑制类别列表不在 DiscoveryService（反馈区仅提供全量重置入口）。
 //
 
 import SwiftUI
@@ -21,12 +25,11 @@ struct DiscoverySettingsView: View {
     /// 当前功能状态（settingsDetailState 九态；主会话观察服务后传入）
     let state: DiscoverySettingsDetailState
     let service: any DiscoveryService
-    /// 缺全局授权时引导跳转（与首开 sheet 共用路由）
-    var onOpenGlobalConsent: () -> Void = {}
 
     @State private var showsEnableSheet = false
     @State private var showsDisableConfirm = false
     @State private var showsResetConfirm = false
+    @State private var showsConsent = false
 
     /// 允许来源展示（本机设置真源；编辑待服务端 scope 方法，见文件头 TODO ①）
     private var allowedDomains: Set<DiscoverySourceDomain> {
@@ -39,12 +42,11 @@ struct DiscoverySettingsView: View {
                 heroCard
                 toggleSection
                 statusSection
-                domainsSection
-                hiddenSection
-                feedbackResetSection
-                processingNoteSection
+                scopeSection
+                scopeNote
+                feedbackSection
+                processingSection
             }
-            .padding(.horizontal, HoloSpacing.lg)
             .padding(.vertical, HoloSpacing.md)
         }
         .background(Color.holoToolBackground.ignoresSafeArea())
@@ -57,57 +59,64 @@ struct DiscoverySettingsView: View {
                 service: service,
                 onOpenGlobalConsent: {
                     showsEnableSheet = false
-                    onOpenGlobalConsent()
+                    showsConsent = true
                 },
                 onFinished: { _ in
                     showsEnableSheet = false
                 }
             )
         }
-        .confirmationDialog(
-            "关闭「一个发现」？",
-            isPresented: $showsDisableConfirm,
-            titleVisibility: .visible
-        ) {
+        .sheet(isPresented: $showsConsent) {
+            NavigationStack {
+                AIDataProcessingConsentView()
+            }
+        }
+        .alert("关闭「一个发现」？", isPresented: $showsDisableConfirm) {
+            Button("暂不", role: .cancel) {}
             Button("关闭", role: .destructive) {
                 Task { await service.disable() }
             }
-            Button("暂不", role: .cancel) {}
         } message: {
-            Text("将停止新的自动理解，并清除已生成的发现与派生缓存；你的原始记录与已有记忆不受影响。")
+            Text("会停止新的理解，并删除已生成的发现。你的原始记录和已有记忆不受影响。")
         }
-        .confirmationDialog(
-            "重置本功能反馈？",
-            isPresented: $showsResetConfirm,
-            titleVisibility: .visible
-        ) {
+        .alert("重置反馈与隐藏偏好？", isPresented: $showsResetConfirm) {
+            Button("暂不", role: .cancel) {}
             Button("重置", role: .destructive) {
                 Task { await service.resetFeedbackSuppression() }
             }
-            Button("暂不", role: .cancel) {}
         } message: {
-            Text("清除你对「一个发现」的否定反馈与「不想看这类」的隐藏偏好；不影响任何业务数据。")
+            Text("清除你标记过的「不太准确」和「不想看这类」。不影响你的任何记录。")
         }
     }
 
-    // MARK: - 头部说明
+    // MARK: - 头部（原型 hd-settinghero：36pt 圆角方块底座 + 标题 + 说明）
 
     private var heroCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Image(systemName: "sparkle")
-                .font(.system(size: 26, weight: .medium))
+                .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(Color.holoPrimary)
+                .frame(width: 36, height: 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.holoPrimary.opacity(0.12))
+                )
                 .accessibilityHidden(true)
-            Text("让 AI 从你允许的记录里，整理值得留意的变化与联系。")
+            Text("一个发现")
+                .holoText(.sectionTitle)
+                .foregroundStyle(Color.holoToolText)
+            Text("从你允许的记录里，整理值得留意的变化与联系。")
                 .holoText(.supporting)
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        .padding(.horizontal, HoloSpacing.lg)
         .accessibilityIdentifier("settings.discovery.hero")
     }
 
     // MARK: - 功能开关
 
+    // 区块容器不挂 accessibilityIdentifier：会被 AX 扁平化吞掉内部 Toggle 自己的 id
     private var toggleSection: some View {
         HoloSettingsSection {
             HStack(spacing: HoloSpacing.md) {
@@ -130,9 +139,8 @@ struct DiscoverySettingsView: View {
             }
             .padding(.vertical, HoloSpacing.sm)
 
-            HoloSettingsFootnote(text: "默认关闭。关闭不删除原始记录，也不影响你主动使用 HoloAI 对话与深度分析。")
+            HoloSettingsFootnote(text: "默认关闭。关闭不会删除你的原始记录，也不影响主动使用 HoloAI。")
         }
-        .accessibilityIdentifier("settings.discovery.toggleSection")
     }
 
     /// 开关只触发动作，值由传入状态驱动：首开未完成/被取消时自动回弹
@@ -149,30 +157,20 @@ struct DiscoverySettingsView: View {
         )
     }
 
-    // MARK: - 当前状态
+    // MARK: - 当前状态（纯文字两行，与原型一致）
 
     private var statusSection: some View {
         HoloSettingsSection(title: "当前状态") {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: statusIcon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Color.holoPrimary)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(Color.holoPrimary.opacity(0.12)))
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(DiscoverySettingsCopy.statusText(for: state))
-                        .holoText(.body)
-                        .foregroundStyle(Color.holoToolText)
-                    Text(DiscoverySettingsCopy.statusDetailText(for: state))
-                        .holoText(.metadata)
-                        .foregroundStyle(Color.holoToolTextSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(DiscoverySettingsCopy.statusText(for: state))
+                    .holoText(.body)
+                    .foregroundStyle(Color.holoToolText)
+                Text(DiscoverySettingsCopy.statusDetailText(for: state))
+                    .holoText(.metadata)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, HoloSpacing.sm)
 
             if state == .serverUnsupported {
@@ -184,111 +182,57 @@ struct DiscoverySettingsView: View {
         .accessibilityIdentifier("settings.discovery.status")
     }
 
-    private var statusIcon: String {
-        switch state {
-        case .disabled, .revoked: return "moon.zzz"
-        case .preparing: return "hourglass"
-        case .waitingForMaterial, .stale: return "tray"
-        case .hasFinding: return "sparkles"
-        case .pausedTemporarily: return "wifi.exclamationmark"
-        case .serverUnsupported: return "exclamationmark.circle"
-        }
-    }
+    // MARK: - 使用范围（入口行 → DiscoveryScopeView）
 
-    // MARK: - 允许来源
-
-    private var domainsSection: some View {
-        HoloSettingsSection(title: "允许使用的记录") {
-            ForEach(DiscoveryDomainMeta.all) { meta in
-                domainRow(meta)
-            }
-            // TODO(协议缺口 ①)：改动需走服务端 scope 语义（撤销旧批次/更新范围版本/
-            // 扩大需再次确认），DiscoveryService 暂无 updateAllowedDomains；补上后
-            // 打开编辑并把本机展示切到服务状态，见文件头说明。
-            HoloSettingsFootnote(text: "如需更改范围，请先关闭，再重新开启并选择。已设为「不参与 AI」的想法始终排除。")
-        }
-        .accessibilityIdentifier("settings.discovery.domains")
-    }
-
-    private func domainRow(_ meta: DiscoveryDomainMeta) -> some View {
-        let allowed = allowedDomains.contains(meta.domain)
-        return HStack(spacing: HoloSpacing.sm) {
-            Image(systemName: meta.icon)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.holoPrimary)
-                .frame(width: 36, height: 36)
-                .background(Circle().fill(Color.holoPrimary.opacity(0.12)))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(meta.title)
-                    .holoText(.body)
-                    .foregroundColor(.holoToolText)
-                Text(meta.subtitle)
-                    .holoText(.metadata)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: HoloSpacing.sm)
-
-            Image(systemName: allowed ? "checkmark" : "minus")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(allowed ? Color.holoPrimary : Color.holoToolTextSecondary.opacity(0.5))
-        }
-        .padding(.vertical, HoloSpacing.sm)
-        .accessibilityIdentifier("settings.discovery.domains.\(meta.domain.rawValue)")
-        .accessibilityLabel(Text("允许使用\(meta.title)"))
-        .accessibilityValue(Text(allowed ? "已允许" : "未允许"))
-    }
-
-    // MARK: - 已隐藏的发现
-
-    private var hiddenSection: some View {
-        HoloSettingsSection(title: "已隐藏的发现") {
-            // TODO(协议缺口 ②)：被抑制类别/主题列表不在 DiscoveryService，补上后替换空态；
-            // 列表不得泄露被排除原文（01 §3），只展示类别与操作。
-            VStack(alignment: .leading, spacing: 2) {
-                Text("选择「不想看这类」后，Holo 会在本机保留隐藏偏好。你可以在这里一次恢复全部偏好。")
-                    .holoText(.metadata)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.vertical, HoloSpacing.sm)
-            .accessibilityIdentifier("settings.discovery.hidden.empty")
-
-            Button {
-                showsResetConfirm = true
+    private var scopeSection: some View {
+        HoloSettingsSection(title: "使用范围") {
+            NavigationLink {
+                DiscoveryScopeView(allowedDomains: allowedDomains)
             } label: {
-                HStack {
-                    Text("恢复全部偏好")
-                    Spacer()
-                    Image(systemName: "arrow.counterclockwise")
-                        .font(.system(size: 13))
-                }
-                .holoText(.body)
-                .foregroundColor(.holoToolText)
-                .frame(minHeight: 44)
-                .contentShape(Rectangle())
+                HoloSettingsRow(
+                    icon: "line.3.horizontal.decrease.circle",
+                    title: "允许使用的记录",
+                    subtitle: "同时遵循「不参与 AI 的想法」规则",
+                    trailing: {
+                        HStack(spacing: HoloSpacing.xs) {
+                            Text(scopeSummary)
+                                .holoText(.metadata)
+                                .foregroundColor(.holoToolTextSecondary)
+                            HoloSettingsChevron()
+                        }
+                    }
+                )
             }
             .buttonStyle(.plain)
-            .accessibilityIdentifier("settings.discovery.hidden.restore")
+            .accessibilityIdentifier("settings.discovery.domains")
         }
-        .accessibilityIdentifier("settings.discovery.hiddenSection")
     }
 
-    // MARK: - 重置本功能反馈
+    private var scopeSummary: String {
+        allowedDomains.isEmpty ? "未选择" : "\(allowedDomains.count) 类"
+    }
 
-    private var feedbackResetSection: some View {
+    private var scopeNote: some View {
+        Text("不会自动开启长期记忆。发现不是对你的定论——你可以查看依据、纠正或忽略。")
+            .holoText(.metadata)
+            .foregroundColor(.holoToolTextSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, HoloSpacing.lg + HoloSpacing.md)
+    }
+
+    // MARK: - 反馈（「不太准确」与「不想看这类」共用一个重置入口）
+
+    private var feedbackSection: some View {
         HoloSettingsSection(title: "反馈") {
             Button {
                 showsResetConfirm = true
             } label: {
                 HStack {
-                    Text("重置本功能反馈")
+                    Text("重置反馈与隐藏偏好")
                     Spacer()
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "arrow.counterclockwise")
                         .font(.system(size: 13))
-                        .foregroundStyle(Color.holoToolTextSecondary.opacity(0.6))
+                        .foregroundStyle(Color.holoToolTextSecondary)
                 }
                 .holoText(.body)
                 .foregroundColor(.holoToolText)
@@ -298,38 +242,25 @@ struct DiscoverySettingsView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("settings.discovery.feedbackReset")
 
-            HoloSettingsFootnote(text: "反馈明细只保存在本机，不上传文本。")
+            HoloSettingsFootnote(text: "清除你标记过的「不太准确」和「不想看这类」。这些反馈只存在本机。")
         }
-        .accessibilityIdentifier("settings.discovery.feedbackSection")
     }
 
-    // MARK: - 处理说明（静态）
+    // MARK: - 自动处理如何进行（入口行 → DiscoveryProcessingNoteView）
 
-    private var processingNoteSection: some View {
-        HoloSettingsSection(title: "处理说明") {
-            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                processingBullet("有新材料时，Holo 自动把你允许范围内的必要片段，通过 Holo 后端交给第三方 AI 理解并核验；不承诺只在本地推理。", icon: "arrow.triangle.branch")
-                processingBullet("先有依据、再呈现：记录不足或解释不可靠时不展示；呈现的发现都附可打开的记录依据。", icon: "checkmark.shield")
-                processingBullet("不承诺每日、实时或一定有发现；不发通知、不打扰。", icon: "bell.slash")
-                processingBullet("关闭即停止：取消未完成任务并删除派生内容；已发出的请求尽力取消，迟到结果不再采纳。", icon: "stop.circle")
-                processingBullet("自动发现不读取长期记忆，也不会自动写入长期记忆。", icon: "brain")
+    private var processingSection: some View {
+        HoloSettingsSection {
+            NavigationLink {
+                DiscoveryProcessingNoteView()
+            } label: {
+                HoloSettingsRow(
+                    icon: "checkmark.shield",
+                    title: "自动处理如何进行",
+                    trailing: { HoloSettingsChevron() }
+                )
             }
-            .padding(.vertical, HoloSpacing.sm)
-        }
-        .accessibilityIdentifier("settings.discovery.processingNote")
-    }
-
-    private func processingBullet(_ text: String, icon: String) -> some View {
-        HStack(alignment: .top, spacing: HoloSpacing.sm) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Color.holoToolTextSecondary)
-                .frame(width: 18)
-                .accessibilityHidden(true)
-            Text(text)
-                .holoText(.metadata)
-                .foregroundColor(.holoToolTextSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("settings.discovery.processingNote")
         }
     }
 }
