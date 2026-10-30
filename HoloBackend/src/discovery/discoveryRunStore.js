@@ -71,7 +71,16 @@ export function createDiscoveryRunStore(db, options = {}) {
     // 幂等：同 requestId 重试返回首次签发的 token（result_meta 只含能力令牌与计数器，无用户内容）
     if (idempotency && requestId && requestHash) {
       const replay = idempotency({ requestId, subject, kind: "run_create", requestHash });
-      if (replay) return { run: getRun.get(replay.result.runId), runToken: replay.result.runToken, replayed: true };
+      if (replay) {
+        const replayedRun = getRun.get(replay.result.runId);
+        // 重放撞已删行（该 run 未 dispatch 即取消/过期，closeRun 已删行释放名额）：
+        // 原 token 已随行删除、无法再交付——显式 409 让客户端换新请求重试，
+        // 而不是在控制器里对 undefined 取属性打成 500（2026-10-30 审计 D4）
+        if (!replayedRun) {
+          throw new GatewayError("DISCOVERY_RUN_CONFLICT", "Replayed run was closed before dispatch; retry with a new request id", 409);
+        }
+        return { run: replayedRun, runToken: replay.result.runToken, replayed: true };
+      }
     }
 
     const persist = db.transaction(() => {

@@ -91,7 +91,10 @@ export function createThoughtSemanticRelateService({
         + c.representatives.reduce((s, r) => s + r.text.length, 0), 0);
     const estimateMicro = costMicroForUsage(
       Math.ceil(estimateInputChars * 0.75) + 600,
-      moduleConfig.route?.maxTokens ?? 512,
+      // 预留上界须按实际路由取（2026-10-30 审计 D5）：moduleConfig（thoughtSemanticRelate）
+      // 从没有 route 键——旧写法永远落到 512，而实际路由上限 1400，「宁多预留
+      // 不超支」的保护静默偏松约 2.7 倍；路由真缺失时仍按保守 512
+      config.routes.thought_semantic_relate_v1?.maxTokens ?? 512,
       moduleConfig.pricing,
     );
 

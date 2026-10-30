@@ -321,6 +321,13 @@ export function createApp(overrides = {}) {
         challengeTtlSeconds: config.auth.deviceSessionChallengeTtlSeconds,
       })
       : null);
+  // 回写注册（2026-10-30 审计 D1）：getDeviceId 等设备路由按 config 单点取用。
+  // 此前服务实例只存在于局部变量、config 侧永远读不到——强制开关
+  // （enforceDeviceSession）一旦打开，所有设备路由都会误报 503 AUTH_UNAVAILABLE，
+  // 而签发端点用的是局部变量照常工作。loadConfig 每次 createApp 新建对象，无串扰。
+  if (config.deviceSessionService == null && deviceSessionService != null) {
+    config.deviceSessionService = deviceSessionService;
+  }
   const contentModeration =
     config.contentModeration ?? createContentModerationService(config.moderation);
 
@@ -2495,15 +2502,22 @@ function streamChat(context, provider, request, options = {}) {
         controller.close();
       } catch (error) {
         const code = error instanceof GatewayError ? error.code : "UPSTREAM_ERROR";
-        controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ code, message: publicMessage(code) })}\n\n`));
+        // 清理先行（2026-10-30 审计 D3）：客户端断连时流已关闭，向流里 enqueue
+        // 错误事件自身会再抛——旧顺序里这次再抛会把 onFailure（释放额度预留）与
+        // finishAiCall 整个跳过，预留悬挂到 15 分钟 TTL 才被兜底清掉。
+        options.onFailure?.();
         options.logStore?.finishAiCall(options.logId, {
           status: "error",
           response: capturedText ? { text: capturedText } : null,
           error: serializeError(error),
           usage: capturedUsage,
         });
-        options.onFailure?.();
-        controller.close();
+        try {
+          controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ code, message: publicMessage(code) })}\n\n`));
+          controller.close();
+        } catch {
+          // 流已关闭（客户端断连）：错误事件写不进去是预期，清理已完成
+        }
       }
     },
   });

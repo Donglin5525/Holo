@@ -545,6 +545,22 @@ export function registerDiscoveryRoutes(app, deps) {
     return JSON.stringify({ ...body.data, runID: run.run_id, candidates: verifyInput.candidates });
   }
 
+  // 上游 usage 是 OpenAI 形状（prompt_tokens 等 snake_case），iOS StageUsage 按
+  // camelCase 解码——原样透传则客户端三个字段永远为 nil（Optional 容忍不崩，
+  // 但 token 统计恒空，2026-10-30 审计 D7）。两种键名都归一成 camelCase
+  function normalizeUsage(usage) {
+    if (!usage || typeof usage !== "object") return usage ?? null;
+    const pick = (camel, snake) => {
+      const value = usage[camel] ?? usage[snake];
+      return typeof value === "number" ? value : null;
+    };
+    return {
+      promptTokens: pick("promptTokens", "prompt_tokens"),
+      completionTokens: pick("completionTokens", "completion_tokens"),
+      totalTokens: pick("totalTokens", "total_tokens"),
+    };
+  }
+
   function stageResponse({ run, stage, purpose, envelope, usage, replayed, promptVersion }) {
     const route = config.routes[purpose];
     const base = {
@@ -554,7 +570,7 @@ export function registerDiscoveryRoutes(app, deps) {
       promptType: promptTypeForPurpose(purpose),
       promptVersion: promptVersion ?? getPrompt(promptTypeForPurpose(purpose))?.version ?? 1,
       model: { provider: route?.provider ?? null, model: route?.model ?? null },
-      usage,
+      usage: normalizeUsage(usage),
       replayed,
     };
     if (stage === "candidates") {

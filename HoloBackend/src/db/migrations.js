@@ -456,6 +456,19 @@ const MIGRATIONS = [
         ON discovery_requests(subject, kind);
     `,
   },
+  {
+    // 2026-10-30 审计 D6：product_events 180 天滚动清理的 DELETE 按 received_at_ms
+    // 过滤，但建表只给了 (name,timestamp_ms) 与 (device_id,received_at_ms) 两个复合
+    // 索引——单列 received_at_ms 无索引，每次埋点批量上报的清理都全表扫描，且
+    // better-sqlite3 同步执行，表随埋量增长逐渐拖慢所有并发请求。
+    // 同款表 agent_telemetry_events 当时就建了该索引，此处对齐。
+    id: 25,
+    description: 'product_events 清理键补索引：received_at_ms 单列索引，滚动 DELETE 不再全表扫描',
+    up: `
+      CREATE INDEX IF NOT EXISTS idx_product_events_received
+        ON product_events (received_at_ms);
+    `,
+  },
 ];
 
 function computeChecksum(sql) {
