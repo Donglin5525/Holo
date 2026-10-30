@@ -73,7 +73,10 @@ const PROMPT_VERSIONS = {
   // schema 拒）、ID 数组为字符串数组（v1 出现对象数组）；核验侧加「思考从简保 JSON 完整」
   // 配合路由 maxTokens 4096/effort=none 修 reasoning 吃满预算截断。试评证据：
   // docs/_common/plans/2026-10-23-holo-ai-discovery-implementation/试评记录/。
-  discovery_candidate_v1: 2,
+  // v3（2026-10-30 qwen 切换适配）：qwen3.7-flash 对括号内数量备注遵从弱——observation
+  // 主题句 citations 给空数组被 schema 拒（真机 10:55 65s 502 + 试评 round-8 citations_count
+  // 实锤；deepseek 无此问题、verify 侧 qwen 合格不动）。升为独立硬性规则句+空数组拒绝警告。
+  discovery_candidate_v1: 4,
   discovery_verify_v1: 2,
 };
 const PROMPT_CONTRACT_APPENDICES = {

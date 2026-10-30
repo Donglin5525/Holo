@@ -473,6 +473,17 @@ function scriptWrap(real, envelopeProvider) {
 }
 
 function realProvider({ createOpenAICompatibleProvider }) {
+  // 2026-10-30：跟随生产 chat 通道（qwen-switch 后 HOLO_CHAT_PROVIDER=qwen）——
+  // 试评必须在与生产相同的模型上跑（qwen 候选 DISCOVERY_MODEL_OUTPUT_INVALID 事故教训：
+  // 换模型必须重评）。override 同时注册两个通道名，路由指谁就走谁的真实端点。
+  const chatProvider = process.env.HOLO_CHAT_PROVIDER ?? "deepseek";
+  if (chatProvider === "qwen") {
+    return createOpenAICompatibleProvider({
+      type: "openai-compatible",
+      baseURL: process.env.QWEN_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      apiKey: process.env.QWEN_API_KEY ?? process.env.DASHSCOPE_API_KEY,
+    });
+  }
   return createOpenAICompatibleProvider({
     type: "openai-compatible",
     baseURL: process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
@@ -506,7 +517,7 @@ function createEvalApp(deps, { scriptedCandidatesEnvelope } = {}) {
     database,
     auth: { enforceAppAttest: false },
     routes: evalRoutes(loadConfig),
-    providerOverrides: [["deepseek", provider]],
+    providerOverrides: [["deepseek", provider], ["qwen", provider]],
     discovery: { enabled: true },
     backgroundCost: { globalDailyCNY: 30, globalMonthlyCNY: 200 },
   });
