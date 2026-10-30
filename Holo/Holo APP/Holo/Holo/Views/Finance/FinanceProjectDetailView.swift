@@ -576,11 +576,9 @@ struct ProjectHistoryPickerSheet: View {
     }
 
     private func loadCandidates() async {
-        let all = (try? await FinanceRepository.shared.getAllTransactions()) ?? []
-        candidates = all
-            .filter { $0.transactionType == .expense && $0.financeProjectId == nil }
-            .prefix(200)
-            .map { $0 }
+        // 定向查询（谓词下推+截断，见 FinanceProjectRepository.fetchUnassignedExpenseCandidates）：
+        // 旧实现全库物化上万条只为用 200 条，是打开本弹层的卡顿源
+        candidates = FinanceProjectRepository.shared.fetchUnassignedExpenseCandidates()
     }
 
     private func attachSelected() {

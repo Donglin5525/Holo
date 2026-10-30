@@ -197,58 +197,58 @@ extension FinanceRepository {
 
     // MARK: 余额计算
 
+    /// 收支净额的轻量计算：两列投影（type + amount，不物化托管对象、不触发关系故障）
+    /// + 内存 Decimal 精确累加。口径与旧的逐笔累加完全一致（type 非 income 的行
+    /// 含非法取值，均按支出侧减去——`TransactionType(rawValue:) ?? .expense` 同语义）。
+    /// 返回 nil = 查询失败（调用方按各自失败语义回退，如余额观测的 queryFailed）。
+    /// 此前三个余额函数都是全量物化 NSManagedObject 逐笔累加：上万账单时账户页/
+    /// 净资产/余额曲线每次打开都在主线程把全库账单搬一遍（2026-10-30 性能审计 C1/C2）。
+    /// 注：不走 NSExpression 的 sum: 聚合——Decimal 属性上实测抛 NSInvalidArgumentException
+    /// （FinanceReconciliationTests），且 SQL 浮点求和伤金额精度，故投影后精确累加。
+    private func netAmount(basePredicate: NSPredicate) -> Decimal? {
+        let request = NSFetchRequest<NSDictionary>(entityName: "Transaction")
+        request.resultType = .dictionaryResultType
+        request.predicate = basePredicate
+        request.propertiesToFetch = ["type", "amount"]
+        guard let rows = try? context.fetch(request) as? [[String: Any]] else { return nil }
+        var net = Decimal.zero
+        for row in rows {
+            let isIncome = (row["type"] as? String) == TransactionType.income.rawValue
+            let amount = (row["amount"] as? NSDecimalNumber)?.decimalValue ?? .zero
+            net += isIncome ? amount : -amount
+        }
+        return net
+    }
+
     /// 获取账户当前余额（实时计算：initialBalance + 收入 - 支出）
     func getAccountBalance(_ account: Account) -> Decimal {
-        let request = Transaction.fetchRequest()
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+        let base = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "account == %@", account),
             FinanceTransactionOccurrencePolicy.occurredPredicate(),
             NSPredicate(format: "deletedAt == nil")
         ])
-
-        guard let transactions = try? context.fetch(request) else {
+        guard let net = netAmount(basePredicate: base) else {
             return account.initialBalance.decimalValue
         }
-
-        var balance = account.initialBalance.decimalValue
-        for tx in transactions {
-            if tx.transactionType == .income {
-                balance += tx.amount.decimalValue
-            } else {
-                balance -= tx.amount.decimalValue
-            }
-        }
-        return balance
+        return account.initialBalance.decimalValue + net
     }
 
     /// 获取截止到指定日期的累计余额（initialBalance + 该日期之前的全部收入-支出）
     func getCumulativeBalance(before date: Date) -> Decimal {
         let accounts = getAccounts(includeArchived: false)
 
-        // 所有账户的初始余额之和
-        var balance = accounts.reduce(Decimal(0)) { $0 + $1.initialBalance.decimalValue }
+        // 所有账户的初始余额之和（交易查询不过滤账户：无账户的交易同样参与，与旧行为一致）
+        let initialTotal = accounts.reduce(Decimal(0)) { $0 + $1.initialBalance.decimalValue }
 
-        // 截止日期之前的所有交易净收入
-        let request = Transaction.fetchRequest()
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+        let base = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "date < %@", date as NSDate),
             FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: min(date, Date())),
             NSPredicate(format: "deletedAt == nil")
         ])
-
-        guard let transactions = try? context.fetch(request) else {
-            return balance
+        guard let net = netAmount(basePredicate: base) else {
+            return initialTotal
         }
-
-        for tx in transactions {
-            if tx.transactionType == .income {
-                balance += tx.amount.decimalValue
-            } else {
-                balance -= tx.amount.decimalValue
-            }
-        }
-
-        return balance
+        return initialTotal + net
     }
 
     /// 截止到指定日期、单个账户的累计余额（该账户 initialBalance + 此前收支净额，含对账调整）。
@@ -286,26 +286,14 @@ extension FinanceRepository {
 
     /// initialBalance + date 之前已发生收支净额（含对账调整）；交易查询失败返回 nil
     private func accumulatedBalance(for account: Account, before date: Date) -> Decimal? {
-        var balance = account.initialBalance.decimalValue
-
-        let request = Transaction.fetchRequest()
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+        let base = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "account.id == %@", account.id as CVarArg),
             NSPredicate(format: "date < %@", date as NSDate),
             FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: min(date, Date())),
             NSPredicate(format: "deletedAt == nil")
         ])
-
-        guard let transactions = try? context.fetch(request) else { return nil }
-
-        for tx in transactions {
-            if tx.transactionType == .income {
-                balance += tx.amount.decimalValue
-            } else {
-                balance -= tx.amount.decimalValue
-            }
-        }
-        return balance
+        guard let net = netAmount(basePredicate: base) else { return nil }
+        return account.initialBalance.decimalValue + net
     }
 
     /// 获取净资产信息（总资产、总负债、净资产）

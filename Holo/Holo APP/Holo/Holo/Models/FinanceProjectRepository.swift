@@ -186,6 +186,25 @@ final class FinanceProjectRepository {
         return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
+    /// 未挂项目的支出交易候选（项目详情「关联历史交易」选择器）。
+    /// 谓词下推 + fetchLimit 截断：替代旧实现「全库物化 → 内存 filter → prefix(200)」
+    /// （上万账单时打开选择器即全表扫描物化，2026-10-30 性能审计 C3）。
+    /// 口径与旧视图实现一致：已发生 + 未软删 + 支出 + 无项目，date 倒序，去重后截断；
+    /// fetchLimit 预留去重余量（截断在去重后生效）。
+    func fetchUnassignedExpenseCandidates(limit: Int = 200, asOf snapshotDate: Date = Date()) -> [Transaction] {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "financeProjectId == nil"),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: snapshotDate),
+            NSPredicate(format: "type == %@", TransactionType.expense.rawValue),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+        request.fetchLimit = limit + 100
+        request.relationshipKeyPathsForPrefetching = ["category", "account"]
+        return Array(DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? []).prefix(limit))
+    }
+
     /// 批量挂靠到项目（从历史挑交易补挂；已有项目归属的交易会被改挂到新项目）
     func attach(_ transactions: [Transaction], to project: FinanceProject) throws {
         for transaction in transactions {

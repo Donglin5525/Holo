@@ -596,12 +596,14 @@ struct BudgetDetailView: View {
             let end = calendar.date(byAdding: .day, value: 1, to: start) ?? Date()
             do {
                 let transactions = try await FinanceRepository.shared.getStatisticsTransactions(from: start, to: end)
+                // 统计口径与看板预算卡一致：退款笔 statisticsType 归为支出、
+                // statisticsAmount 取负值自然冲减，两处「今日支出」数字对齐
                 todayExpense = transactions
                     .filter { transaction in
-                        transaction.transactionType == .expense
+                        transaction.statisticsType == .expense
                             && (accountId == nil || transaction.account?.id == accountId)
                     }
-                    .reduce(Decimal.zero) { $0 + $1.amountAsDecimal }
+                    .reduce(Decimal.zero) { $0 + $1.statisticsAmount }
             } catch {
                 todayExpense = nil
             }

@@ -765,7 +765,15 @@ struct AddHabitSheet: View {
                 payload.targetCount = .clear
                 payload.targetValue = .clear
             } else if selectedType == .checkIn {
-                payload.targetCount = tc.map { .set($0) } ?? .clear
+                // 与数值型分支同口径：开关开着但次数无效时拦截报错，
+                // 而不是静默 clear 掉既有目标（丢目标会连锁改变达标口径）
+                if let tc, tc > 0 {
+                    payload.targetCount = .set(tc)
+                } else if habit.targetCountValue != nil {
+                    saveErrorMessage = String(localized: "目标次数需要大于 0；或关闭目标")
+                    isSaving = false
+                    return
+                }
             } else {
                 if let tv, tv > 0 {
                     payload.targetValue = .set(tv)

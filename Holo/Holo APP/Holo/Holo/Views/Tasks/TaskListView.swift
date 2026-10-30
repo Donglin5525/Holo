@@ -693,7 +693,9 @@ struct TaskListView: View {
     @ViewBuilder
     private var completedTabContent: some View {
         let weekGroups = completedTasksGroupedByWeek
-        ForEach(weekGroups, id: \.title) { group in
+        // id 用周起始日而非标题：标题只含月日不含年份，跨年同名周（如 2020 与 2026
+        // 同为 10月7日 周一起始）会在已完成长历史里撞 ID 致分组错乱
+        ForEach(weekGroups, id: \.weekStart) { group in
             SectionHeaderView(title: group.title, count: group.tasks.count)
             ForEach(sortedMembers(group.tasks), id: \.id) { task in
                 taskRow(task)
@@ -1076,7 +1078,7 @@ struct TaskListView: View {
     // MARK: - 已完成任务按周分组
 
     /// 已完成任务按周分组（用于「已完成」tab）；组内排序统一交给 sortedMembers
-    private var completedTasksGroupedByWeek: [(title: String, tasks: [TodoTask])] {
+    private var completedTasksGroupedByWeek: [(weekStart: Date, title: String, tasks: [TodoTask])] {
         let completedTasks = cachedFilteredTasks.filter { $0.completed }
 
         let calendar = Calendar.current
@@ -1095,7 +1097,7 @@ struct TaskListView: View {
 
         let sortedWeeks = groups.keys.sorted(by: >)
         return sortedWeeks.map { weekStart in
-            (title: weekTitle(for: weekStart), tasks: groups[weekStart]!)
+            (weekStart: weekStart, title: weekTitle(for: weekStart), tasks: groups[weekStart]!)
         }
     }
 

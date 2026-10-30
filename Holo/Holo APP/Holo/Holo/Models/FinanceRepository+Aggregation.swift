@@ -50,6 +50,9 @@ extension FinanceRepository {
             NSPredicate(format: "deletedAt == nil")
         ])
         req.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+        // 行渲染读 category/account（TransactionRowView）：不预取则每行触发关系惰性
+        // 加载（N+1），一天上百笔时首刷多打几百次小查询——同文件兄弟查询均已预取
+        req.relationshipKeyPathsForPrefetching = ["category", "account"]
         return try context.fetch(req)
     }
 

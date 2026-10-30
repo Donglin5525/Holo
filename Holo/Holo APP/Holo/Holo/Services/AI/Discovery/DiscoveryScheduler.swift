@@ -157,15 +157,19 @@ nonisolated final class DiscoverySchedulerCore {
     }
 
     /// 失败后的下一次尝试资格（03 §4.4 退避表）。
+    /// - Parameter attempt: 连续失败次数（从 0 起），仅网络退避使用阶梯。
     /// 返回 nil = 本日不再尝试（保守终态）。
     func nextAttemptAfterFailure(
         failure: DiscoveryFailureKind,
-        now: Date
+        now: Date,
+        attempt: Int = 0
     ) -> Date? {
         switch failure {
         case .networkUnavailablePreDispatch:
-            // 未 dispatch：保持 dirty，有限退避（5/15/45 分钟），不报「生成中」
-            return now.addingTimeInterval(5 * 60)
+            // 未 dispatch：保持 dirty，有限退避阶梯（5/15/45 分钟，封顶 45），不报「生成中」
+            let ladder: [TimeInterval] = [5 * 60, 15 * 60, 45 * 60]
+            let interval = ladder[min(attempt, ladder.count - 1)]
+            return now.addingTimeInterval(interval)
         case .schemaRejectedByModel, .semanticRejected:
             // 同材料不隔天重跑（digest 已记为已处理）；等新材料再来
             return nil

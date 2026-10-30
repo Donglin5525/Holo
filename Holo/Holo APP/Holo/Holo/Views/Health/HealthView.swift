@@ -511,18 +511,19 @@ struct HealthView: View {
 
     private var coreInsightCard: some View {
         let core = displayedCoreInsight
+        let generated = insightViewModel.snapshot?.coreInsight
         return insightCard(
             iconText: "✦",
             title: core.title,
             detail: core.detail,
             color: .holoAI
         )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard !daySwipeState.isSwiping else { return }
-            if let generated = insightViewModel.snapshot?.coreInsight {
-                selectedEvidenceInsight = generated
-            }
+        // 无 AI 洞察（规则兜底文案）时整组不挂手势：挂了又在 action 里判空
+        // = 吞点击死区（ConditionalGestureModifiers）；生活闭环区同款口径
+        .contentShapeIf(generated != nil, shape: Rectangle())
+        .onTapGestureIf(generated != nil) {
+            guard !daySwipeState.isSwiping, let generated else { return }
+            selectedEvidenceInsight = generated
         }
     }
 
@@ -567,12 +568,10 @@ struct HealthView: View {
 
                             Spacer(minLength: 0)
                         }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            guard !daySwipeState.isSwiping else { return }
-                            if let generated = row.generated {
-                                selectedEvidenceInsight = generated
-                            }
+                        .contentShapeIf(row.generated != nil, shape: Rectangle())
+                        .onTapGestureIf(row.generated != nil) {
+                            guard !daySwipeState.isSwiping, let generated = row.generated else { return }
+                            selectedEvidenceInsight = generated
                         }
                     }
                 }

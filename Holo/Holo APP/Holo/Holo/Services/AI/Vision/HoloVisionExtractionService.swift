@@ -482,8 +482,7 @@ final class HoloVisionExtractionService {
         let calendar = Calendar.current
         let now = Date()
         guard let createdAfter = calendar.date(byAdding: .day, value: -2, to: now) else { return [] }
-        let all = (try? await FinanceRepository.shared.getAllTransactions()) ?? []
-        let recentlyCreated = all.filter { $0.createdAt >= createdAfter }
+        let recentlyCreated = (try? await FinanceRepository.shared.recentlyCreatedTransactions(since: createdAfter)) ?? []
 
         var hints: [String] = []
         for transaction in understanding.transactions.prefix(3) {
@@ -507,6 +506,22 @@ final class HoloVisionExtractionService {
 // MARK: - 确认后账户归位（拍板 6）
 
 extension FinanceRepository {
+
+    /// 近 N 天创建的交易（识图防重软检测窗口；按 createdAt 过滤而非交易日期，
+    /// 语义见 duplicateHints 注释）。谓词下推+截断，替代旧「全库物化再内存 filter」
+    /// ——旧实现拍一张小票就把上万账单整表搬到主线程，只为找最近两天的几十条
+    /// （2026-10-30 性能审计 C5）。
+    func recentlyCreatedTransactions(since createdAfter: Date, limit: Int = 200) async throws -> [Transaction] {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "createdAt >= %@", createdAfter as NSDate),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        request.fetchLimit = limit
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
+    }
 
     /// 截图记账确认后把交易搬到匹配账户：IntentRouter 落库走默认账户，
     /// 识别出的支付通道匹配到更合适账户时只换 account 关系，

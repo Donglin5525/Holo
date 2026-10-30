@@ -425,17 +425,26 @@ struct KanbanTaskSection: View {
         }
     }
 
-    private func formatTime(_ date: Date) -> String {
+    /// 行级格式化器缓存（2026-10-30 性能审计 C9；缓存范式同 TaskQuadrantBoardView）
+    private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "zh_CN")
         f.dateFormat = "HH:mm"
-        return f.string(from: date)
-    }
+        return f
+    }()
 
-    private func formatDate(_ date: Date) -> String {
+    private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "zh_CN")
         f.dateFormat = "M/d"
-        return f.string(from: date)
+        return f
+    }()
+
+    private func formatTime(_ date: Date) -> String {
+        Self.timeFormatter.string(from: date)
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        Self.dateFormatter.string(from: date)
     }
 }

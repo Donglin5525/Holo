@@ -383,14 +383,25 @@ struct TransactionRowView: View {
         return CategoryIconBadge(iconName: iconName, color: color, diameter: isCompact ? 40 : 48)
     }
 
-    private func formatDateTime(_ date: Date) -> String {
+    /// 行级格式化器缓存：本视图在列表/搜索结果里每行每渲染周期都会调到，
+    /// 每次 new DateFormatter 约 1ms，几十可见行即几十毫秒纯构造
+    /// （2026-10-30 性能审计 C9；缓存范式同 TaskQuadrantBoardView）
+    private static let sameYearFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMdHHmm")
+        return f
+    }()
+
+    private static let crossYearFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("yMMMdHHmm")
+        return f
+    }()
+
+    private func formatDateTime(_ date: Date) -> String {
         // 同年省略年份，跨年带年份，避免跨年列表（如搜索结果）产生年份歧义
-        if Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year) {
-            f.setLocalizedDateFormatFromTemplate("MMMdHHmm")
-        } else {
-            f.setLocalizedDateFormatFromTemplate("yMMMdHHmm")
-        }
+        let f = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
+            ? Self.sameYearFormatter : Self.crossYearFormatter
         return f.string(from: date)
     }
 }

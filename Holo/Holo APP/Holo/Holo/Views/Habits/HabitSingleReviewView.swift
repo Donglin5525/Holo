@@ -1119,8 +1119,9 @@ private struct ReviewCustomRangeForm: View {
     @State private var errorMessage: String?
 
     private var dateRange: ClosedRange<Date> {
-        let today = Calendar.current.startOfDay(for: Date())
-        return today...today
+        // 自定义范围只禁未来；上界取当天（下方校验 e <= today 同口径）。
+        // 此前误写成 today...today，两个选择器都被锁死只剩「今天」一格。
+        return .distantPast...Calendar.current.startOfDay(for: Date())
     }
 
     var body: some View {

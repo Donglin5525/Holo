@@ -102,10 +102,17 @@ struct TaskStatsDrilldownSheet: View {
         }
     }
 
-    private func onTimeDetail(_ record: TaskRecordSnapshot) -> String {
+    /// 行级格式化器缓存：DateFormatter 创建约 1ms/个，每行新建随行数线性放大
+    /// （2026-10-30 性能审计 C9；缓存范式同 TaskQuadrantBoardView）
+    private static let detailFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.setLocalizedDateFormatFromTemplate("M月d日 HH:mm")
+        return formatter
+    }()
+
+    private func onTimeDetail(_ record: TaskRecordSnapshot) -> String {
+        let formatter = Self.detailFormatter
         var parts: [String] = []
         if let due = record.effectiveDue(calendar: model.calendar) {
             parts.append(String(localized: "截止 ") + formatter.string(from: due))
@@ -249,11 +256,16 @@ struct TaskStatsBucketDrilldownSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showsCreated = true
 
-    private var bucketTitle: String {
+    /// 计算属性每次渲染都求值，格式化器必须缓存（2026-10-30 性能审计 C9）
+    private static let titleFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.setLocalizedDateFormatFromTemplate("M月d日")
-        return formatter.string(from: bucket.start)
+        return formatter
+    }()
+
+    private var bucketTitle: String {
+        Self.titleFormatter.string(from: bucket.start)
     }
 
     private var ids: [UUID] {
@@ -368,17 +380,42 @@ struct TaskStatsTrendDrilldownSheet: View {
         Calendar.current.isDate(bucket.start, equalTo: bucket.endExclusive.addingTimeInterval(-1), toGranularity: .day)
     }
 
-    private func bucketTitle(_ bucket: TaskAnalyticsBucketStat) -> String {
+    /// 单日/跨日两种模板各缓存一个（2026-10-30 性能审计 C9）
+    private static let singleDayTitleFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
-        formatter.setLocalizedDateFormatFromTemplate(bucketIsSingleDay(bucket) ? "M月d日 EEEE" : "yyyy年M月")
+        formatter.setLocalizedDateFormatFromTemplate("M月d日 EEEE")
+        return formatter
+    }()
+
+    private static let crossDayTitleFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("yyyy年M月")
+        return formatter
+    }()
+
+    private static let singleDayTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("HH:mm")
+        return formatter
+    }()
+
+    private static let crossDayTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("d日 HH:mm")
+        return formatter
+    }()
+
+    private func bucketTitle(_ bucket: TaskAnalyticsBucketStat) -> String {
+        let formatter = bucketIsSingleDay(bucket) ? Self.singleDayTitleFormatter : Self.crossDayTitleFormatter
         return formatter.string(from: bucket.start)
     }
 
     private func rows(in bucket: TaskAnalyticsBucketStat) -> [Row] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.setLocalizedDateFormatFromTemplate(bucketIsSingleDay(bucket) ? "HH:mm" : "d日 HH:mm")
+        let formatter = bucketIsSingleDay(bucket) ? Self.singleDayTimeFormatter : Self.crossDayTimeFormatter
         return Array(Set(bucket.createdIDs).union(Set(bucket.completedIDs)))
             .compactMap { id -> Row? in
                 guard let record = model.record(for: id) else { return nil }

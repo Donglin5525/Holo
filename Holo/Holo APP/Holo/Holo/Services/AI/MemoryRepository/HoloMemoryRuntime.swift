@@ -134,6 +134,95 @@ final class HoloMemoryRuntime {
         }
     }
 
+    // MARK: 通用知识（v2.2）
+
+    private var knowledgeInvalidationStarted = false
+
+    /// 存量分流迁移（§7.3）：幂等收据/断点续跑；失败下次启动重试，不阻断主业务。
+    /// 迁移引擎在统一写入开放前就位——收据在知识操作表中，换设备/晚到旧写入按收据对账。
+    func migrateKnowledgeIfNeeded() async {
+        #if DEBUG
+        guard HoloMemorySimulatorValidationEnvironment.current == nil else { return }
+        #endif
+        do {
+            let repository = try await repository()
+            // 单批 400：大存量设备（数千条）一批迁不完，旧实现每次启动只跑一批且忽略
+            // hasMore——期间统一门闸把未迁移记录挡在所有 active 查询外，用户看着像
+            // 「记忆变少了」。hasMore 时本轮继续吃批，上限 20 批（8000 条/启动）
+            // 防极端存量无限占用启动窗口；仍未吃完下次启动续跑（收据/断点幂等）
+            let engine = HoloKnowledgeMigrationEngine(repository: repository)
+            var batches = 0
+            while true {
+                let report = try await engine.run()
+                batches += 1
+                logger.info(
+                    "知识迁移批次\(batches)：扫描 \(report.scanned) 提交 \(report.committed) 受限 \(report.restricted) 退出 \(report.exited) 阻断 \(report.blocked) 已处理 \(report.alreadyProcessed) 续跑 \(report.hasMore)"
+                )
+                if !report.hasMore || batches >= 20 { break }
+            }
+            // 遗忘清除补跑（09-R08）：forget 操作已落库但清除中断的命题在此续清。
+            let pendingPurge = try await repository.pendingForgetPurgePropositionIDs()
+            for propositionID in pendingPurge {
+                do {
+                    try await repository.purgeKnowledgeProposition(propositionID: propositionID, now: Date())
+                } catch {
+                    logger.error("遗忘清除补跑失败（下次启动重试）\(propositionID, privacy: .public)：\(error.localizedDescription, privacy: .public)")
+                }
+            }
+            if !pendingPurge.isEmpty {
+                logger.info("遗忘清除补跑：\(pendingPurge.count) 个命题正文已清除")
+            }
+            // 存量大扫除（2026-10-29 东林拍板）：错误激活的单次流水收进历史；
+            // 幂等（归档后不再命中），保护边界在 HoloLegacySweepPolicy。
+            // 启动即扫一轮；CloudKit 同步晚到的记录由 120 秒后的补扫收敛
+            // （新设备/重装场景首轮可能扫不全，实测模拟器晚到 5 条）。
+            let swept = try await repository.archiveLegacyFlowRecords(now: Date())
+            if swept > 0 {
+                logger.info("存量大扫除：\(swept) 条流水记忆已收进历史")
+            }
+            Task.detached(priority: .utility) { [weak self] in
+                try? await Task.sleep(for: .seconds(120))
+                guard let self else { return }
+                do {
+                    let repository = try await self.repository()
+                    let reswept = try await repository.archiveLegacyFlowRecords(now: Date())
+                    if reswept > 0 {
+                        self.logger.info("存量大扫除补扫：\(reswept) 条晚到记录已收进历史")
+                    }
+                } catch {
+                    self.logger.error("存量大扫除补跑失败（下次启动重试）：\(error.localizedDescription, privacy: .public)")
+                }
+            }
+        } catch {
+            logger.error("知识迁移失败（下次启动重试）：\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// 来源失效扇出（业务保存/远端变更/授权变更 → sourceInvalidation 操作）。
+    /// 幂等；与发现侧失效服务挂同一批信号、分别更新两侧投影。
+    func startKnowledgeInvalidationFanout() {
+        guard !knowledgeInvalidationStarted else { return }
+        knowledgeInvalidationStarted = true
+        Task { @MainActor in
+            do {
+                let repository = try await self.repository()
+                let service = HoloKnowledgeInvalidationService(repository: repository)
+                service.start()
+                // 启动时把保守失效收敛为真实来源状态（只复核仍失效命题，增量）。
+                let verifier = HoloKnowledgeCoreDataSourceVerifier(
+                    businessContainer: CoreDataStack.shared.persistentContainer
+                )
+                let reconciler = HoloKnowledgeSourceReconciler(repository: repository, verifier: verifier)
+                let result = try await reconciler.reconcileInvalidated()
+                if result.reconciled > 0 {
+                    self.logger.info("来源复核：\(result.reconciled) 项（恢复 \(result.clearedToVerified) 失效 \(result.confirmedInvalid)）")
+                }
+            } catch {
+                self.logger.error("知识失效扇出启动失败：\(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
     func loadUserControlState() async -> HoloMemoryControlState? {
         do {
             return try await repository().loadControlState()
