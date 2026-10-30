@@ -134,19 +134,13 @@ struct DetailTabView: View {
             }
 
             // 与总览/项目/账户页签同一张「收支趋势」柱状卡（红支出/绿收入同框），
-            // 取代本页原有的折线形态+支出/收入切换器；滑动选日→列表定位由柱图回调延续。
+            // 取代本页原有的折线形态+支出/收入切换器；点选/滑动选日→列表实时定位。
+            // 不挂「查看明细」按钮：选日瞬间列表已跳转定位，按钮必是空动作（10-30 东林实报移除）。
             TrendChartView(
                 dataPoints: dailyChartDataPoints,
                 showsBalanceLine: false,
                 selectedDate: state.selectedChartDate,
-                onScrubDate: selectChartDateAndScroll,
-                onSelectDate: { date in
-                    guard let date else {
-                        state.selectChartDate(nil)
-                        return
-                    }
-                    selectChartDateAndScroll(date)
-                }
+                onScrubDate: selectChartDateAndScroll
             )
         }
     }
