@@ -797,6 +797,9 @@ struct ReceiptReviewDetailView: View {
                     if result.created {
                         // 只有本次新建的笔才有撤销权；幂等命中的是账本里已存在的交易，不能撤
                         committedIDs.append(result.transactionID)
+                        // 产品埋点：识图复核确认入账成功（此路径不经过 FinanceRepository 的手动/聊天汇聚点；
+                        // 一图多笔逐笔上报，与字典「记账一笔落库成功」口径一致；不收金额内容）
+                        HoloProductAnalytics.shared.track(.billCreated, ["source": "ai"])
                         // 一图多笔：每笔都挂证据票根（开关关时方法内直接返回；
                         // await 保证读证据文件先于循环后的草案删除）
                         await FinanceTransactionCommandService.shared.archiveEvidenceIfNeeded(

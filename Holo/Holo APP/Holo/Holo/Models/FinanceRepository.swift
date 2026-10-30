@@ -394,7 +394,7 @@ class FinanceRepository {
         transaction.updatedAt = Date()
         try context.save()
         broadcastFinanceDataDidChange()
-        // 产品埋点：记账成功（所有入口——键盘/聊天/识图——的单一汇聚点；不收金额内容）
+        // 产品埋点：手动/聊天记账成功汇聚点（识图复核确认与自动写在各自成功点单独上报；不收金额内容）
         HoloProductAnalytics.shared.track(.billCreated, ["source": aiSourceMessageId != nil ? "ai" : "manual"])
         return transaction
     }

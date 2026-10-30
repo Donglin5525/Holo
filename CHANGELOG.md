@@ -4,6 +4,13 @@
 
 ---
 
+## [2026-10-30] 识图记账入账埋点断层修复（bill_created 漏报）
+
+- 生产埋点实证：一台真实设备自 10-09 起高频识图记账（后端 75 次识别全部成功），但 bill_created 事件 0 条——识图用户的入账成果在数据里完全隐形，「识图发起→入账」漏斗转化率无法度量。
+- **定谳**：识图默认全转人工复核（自动提交灰度常关），复核确认入账走 FinanceTransactionCommandService.commit，不经过 FinanceRepository 中唯一的 bill_created 埋点点；字典注释「成功侧由 bill_created source=ai 承接」设计与实现脱节。
+- **修复**：复核确认页（ReceiptReviewDetailView）与自动提交（ReceiptBookingCoordinator.commitDraft）两处成功点补发 track(.billCreated, source=ai)；一图多笔逐笔上报，与字典「记账一笔落库成功」口径一致；FinanceRepository 的「所有入口单一汇聚点」不实注释同步修正（该注释即脱节源头）。
+- 验证：全量构建绿；埋点契约测试 7/7 绿（bill_created 已在后端白名单、source=ai 为既有约定值，无需后端发版）。纯客户端改动，随 1.1.4；发版后识图入账开始计数。
+
 ## [2026-10-30] 个人页会员入口收为扁横条
 
 - 常规字号下会员卡由约 120pt 收至约 80pt；保留 A2 肖像、麦穗和 PLUS 角标，徽章调整为 56pt。

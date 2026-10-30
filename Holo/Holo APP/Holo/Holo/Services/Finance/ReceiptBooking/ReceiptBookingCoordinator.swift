@@ -413,6 +413,8 @@ final class ReceiptBookingCoordinator {
         do {
             let result = try FinanceTransactionCommandService.shared.commit(draft: draft, postNotification: true)
             if result.created {
+                // 产品埋点：识图自动写入账成功（自动提交灰度常关，M3 开闸后生效；与复核确认页同口径）
+                HoloProductAnalytics.shared.track(.billCreated, ["source": "ai"])
                 return .booked(Self.makeReceipt(
                     amountText: Self.formatAmount(draft.amount),
                     categoryPath: [names.primary, names.sub].compactMap { $0 }.joined(separator: "/"),
