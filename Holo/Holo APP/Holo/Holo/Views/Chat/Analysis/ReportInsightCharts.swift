@@ -238,7 +238,7 @@ struct ReportEvidenceMetricRow: View {
 
 // MARK: - 趋势速览
 
-/// 趋势折线卡（对齐财务页 LineChartView 视格）：标准 holoCard；线 2.25pt round +
+/// 趋势折线卡（对齐财务图表套件 HoloLineChart 视格）：标准 holoCard；线 2.25pt round +
 /// catmullRom；面积渐变 0.14→0.005；Y 轴 4 刻度+浅网格（不隐藏，防失真）；
 /// X 轴日期标签 caption2；末端圆点标记当前值。标注「本机数据」：序列来自设备
 /// 本地回查，与云端核验指标同源但未逐位对账。

@@ -3,7 +3,7 @@
 //  Holo
 //
 //  明细 Tab 视图
-//  包含折线图 + 点击日期后的交易列表
+//  收支趋势柱状卡（与总览/项目/账户同款）固定在顶部 + 交易明细独立滚动
 //  支持按粒度下钻显示数据
 //
 
@@ -34,7 +34,6 @@ struct DetailTabView: View {
     /// push 覆盖层模式：外层已带返回栏与分类标题，分类筛选横幅不在本页重复出现
     var isPushed: Bool = false
     @State private var editingTransaction: Transaction?
-    @State private var selectedTrendType: TransactionType = .expense
     @State private var sortOrder: FinanceDetailSortOrder = .timeDescending
     @State private var listScrollTarget: Date?
     @State private var listScrollRequestID = 0
@@ -89,58 +88,57 @@ struct DetailTabView: View {
     }
 
     var body: some View {
-        // 单一滚动流：趋势图与交易列表同容器。旧结构是外层 ScrollView 嵌一个
-        // 固定高度的内层列表 ScrollView，两层滚动手势顶牛——内层滚到底后
-        // 同一次拖拽不会交棒给外层，用户手感即「往下滑卡住」（2026-10-16 东林实报）。
-        ScrollViewReader { listProxy in
-            ScrollView {
-                VStack(spacing: 0) {
-                    trendSection
-                        .padding(.horizontal, HoloSpacing.lg)
-                        .padding(.top, HoloSpacing.md)
-                        .padding(.bottom, HoloSpacing.md)
+        // 趋势卡与列表头固定在顶部，滚动的只有交易明细（2026-10-30 东林需求：
+        // 卡片不动、下方数据动，同时收紧纵向留白让首屏多露明细行）。
+        // 与 2026-10-16 修掉的「双层滚动顶牛」不同：图表在滚动容器之外，
+        // 全页只有列表一个滚动体，不存在内层滚到底不交棒的问题。
+        VStack(spacing: 0) {
+            trendSection
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.sm)
+                .padding(.bottom, HoloSpacing.sm)
 
-                    transactionListHeader
-                        .padding(.horizontal, HoloSpacing.lg)
-                        .padding(.bottom, HoloSpacing.xs)
+            transactionListHeader
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.bottom, HoloSpacing.xs)
 
+            ScrollViewReader { listProxy in
+                ScrollView {
                     transactionListContent
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.bottom, HoloSpacing.lg)
                 }
-            }
-            .scrollIndicators(.hidden)
-            .background(Color.holoToolBackground)
-            .onChange(of: listScrollRequestID) { _, _ in
-                guard let target = listScrollTarget else { return }
+                .scrollIndicators(.hidden)
+                .onChange(of: listScrollRequestID) { _, _ in
+                    guard let target = listScrollTarget else { return }
 
-                // 排序模式切换与列表重建发生在同一轮更新，下一帧再定位可确保锚点已存在。
-                DispatchQueue.main.async {
-                    listProxy.scrollTo(target, anchor: .top)
+                    // 排序模式切换与列表重建发生在同一轮更新，下一帧再定位可确保锚点已存在。
+                    DispatchQueue.main.async {
+                        listProxy.scrollTo(target, anchor: .top)
+                    }
                 }
             }
         }
+        .background(Color.holoToolBackground)
         .sheet(item: $editingTransaction) { transaction in
             AddTransactionSheet(editingTransaction: transaction) { _ in
                 state.refresh()
             }
         }
-        .onChange(of: selectedTrendType) { _, _ in
-            state.selectChartDate(nil)
-        }
     }
 
     private var trendSection: some View {
-        VStack(spacing: HoloSpacing.lg) {
+        VStack(spacing: HoloSpacing.md) {
             if !isPushed, let category = state.selectedDetailCategory {
                 categoryFilterBanner(category)
             }
 
-            LineChartView(
+            // 与总览/项目/账户页签同一张「收支趋势」柱状卡（红支出/绿收入同框），
+            // 取代本页原有的折线形态+支出/收入切换器；滑动选日→列表定位由柱图回调延续。
+            TrendChartView(
                 dataPoints: dailyChartDataPoints,
+                showsBalanceLine: false,
                 selectedDate: state.selectedChartDate,
-                displayedType: selectedTrendType,
-                displayedTypeSelection: $selectedTrendType,
                 onScrubDate: selectChartDateAndScroll,
                 onSelectDate: { date in
                     guard let date else {
@@ -168,15 +166,6 @@ struct DetailTabView: View {
         state.selectChartDate(day)
         listScrollTarget = day
         listScrollRequestID &+= 1
-    }
-
-    private func amount(for point: ChartDataPoint, type: TransactionType) -> Decimal {
-        switch type {
-        case .expense:
-            return point.expense
-        case .income:
-            return point.income
-        }
     }
 
     private func sortValue(for transaction: Transaction) -> FinanceDetailSortValue {
