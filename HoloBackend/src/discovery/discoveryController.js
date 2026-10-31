@@ -625,6 +625,12 @@ export function registerDiscoveryRoutes(app, deps) {
       }
       if (stage === "verify") {
         runStore.completeRun({ runId: run.run_id, status: "completed" });
+        // 判决可观测（2026-11-01）：verify 拒绝是「链路最后一关」，拒因决定调优方向
+        console.warn(`[discovery] verify verdicts run=${run.run_id} `
+          + JSON.stringify((envelope.candidateResults ?? []).map((result) => ({
+            verdict: result?.verdict ?? null,
+            claimVerdicts: (result?.claimResults ?? []).map((claim) => claim?.verdict ?? null),
+          }))));
       }
 
       finishLog({
