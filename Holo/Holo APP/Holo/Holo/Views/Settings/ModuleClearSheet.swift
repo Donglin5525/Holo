@@ -41,7 +41,7 @@ struct ModuleClearSheet: View {
 
         var icon: String {
             switch self {
-            case .finance: return "yen.circle"
+            case .finance: return "yensign.circle"
             case .thought: return "lightbulb"
             case .task: return "checklist"
             case .habit: return "flame"

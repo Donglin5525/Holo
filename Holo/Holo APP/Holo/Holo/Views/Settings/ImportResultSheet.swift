@@ -109,7 +109,7 @@ struct ImportResultSheet: View {
 
                         if result.newAccountsCount > 0 {
                             resultRow(
-                                icon: "creditcard.badge.plus",
+                                icon: "creditcard",
                                 color: .orange,
                                 label: "新建账户",
                                 value: "\(result.newAccountsCount) 个"

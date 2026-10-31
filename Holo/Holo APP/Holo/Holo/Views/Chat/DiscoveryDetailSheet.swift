@@ -167,7 +167,7 @@ struct DiscoveryDetailSheet: View {
             withAnimation(HoloAnimation.standard) { showsEvidence.toggle() }
         } label: {
             HStack(spacing: HoloSpacing.xs) {
-                Image(systemName: "notebook.text")
+                Image(systemName: "note.text")
                     .font(.system(size: 13, weight: .medium))
                 Text(showsEvidence ? "收起依据 · \(count) 段记录" : "看看依据 · \(count) 段记录")
                     .holoText(.supporting)

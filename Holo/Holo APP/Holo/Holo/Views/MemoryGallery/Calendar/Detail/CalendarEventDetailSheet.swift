@@ -197,7 +197,7 @@ struct CalendarEventDetailSheet: View {
             }
         } label: {
             HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "chart.timeline.selection")
+                Image(systemName: "calendar.day.timeline.left")
                     .font(.system(size: 14, weight: .semibold))
                 Text("在轴上查看排布")
                     .font(.holoBody)

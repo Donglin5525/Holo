@@ -4,6 +4,13 @@
 
 ---
 
+## [2026-11-01] 全 App SF Symbol 失效名审计——AI 设置「想法设置」图标空白根治 + 全局 15 处同类修复
+
+- 东林实报「AI 设置里有图标没展示出来」。**定谳**：HoloAIUserSettingsView「想法设置」行写的是 `icon: "notebook"`——SF Symbols 图标库里没有裸 `notebook` 这个名字（只有 `text.book.closed` 等），`Image(systemName:)` 按名字取图，名字不存在时不报错、不崩溃、只静默渲染空白。图标名是纯字符串，写错没有任何编译/运行时告警，属「静默空白」类缺陷，从写下那天起就一直空白。
+- **全局回归（全库审计管线，纯脚本零模型成本）**：三段正则提取全库图标字面量——`systemName:/systemImage:` 直用、`return "…"`/三元表达式（动态 `.icon` 计算属性的源头）、`icon:` 参数形式（第三类是首轮扫描盲区，东林实报的 `notebook` 正是参数形式才漏网）；Mac 侧 `NSImage(systemSymbolName:)` 快筛 517 个候选；再用 swiftc 编译极小探针 App 装进 iOS 模拟器，以 `UIImage(systemName:)` 全量复核（Mac 与 iOS 符号库有微小差异，以 iOS 实测为铁证；本轮全部结论双端一致）。
+- **修复 15 处（13 文件），替换符号全部经 iOS 26.3 模拟器实测存在**：AI 设置「想法设置」`notebook`→`text.book.closed`（东林实报处）；清空数据确认页·财务 `yen.circle`→`yensign.circle`；聊天快捷意图「查习惯」`chart.circle`→`chart.bar.xaxis`（ChatViewModel+MessageBubbleView 两处）、「记体重」`figure.scale`→`scalemass`；一个发现详情「看看依据」`notebook.text`→`note.text`；记忆中心详情「找不到记录」占位 `tr-question-square`→`questionmark.square.dashed`；设置·iCloud 同步「还未收到云端数据」`icloud.and.arrows`→`icloud.and.arrow.down`；导入结果「新建账户」`creditcard.badge.plus`→`creditcard`；日历事件详情「在轴上查看排布」`chart.timeline.selection`→`calendar.day.timeline.left`；想法相关区加载失败占位 `cloud.slash`→`icloud.slash`；想法主题长按「从这个主题移除」`leaf.slash`→`minus.circle`；想法编辑器「取消引用」`link.badge.minus`→`link`；任务清单「新建清单」`plus.folder`→`folder.badge.plus`；今日减负「需要留意」`exclamationmark.book`→`exclamationmark.circle`。
+- 验证：替换后全库复扫点分层失效名零残留；全量构建绿。纯客户端改动，无后端、无数据模型改动，无需发版。待真机验收。
+
 ## [2026-10-31] 随机漫步第二轮审计 41 项 + 第二批修复（P1×4 + 软删除统一批 + 发现×知识对齐 + Mac 体验批；后端 2 项待发版）
 
 - **背景**：东林「继续随机漫步找 BUG」。5 只读代理分域扫首轮未覆盖区与在途新代码（Mac 原生版/发现×知识联动/记忆中心反馈/CoreData 升级门/看板新区/冷区/后端增量）+ 主会话复核，共 41 项（实锤 33/高度可疑 8，P1×4）；台账 `docs/_common/notes/2026-10-31-随机漫步全库bug审计报告-第二轮.md`。

@@ -686,8 +686,8 @@ struct MessageBubbleView: View {
         case .createNote: return "note.text"
         case .createAnniversary, .updateAnniversary: return "calendar"
         case .queryTasks: return "list.bullet.circle"
-        case .queryHabits: return "chart.circle"
-        case .recordWeight: return "figure.scale"
+        case .queryHabits: return "chart.bar.xaxis"
+        case .recordWeight: return "scalemass"
         case .unknown: return "questionmark.circle"
         default: return "sparkles"
         }

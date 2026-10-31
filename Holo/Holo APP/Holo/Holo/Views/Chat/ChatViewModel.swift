@@ -4437,7 +4437,7 @@ enum QuickAction: String, CaseIterable {
         case .weeklyReport: return "chart.bar"
         case .createNote: return "note.text"
         case .queryTasks: return "list.bullet.circle"
-        case .queryHabits: return "chart.circle"
+        case .queryHabits: return "chart.bar.xaxis"
         case .planGoal: return "target"
         }
     }

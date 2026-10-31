@@ -271,7 +271,7 @@ struct ThoughtInsightSheet: View {
 
                     case .failed(let reason):
                         VStack(spacing: HoloSpacing.sm) {
-                            Image(systemName: "cloud.slash")
+                            Image(systemName: "icloud.slash")
                                 .font(.system(size: 26))
                                 .foregroundColor(.holoTextPlaceholder)
                             Text(reason)

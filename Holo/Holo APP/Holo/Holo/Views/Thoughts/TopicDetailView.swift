@@ -719,7 +719,7 @@ struct TopicDetailView: View {
                             Button(role: .destructive) {
                                 removeMember(thought)
                             } label: {
-                                Label("从这个主题移除", systemImage: "leaf.slash")
+                                Label("从这个主题移除", systemImage: "minus.circle")
                             }
                         }
                     }

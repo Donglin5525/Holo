@@ -73,7 +73,7 @@ struct TaskScopeSheet: View {
                     Button {
                         showNewListAlert = true
                     } label: {
-                        Label(String(localized: "新建清单"), systemImage: "plus.folder")
+                        Label(String(localized: "新建清单"), systemImage: "folder.badge.plus")
                             .foregroundColor(.holoToolText)
                     }
                 }

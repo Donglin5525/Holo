@@ -1625,7 +1625,7 @@ struct ThoughtEditorView: View {
                             viewReferenceThoughtId = noteId
                         }
                     }
-                    tokenMenuButton(String(localized: "取消引用"), icon: "link.badge.minus", isDestructive: true) {
+                    tokenMenuButton(String(localized: "取消引用"), icon: "link", isDestructive: true) {
                         selectedToken = nil
                         pendingEditorAction = .removeSelectedToken
                     }

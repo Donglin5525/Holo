@@ -175,7 +175,7 @@ struct HoloAIUserSettingsContent: View {
                     showsThoughtOrganization = true
                 } label: {
                     HoloSettingsRow(
-                        icon: "notebook",
+                        icon: "text.book.closed",
                         iconColor: .holoAI,
                         title: "想法设置",
                         subtitle: thoughtOrganizeAutomatic ? "已开启 · 主题归类与相关笔记" : "已关闭",

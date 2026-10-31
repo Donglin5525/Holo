@@ -103,7 +103,7 @@ struct SettingsICloudSyncSection: View {
                                 .fill(Color.holoInfo.opacity(0.1))
                                 .frame(width: 40, height: 40)
 
-                            Image(systemName: iCloudSyncStatus.neverReceivedFromCloud ? "icloud.and.arrows" : "icloud.slash")
+                            Image(systemName: iCloudSyncStatus.neverReceivedFromCloud ? "icloud.and.arrow.down" : "icloud.slash")
                                 .font(.system(size: 18, weight: .medium))
                                 .foregroundColor(.holoInfo)
                         }

@@ -343,7 +343,7 @@ struct TodayReliefSheet: View {
                                 withAnimation(HoloAnimation.snappy) { showConstraints.toggle() }
                             } label: {
                                 HStack {
-                                    Label(String(localized: "需要留意（\(candidate.displayFacts.constraints.count)）"), systemImage: "exclamationmark.book")
+                                    Label(String(localized: "需要留意（\(candidate.displayFacts.constraints.count)）"), systemImage: "exclamationmark.circle")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.secondary)
                                     Spacer()
