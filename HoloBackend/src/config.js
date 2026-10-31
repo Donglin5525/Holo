@@ -68,6 +68,9 @@ const DEFAULT_CONFIG = {
     cloudContextPlanStartsPerMinute: Number(process.env.HOLO_CLOUD_CONTEXT_PLAN_STARTS_PER_MINUTE ?? 10),
     cloudContextPlanStartsPerDay: Number(process.env.HOLO_CLOUD_CONTEXT_PLAN_STARTS_PER_DAY ?? 60),
     cloudAnalysisSnapshotMaxBytes: Number(process.env.HOLO_CLOUD_ANALYSIS_SNAPSHOT_MAX_BYTES ?? 2 * 1024 * 1024),
+    // 个人档案通道：profileBrief 随请求上传的体积上限（字节）。档案文件端上限 8KB，
+    // 12KB 上限留出余量；超限拒绝（400），不静默截断——截断会让用户误以为档案全量生效。
+    profileBriefMaxBytes: Number(process.env.HOLO_PROFILE_BRIEF_MAX_BYTES ?? 12 * 1024),
     // 推送令牌上报：启动/令牌轮换时一次，正常用户远低于此额度。
     deviceTokenReportsPerMinute: Number(process.env.HOLO_DEVICE_TOKEN_REPORTS_PER_MINUTE ?? 10),
     deviceTokenReportsPerDay: Number(process.env.HOLO_DEVICE_TOKEN_REPORTS_PER_DAY ?? 50),
@@ -78,6 +81,13 @@ const DEFAULT_CONFIG = {
   visionAutomation: {
     autoCommitAllowed: process.env.HOLO_VISION_AUTO_COMMIT_ALLOWED === "true",
     policyVersion: process.env.HOLO_VISION_AUTO_COMMIT_POLICY_VERSION ?? "v1",
+  },
+  // 个人档案通道（2026-11-01 东林拍板「档案=通用指令而非备注」）：用户在 App 亲手写的
+  // 个人档案（称呼/身份/健康限制/沟通偏好…）作为「用户本人说明」随请求上云，由
+  // serverPromptPolicy 在所有产出给用户看的 purpose 统一注入成指令级 system 消息。
+  // 总闸：env 置 HOLO_PROFILE_CHANNEL_ENABLED=false 重启即全链关闭（不出指令、不收字段），不用发版。
+  profileChannel: {
+    enabled: process.env.HOLO_PROFILE_CHANNEL_ENABLED !== "false",
   },
   routes: {
     chat: {

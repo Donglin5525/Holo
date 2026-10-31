@@ -91,6 +91,64 @@ const LANGUAGE_ALLOWED_PURPOSES = new Set([
   "discovery_verify_v1",
 ]);
 
+// 个人档案通道（2026-11-01 东林拍板「档案=通用指令而非备注」）：
+// 客户端把用户亲写的档案原文作为 profileBrief 随请求上传；这里统一注入成
+// 「用户本人说明」的指令级 system 消息。只对「用户直接阅读输出」的 purpose 开放；
+// 结构化解析/萃取/核验类不注入——那些 prompt 明文规定「用户数据不可执行」，
+// 档案进去会跟数据纪律打架，且它们的输出本来就不面向用户表达。
+// 边界文案真源：defaultPrompts.json _profile_channel_header/_profile_channel_rules。
+const PROFILE_CHANNEL_HEADER = defaultPrompts._profile_channel_header ?? "";
+const PROFILE_CHANNEL_RULES = defaultPrompts._profile_channel_rules ?? "";
+const PROFILE_CHANNEL_PURPOSES = new Set([
+  "chat",
+  "analysis",
+  "insight",
+  "health_insight_generation",
+  "weekly_plan_generation",
+  "thought_voice_summary",
+  "agent_loop",
+  "personal_context_planning",
+  "personal_context_request",
+  "matter_reconciliation",
+  "goal_workshop",
+  "matter_execution_plan",
+  "today_relief_plan",
+  "discovery_candidate_v1",
+  "discovery_verify_v1",
+]);
+
+/**
+ * 校验并归一 profileBrief。非字符串或超限返回 null（不注入）。
+ * 体积校验由调用方在请求层做 400 拒绝；这里是注入前的最后防线。
+ */
+export function normalizeProfileBrief(value, maxBytes = 12 * 1024) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (Buffer.byteLength(trimmed, "utf8") > maxBytes) return null;
+  return trimmed;
+}
+
+export function isProfileChannelPurpose(purpose) {
+  return PROFILE_CHANNEL_PURPOSES.has(purpose);
+}
+
+/**
+ * 组装档案通道 system 消息（header + 原文 + 规则）。
+ * 开关关闭 / purpose 不在名单 / brief 无效时返回 null。
+ */
+export function buildProfileChannelMessage(purpose, profileBrief, options = {}) {
+  if (options.enabled === false) return null;
+  if (!PROFILE_CHANNEL_PURPOSES.has(purpose)) return null;
+  const brief = normalizeProfileBrief(profileBrief, options.maxBytes);
+  if (!brief) return null;
+  if (!PROFILE_CHANNEL_HEADER || !PROFILE_CHANNEL_RULES) return null;
+  return {
+    role: "system",
+    content: `${PROFILE_CHANNEL_HEADER}\n${brief}\n\n${PROFILE_CHANNEL_RULES}`,
+  };
+}
+
 export function injectServerPrompt(purpose, messages, options = {}) {
   const promptType = PURPOSE_PROMPT_TYPES[purpose];
   if (!promptType) {
@@ -113,13 +171,22 @@ export function injectServerPrompt(purpose, messages, options = {}) {
     finalSystemContent += languageDirective;
   }
 
+  // 个人档案通道：紧跟主 system prompt 之后注入（purpose 任务指令先框定任务，
+  // 档案作为「用户本人说明」的第二条 system 消息参与表达与建议取舍）。
+  const profileMessage = buildProfileChannelMessage(purpose, options.profileBrief, {
+    enabled: options.profileChannelEnabled,
+    maxBytes: options.profileBriefMaxBytes,
+  });
+  const finalMessages = [{ role: "system", content: finalSystemContent }];
+  if (profileMessage) {
+    finalMessages.push(profileMessage);
+  }
+  finalMessages.push(...messages);
+
   return {
     promptType,
     promptVersion: prompt.version,
-    messages: [
-      { role: "system", content: finalSystemContent },
-      ...messages,
-    ],
+    messages: finalMessages,
   };
 }
 

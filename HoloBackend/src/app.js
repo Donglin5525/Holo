@@ -891,6 +891,10 @@ export function createApp(overrides = {}) {
 
       const serverPrompt = injectServerPrompt(purpose, request.messages, {
         language: context.req.header("x-holo-language"),
+        // 个人档案通道：用户亲写档案原文随请求上行，服务端统一注入（详见 serverPromptPolicy）
+        profileBrief: request.profileBrief,
+        profileChannelEnabled: config.profileChannel?.enabled,
+        profileBriefMaxBytes: config.limits?.profileBriefMaxBytes,
       });
       const isAgentLoop = purpose === "agent_loop";
       const upstreamRequest = {
