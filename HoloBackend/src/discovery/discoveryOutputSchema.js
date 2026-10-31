@@ -59,8 +59,9 @@ export function validateDiscoveryOutput(rawText, { expectedKind, expectedRunID }
         const repaired = repairEnvelope(parsed);
         try {
           return validateDiscoveryOutputInner(JSON.stringify(repaired), { expectedKind, expectedRunID });
-        } catch {
-          throw enrichRaw(error, rawText);
+        } catch (secondError) {
+          // 抛重验错误（而非原错）：修复后仍失败的真因要能暴露到日志（原错会掩盖它）
+          throw enrichRaw(secondError instanceof GatewayError ? secondError : error, rawText);
         }
       }
     }
@@ -79,7 +80,7 @@ const REPAIRABLE = new Set([
   "scopeKind", "scope_kind_for_change", "scope_kind_for_pattern", "scope_kind_for_two_episodes",
   "no_finding_reason", "empty_with_no_reason", "candidates_with_reason",
   "titleClaimID", "title_claim_id", "body_claim_id",
-  "claim_missing", "envelope_missing",
+  "claim_missing", "candidate_missing", "envelope_missing",
 ]);
 
 /** 确定性修复：查表映射+补默认，不生成内容。返回修复后的可变副本。 */
