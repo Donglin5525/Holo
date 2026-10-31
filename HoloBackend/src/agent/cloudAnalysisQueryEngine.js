@@ -543,8 +543,11 @@ export function createCloudAnalysisQueryEngine() {
           }
           case "percentageChange":
             if (metric.baselineValue != null && metric.baselineValue !== 0) {
-              value = ((metric.value ?? 0) - metric.baselineValue) / Math.abs(metric.baselineValue);
-              formula = "(current - baseline) / abs(baseline)";
+              // 值即百分数（×100，-4.0 表示 -400%）：此前输出倍数值配 unit:"%"
+              // 在证据与断言里渲染成「1.47 %」，用户读成 1.47%（2026-11-01 实锤）。
+              // 单位强制 "%"，忽略模型自填的「比例」类单位。
+              value = ((metric.value ?? 0) - metric.baselineValue) / Math.abs(metric.baselineValue) * 100;
+              formula = "(current - baseline) / abs(baseline) * 100";
             }
             break;
           case "rate": {
@@ -575,7 +578,8 @@ export function createCloudAnalysisQueryEngine() {
           metricKey: `dynamic.${sanitize(plan.source)}.${sanitize(derivation.id)}.${sanitize(group)}`,
           dataset: plan.source,
           value: rounded(value),
-          unit: derivation.unit ?? null,
+          // percentageChange 值为百分数，单位强制 %（见派生处注释）
+          unit: derivation.operation === "percentageChange" ? "%" : (derivation.unit ?? null),
           baselineValue: null,
           comparison: metric.comparison,
           formula,

@@ -438,7 +438,14 @@ export function registerDiscoveryRoutes(app, deps) {
     const serverPrompt = injectServerPrompt(purpose, [{
       role: "user",
       content: buildUserContent(run, stage, body, verifyInput),
-    }], { language });
+    }], {
+      language,
+      // 个人档案通道：profileBrief 与 data 平级（不进 dataHash——发现幂等键锚定环境数据，
+      // 档案更新不应触发阶段 409）
+      profileBrief: typeof body.profileBrief === "string" ? body.profileBrief : undefined,
+      profileChannelEnabled: config.profileChannel?.enabled,
+      profileBriefMaxBytes: config.limits?.profileBriefMaxBytes,
+    });
 
     let logId = null;
     const finishLog = (payload) => {
@@ -490,10 +497,19 @@ export function registerDiscoveryRoutes(app, deps) {
       // 独立成功率 p 时批次成功率 1-(1-p)^3（p=25% → ~58%，p=50% → ~87%）。
       // 每次失败把 reason+原始输出尾部打进容器日志，供 prompt 继续调优。
       // 仅重试格式类失败；预算/上游断连等其余失败立即走原路径（不放大成本）。
-      const attemptOnce = async () => {
+      const attemptOnce = async (attempt, lastRejectReason) => {
+        // 2026-11-01 纠错重试：qwen 对静态规则的遵从每轮随机失手（实测 scopeKind/
+        // claims_count/metricIDs 各轮不同），同 prompt 盲重试同错率高。attempt≥2 时把
+        // 上轮拒因注入消息尾部带反馈重写（与 agent 纠错轮同型的成熟模式）。
+        const messages = attempt === 1 || !lastRejectReason
+          ? upstreamRequest.messages
+          : [
+              ...upstreamRequest.messages,
+              { role: "user", content: `你上一次的输出未通过格式校验，被拒原因：${lastRejectReason}。请严格按系统提示词的全部规则重新输出完整的 JSON（不是修补片段），特别核对被拒原因对应的字段。` },
+            ];
         const result = backgroundCostGuard
-          ? await backgroundCostGuard.run(subject, () => invoke(upstreamRequest))
-          : await invoke(upstreamRequest);
+          ? await backgroundCostGuard.run(subject, () => invoke({ ...upstreamRequest, messages }))
+          : await invoke({ ...upstreamRequest, messages });
         const content = result?.choices?.[0]?.message?.content ?? "";
         const { envelope } = validateDiscoveryOutput(content, {
           expectedKind: stage === "candidates" ? "candidates" : "verification",
@@ -502,15 +518,17 @@ export function registerDiscoveryRoutes(app, deps) {
         return { envelope, usage: result?.usage ?? null };
       };
       let validated;
+      let lastRejectReason = null;
       for (let attempt = 1; ; attempt++) {
         try {
-          validated = await attemptOnce();
+          validated = await attemptOnce(attempt, lastRejectReason);
           break;
         } catch (error) {
           const isFormatError = error instanceof GatewayError
             && error.code === "DISCOVERY_MODEL_OUTPUT_INVALID";
           if (!isFormatError || attempt >= 3) throw error;
           const details = error.details ?? {};
+          lastRejectReason = details.reason ?? "unknown";
           console.warn(`[discovery] ${stage} output invalid attempt=${attempt}/3 run=${run.run_id}`
             + ` reason=${JSON.stringify(details.reason ?? null)} rawTail=${JSON.stringify(details.rawTail ?? "")}`);
         }

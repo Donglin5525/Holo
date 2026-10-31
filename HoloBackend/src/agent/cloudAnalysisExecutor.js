@@ -447,6 +447,10 @@ export function createCloudAnalysisExecutor({
   backgroundBudget = null,
   // 问句时间解析员注入点（测试用）：null = 用真解析员；传 stub 可跳过/替换
   injectedQuestionTimeResolver = null,
+  // 个人档案通道（2026-11-01）：任务流不经过 /v1/ai/chat/completions 网关，
+  // 档案随加密快照上行（snapshot.profileBrief），执行器自行注入同一套边界文案
+  profileChannelEnabled = true,
+  profileBriefMaxBytes = 12 * 1024,
   log = (...args) => console.log("[cloud-analysis]", ...args),
 } = {}) {
   const engine = createCloudAnalysisQueryEngine();
@@ -458,6 +462,24 @@ export function createCloudAnalysisExecutor({
     ?? createQuestionTimeResolver({ provider, route });
   if (!provider) {
     throw new Error(`CLOUD_ANALYSIS_PROVIDER_MISSING: ${route.provider}`);
+  }
+
+  // 个人档案通道：各任务流手工组装 provider 消息，不能只取
+  // injectServerPrompt 产物的 messages[0]——那会静默丢掉档案消息。
+  // 统一在此拆出「主 system + 档案 system」，由各任务流按自己的消息形状拼接。
+  function splitSystemMessages(systemPrompted) {
+    const main = systemPrompted.messages[0]?.content ?? "";
+    const profile = systemPrompted.messages[1]?.role === "system"
+      ? systemPrompted.messages[1].content
+      : null;
+    return { main, profile };
+  }
+  function profileChannelOptions(profileBrief) {
+    return {
+      profileBrief,
+      profileChannelEnabled,
+      profileBriefMaxBytes,
+    };
   }
 
   // 工具结果统一为 iOS HoloDataToolResult 同构信封（错误也走 error 字段），
@@ -684,9 +706,17 @@ export function createCloudAnalysisExecutor({
         log(`回放任务已取消（行已删除），停止执行 taskId=${taskId}`);
         return "cancelled";
       }
+      // 个人档案通道：回放快照（context JSON）根字段 profileBrief 随密文上行
+      let replayProfileBrief;
+      try {
+        replayProfileBrief = JSON.parse(contextJSON)?.profileBrief ?? null;
+      } catch {
+        replayProfileBrief = null;
+      }
       const systemPrompted = injectServerPrompt("insight", [
         { role: "user", content: contextJSON },
-      ]);
+      ], profileChannelOptions(replayProfileBrief));
+      const replayMessages = splitSystemMessages(systemPrompted);
       // 输出预算按周期档位分档（口径见 config.insightMaxTokensFor）：
       // 素材里的 periodType 是分档依据（快照由 iOS 组装，字段可信）。
       let periodType = null;
@@ -702,7 +732,8 @@ export function createCloudAnalysisExecutor({
       };
       const response = await callProvider(
         [
-          { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
+          { role: "system", content: replayMessages.main },
+          ...(replayMessages.profile ? [{ role: "system", content: replayMessages.profile }] : []),
           { role: "user", content: contextJSON },
         ],
         replayCallRoute,
@@ -751,11 +782,15 @@ export function createCloudAnalysisExecutor({
    * - 阶段推进写 stage 列（cloudPlanning→draftReady/failed），revision 服务端单调
    */
   async function runContextPlan(taskId, task) {
-    // 快照列是 JSON 对象（上传路由强制），prompt 在 .prompt 字段
+    // 快照列是 JSON 对象（上传路由强制），prompt 在 .prompt 字段；
+    // profileBrief（个人档案通道）与 prompt 平级上行
     let prompt = "";
+    let contextPlanProfileBrief = null;
     if (typeof task.snapshot === "string") {
       try {
-        prompt = String(JSON.parse(task.snapshot)?.prompt ?? "").trim();
+        const parsedSnapshot = JSON.parse(task.snapshot);
+        prompt = String(parsedSnapshot?.prompt ?? "").trim();
+        contextPlanProfileBrief = parsedSnapshot?.profileBrief ?? null;
       } catch {
         prompt = task.snapshot.trim();
       }
@@ -801,10 +836,12 @@ export function createCloudAnalysisExecutor({
       }
       const systemPrompted = injectServerPrompt("personal_context_planning", [
         { role: "user", content: prompt },
-      ]);
+      ], profileChannelOptions(contextPlanProfileBrief));
+      const planMessages = splitSystemMessages(systemPrompted);
       const response = await callProvider(
         [
-          { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
+          { role: "system", content: planMessages.main },
+          ...(planMessages.profile ? [{ role: "system", content: planMessages.profile }] : []),
           { role: "user", content: prompt },
         ],
         contextPlanRoute ?? route,
@@ -1035,18 +1072,29 @@ export function createCloudAnalysisExecutor({
       const messages = [];
       const systemPrompted = injectServerPrompt("agent_loop", [
         { role: "user", content: task.question },
-      ]);
+      ], profileChannelOptions(snapshot.profileBrief));
+      const agentMessages = splitSystemMessages(systemPrompted);
       const datasetNames = Object.keys(snapshot.datasets ?? {});
       // S2 融合版：iOS 预计算确定性台账（对比指标+分期承诺+已确认事实与已知风险）
       // 注入 system 数据段——深度来自程序先算好的判断原料，模型负责判断与表达（v26）。
       const financeLedgerBlock = typeof snapshot.financeEvidenceLedger === "string" && snapshot.financeEvidenceLedger.trim()
         ? `\n<finance_evidence_ledger>\n${snapshot.financeEvidenceLedger}\n</finance_evidence_ledger>\n`
         : "";
+      // 全景体检台账（2026-11-01 全景版跨域洞察）：各领域本期/上期体检指标 +
+      // 按天对齐同变候选，程序算好——全景覆盖与跨域候选不再依赖模型自觉选题。
+      const checkupBlock = typeof snapshot.crossDomainCheckup === "string" && snapshot.crossDomainCheckup.trim()
+        ? `\n<cross_domain_checkup>\n${snapshot.crossDomainCheckup}\n</cross_domain_checkup>\n`
+        : "";
       // 目标闭环（§6.4）：冻结块 + 统一事实快照；模型不得改写范围，数字以快照为准
       const goalBlock = goalScope ? buildGoalScopeBlock(goalScope, goalReview) : "";
       messages.push({
         role: "system",
-        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}${financeLedgerBlock}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}${goalBlock ? `\n\n${goalBlock}` : ""}`,
+        content: [
+          agentMessages.main,
+          // 个人档案通道：紧跟主 system（任务指令），先于工具目录与冻结任务块
+          agentMessages.profile,
+          `${buildCloudToolCatalog(snapshot)}${financeLedgerBlock}${checkupBlock}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}${goalBlock ? `\n\n${goalBlock}` : ""}`,
+        ].filter(Boolean).join("\n\n"),
       });
       messages.push({ role: "user", content: task.question });
 
@@ -1164,13 +1212,16 @@ export function createCloudAnalysisExecutor({
           const financeLedgerNumbers = financeLedgerBlock
             ? extractCheckableNumbers(financeLedgerBlock).filter((n) => n >= 100)
             : [];
+          // 全景体检台账数字进白名单（不过滤量级：117 支/147% 这类小数字结论
+          // 全靠它过核验；日期噪声 10-31 一并放行，属可接受放宽）
+          const checkupNumbers = checkupBlock ? extractCheckableNumbers(checkupBlock) : [];
           // 目标闭环：goalReview 冻结块里的确定性数字并入白名单（4800/3300 等直接可引用）
           const goalNumbers = goalBlock ? extractCheckableNumbers(goalBlock) : [];
           const verified = verifyDelivery(output, {
             metricLedger: metricEvidence,
             validEvidenceIDs,
             evidenceTexts,
-            financeLedgerNumbers: [...financeLedgerNumbers, ...goalNumbers],
+            financeLedgerNumbers: [...financeLedgerNumbers, ...checkupNumbers, ...goalNumbers],
           });
           // 修复轮触发（2026-10-04 体检 AI02 扩展）：空 claims 或有 claim 被核验
           // 撤回（数字不一致/空台账定性规律）都给一次重发机会，撤回原因喂回模型；

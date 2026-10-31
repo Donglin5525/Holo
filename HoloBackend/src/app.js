@@ -283,6 +283,9 @@ export function createApp(overrides = {}) {
         aiCallLogger: config.aiCallLogs?.enabled ? adminLogStore : null,
         // 预算端到端修复（报告理解方案）：replay_digest worker 显式预算主体
         backgroundBudget: { guard: backgroundCostGuard, entitlementStore },
+        // 个人档案通道总闸与体积上限（snapshot.profileBrief 注入深度分析/回放/规划）
+        profileChannelEnabled: config.profileChannel?.enabled,
+        profileBriefMaxBytes: config.limits?.profileBriefMaxBytes,
       });
     } catch (error) {
       console.error("[holo-backend] 云端分析执行器创建失败（任务将停留在 queued）:", error?.message ?? error);
@@ -819,7 +822,7 @@ export function createApp(overrides = {}) {
     let quotaReservation = null;
     try {
       const request = await readJson(context);
-      validateChatRequest(request);
+      validateChatRequest(request, { profileBriefMaxBytes: config.limits?.profileBriefMaxBytes });
       rejectClientRouting(request);
 
       const purpose = request.purpose ?? "chat";
@@ -2321,7 +2324,7 @@ async function readJson(context) {
   }
 }
 
-function validateChatRequest(request) {
+function validateChatRequest(request, options = {}) {
   if (!Array.isArray(request.messages) || request.messages.length === 0) {
     throw new GatewayError("INVALID_REQUEST", "messages must be a non-empty array", 400);
   }
@@ -2338,6 +2341,18 @@ function validateChatRequest(request) {
 
   if (request.usageActionId !== undefined && !normalizedActionId(request.usageActionId)) {
     throw new GatewayError("INVALID_REQUEST", "usageActionId is invalid", 400);
+  }
+
+  // 个人档案通道：可缺省；给了就必须是非空字符串且不超体积上限（超限 400 拒绝，
+  // 不静默截断——截断会让用户误以为档案全量生效）。
+  const profileBriefMaxBytes = options.profileBriefMaxBytes ?? 12 * 1024;
+  if (request.profileBrief !== undefined) {
+    if (typeof request.profileBrief !== "string" || !request.profileBrief.trim()) {
+      throw new GatewayError("INVALID_REQUEST", "profileBrief must be a non-empty string", 400);
+    }
+    if (Buffer.byteLength(request.profileBrief, "utf8") > profileBriefMaxBytes) {
+      throw new GatewayError("PROFILE_BRIEF_TOO_LARGE", "profileBrief exceeds size limit", 400);
+    }
   }
 }
 

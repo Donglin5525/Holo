@@ -723,10 +723,14 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
 
   // v25: 目录驱动字段原则（字段能力标记随目录上云，新字段零提示词教学）
   // v26: 融合版判断法（S1 消融定稿：答案先行/候选解释+改判条件/已确认风险必处理/
-  //      台账优先+禁假设合同条款/输出禁自我对话；v21 维度菜单与 v23 五层深挖退役）
-  assert.equal(prompt.version, 27);
+  //      台账优先+禁假设合同条款/输出禁自我对话；v21 维度菜单与v23五层深挖退役）
+  // v28: 全景体检模式（台账注入时逐域覆盖+同变候选核验+心理解读禁令+环比同比口径）
+  assert.equal(prompt.version, 28);
   assert.match(prompt.content, /HOLO_AGENT_CATALOG_DRIVEN_FIELDS_V25/);
   assert.match(prompt.content, /HOLO_AGENT_INSIGHT_JUDGMENT_V26/);
+  assert.match(prompt.content, /全景体检模式/);
+  assert.match(prompt.content, /cross_domain_checkup/);
+  assert.match(prompt.content, /环比/);
   assert.match(prompt.content, /reportStructure/);
   assert.match(prompt.content, /chartHint/);
   assert.doesNotMatch(prompt.content, /HOLO_AGENT_FINANCE_DEPTH_V23/);

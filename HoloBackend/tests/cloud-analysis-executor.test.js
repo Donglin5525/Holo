@@ -902,7 +902,9 @@ test("引擎 P0：baseline 自动前移 + difference/percentageChange 确定性�
   // 对照窗=同长度前移（8月2日~9月1日，含 8-5 一笔 -10）
   assert.equal(total.baselineValue, -10);
   assert.equal(byKey["dynamic.finance_transactions.diff.all"].value, -40);
-  assert.equal(byKey["dynamic.finance_transactions.pct.all"].value, -4);
+  // percentageChange v28 起值即百分数（×100），unit 强制 %：(-50 - -10)/|-10| = -400%
+  assert.equal(byKey["dynamic.finance_transactions.pct.all"].value, -400);
+  assert.equal(byKey["dynamic.finance_transactions.pct.all"].unit, "%");
 });
 
 test("引擎 P0：perDay 按自然日数均摊（30 天窗口 2 笔 → 0.0667）", () => {
@@ -1857,6 +1859,57 @@ test("S2台账：输出混入自我对话→claim撤回+触发修复轮，修复
   assert.ok(!result.claims[0].displayText.includes("等等"), "污染 claim 不得交付");
   // 修复轮被触发过（第二轮模型调用收到撤回原因）
   assert.ok(provider.calls.length >= 2, "污染必须触发修复轮");
+});
+
+// —— 全景体检台账（2026-11-01 全景版跨域洞察）——
+
+const CHECKUP_SNAPSHOT = {
+  ...SNAPSHOT,
+  crossDomainCheckup: "【窗口】本期 2026-10-02 ~ 2026-10-31（30 天）；上期（环比基线）2026-09-02 ~ 2026-10-01（30 天）。\n【各领域体检·本期 vs 上期】\n  习惯：戒烟：达标 3 天→12 天（本期记录 30 天），累计 117 支，日均 3.9 支。\n【同变候选】\n  睡眠时长 与 每日支出：r=+0.52（同向变化，对齐 24 天，相关性中等）。",
+};
+
+test("全景台账：快照带 crossDomainCheckup→system 注入<cross_domain_checkup>；老快照不注入", async () => {
+  const provider = makeProvider([agentJson("final_claims", { claims: [] })]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-checkup", question: "整体过得怎么样" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(CHECKUP_SNAPSHOT) });
+  await executor.run(task.id);
+
+  const system0 = provider.calls[0].messages.find((m) => m.role === "system");
+  // 内容级断言（v28 提示词本身提及标签名，不能只查标签——S2台账测试同款坑）
+  assert.ok(system0.content.includes("<cross_domain_checkup>\n【窗口】本期 2026-10-02"), "带体检台账快照必须注入台账段");
+  assert.ok(system0.content.includes("累计 117 支"), "台账内容必须进 system 消息");
+
+  const provider2 = makeProvider([agentJson("final_claims", { claims: [] })]);
+  const { store: store2, executor: executor2 } = makeExecutor(provider2);
+  const task2 = store2.create({ deviceId: "device-checkup-old", question: "整体过得怎么样" });
+  store2.attachSnapshot({ id: task2.id, snapshot: JSON.stringify(SNAPSHOT) });
+  await executor2.run(task2.id);
+  const systemOld = provider2.calls[0].messages.find((m) => m.role === "system");
+  assert.ok(!systemOld.content.includes("累计 117 支"), "老快照不得注入体检台账内容");
+});
+
+test("全景台账：claim 引用台账小数字（117 支）不被误撤——体检数字进核验白名单", async () => {
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      title: "戒烟记录在回暖",
+      claims: [{
+        summary: "习惯体检",
+        displayText: "戒烟习惯本期记录 117 支（日均 3.9 支），达标天数从 3 天升到 12 天",
+        metricAssertions: [],
+        evidenceIDs: [],
+        type: "change",
+        confidence: 0.8,
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-checkup2", question: "最近30天整体怎么样" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(CHECKUP_SNAPSHOT) });
+  const status = await executor.run(task.id);
+  assert.equal(status, "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 1, "引用体检台账数字（117/3.9/12/3）的 claim 不应被 NUMERIC_CLAIM_UNVERIFIED 撤回");
 });
 
 // —— v27 报告结构：章节引用核验与降级 ——
