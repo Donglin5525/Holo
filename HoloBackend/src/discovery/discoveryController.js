@@ -535,6 +535,48 @@ export function registerDiscoveryRoutes(app, deps) {
       }
       const { envelope, usage: stageUsage } = validated;
 
+      if (stage === "candidates" && envelope.candidates.length > 0) {
+        // 2026-11-01 引用锚定修复：qwen 引用时常轻微改写原文（换词/补字/标点差异）导致客户端
+        // 逐字闸全拒（实测 quote_mismatch 拒因）。修复策略：引用的前后缀若能在对应证据原文中
+        // 锚定（各自唯一命中同一段），则把引用整体替换为原文的精确片段——引用内容回归原文本身，
+        // 语义零生成。锚不定的引用保持原样（交给客户端闸如实拒绝）。
+        const evidenceBlocks = new Map();
+        for (const item of Array.isArray(body.data?.evidence) ? body.data.evidence : []) {
+          if (item && typeof item.evidenceID === "string" && typeof item.sourceBlock === "string") {
+            evidenceBlocks.set(item.evidenceID, item.sourceBlock);
+          }
+        }
+        let repairedCount = 0;
+        const normKey = (s) => String(s).replace(/[\s“”「」『』]/g, "").toLowerCase();
+        for (const candidate of envelope.candidates) {
+          for (const claim of candidate.claims ?? []) {
+            for (const citation of claim.citations ?? []) {
+              const source = evidenceBlocks.get(citation.evidenceID);
+              if (typeof source !== "string" || source.includes(citation.quote)) continue;
+              const key = normKey(citation.quote);
+              if (key.length < 8) continue;
+              const sourceKey = normKey(source);
+              const prefix = key.slice(0, 8);
+              const suffix = key.slice(-8);
+              const start = sourceKey.indexOf(prefix);
+              if (start < 0) continue;
+              const end = sourceKey.lastIndexOf(suffix);
+              if (end < start) continue;
+              // 命中区间按归一化长度截取原文（归一化只删空白/引号，长度差有限，按区间就近回取）
+              let rawStart = start, rawEnd = end + 8;
+              if (rawEnd > source.length) rawEnd = source.length;
+              const anchored = source.slice(rawStart, rawEnd);
+              if (anchored.length >= 6) {
+                citation.quote = anchored;
+                repairedCount++;
+              }
+            }
+          }
+        }
+        if (repairedCount > 0) {
+          console.warn(`[discovery] quote anchored repaired=${repairedCount} run=${run.run_id}`);
+        }
+      }
       runStore.cacheStageResult({ runId: run.run_id, stage, requestHash: stageRequestHash(stage, run.run_id, { dataHash: canonicalSha256(body.data) }), envelope });
       if (stage === "candidates" && envelope.candidates.length === 0) {
         // 无结构合格候选不调用 verify（03 §4.2）；noFinding 是成功终态，日批次按已用计
