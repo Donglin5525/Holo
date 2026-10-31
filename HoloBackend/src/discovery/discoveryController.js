@@ -355,7 +355,25 @@ export function registerDiscoveryRoutes(app, deps) {
   });
 
   // ===== 阶段共享编排 =====
-  async function runStage({ context, subject, deviceId, runId, stage, purpose, body, verifyInput }) {
+  // 2026-11-01 在途共享：模型阶段可长达 60-180 秒且全程不吐字节，QUIC/NAT 等中间链路常在
+  // 60 秒空闲时掐断连接（真机+模拟器均实锤 -1005），URLSession 随即换连接重发同请求——
+  // 此前第二个请求撞「已 dispatched 无缓存」被 410，首个连接上完成的 200 无人接收 →
+  // 整批作废。现在同 run+stage+body 的并发请求共享同一个在途 Promise：后到者等待并
+  // 拿到同一份结果，任何一条连接存活即可送达；顺带天然防双发双计费。
+  const inFlightStages = new Map();
+  async function runStage(args) {
+    const { runId, stage, body } = args;
+    let dataHash = "nodata";
+    try { if (body && body.data !== undefined) dataHash = canonicalSha256(body.data); } catch { dataHash = "invalid"; }
+    const key = `${runId}:${stage}:${dataHash}`;
+    const existing = inFlightStages.get(key);
+    if (existing) return existing;
+    const pending = runStageInner(args).finally(() => inFlightStages.delete(key));
+    inFlightStages.set(key, pending);
+    return pending;
+  }
+
+  async function runStageInner({ context, subject, deviceId, runId, stage, purpose, body, verifyInput }) {
     requireFields(body, ["data"]);
     if (!body.data || typeof body.data !== "object" || Array.isArray(body.data)) {
       throw new GatewayError("INVALID_REQUEST", "data must be an object", 400);
