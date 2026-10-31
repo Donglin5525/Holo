@@ -483,15 +483,39 @@ export function registerDiscoveryRoutes(app, deps) {
       const invoke = typeof provider.completeViaStream === "function"
         ? provider.completeViaStream.bind(provider)
         : provider.complete.bind(provider);
-      const result = backgroundCostGuard
-        ? await backgroundCostGuard.run(subject, () => invoke(upstreamRequest))
-        : await invoke(upstreamRequest);
-
-      const content = result?.choices?.[0]?.message?.content ?? "";
-      const { envelope } = validateDiscoveryOutput(content, {
-        expectedKind: stage === "candidates" ? "candidates" : "verification",
-        expectedRunID: run.run_id,
-      });
+      // 2026-11-01 格式失误自动重试：qwen 真实材料的候选输出合格率不稳（实测 1/4；
+      // 合成试评 18/18 全绿掩盖了这一差距），而单次 OUTPUT_INVALID 即关 run 烧掉当日
+      // 名额 → 当天功能报废（客户端还排次日重试，用户连续多日看不到发现）。
+      // OUTPUT_INVALID 属「模型已计费但产物不合格」：同 run 内最多重试 2 次（总尝试 3 次），
+      // 独立成功率 p 时批次成功率 1-(1-p)^3（p=25% → ~58%，p=50% → ~87%）。
+      // 每次失败把 reason+原始输出尾部打进容器日志，供 prompt 继续调优。
+      // 仅重试格式类失败；预算/上游断连等其余失败立即走原路径（不放大成本）。
+      const attemptOnce = async () => {
+        const result = backgroundCostGuard
+          ? await backgroundCostGuard.run(subject, () => invoke(upstreamRequest))
+          : await invoke(upstreamRequest);
+        const content = result?.choices?.[0]?.message?.content ?? "";
+        const { envelope } = validateDiscoveryOutput(content, {
+          expectedKind: stage === "candidates" ? "candidates" : "verification",
+          expectedRunID: run.run_id,
+        });
+        return { envelope, usage: result?.usage ?? null };
+      };
+      let validated;
+      for (let attempt = 1; ; attempt++) {
+        try {
+          validated = await attemptOnce();
+          break;
+        } catch (error) {
+          const isFormatError = error instanceof GatewayError
+            && error.code === "DISCOVERY_MODEL_OUTPUT_INVALID";
+          if (!isFormatError || attempt >= 3) throw error;
+          const details = error.details ?? {};
+          console.warn(`[discovery] ${stage} output invalid attempt=${attempt}/3 run=${run.run_id}`
+            + ` reason=${JSON.stringify(details.reason ?? null)} rawTail=${JSON.stringify(details.rawTail ?? "")}`);
+        }
+      }
+      const { envelope, usage: stageUsage } = validated;
 
       runStore.cacheStageResult({ runId: run.run_id, stage, requestHash: stageRequestHash(stage, run.run_id, { dataHash: canonicalSha256(body.data) }), envelope });
       if (stage === "candidates" && envelope.candidates.length === 0) {
@@ -511,10 +535,10 @@ export function registerDiscoveryRoutes(app, deps) {
           runId: run.run_id,
           resultCount: stage === "candidates" ? envelope.candidates.length : envelope.candidateResults.length,
         },
-        usage: result?.usage ?? null,
+        usage: stageUsage,
       });
       return stageResponse({
-        run, stage, purpose, envelope, usage: result?.usage ?? null, replayed: false,
+        run, stage, purpose, envelope, usage: stageUsage, replayed: false,
         promptVersion: serverPrompt.promptVersion,
       });
     } catch (error) {

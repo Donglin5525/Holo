@@ -639,13 +639,33 @@ test("T23 缺字段/多余字段/缺 verdict/坏 allOf 的模型输出被严格�
     assert.equal(response.status, 502, `${item.name}: 应拒绝`);
     const body = await response.json();
     assert.equal(body.error.code, "DISCOVERY_MODEL_OUTPUT_INVALID", item.name);
-    assert.equal(stub.calls.length, 1, `${item.name}: 只一次调用不重试`);
+    // 2026-11-01 语义更新：格式失败同 run 自动重试（总尝试 3 次）——stub 队列被排空即三次全败
+    assert.equal(stub.calls.length, 3, `${item.name}: 格式失败重试至多 3 次后仍拒`);
     // 本批终止：同 run 再发 verify 被拒
     const verify = await post(app, `/v1/discovery/runs/${runID}/verify`, DEVICE_A, {
       runToken: created.runToken, candidates: [], candidatesHash: canonicalSha256([]), data: {},
     });
     assert.equal(verify.status, 409, `${item.name}: 本批已终止`);
   }
+});
+
+// 2026-11-01：qwen 真实材料格式失败率实锤（1/4），同 run 自动重试至多 2 次
+test("T23c 前两次格式坏第三次好：重试后整批成功，不烧日名额", async () => {
+  const { app, stub } = createTestApp();
+  await enableControl(app, DEVICE_A);
+  const runID = `run-${randomUUID()}`;
+  const created = await (await post(app, "/v1/discovery/runs", DEVICE_A, { runID })).json();
+  const good = candidateEnvelope(runID);
+  stub.enqueue("{\"not\":\"a valid envelope\"}");
+  stub.enqueue(JSON.stringify({ ...good, kind: "wrong_kind" }));
+  stub.enqueue(JSON.stringify(good));
+  const response = await post(app, `/v1/discovery/runs/${runID}/candidates`, DEVICE_A, {
+    runToken: created.runToken, data: stageData(runID),
+  });
+  assert.equal(response.status, 200, "第三次格式正确应整批成功");
+  assert.equal(stub.calls.length, 3);
+  const body = await response.json();
+  assert.equal(body.envelope.candidates.length > 0, true, "返回合格候选");
 });
 
 test("T23b 校验器直测：未知枚举/ID 格式/重复 ID 拒绝，合法 envelope 通过", () => {

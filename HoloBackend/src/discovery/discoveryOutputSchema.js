@@ -42,6 +42,20 @@ const DOMAINS = new Set(["thought", "task", "habit"]);
  * @returns {{ ok: true, envelope: object }} 通过；失败抛 GatewayError(DISCOVERY_MODEL_OUTPUT_INVALID, 502, {reason})
  */
 export function validateDiscoveryOutput(rawText, { expectedKind, expectedRunID }) {
+  try {
+    return validateDiscoveryOutputInner(rawText, { expectedKind, expectedRunID });
+  } catch (error) {
+    // 统一补原始输出尾部（仅日志用）：真实材料的格式失误靠它定位调 prompt（2026-11-01）。
+    if (error instanceof GatewayError && error.code === "DISCOVERY_MODEL_OUTPUT_INVALID"
+      && !(error.details && error.details.rawTail)) {
+      throw new GatewayError(error.code, error.message, 502,
+        { ...(error.details ?? {}), rawTail: String(rawText).slice(-300) });
+    }
+    throw error;
+  }
+}
+
+function validateDiscoveryOutputInner(rawText, { expectedKind, expectedRunID }) {
   let parsed;
   try {
     parsed = JSON.parse(extractJsonPayload(rawText));
@@ -259,6 +273,9 @@ function extractJsonPayload(rawText) {
   return text.slice(start, end + 1);
 }
 
-function invalid(reason) {
-  return new GatewayError("DISCOVERY_MODEL_OUTPUT_INVALID", "Model output failed contract validation", 502, { reason });
+function invalid(reason, rawContent = null) {
+  // rawTail：仅用于服务端容器日志定位模型格式失误（2026-11-01 真实材料调优），
+  // 不进 HTTP 响应正文的关键字段。
+  const rawTail = typeof rawContent === "string" ? rawContent.slice(-300) : null;
+  return new GatewayError("DISCOVERY_MODEL_OUTPUT_INVALID", "Model output failed contract validation", 502, { reason, ...(rawTail ? { rawTail } : {}) });
 }
