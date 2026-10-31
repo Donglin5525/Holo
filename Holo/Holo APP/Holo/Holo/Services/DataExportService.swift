@@ -333,15 +333,22 @@ class DataExportService {
     private func fetchTransactions(in dateRange: ClosedRange<Date>?) async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
-        
+
+        // 回收站里的交易不进导出备份（分类/账户导出均已过滤，此处补齐；2026-10-31 审计 A3）
+        let deletedFilter = NSPredicate(format: "deletedAt == nil")
         if let range = dateRange, range.lowerBound != Date.distantPast {
-            request.predicate = NSPredicate(
-                format: "date >= %@ AND date <= %@",
-                range.lowerBound as NSDate,
-                range.upperBound as NSDate
-            )
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(
+                    format: "date >= %@ AND date <= %@",
+                    range.lowerBound as NSDate,
+                    range.upperBound as NSDate
+                ),
+                deletedFilter,
+            ])
+        } else {
+            request.predicate = deletedFilter
         }
-        
+
         return try context.fetch(request)
     }
     

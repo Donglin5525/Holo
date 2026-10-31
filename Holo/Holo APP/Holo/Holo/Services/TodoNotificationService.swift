@@ -362,12 +362,19 @@ class TodoNotificationService: NSObject, ObservableObject {
 
     /// 取消任务的所有提醒
     func cancelReminders(for task: TodoTask) async {
-        let requestIdPrefix = task.id.uuidString
+        await cancelReminders(taskIDs: [task.id])
+    }
+
+    /// 按任务 ID 批量取消提醒（通知 id 以「任务UUID-」开头；UUID 自带连字符，
+    /// 不能按第一个连字符切前缀——见 2026-10-31 审计 A1）
+    func cancelReminders(taskIDs: [UUID]) async {
+        guard !taskIDs.isEmpty else { return }
+        let prefixes = taskIDs.map { "\($0.uuidString)-" }
         let requests = await UNUserNotificationCenter.current().pendingNotificationRequests()
 
         let taskRequestIds = requests
-            .filter { $0.identifier.hasPrefix(requestIdPrefix) }
-            .map { $0.identifier }
+            .map(\.identifier)
+            .filter { identifier in prefixes.contains { identifier.hasPrefix($0) } }
 
         UNUserNotificationCenter.current().removePendingNotificationRequests(
             withIdentifiers: taskRequestIds

@@ -94,7 +94,8 @@ struct HoloTodoToggleIntent: AppIntent {
         try await MainActor.run {
             let context = HoloWidgetDataStore.shared.viewContext
             let request = TodoTask.fetchRequest()
-            request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            // 桌面快照可能仍显示已进回收站的任务；软删任务不得被小组件翻转完成态（2026-10-31 审计 A2）
+            request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
             request.fetchLimit = 1
             guard let task = try context.fetch(request).first else { return }
 

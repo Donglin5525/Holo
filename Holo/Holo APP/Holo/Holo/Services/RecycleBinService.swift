@@ -579,20 +579,11 @@ final class RecycleBinService: ObservableObject {
         return (try? context.count(for: request)) ?? 0
     }
 
-    /// 批量取消任务待发提醒（通知 id 前缀 = task.id.uuidString）
+    /// 批量取消任务待发提醒（通知 id 以「任务UUID-」开头，委托 TodoNotificationService 统一实现）
     static func cancelTaskNotifications(taskIds: [UUID]) {
         guard !taskIds.isEmpty else { return }
-        let prefixes = Set(taskIds.map(\.uuidString))
         Task {
-            let requests = await UNUserNotificationCenter.current().pendingNotificationRequests()
-            let identifiers = requests
-                .map(\.identifier)
-                .filter { identifier in
-                    guard let separator = identifier.firstIndex(of: "-") else { return false }
-                    return prefixes.contains(String(identifier[identifier.startIndex..<separator]))
-                }
-            guard !identifiers.isEmpty else { return }
-            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+            await TodoNotificationService.shared.cancelReminders(taskIDs: taskIds)
         }
     }
 

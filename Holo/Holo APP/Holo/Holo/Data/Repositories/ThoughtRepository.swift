@@ -736,6 +736,9 @@ class ThoughtRepository {
         let displayName = ThoughtTagNormalizer.displayName(name)
         let key = ThoughtTagNormalizer.key(displayName)
         let request = ThoughtTag.fetchRequest()
+        // 不复用回收站里的已删标签行：清空想法批次后同名标签要新建活行，
+        // 否则活想法挂死标签（侧栏按 deletedAt 过滤看不见）且恢复批次时新旧数据互搅（2026-10-31 审计 A8）
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         let tags = try context.fetch(request)
 
         if let tag = tags.first(where: { ThoughtTagNormalizer.key($0.name) == key }) {

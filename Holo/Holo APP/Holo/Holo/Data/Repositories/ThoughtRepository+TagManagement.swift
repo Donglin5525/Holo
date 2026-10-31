@@ -167,6 +167,8 @@ extension ThoughtRepository {
     /// 按归一化 key 查标签（标签量小，内存匹配即可，与 getOrCreateTag 同模式）
     private func fetchTagByKey(_ key: String) throws -> ThoughtTag? {
         let request = ThoughtTag.fetchRequest()
+        // 与 getOrCreateTag 同口径：回收站里的已删标签行不参与匹配（2026-10-31 审计 A8）
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         return try DuplicateRowFilter.deduplicatingCopies(context.fetch(request))
             .first { ThoughtTagNormalizer.key($0.name) == key }
     }

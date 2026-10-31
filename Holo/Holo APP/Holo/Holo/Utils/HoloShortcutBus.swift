@@ -34,6 +34,10 @@ final class HoloShortcutBus: ObservableObject {
 
     static let shared = HoloShortcutBus()
 
+    /// ⚠️ @Published 的 `$lastEvent` 会在**每次新订阅时立即重放当前值**。
+    /// 常驻视图无感；条件挂载的视图（如 Mac 模块 if/else 互斥渲染）切回即重建订阅，
+    /// 会把上一条旧事件当新事件消费（2026-10-31 审计 M2：切回模块设置页自动弹出）。
+    /// 非常驻消费方必须接 `.dropFirst()` 只响应订阅后的新事件。
     @Published private(set) var lastEvent: HoloShortcutEvent?
 
     private var nextId = 0
