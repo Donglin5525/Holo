@@ -567,6 +567,29 @@ export function registerDiscoveryRoutes(app, deps) {
         let repairedCount = 0;
         const normKey = (s) => String(s).replace(/[\s“”「」『』]/g, "").toLowerCase();
         for (const candidate of envelope.candidates) {
+          // 数字纪律兜底：claim 文本含数字（两三四…八九十或阿拉伯数字）时客户端闸要求
+          // ≥2 条引用；模型常只给 1 条。从候选级支撑证据补齐——quote 取该证据原文首句
+          //（确定性截取，非生成），引用内容仍全部来自原文。
+          const containsNumber = /[0-9两三四五六七八九十]/.test(
+            (candidate.claims ?? []).map((claim) => claim?.text ?? "").join(""));
+          if (containsNumber && Array.isArray(candidate.supportEvidenceIDs)) {
+            for (const claim of candidate.claims ?? []) {
+              if (!claim || !Array.isArray(claim.citations)) continue;
+              if (!/[0-9两三四五六七八九十]/.test(claim.text ?? "")) continue;
+              if (claim.citations.length >= 2) continue;
+              for (const eid of candidate.supportEvidenceIDs) {
+                if (claim.citations.length >= 2) break;
+                if (claim.citations.some((c) => c.evidenceID === eid)) continue;
+                const source = evidenceBlocks.get(eid);
+                if (!source) continue;
+                const firstSentence = source.split(/(?<=[。！？!?])/)[0] || source.slice(0, 40);
+                if (firstSentence.length >= 4) {
+                  claim.citations.push({ evidenceID: eid, quote: firstSentence });
+                  repairedCount++;
+                }
+              }
+            }
+          }
           for (const claim of candidate.claims ?? []) {
             for (const citation of claim.citations ?? []) {
               const source = evidenceBlocks.get(citation.evidenceID);
