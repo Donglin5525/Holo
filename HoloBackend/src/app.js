@@ -748,6 +748,26 @@ export function createApp(overrides = {}) {
       const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
       const verified = await appleReceiptVerifier.verify(request);
+      // 归属防复用（2026-10-31 审计 D2）：同一笔购买绑定设备数有上限。
+      // 本机已绑同一笔购买的重放（换设备/续期 re-sync）不受影响。
+      if (verified.tier === "plus" && verified.originalTransactionId) {
+        const current = entitlementStore.get(deviceId);
+        const samePurchase = current.originalTransactionId === verified.originalTransactionId;
+        if (!samePurchase) {
+          const others = entitlementStore.countOtherActiveDevicesByOriginalTransaction(
+            verified.originalTransactionId,
+            deviceId,
+          );
+          if (others >= config.subscription.deviceLimit) {
+            throw new GatewayError(
+              "SUBSCRIPTION_DEVICE_LIMIT",
+              "This subscription is already linked to the maximum number of devices",
+              409,
+              { deviceLimit: config.subscription.deviceLimit },
+            );
+          }
+        }
+      }
       entitlementStore.upsertVerified(deviceId, verified);
       context.header("Cache-Control", "no-store");
       return context.json(subscriptionStatusFor(deviceId));

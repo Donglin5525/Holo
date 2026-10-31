@@ -47,3 +47,39 @@ test("reserve 返回值可直接回传 release（失败路径契约）", () => {
   assert.equal(peek.used, 0, "release 后不得残留计数");
   assert.equal(peek.available, peek.limit, "release 后可用余量应回满");
 });
+
+// 回归锁（2026-10-31 审计 D1）：actionId 由客户端任意指定且不绑定请求内容，
+// 旧实现把「已存在记录」一律按幂等放行——重放同一个键即可绕过全部次数池。
+test("宽限期外的 committed 键重放必须重新计数（防一个键吃掉次数池）", () => {
+  const clock = { now: Date.UTC(2026, 9, 31, 0, 0, 0) };
+  const now = () => new Date(clock.now);
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = createQuotaActionLedgerStore(database.db, { now });
+  // 用 chat（免费 15 次/日）：deepAnalysis 只有 2 次，走不到第三次重放
+  const REPLAY_INPUT = { ...INPUT, subjectId: "purchase:ledger-replay", quotaType: "chat" };
+
+  const first = store.reserve(REPLAY_INPUT);
+  store.commit(first);
+  assert.equal(first.duplicate, false);
+
+  // 宽限期内重放同一键 = 合法重试，不重复计数
+  clock.now += 60_000;
+  const quickRetry = store.reserve(REPLAY_INPUT);
+  assert.equal(quickRetry.duplicate, true);
+  assert.equal(quickRetry.used, 1);
+
+  // 宽限期外重放同一键 = 新请求：落 #1 后缀新行并计数
+  clock.now += 11 * 60 * 1000;
+  const replay = store.reserve(REPLAY_INPUT);
+  assert.equal(replay.duplicate, false);
+  assert.equal(replay.actionId, `${REPLAY_INPUT.actionId}#1`, "服务端后缀键必须随返回值带回供 commit/release");
+  store.commit(replay);
+  assert.equal(store.peek(REPLAY_INPUT).used, 2);
+
+  // 连续重放：#1 已提交且是服务端铸的键，不得幂等放行——继续 #2 重新计数
+  const replay2 = store.reserve(REPLAY_INPUT);
+  assert.equal(replay2.duplicate, false);
+  assert.equal(replay2.actionId, `${REPLAY_INPUT.actionId}#2`);
+  store.commit(replay2);
+  assert.equal(store.peek(REPLAY_INPUT).used, 3);
+});

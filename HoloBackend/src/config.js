@@ -650,6 +650,9 @@ const DEFAULT_CONFIG = {
   },
   subscription: {
     appleVerificationMode: process.env.HOLO_APPLE_VERIFICATION_MODE ?? "disabled",
+    // 同一笔购买（originalTransactionId）最多绑定的设备数（2026-10-31 审计 D2：
+    // JWS 不记名，无上限时一份 Plus 凭证可解锁任意多台设备且各享完整配额）
+    deviceLimit: Math.max(1, Number(process.env.HOLO_SUBSCRIPTION_DEVICE_LIMIT ?? 3) || 3),
     // production 验单的苹果凭据（mode=production 时首次验单前必须配齐，缺失报 503）：
     // 密钥来自 App Store Connect 的 In-App Purchase key（.p8），二选一：内联 PEM 或文件路径。
     apple: {
