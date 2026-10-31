@@ -77,7 +77,7 @@ const PROMPT_VERSIONS = {
   // 主题句 citations 给空数组被 schema 拒（真机 10:55 65s 502 + 试评 round-8 citations_count
   // 实锤；deepseek 无此问题、verify 侧 qwen 合格不动）。升为独立硬性规则句+空数组拒绝警告。
   discovery_candidate_v1: 6,
-  discovery_verify_v1: 2,
+  discovery_verify_v1: 3,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],
