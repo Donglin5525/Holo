@@ -81,6 +81,7 @@ const REPAIRABLE = new Set([
   "no_finding_reason", "empty_with_no_reason", "candidates_with_reason",
   "titleClaimID", "title_claim_id", "body_claim_id",
   "claim_missing", "candidate_missing", "envelope_missing",
+  "counter_search_keywords", "counter_search_domains", "counter_search_not_object", "id_list", "id_list_item",
 ]);
 
 /** 确定性修复：查表映射+补默认，不生成内容。返回修复后的可变副本。 */
@@ -111,6 +112,24 @@ function repairEnvelope(envelope) {
         if (claim && typeof claim === "object" && !Array.isArray(claim.metricIDs)) {
           claim.metricIDs = [];
         }
+      }
+      // counterSearch 三字段：模型常把数组写成单字符串（keywords:"坚持原定目标"）或漏字段
+      const toList = (value) => {
+        if (Array.isArray(value)) return value.filter((v) => typeof v === "string");
+        if (typeof value === "string" && value.trim()) return value.split(/[,，、]/).map((v) => v.trim()).filter(Boolean);
+        return [];
+      };
+      if (Array.isArray(candidate.counterSearch)) {
+        candidate.counterSearch = candidate.counterSearch
+          .filter((item) => item && typeof item === "object")
+          .map((item) => ({
+            domains: toList(item.domains),
+            anchorRefs: toList(item.anchorRefs),
+            keywords: toList(item.keywords),
+          }));
+      }
+      for (const key of ["supportEvidenceIDs", "bodyClaimIDs"]) {
+        if (candidate[key] !== undefined && !Array.isArray(candidate[key])) candidate[key] = toList(candidate[key]);
       }
     }
   }
