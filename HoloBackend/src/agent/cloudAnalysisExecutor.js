@@ -169,6 +169,73 @@ function containsAnyToken(text, tokens) {
   return tokens.some((token) => text.includes(token));
 }
 
+// —— 全景体检（2026-11-01 复查意见必修 2/3）：代码闸门，不靠提示词自觉 ——
+
+// 必修 3：动机/情绪类解读词表。interpretation 含这些词且该 claim 未引用
+// 想法/记忆类证据时，解读没有任何主观记录支撑 → 剥离该字段并记 warning
+//（claim 本身保留）。「高压环境下的补偿性消费」那次事故的直接防线。
+const MOTIVE_INTERPRETATION_TOKENS = [
+  "高压", "压力", "解压", "补偿", "宣泄", "放纵", "焦虑", "空虚", "孤独",
+  "逃避", "报复性", "犒劳", "奖励自己", "情绪化", "自我安慰", "排解",
+];
+
+// 必修 2：全景领域映射——快照数据集 → 报告必须覆盖的六域。
+// memory/insight/profile/conversation/anniversary 不计入覆盖义务。
+function panoramaDomainOfDataset(datasetName) {
+  if (typeof datasetName !== "string") return null;
+  if (datasetName.startsWith("finance.")) return "finance";
+  if (datasetName.startsWith("health.")) return "health";
+  if (datasetName.startsWith("habit.")) return "habit";
+  if (datasetName.startsWith("task.")) return "task";
+  if (datasetName.startsWith("thought.")) return "thought";
+  if (datasetName.startsWith("goal.")) return "goal";
+  return null;
+}
+
+// 活跃领域：冻结主时间窗内有行的领域（结构化推导，不解析台账文本）；
+// 无冻结窗时退化为「数据集在场即活跃」。
+function activePanoramaDomains(snapshot, answerTask) {
+  const win = answerTask?.primaryTimeRange ?? null;
+  const domains = new Set();
+  for (const [name, dataset] of Object.entries(snapshot?.datasets ?? {})) {
+    const domain = panoramaDomainOfDataset(name);
+    if (!domain) continue;
+    if (!win) { domains.add(domain); continue; }
+    const hasRow = (dataset?.rows ?? []).some((row) => {
+      const t = Date.parse(row?.occurredAt ?? "");
+      return Number.isFinite(t) && t >= win.startMs && t <= win.endMs;
+    });
+    if (hasRow) domains.add(domain);
+  }
+  return domains;
+}
+
+// 已覆盖领域：claim 显式 domain 字段（合法值）+ 断言/引用证据所属数据集推导。
+function coveredPanoramaDomains(claims, metricEvidence, evidenceDatasets) {
+  const domains = new Set();
+  const metricByKey = new Map();
+  for (const metric of metricEvidence.values()) {
+    if (!metricByKey.has(metric.metricKey)) metricByKey.set(metric.metricKey, []);
+    metricByKey.get(metric.metricKey).push(metric);
+  }
+  for (const claim of claims) {
+    if (typeof claim.domain === "string" && ["finance", "health", "habit", "task", "thought", "goal"].includes(claim.domain)) {
+      domains.add(claim.domain);
+    }
+    for (const assertion of claim.metricAssertions ?? []) {
+      for (const metric of metricByKey.get(assertion.metricKey) ?? []) {
+        const domain = panoramaDomainOfDataset(metric.dataset);
+        if (domain) domains.add(domain);
+      }
+    }
+    for (const id of claim.evidenceIDs ?? []) {
+      const domain = panoramaDomainOfDataset(evidenceDatasets.get(id) ?? "");
+      if (domain) domains.add(domain);
+    }
+  }
+  return domains;
+}
+
 /**
  * 交付核验（2026-09-19 方案任务1 §3.4）：final_claims 落库/提交额度/推送「完成」
  * 之前的云端专用闸门。「JSON 合法」不等于「可交付」：
@@ -189,7 +256,7 @@ function containsAnyToken(text, tokens) {
  * 修复轮后仍被撤回的 claim 不交付。
  * 返回 { claims, droppedClaims, warnings, title, narrativeSummary, keyInsight, emptyClaims }。
  */
-function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts, financeLedgerNumbers = [] }) {
+function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts, financeLedgerNumbers = [], evidenceDatasets = new Map() }) {
   // S2 融合版（2026-10-18）：iOS 快照注入的确定性台账数字是合法白名单来源——
   // 模型直接引用台账数字时，工具 Ledger 可能没有同值指标，不并白名单会误撤正确结论。
   const SELF_TALK_TOKENS = ["等等", "让我重新", "此处需修正", "重新核对", "不对，", "抱歉，我", "嗯，", "算了，"];
@@ -307,6 +374,18 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts,
       if (badTitleNumbers.length > 0) {
         warnings.push(`CLAIM_TITLE_INCONSISTENT:${sanitized.id ?? "claim"}`);
         sanitized.claimTitle = null;
+      }
+    }
+    // 必修 3：无依据的动机/情绪解读闸门——interpretation 含动机词且该 claim
+    // 未引用想法/记忆类证据（唯一合法的主观记录来源）时剥离字段并记 warning。
+    if (typeof sanitized.interpretation === "string" && sanitized.interpretation.trim()) {
+      const grounded = (sanitized.evidenceIDs ?? []).some((id) => {
+        const dataset = evidenceDatasets.get(id) ?? "";
+        return dataset.startsWith("thought") || dataset.startsWith("memory");
+      });
+      if (!grounded && containsAnyToken(sanitized.interpretation, MOTIVE_INTERPRETATION_TOKENS)) {
+        warnings.push(`INTERPRETATION_UNGROUNDED:${sanitized.id ?? "claim"}`);
+        sanitized.interpretation = null;
       }
     }
     claims.push(sanitized);
@@ -1113,6 +1192,8 @@ export function createCloudAnalysisExecutor({
       // 或 goal-review:* 证据即可过交付核验，空台账定性拦截不会误杀目标回顾结论
       seedGoalReviewEvidence(goalReview, { metricEvidence, validEvidenceIDs, evidenceTexts });
 
+      // 证据 ID → 所属数据集（必修 2/3：覆盖推导与解读闸门的证据归属）
+      const evidenceDatasets = new Map();
       function collectEvidence(toolRequests, toolResults) {
         toolResults.forEach((result, index) => {
           if (result.status !== "success") return;
@@ -1148,6 +1229,11 @@ export function createCloudAnalysisExecutor({
           if (request?.tool === "snapshot_rows" && Array.isArray(result.events)) {
             const dataset = request.parameters?.source ?? null;
             const excerpts = result.events.map((event) => event.excerpt).filter(Boolean);
+            for (const event of result.events) {
+              if (typeof event?.id === "string" && event.id && dataset) {
+                evidenceDatasets.set(event.id, dataset);
+              }
+            }
             if (excerpts.length > 0) {
               rowsEvidence.set(dataset ?? "_", { kind: "rows", dataset, count: excerpts.length, excerpts });
             }
@@ -1222,16 +1308,26 @@ export function createCloudAnalysisExecutor({
             validEvidenceIDs,
             evidenceTexts,
             financeLedgerNumbers: [...financeLedgerNumbers, ...checkupNumbers, ...goalNumbers],
+            evidenceDatasets,
           });
+          // 必修 2：全景覆盖闸门——活跃领域（冻结窗内有行）必须被 claims 覆盖。
+          // 缺覆盖进修复轮点名补齐；修复后仍缺则如实带 warning 交付（客户端标注）。
+          const missingDomains = checkupBlock
+            ? [...activePanoramaDomains(snapshot, answerTask)]
+              .filter((domain) => !coveredPanoramaDomains(verified.claims, metricEvidence, evidenceDatasets).has(domain))
+            : [];
           // 修复轮触发（2026-10-04 体检 AI02 扩展）：空 claims 或有 claim 被核验
-          // 撤回（数字不一致/空台账定性规律）都给一次重发机会，撤回原因喂回模型；
+          // 撤回（数字不一致/空台账定性规律）或全景缺域，都给一次重发机会，原因喂回模型；
           // 第二次仍不过则只交付幸存 claims（全撤光走下方诚实失败）。
-          if ((verified.emptyClaims || verified.droppedClaims.length > 0) && !deliveryRepairUsed) {
+          if ((verified.emptyClaims || verified.droppedClaims.length > 0 || missingDomains.length > 0) && !deliveryRepairUsed) {
             deliveryRepairUsed = true;
-            const repairDetail = verified.droppedClaims.length > 0
+            const baseDetail = verified.droppedClaims.length > 0
               ? `final_claims 未通过交付核验，以下结论被撤回：\n${verified.droppedClaims.map((d) => `· ${d.excerpt ? `${d.excerpt} ` : ""}（${d.reason}）`).join("\n")}\n请重新输出完整 final_claims：金额/数量等数字必须与工具查得结果一致，对不上就去掉具体数字；没有任何数据支持时不得输出「主要/最多/持续上升」这类定性规律，改为说明缺少什么数据、哪部分不能判断。`
               : "final_claims 不允许为空：请基于已查到的证据输出至少一条 claim 直接回答用户问题；关键证据不存在时，输出一条说明「缺什么数据、因此哪部分不能判断」的 observation claim，而不是空数组。";
-            log(`轮次 ${round}/${maxRounds} taskId=${taskId} 交付核验不过（empty=${verified.emptyClaims} dropped=${verified.droppedClaims.length}），请求重发`);
+            const repairDetail = missingDomains.length > 0
+              ? `${baseDetail}\n全景体检必须逐域覆盖：以下领域在时间窗内有数据但报告未覆盖——${missingDomains.join("、")}。请为每个缺失领域补一条 claim，并在 claim 上带 "domain" 字段（finance/health/habit/task/thought/goal 之一）。`
+              : baseDetail;
+            log(`轮次 ${round}/${maxRounds} taskId=${taskId} 交付核验不过（empty=${verified.emptyClaims} dropped=${verified.droppedClaims.length} missingDomains=${missingDomains.join(",") || "-"}），请求重发`);
             messages.push({ role: "assistant", content: validation.content });
             messages.push({
               role: "user",
@@ -1259,7 +1355,12 @@ export function createCloudAnalysisExecutor({
             claims: verified.claims,
             reasoning: output.reasoning ?? "",
             evidence: evidenceSnapshot(),
-            warnings: [...verified.warnings, ...sanitizedDraft.warnings],
+            warnings: [
+              ...verified.warnings,
+              ...sanitizedDraft.warnings,
+              // 必修 2：修复后仍缺域 → 如实标注（客户端范围行提示），不静默
+              ...(missingDomains.length > 0 ? [`DOMAIN_COVERAGE_MISSING:${missingDomains.join(",")}`] : []),
+            ],
             // 目标闭环（§6.4）：范围原样回显，客户端据此归类「目标」并双入口同报告；
             // 修正草案经消毒后随结果下发（无合法操作时为 null，报告仍可读）
             goalScope: goalScope ?? null,

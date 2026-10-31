@@ -1895,6 +1895,7 @@ test("全景台账：claim 引用台账小数字（117 支）不被误撤——�
       title: "戒烟记录在回暖",
       claims: [{
         summary: "习惯体检",
+        domain: "finance", // 唯一在场数据集 = finance（CHECKUP_SNAPSHOT 只有财务数据）
         displayText: "戒烟习惯本期记录 117 支（日均 3.9 支），达标天数从 3 天升到 12 天",
         metricAssertions: [],
         evidenceIDs: [],
@@ -1910,6 +1911,109 @@ test("全景台账：claim 引用台账小数字（117 支）不被误撤——�
   assert.equal(status, "completed");
   const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
   assert.equal(result.claims.length, 1, "引用体检台账数字（117/3.9/12/3）的 claim 不应被 NUMERIC_CLAIM_UNVERIFIED 撤回");
+});
+
+// —— 全景体检（2026-11-01 复查意见必修 2/3）：覆盖闸门与解读闸门 ——
+
+const PANORAMA_SNAPSHOT = {
+  ...AUG_SEP_SNAPSHOT,
+  crossDomainCheckup: "【窗口】本期 2026-08-21 ~ 2026-09-19（30 天）。\n【各领域体检·本期 vs 上期】\n  财务：总支出从上期 0 元变为本期 20 元。\n  健康·睡眠：日均时长上期 7.0 小时→本期 5.9 小时。\n  习惯：戒烟：控制内 3/30 天，累计 117 支。",
+  answerTask: {
+    scenarioID: "crossDomain",
+    userQuestion: "整体过得怎么样",
+    questionKind: "correlation",
+    primaryTimeRange: { label: "最近30天", start: sec("2026-08-20"), end: sec("2026-09-19") },
+    answerChecklist: [],
+  },
+  datasets: {
+    ...AUG_SEP_SNAPSHOT.datasets,
+    "health.sleep": {
+      fields: [{ name: "date", type: "date" }, { name: "value", type: "number", unit: "小时" }],
+      rows: [
+        { id: "sl1", occurredAt: "2026-09-01", date: "2026-09-01", value: 5.5 },
+        { id: "sl2", occurredAt: "2026-09-10", date: "2026-09-10", value: 6.2 },
+      ],
+    },
+    "habit.daily": {
+      fields: [{ name: "date", type: "date" }, { name: "habit", type: "text" }, { name: "value", type: "number" }],
+      rows: [
+        { id: "hb1", occurredAt: "2026-09-02", date: "2026-09-02", habit: "戒烟", value: 1 },
+      ],
+    },
+  },
+};
+
+test("全景覆盖闸门：缺域触发修复轮点名补齐，补齐后正常交付", async () => {
+  const provider = makeProvider([
+    // 第一轮只交财务一条 → 覆盖闸门点名 health/habit
+    agentJson("final_claims", {
+      claims: [{ id: "c1", domain: "finance", displayText: "记录不足，暂时无法判断支出结构", metricAssertions: [], evidenceIDs: [] }],
+    }),
+    // 第二轮补齐全部领域
+    agentJson("final_claims", {
+      claims: [
+        { id: "c1", domain: "finance", displayText: "记录不足，暂时无法判断支出结构", metricAssertions: [], evidenceIDs: [] },
+        { id: "c2", domain: "health", displayText: "记录不足，睡眠样本太少", metricAssertions: [], evidenceIDs: [] },
+        { id: "c3", domain: "habit", displayText: "戒烟累计 117 支（台账）", metricAssertions: [], evidenceIDs: [] },
+      ],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-pano1", question: "整体过得怎么样" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(PANORAMA_SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+  assert.ok(provider.calls.length >= 2, "缺域必须触发修复轮");
+  const repairMsg = provider.calls[1].messages.find((m) => m.role === "user" && m.content.includes("逐域覆盖"));
+  assert.ok(repairMsg, "修复轮必须点名缺失领域");
+  assert.ok(repairMsg.content.includes("health") && repairMsg.content.includes("habit"));
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 3);
+  assert.ok(!result.warnings.some((w) => w.startsWith("DOMAIN_COVERAGE_MISSING")), "补齐后不再带缺域警告");
+});
+
+test("全景覆盖闸门：修复后仍缺域 → 如实带 DOMAIN_COVERAGE_MISSING 交付", async () => {
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{ id: "c1", domain: "finance", displayText: "记录不足，暂时无法判断支出结构", metricAssertions: [], evidenceIDs: [] }],
+    }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", domain: "finance", displayText: "记录不足，暂时无法判断支出结构", metricAssertions: [], evidenceIDs: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-pano2", question: "整体过得怎么样" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(PANORAMA_SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  const missing = result.warnings.find((w) => w.startsWith("DOMAIN_COVERAGE_MISSING"));
+  assert.ok(missing, "修复后仍缺域必须带警告交付");
+  assert.match(missing, /health/);
+  assert.match(missing, /habit/);
+});
+
+test("解读闸门：无想法/记忆证据的动机类 interpretation 剥离，claim 保留", async () => {
+  // 只带财务数据集（覆盖闸门无额外欠账），聚焦解读剥离本身
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{
+        id: "c1",
+        domain: "finance",
+        displayText: "烟酒分类本期出现 3 笔支出（台账）",
+        interpretation: "这像是高压环境下的一种补偿性消费",
+        metricAssertions: [],
+        evidenceIDs: [],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-interp", question: "整体过得怎么样" });
+  const interpSnapshot = { ...PANORAMA_SNAPSHOT, datasets: AUG_SEP_SNAPSHOT.datasets };
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(interpSnapshot) });
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 1, "claim 本身保留");
+  assert.notEqual(result.claims[0].interpretation, "这像是高压环境下的一种补偿性消费", "无依据动机解读必须剥离");
+  assert.ok(result.warnings.some((w) => w.startsWith("INTERPRETATION_UNGROUNDED")), "剥离必须记 warning");
 });
 
 // —— v27 报告结构：章节引用核验与降级 ——

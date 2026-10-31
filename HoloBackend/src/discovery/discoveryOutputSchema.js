@@ -45,14 +45,79 @@ export function validateDiscoveryOutput(rawText, { expectedKind, expectedRunID }
   try {
     return validateDiscoveryOutputInner(rawText, { expectedKind, expectedRunID });
   } catch (error) {
-    // 统一补原始输出尾部（仅日志用）：真实材料的格式失误靠它定位调 prompt（2026-11-01）。
-    if (error instanceof GatewayError && error.code === "DISCOVERY_MODEL_OUTPUT_INVALID"
-      && !(error.details && error.details.rawTail)) {
-      throw new GatewayError(error.code, error.message, 502,
-        { ...(error.details ?? {}), rawTail: String(rawText).slice(-300) });
+    const isFormatError = error instanceof GatewayError && error.code === "DISCOVERY_MODEL_OUTPUT_INVALID";
+    if (!isFormatError) throw error;
+    // 2026-11-01 程序化修复层：qwen3.7-flash 的格式失误以机械性错为主（实测拒因：
+    // scopeKind 映射错/漏 noFindingReason/漏 titleClaimID/漏 metricIDs/claims 越界——
+    // 前四类占多数且属确定性可修）。修复只做查表映射与补默认值，绝不生成/改写内容；
+    // 修完重验，仍不过才报错。这层把「模型性格」从链路可靠性里剥离。
+    const reason = error.details?.reason ?? "";
+    if (REPAIRABLE.has(reason.split(":")[0])) {
+      let parsed;
+      try { parsed = JSON.parse(extractJsonPayload(String(rawText))); } catch { throw enrichRaw(error, rawText); }
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const repaired = repairEnvelope(parsed);
+        try {
+          return validateDiscoveryOutputInner(JSON.stringify(repaired), { expectedKind, expectedRunID });
+        } catch {
+          throw enrichRaw(error, rawText);
+        }
+      }
     }
-    throw error;
+    throw enrichRaw(error, rawText);
   }
+}
+
+function enrichRaw(error, rawText) {
+  if (error.details && error.details.rawTail) return error;
+  return new GatewayError(error.code, error.message, 502,
+    { ...(error.details ?? {}), rawTail: String(rawText).slice(-300) });
+}
+
+/** 可程序化修复的拒因（确定性查表/补默认可修，不涉内容生成）。 */
+const REPAIRABLE = new Set([
+  "scopeKind", "scope_kind_for_change", "scope_kind_for_pattern", "scope_kind_for_two_episodes",
+  "no_finding_reason", "empty_with_no_reason", "candidates_with_reason",
+  "titleClaimID", "title_claim_id", "body_claim_id",
+  "claim_missing", "envelope_missing",
+]);
+
+/** 确定性修复：查表映射+补默认，不生成内容。返回修复后的可变副本。 */
+function repairEnvelope(envelope) {
+  const SCOPE_BY_TYPE = {
+    two_episodes: "two_episodes",
+    bounded_pattern: "bounded_events",
+    change_over_time: "compared_periods",
+  };
+  for (const candidate of Array.isArray(envelope.candidates) ? envelope.candidates : []) {
+    if (candidate && typeof candidate === "object") {
+      if (typeof candidate.type === "string" && SCOPE_BY_TYPE[candidate.type]
+        && candidate.scopeKind !== SCOPE_BY_TYPE[candidate.type]) {
+        candidate.scopeKind = SCOPE_BY_TYPE[candidate.type];
+      }
+      const claims = Array.isArray(candidate.claims) ? candidate.claims : [];
+      const observation = claims.find((claim) => claim && claim.kind === "observation");
+      if (!candidate.titleClaimID && observation && observation.claimID) {
+        candidate.titleClaimID = observation.claimID;
+      }
+      if (!Array.isArray(candidate.bodyClaimIDs) || candidate.bodyClaimIDs.length === 0) {
+        const bodyIDs = claims
+          .filter((claim) => claim && claim.claimID && claim.claimID !== candidate.titleClaimID)
+          .map((claim) => claim.claimID);
+        if (bodyIDs.length > 0) candidate.bodyClaimIDs = bodyIDs;
+      }
+      for (const claim of claims) {
+        if (claim && typeof claim === "object" && !Array.isArray(claim.metricIDs)) {
+          claim.metricIDs = [];
+        }
+      }
+    }
+  }
+  if (envelope.noFindingReason === undefined || envelope.noFindingReason === null) {
+    envelope.noFindingReason = (Array.isArray(envelope.candidates) && envelope.candidates.length > 0)
+      ? "none" : "no_material";
+  }
+  return envelope;
 }
 
 function validateDiscoveryOutputInner(rawText, { expectedKind, expectedRunID }) {
