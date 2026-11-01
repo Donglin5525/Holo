@@ -2229,11 +2229,13 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
             && ["pending", "failed"].contains(item.renderData?["confirmationStatus"] ?? "")
     }
 
-    /// 待确认财务项谓词
+    /// 待确认财务项谓词（pending/failed 均可操作：failed 卡的「重试」走确认入口、
+    /// 「修改分类」走编辑入口——此前只认 pending，重试按钮在入口闸门即被挡回，
+    /// 用户点了多少次都不会真的执行，2026-11-01 实报）
     private static func isPendingFinanceItem(_ item: AIExecutionItem) -> Bool {
         item.intent.isFinance
             && item.status == .skipped
-            && item.renderData?["confirmationStatus"] == "pending"
+            && ["pending", "failed"].contains(item.renderData?["confirmationStatus"] ?? "")
     }
 
     /// 把消息里指定 item 的确认状态持久化（基于重读的最新 batch 按 itemId 定位）。

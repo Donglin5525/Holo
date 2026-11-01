@@ -327,7 +327,13 @@ struct AddTransactionSheet: View {
                 if let date = prefill.date {
                     selectedDate = date
                 }
-                loadDefaultAccount()
+                // 用户话中点名的账户优先；未点名走默认/上次选择
+                if let account = prefill.account,
+                   !account.isArchived, account.deletedAt == nil {
+                    selectedAccount = account
+                } else {
+                    loadDefaultAccount()
+                }
                 Task {
                     await loadCategories()
                     if let category = prefill.category {
@@ -655,6 +661,8 @@ struct PendingTransactionPrefill {
     let type: TransactionType
     let category: Category?
     let date: Date?
+    /// 用户话中点名且命中的账户（2026-11-01 聊天账户识别）：改分类手动入账时账户不回退默认
+    let account: Account?
 }
 
 // MARK: - 退款录入弹层

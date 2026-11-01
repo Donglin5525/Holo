@@ -53,6 +53,7 @@ class FinanceRepository {
         isSetupComplete = true
         _ = context          // 触发 lazy var → CoreDataStack.shared.viewContext
         seedDefaultData()
+        softDeleteOrphanPendingCategories()
         migrateLegacyInstallmentNotes()
         migrateFixedExpenseSemantics()
         migrateCardToCreditCard()

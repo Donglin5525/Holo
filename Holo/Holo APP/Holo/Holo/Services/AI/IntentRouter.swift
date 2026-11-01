@@ -1609,13 +1609,17 @@ final class IntentRouter {
 
     /// 账户解析：截图识别确认流注入 visionAccountId（识别出的支付通道匹配账户）时
     /// 一次 save 直接落到目标账户，不再「先落默认、确认后再搬运」；
-    /// 账户已归档/删除或未注入时走默认账户（既有口径）。
+    /// 聊天通道的 accountCandidate（用户话中点名的账户，2026-11-01 起 AI 回传）次优先；
+    /// 均未命中时走默认账户（既有口径）。
     private func resolveWriteAccount(from data: [String: String], repo: FinanceRepository) async throws -> Account? {
         if let idString = data["visionAccountId"],
            let id = UUID(uuidString: idString),
            let account = repo.findAccount(by: id),
            !account.isArchived, account.deletedAt == nil {
             return account
+        }
+        if let named = FinanceTransactionDraftResolver.matchAccount(candidate: data["accountCandidate"]) {
+            return named
         }
         return try await repo.getDefaultAccount()
     }

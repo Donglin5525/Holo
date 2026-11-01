@@ -253,7 +253,8 @@ struct ChatMessageListPane: View {
                     note: renderData["note"] ?? renderData["categoryCandidate"],
                     type: type,
                     category: nil,
-                    date: TransactionDateResolver.resolve(from: renderData)
+                    date: TransactionDateResolver.resolve(from: renderData),
+                    account: FinanceTransactionDraftResolver.matchAccount(candidate: renderData["accountCandidate"])
                 )
                 actions.onCategoryEditPrefill(msg, pending.id, prefill)
             },

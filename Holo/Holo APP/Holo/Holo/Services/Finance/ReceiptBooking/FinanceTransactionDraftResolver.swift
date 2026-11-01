@@ -150,6 +150,30 @@ final class FinanceTransactionDraftResolver {
     // 链路：用户纠正学习 → AI 标准科目 → 本地自定义 + catalog 别名 → 语义兜底 → note/原始候选精确 → 待分类
     // 语义变更必须同时过聊天识图回归与本目录单测。
 
+    // MARK: 账户候选匹配（聊天记账，2026-11-01）
+
+    /// AI 从用户话中提取的账户候选（accountCandidate，如「招商银行」「微信」）→ 用户真实账户。
+    /// 精确同名（忽略大小写）> 唯一包含命中；歧义/零命中返回 nil，由调用方走默认账户。
+    /// 只匹配活账户（未归档未删除）。预览展示与确认落账共用本匹配，保证卡片所示即所记。
+    static func matchAccount(candidate: String?) -> Account? {
+        guard let candidate = candidate?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !candidate.isEmpty else { return nil }
+        let accounts = FinanceRepository.shared.getAccounts(includeArchived: false)
+        let lowered = candidate.lowercased()
+
+        if let exact = accounts.first(where: {
+            $0.name.trimmingCharacters(in: .whitespaces).lowercased() == lowered
+        }) {
+            return exact
+        }
+
+        let contains = accounts.filter {
+            let name = $0.name.trimmingCharacters(in: .whitespaces).lowercased()
+            return name.contains(lowered) || lowered.contains(name)
+        }
+        return contains.count == 1 ? contains[0] : nil
+    }
+
     func matchCategory(
         primaryCategory: String?,
         subCategory: String?,

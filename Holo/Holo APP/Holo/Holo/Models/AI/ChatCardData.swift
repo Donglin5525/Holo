@@ -69,6 +69,7 @@ nonisolated enum ChatCardData: Equatable {
                 refundCandidateTitle: nil,
                 refundCandidateAmount: nil,
                 refundCandidateDate: nil,
+                accountName: data["accountName"],
                 entityID: linkedEntityId(from: data),
                 itemID: itemID
             ))
@@ -94,6 +95,7 @@ nonisolated enum ChatCardData: Equatable {
                 refundCandidateTitle: data["refundCandidateTitle"],
                 refundCandidateAmount: data["refundCandidateAmount"],
                 refundCandidateDate: data["refundCandidateDate"],
+                accountName: data["accountName"],
                 entityID: linkedEntityId(from: data),
                 itemID: itemID
             ))
@@ -424,6 +426,8 @@ nonisolated struct TransactionCardData: Equatable {
     let refundCandidateTitle: String?
     let refundCandidateAmount: String?
     let refundCandidateDate: String?
+    /// 将记入的账户名（用户话中点名账户且命中时，预览阶段写入；确认落账以执行时匹配为准）
+    var accountName: String? = nil
     /// 关联交易实体 ID（确认后从 renderData 写入）：多卡消息里整卡点击按它定位详情，
     /// 避免消息级 linkedEntityId（只保留最后一个）导致点哪张卡都打开最后一张
     var entityID: String? = nil

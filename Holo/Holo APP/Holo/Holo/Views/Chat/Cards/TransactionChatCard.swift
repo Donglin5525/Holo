@@ -53,6 +53,12 @@ struct TransactionChatCard: View {
                 // 分类 + 记录日期
                 categoryDateRow
 
+                // 账户行：用户话中点名账户且命中时显示（未点名走默认账户，不显示保持卡片干净）
+                if data.requiresConfirmation || data.isFailed,
+                   let accountName = data.accountName, !accountName.isEmpty {
+                    accountRow(accountName)
+                }
+
                 // 退款关联信息（确认后冲减原支出）
                 if data.isRefundCandidate, data.requiresConfirmation {
                     refundCandidateInfo
@@ -383,6 +389,12 @@ struct TransactionChatCard: View {
                     .foregroundColor(.holoToolError)
             }
 
+            // 与待确认卡同款修改分类入口：重试救不回来的失败（如「记账必须选择
+            // 二级分类」），用户改分类手动入账是唯一活路；分期卡不显示（同 pending 态）
+            if !data.isInstallment {
+                modifyCategoryLink
+            }
+
             HStack {
                 Spacer()
                 Button {
@@ -402,6 +414,17 @@ struct TransactionChatCard: View {
     }
 
     // MARK: - Formatting
+
+    /// 待确认卡的账户提示行：与分类行同构（图标 + 文本，次级色）
+    private func accountRow(_ name: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "creditcard")
+                .font(.system(size: 11))
+            Text(String(localized: "记入 \(name)"))
+                .font(.system(size: 13, weight: .medium))
+        }
+        .foregroundColor(.holoToolTextSecondary)
+    }
 
     private var formattedAmount: String {
         if data.isExpense {

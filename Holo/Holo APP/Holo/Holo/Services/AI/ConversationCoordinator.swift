@@ -711,6 +711,14 @@ final class ConversationCoordinator {
                     }
                 }
 
+                // 账户候选预览匹配（不写库）：用户话中点名账户（如「用招商银行付的」）时，
+                // 卡片显示将记入的账户；确认落账由 resolveWriteAccount 按同一匹配重算
+                if let named = FinanceTransactionDraftResolver.matchAccount(
+                    candidate: item.extractedData?["accountCandidate"]
+                ) {
+                    renderData["accountName"] = named.name
+                }
+
                 // 退款识别（iOS 侧识别，零后端依赖）：收入话术带退款语义时匹配候选原支出，
                 // 命中则卡片携带关联候选；用户确认后由 IntentRouter 落成退款笔（统计冲减原分类）
                 if item.intent == .recordIncome,

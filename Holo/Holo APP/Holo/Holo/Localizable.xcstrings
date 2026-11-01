@@ -88745,6 +88745,22 @@
         }
       }
     },
+    "记入 %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record to %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記入 %@"
+          }
+        }
+      }
+    },
     "记在哪个习惯" : {
       "localizations" : {
         "en" : {
