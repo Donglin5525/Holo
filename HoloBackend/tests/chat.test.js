@@ -822,8 +822,8 @@ test("GET /v1/prompts/:type returns prompt content and version", async () => {
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.type, "intent_recognition");
-  // intents v6（2026-10-19 长段提醒+时段词下限例句）→ intent_recognition 基线 V33
-  assert.equal(json.version, 33);
+  // intents v7（2026-11-01 记账账户 accountCandidate 槽位）→ intent_recognition 基线 V34
+  assert.equal(json.version, 34);
   assert.match(json.content, /短意图 Router/);
 });
 
