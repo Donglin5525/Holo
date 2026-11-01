@@ -842,3 +842,61 @@ test("主体导出：backgroundSubject 购买合并口径", () => {
   assert.notEqual(backgroundSubject(DEVICE_A, null), backgroundSubject(DEVICE_B, null));
   assert.equal(backgroundSubject(DEVICE_A, null), backgroundSubject(DEVICE_A, {}));
 });
+
+// ===== 2026-11-01 独立诊断报告问题3：终态结果重取 =====
+test("T50 空候选成功后同摘要重放返回缓存（200），不调模型", async () => {
+  const { app, stub } = createTestApp();
+  await enableControl(app, DEVICE_A);
+  const runID = `run-${randomUUID()}`;
+  const created = await (await post(app, "/v1/discovery/runs", DEVICE_A, { runID })).json();
+  // 空候选（服务端 auto completeRun(completed)）
+  stub.enqueue(JSON.stringify({ schemaVersion: 1, kind: "candidates", runID, candidates: [], noFindingReason: "no_material" }));
+  const first = await post(app, `/v1/discovery/runs/${runID}/candidates`, DEVICE_A, {
+    runToken: created.runToken, data: stageData(runID),
+  });
+  assert.equal(first.status, 200);
+  const callsAfterFirst = stub.calls.length;
+  const replay = await post(app, `/v1/discovery/runs/${runID}/candidates`, DEVICE_A, {
+    runToken: created.runToken, data: stageData(runID),
+  });
+  assert.equal(replay.status, 200, "同摘要重放应返回缓存结果而非 RUN_CLOSED");
+  assert.equal(stub.calls.length, callsAfterFirst, "重放不得再次调用模型");
+});
+
+test("T51 verify 成功后同摘要重放返回缓存（200），不调模型", async () => {
+  const { app, stub } = createTestApp();
+  const runID = `run-${randomUUID()}`;
+  const { created, candidates } = await prepareReadyRun(app, DEVICE_A, stub, { runID });
+  stub.enqueue(JSON.stringify(verificationEnvelope(runID)));
+  const verifyData = { counterEvidence: [], coverage: { windowDays: 30, truncated: false } };
+  const submitted = candidates.envelope.candidates;
+  const first = await post(app, `/v1/discovery/runs/${runID}/verify`, DEVICE_A, {
+    runToken: created.runToken, candidates: submitted, candidatesHash: canonicalSha256(submitted), data: verifyData,
+  });
+  assert.equal(first.status, 200);
+  const callsAfterFirst = stub.calls.length;
+  const replay = await post(app, `/v1/discovery/runs/${runID}/verify`, DEVICE_A, {
+    runToken: created.runToken, candidates: submitted, candidatesHash: canonicalSha256(submitted), data: verifyData,
+  });
+  assert.equal(replay.status, 200, "verify 完成后重放应返回缓存");
+  assert.equal(stub.calls.length, callsAfterFirst, "重放不得再次调用模型");
+});
+
+test("T52 换数据摘要/换 token 的终态重放不放行（RUN_CLOSED/403）", async () => {
+  const { app, stub } = createTestApp();
+  await enableControl(app, DEVICE_A);
+  const runID = `run-${randomUUID()}`;
+  const created = await (await post(app, "/v1/discovery/runs", DEVICE_A, { runID })).json();
+  stub.enqueue(JSON.stringify({ schemaVersion: 1, kind: "candidates", runID, candidates: [], noFindingReason: "no_material" }));
+  await post(app, `/v1/discovery/runs/${runID}/candidates`, DEVICE_A, {
+    runToken: created.runToken, data: stageData(runID),
+  });
+  const differentData = await post(app, `/v1/discovery/runs/${runID}/candidates`, DEVICE_A, {
+    runToken: created.runToken, data: { ...stageData(runID), anchorNow: "2026-11-01T12:00:00+08:00" },
+  });
+  assert.notEqual(differentData.status, 200, "换数据摘要不得命中缓存");
+  const wrongToken = await post(app, `/v1/discovery/runs/${runID}/candidates`, DEVICE_A, {
+    runToken: "invalid-token", data: stageData(runID),
+  });
+  assert.notEqual(wrongToken.status, 200, "换 token 不得命中缓存");
+});

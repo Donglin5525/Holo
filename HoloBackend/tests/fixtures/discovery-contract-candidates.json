@@ -1,0 +1,956 @@
+{
+ "version": 1,
+ "note": "双端契约对拍夹具（2026-11-01 独立诊断报告问题1）。server判定=validateDiscoveryOutput最终结果(含修复层)；server=pass时client必须同判pass(消费同一形状)。",
+ "cases": [
+  {
+   "name": "正常候选",
+   "server": "pass",
+   "client": "pass",
+   "envelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08T00:00:00+08:00",
+       "end": "2026-10-17T00:00:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   },
+   "deliveredEnvelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08T00:00:00+08:00",
+       "end": "2026-10-17T00:00:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   }
+  },
+  {
+   "name": "游离claim不被title/body引用",
+   "note": "服务端修复层丢弃游离claim后交付，交付形状客户端必须可消费",
+   "server": "pass",
+   "client": "pass",
+   "envelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08T00:00:00+08:00",
+       "end": "2026-10-17T00:00:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "X99",
+        "kind": "fact",
+        "text": "游离句",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   },
+   "deliveredEnvelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08T00:00:00+08:00",
+       "end": "2026-10-17T00:00:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   }
+  },
+  {
+   "name": "date-only时间(非RFC3339时刻)",
+   "server": "reject",
+   "client": "reject",
+   "envelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08",
+       "end": "2026-10-17"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   }
+  },
+  {
+   "name": "时间start晚于end",
+   "server": "reject",
+   "client": "reject",
+   "envelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-17T00:00:00+08:00",
+       "end": "2026-10-08T00:00:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   }
+  },
+  {
+   "name": "claims只有1条(低于2)",
+   "server": "reject",
+   "client": "reject",
+   "envelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08T00:00:00+08:00",
+       "end": "2026-10-17T00:00:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   }
+  },
+  {
+   "name": "scopeKind与type不匹配",
+   "note": "服务端修复层按type查表纠正scopeKind",
+   "server": "pass",
+   "client": "pass",
+   "envelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "bounded_events",
+      "timeRange": {
+       "start": "2026-10-08T00:00:00+08:00",
+       "end": "2026-10-17T00:00:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   },
+   "deliveredEnvelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08T00:00:00+08:00",
+       "end": "2026-10-17T00:00:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   }
+  },
+  {
+   "name": "claim的citations为空数组",
+   "server": "reject",
+   "client": "reject",
+   "envelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08T00:00:00+08:00",
+       "end": "2026-10-17T00:00:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   }
+  },
+  {
+   "name": "漏noFindingReason",
+   "note": "服务端修复层补none",
+   "server": "pass",
+   "client": "pass",
+   "envelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08T00:00:00+08:00",
+       "end": "2026-10-17T00:00:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   },
+   "deliveredEnvelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08T00:00:00+08:00",
+       "end": "2026-10-17T00:00:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ],
+    "noFindingReason": "none"
+   }
+  },
+  {
+   "name": "完整RFC3339时刻区间",
+   "server": "pass",
+   "client": "pass",
+   "envelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08T21:00:00+08:00",
+       "end": "2026-10-17T22:30:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   },
+   "deliveredEnvelope": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "run-contract",
+    "noFindingReason": "none",
+    "candidates": [
+     {
+      "candidateID": "C01",
+      "type": "two_episodes",
+      "subjectKey": "restart",
+      "scopeKind": "two_episodes",
+      "timeRange": {
+       "start": "2026-10-08T21:00:00+08:00",
+       "end": "2026-10-17T22:30:00+08:00"
+      },
+      "claims": [
+       {
+        "claimID": "C01-title",
+        "kind": "observation",
+        "text": "这两次重新开始，你都把第一步变轻了。",
+        "citations": [
+         {
+          "evidenceID": "E01",
+          "quote": "今天先出去走了十分钟"
+         }
+        ],
+        "metricIDs": []
+       },
+       {
+        "claimID": "C01-body",
+        "kind": "fact",
+        "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+        "citations": [
+         {
+          "evidenceID": "E02",
+          "quote": "今晚只翻了两页"
+         }
+        ],
+        "metricIDs": []
+       }
+      ],
+      "titleClaimID": "C01-title",
+      "bodyClaimIDs": [
+       "C01-body"
+      ],
+      "supportEvidenceIDs": [
+       "E01",
+       "E02"
+      ],
+      "counterSearch": [
+       {
+        "domains": [
+         "thought"
+        ],
+        "anchorRefs": [],
+        "keywords": [
+         "重新开始"
+        ]
+       }
+      ],
+      "sensitivity": "non_sensitive",
+      "comparisonPeriods": []
+     }
+    ]
+   }
+  }
+ ]
+}

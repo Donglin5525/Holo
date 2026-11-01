@@ -379,6 +379,19 @@ export function registerDiscoveryRoutes(app, deps) {
       throw new GatewayError("INVALID_REQUEST", "data must be an object", 400);
     }
     const control = controlStore.get(subject);
+    // 终态结果重取（2026-11-01 报告问题3）：completed run 的同摘要重放先于阶段闸门放行
+    //（身份/token/摘要全核对后读缓存，不再调模型）——修复「成功结果随连接丢失拿不回」
+    const closedReplayHash = stageRequestHash(stage, runId, { dataHash: canonicalSha256(body.data) });
+    const closedReplay = runStore.tryClosedReplay({
+      runId, subject, deviceId, runToken: body.runToken, stage, requestHash: closedReplayHash,
+    });
+    if (closedReplay) {
+      return stageResponse({
+        run: closedReplay.run, stage, purpose, envelope: closedReplay.envelope,
+        usage: null, replayed: true,
+        promptVersion: getPrompt(promptTypeForPurpose(purpose))?.version ?? 1,
+      });
+    }
     const run = runStore.authorizeStage({ runId, subject, deviceId, runToken: body.runToken, stage });
     runStore.assertControlCurrent(run, control);
     consumeRateLimit(context, deviceId, purpose);
@@ -388,12 +401,12 @@ export function registerDiscoveryRoutes(app, deps) {
     }
 
     const dataHash = canonicalSha256(body.data);
-    const requestHash = stageRequestHash(stage, runId, { dataHash });
+    const stageHash = stageRequestHash(stage, runId, { dataHash });
 
     // 幂等键冲突检测（T16：同 requestId 不同 body → 409）；重放不从这里恢复结果——
     // 结果只在阶段内存缓存，已 dispatched 的重放走 readStageResult → LOST。
     if (typeof body.requestID === "string" && body.requestID.length > 0) {
-      controlStore.replayOrThrow({ requestId: body.requestID, subject, kind: `stage:${stage}`, requestHash });
+      controlStore.replayOrThrow({ requestId: body.requestID, subject, kind: `stage:${stage}`, requestHash: stageHash });
     }
 
     // verify 候选包先与 candidates 阶段的内存响应比对（T34），比对失败不占用阶段 claim
@@ -415,17 +428,17 @@ export function registerDiscoveryRoutes(app, deps) {
     }
 
     // 同阶段不可变 request hash：换 body 即冲突（03 §3.4 两次调用间不能换文案）
-    runStore.claimStageRequest({ run, stage, requestHash });
+    runStore.claimStageRequest({ run, stage, requestHash: stageHash });
 
     // 阶段幂等键落台账（同 requestId 不同 body → 409；同键同 body 不从这里恢复结果，
     // 结果只在阶段内存缓存，已 dispatched 的重放走 readStageResult → LOST）
     if (typeof body.requestID === "string" && body.requestID.length > 0) {
       controlStore.recordRequest({
-        requestId: body.requestID, subject, kind: `stage:${stage}`, requestHash, status: "committed",
+        requestId: body.requestID, subject, kind: `stage:${stage}`, requestHash: stageHash, status: "committed",
       });
     }
 
-    const cached = runStore.readStageResult({ run: runStore.get(runId), stage, requestHash });
+    const cached = runStore.readStageResult({ run: runStore.get(runId), stage, requestHash: stageHash });
     if (cached.hit) {
       return stageResponse({
         run: runStore.get(runId), stage, purpose, envelope: cached.envelope, usage: null, replayed: true,
@@ -437,10 +450,11 @@ export function registerDiscoveryRoutes(app, deps) {
       subject, deviceId, run: runStore.get(runId), stage, purpose, body, verifyInput,
       sessionId: getSessionId(context),
       language: context.req.header("x-holo-language"),
+      stageHash,
     });
   }
 
-  async function callModel({ subject, deviceId, run, stage, purpose, body, verifyInput, sessionId, language }) {
+  async function callModel({ subject, deviceId, run, stage, purpose, body, verifyInput, sessionId, language, stageHash }) {
     const route = config.routes[purpose];
     if (!route) {
       throw new GatewayError("MODEL_UNAVAILABLE", `Provider unavailable for ${purpose}`, 503);
@@ -618,7 +632,7 @@ export function registerDiscoveryRoutes(app, deps) {
           console.warn(`[discovery] quote anchored repaired=${repairedCount} run=${run.run_id}`);
         }
       }
-      runStore.cacheStageResult({ runId: run.run_id, stage, requestHash: stageRequestHash(stage, run.run_id, { dataHash: canonicalSha256(body.data) }), envelope });
+      runStore.cacheStageResult({ runId: run.run_id, stage, requestHash: stageHash, envelope });
       if (stage === "candidates" && envelope.candidates.length === 0) {
         // 无结构合格候选不调用 verify（03 §4.2）；noFinding 是成功终态，日批次按已用计
         runStore.completeRun({ runId: run.run_id, status: "completed" });

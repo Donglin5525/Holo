@@ -127,6 +127,22 @@ export function createDiscoveryRunStore(db, options = {}) {
     return { run, runToken: token, replayed: false };
   }
 
+  /**
+   * 终态结果重取（2026-11-01 独立诊断报告问题3）：成功终态（completed）后连接断连/
+   * 进程重启导致客户端未收到已计费结果时，同身份+同 token+同阶段摘要的重放放行到
+   * 阶段缓存——不再次调用模型。核对链：run 归属(subject/device) + tokenHash + 状态为
+   * completed + requestHash 与缓存一致；cancelled/expired 不放行（用户明确取消/租约
+   * 失效是意图信号，不是交付失败）。
+   */
+  function tryClosedReplay({ runId, subject, deviceId, runToken, stage, requestHash }) {
+    const run = getRun.get(runId);
+    if (!run || run.subject !== subject || run.device_id !== deviceId) return null;
+    if (run.status !== "completed") return null;
+    if (!runToken || run.token_hash !== sha256(String(runToken))) return null;
+    const cached = readStageResult({ run, stage, requestHash });
+    return cached.hit ? { run, envelope: cached.envelope } : null;
+  }
+
   /** 阶段闸门：归属/版本/token/租约/状态全量复核（03 §3.2 每步重核，不只验签名）。 */
   function authorizeStage({ runId, subject, deviceId, runToken, stage }) {
     const run = getRun.get(runId);
@@ -304,6 +320,7 @@ export function createDiscoveryRunStore(db, options = {}) {
     cancel,
     sweepExpired,
     cacheStageResult,
+    tryClosedReplay,
     readStageResult,
     stageCacheStats,
     get: (runId) => getRun.get(runId) ?? null,

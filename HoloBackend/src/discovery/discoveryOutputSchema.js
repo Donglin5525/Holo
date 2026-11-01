@@ -81,7 +81,7 @@ const REPAIRABLE = new Set([
   "no_finding_reason", "empty_with_no_reason", "candidates_with_reason",
   "titleClaimID", "title_claim_id", "body_claim_id",
   "claim_missing", "candidate_missing", "envelope_missing",
-  "counter_search_keywords", "counter_search_domains", "counter_search_not_object", "id_list", "id_list_item",
+  "counter_search_keywords", "counter_search_domains", "counter_search_not_object", "id_list", "id_list_item", "claim_coverage",
 ]);
 
 /** 确定性修复：查表映射+补默认，不生成内容。返回修复后的可变副本。 */
@@ -96,6 +96,14 @@ function repairEnvelope(envelope) {
       if (typeof candidate.type === "string" && SCOPE_BY_TYPE[candidate.type]
         && candidate.scopeKind !== SCOPE_BY_TYPE[candidate.type]) {
         candidate.scopeKind = SCOPE_BY_TYPE[candidate.type];
+      }
+      // 游离 claim 丢弃（claim_coverage 修复）：title+body 未引用的 claim 直接移除，
+      // 不进入核验链（与客户端 02 §4 全覆盖口径一致；丢弃是删模型产物的不发布部分，非生成）
+      const coveredSet = new Set(
+        [candidate.titleClaimID, ...(Array.isArray(candidate.bodyClaimIDs) ? candidate.bodyClaimIDs : [])]
+          .filter((id) => typeof id === "string"));
+      if (Array.isArray(candidate.claims) && coveredSet.size > 0) {
+        candidate.claims = candidate.claims.filter((claim) => claim && coveredSet.has(claim.claimID));
       }
       const claims = Array.isArray(candidate.claims) ? candidate.claims : [];
       const observation = claims.find((claim) => claim && claim.kind === "observation");
@@ -202,6 +210,13 @@ function validateCandidate(candidate) {
   for (const bodyClaimID of candidate.bodyClaimIDs) {
     if (bodyClaimID === candidate.titleClaimID) throw invalid("body_claim_is_title");
     if (!claimIDs.has(bodyClaimID)) throw invalid("body_claim_id");
+  }
+  // 2026-11-01 契约对齐（独立诊断报告问题1）：客户端要求 title+body 覆盖全部 claims
+  //（不允许游离在核验之外的句子，02 §4 claimCoverageIncomplete），服务端此前不查 →
+  // 后端 200、客户端 schema_invalid 锁当天。确定性修复（丢弃游离 claim）由修复层承担。
+  const coveredIDs = new Set([candidate.titleClaimID, ...candidate.bodyClaimIDs]);
+  for (const claimID of claimIDs) {
+    if (!coveredIDs.has(claimID)) throw invalid("claim_coverage");
   }
   validateIDList(candidate.supportEvidenceIDs, 2, 12);
   if (!Array.isArray(candidate.counterSearch) || candidate.counterSearch.length > 3) {
@@ -317,14 +332,25 @@ function validateReasonCodes(codes) {
   }
 }
 
+// 2026-11-01 契约对齐（独立诊断报告问题1）：客户端要求完整 RFC 3339 date-time
+//（ISO8601DateFormatter withInternetDateTime），纯日期 "2026-10-08" 客户端拒、
+// 此前 Date.parse 放行 → 「后端 200、客户端 schema_invalid 锁当天」。服务端同口径拒。
+const RFC3339_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+
 function validateTimeRange(range) {
   if (!range || typeof range !== "object" || Array.isArray(range)) throw invalid("time_range");
   requireExactKeys(range, ["start", "end"], "timeRange");
+  let start = null, end = null;
   for (const key of ["start", "end"]) {
     const value = range[key];
     if (value === null) continue;
-    if (typeof value !== "string" || Number.isNaN(Date.parse(value))) throw invalid("time_range_value");
+    if (typeof value !== "string" || !RFC3339_DATETIME.test(value) || Number.isNaN(Date.parse(value))) {
+      throw invalid("time_range_value");
+    }
+    if (key === "start") start = Date.parse(value);
+    else end = Date.parse(value);
   }
+  if (start !== null && end !== null && start > end) throw invalid("time_range_order");
 }
 
 function validateIDList(list, min, max) {
