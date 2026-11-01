@@ -305,6 +305,7 @@
 		AA11BB22CC33DD44EE55F002 /* CloudEvidencePresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55F001 /* CloudEvidencePresenterTests.swift */; };
 		AA11BB22CC33DD44EE55F102 /* CloudNarrativeContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55F101 /* CloudNarrativeContractTests.swift */; };
 		AA11BB22CC33DD44EE55F202 /* CloudAnswerTaskRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55F201 /* CloudAnswerTaskRoutingTests.swift */; };
+		CD0CC1101101CD0C0000A002 /* CrossDomainCheckupLedgerBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD0CC1101101CD0C0000A001 /* CrossDomainCheckupLedgerBuilderTests.swift */; };
 		AA11BB22CC33DD44EE55FF01 /* HoloMemoryEvidenceRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF02 /* HoloMemoryEvidenceRoutingTests.swift */; };
 		AA11BB22CC33DD44EE660001 /* HabitStatsFloatUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */; };
 		AA11BB22CC33DD44EE770002 /* ThoughtImageSourceSheetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE770001 /* ThoughtImageSourceSheetUITests.swift */; };
@@ -839,6 +840,7 @@
 		AA11BB22CC33DD44EE55F001 /* CloudEvidencePresenterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudEvidencePresenterTests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55F101 /* CloudNarrativeContractTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudNarrativeContractTests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55F201 /* CloudAnswerTaskRoutingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CloudAnswerTaskRoutingTests.swift; sourceTree = "<group>"; };
+		CD0CC1101101CD0C0000A001 /* CrossDomainCheckupLedgerBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CrossDomainCheckupLedgerBuilderTests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF02 /* HoloMemoryEvidenceRoutingTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryEvidenceRoutingTests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE660002 /* HabitStatsFloatUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HabitStatsFloatUITests.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE770001 /* ThoughtImageSourceSheetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThoughtImageSourceSheetUITests.swift; sourceTree = "<group>"; };
@@ -1720,6 +1722,7 @@
 				AA11BB22CC33DD44EE55F001 /* CloudEvidencePresenterTests.swift */,
 				AA11BB22CC33DD44EE55F101 /* CloudNarrativeContractTests.swift */,
 				AA11BB22CC33DD44EE55F201 /* CloudAnswerTaskRoutingTests.swift */,
+				CD0CC1101101CD0C0000A001 /* CrossDomainCheckupLedgerBuilderTests.swift */,
 				B1C2D3E4F5A60718293A4B66 /* HoloAgentContinuedProcessingTests.swift */,
 				B1C2D3E4F5A60718293A4B60 /* HoloAgentJSONStoreHardeningTests.swift */,
 				B1C2D3E4F5A60718293A4B62 /* HoloAgentConsistencyReconcilerTests.swift */,
@@ -2229,6 +2232,7 @@
 				AA11BB22CC33DD44EE55F002 /* CloudEvidencePresenterTests.swift in Sources */,
 				AA11BB22CC33DD44EE55F102 /* CloudNarrativeContractTests.swift in Sources */,
 				AA11BB22CC33DD44EE55F202 /* CloudAnswerTaskRoutingTests.swift in Sources */,
+				CD0CC1101101CD0C0000A002 /* CrossDomainCheckupLedgerBuilderTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4B67 /* HoloAgentContinuedProcessingTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4B61 /* HoloAgentJSONStoreHardeningTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4B63 /* HoloAgentConsistencyReconcilerTests.swift in Sources */,

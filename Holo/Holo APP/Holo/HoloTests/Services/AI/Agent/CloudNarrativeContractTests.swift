@@ -278,6 +278,26 @@ extension CloudNarrativeContractTests {
         XCTAssertNil(HoloCloudAnalysisService.verificationNote(for: ["NARRATIVE_INCONSISTENT:title"]))
     }
 
+    /// 全景体检两类新警告（2026-11-01）。字面量照抄后端真源，改任一端须同步另一端与本用例：
+    /// HoloBackend/src/agent/cloudAnalysisExecutor.js——
+    /// `DOMAIN_COVERAGE_MISSING:${missingDomains.join(",")}`（交付核验覆盖闸门）、
+    /// `INTERPRETATION_UNGROUNDED:${sanitized.id ?? "claim"}`（无记录支撑的动机解读被剥离）。
+    func test_核验标注_全景体检缺领域与解读隐去如实上屏() {
+        XCTAssertEqual(
+            HoloCloudAnalysisService.verificationNote(for: ["DOMAIN_COVERAGE_MISSING:habit,thought"]),
+            "部分领域未在报告中覆盖，已如实标注"
+        )
+        XCTAssertEqual(
+            HoloCloudAnalysisService.verificationNote(for: ["INTERPRETATION_UNGROUNDED:c3"]),
+            "部分解读缺少记录支撑，已隐去"
+        )
+        // 撤回类仍优先：同时出现时用户先知道有结论被撤回
+        XCTAssertEqual(
+            HoloCloudAnalysisService.verificationNote(for: ["INTERPRETATION_UNGROUNDED:c3", "METRIC_MISMATCH:dynamic.x"]),
+            "部分结论未通过核验，已撤回处理"
+        )
+    }
+
     func test_核验标注_随范围行展示且旧消息JSON解码兼容() throws {
         // 旧消息 JSON 无 verificationNote 字段：解码为 nil，范围行展示不受影响
         let legacyJSON = #"{"label": "本月", "start": null, "end": null, "snapshotCutoffAt": null}"#

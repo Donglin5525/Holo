@@ -12,6 +12,32 @@
 import Foundation
 import CoreData
 
+/// 证据台账共用窗口（财务台账与全景体检台账的单一真相源，两份台账同窗才能互相印证）：
+/// 本期 = 含今天在内的近 windowDays 个自然日 [currentStart, now]；
+/// 上期 = 紧贴其前的 windowDays 个自然日 [baselineStart, currentStart)。
+/// 取数上界一律用 currentStart（排他）——与 MemoryInsightContextBuilder.previousPeriodWindow
+/// 同口径；上界落在上期最后一天零点会丢掉上期最后一天，环比被系统性夸大。
+nonisolated struct EvidenceLedgerWindows: Equatable {
+    let currentStart: Date
+    let currentEnd: Date
+    let baselineStart: Date
+    /// 上期最后一天零点：只用于展示日期范围，不作取数上界
+    let baselineLastDay: Date
+
+    static func make(now: Date, windowDays: Int, calendar: Calendar = .current) -> EvidenceLedgerWindows {
+        let span = max(windowDays, 7) - 1
+        let currentStart = calendar.date(byAdding: .day, value: -span, to: calendar.startOfDay(for: now)) ?? now
+        let baselineLastDay = calendar.date(byAdding: .day, value: -1, to: currentStart) ?? now
+        let baselineStart = calendar.date(byAdding: .day, value: -span, to: baselineLastDay) ?? now
+        return EvidenceLedgerWindows(
+            currentStart: currentStart,
+            currentEnd: now,
+            baselineStart: baselineStart,
+            baselineLastDay: baselineLastDay
+        )
+    }
+}
+
 enum FinanceEvidenceLedgerBuilder {
 
     /// Holo 原生餐饮类目为独立一级（早餐/午餐/晚餐…），导入历史在「餐饮/」下——
@@ -22,16 +48,18 @@ enum FinanceEvidenceLedgerBuilder {
         foodFamily.contains(primary) ? "餐饮" : primary
     }
 
-    /// 台账窗口：本期近 180 天、上期前 180 天（本地直查，不受快照行数限制）。
-    static func build(now: Date = Date()) async -> (ledger: String, semantics: [String: String])? {
+    /// 台账窗口：默认本期近 180 天、上期前 180 天（本地直查，不受快照行数限制）。
+    /// windowDays：全景体检场景传场景窗口（如 30），财务与体检同窗——
+    /// 否则「唯一事实真相」是半年数、报告问的是近 30 天（2026-11-01 复查意见必修 4）。
+    static func build(now: Date = Date(), windowDays: Int = 180) async -> (ledger: String, semantics: [String: String])? {
         let cal = Calendar.current
-        let currentEnd = now
-        let currentStart = cal.date(byAdding: .day, value: -179, to: cal.startOfDay(for: now)) ?? now
-        let baselineEnd = cal.date(byAdding: .day, value: -1, to: currentStart) ?? now
-        let baselineStart = cal.date(byAdding: .day, value: -179, to: baselineEnd) ?? now
+        let window = EvidenceLedgerWindows.make(now: now, windowDays: windowDays, calendar: cal)
+        let currentStart = window.currentStart
+        let currentEnd = window.currentEnd
+        let baselineStart = window.baselineStart
 
         guard let current = try? await FinanceRepository.shared.getStatisticsTransactions(from: currentStart, to: currentEnd),
-              let baseline = try? await FinanceRepository.shared.getStatisticsTransactions(from: baselineStart, to: baselineEnd) else {
+              let baseline = try? await FinanceRepository.shared.getStatisticsTransactions(from: baselineStart, to: currentStart) else {
             return nil
         }
         // 台账只服务财务判断；两窗合计为空说明没有可用财务记录
@@ -61,7 +89,7 @@ enum FinanceEvidenceLedgerBuilder {
             return line + "）"
         }
         var lines: [String] = []
-        lines.append("【窗口】本期 \(df.string(from: currentStart)) ~ \(df.string(from: currentEnd))；上期（对比基线）\(df.string(from: baselineStart)) ~ \(df.string(from: baselineEnd))。口径：统计读源（排除对账调整与未来行），金额 CNY。")
+        lines.append("【窗口】本期 \(df.string(from: currentStart)) ~ \(df.string(from: currentEnd))；上期（对比基线）\(df.string(from: baselineStart)) ~ \(df.string(from: window.baselineLastDay))。口径：统计读源（排除对账调整与未来行），金额 CNY。")
         lines.append(deltaLine("总支出", cs.expense, bs.expense) + "；支出笔数从 \(bs.count) 笔变为 \(cs.count) 笔。")
         lines.append(deltaLine("总收入", cs.income, bs.income))
 

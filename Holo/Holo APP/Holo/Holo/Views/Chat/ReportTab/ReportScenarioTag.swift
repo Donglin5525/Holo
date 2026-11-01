@@ -24,7 +24,7 @@ enum ReportScenarioTag: String, CaseIterable, Sendable {
     /// 筛选行与徽标共用短名
     var label: String {
         switch self {
-        case .crossDomain: return String(localized: "跨域")
+        case .crossDomain: return String(localized: "体检")  // 与场景卡「生活体检」同名，旧跨域报告一并归入
         case .finance: return String(localized: "财务")
         case .habit: return String(localized: "习惯")
         case .health: return String(localized: "健康")

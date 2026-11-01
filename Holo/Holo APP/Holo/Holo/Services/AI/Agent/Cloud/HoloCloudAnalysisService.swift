@@ -560,8 +560,16 @@ final class HoloCloudAnalysisService {
         if warnings.contains(where: { warning in withdrawnPrefixes.contains { warning.hasPrefix($0) } }) {
             return "部分结论未通过核验，已撤回处理"
         }
+        if warnings.contains(where: { $0.hasPrefix("DOMAIN_COVERAGE_MISSING") }) {
+            return "部分领域未在报告中覆盖，已如实标注"
+        }
         if warnings.contains(where: { $0.hasPrefix("NO_TOOL_EVIDENCE") }) {
             return "本轮未查到量化数据，结论为定性观察"
+        }
+        // 无依据的动机类解读已被服务端剥离——与撤回类同级提示，用户应知道
+        // 那类「心理归因」不会无凭据出现（2026-11-01 复查意见必修 3）
+        if warnings.contains(where: { $0.hasPrefix("INTERPRETATION_UNGROUNDED") }) {
+            return "部分解读缺少记录支撑，已隐去"
         }
         return nil
     }

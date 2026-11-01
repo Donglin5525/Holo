@@ -20574,6 +20574,22 @@
     "住所" : {
 
     },
+    "体检" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checkup"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "體檢"
+          }
+        }
+      }
+    },
     "体表分" : {
       "localizations" : {
         "en" : {
@@ -64927,6 +64943,22 @@
     "替换一项安排" : {
 
     },
+    "最近30天整体过得怎么样，哪些变化是一起发生的" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How the last 30 days went overall, and which changes happened together"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最近30天整體過得怎麼樣，哪些變化是一起發生的"
+          }
+        }
+      }
+    },
     "月" : {
       "localizations" : {
         "en" : {
@@ -78273,6 +78305,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "生活"
+          }
+        }
+      }
+    },
+    "生活体检" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Life Checkup"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生活體檢"
           }
         }
       }

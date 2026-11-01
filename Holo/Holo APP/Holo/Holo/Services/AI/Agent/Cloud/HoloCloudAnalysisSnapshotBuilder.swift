@@ -62,6 +62,10 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         /// S2 融合版（2026-10-18）：财务确定性台账文本——后端注入
         /// <finance_evidence_ledger>，v26 判断法的「唯一事实真相」。旧后端忽略。
         var financeEvidenceLedger: String? = nil
+        /// 全景体检台账（2026-11-01 全景版跨域洞察）：各领域本期/上期体检指标 +
+        /// 按天对齐同变候选，程序算好随快照上云，后端注入 <cross_domain_checkup>。
+        /// 仅跨域洞察场景装载；旧后端忽略。
+        var crossDomainCheckup: String? = nil
         /// 02 契约 §10 最小装载清单（时刻可靠性/账户语义/合并行/补偿类目/未来行）。
         var financeSemantics: [String: String]? = nil
         /// 报告融合理解（ADR-08）：PersonalSituationBrief 个人情境背景投影，
@@ -245,14 +249,23 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         } else {
             answerTask = nil
         }
+        // 全景体检窗口（2026-11-01 全景版）：跨域洞察场景专用——用户问句自带
+        // 时间词时以解析出的窗口为准，否则场景默认 30 天；财务台账在全景场景
+        // 下用同一窗口（复查意见必修 4：半年台账与 30 天报告口径不打架）
+        let panoramicWindowDays: Int? = (scenario == .crossDomain && goalReview == nil)
+            ? (answerTask?.primaryTimeRange.map { max(Int(($0.end - $0.start) / 86_400), 7) } ?? scenario?.defaultRangeDays ?? 30)
+            : nil
         // S2 融合版：财务数据集在场时生成确定性台账（本地预计算，不受快照行数限制）
         var financeLedger: String? = nil
         var financeSemantics: [String: String]? = nil
         if datasets.keys.contains("finance.transactions") {
-            let built = await FinanceEvidenceLedgerBuilder.build(now: now)
+            let built = await FinanceEvidenceLedgerBuilder.build(now: now, windowDays: panoramicWindowDays ?? 180)
             financeLedger = built?.ledger
             financeSemantics = built?.semantics
         }
+        let checkupLedger: String? = panoramicWindowDays != nil
+            ? await CrossDomainCheckupLedgerBuilder.build(now: now, windowDays: panoramicWindowDays ?? 30)
+            : nil
         let snapshot = Snapshot(
             version: 1,
             generatedAt: now,
@@ -260,6 +273,7 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             datasets: datasets,
             answerTask: answerTask,
             financeEvidenceLedger: financeLedger,
+            crossDomainCheckup: checkupLedger,
             financeSemantics: financeSemantics,
             personalSituationBrief: situationBrief.isEmpty ? nil : situationBrief,
             goalScope: goalScope,
