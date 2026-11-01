@@ -112,6 +112,27 @@ struct MessageBubbleView: View {
         .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2), lineWidth: 0.8))
     }
 
+    /// 报告追问胶囊（2026-11-01 追问链路原型）：这条消息是从某份报告发起的追问时，
+    /// 气泡上方交代锚定的根报告提问——追问消息与普通聊天一眼可辨。
+    @ViewBuilder
+    private var continuationBadge: some View {
+        if let rootQuestion = message.continuationRootQuestion {
+            HStack(spacing: 3) {
+                Image(systemName: "arrowshape.turn.up.left.fill")
+                    .font(.system(size: 8.5, weight: .bold))
+                Text(String(localized: "就报告「\(rootQuestion)」追问"))
+                    .font(.system(size: 9.5, weight: .bold))
+                    .lineLimit(1)
+            }
+            .foregroundColor(Color.holoFollowUpTint)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(Color.holoFollowUpTint.opacity(0.10), in: Capsule())
+            .overlay(Capsule().stroke(Color.holoFollowUpTint.opacity(0.25), lineWidth: 0.8))
+            .accessibilityLabel(String(localized: "报告追问：锚定报告「\(rootQuestion)」"))
+        }
+    }
+
     private var isUser: Bool {
         message.role == "user"
     }
@@ -132,6 +153,7 @@ struct MessageBubbleView: View {
                         if showsPlanningBadge {
                             planningBadge
                         }
+                        continuationBadge
                         if let thumbURL = VisionImageStore.thumbnailURL(for: message.id) {
                             VisionChatThumbnail(url: thumbURL)
                             if !isImageOnlyCaption {

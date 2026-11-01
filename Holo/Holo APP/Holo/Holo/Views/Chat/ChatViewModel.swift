@@ -1102,6 +1102,15 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                 let continuation = resolvedContinuation?.relation == .executeFromResult
                     ? nil
                     : resolvedContinuation
+
+                // 报告追问血统盖章（对齐 2026-11-01 追问链路原型）：用户消息与
+                // 生成中占位消息都带上根报告提问——生成完成前（continuationMetadata
+                // 尚未随结果返回）聊天侧就能认出这是对哪份报告的追问。
+                if let rootQuestion = continuation?.rootUserQuestion, !rootQuestion.isEmpty {
+                    let parentResultID = continuation?.parentResultID
+                    self.chatRepo?.stampContinuationRoot(userMessageId, rootQuestion: rootQuestion, parentResultID: parentResultID)
+                    self.chatRepo?.stampContinuationRoot(aiMessageId, rootQuestion: rootQuestion, parentResultID: parentResultID)
+                }
                 // 规划运行态（§6.2）：首个进度事件把占位消息升级为 .contextPlan 运行卡，
                 // 阶段迁移经 RunController 守卫（revision 单调 + 终态锁）后原子落盘；
                 // 退出重进按持久化信封渲染同一张卡，不再依赖全局 isStreaming 推断。

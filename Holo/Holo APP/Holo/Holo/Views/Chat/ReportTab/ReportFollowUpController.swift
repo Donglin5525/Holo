@@ -130,7 +130,21 @@ final class ReportFollowUpController: ObservableObject {
             return
         }
 
-        // 外部在途分析（从聊天页发起的追问）：出现时记账、消失时刷新记录
+        // 在途任务锚定的是本报告（血统章的父报告 ID 匹配）→ 接管为页面内生成中。
+        // 覆盖「发起追问后关掉详情页再重开」：反馈不因页面重建而丢失。
+        if let streaming,
+           phase != .running,
+           let parentResultID = parentResult.agentResultID,
+           streaming.continuationParentResultID == parentResultID {
+            phase = .running
+            runningQuestion = messages
+                .first(where: { $0.id == streaming.parentMessageId })?
+                .content ?? streaming.continuationRootQuestion
+            awaitingSettlement = true
+            return
+        }
+
+        // 外部在途分析（锚定其他报告或无血统）：出现时记账、消失时刷新记录
         if streaming != nil {
             observingExternalAnalysis = true
         } else if observingExternalAnalysis {

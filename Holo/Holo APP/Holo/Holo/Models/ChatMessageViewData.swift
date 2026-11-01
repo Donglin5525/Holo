@@ -318,6 +318,24 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         return count
     }
 
+    // MARK: - Report Continuation（报告追问血统）
+
+    /// 追问锚定的根报告提问（extractedDataJSON 携带，见 ChatViewModel.sendMessage）。
+    /// 用户消息用它渲染「就《报告》追问」胶囊；生成中的分析卡用它渲染血统行——
+    /// 追问在生成完成前（continuationMetadata 尚未随结果返回）也能认出归属。
+    nonisolated var continuationRootQuestion: String? {
+        guard let root = cachedExtractedDataDictionary?["continuationRoot"],
+              !root.isEmpty else { return nil }
+        return root
+    }
+
+    /// 追问锚定的父报告 ID（与 continuationRoot 同章盖上；详情页用它识别在途任务归属）
+    nonisolated var continuationParentResultID: String? {
+        guard let id = cachedExtractedDataDictionary?["continuationParentID"],
+              !id.isEmpty else { return nil }
+        return id
+    }
+
     /// 本条回答实际引用的长期记忆 ID 列表
     nonisolated var memoryAttributionIDs: [String] {
         guard let idsStr = cachedExtractedDataDictionary?["memoryUsedIDs"] else { return [] }

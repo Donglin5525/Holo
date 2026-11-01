@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-11-01] HoloAI 报告追问链路血统标识——生成中可见「追问自哪份报告」，重开详情页不丢生成中反馈
+
+- 东林实报「对一份报告点了追问没有任何交互反馈，回到对话框发现云端任务在跑，但认不出是对哪份报告的追问」。**定谳**：追问的归属信息此前只存在于生成完成后的结果卡胶囊（continuationMetadata），生成中的转圈卡与追问落下的用户消息全程无标识——一分钟盲盒；且报告详情页的追问控制器是页面级状态，发起追问后关掉详情页再重开，「追问生成中」反馈即丢失。
+- **血统章通道**：sendMessage 判定出 continuation 后，把根报告提问与父报告 ID 经 `ChatMessageRepository.stampContinuationRoot` 写入用户消息与流式占位消息的 extractedDataJSON（新 key `continuationRoot` / `continuationParentID`，只增改这两个 key、既有键值原样保留；免 CoreData/CloudKit 迁移）。执行建议类（executeFromResult）不盖章。
+- **三处血统 UI**：聊天转圈卡顶部「↩ 追问自报告「xx」」血统行（生成完成前即可辨认归属）；追问用户消息气泡上方「↩ 就报告「xx」追问」胶囊（与目标规划徽章同构、追问主题色）；报告 Tab 生成中卡同款血统行。词条简繁英三语齐备。
+- **详情页重开接管**：ReportFollowUpController 识别在途流式任务的 `continuationParentID` 命中本报告 → 接管为页面内「追问生成中」态（进度文案与聊天卡同源、可取消），关页重开反馈不丢；不匹配本报告的在途任务维持原有静默刷新语义。
+- **验证**：隔离 worktree 全量构建绿（绕开并行会话在途半成品）；新增 `ChatMessageContinuationLineageTests` 3/3 绿（双消息盖章/既有键保留/未盖章不误显，已挂 pbxproj 四处）；无头模拟器冷启动 + 首页/HoloAI 页冒烟过。纯客户端改动，无后端、无数据模型改动，无需发版。待东林真机验收。
+
 ## [2026-11-01] 全 App SF Symbol 失效名审计——AI 设置「想法设置」图标空白根治 + 全局 15 处同类修复
 
 - 东林实报「AI 设置里有图标没展示出来」。**定谳**：HoloAIUserSettingsView「想法设置」行写的是 `icon: "notebook"`——SF Symbols 图标库里没有裸 `notebook` 这个名字（只有 `text.book.closed` 等），`Image(systemName:)` 按名字取图，名字不存在时不报错、不崩溃、只静默渲染空白。图标名是纯字符串，写错没有任何编译/运行时告警，属「静默空白」类缺陷，从写下那天起就一直空白。

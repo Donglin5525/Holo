@@ -140,6 +140,7 @@
 		7D89A2C442C34B9589F5338D /* TransactionDateResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */; };
 		7D89A2C542C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C642C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift */; };
 		7D89A2C742C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C842C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift */; };
+		7D89B1F145C35A01A1E5338E /* ChatMessageContinuationLineageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89B1F245C35A01A1E5338E /* ChatMessageContinuationLineageTests.swift */; };
 		7FB1A441BC43259A4CC0186C /* HoloMemoryQualityMetricsStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA18CA468ECF7AC6A1458EE2 /* HoloMemoryQualityMetricsStandaloneTests.swift */; };
 		803D0D877989B00946354154 /* TopicRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B397200946247EE53DCAA42 /* TopicRepositoryTests.swift */; };
 		805C161C83908F103AD3D220 /* HoloAgentResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53D13BB9A969837DFE63D4C0 /* HoloAgentResponseParserTests.swift */; };
@@ -661,6 +662,7 @@
 		7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransactionDateResolverTests.swift; sourceTree = "<group>"; };
 		7D89A2C642C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PromptManagerIntentRecognitionTests.swift; sourceTree = "<group>"; };
 		7D89A2C842C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageRepositoryCacheRecoveryTests.swift; sourceTree = "<group>"; };
+		7D89B1F245C35A01A1E5338E /* ChatMessageContinuationLineageTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageContinuationLineageTests.swift; sourceTree = "<group>"; };
 		7E3005AE966FE2E10711137A /* SubtaskParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubtaskParserTests.swift; sourceTree = "<group>"; };
 		7E86CA8000924B5EE7C10C5D /* HealthInsightGenerationServiceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthInsightGenerationServiceTests.swift; sourceTree = "<group>"; };
 		7EB9D399D071DFCBA1D249E3 /* HoloMemorySimulatorValidationScenarioTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemorySimulatorValidationScenarioTests.swift; sourceTree = "<group>"; };
@@ -1297,6 +1299,7 @@
 				DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */,
 				A27D00020000000000000001 /* HoloPeriodReplayJobTests.swift */,
 				7D89A2C842C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift */,
+				7D89B1F245C35A01A1E5338E /* ChatMessageContinuationLineageTests.swift */,
 				76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */,
 				4C56E2AB37A815D00F57579A /* HealthInsightGenerationModelsTests.swift */,
 				A543A34BD7613295A66E8E14 /* HabitFocusSummaryStandaloneTests.swift */,
@@ -2237,6 +2240,7 @@
 				7D89A2C442C34B9589F5338D /* TransactionDateResolverTests.swift in Sources */,
 				7D89A2C542C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift in Sources */,
 				7D89A2C742C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift in Sources */,
+				7D89B1F145C35A01A1E5338E /* ChatMessageContinuationLineageTests.swift in Sources */,
 				AA680905CE9A01E52DBB3E8D /* ChatMessageRepositoryOrphanCleanupTests.swift in Sources */,
 				47338B8715C0527F76C6B9BC /* MemoryInsightRefreshQuotaTests.swift in Sources */,
 				D1A1000000000000000000C1 /* DiscoverySchemaTests.swift in Sources */,

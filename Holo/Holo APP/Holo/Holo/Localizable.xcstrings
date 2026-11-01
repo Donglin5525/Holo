@@ -41540,6 +41540,22 @@
     "尚未选定资金账户" : {
 
     },
+    "就报告「%@」追问" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Follow-up on report “%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "就報告「%@」追問"
+          }
+        }
+      }
+    },
     "就是今天" : {
       "localizations" : {
         "en" : {
@@ -54514,6 +54530,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "報告詳情"
+          }
+        }
+      }
+    },
+    "报告追问：锚定报告「%@」" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Report follow-up: anchored to report “%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "報告追問：錨定報告「%@」"
           }
         }
       }
@@ -100893,6 +100925,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追問生成中"
+          }
+        }
+      }
+    },
+    "追问自报告「%@」" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Follow-up from report “%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追問自報告「%@」"
           }
         }
       }

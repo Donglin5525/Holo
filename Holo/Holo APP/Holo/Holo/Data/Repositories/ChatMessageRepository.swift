@@ -533,6 +533,28 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// 报告追问血统盖章：把锚定的根报告提问与父报告 ID 写入消息的 extractedDataJSON
+    /// （只动这两个 key，既有键值原样保留）。用户消息与生成中占位消息都盖——
+    /// 追问在 continuationMetadata 随结果返回之前就能认出归属；父报告 ID 供
+    /// 报告详情页识别「在途任务锚定的是不是自己」，重开详情页可恢复生成中反馈。
+    func stampContinuationRoot(_ messageId: UUID, rootQuestion: String, parentResultID: String?) {
+        guard let message = messageForUpdate(messageId) else { return }
+        let existing = message.extractedDataJSON?.data(using: .utf8)
+        var dict = (try? JSONDecoder().decode([String: String].self, from: existing ?? Data())) ?? [:]
+        dict["continuationRoot"] = rootQuestion
+        if let parentResultID {
+            dict["continuationParentID"] = parentResultID
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: dict),
+              let json = String(data: data, encoding: .utf8) else { return }
+        message.extractedDataJSON = json
+        save()
+
+        updateSnapshot(messageId) { snapshot in
+            snapshot.setExtractedDataJSON(json)
+        }
+    }
+
     /// 查询所有仍可恢复的周期回放消息，供冷启动保护与续跑。
     func recoverablePeriodReplayJobs() -> [(messageId: UUID, job: HoloPeriodReplayJob)] {
         let request = ChatMessage.fetchRequest()
