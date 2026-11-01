@@ -29334,6 +29334,22 @@
         }
       }
     },
+    "删除后会移入回收站，30 天内可恢复。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It will be moved to the Recycle Bin and can be restored within 30 days."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除後會移入回收站，30 天內可恢復。"
+          }
+        }
+      }
+    },
     "删除后无法恢复；若该分类已被交易使用，将无法删除。" : {
       "extractionState" : "stale",
       "localizations" : {

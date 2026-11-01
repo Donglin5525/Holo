@@ -736,7 +736,7 @@ struct FinanceLedgerView: View {
                 transactionToDelete = nil
             }
         } message: {
-            Text("删除后无法恢复，确定要删除吗？")
+            Text("删除后会移入回收站，30 天内可恢复。")
         }
         // 分期交易删除选项
         .confirmationDialog(

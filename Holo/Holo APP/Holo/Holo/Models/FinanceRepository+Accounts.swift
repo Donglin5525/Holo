@@ -538,10 +538,13 @@ extension FinanceRepository {
         return (try? context.fetch(request))?.first?.date
     }
 
-    /// 获取账户的交易数量
+    /// 获取账户的交易数量（只数有效交易：软删行不算，否则删空账户后 30 天内都删不掉账户）
     func getTransactionCount(for account: Account) -> Int {
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "account == %@", account)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "account == %@", account),
+            Transaction.notDeletedPredicate
+        ])
         return (try? context.count(for: request)) ?? 0
     }
 

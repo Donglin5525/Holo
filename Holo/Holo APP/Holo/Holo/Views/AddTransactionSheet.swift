@@ -307,7 +307,7 @@ struct AddTransactionSheet: View {
                 }
                 Button("取消", role: .cancel) {}
             } message: {
-                Text("删除后无法恢复，确定要删除吗？")
+                Text("删除后会移入回收站，30 天内可恢复。")
             }
             .swipeBackToDismiss {
                 if hasUnsavedChanges {

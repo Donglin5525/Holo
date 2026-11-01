@@ -453,10 +453,30 @@ class FinanceRepository {
         broadcastFinanceDataDidChange()
     }
 
+    /// 删除交易：软删除进回收站批次（30 天可恢复、到期物理清理），与分类删除同链路。
+    /// 物理销毁会让持有该对象的在途视图（行退场动画/他屏渲染）读已死对象而闪退，
+    /// 此坑已四次复发（最近 2026-11-01 真机 .ips 实锤 TransactionRowView.body），
+    /// 结构性结论：交易删除一律软删，全库不再有用户路径的物理删除。
     func deleteTransaction(_ transaction: Transaction) async throws {
-        context.delete(transaction)
+        let now = Date()
+        let batch = RecycleBinService.makeSingleItemBatch(
+            module: .finance,
+            summary: FinanceRepository.transactionRecycleSummary(transaction),
+            context: context,
+            now: now
+        )
+        transaction.markDeleted(batchId: batch.id, at: now)
         try context.save()
         broadcastFinanceDataDidChange()
+    }
+
+    /// 回收站批次摘要（与 RecycleBinRestoreEngine.transactionSummary 同口径）
+    static func transactionRecycleSummary(_ transaction: Transaction) -> String {
+        let amount = transaction.amount as Decimal
+        let day = transaction.date.formatted(.dateTime.month().day())
+        let categoryName = transaction.category?.name ?? String(localized: "未分类")
+        let typeText = transaction.type == "income" ? String(localized: "收入") : String(localized: "支出")
+        return String(localized: "\(typeText) ¥\(String(describing: amount)) · \(day) · \(categoryName)")
     }
 
     /// 根据 ID 查找交易记录
@@ -653,8 +673,11 @@ class FinanceRepository {
         }
 
         if existing.count > periods {
+            // 超出期数的行降级为单条软删（无批次不可恢复、30 天物理清理）：
+            // 缩期时这些行可能还在屏上（退场动画），物理销毁会触发死对象闪退
+            let removedAt = Date()
             for transaction in existing.dropFirst(periods) {
-                context.delete(transaction)
+                transaction.markDeleted(batchId: nil, at: removedAt)
             }
         }
 
@@ -754,7 +777,8 @@ class FinanceRepository {
             let request = Transaction.fetchRequest()
             request.predicate = NSPredicate(format: "spendingProjectId IN %@", oneOffIDs)
             for transaction in (try? context.fetch(request)) ?? [] {
-                context.delete(transaction)
+                // 单条软删（同缩期口径）：这些行可能在屏上被持有
+                transaction.markDeleted(batchId: nil, at: now)
                 changedCount += 1
             }
         }
@@ -875,19 +899,30 @@ class FinanceRepository {
         return (transaction, true)
     }
 
-    /// 查询同一分期组的所有交易
+    /// 查询同一分期组的所有交易（只取有效行）
     func getInstallmentGroup(groupId: UUID) async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "installmentGroupId == %@", groupId as CVarArg)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "installmentGroupId == %@", groupId as CVarArg),
+            Transaction.notDeletedPredicate
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "installmentIndex", ascending: true)]
         return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
 
-    /// 删除整个分期组
+    /// 删除整个分期组：整组软删进同一回收站批次（同 deleteTransaction 口径）
     func deleteInstallmentGroup(groupId: UUID) async throws {
         let transactions = try await getInstallmentGroup(groupId: groupId)
+        guard !transactions.isEmpty else { return }
+        let now = Date()
+        let batch = RecycleBinService.makeSingleItemBatch(
+            module: .finance,
+            summary: String(localized: "分期组（\(transactions.count) 笔）"),
+            context: context,
+            now: now
+        )
         for tx in transactions {
-            context.delete(tx)
+            tx.markDeleted(batchId: batch.id, at: now)
         }
         try context.save()
         broadcastFinanceDataDidChange()
@@ -1533,11 +1568,11 @@ final class SpendingProjectRepository {
         project.paymentMode = nil
         project.updatedAt = Date()
 
-        // 兼容历史版本：编辑时顺手清理曾经自动生成的关联流水。
+        // 兼容历史版本：编辑时顺手清理曾经自动生成的关联流水（单条软删）。
         let request = NSFetchRequest<Transaction>(entityName: "Transaction")
         request.predicate = NSPredicate(format: "spendingProjectId == %@", project.id as CVarArg)
         for transaction in try context.fetch(request) {
-            context.delete(transaction)
+            transaction.markDeleted(batchId: nil, at: Date())
         }
 
         try context.save()
@@ -1546,15 +1581,18 @@ final class SpendingProjectRepository {
 
     func deleteProject(id: NSManagedObjectID) throws {
         guard let project = try? context.existingObject(with: id) as? SpendingProject else { return }
-        // 历史版本可能残留一次性购买关联流水；删除项目时一并兜底清理。
+        let now = Date()
+        // 历史版本可能残留一次性购买关联流水；删除项目时一并兜底清理（单条软删）。
         if !project.isRecurring {
             let request = NSFetchRequest<Transaction>(entityName: "Transaction")
             request.predicate = NSPredicate(format: "spendingProjectId == %@", project.id as CVarArg)
             for transaction in (try? context.fetch(request)) ?? [] {
-                context.delete(transaction)
+                transaction.markDeleted(batchId: nil, at: now)
             }
         }
-        context.delete(project)
+        // 项目本体同样软删（回收站实体清单已含 SpendingProject；
+        // 物理销毁同样会让持有项目的视图读死对象）
+        project.markDeleted(batchId: nil, at: now)
         try context.save()
         SpendingProjectBackgroundService.shared.scheduleNextTask()
         NotificationCenter.default.post(name: .financeDataDidChange, object: nil)

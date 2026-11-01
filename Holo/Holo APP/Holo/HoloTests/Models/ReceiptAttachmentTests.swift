@@ -134,12 +134,22 @@ final class ReceiptAttachmentTests: XCTestCase {
         XCTAssertTrue(deletedSaved.managedObjectContext == nil || deletedSaved.isDeleted)
     }
 
+    /// 删除契约（2026-11-01 软删化）：deleteTransaction 只进回收站（附件随交易保留，
+    /// 恢复时票根一起回来）；附件级联物理删除发生在回收站 30 天过期清理的
+    /// context.delete 上——此用例锁两段语义。
     func testCascadeDeleteWithTransaction() async throws {
         let tx = try await makeTransaction()
         let attachment = try await repo.attachReceipt(to: tx, imageData: try makeImageData(), source: .camera)
         try await repo.deleteTransaction(tx)
 
-        XCTAssertNil(attachment.managedObjectContext, "交易删除附件级联即净")
+        // 软删段：交易不死、附件保留（可恢复）
+        XCTAssertNotNil(attachment.managedObjectContext, "软删阶段附件随交易保留")
+        XCTAssertNotNil(tx.deletedAt)
+
+        // 物理清理段（回收站过期路径）：级联即净
+        context.delete(tx)
+        try context.save()
+        XCTAssertNil(attachment.managedObjectContext, "物理清理时附件级联即净")
         let request = TransactionAttachment.fetchRequest()
         XCTAssertEqual(try context.count(for: request), 0)
     }
