@@ -144,7 +144,7 @@ struct HoloKnowledgeRepositoryIntegrationTests {
                                     summary: "未来两周不宜跑步")
         _ = try await repository.upsert(health, observationKey: "obs-h")
         let snapshot = try await repository.knowledgeStoreSnapshot()
-        expect(snapshot.revisions.count == 1 && snapshot.revisions.first?.partition == .sensitiveLocal, "健康派生知识归本机分区")
+        expect(snapshot.revisions.count == 1 && snapshot.revisions.first?.partition == .sensitiveLocal, "健康派生知识归本机分区（实际 count=\(snapshot.revisions.count) partition=\(String(describing: snapshot.revisions.first?.partition))）")
         let mainContext = controller.mainContainer.newBackgroundContext()
         let mainCount = try await mainContext.perform {
             try mainContext.count(for: NSFetchRequest<NSFetchRequestResult>(entityName: "HoloMemoryKnowledgeRevisionMO"))

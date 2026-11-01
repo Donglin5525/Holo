@@ -246,7 +246,7 @@ struct HoloMemorySchedulerStandaloneTests {
             commit: { _, _ in await counter.committed() }
         )
         expect(deferredEvents == [.deferredByWindow(until: Date(timeIntervalSince1970: 1_720_000_800))],
-               "高峰期应整体顺延到当日谷窗起点 18:00（北京）")
+               "高峰期应整体顺延到当日谷窗起点 18:00（北京）（实际 \(deferredEvents)）")
         var peakCounts = await counter.snapshot()
         expect(peakCounts.0 == 0 && peakCounts.1 == 0,
                "高峰期不得发起 AI 调用")

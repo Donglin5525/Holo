@@ -350,7 +350,7 @@ struct HoloFinancePatternAndLegacyGuardTests {
         let now = day(140)
         let weekly = (0..<20).map { tx($0, merchant: "麦当劳", amount: Double(35 + $0 % 10), at: day($0 * 7)) }
         let weeklyCandidates = HoloFinancePatternMiner.mine(transactions: weekly, now: now)
-        expect(weeklyCandidates.count == 1, "周节奏候选产出 1 条")
+        expect(weeklyCandidates.count == 1, "周节奏候选产出 1 条（实际 \(weeklyCandidates.count) 条：\(weeklyCandidates.map { "\($0.template)/\($0.transactions.count)笔/cov=\($0.coveragePercent.map { String(format: "%.2f", $0) } ?? "nil")" })）")
         if let c = weeklyCandidates.first {
             expect(c.template == .weeklyRhythm, "密节奏 → weeklyRhythm 模板")
             expect((c.coveragePercent ?? 0) >= 0.7, "覆盖率达标")
@@ -412,7 +412,8 @@ struct HoloFinancePatternAndLegacyGuardTests {
 
     static func testMinerAdmissionAndIdempotency() throws {
         // 端到端闭环：挖矿产物 → 统一准入 = 值得确认；解析器 = worthConfirming。
-        let now = day(200)
+        // now 同上：须在最后一笔 45 天新鲜度窗口内。
+        let now = day(140)
         let weekly = (0..<20).map { tx($0, merchant: "麦当劳", amount: Double(35 + $0 % 10), at: day($0 * 7)) }
         guard let candidate = HoloFinancePatternMiner.mine(transactions: weekly, now: now).first else {
             return expect(false, "挖矿应有候选")
