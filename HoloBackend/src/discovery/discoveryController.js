@@ -4,6 +4,7 @@ import { injectServerPrompt, promptTypeForPurpose } from "../prompts/serverPromp
 import { getPrompt } from "../prompts/promptRegistry.js";
 import { canonicalSha256 } from "./discoveryCanonicalJson.js";
 import { validateDiscoveryOutput } from "./discoveryOutputSchema.js";
+import { anchorQuoteToSource, padCountWordCitations, timezoneOffsetOf } from "./discoveryCitationRepair.js";
 
 /**
  * 「一个发现」专用控制器与路由（实施包 03 §3）。
@@ -546,6 +547,8 @@ export function registerDiscoveryRoutes(app, deps) {
         const { envelope } = validateDiscoveryOutput(content, {
           expectedKind: stage === "candidates" ? "candidates" : "verification",
           expectedRunID: run.run_id,
+          // 1.1.5 S1：纯日期 timeRange 按客户端 anchorNow 的偏移补全（无偏移不修）
+          timezoneOffset: timezoneOffsetOf(body.data?.anchorNow),
         });
         return { envelope, usage: result?.usage ?? null };
       };
@@ -561,17 +564,18 @@ export function registerDiscoveryRoutes(app, deps) {
           if (!isFormatError || attempt >= 3) throw error;
           const details = error.details ?? {};
           lastRejectReason = details.reason ?? "unknown";
+          // 1.1.5 S7③：只记拒因与输出长度——模型输出含用户记录引文，不进容器日志
           console.warn(`[discovery] ${stage} output invalid attempt=${attempt}/3 run=${run.run_id}`
-            + ` reason=${JSON.stringify(details.reason ?? null)} rawTail=${JSON.stringify(details.rawTail ?? "")}`);
+            + ` reason=${JSON.stringify(details.reason ?? null)} rawLength=${Number(details.rawLength ?? 0)}`);
         }
       }
       const { envelope, usage: stageUsage } = validated;
 
       if (stage === "candidates" && envelope.candidates.length > 0) {
-        // 2026-11-01 引用锚定修复：qwen 引用时常轻微改写原文（换词/补字/标点差异）导致客户端
-        // 逐字闸全拒（实测 quote_mismatch 拒因）。修复策略：引用的前后缀若能在对应证据原文中
-        // 锚定（各自唯一命中同一段），则把引用整体替换为原文的精确片段——引用内容回归原文本身，
-        // 语义零生成。锚不定的引用保持原样（交给客户端闸如实拒绝）。
+        // 引用确定性修复（2026-11-01 引入，1.1.5 S7 纠偏，实现见 discoveryCitationRepair.js）：
+        // ① 数词句（「这两次」）引用不足 2 条时从本候选支撑证据补齐（阿拉伯数字/百分比句不补）；
+        // ② 模型轻微改写的引用按原文**真实下标**锚定回精确片段（此前用归一化下标切原文会错位）。
+        // 锚不定的引用保持原样，交给客户端逐字闸如实拒绝——全程不生成内容。
         const evidenceBlocks = new Map();
         for (const item of Array.isArray(body.data?.evidence) ? body.data.evidence : []) {
           if (item && typeof item.evidenceID === "string" && typeof item.sourceBlock === "string") {
@@ -579,49 +583,14 @@ export function registerDiscoveryRoutes(app, deps) {
           }
         }
         let repairedCount = 0;
-        const normKey = (s) => String(s).replace(/[\s“”「」『』]/g, "").toLowerCase();
         for (const candidate of envelope.candidates) {
-          // 数字纪律兜底：claim 文本含数字（两三四…八九十或阿拉伯数字）时客户端闸要求
-          // ≥2 条引用；模型常只给 1 条。从候选级支撑证据补齐——quote 取该证据原文首句
-          //（确定性截取，非生成），引用内容仍全部来自原文。
-          const containsNumber = /[0-9两三四五六七八九十]/.test(
-            (candidate.claims ?? []).map((claim) => claim?.text ?? "").join(""));
-          if (containsNumber && Array.isArray(candidate.supportEvidenceIDs)) {
-            for (const claim of candidate.claims ?? []) {
-              if (!claim || !Array.isArray(claim.citations)) continue;
-              if (!/[0-9两三四五六七八九十]/.test(claim.text ?? "")) continue;
-              if (claim.citations.length >= 2) continue;
-              for (const eid of candidate.supportEvidenceIDs) {
-                if (claim.citations.length >= 2) break;
-                if (claim.citations.some((c) => c.evidenceID === eid)) continue;
-                const source = evidenceBlocks.get(eid);
-                if (!source) continue;
-                const firstSentence = source.split(/(?<=[。！？!?])/)[0] || source.slice(0, 40);
-                if (firstSentence.length >= 4) {
-                  claim.citations.push({ evidenceID: eid, quote: firstSentence });
-                  repairedCount++;
-                }
-              }
-            }
-          }
+          repairedCount += padCountWordCitations(candidate, evidenceBlocks);
           for (const claim of candidate.claims ?? []) {
             for (const citation of claim.citations ?? []) {
               const source = evidenceBlocks.get(citation.evidenceID);
               if (typeof source !== "string" || source.includes(citation.quote)) continue;
-              const key = normKey(citation.quote);
-              if (key.length < 8) continue;
-              const sourceKey = normKey(source);
-              const prefix = key.slice(0, 8);
-              const suffix = key.slice(-8);
-              const start = sourceKey.indexOf(prefix);
-              if (start < 0) continue;
-              const end = sourceKey.lastIndexOf(suffix);
-              if (end < start) continue;
-              // 命中区间按归一化长度截取原文（归一化只删空白/引号，长度差有限，按区间就近回取）
-              let rawStart = start, rawEnd = end + 8;
-              if (rawEnd > source.length) rawEnd = source.length;
-              const anchored = source.slice(rawStart, rawEnd);
-              if (anchored.length >= 6) {
+              const anchored = anchorQuoteToSource(source, citation.quote);
+              if (anchored && anchored !== citation.quote) {
                 citation.quote = anchored;
                 repairedCount++;
               }
