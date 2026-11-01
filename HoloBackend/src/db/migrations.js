@@ -469,6 +469,35 @@ const MIGRATIONS = [
         ON product_events (received_at_ms);
     `,
   },
+  {
+    // HoloAI「一个发现」1.1.5 重设计（2026-11-02，docs/_common/plans/2026-11-02-一个发现-1.1.5-重设计方案.md）：
+    // ① 候选异步作业表：候选生成改为服务器后台作业，结果 AES-256-GCM 密文落库（AAD=runID），
+    //    供客户端断连/切后台/进程重启后取件；核验成功或租约到期即删。只存元数据+密文，无明文。
+    // ② run 尝试计数与可重试标记：服务端原因失败不烧当日名额，同一上海日最多 attemptsPerDay 次。
+    id: 26,
+    description: '「一个发现」候选异步作业表 discovery_stage_jobs（仅元数据+密文）+ discovery_runs 尝试计数/可重试标记',
+    up: `
+      CREATE TABLE IF NOT EXISTS discovery_stage_jobs (
+        run_id TEXT PRIMARY KEY,
+        subject TEXT NOT NULL,
+        device_id TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
+        stage TEXT NOT NULL CHECK (stage IN ('candidates')),
+        request_hash TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('running','completed','failed')),
+        result_ciphertext TEXT,
+        error_code TEXT,
+        error_reason TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_discovery_stage_jobs_expires
+        ON discovery_stage_jobs (expires_at);
+      ALTER TABLE discovery_runs ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 1;
+      ALTER TABLE discovery_runs ADD COLUMN failure_retryable INTEGER NOT NULL DEFAULT 0;
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

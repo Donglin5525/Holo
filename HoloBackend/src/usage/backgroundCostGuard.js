@@ -30,6 +30,9 @@ export const BACKGROUND_PATHS = {
 // 「一个发现」两阶段路径（含动态 runID 段，无法静态枚举，前缀匹配）
 const BACKGROUND_PATH_PREFIXES = [
   { prefix: "/v1/discovery/runs/", suffix: "/candidates", purpose: "discovery_candidate_v1" },
+  // 1.1.5 S3：异步启动同样是候选模型调用，入口闸（字节/最低版本/预算试探）一致生效；
+  // 取件端点 /candidates/result 不调用模型，不归入后台 purpose
+  { prefix: "/v1/discovery/runs/", suffix: "/candidates/async", purpose: "discovery_candidate_v1" },
   { prefix: "/v1/discovery/runs/", suffix: "/verify", purpose: "discovery_verify_v1" },
 ];
 

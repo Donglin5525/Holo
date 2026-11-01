@@ -31,16 +31,24 @@ const STAGE_CACHE_TTL_MS = 5 * 60_000;
 export function createDiscoveryRunStore(db, options = {}) {
   const now = options.now ?? (() => Date.now());
   const leaseMs = Number(options.leaseMs ?? 10 * 60_000);
+  // 1.1.5 S6：同一上海日的最多尝试次数（服务端原因失败可重试；用户取消/关闭不可）
+  const attemptsPerDay = Math.max(1, Number(options.attemptsPerDay ?? 3));
 
   const getRun = db.prepare("SELECT * FROM discovery_runs WHERE run_id = ?");
   const getRunByDay = db.prepare("SELECT * FROM discovery_runs WHERE subject = ? AND day_key = ?");
   const insertRun = db.prepare(`
     INSERT INTO discovery_runs
       (run_id, subject, device_id, control_revision, scope_revision, source_manifest_digest,
-       day_key, status, token_hash, lease_expires_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
+       day_key, status, token_hash, lease_expires_at, created_at, updated_at, attempt_count)
+    VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?)
   `);
   const deleteRun = db.prepare("DELETE FROM discovery_runs WHERE run_id = ? AND status = ? AND candidate_dispatched = 0");
+  const deleteRetryable = db.prepare(
+    "DELETE FROM discovery_runs WHERE run_id = ? AND status = 'cancelled' AND failure_retryable = 1");
+  const markRetryable = db.prepare(
+    "UPDATE discovery_runs SET status = 'cancelled', failure_retryable = 1, updated_at = ? WHERE run_id = ?");
+  const updateLease = db.prepare(
+    "UPDATE discovery_runs SET lease_expires_at = ?, updated_at = ? WHERE run_id = ? AND status = 'active'");
   const updateRun = db.prepare(`
     UPDATE discovery_runs SET status = ?, candidate_request_hash = COALESCE(?, candidate_request_hash),
       verify_request_hash = COALESCE(?, verify_request_hash),
@@ -86,7 +94,7 @@ export function createDiscoveryRunStore(db, options = {}) {
     const persist = db.transaction(() => {
       try {
         insertRun.run(runId, subject, deviceId, control.revision, control.scopeRevision,
-          sourceManifestDigest ?? null, dayKey, tokenHash, leaseExpiresAt, ts, ts);
+          sourceManifestDigest ?? null, dayKey, tokenHash, leaseExpiresAt, ts, ts, 1);
       } catch (error) {
         if (!/UNIQUE constraint failed/i.test(String(error?.message ?? ""))) throw error;
         // 同 run_id 撞主键（跨日重用等）：正确重试路径是 requestId 幂等或换新 runID
@@ -99,11 +107,20 @@ export function createDiscoveryRunStore(db, options = {}) {
           && existing.candidate_dispatched === 0
           && (RELEASEABLE_STATUSES.has(existing.status)
             || (existing.status === "active" && existing.lease_expires_at <= ts));
-        if (releaseable) {
-          const removed = deleteRun.run(existing.run_id, existing.status);
+        // 1.1.5 S6：服务端原因失败的行可在当日剩余尝试次数内让位（计数 +1 继承，防止清零绕过上限）
+        const previousAttempts = Number(existing?.attempt_count ?? 1);
+        const retryableFailure = existing
+          && existing.status === "cancelled"
+          && existing.failure_retryable === 1
+          && previousAttempts < attemptsPerDay;
+        if (releaseable || retryableFailure) {
+          const removed = retryableFailure
+            ? deleteRetryable.run(existing.run_id)
+            : deleteRun.run(existing.run_id, existing.status);
           if (removed.changes === 1) {
             insertRun.run(runId, subject, deviceId, control.revision, control.scopeRevision,
-              sourceManifestDigest ?? null, dayKey, tokenHash, leaseExpiresAt, ts, ts);
+              sourceManifestDigest ?? null, dayKey, tokenHash, leaseExpiresAt, ts, ts,
+              retryableFailure ? previousAttempts + 1 : previousAttempts);
             return;
           }
         }
@@ -202,8 +219,12 @@ export function createDiscoveryRunStore(db, options = {}) {
     );
   }
 
-  function completeRun({ runId, status }) {
-    closeRun(runId, status, now());
+  /**
+   * 关闭 run。retryable=true 表示「服务端原因失败」（格式三连败/上游错误/作业中断/核验失败）：
+   * 当日名额不烧，createRun 可在剩余尝试次数内替换该行（1.1.5 S6）。
+   */
+  function completeRun({ runId, status, retryable = false }) {
+    closeRun(runId, status, now(), { retryable });
   }
 
   /**
@@ -217,20 +238,52 @@ export function createDiscoveryRunStore(db, options = {}) {
     const run = getRun.get(runId);
     if (!run) return;
     if (run.verify_dispatched === 1) return;
+    // 非首次尝试：保留行（计数不清零），标记可重试让位
+    if (Number(run.attempt_count ?? 1) > 1) {
+      markRetryable.run(now(), runId);
+      return;
+    }
     db.prepare("DELETE FROM discovery_runs WHERE run_id = ? AND verify_dispatched = 0").run(runId);
   }
 
-  function closeRun(runId, status, ts) {
+  function closeRun(runId, status, ts, { retryable = false } = {}) {
     const run = getRun.get(runId);
     if (!run || TERMINAL_STATUSES.has(run.status)) return;
     // 未 dispatch 的取消/过期释放当日名额；已 dispatch 的按已用保留行
     const dispatched = run.candidate_dispatched === 1 || run.verify_dispatched === 1;
+    if (retryable && dispatched && status === "cancelled") {
+      markRetryable.run(ts, runId);
+      return;
+    }
     const effective = dispatched ? status : (status === "cancelled" ? "cancelled_undispatched" : status);
     updateRun.run(effective, null, null, 0, 0, run.lease_expires_at, ts, runId);
     if (!dispatched) {
+      // 非首次尝试：保留行防计数清零（标记可重试，createRun 让位时计数 +1）
+      if (Number(run.attempt_count ?? 1) > 1) {
+        markRetryable.run(ts, runId);
+        return;
+      }
       // 未发生任何上游调用：直接删行释放 UNIQUE 名额（保留请求台账于 discovery_requests）
       deleteRun.run(runId, effective);
     }
+  }
+
+  /** 异步作业启动后延长租约（客户端在此期间取件 + 本地门禁 + 核验）。 */
+  function extendLease({ runId, leaseExpiresAt }) {
+    updateLease.run(leaseExpiresAt, now(), runId);
+  }
+
+  /**
+   * 某个失败 run 之后，当日是否还能再建 run：
+   * 当日无行（已释放/跨日）→ 可；当日行就是它且为可重试失败且未用满次数 → 可；否则不可。
+   */
+  function retryAvailableAfter({ runId, subject }) {
+    const today = getRunByDay.get(subject, shanghaiDay());
+    if (!today) return true;
+    if (today.run_id !== runId) return false;
+    return today.status === "cancelled"
+      && today.failure_retryable === 1
+      && Number(today.attempt_count ?? 1) < attemptsPerDay;
   }
 
   function cancel({ runId, subject, deviceId }) {
@@ -319,6 +372,8 @@ export function createDiscoveryRunStore(db, options = {}) {
     releaseUndispatched,
     cancel,
     sweepExpired,
+    extendLease,
+    retryAvailableAfter,
     cacheStageResult,
     tryClosedReplay,
     readStageResult,
