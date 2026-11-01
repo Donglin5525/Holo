@@ -17,7 +17,7 @@
 // 用法：node scripts/discoveryTrialEval.mjs --round 1 [--cases F01,F02] [--concurrency 3]
 // 输出：docs/_common/plans/2026-10-23-holo-ai-discovery-implementation/试评记录/raw-round-{N}.json
 
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -31,7 +31,10 @@ const REPO = join(ROOT, "..");
 const PLAN_DIR = join(REPO, "docs/_common/plans/2026-10-23-holo-ai-discovery-implementation");
 const FIXTURES_PATH = join(PLAN_DIR, "synthetic-fixtures.json");
 const OUT_DIR = join(PLAN_DIR, "试评记录");
-const ENV_PATH = "/tmp/discovery-eval.env";
+// DISC_EVAL_ENV 可指定隔离环境文件（多组模型并行试评，1.1.5 起）
+const ENV_PATH = process.env.DISC_EVAL_ENV ?? "/tmp/discovery-eval.env";
+// --async（1.1.5 S3）：生成链走 candidates/async + candidates/result 轮询，验证异步作业链路
+let ASYNC_MODE = false;
 
 // ===== 环境隔离加载（last-wins；绝不触碰生产库） =====
 function loadEvalEnv(path = ENV_PATH) {
@@ -54,6 +57,7 @@ function parseArgs(argv) {
     if (argv[i] === "--round") args.round = Number(argv[++i]);
     else if (argv[i] === "--cases") args.cases = argv[++i].split(",").map((s) => s.trim());
     else if (argv[i] === "--concurrency") args.concurrency = Number(argv[++i]);
+    else if (argv[i] === "--async") args.async = true;
   }
   if (!Number.isInteger(args.round) || args.round < 1 || args.round > 99) {
     console.error("用法：node scripts/discoveryTrialEval.mjs --round <1|2|3> [--cases F01,F02] [--concurrency N]");
@@ -518,7 +522,8 @@ function createEvalApp(deps, { scriptedCandidatesEnvelope } = {}) {
     auth: { enforceAppAttest: false },
     routes: evalRoutes(loadConfig),
     providerOverrides: [["deepseek", provider], ["qwen", provider]],
-    discovery: { enabled: true },
+    // 异步作业结果加密落库需密钥：试评用一次性随机密钥（内存库，进程结束即弃）
+    discovery: { enabled: true, jobEncryptionKey: randomBytes(32).toString("base64") },
     backgroundCost: { globalDailyCNY: 30, globalMonthlyCNY: 200 },
   });
   return { app, database, captures };
@@ -551,6 +556,32 @@ async function createRun(app, deviceId, runID) {
   return post(app, "/v1/discovery/runs", deviceId, { runID, sourceManifestDigest: `eval-${runID}` });
 }
 
+/**
+ * 异步候选：启动 → 轮询取件，返回与同步端点同形的 { status, json }。
+ * 记录启动响应耗时（startMs，应 <1s）与取件轮询次数，写入 result.asyncTiming。
+ */
+async function runCandidatesAsync(app, runID, deviceID, runToken, data, result) {
+  const startedAt = Date.now();
+  const started = await post(app, `/v1/discovery/runs/${runID}/candidates/async`, deviceID, { runToken, data });
+  const timing = { startMs: Date.now() - startedAt, polls: 0, jobStatus: started.json?.jobStatus ?? null };
+  result.asyncTiming = timing;
+  if (started.status !== 200) return started;
+  let status = started.json;
+  while (status.jobStatus === "running") {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const polled = await post(app, `/v1/discovery/runs/${runID}/candidates/result`, deviceID, { runToken });
+    timing.polls += 1;
+    if (polled.status !== 200) return polled;
+    status = polled.json;
+  }
+  timing.jobStatus = status.jobStatus;
+  timing.totalMs = Date.now() - startedAt;
+  if (status.jobStatus === "completed") return { status: 200, json: status.result };
+  // 失败：映射成同步端点的错误形状，沿用后续统计口径
+  timing.retryAvailable = status.retryAvailable;
+  return { status: 502, json: { error: { code: status.error?.code, details: { reason: status.error?.reason } } } };
+}
+
 // ===== 单场景执行 =====
 
 async function runGeneration(app, fixture, round, anchorNow) {
@@ -566,10 +597,12 @@ async function runGeneration(app, fixture, round, anchorNow) {
 
   const allBlocks = [...(fixture.evidence ?? []), ...(fixture.counterEvidence ?? [])];
   const data = genStageData(runID, fixture, allBlocks, anchorNow);
-  const candidatesResponse = await post(app, `/v1/discovery/runs/${runID}/candidates`, deviceID, {
-    runToken: created.json.runToken,
-    data,
-  });
+  const candidatesResponse = ASYNC_MODE
+    ? await runCandidatesAsync(app, runID, deviceID, created.json.runToken, data, result)
+    : await post(app, `/v1/discovery/runs/${runID}/candidates`, deviceID, {
+      runToken: created.json.runToken,
+      data,
+    });
   result.httpStatus = candidatesResponse.status;
   if (candidatesResponse.status !== 200) {
     return { ...result, step: "candidates", error: candidatesResponse.json };
@@ -676,6 +709,7 @@ async function runPool(items, limit, worker) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  ASYNC_MODE = args.async === true;
   loadEvalEnv();
   // env 注入完成后才允许加载 src/*（DEFAULT_CONFIG 快照在模块加载时读 process.env）
   const [{ createApp }, { loadConfig }, { createDatabase }, { createOpenAICompatibleProvider }] = await Promise.all([

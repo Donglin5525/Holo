@@ -801,7 +801,7 @@ export function insightMaxTokensFor(periodType, baseMaxTokens) {
  * 显式 HOLO_DISCOVERY_<STAGE>_PROVIDER/MODEL 优先；否则有 DeepSeek 钥匙即钉 deepseek-chat；
  * 都没有（开发/测试）才回落聊天路由。不再默认回落聊天模型的原因：生产聊天是开思考的
  * qwen3.7-flash，候选阶段每次 60–71s，超过客户端 60s 超时（真机日志 + 生产 ai_call_logs）。
- * deepseek-chat 同 18 场景试评候选中位 1.5s、核验判定 18/18（试评 r15）。
+ * deepseek-chat 同 18 场景试评候选中位 3.4–4.1s、最长 17.1s，核验整体结论 18/18（试评 r15–r17）。
  * 函数声明会提升，DEFAULT_CONFIG 在模块顶部即可调用。
  * @param {Record<string, string|undefined>} env
  * @param {"CANDIDATE"|"VERIFY"} stage
