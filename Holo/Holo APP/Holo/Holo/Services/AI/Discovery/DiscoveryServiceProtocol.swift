@@ -11,9 +11,9 @@ import Foundation
 
 /// 胶囊/设置子页共用的呈现状态（01 §1）。
 enum DiscoveryPresentationState: Sendable, Equatable {
-    case disabled                    // 默认未开启：无胶囊；设置「已关闭，可开启」
-    case preparing                   // 首次确认后：无胶囊；设置「正在准备」
-    case waitingForMaterial          // 材料不足/无合格候选：无胶囊；设置「有足够依据时再呈现」
+    case disabled                    // 默认未开启：无胶囊；设置页显示已关闭
+    case preparing                   // 首次确认后：无胶囊；设置页显示正在准备
+    case waitingForMaterial          // 材料不足/无合格候选：无胶囊；设置页显示还在等足够的记录
     case available(findingID: String, viewed: Bool)   // 淡橙胶囊（未看）/普通胶囊（已看）
     case temporarilyUnavailable      // 网络失败/预算不足：旧内容可读否则无胶囊
     case serverUnsupported           // 后端不支持：无胶囊；开关不可完成开启
@@ -38,7 +38,7 @@ enum DiscoveryFeedbackAction: Sendable, Equatable {
     case manageDismiss              // 关闭/退出：无数据后果
 }
 
-enum DiscoveryInaccurateReason: Sendable, Equatable {
+enum DiscoveryInaccurateReason: String, Sendable, Equatable {
     case wrongEvidence              // 依据不对：撤销候选并检查取数
     case wrongUnderstanding         // 理解不对：抑制同主题同含义
     case notApplicableNow           // 现在不适用：标时效失效
@@ -88,6 +88,19 @@ protocol DiscoveryService: AnyObject {
 
     /// 反馈（幂等）。inaccurate 立即撤下并返回可选原因收集后续。
     func submitFeedback(_ action: DiscoveryFeedbackAction) async
+
+    // MARK: 记忆联动（融合契约 §4–§6；v2.2 §6.1）
+
+    /// 详情页内联区域的状态：未达门槛不显示保存按钮；成熟显示准确待保存理解；已保存显示「已记住」。
+    /// 只读准确关联的保存/限制元数据，不触发全文检索、历史补建或模型调用。
+    func knowledgeSaveState(for findingID: String) async -> DiscoveryKnowledgeSaveState
+
+    /// 一次「确认并记住」：只提交界面明示的那条理解及其范围；复用统一知识控制事务与 operationID；
+    /// 保存成功才回执，失败不显示成功。自动学习关闭时属一次手动保存，不开启自动学习。
+    func confirmAndRemember(findingID: String, claimID: String) async -> DiscoveryKnowledgeSaveOutcome
+
+    /// 「暂时不说」：最低限度不打扰记录（不构成认可/否定；与记忆推荐区共用冷却）。
+    func recordMinimalDeference(findingID: String) async
 
     /// 「聊聊这个」：构建携带发现上下文的可编辑草稿（不自动发送；显示对象与来源范围）。
     func buildConversationDraft() -> DiscoveryConversationDraft?

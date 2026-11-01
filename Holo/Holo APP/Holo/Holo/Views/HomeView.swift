@@ -769,6 +769,10 @@ struct HomeView: View {
         case .goToSidebar:
             // 由 ContentView 统一处理（iPad 改侧边栏选中态；iPhone 映射主 tab）
             break
+
+        case .switchToThoughts, .switchToTasks:
+            // Mac 工作台模块切换专用（⌘1/⌘2），iOS 端无对应语义
+            break
         }
     }
 

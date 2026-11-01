@@ -135,11 +135,16 @@ struct RecentDayCoverView: View {
 
     // MARK: - Formatter
 
-    private func formatExpense(_ value: Decimal) -> String {
+    /// NumberFormatter 创建是 Foundation 重操作，滚动列表内必须缓存复用
+    private static let expenseFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .currency
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.maximumFractionDigits = 0
-        return formatter.string(from: value as NSDecimalNumber) ?? "¥0"
+        return formatter
+    }()
+
+    private func formatExpense(_ value: Decimal) -> String {
+        Self.expenseFormatter.string(from: value as NSDecimalNumber) ?? "¥0"
     }
 }

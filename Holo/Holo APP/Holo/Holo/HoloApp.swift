@@ -53,16 +53,15 @@ struct HoloApp: App {
         if HoloGrowthValidation.isRequested { return }
         #endif
 
+        // 建模、指纹检查与升级备份在后台完成；业务页面由根部存储门等待成功后挂载。
+        CoreDataStack.shared.prepareIfNeeded()
+
         // 同步设置通知代理，确保冷启动时 didReceive 不被错过
         TodoNotificationService.shared.setupDelegate()
         TodoNotificationService.shared.registerNotificationCategories()
 
         // 注册后台洞察生成任务
         MemoryInsightBackgroundService.shared.registerBackgroundTask()
-
-        // 周期回放协调器先于云端轮询恢复注册回调（杀 App 后冷启动领取云端回放
-        // 结果时，进度/终态/回落处理必须已就位，否则结果落不了卡）
-        _ = HoloPeriodReplayCoordinator.shared
 
         // 注册周期性支出自动补账任务
         SpendingProjectBackgroundService.shared.registerBackgroundTask()
@@ -72,32 +71,6 @@ struct HoloApp: App {
 
         // 迁移旧格式学习映射 key（type|candidate → type|primary|candidate）
         CategoryLearnedMapping.migrateOldFormatKeys()
-
-        // V3 Phase 1：存量想法-主题关系一次性回填 ThoughtTopicLink（幂等，后台执行）
-        ThoughtTopicLinkBackfillBootstrap.performIfNeeded()
-
-        // 一次性清洗：收入交易解除项目挂靠（口径=收入不挂项目；表单侧同批已修，此处清存量）
-        FinanceProjectIncomeDetachBootstrap.performIfNeeded()
-
-        // V3 Phase 2：本机语义索引冷启动装配（幂等；默认 flag off 不产生网络行为）
-        Task.detached(priority: .utility) {
-            await ThoughtSemanticPipeline.shared.bootstrap()
-        }
-
-        // 分类学习装配：缓存 hydrate + UserDefaults 存量迁移至 CloudKit 同步实体（幂等）
-        Task { await CategoryLearningStore.shared.bootstrap() }
-
-        // 触发 Core Data 异步加载（不阻塞主线程，避免首次创建 SQLite 时死锁）
-        // store 加载在后台进行，UI 先以默认值渲染，加载完成后通过 await 切换
-        CoreDataStack.shared.prepareIfNeeded()
-
-        // 存量分步推进数据一次性迁移：执行步骤转子任务（幂等，后台等库就绪后执行）。
-        // 必须放在 prepareIfNeeded 之后：容器由主线程先建立，避免后台任务抢跑懒加载、
-        // 与 buildContainer 里 viewContext 的 performBlockAndWait(主队列) 互锁（ABBA 死锁实锤在档）
-        TaskExecutionMigration.runIfNeeded()
-
-        // 存量清空清单一次性归档（once 标记；做完的一次性项目清单退场收尾）
-        TodoListEphemeralMigration.runIfNeeded()
 
         // 卡顿取证（2026-10-08 掉帧诊断）：只订阅 MetricKit 落盘，无行为影响；
         // 与 CloudImportRelay 的同步批次日志对时，定位「卡顿时刻主线程在干什么」
@@ -112,13 +85,22 @@ struct HoloApp: App {
             Task { await ICloudSyncStatusService.shared.warmUpAccountStatus() }
         }
 
-        // 监听财务/想法/习惯/待办/目标/纪念日变更，维护桌面小组件使用的轻量快照
+    }
+
+    /// 所有会读写业务库的启动服务都在成功就绪后装配，失败态只展示恢复说明。
+    private func startStoreDependentServices() {
+        // 回调必须先于云端任务恢复接线。
+        _ = HoloPeriodReplayCoordinator.shared
+        ThoughtTopicLinkBackfillBootstrap.performIfNeeded()
+        FinanceProjectIncomeDetachBootstrap.performIfNeeded()
+        Task.detached(priority: .utility) {
+            await ThoughtSemanticPipeline.shared.bootstrap()
+        }
+        Task { await CategoryLearningStore.shared.bootstrap() }
+        TaskExecutionMigration.runIfNeeded()
+        TodoListEphemeralMigration.runIfNeeded()
         HoloWidgetSnapshotService.shared.startObserving()
-
-        // 监听周期回放生成，异步维护远期累计摘要（失败不影响主流程）
         HoloReplayDigestObserver.startObserving()
-
-        // 报告融合理解链路（2026-10-18 方案）：提取受内部开关保护，默认全关
         HoloReportUnderstandingCoordinator.startObserving()
     }
 
@@ -176,7 +158,6 @@ struct HoloApp: App {
     /// 业务根视图与启动链；hosted test 下不挂载（见 init 注释）。
     private var appRoot: some View {
         ContentView()
-            .modifier(StoreConflictRecoveryGate())
             .modifier(HoloGrowthFeedbackModifier())
             .preferredColorScheme(darkModeManager.colorScheme)
             .onOpenURL { url in
@@ -217,6 +198,8 @@ struct HoloApp: App {
             }
             #endif
             .task {
+                // Debug / Release 均在库真正可用后装配服务，失败态不挂载此 task。
+                startStoreDependentServices()
                 // 产品埋点：首启事件 + 上次会话积压补报（独立于 Agent 能力，置于长 await 前）
                 HoloProductAnalytics.shared.trackFirstLaunchIfNeeded()
                 Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
@@ -236,8 +219,8 @@ struct HoloApp: App {
 
                 // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
                 await CoreDataStack.shared.waitUntilReady()
-                // 开发期一次性显式 schema 上报（UserDefaults 开关门控，仅 DEBUG）
-                CloudKitSchemaInitializer.runIfNeeded(container: CoreDataStack.shared.persistentContainer)
+                // 仅 Xcode 显式请求时上报开发库 schema；日常开发包启动不执行管理操作。
+                CloudKitSchemaInitializer.runIfRequested(container: CoreDataStack.shared.persistentContainer)
                 // 先恢复用户主动发起的周期回放，再执行低优先级自动洞察与历史回填。
                 await HoloPeriodReplayCoordinator.shared.appDidLaunch()
 
@@ -271,6 +254,10 @@ struct HoloApp: App {
                 if !simulatorMemoryValidationActive && !appStoreScreenshotModeActive {
                     await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
                     await HoloMemoryRuntime.shared.reconcilePendingCandidatesIfNeeded()
+                    // 通用知识（v2.2）：存量分流迁移（幂等收据/断点续跑）必须先于新写入开放；
+                    // 来源失效扇出挂业务保存/远端变更/授权变更信号。
+                    await HoloMemoryRuntime.shared.migrateKnowledgeIfNeeded()
+                    HoloMemoryRuntime.shared.startKnowledgeInvalidationFanout()
                 }
                 await HoloMemorySettings.shared.reconcileWithRepository()
                 if !simulatorMemoryValidationActive {
@@ -278,6 +265,11 @@ struct HoloApp: App {
                     // 通用个人情境萃取：启动补建历史想法（内部闸，冷启动不防抖）。
                     if !appStoreScreenshotModeActive {
                         Task { await HoloPersonalContextExtractionScheduler.runPassIfDue(bypassDebounce: true) }
+                        // 财务规律挖矿（2026-11-01 规律路径补件）：本地确定性统计，
+                        // 每日限一次，产出进「值得确认」等用户确认。
+                        Task.detached(priority: .utility) {
+                            await HoloFinancePatternMiningRuntime.runIfNeeded()
+                        }
                     }
                 }
 
@@ -439,6 +431,7 @@ struct HoloApp: App {
                 }
                 lastScenePhase = phase
             }
+            .modifier(StoreConflictRecoveryGate())
     }
 }
 

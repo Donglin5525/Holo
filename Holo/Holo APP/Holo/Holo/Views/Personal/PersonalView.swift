@@ -26,6 +26,14 @@ struct PersonalView: View {
     /// 未传入（sheet / 主 tab 场景）时走系统 dismiss。
     let onClose: (() -> Void)?
 
+    /// 记忆中心空态「去找 Holo 聊聊」：等个人页退场完成再发深链，避免跳转被关闭动画吞掉
+    private func openChatFromMemoryCenter() {
+        close()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            onOpenLinkedEntity(.chat(prefill: nil))
+        }
+    }
+
     // 个人档案 sheet
     @State private var showProfileEditor = false
     @State private var showUserProfileEditor = false
@@ -40,9 +48,9 @@ struct PersonalView: View {
     )
 
     init(
-        onPlanGoal: @escaping () -> Void = {},
-        onOpenMemoryGallery: @escaping () -> Void = {},
-        onOpenLinkedEntity: @escaping (DeepLinkTarget) -> Void = { _ in },
+        onPlanGoal: @escaping () -> Void,
+        onOpenMemoryGallery: @escaping () -> Void,
+        onOpenLinkedEntity: @escaping (DeepLinkTarget) -> Void,
         pendingGoalDetailId: Binding<UUID?> = .constant(nil),
         onClose: (() -> Void)? = nil
     ) {
@@ -224,7 +232,7 @@ struct PersonalView: View {
 
                 NavigationLink {
                     if HoloMemoryCenterRollout.isEnabled {
-                        HoloMemoryCenterView()
+                        HoloMemoryCenterView(onOpenChat: openChatFromMemoryCenter)
                     } else {
                         PersonalMemorySettingsView(onOpenMemoryGallery: onOpenMemoryGallery)
                     }
@@ -350,5 +358,9 @@ struct PersonalView: View {
 }
 
 #Preview {
-    PersonalView()
+    PersonalView(
+        onPlanGoal: {},
+        onOpenMemoryGallery: {},
+        onOpenLinkedEntity: { _ in }
+    )
 }

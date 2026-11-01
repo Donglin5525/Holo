@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import CoreData
 
 enum HoloMemoryRecordDetailChange {
     case updated(HoloMemoryRecord)
@@ -209,8 +208,8 @@ struct HoloMemoryRecordDetailView: View {
     private func handleEvidenceTap(_ evidence: HoloMemoryEvidenceRef) {
         if let target = HoloMemoryEvidenceRouter.deepLinkTarget(for: evidence) {
             // 跳转前校验原始记录仍存活（不存在或已进回收站都视为已清除，让用户有感知）
-            guard isEvidenceSourceAlive(evidence) else {
-                HoloToastCenter.shared.show("该记录已被清除", type: .info)
+            guard HoloMemoryEvidenceRouter.isSourceAlive(for: evidence) else {
+                HoloToastCenter.shared.show("这条依据的原文已被删除", type: .info)
                 return
             }
             dismiss()
@@ -218,17 +217,6 @@ struct HoloMemoryRecordDetailView: View {
         } else {
             selectedEvidence = evidence
         }
-    }
-
-    /// 可路由证据的 sourceID 是否仍指向一条未删除的原始记录
-    private func isEvidenceSourceAlive(_ evidence: HoloMemoryEvidenceRef) -> Bool {
-        guard let entityName = HoloMemoryEvidenceRouter.sourceEntityName(for: evidence),
-              let sourceID = evidence.sourceID,
-              let uuid = UUID(uuidString: sourceID) else { return false }
-        let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
-        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", uuid as CVarArg)
-        request.fetchLimit = 1
-        return ((try? CoreDataStack.shared.viewContext.count(for: request)) ?? 0) > 0
     }
 
     private func evidencePreviewSheet(_ evidence: HoloMemoryEvidenceRef) -> some View {

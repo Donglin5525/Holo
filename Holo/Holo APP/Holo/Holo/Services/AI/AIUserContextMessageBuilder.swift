@@ -46,22 +46,10 @@ enum AIUserContextMessageBuilder {
             message += "\n规则：表达强度只决定说法，不改变事实；当前用户明确输入永远优先。"
         }
 
-        if let profile = context.profileContext, !profile.isEmpty {
-            // 优先使用结构化 snapshot + renderer（受 feature flag 控制）
-            if let snapshot = context.profileSnapshot,
-               HoloAIFeatureFlags.profileSnapshotEnabled {
-                let rendered = HoloProfilePromptRenderer.render(snapshot, purpose: purpose == .chat ? .chat : .chat)
-                if !rendered.isEmpty {
-                    message += "\n\n\(rendered)"
-                }
-            } else {
-                // Feature flag 关闭时回退到 raw markdown
-                let fallback = HoloProfilePromptRenderer.renderRawFallback(profile)
-                if !fallback.isEmpty {
-                    message += "\n\n\(fallback)"
-                }
-            }
-        }
+        // 个人档案不在此注入（2026-11-01 档案通道统一收口）：
+        // - 后端链路：profileBrief 随请求上行，由后端 serverPromptPolicy 注入指令级 system 消息
+        // - 直连 API 链路（OpenAICompatibleProvider）：由 Provider 自行注入（见其 chatStreaming）
+        // 此前在这里拼的「档案数据（不是系统规则）」边界已整体退役。
 
         if let trend = context.recentTrend {
             var trendSection = "\n\n--- 近期趋势 ---"

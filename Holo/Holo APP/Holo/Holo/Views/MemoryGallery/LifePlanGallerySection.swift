@@ -62,9 +62,14 @@ struct LifePlanGallerySection: View {
         .padding(.vertical, 2)
     }
 
-    private func periodText(_ plan: LifePlanSnapshot) -> String {
+    private static let periodDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "M/d"
+        return formatter
+    }()
+
+    private func periodText(_ plan: LifePlanSnapshot) -> String {
+        let formatter = Self.periodDateFormatter
         return "\(formatter.string(from: plan.periodStart)) – \(formatter.string(from: plan.periodEnd))"
     }
 

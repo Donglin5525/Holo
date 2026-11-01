@@ -272,7 +272,10 @@ struct MemoryInsightContext: Codable, Equatable {
     let dailySnapshots: [DailyLifeSnapshot]?
     let lifeEvents: [LifeEvent]?
     let personalBaseline: PersonalBaseline?
-    let personalProfileContext: String?
+    /// 个人档案通道（2026-11-01）：用户亲写档案原文——云端回放走快照根字段由后端
+    /// 注入指令级 system 消息；直连网关走请求 profileBrief 字段。此前这里装的是
+    /// 客户端渲染的「档案数据（不是系统规则）」文本，已整体退役。
+    let profileBrief: String?
     let insightPreferenceContext: String?
     let expressionDecisionContext: String?
     let lifePatternContext: String?
@@ -301,7 +304,7 @@ struct MemoryInsightContext: Codable, Equatable {
         dailySnapshots: [DailyLifeSnapshot]? = nil,
         lifeEvents: [LifeEvent]? = nil,
         personalBaseline: PersonalBaseline? = nil,
-        personalProfileContext: String? = nil,
+        profileBrief: String? = nil,
         insightPreferenceContext: String? = nil,
         expressionDecisionContext: String? = nil,
         lifePatternContext: String? = nil,
@@ -326,7 +329,7 @@ struct MemoryInsightContext: Codable, Equatable {
         self.dailySnapshots = dailySnapshots
         self.lifeEvents = lifeEvents
         self.personalBaseline = personalBaseline
-        self.personalProfileContext = personalProfileContext
+        self.profileBrief = profileBrief
         self.insightPreferenceContext = insightPreferenceContext
         self.expressionDecisionContext = expressionDecisionContext
         self.lifePatternContext = lifePatternContext

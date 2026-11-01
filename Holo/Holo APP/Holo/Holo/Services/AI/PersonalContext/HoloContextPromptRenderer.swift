@@ -45,7 +45,9 @@ enum HoloContextPromptRenderer {
             repo = try? await HoloMemoryRuntime.shared.repository()
         }
         guard let repo else { return nil }
-        let records = ((try? await repo.query(.all)) ?? [])
+        // v2.2 统一决策：建议/提示注入走 query(.active)（经 ResolvedKnowledge 门闸），
+        // 不再 .all + 本地资格过滤绕开知识层；AnswerEligibility 仍作第二道判据。
+        let records = ((try? await repo.query(.active)) ?? [])
             .filter(HoloMemoryAnswerEligibility.isEligible)
             .filter { $0.personalContext != nil }
         guard !records.isEmpty else { return nil }

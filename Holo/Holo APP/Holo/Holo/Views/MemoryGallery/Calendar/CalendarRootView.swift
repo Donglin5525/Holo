@@ -90,7 +90,14 @@ struct CalendarRootView: View {
             return
         }
         CalendarEventOriginResolver.resolve(event) { target in
-            guard let target else { return }
+            guard let target else {
+                // 卡片文案承诺「轻点查看全文」，回查失败必须有反馈（与组弹层 alert 同口径）
+                HoloToastCenter.shared.show(
+                    String(localized: "原记录可能已被删除，或当前版本暂时无法打开。"),
+                    type: .info
+                )
+                return
+            }
             DeepLinkState.shared.navigate(to: target)
         }
     }

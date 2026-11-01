@@ -16,7 +16,9 @@ nonisolated enum HoloMemoryManagedObjectModelFactory {
         "HoloMemoryObservationRunMO",
         "HoloMemoryTombstoneMO",
         "HoloMemoryControlStateMO",
-        "HoloMemoryControlEventMO"
+        "HoloMemoryControlEventMO",
+        "HoloMemoryKnowledgeRevisionMO",
+        "HoloMemoryKnowledgeOperationMO"
     ]
 
     static func makeModel() -> NSManagedObjectModel {
@@ -44,7 +46,9 @@ nonisolated enum HoloMemoryManagedObjectModelFactory {
             observationRunEntity(),
             tombstoneEntity(),
             controlStateEntity(),
-            controlEventEntity()
+            controlEventEntity(),
+            knowledgeRevisionEntity(),
+            knowledgeOperationEntity()
         ]
     }
 
@@ -169,6 +173,54 @@ nonisolated enum HoloMemoryManagedObjectModelFactory {
                 attribute("appliedAt", .dateAttributeType, optional: true),
                 attribute("schemaVersion", .integer64AttributeType, defaultValue: 1),
                 attribute("deletedAt", .dateAttributeType, optional: true),
+                attribute("deletedBatchId", .UUIDAttributeType, optional: true)
+            ]
+        )
+    }
+
+    // 通用知识修订（方案 v2.2 §7.1 新实体 1）：修订正文不可原地覆盖，每次语义修改
+    // 产生新修订；普通证据刷新走 KnowledgeOperation.evidenceSnapshot，不改本行。
+    // 必要物理属性带默认值/可选，符合 CloudKit 增量约束（只新增实体/字段）。
+    // CloudKit 不依赖唯一约束：同步出现相同逻辑 ID 的重复行在 Repository 归并。
+    private static func knowledgeRevisionEntity() -> NSEntityDescription {
+        entity(
+            name: "HoloMemoryKnowledgeRevisionMO",
+            className: NSStringFromClass(HoloMemoryKnowledgeRevisionMO.self),
+            attributes: [
+                attribute("propositionID", .stringAttributeType, defaultValue: "", indexed: true),
+                attribute("semanticRevisionID", .stringAttributeType, defaultValue: "", indexed: true),
+                attribute("semanticDigest", .stringAttributeType, defaultValue: "", indexed: true),
+                attribute("topicID", .stringAttributeType, defaultValue: "", indexed: true),
+                attribute("partition", .stringAttributeType, defaultValue: "normal", indexed: true),
+                attribute("revisionData", .binaryDataAttributeType, defaultValue: Data()),
+                attribute("createdAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0), indexed: true),
+                attribute("schemaVersion", .integer64AttributeType, defaultValue: 1),
+                attribute("deletedAt", .dateAttributeType, optional: true, indexed: true),
+                attribute("deletedBatchId", .UUIDAttributeType, optional: true)
+            ]
+        )
+    }
+
+    // 通用知识操作（方案 v2.2 §7.1 新实体 2）：幂等操作 ID、目标命题/语义、前驱控制、
+    // 操作种类、证据快照/别名/迁移收据等版本化载荷。用户确认/纠正/限制在这里形成
+    // 权威事件。新控制不写入旧 HoloMemoryControlEventMO（旧重放器遇新实体目标会误标完成）。
+    private static func knowledgeOperationEntity() -> NSEntityDescription {
+        entity(
+            name: "HoloMemoryKnowledgeOperationMO",
+            className: NSStringFromClass(HoloMemoryKnowledgeOperationMO.self),
+            attributes: [
+                attribute("operationID", .stringAttributeType, defaultValue: "", indexed: true),
+                attribute("propositionID", .stringAttributeType, defaultValue: "", indexed: true),
+                attribute("kind", .stringAttributeType, defaultValue: "", indexed: true),
+                attribute("targetSemanticRevisionID", .stringAttributeType, optional: true),
+                attribute("priorOperationIDsJSON", .stringAttributeType, defaultValue: "[]"),
+                attribute("controlGeneration", .integer64AttributeType, defaultValue: 0),
+                attribute("partition", .stringAttributeType, defaultValue: "normal", indexed: true),
+                attribute("operationData", .binaryDataAttributeType, defaultValue: Data()),
+                attribute("issuedAt", .dateAttributeType, defaultValue: Date(timeIntervalSince1970: 0), indexed: true),
+                attribute("appliedAt", .dateAttributeType, optional: true),
+                attribute("schemaVersion", .integer64AttributeType, defaultValue: 1),
+                attribute("deletedAt", .dateAttributeType, optional: true, indexed: true),
                 attribute("deletedBatchId", .UUIDAttributeType, optional: true)
             ]
         )

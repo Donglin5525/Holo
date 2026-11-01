@@ -201,11 +201,6 @@ struct HabitSingleReviewView: View {
 
     // MARK: 范围切换（2026-10-13 整改：内联一排胶囊点一下即切，删掉弹窗滚轮）
 
-    /// 快捷档（行首动态插入「过去月」胶囊：从回顾整体页带月份进来时不丢上下文）
-    private var quickRanges: [HabitReviewRange] {
-        [.month(currentMonthStart), .lastDays(30), .lastDays(90), .all]
-    }
-
     private func isQuickRangeSelected(_ range: HabitReviewRange) -> Bool {
         selectedRange == range
     }
@@ -235,14 +230,23 @@ struct HabitSingleReviewView: View {
                     applyRange(.month(currentMonthStart))
                 }
                 .accessibilityIdentifier("habit.single.range.month")
-                rangeChip(String(localized: "近30天"), selected: isQuickRangeSelected(.lastDays(30))) {
-                    applyRange(.lastDays(30))
+                // 数值型不设固定时间窗档（90 天会漏掉半年一记的低频记录）：
+                // 「最近记录」= 最近 N 个记录日的窗口（2026-10-26 东林拍板）
+                if habit?.isCheckInType == true {
+                    rangeChip(String(localized: "近30天"), selected: isQuickRangeSelected(.lastDays(30))) {
+                        applyRange(.lastDays(30))
+                    }
+                    .accessibilityIdentifier("habit.single.range.d30")
+                    rangeChip(String(localized: "近90天"), selected: isQuickRangeSelected(.lastDays(90))) {
+                        applyRange(.lastDays(90))
+                    }
+                    .accessibilityIdentifier("habit.single.range.d90")
+                } else {
+                    rangeChip(String(localized: "最近记录"), selected: isQuickRangeSelected(.recentRecords(count: HabitReviewRange.defaultRecentCount))) {
+                        applyRange(.recentRecords(count: HabitReviewRange.defaultRecentCount))
+                    }
+                    .accessibilityIdentifier("habit.single.range.recent")
                 }
-                .accessibilityIdentifier("habit.single.range.d30")
-                rangeChip(String(localized: "近90天"), selected: isQuickRangeSelected(.lastDays(90))) {
-                    applyRange(.lastDays(90))
-                }
-                .accessibilityIdentifier("habit.single.range.d90")
                 rangeChip(String(localized: "全部"), selected: isQuickRangeSelected(.all)) {
                     applyRange(.all)
                 }
@@ -405,7 +409,9 @@ struct HabitSingleReviewView: View {
     /// 副行：完成率口径 / 上期值 / 上期均值
     private func compareSubline(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> String {
         guard let previous = comparison.previous else {
-            return String(localized: "还没有更早的记录")
+            // 无上期可比（全部/最近记录档，或上期全在习惯创建前）：只陈述总量事实。
+            // 旧文案「还没有更早的记录」被误读为数据丢失（2026-10-26 东林实报）
+            return String(localized: "共 \(comparison.current.recordedDays) 天有记录")
         }
         switch info.kind {
         case .checkIn:
@@ -419,7 +425,11 @@ struct HabitSingleReviewView: View {
             let curText = HabitPresentationProjector.formatValue(cur)
             return String(localized: "日均 \(curText)")
         case .measure:
-            let prevText = HabitPresentationProjector.formatValue(previous.measureAverage ?? 0)
+            // 上期存在但没留下测量值：显示事实，不造「均值 0」（2026-10-26 模拟器实锤）
+            guard let prevAvg = previous.measureAverage else {
+                return String(localized: "上期无记录")
+            }
+            let prevText = HabitPresentationProjector.formatValue(prevAvg)
             return String(localized: "上期均值 \(prevText)\(info.unit.isEmpty ? "" : " \(info.unit)")")
         }
     }
@@ -1003,7 +1013,8 @@ struct HabitSingleReviewView: View {
             selectedRange = entryRange
             model.singleReviewEntryRange = nil
         } else {
-            selectedRange = .month(model.overviewMonth)
+            // 数值型默认「最近记录」（低频记录也在一屏内），打卡型维持本月月历
+            selectedRange = model.defaultSingleReviewRange(isCheckIn: habit.isCheckInType)
         }
         vizMode = habit.isCheckInType ? .calendar : .trend
         calendarMonth = model.overviewMonth
@@ -1385,6 +1396,20 @@ enum ReviewTrendChartLayout {
         return slots
     }
 
+    /// 测量型记录点布局（position 域）：只建记录日桶、按距首记录日的天数定位。
+    /// 桶全为有效值 → 折线一条贯通，断档在时间轴上如实留白（旧「一天一槽」画法
+    /// 在断续记录下连线压成竖线、孤点断线，2026-10-26 东林「乱糟糟」实锤）；
+    /// 命中按最近记录点，不会再落到空日子触发「补录这一天」
+    static func measurePositions(values: [HabitDailyNumericValue], calendar: Calendar) -> (start: Date, positions: [Double]) {
+        guard let first = values.first else { return (calendar.startOfDay(for: Date()), []) }
+        let start = calendar.startOfDay(for: first.date)
+        let positions = values.map { value -> Double in
+            let offset = calendar.dateComponents([.day], from: start, to: value.date).day ?? 0
+            return Double(max(offset, 0))
+        }
+        return (start, positions)
+    }
+
     /// 图域（起日 + 天数）。月/近 N 天保持完整范围（空槽如实留白，末日不超今天）；
     /// 超长范围（全部记录/多年自定义）收敛到首末记录日，否则一天一槽细到不可读。
     /// `sparseCollapse`（概览弹层等稀疏场景）：记录跨度 ≤6 天时同样收敛到首末记录日
@@ -1439,6 +1464,22 @@ struct ReviewTrendChart: View {
     @State private var selection: String?
 
     private var buckets: [HoloChartBucket] {
+        // 测量型（体重等断续采样）：记录点按真实时间定位，点即数据、连线贯通，
+        // 不再一天一槽铺日历（223 槽挤压出「竖线+孤点」碎片，2026-10-26 实锤）
+        if kind == .measure {
+            let calendar = Calendar.current
+            let layout = ReviewTrendChartLayout.measurePositions(values: values, calendar: calendar)
+            return values.indices.map { index in
+                let value = values[index]
+                return HoloChartBucket(
+                    id: String(calendar.startOfDay(for: value.date).timeIntervalSince1970),
+                    label: HoloChartFormat.date(value.date),
+                    detail: HoloChartFormat.date(value.date, template: "yMMMd"),
+                    values: [value.value],
+                    position: layout.positions[index]
+                )
+            }
+        }
         let range = ReviewTrendChartLayout.chartRange(interval: interval, today: today, values: values,
                                                     calendar: .current, sparseCollapse: sparseCollapse)
         let end = Calendar.current.date(byAdding: .day, value: range.dayCount - 1, to: range.start) ?? range.start
@@ -1456,7 +1497,7 @@ struct ReviewTrendChart: View {
                              valueText: format, onInspect: inspect)
             } else {
                 HoloLineChart(buckets: buckets, series: series, selection: $selection, height: 150,
-                              valueText: format, onInspect: inspect)
+                              valueText: format, alwaysShowPoints: true, onInspect: inspect)
             }
         }
         .onChange(of: selectedDay) { _, day in selection = day.map { String(Calendar.current.startOfDay(for: $0).timeIntervalSince1970) } }

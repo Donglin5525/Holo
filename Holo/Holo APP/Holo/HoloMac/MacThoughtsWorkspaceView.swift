@@ -129,18 +129,25 @@ struct MacThoughtsWorkspaceView: View {
     // MARK: - AI 整理（Phase E，与 iOS ThoughtsView 同一组宿主状态）
 
     /// 跨想法标签归并确认任务（复用 iOS 单例：持久化待确认建议冷启动即恢复）
-    @StateObject private var convergenceJob: ThoughtTagConvergenceJob
+    @ObservedObject private var convergenceJob = ThoughtTagConvergenceJob.shared
     @State private var showConvergence = false
-    /// 整理设置（ThoughtOrganizationSettingsView 跨平台直接宿主）
-    @State private var showOrganizationSettings = false
+    /// 设置中心（MacSettingsView：iCloud 同步/想法整理/关于；⌘, 同入口）
+    @State private var showSettings = false
+
+    // MARK: - 本地库加载终态失败（指纹预检拒绝/装载失败）的恢复引导
+
+    /// 非nil = 库加载失败已定，工作台盖恢复引导层（拒绝态此前是「静默空列表」，
+    /// 用户会以为数据丢了——实际数据原样保留，恢复通道是从 iCloud 重新拉取）
+    @State private var storeRecoveryMessage: String?
+    /// 恢复引导层「从 iCloud 重新拉取全部数据」→ 确认弹层（入口闸与设置页同款）
+    @State private var confirmRepullFromRecovery = false
+    /// 确认后承载 CloudRepullView（弹层即启动）
+    @State private var showRepullFromRecovery = false
 
     private let topicRepository = TopicRepository()
     /// 归档/删除写库（与 iOS 列表左滑、编辑器「…」菜单同一 Repository 管线）
     private let thoughtRepository = ThoughtRepository()
 
-    init() {
-        self._convergenceJob = StateObject(wrappedValue: ThoughtTagConvergenceJob.shared)
-    }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -186,12 +193,12 @@ struct MacThoughtsWorkspaceView: View {
                 .keyboardShortcut("n", modifiers: .command)
                 .accessibilityIdentifier("mac.thought.newButton")
             }
-            // 整理设置（Phase E）：工具栏齿轮打开想法设置（开关与 iPhone 同一存储口径）
+            // 设置中心：工具栏齿轮打开 MacSettingsView（iCloud 同步/想法整理/关于）
             ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                 Button {
-                    showOrganizationSettings = true
+                    showSettings = true
                 } label: {
-                    Label(String(localized: "想法设置"), systemImage: "gearshape")
+                    Label(String(localized: "设置"), systemImage: "gearshape")
                 }
                 .accessibilityIdentifier("mac.thought.settingsButton")
             }
@@ -218,15 +225,56 @@ struct MacThoughtsWorkspaceView: View {
                 rejectionRepository: ConvergenceRejectionRepository())
                 .frame(minWidth: 460, minHeight: 560)
         }
-        // 整理设置（Phase E：与 iPhone 共用同一 UserDefaults 开关口径）
-        .sheet(isPresented: $showOrganizationSettings) {
-            ThoughtOrganizationSettingsView()
-                .frame(minWidth: 480, minHeight: 560)
+        // 设置中心（齿轮 / ⌘,）
+        .sheet(isPresented: $showSettings) {
+            MacSettingsView()
+        }
+        // 恢复引导层的重拉流程页（确认弹层是唯一入口闸，弹层即启动）
+        .sheet(isPresented: $showRepullFromRecovery, onDismiss: {
+            // 重拉完成/中断回到工作台：库已重建则收掉引导层并重载，仍失败则保持引导
+            refreshStoreRecoveryState()
+        }) {
+            CloudRepullView()
+                .frame(minWidth: 520, minHeight: 640)
+                .task {
+                    await CloudRepullService.shared.start()
+                }
+        }
+        // 本地库加载终态失败：恢复引导层盖住全工作台（防误判数据丢失/误操作）
+        .overlay {
+            if let storeRecoveryMessage {
+                MacStoreRecoveryOverlay(
+                    failureText: storeRecoveryMessage,
+                    cloudRepullAvailable: CloudKitRuntimeAvailability.isAvailable,
+                    onRepull: { confirmRepullFromRecovery = true })
+            }
+        }
+        .confirmationDialog(
+            "从 iCloud 重新拉取全部数据",
+            isPresented: $confirmRepullFromRecovery,
+            titleVisibility: .visible
+        ) {
+            Button("开始拉取", role: .destructive) {
+                showRepullFromRecovery = true
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("本机当前数据将被删除，并用 iCloud 云端数据完整替换。开始前会自动备份本机数据，完成后可一键恢复。此过程需要保持网络连接，可能需要几分钟，期间不建议使用其他功能。")
         }
         .task {
             // 与 MacSyncVerifyView/HoloApp 相同的启动序：先触发容器懒加载再等就绪
             CoreDataStack.shared.prepareIfNeeded()
+            // 云端数据到达中继：Mac 启动链没有任何 Repository init 挂接它，
+            // 不显式启动则 .holoCloudDataDidSync 永不广播（重拉完成后列表/侧栏
+            // 不会自动刷新）。幂等，与 iOS 侧各 Repository addObserver 同一入口。
+            CloudImportRelay.shared.start()
+            if CloudKitRuntimeAvailability.isAvailable {
+                // 与 iOS HoloApp 启动序对齐：静默拉一次账号状态，
+                // 空态的「首次恢复未完成」判断与设置页账号行依赖它
+                Task { await ICloudSyncStatusService.shared.warmUpAccountStatus() }
+            }
             await CoreDataStack.shared.waitUntilReady()
+            refreshStoreRecoveryState()
             model.reload()
         }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
@@ -235,10 +283,30 @@ struct MacThoughtsWorkspaceView: View {
         .onReceive(NotificationCenter.default.publisher(for: .holoCloudDataDidSync)) { _ in
             // iCloud 云端数据到达：新设备后台导入晚于首载，收到广播即刷新
             model.scheduleReload()
+            refreshStoreRecoveryState()
+        }
+        .onReceive(HoloShortcutBus.shared.$lastEvent.dropFirst()) { event in
+            // ⌘,（菜单栏「Holo Mac > 设置」）：与齿轮同入口
+            guard event?.action == .openSettings else { return }
+            showSettings = true
         }
         .onChange(of: model.scope) { _, _ in
             // 切浏览范围 = 换一组内容：右栏退回引导位（选中想法多半不在新范围内）
             selectedThoughtId = nil
+            // 立即按新范围重查（与 iOS onChange(drawerSelection) → reloadByDrawer
+            // 同语义）。此前缺这一步：点侧栏标签/主题只换标题、列表不过滤。
+            model.reload()
+        }
+    }
+
+    /// 库加载终态复查：失败已定 → 盖恢复引导层；恢复成功（重拉重建）→ 收掉引导层并重载
+    private func refreshStoreRecoveryState() {
+        if CoreDataStack.shared.isReady {
+            guard storeRecoveryMessage != nil else { return }
+            storeRecoveryMessage = nil
+            model.reload()
+        } else if let error = CoreDataStack.shared.storeLoadError() {
+            storeRecoveryMessage = error.localizedDescription
         }
     }
 
@@ -341,12 +409,11 @@ struct MacThoughtsSidebar: View {
             }
 
             Section(String(localized: "我的 #标签")) {
-                ForEach(tagTree) { node in
-                    MacSidebarTagNodeRow(
-                        node: node,
-                        expandedPaths: $expandedPaths,
-                        isPinned: isPinned,
-                        onTogglePin: togglePin)
+                // macOS 的 List(selection:) 只认「行级」tag：标签树必须打平成
+                // 独立列表行（嵌套 VStack 内的子视图 tag 在 macOS 点击不触发选中，
+                // 2026-10-27 东林三次报告「点标签无效」的结构性根因）。
+                ForEach(flatTagRows) { row in
+                    flatTagRowView(row)
                 }
             }
 
@@ -368,6 +435,11 @@ struct MacThoughtsSidebar: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: ThoughtTagEmojiStore.didChangeNotification)) { _ in
             emojiTick &+= 1
+        }
+        // 2026-10-28：模块切换区（想法｜任务）悬浮在列表顶部
+        .safeAreaInset(edge: .top, spacing: 0) {
+            MacModuleSwitcher()
+                .background(Color.holoToolBackground.opacity(0.9))
         }
     }
 
@@ -407,7 +479,92 @@ struct MacThoughtsSidebar: View {
         expandedPaths = ThoughtSidebarPreference.loadExpandedTagPaths()
     }
 
-    // MARK: - 行
+    // MARK: - 标签树平铺行（macOS List 行级 tag 要求）
+
+    /// 打平后的标签行：每个可见标签 = 一个独立 List 行（行级 tag 可选中）
+    private struct FlatTagRow: Identifiable {
+        let node: ThoughtSidebarTagNode
+        let depth: Int
+        let hasChildren: Bool
+        let isExpanded: Bool
+        var id: String { node.fullPathKey }
+        var scope: ThoughtBrowseScope { .userTag(pathKey: node.fullPathKey) }
+    }
+
+    /// 树 → 可见平铺行序列（展开的父级才带出子行；缩进 = 层级）
+    private var flatTagRows: [FlatTagRow] {
+        var rows: [FlatTagRow] = []
+        func walk(_ nodes: [ThoughtSidebarTagNode], depth: Int) {
+            for node in nodes {
+                let hasChildren = !node.children.isEmpty
+                let expanded = expandedPaths.contains(node.fullPathKey)
+                rows.append(FlatTagRow(node: node, depth: depth,
+                                       hasChildren: hasChildren, isExpanded: expanded))
+                if hasChildren && expanded {
+                    walk(node.children, depth: depth + 1)
+                }
+            }
+        }
+        walk(tagTree, depth: 0)
+        return rows
+    }
+
+    private func setTagExpanded(_ key: String, _ expanded: Bool) {
+        if expanded {
+            expandedPaths.insert(key)
+        } else {
+            expandedPaths.remove(key)
+        }
+        ThoughtSidebarPreference.saveExpandedTagPaths(expandedPaths)
+    }
+
+    private func flatTagRowView(_ row: FlatTagRow) -> some View {
+        let pin = ThoughtSidebarPin(kind: .userTag, topicID: nil, tagPathKey: row.node.fullPathKey)
+        return HStack(spacing: 2) {
+            if row.depth > 0 {
+                Color.clear.frame(width: CGFloat(row.depth) * 14, height: 1)
+            }
+            if row.hasChildren {
+                Button {
+                    setTagExpanded(row.node.fullPathKey, !row.isExpanded)
+                } label: {
+                    Image(systemName: row.isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.holoToolTextSecondary)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(row.isExpanded
+                    ? String(localized: "收起 \(row.node.displayName)")
+                    : String(localized: "展开 \(row.node.displayName)"))
+            } else {
+                Color.clear.frame(width: 18, height: 1)
+            }
+
+            tagLabel(node: row.node)
+        }
+        .tag(row.scope)
+        .contextMenu {
+            pinMenuButton(pin)
+        }
+    }
+
+    /// 标签展示（emoji 图标优先，与 iOS 标签树一致）
+    private func tagLabel(node: ThoughtSidebarTagNode) -> some View {
+        HStack(spacing: 6) {
+            if let emoji = ThoughtTagEmojiStore.emoji(forKey: node.fullPathKey) {
+                Text(emoji)
+                    .font(.system(size: 12))
+            } else {
+                Image(systemName: "number")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.secondary)
+            }
+            Text(node.displayName)
+                .lineLimit(1)
+        }
+    }
 
     private func topicRow(_ topic: Topic) -> some View {
         HStack(spacing: 8) {
@@ -492,85 +649,77 @@ struct MacThoughtsSidebar: View {
     }
 }
 
-// MARK: - 标签树节点（递归 DisclosureGroup，展开态复用 ThoughtSidebarPreference）
+// MARK: - 本地库恢复引导层（指纹预检拒绝/装载失败终态）
 
-private struct MacSidebarTagNodeRow: View {
+/// 库加载失败终态的全屏引导：如实说明发生了什么、数据在哪、怎么恢复。
+/// 拒绝态此前是「静默空列表」，用户会误以为数据丢了。
+struct MacStoreRecoveryOverlay: View {
 
-    let node: ThoughtSidebarTagNode
-    @Binding var expandedPaths: Set<String>
-    let isPinned: (ThoughtSidebarPin) -> Bool
-    let onTogglePin: (ThoughtSidebarPin) -> Void
-
-    private var scope: ThoughtBrowseScope {
-        .userTag(pathKey: node.fullPathKey)
-    }
-
-    /// 有 emoji 图标时以图标代替 # 前缀（与 iOS 标签树一致）
-    private var emoji: String? {
-        ThoughtTagEmojiStore.emoji(forKey: node.fullPathKey)
-    }
-
-    private var expandedBinding: Binding<Bool> {
-        Binding(
-            get: { expandedPaths.contains(node.fullPathKey) },
-            set: { isExpanded in
-                if isExpanded {
-                    expandedPaths.insert(node.fullPathKey)
-                } else {
-                    expandedPaths.remove(node.fullPathKey)
-                }
-                ThoughtSidebarPreference.saveExpandedTagPaths(expandedPaths)
-            })
-    }
+    /// 失败原因原文（StoreFingerprintRejection 的 errorDescription 已含
+    /// 「原样保留、如何恢复」的完整说明）
+    let failureText: String
+    /// 重拉依赖 CloudKit 可用（不可用的构建给出替代指引而不是死按钮）
+    let cloudRepullAvailable: Bool
+    let onRepull: () -> Void
 
     var body: some View {
-        if node.children.isEmpty {
-            tagLabel
-                .tag(scope)
-                .contextMenu { pinMenu() }
-        } else {
-            DisclosureGroup(isExpanded: expandedBinding) {
-                ForEach(node.children) { child in
-                    MacSidebarTagNodeRow(
-                        node: child,
-                        expandedPaths: $expandedPaths,
-                        isPinned: isPinned,
-                        onTogglePin: onTogglePin)
+        ZStack {
+            Color.holoBackground.opacity(0.96)
+
+            VStack(spacing: HoloSpacing.lg) {
+                Image(systemName: "externaldrive.badge.exclamationmark")
+                    .font(.system(size: 44, weight: .light))
+                    .foregroundColor(.holoPrimary)
+
+                Text("无法打开本地数据库")
+                    .holoText(.sectionTitle)
+                    .foregroundColor(.holoToolText)
+
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    Text("本地数据库由另一版本的 Holo 创建，已拒绝自动迁移以保护数据；数据文件原样保留，未做任何修改。")
+                    Text("你的数据在 iCloud 与 iPhone 上完好。")
+                    Text("点击下方开始恢复。")
                 }
-            } label: {
-                tagLabel
-                    .tag(scope)
-                    .contextMenu { pinMenu() }
-            }
-        }
-    }
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 460)
 
-    private var tagLabel: some View {
-        HStack(spacing: 6) {
-            if let emoji {
-                Text(emoji)
-                    .font(.system(size: 12))
-            } else {
-                Image(systemName: "number")
-                    .font(.system(size: 10))
-                    .foregroundStyle(Color.secondary)
-            }
-            Text(node.displayName)
-                .lineLimit(1)
-        }
-    }
+                // 底层失败原文（含指纹差异细节，供排查；不占主文案）
+                Text(failureText)
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.75))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 460)
+                    .padding(HoloSpacing.sm)
+                    .background(
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(Color.holoToolInset))
 
-    @ViewBuilder
-    private func pinMenu() -> some View {
-        let pin = ThoughtSidebarPin(kind: .userTag, topicID: nil, tagPathKey: node.fullPathKey)
-        Button {
-            onTogglePin(pin)
-        } label: {
-            if isPinned(pin) {
-                Label("取消置顶", systemImage: "pin.slash")
-            } else {
-                Label("置顶", systemImage: "pin")
+                if cloudRepullAvailable {
+                    // AppKit NSButton：SwiftUI Button 在库失败终态的恢复页上点击
+                    // 会触发 ButtonGesture MainActor 空指针崩溃（2026-10-27 .ips 实锤），
+                    // 恢复链所有按钮必须走 AppKit（见 MacRecoveryButton 注释）。
+                    MacRecoveryButton(
+                        title: String(localized: "从 iCloud 重新拉取全部数据"),
+                        bezelColor: NSColor(red: 244/255, green: 109/255, blue: 56/255, alpha: 1)) {
+                        onRepull()
+                    }
+                    .frame(height: 42)
+                    .padding(.top, HoloSpacing.sm)
+                    .accessibilityIdentifier("mac.storeRecovery.repullButton")
+                } else {
+                    Text("此构建未启用 iCloud 同步，请在 iPhone 版 Holo 中操作恢复后再打开 Mac 版。")
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoToolTextSecondary)
+                        .frame(maxWidth: 460)
+                        .multilineTextAlignment(.center)
+                }
             }
+            .padding(HoloSpacing.xl)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

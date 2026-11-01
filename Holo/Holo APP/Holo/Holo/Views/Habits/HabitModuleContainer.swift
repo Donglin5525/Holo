@@ -179,7 +179,9 @@ struct HabitModuleContainer: View {
     private var reviewStack: some View {
         ZStack {
             HabitReviewView(model: model) { id in
-                model.singleReviewEntryRange = .month(model.overviewMonth)
+                // 数值型默认「最近记录」窗口（固定月份对低频记录只剩孤点），打卡型本月
+                let isCheckIn = HabitRepository.shared.findHabit(by: id)?.isCheckInType ?? false
+                model.singleReviewEntryRange = model.defaultSingleReviewRange(isCheckIn: isCheckIn)
                 model.reviewRoute = .single(id)
             }
             .allowsHitTesting(!isSingleReviewShown)

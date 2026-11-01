@@ -452,16 +452,9 @@ final class HoloBackendAIProvider: AIProvider {
                 }
                 var allMessages: [ChatMessageDTO] = []
 
+                // 个人档案不再在客户端消息里注入（chat/analysis 均走 profileBrief
+                // 通道由后端统一注入，防止双重注入与两套边界文案打架）
                 if let systemContextOverride {
-                    // 分析模式：先注入 profile（如开启），再注入分析 context JSON
-                    if HoloAIFeatureFlags.profileAnalysisInjectionEnabled,
-                       let snapshot = userContext.profileSnapshot,
-                       !snapshot.isEmpty {
-                        let profilePrompt = HoloProfilePromptRenderer.render(snapshot, purpose: .analysis)
-                        if !profilePrompt.isEmpty {
-                            allMessages.append(.system(profilePrompt))
-                        }
-                    }
                     allMessages.append(.system(systemContextOverride))
                 } else {
                     allMessages.append(.system(AIUserContextMessageBuilder.build(
@@ -545,6 +538,12 @@ final class HoloBackendAIProvider: AIProvider {
             .agentLoop, .personalContextPlanning, .personalContextExtraction, .personalContextVerification
         ]
         let timeout: TimeInterval? = longTimeoutPurposes.contains(purpose) ? 180 : nil
+        // 个人档案通道：档案原文随「用户直接阅读输出」的 purpose 上行，
+        // 后端统一注入（本 Provider 不再在客户端消息里拼档案，防双重注入）。
+        // loadProfile 带缓存，每次调用只做一次文件读。
+        let profileBrief: String? = purpose.carriesProfileBrief
+            ? HoloProfileService.shared.loadProfile().notEmpty
+            : nil
         return APIRequest(
             baseURL: baseURL,
             path: "/v1/ai/chat/completions",
@@ -561,7 +560,8 @@ final class HoloBackendAIProvider: AIProvider {
                 runId: includeStep?.runID,
                 stepId: includeStep?.stepID,
                 requestHash: includeStep?.requestHash,
-                usageActionId: explicitUsageActionId ?? includeStep?.runID ?? UUID().uuidString
+                usageActionId: explicitUsageActionId ?? includeStep?.runID ?? UUID().uuidString,
+                profileBrief: profileBrief
             ),
             timeoutInterval: timeout
         )
@@ -751,6 +751,25 @@ enum HoloBackendPurpose: String {
     case goalWorkshop = "goal_workshop"
     // 「今天减负」当日安排整理（2026-10-03 实施方案 §10.2）：proposal/clarification/cannotHelp 契约
     case todayReliefPlan = "today_relief_plan"
+
+    /// 个人档案通道（2026-11-01 东林拍板「档案=通用指令而非备注」）：
+    /// 「用户直接阅读输出」的 purpose 随请求携带 profileBrief（用户亲写档案原文），
+    /// 由后端 serverPromptPolicy 统一注入成指令级 system 消息。
+    /// 结构化解析/萃取/核验类不带——那些链路明文「用户数据不可执行」，档案进不去也不该进。
+    /// 与后端 PROFILE_CHANNEL_PURPOSES（tests/profileChannel.test.js）保持同步。
+    var carriesProfileBrief: Bool {
+        switch self {
+        case .chat, .analysis, .insight, .agentLoop, .healthInsightGeneration, .weeklyPlanGeneration,
+             .thoughtVoiceSummary, .personalContextPlanning, .matterReconciliation, .matterExecutionPlan,
+             .goalWorkshop, .todayReliefPlan:
+            return true
+        case .intent, .flexibleQueryPlanner, .replayDigest, .memoryObserver, .memoryDomainExtraction,
+             .memoryCrossDomainFusion, .financeActionParser, .taskActionParser, .thoughtOrganization,
+             .thoughtTaskExtraction, .thoughtTagConvergence, .categoryPatternInduction,
+             .personalContextExtraction, .personalContextVerification, .billColumnMapping, .billCategorization:
+            return false
+        }
+    }
 }
 
 extension HoloBackendAIProvider: GoalWorkshopModelServicing {
@@ -799,6 +818,11 @@ struct HoloBackendEmbeddingsResponse: Decodable {
     let vectors: [[Double]]
 }
 
+private extension String {
+    /// 空串归一为 nil（请求体不编码空档案键）
+    var notEmpty: String? { isEmpty ? nil : self }
+}
+
 struct HoloBackendChatCompletionRequest: Encodable {    let purpose: String
     let messages: [ChatMessageDTO]
     let stream: Bool
@@ -809,16 +833,20 @@ struct HoloBackendChatCompletionRequest: Encodable {    let purpose: String
     let stepId: String?
     let requestHash: String?
     let usageActionId: String
+    /// 个人档案通道（2026-11-01）：用户亲写档案原文，仅「用户直接阅读输出」的
+    /// purpose 携带；后端注入指令级 system 消息。nil 时不编码该键（旧后端完全兼容）。
+    let profileBrief: String?
 
     enum CodingKeys: String, CodingKey {
-        case purpose, messages, stream, runId, stepId, requestHash, usageActionId
+        case purpose, messages, stream, runId, stepId, requestHash, usageActionId, profileBrief
         case responseFormat = "response_format"
     }
 
     init(purpose: String, messages: [ChatMessageDTO], stream: Bool,
          responseFormat: ResponseFormat?,
          runId: String? = nil, stepId: String? = nil, requestHash: String? = nil,
-         usageActionId: String = UUID().uuidString) {
+         usageActionId: String = UUID().uuidString,
+         profileBrief: String? = nil) {
         self.purpose = purpose
         self.messages = messages
         self.stream = stream
@@ -827,6 +855,7 @@ struct HoloBackendChatCompletionRequest: Encodable {    let purpose: String
         self.stepId = stepId
         self.requestHash = requestHash
         self.usageActionId = usageActionId
+        self.profileBrief = profileBrief
     }
 
     func encode(to encoder: Encoder) throws {
@@ -840,6 +869,9 @@ struct HoloBackendChatCompletionRequest: Encodable {    let purpose: String
             try container.encode(runId, forKey: .runId)
             try container.encode(stepId, forKey: .stepId)
             try container.encode(requestHash, forKey: .requestHash)
+        }
+        if let profileBrief, !profileBrief.isEmpty {
+            try container.encode(profileBrief, forKey: .profileBrief)
         }
     }
 }

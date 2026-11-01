@@ -36,10 +36,35 @@ final class FinanceProjectRepository {
     // MARK: - 项目查询
 
     func allProjects() -> [FinanceProject] {
+        completeExpiredProjects()
         let request = FinanceProject.fetchRequest()
         request.predicate = NSPredicate(format: "deletedAt == nil")
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
+    }
+
+    /// 到期自动完结：结束日整天过完后仍「进行中」的项目转「已完结」。结束日当天还在记账挂靠，
+    /// 所以以次日零点为界，不在当天就收口。挂在查询入口上懒触发——列表/详情/记账选择器/AI 候选
+    /// 拿到的都是结清后的状态，不依赖后台定时器；幂等，无到期项目时零写入、不发通知。
+    /// 没填结束日的项目不参与（SQL 对 nil 比较恒假）。
+    @discardableResult
+    func completeExpiredProjects(now: Date = Date()) -> [FinanceProject] {
+        let today = Calendar.current.startOfDay(for: now)
+        let request = FinanceProject.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "deletedAt == nil"),
+            NSPredicate(format: "status == %@", FinanceProjectStatus.active.rawValue),
+            NSPredicate(format: "endDate < %@", today as NSDate)
+        ])
+        let expired = (try? context.fetch(request)) ?? []
+        guard !expired.isEmpty else { return [] }
+        for project in expired {
+            project.status = FinanceProjectStatus.completed.rawValue
+            project.updatedAt = now
+        }
+        try? context.save()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+        return expired
     }
 
     /// 进行中项目（记账表单选择器、AI 挂靠候选都用这份清单）

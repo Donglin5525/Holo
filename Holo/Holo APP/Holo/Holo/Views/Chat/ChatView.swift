@@ -861,7 +861,11 @@ struct ChatView: View {
         case .holoAIUserSettings:
             HoloAIUserSettingsView(
                 discoveryState: viewModel.discoveryService.settingsDetailState,
-                discoveryService: viewModel.discoveryService
+                discoveryService: viewModel.discoveryService,
+                onOpenMemoryGallery: {
+                    activeSheet = nil
+                    DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))
+                }
             )
         case .editTransaction(let transaction):
             let originalTransactionID = transaction.id
@@ -903,7 +907,8 @@ struct ChatView: View {
             }
         case .memoryCenter:
             NavigationStack {
-                HoloMemoryCenterView()
+                // 从聊天页打开的记忆中心：空态「去找 Holo 聊聊」= 回到聊天页本身
+                HoloMemoryCenterView(onOpenChat: { activeSheet = nil })
             }
         case .memoryConfirmationQueue:
             MemoryConfirmationQueueView()

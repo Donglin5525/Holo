@@ -16,7 +16,7 @@ import os.log
 /// Core Data 数据栈单例
 /// 提供统一的 Core Data 访问入口，确保数据一致性
 /// 线程安全：支持后台线程预加载，主线程安全访问
-nonisolated class CoreDataStack {
+nonisolated class CoreDataStack: @unchecked Sendable {
 
     // MARK: - Singleton
 
@@ -44,6 +44,8 @@ nonisolated class CoreDataStack {
     /// 失败不再终止进程；失败原因存 _storeLoadError 供恢复门如实展示。
     nonisolated(unsafe) private var _storeLoadSettled = false
     nonisolated(unsafe) private var _storeLoadError: Error?
+    nonisolated(unsafe) private var _containerBuildScheduled = false
+    private static let storeWorkQueue = DispatchQueue(label: "com.holo.store-startup", qos: .userInitiated)
 
     /// 持久化容器（线程安全延迟初始化）
     /// 首次访问时创建容器并异步加载 store，不阻塞调用线程。
@@ -115,100 +117,194 @@ nonisolated class CoreDataStack {
 
         Self.loadStoreAllowingRecovery(container, logger: Self.recoveryLogger) { [weak self] error in
             guard let self else { return }
-            self.lock.lock()
-            let continuations: [CheckedContinuation<Void, Never>]
             if let error {
                 // R01（2026-10-04 体检）：加载失败是可恢复状态，不再终止进程——
                 // 记录失败原因、置终态并唤醒所有等待方；恢复门（StoreConflictRecoveryGate）
                 // 在等待返回后如实说明并保留原库等待救援。破坏性重建必须有完整数据保护前提。
-                Self.recoveryLogger.fault("Core Data 存储加载失败（自动恢复后仍不可用），进入可恢复失败状态：\(error.localizedDescription, privacy: .public)\n\((error as NSError).userInfo)")
-                self._storeLoadError = error
-                self._storeLoadSettled = true
-                continuations = self._storeLoadContinuations
-                self._storeLoadContinuations = []
-                self.lock.unlock()
-                for continuation in continuations {
-                    continuation.resume()
-                }
+                Self.recoveryLogger.fault("Core Data 存储加载失败，原库保留并进入失败说明页：\(error.localizedDescription, privacy: .public)\n\((error as NSError).userInfo)")
+                self.finishStoreLoading(error: error)
                 return
             }
-            // store 装载完成后再配置主上下文：此时无进行中的装载，
-            // setter 不会同步等待 CoreData 内部队列（构建线程也不持任何锁）
-            container.viewContext.automaticallyMergesChangesFromParent = true
-            container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-
-            self._storeLoaded = true
-            self._storeLoadSettled = true
-            continuations = self._storeLoadContinuations
-            self._storeLoadContinuations = []
-            self.lock.unlock()
-            for continuation in continuations {
-                continuation.resume()
+            // viewContext 的配置必须在主队列且不持状态锁执行。后台首建时，
+            // 这些 setter 会同步等主队列；若主线程同时读 isReady 等状态锁，
+            // 就形成「回调等主线程 ↔ 主线程等状态锁」的死锁。
+            // 异步交给主队列，配置完成后才发布就绪，等待方不会看到半配置上下文。
+            DispatchQueue.main.async {
+                container.viewContext.automaticallyMergesChangesFromParent = true
+                container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+                self.finishStoreLoading(error: nil)
             }
         }
 
         return container
     }
 
+    /// 只在锁内交换状态，Core Data 调用和 continuation 唤醒均在锁外执行。
+    private nonisolated func finishStoreLoading(error: Error?) {
+        let continuations = lock.withLock {
+            _storeLoadError = error
+            _storeLoaded = error == nil
+            _storeLoadSettled = true
+            let waiting = _storeLoadContinuations
+            _storeLoadContinuations = []
+            return waiting
+        }
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
+
     // MARK: - 存储装载与冲突恢复
 
     private nonisolated static let recoveryLogger = Logger(subsystem: "com.holo.app", category: "CoreDataRecovery")
 
-    /// 装载 store；遇到模型指纹冲突（App 与小组件等扩展进程各自编译的模型分叉、
-    /// 或跨版本迁移映射缺失）时，把打不开的库文件整体改名备份后重建空库再试一次。
-    /// 背景：共享库位于 App Group，多进程都可写；指纹不一致会随进程先后随机出现，
-    /// 直接 fatalError 即「随机启动闪退」（2026-09-27 模拟器实锤）。
-    /// 备份保留在原目录可人工救援；云端有 CloudKit 副本，空库重建后可回同步。
+    // MARK: - 打开前只读指纹预检（2026-10-26 共享库迁移乒乓数据事故）
+
+    /// 指纹预检的拒绝原因。事故复盘（2026-10-26）：iPhone/iPad 版（Designed for iPad，
+    /// 10-6 旧构建）与 HoloMac（当日新构建）实体集不同（59 vs 63），两构建交替打开
+    /// 同一 App Group 库，各自的自动轻量迁移把 schema 来回翻转（联合表 Z_48TAGS ↔
+    /// Z_44TAGS 重建、全实体重编号），打崩 CloudKit 镜像簿记（NSCKRecordMetadata 从
+    /// 数千行掉到 191），镜像层随后在本地大规模误删（一秒 2035 个事务删 4814 行；
+    /// 想法/交易整表消失）。侥幸的是 export 全程失败，删除未上云，iPhone 与云端完好。
+    /// 收口原则：默认拒绝未知差异与降级；只放行经真实旧库回归验证的增量升级。
+    /// 已知升级也必须先完成一致性备份，失败时绝不重建或清空原库。
+    struct StoreFingerprintRejection: LocalizedError, Equatable {
+        enum Reason: Equatable {
+            /// 库文件存在但读不出模型指纹（Z_METADATA 缺失/不可解析）
+            case unreadableMetadata(detail: String)
+            /// 实体集合或版本哈希与当前模型不一致
+            case mismatch(onlyInStore: [String], onlyInModel: [String], hashDifferences: [String])
+        }
+        let storePath: String
+        let reason: Reason
+
+        var errorDescription: String? {
+            switch reason {
+            case .unreadableMetadata(let detail):
+                return String(localized: "本地数据库无法验证与当前版本的兼容性（\(detail)）。为保护记录，Holo 已停止打开数据库并原样保留文件。请复制此信息交给开发者排查，暂勿卸载或切换旧版本。")
+            case .mismatch:
+                return String(localized: "本地数据库与当前版本的数据结构不同，且不属于已验证的安全升级。为保护记录，Holo 已停止打开数据库并原样保留文件。请复制此信息交给开发者排查，暂勿卸载或切换旧版本。")
+            }
+        }
+    }
+
+    /// 打开前只读核对 store 的模型指纹与当前模型是否一致。
+    /// 返回 nil = 新库、指纹一致，或纯加表向前升级（见 CoreDataStoreUpgrade.isAdditiveUpgrade）；
+    /// 返回错误 = 拒绝打开。只做只读检查，绝不迁移、绝不改写库文件。
+    nonisolated static func storeFingerprintRejection(
+        at url: URL,
+        model: NSManagedObjectModel
+    ) -> Error? {
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: url.path) else { return nil }
+        guard let storeHashes = readStoreModelVersionHashes(at: url) else {
+            return StoreFingerprintRejection(
+                storePath: url.path,
+                reason: .unreadableMetadata(detail: "Z_METADATA 不可读")
+            )
+        }
+        let modelHashes = model.entityVersionHashesByName
+        let onlyInStore = storeHashes.keys.filter { modelHashes[$0] == nil }.sorted()
+        let onlyInModel = modelHashes.keys.filter { storeHashes[$0] == nil }.sorted()
+        let hashDifferences = storeHashes.keys
+            .filter { modelHashes[$0] != nil && storeHashes[$0] != modelHashes[$0] }
+            .sorted()
+        if CoreDataStoreUpgrade.isAdditiveUpgrade(store: storeHashes, model: modelHashes) {
+            return nil
+        }
+        guard onlyInStore.isEmpty, onlyInModel.isEmpty, hashDifferences.isEmpty else {
+            return StoreFingerprintRejection(
+                storePath: url.path,
+                reason: .mismatch(onlyInStore: onlyInStore, onlyInModel: onlyInModel, hashDifferences: hashDifferences)
+            )
+        }
+        return nil
+    }
+
+    /// 优先读取实时 WAL；无待合并 WAL 时才允许只读主文件。
+    /// 系统 SQLite 在干净关闭、SHM 不存在时可能拒绝普通只读连接，
+    /// 此时主文件已完整；有非空 WAL 或 WAL 状态不可读时绝不使用 immutable。
+    nonisolated static func readStoreModelVersionHashes(at url: URL) -> [String: Data]? {
+        if let hashes = readStoreModelVersionHashes(at: url, immutable: false) { return hashes }
+        guard !storeHasPendingWAL(at: url) else { return nil }
+        let hashes = readStoreModelVersionHashes(at: url, immutable: true)
+        guard !storeHasPendingWAL(at: url) else { return nil }
+        return hashes
+    }
+
+    private nonisolated static func storeHasPendingWAL(at url: URL) -> Bool {
+        let path = url.path + "-wal"
+        guard FileManager.default.fileExists(atPath: path) else { return false }
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+              let size = attributes[.size] as? NSNumber else { return true }
+        return size.uint64Value > 0
+    }
+
+    private nonisolated static func readStoreModelVersionHashes(at url: URL, immutable: Bool) -> [String: Data]? {
+        let path = immutable ? url.absoluteString + "?immutable=1" : url.path
+        let flags = immutable ? SQLITE_OPEN_READONLY | SQLITE_OPEN_URI : SQLITE_OPEN_READONLY
+        var database: OpaquePointer?
+        guard sqlite3_open_v2(path, &database, flags, nil) == SQLITE_OK,
+              let database else {
+            sqlite3_close(database)
+            return nil
+        }
+        defer { sqlite3_close(database) }
+        // App Group 库会被小组件等进程并发读写（2026-10-31 审计 S2）：
+        // 撞上瞬态写锁时等待重试，而不是把 SQLITE_BUSY 误判成「指纹不可读」整库拒开。
+        sqlite3_busy_timeout(database, 3_000)
+        var statement: OpaquePointer?
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_prepare_v2(database, "SELECT Z_PLIST FROM Z_METADATA LIMIT 1", -1, &statement, nil) == SQLITE_OK,
+              sqlite3_step(statement) == SQLITE_ROW,
+              let blob = sqlite3_column_blob(statement, 0),
+              sqlite3_column_bytes(statement, 0) > 0 else { return nil }
+        let data = Data(bytes: blob, count: Int(sqlite3_column_bytes(statement, 0)))
+        guard let plist = try? PropertyListSerialization.propertyList(from: data, format: nil),
+              let metadata = plist as? [String: Any],
+              let hashes = metadata["NSStoreModelVersionHashes"] as? [String: Data] else { return nil }
+        return hashes
+    }
+
+    /// 打开前验证指纹；只允许「已有实体哈希全部不变 + 纯加表」的向前升级。
+    /// 加表升级先做一致性备份；其他差异及所有加载失败都保留原库，不再自动重建空库。
     nonisolated static func loadStoreAllowingRecovery(
         _ container: NSPersistentContainer,
         logger: Logger,
         onFinish: @escaping (Error?) -> Void
     ) {
-        container.loadPersistentStores { _, error in
-            guard let error, isModelMismatch(error) else {
-                onFinish(error)
-                return
-            }
-
-            let nsError = error as NSError
-            let storeURL = container.persistentStoreDescriptions.first?.url
-            // 迁移门禁（任务分类字段升级）：库是本次升级的已知旧版时，
-            // 迁移失败必须终止装载进入可恢复失败状态、原库原地保留，
-            // 不允许备份重建空库后把失败伪装成「迁移成功 + 云端回同步」。
-            if let storeURL, storeIsKnownPreTaskClassification(at: storeURL) {
-                logger.fault("任务分类字段迁移失败（code \(nsError.code)）：原库原地保留，不走空库重建（迁移门禁）userInfo: \(nsError.userInfo)")
-                onFinish(error)
-                return
-            }
-            // R02（2026-10-04 体检）：备份完整性是重建的硬前提——三件套没挪干净
-            // （目录权限/空间异常/未合并 WAL/扩展并发访问）就重建空库，会永久丢失
-            // 未合并事务。此时放弃自动重建，走可恢复失败状态，原库原地保留待救援。
-            let backup = storeURL.map { backupIncompatibleStoreFiles(at: $0, logger: logger) }
-                ?? ConflictBackupResult()
-            guard backup.isComplete else {
-                logger.fault("冲突库备份不完整（main=\(backup.hasMainFile, privacy: .public)，failed=\(backup.failedFiles.joined(separator: ","), privacy: .public)），放弃自动重建以保护原数据")
-                onFinish(error)
-                return
-            }
-            logger.fault("存储与当前模型不匹配(code \(nsError.code))，已完整备份冲突库，重建空库重试。userInfo: \(nsError.userInfo)")
-
-            container.loadPersistentStores { _, retryError in
-                if let retryError {
-                    logger.fault("重建空库后仍装载失败：\(retryError.localizedDescription, privacy: .public)")
-                    onFinish(retryError)
+        storeWorkQueue.async(execute: DispatchWorkItem {
+            if let storeURL = container.persistentStoreDescriptions.first?.url {
+                if let rejection = storeFingerprintRejection(at: storeURL, model: container.managedObjectModel) {
+                    logger.fault("指纹预检拒绝打开（原库原地保留）：\(rejection.localizedDescription, privacy: .public)")
+                    onFinish(rejection)
                     return
                 }
-                logger.notice("存储冲突恢复完成，已重建空库（旧库保留为备份）")
-                // D03（2026-10-04 体检）：恢复事件落标记，主 App 启动时据此向用户
-                // 说明「发生了什么 + 旧数据在哪」——空库静默当正常成功是信任事故
-                recordConflictRecoveryMarker(storeURL: storeURL, backup: backup, logger: logger)
-                onFinish(nil)
+                if let hashes = readStoreModelVersionHashes(at: storeURL),
+                   CoreDataStoreUpgrade.isAdditiveUpgrade(store: hashes, model: container.managedObjectModel.entityVersionHashesByName) {
+                    do {
+                        let backup = try CoreDataStoreUpgrade.makeBackup(of: storeURL)
+                        logger.notice("已知知识表增量升级：一致性备份已完成 \(backup.lastPathComponent, privacy: .public)")
+                    } catch {
+                        logger.fault("升级前备份失败，保留原库并停止装载：\(error.localizedDescription, privacy: .public)")
+                        onFinish(error)
+                        return
+                    }
+                }
             }
-        }
+            container.loadPersistentStores { _, error in
+                if let error {
+                    logger.fault("存储装载失败，原库和升级备份均保留，不自动清库：\(error.localizedDescription, privacy: .public)")
+                }
+                onFinish(error)
+            }
+        })
     }
 
-    /// 是否属于「模型指纹/迁移映射」失败族（134100 不兼容哈希、134130 找不到源模型、映射不匹配等）
+    /// 是否属于「模型指纹/迁移映射」失败族（134100 不兼容哈希、134130 找不到源模型、映射不匹配等）。
+    /// 打开前指纹预检的拒绝（StoreFingerprintRejection）同属指纹不一致族。
     nonisolated static func isModelMismatch(_ error: Error) -> Bool {
+        if error is StoreFingerprintRejection { return true }
         let nsError = error as NSError
         guard nsError.domain == NSCocoaErrorDomain else { return false }
         return (134100...134199).contains(nsError.code)
@@ -429,10 +525,17 @@ nonisolated class CoreDataStack {
     }
 
     private nonisolated static var conflictRecoveryMarkerURL: URL? {
+        #if canImport(UIKit)
         guard let container = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
             return nil
         }
         return container.appendingPathComponent("store-conflict-recovery.json", isDirectory: false)
+        #else
+        // macOS：标记与库同目录（HoloStore），不触碰 group 目录（TCC，见
+        // sharedStoreURL 注释）
+        return sharedStoreURL.deletingLastPathComponent()
+            .appendingPathComponent("store-conflict-recovery.json", isDirectory: false)
+        #endif
     }
 
     nonisolated static func pendingConflictRecoveryEvent() -> ConflictRecoveryEvent? {
@@ -539,11 +642,23 @@ nonisolated class CoreDataStack {
 
     /// 数据库应处的位置：App Group 共享区（小组件等扩展进程可直接读写）
     nonisolated static var sharedStoreURL: URL {
+        #if canImport(UIKit)
         if let groupRoot = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) {
             return groupRoot.appendingPathComponent("HoloDataModel.sqlite")
         }
         // App Group 不可用的环境（部分单元测试宿主）：退回旧沙盒路径
         return URL.documentsDirectory.appendingPathComponent("HoloDataModel.sqlite")
+        #else
+        // macOS：App Group 是 iOS 概念。macOS 上跨 App 访问 group 目录需 TCC
+        // 授权——开发构建每次重签都重新弹授权，未决期间 containerURL()/open()
+        // 无限挂起（2026-10-27 全天启动假死/权限弹窗循环/Z_METADATA 时好时坏
+        // 的唯一根源）。Mac 版因此彻底不碰 group 目录：私有 Application Support
+        // 存储本地库，数据经 CloudKit 云端同步（等同新设备首连全量导入）。
+        let dir = URL.applicationSupportDirectory
+            .appendingPathComponent("HoloStore", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("HoloDataModel.sqlite")
+        #endif
     }
 
     /// 1.0.3 之前的旧位置（沙盒 Documents），升级用户的数据仍在那里
@@ -555,6 +670,11 @@ nonisolated class CoreDataStack {
     /// 共享区已有库 → 直接用；旧址有库 → 先整体搬进共享区（失败留在旧址，绝不落到空库）；
     /// 两处都无 → 全新安装，直接在共享区建库。
     nonisolated static func resolveStoreURLForMigration(model: NSManagedObjectModel) -> URL {
+        #if !canImport(UIKit)
+        // macOS：不搬任何旧库（沙盒 Documents/group 目录里可能是历史损坏库，
+        // 见 sharedStoreURL 注释）；Mac 数据唯一来源是 CloudKit 云端导入。
+        return sharedStoreURL
+        #else
         let fm = FileManager.default
         let newURL = sharedStoreURL
         let oldURL = legacyStoreURL
@@ -573,6 +693,7 @@ nonisolated class CoreDataStack {
         } catch {
             return oldURL
         }
+        #endif
     }
 
     /// 搬迁整个 SQLite 存储，保留 CloudKit 映射及记录身份。
@@ -602,7 +723,13 @@ nonisolated class CoreDataStack {
 
     /// 触发异步 store 加载，不阻塞调用线程（在 HoloApp.init() 中调用）
     func prepareIfNeeded() {
-        _ = persistentContainer
+        let shouldStart = lock.withLock {
+            guard !_containerBuildScheduled else { return false }
+            _containerBuildScheduled = true
+            return true
+        }
+        guard shouldStart else { return }
+        Self.storeWorkQueue.async { _ = self.persistentContainer }
     }
 
     /// 等待 store 加载完毕（在 HomeView.task 中 await 调用）
@@ -659,7 +786,9 @@ nonisolated class CoreDataStack {
     /// 执行后台任务
     /// 在后台上下文中执行闭包，完成后自动保存
     nonisolated func performBackgroundTask<T>(_ block: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
-        try await withCheckedThrowingContinuation { continuation in
+        await waitUntilReady()
+        if let error = storeLoadError() { throw error }
+        return try await withCheckedThrowingContinuation { continuation in
             persistentContainer.performBackgroundTask { context in
                 do {
                     let result = try block(context)
@@ -760,7 +889,9 @@ nonisolated class CoreDataStack {
     ) {
         guard !indexes.isEmpty else { return }
         let entityName = entity.name ?? "Entity"
-        entity.indexes = indexes.map { indexName, property in
+        // 按索引名排序后再生成：字典遍历顺序跨进程/跨平台不稳定（2026-10-26 双平台
+        // 模型一致性核查时收口），排序保证同源码任何进程构建出的索引序列完全一致。
+        entity.indexes = indexes.sorted { $0.key < $1.key }.map { indexName, property in
             NSFetchIndexDescription(
                 name: "\(entityName)_\(indexName)_idx",
                 elements: [NSFetchIndexElementDescription(property: property, collationType: .binary)]

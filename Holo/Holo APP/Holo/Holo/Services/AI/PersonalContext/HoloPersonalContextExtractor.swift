@@ -593,7 +593,12 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         let evidence = payload.basis.map { basis in
             HoloMemoryEvidenceRef(
                 id: "ctx-\(HoloContextSuppressionKeys.stableDigest("\(payload.contextID)|\(basis.sourceID)|\(basis.quote ?? "")"))",
-                kind: .explicitUserStatement,
+                // 来源类型如实分类（09-R01）：只有 conversation 域的用户消息是
+                // explicitUserStatement；业务记录（账单/任务/打卡/想法/目标）是
+                // entityRef——不因走个人情境通道就变成「你在对话里说过」。
+                kind: HoloLifeSourceKeys.domain(of: basis.sourceID) == "conversation"
+                    ? .explicitUserStatement
+                    : .entityRef,
                 sourceDomain: domain,
                 lineageKey: basis.sourceID,
                 sourceID: basis.sourceID,

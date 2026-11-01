@@ -597,6 +597,7 @@ final class HabitReviewProjectionTests: XCTestCase {
         let emptyId = UUID()
         let data = buildData([])
         for range in [HabitReviewRange.month(oct), .lastDays(30), .lastDays(90), .all,
+                      .recentRecords(count: 30),
                       .custom(start: day(2024, 1, 1), end: day(2026, 10, 6))] {
             let snapshot = HabitReviewProjector.rangeSnapshot(
                 info: info(emptyId), range: range, data: data)
@@ -609,5 +610,82 @@ final class HabitReviewProjectionTests: XCTestCase {
                 XCTAssertLessThanOrEqual(completion, 1)
             }
         }
+    }
+
+    // MARK: - 「最近记录」窗口（2026-10-26：数值型默认视野，不按固定时间长短取）
+
+    func test_最近记录_低频断续记录全部纳入窗口() {
+        let id = UUID()
+        // 3 月一记、停半年、9-10 月再记：记录日少于 count → 窗口覆盖全部，
+        // 起点 = 最早记录日（「半年一记也能看到最近一批」的拍板底线）
+        let facts = [
+            fact(id, day(2026, 3, 18), value: 84.0),
+            fact(id, day(2026, 9, 19), value: 82.0),
+            fact(id, day(2026, 10, 6), value: 81.5),
+            fact(id, day(2026, 10, 7), value: 82.2),
+        ]
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, kind: .measure, unit: "KG"),
+            range: .recentRecords(count: 30), data: buildData(facts))
+        XCTAssertEqual(snapshot.recordedDayCount, 4)
+        XCTAssertEqual(snapshot.interval.start, calendar.startOfDay(for: day(2026, 3, 18)))
+        XCTAssertEqual(snapshot.dailyValues.count, 4)
+        XCTAssertEqual(snapshot.latestMeasure?.value ?? 0, 82.2, accuracy: 0.001)
+    }
+
+    func test_最近记录_高频只取最近N个记录日() {
+        let id = UUID()
+        // 9/1 起连续 37 个记录日（到今天 10/7），取最近 30 个 → 起点 9/8，
+        // 最早 7 天的记录不进窗口
+        let facts = (0..<37).map { offset in
+            fact(id, calendar.date(byAdding: .day, value: offset, to: day(2026, 9, 1))!,
+                 value: Double(offset))
+        }
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, kind: .measure),
+            range: .recentRecords(count: 30), data: buildData(facts))
+        XCTAssertEqual(snapshot.recordedDayCount, 30)
+        XCTAssertEqual(snapshot.interval.start, calendar.startOfDay(for: day(2026, 9, 8)))
+        XCTAssertEqual(snapshot.dailyValues.count, 30)
+        XCTAssertFalse(snapshot.dailyValues.contains {
+            calendar.startOfDay(for: $0.date) == calendar.startOfDay(for: day(2026, 9, 1))
+        }, "窗口外的最早记录不得回流")
+    }
+
+    func test_最近记录_同日多条只占一个记录日() {
+        let id = UUID()
+        let facts = [
+            fact(id, day(2026, 10, 7, hour: 8), value: 82.0),
+            fact(id, day(2026, 10, 7, hour: 20), value: 82.4),
+            fact(id, day(2026, 10, 6), value: 81.5),
+        ]
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, kind: .measure),
+            range: .recentRecords(count: 30), data: buildData(facts))
+        XCTAssertEqual(snapshot.recordedDayCount, 2, "同日多条只算一个记录日")
+    }
+
+    func test_最近记录_无记录时空窗口落在今天_有界() {
+        let id = UUID()
+        let data = buildData([])
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, kind: .measure),
+            range: .recentRecords(count: 30), data: data)
+        XCTAssertEqual(snapshot.recordedDayCount, 0)
+        XCTAssertEqual(snapshot.interval.start, calendar.startOfDay(for: now))
+        XCTAssertTrue(snapshot.dailyValues.isEmpty)
+        // 对比计算有界（窗口落在今天，上期即昨天）
+        let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+        XCTAssertEqual(comparison.current.recordedDays, 0)
+    }
+
+    func test_最近记录_标签与显示月语义() {
+        XCTAssertEqual(
+            HabitReviewRange.recentRecords(count: 30).label(now: now, calendar: calendar),
+            String(localized: "最近记录"))
+        let panned = day(2026, 9, 1)
+        XCTAssertEqual(
+            HabitReviewRange.recentRecords(count: 30).calendarDisplayMonth(fallback: panned),
+            panned, "跨月范围显示月跟随翻月状态")
     }
 }

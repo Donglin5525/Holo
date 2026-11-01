@@ -22,6 +22,9 @@ enum HoloShortcutAction: Equatable {
     case openSettings
     /// Cmd+1…9：侧边栏直跳（iPad v2 骨架；iPhone 由 ContentView 映射到主 tab）
     case goToSidebar(HoloSidebarDestination)
+    /// Mac ⌘1/⌘2：工作台模块切换（2026-10-28 任务模块迁移；iOS 侧无订阅方，安全忽略）
+    case switchToThoughts
+    case switchToTasks
 }
 
 /// 快捷键事件：带自增 id，同一动作连按也能逐次触发订阅方。

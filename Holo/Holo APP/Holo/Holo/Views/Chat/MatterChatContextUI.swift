@@ -134,7 +134,7 @@ struct MatterAmbiguityBar: View {
         .padding(11)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(Color.holoSecondaryGroupedBackground)
         )
         .padding(.horizontal, 16)
         .padding(.bottom, 4)
@@ -179,7 +179,7 @@ struct MatterTaskProposalBar: View {
         .padding(11)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(Color.holoSecondaryGroupedBackground)
         )
         .padding(.horizontal, 16)
         .padding(.bottom, 4)
@@ -224,7 +224,7 @@ struct MatterRecoverableBar: View {
         .padding(.leading, 12)
         .padding(.trailing, 6)
         .padding(.vertical, 5)
-        .background(Color(.tertiarySystemGroupedBackground), in: Capsule())
+        .background(Color.holoTertiaryGroupedBackground, in: Capsule())
         .padding(.horizontal, 16)
         .padding(.bottom, 4)
         .transition(.opacity)

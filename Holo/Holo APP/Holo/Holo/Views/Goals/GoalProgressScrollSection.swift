@@ -235,6 +235,9 @@ struct GoalProgressScrollSection: View {
                     if item.kind == .budget { source = .budget(state.plan.payload.budgetRule?.accountID) }
                     else if let rule = state.plan.payload.constraints.first(where: { $0.bindingID == item.id }) {
                         open(entityType: .habit, id: rule.habitID, start: item.windowStart ?? state.snapshot.windowStart, end: item.windowEndExclusive ?? state.snapshot.windowEndExclusive)
+                    } else {
+                        // 快照与约定规则错位（迁移残留等）：带箭头的行点了必须有反馈
+                        HoloToastCenter.shared.show("该约定的来源规则已变更，请在「调整约定」里查看。", type: .info)
                     }
                 }
             }
@@ -278,7 +281,11 @@ struct GoalProgressScrollSection: View {
         }
     }
     private func open(entityType: GoalPlanBindingEntityType, id: UUID?, start: Date, end: Date, notBefore: Date? = nil, metric: GoalRequirementMetric? = nil) {
-        guard let id else { return }
+        guard let id else {
+            // 来源已解绑/删除（行上显示「来源不可用」）：点击给出明确反馈而非静默
+            HoloToastCenter.shared.show("该来源已被删除或解绑，无法打开原记录。", type: .info)
+            return
+        }
         switch entityType {
         case .habit: source = .habit(HabitSourceRoute(habitID: id, start: start, endExclusive: end, recordNotBefore: notBefore, metric: metric))
         case .task: source = .task(id)

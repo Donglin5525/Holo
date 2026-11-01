@@ -48,7 +48,8 @@ enum HoloContextChatPlanner {
     ) -> HoloContextPlanningCoordinator {
         let loadContextRecords: @Sendable () async throws -> [HoloMemoryRecord] = {
             // 候选记录来自本机情境库（personalContext 载荷）。
-            let records = (try? await repository.query(.all)) ?? []
+            // v2.2 统一决策：规划候选走 query(.active)（经 ResolvedKnowledge 门闸）。
+            let records = (try? await repository.query(.active)) ?? []
             // M06：直连读者套统一资格判据，停用/删除不进规划候选。
             let contexts = records
                 .filter(HoloMemoryAnswerEligibility.isEligible)

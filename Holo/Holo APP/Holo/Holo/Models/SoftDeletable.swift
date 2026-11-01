@@ -125,7 +125,17 @@ extension HoloMemoryTombstoneMO: SoftDeletable {
     @NSManaged var deletedBatchId: UUID?
 }
 
+// 通用知识修订（内容本体，2026-10-27 v2.2）：参与回收站/全清。
+extension HoloMemoryKnowledgeRevisionMO: SoftDeletable {
+    @NSManaged var deletedAt: Date?
+    @NSManaged var deletedBatchId: UUID?
+}
+
 // 注：HoloMemoryControlStateMO 为全局运行状态单例（非用户数据），不参与软删除。
+// 注：HoloMemoryKnowledgeOperationMO 与 HoloMemoryControlEventMO 同口径——控制事实
+//（不准确/停用/遗忘/来源失效等限制操作）是「必要阻断」的载体，清空数据后保留
+//（不参与软删除/回收站），防止被拒内容随清理复活；内容型载荷（纠正正文/证据快照）
+// 的清理由知识层的清理链路在操作行内收敛（HoloKnowledgeLifecycleService）。
 
 // MARK: - LifePlan
 

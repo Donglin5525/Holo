@@ -44,6 +44,16 @@ struct TaskCardView: View {
     var onNavigateToAnniversary: ((UUID) -> Void)?
     /// 点击时间胶囊弹出延期面板（nil = 胶囊不可点，如重复任务/未安排任务）
     var onPostpone: (() -> Void)?
+    /// 右键菜单扩展项（2026-10-28 Mac 任务工作台接入；nil = 菜单不显示该项，
+    /// iOS 调用点不传，行为零变化）
+    var onMoveToList: (() -> Void)?
+    var onArchive: (() -> Void)?
+    var onCopyTitle: (() -> Void)?
+    var onDelete: (() -> Void)?
+    /// 右键「移到象限」子菜单（2026-10-30 Mac 四象限看板接入；
+    /// currentQuadrant = nil = 菜单不显示，iOS 调用点不传，行为零变化）
+    var currentQuadrant: TaskQuadrant?
+    var onMoveToQuadrant: ((TaskQuadrant) -> Void)?
     /// 是否展开检查清单
     @State private var isChecklistExpanded = false
 
@@ -113,8 +123,9 @@ struct TaskCardView: View {
                         Spacer(minLength: 6)
 
                         duePill
-                            .onTapGesture {
-                                // 子视图手势优先于整卡 onTap；胶囊=什么时候，点它=改什么时候
+                            .onTapGestureIf(onPostpone != nil) {
+                                // 子视图手势优先于整卡 onTap；胶囊=什么时候，点它=改什么时候。
+                                // 不支持改期（重复/已完成/搜索结果）时不挂手势，让点击落到整卡。
                                 onPostpone?()
                             }
                     }
@@ -299,6 +310,55 @@ struct TaskCardView: View {
                     Label("延期", systemImage: "calendar.badge.clock")
                 }
             }
+            if let onMoveToList = onMoveToList {
+                Button {
+                    onMoveToList()
+                } label: {
+                    Label("移动到清单", systemImage: "tray.and.arrow.down")
+                }
+            }
+            if let onMoveToQuadrant = onMoveToQuadrant, let currentQuadrant {
+                Menu {
+                    ForEach(TaskQuadrant.overviewOrder, id: \.self) { target in
+                        Button {
+                            onMoveToQuadrant(target)
+                        } label: {
+                            if target == currentQuadrant {
+                                Label(target.displayTitle, systemImage: "checkmark")
+                            } else {
+                                Text(target.displayTitle)
+                            }
+                        }
+                        .disabled(target == currentQuadrant)
+                    }
+                } label: {
+                    Label("移到象限", systemImage: "square.grid.2x2")
+                }
+            }
+            if onArchive != nil || onCopyTitle != nil || onDelete != nil {
+                Divider()
+            }
+            if let onCopyTitle = onCopyTitle {
+                Button {
+                    onCopyTitle()
+                } label: {
+                    Label("复制标题", systemImage: "doc.on.doc")
+                }
+            }
+            if let onArchive = onArchive {
+                Button {
+                    onArchive()
+                } label: {
+                    Label("归档", systemImage: "archivebox")
+                }
+            }
+            if let onDelete = onDelete {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label("删除任务", systemImage: "trash")
+                }
+            }
         }
     }
 
@@ -397,7 +457,8 @@ struct TaskCardView: View {
     // MARK: - 纪念日来源徽章
 
     /// 纪念日自动生成的任务，在元信息行显示来源徽章。
-    /// 点击直达纪念日详情，形成串联闭环。
+    /// 点击直达纪念日详情，形成串联闭环；未接线（onNavigateToAnniversary 为 nil）
+    /// 时不挂手势，让点击落到整卡打开任务详情。
     @ViewBuilder
     private func anniversarySourceBadge(_ anniversaryId: UUID) -> some View {
         if let anniversary = AnniversaryRepository.shared.anniversary(by: anniversaryId) {
@@ -413,7 +474,7 @@ struct TaskCardView: View {
             .padding(.vertical, 2)
             .background(Color(hex: anniversary.color).opacity(0.12))
             .clipShape(Capsule())
-            .onTapGesture {
+            .onTapGestureIf(onNavigateToAnniversary != nil) {
                 HapticManager.selection()
                 onNavigateToAnniversary?(anniversaryId)
             }

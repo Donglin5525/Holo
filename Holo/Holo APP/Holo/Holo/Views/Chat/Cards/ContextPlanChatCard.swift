@@ -122,7 +122,7 @@ struct ContextPlanChatCard: View {
             }
         }
         .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.holoSecondaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
@@ -179,7 +179,7 @@ struct ContextPlanChatCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(10)
-            .background(Color(.tertiarySystemGroupedBackground))
+            .background(Color.holoTertiaryGroupedBackground)
             .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
@@ -359,7 +359,7 @@ struct ContextPlanChatCard: View {
                     }
                 }
                 .padding(10)
-                .background(Color(.tertiarySystemGroupedBackground))
+                .background(Color.holoTertiaryGroupedBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
@@ -409,7 +409,7 @@ struct ContextPlanChatCard: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(8)
-                        .background(Color(.secondarySystemGroupedBackground))
+                        .background(Color.holoSecondaryGroupedBackground)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .contentShape(Rectangle())
                         .onTapGesture { openEvidence(for: draft, contextID: entry.contextID) }
@@ -424,7 +424,7 @@ struct ContextPlanChatCard: View {
             }
         }
         .padding(10)
-        .background(Color(.tertiarySystemGroupedBackground))
+        .background(Color.holoTertiaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
@@ -702,7 +702,7 @@ struct ContextPlanChatCard: View {
                         .font(.footnote)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
-                        .background(Color(.tertiarySystemGroupedBackground))
+                        .background(Color.holoTertiaryGroupedBackground)
                         .foregroundStyle(.primary)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
@@ -771,7 +771,7 @@ struct ContextPlanChatCard: View {
                         .padding(11)
                         .background(
                             RoundedRectangle(cornerRadius: 10)
-                                .fill(Color(.tertiarySystemGroupedBackground))
+                                .fill(Color.holoTertiaryGroupedBackground)
                         )
                 }
 
@@ -793,7 +793,7 @@ struct ContextPlanChatCard: View {
                         }
                         .padding(11)
                         .frame(maxWidth: .infinity)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color(.tertiarySystemGroupedBackground)))
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.holoTertiaryGroupedBackground))
                     } else {
                         HStack {
                             Text(String(localized: "还不确定，先不填"))
@@ -808,7 +808,7 @@ struct ContextPlanChatCard: View {
                         }
                         .padding(11)
                         .frame(maxWidth: .infinity)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(Color(.tertiarySystemGroupedBackground)))
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Color.holoTertiaryGroupedBackground))
                     }
                 }
 
@@ -841,7 +841,7 @@ struct ContextPlanChatCard: View {
                         .font(.subheadline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 11)
-                        .background(Color(.tertiarySystemGroupedBackground))
+                        .background(Color.holoTertiaryGroupedBackground)
                         .foregroundStyle(.secondary)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                 }

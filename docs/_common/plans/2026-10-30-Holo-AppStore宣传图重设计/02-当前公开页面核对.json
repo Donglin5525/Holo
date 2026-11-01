@@ -1,0 +1,86 @@
+{
+  "checkedOn": "2026-10-30",
+  "timeZone": "Asia/Shanghai",
+  "source": "https://itunes.apple.com/lookup?id=6770199832&country=cn",
+  "scope": "中国区公开商品接口；不包含 ASC 私有关键词、CPP、访问量或转化数据",
+  "record": {
+    "trackId": 6770199832,
+    "trackName": "Holo - 记账本·待办清单·习惯打卡·灵感笔记·AI复盘",
+    "version": "1.1.3",
+    "currentVersionReleaseDate": "2026-10-26T13:32:47Z",
+    "trackViewUrl": "https://apps.apple.com/cn/app/holo-%E8%AE%B0%E8%B4%A6%E6%9C%AC-%E5%BE%85%E5%8A%9E%E6%B8%85%E5%8D%95-%E4%B9%A0%E6%83%AF%E6%89%93%E5%8D%A1-%E7%81%B5%E6%84%9F%E7%AC%94%E8%AE%B0-ai%E5%A4%8D%E7%9B%98/id6770199832?uo=4",
+    "screenshotUrls": [
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/b3/43/ed/b343ed1e-889e-f8d3-a98f-73647af25d29/01-one-sentence-life.png/320x480bb.jpg",
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/f3/f7/aa/f3f7aae5-c063-9f5d-6e20-36655eac72a5/02-one-holo-life.png/320x480bb.jpg",
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/44/4d/5c/444d5c06-f536-c87f-ed1e-4f638e4dbdf9/03-ask-your-data-life.png/320x480bb.jpg",
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/f4/fb/b3/f4fbb38b-1e6a-047f-2b54-b7a1763667e5/04-life-replay-life.png/320x480bb.jpg",
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/56/67/89/566789fb-3017-0c9a-f961-bbaa76fb0e64/05-memory-confirm-life.png/320x480bb.jpg",
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/bb/06/ba/bb06ba6e-b89b-e5de-12e7-2ca5683928e9/06-memory-gallery-life.png/320x480bb.jpg"
+    ],
+    "ipadScreenshotUrls": [
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/d0/6a/5b/d06a5bba-ed27-36ab-2f4b-a636682aa4fd/01-one-holo.png/360x480bb.jpg",
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/6a/0e/7d/6a0e7d8f-208d-b640-dcc3-a4c267612040/02-one-sentence.png/360x480bb.jpg",
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/bd/64/0e/bd640ed6-37af-6505-8234-2f6693392956/03-ask-your-data.png/360x480bb.jpg",
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/26/22/bf/2622bfe5-41f5-5f4f-b08f-e73544387c03/04-life-calendar.png/360x480bb.jpg",
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/67/28/72/6728725a-e1f9-a774-ba73-5fe4071a24d6/05-see-the-change.png/360x480bb.jpg",
+      "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/c9/d9/e4/c9d9e4ad-164a-8582-0bb8-86fa68364c7b/06-long-term-change.png/360x480bb.jpg"
+    ],
+    "releaseNotes": "Holo 1.1.3 来了。这个版本，Holo 对你的了解终于可以被你亲手管理。\n【Holo 记忆】优化了Holo 记忆页面：Holo 记住了你什么、依据从哪来、现在是否适用，全部摊开给你看。拿不准的会放在「观察中」，你可以确认、改写、标记过时，也可以让它永远不再出现——你的记忆，你说了算。\n【想法有了八套纸】远行邮笺、晴日观察、生活票根、一日一页……每条想法都能换一张合适的纸，字体和照片随纸自动匹配，分享出去也好看。\n【设置更清爽】设置页从十一组收成五组，一屏看全，常用的更好找。\n【一个发现】HoloAI 的洞察如今会以「发现」的形式轻轻递给你：有点像就收下，不像就划走，不打扰。\n【更稳定】修掉了点开 HoloAI 偶发闪退的问题，多处交互与细节打磨。\n谢谢每一位反馈的朋友，Holo 因你而更懂你。"
+  },
+  "iphoneAssets": [
+    {
+      "order": 1,
+      "inspectedUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/b3/43/ed/b343ed1e-889e-f8d3-a98f-73647af25d29/01-one-sentence-life.png/1320x2868bb.jpg",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "sha256": "f9c40b3c0990398fcc43e91624fbe87d7da5d595f38edc840da50761b1ebede4"
+    },
+    {
+      "order": 2,
+      "inspectedUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/f3/f7/aa/f3f7aae5-c063-9f5d-6e20-36655eac72a5/02-one-holo-life.png/1320x2868bb.jpg",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "sha256": "4d6f222193f9adeef83a9ec33d517bbb9d528d8683e0da66b4f0196789b52bbc"
+    },
+    {
+      "order": 3,
+      "inspectedUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource221/v4/44/4d/5c/444d5c06-f536-c87f-ed1e-4f638e4dbdf9/03-ask-your-data-life.png/1320x2868bb.jpg",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "sha256": "be11bc9f2ef14b21ff1da81efd371bd874593b58eaa4aedd9028528b87003376"
+    },
+    {
+      "order": 4,
+      "inspectedUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/f4/fb/b3/f4fbb38b-1e6a-047f-2b54-b7a1763667e5/04-life-replay-life.png/1320x2868bb.jpg",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "sha256": "5a87621aae1ebf3456ca27778afb960d8239debc857f0ce32050cd985066b6de"
+    },
+    {
+      "order": 5,
+      "inspectedUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/56/67/89/566789fb-3017-0c9a-f961-bbaa76fb0e64/05-memory-confirm-life.png/1320x2868bb.jpg",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "sha256": "8409efc6c7a0fa3fe2138d9536d7938f1c5bea539fbec2dbdee7b0ec0c43d3ea"
+    },
+    {
+      "order": 6,
+      "inspectedUrl": "https://is1-ssl.mzstatic.com/image/thumb/PurpleSource211/v4/bb/06/ba/bb06ba6e-b89b-e5de-12e7-2ca5683928e9/06-memory-gallery-life.png/1320x2868bb.jpg",
+      "dimensions": [
+        1320,
+        2868
+      ],
+      "sha256": "45a078b6d83da95bbc5baf6a0a9fa283e340f609beef6be8678ed824d4423578"
+    }
+  ]
+}

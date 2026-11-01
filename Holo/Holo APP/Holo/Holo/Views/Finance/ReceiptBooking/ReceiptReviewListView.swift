@@ -95,7 +95,7 @@ struct ReceiptReviewListView: View {
         }
         .navigationTitle(Text("待复核"))
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                 Button {
                     dismiss()
                 } label: {

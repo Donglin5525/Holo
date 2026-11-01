@@ -20,10 +20,18 @@ enum HabitReviewRange: Equatable {
     case month(Date)
     /// 最近 N 天（含今天）
     case lastDays(Int)
+    /// 最近 N 个记录日的窗口（数值型默认视野）：不按固定时间长短取，
+    /// 低频习惯（如半年一记）也保证一屏看到最近一批记录——2026-10-26 东林拍板。
+    /// 真实区间依赖数据（哪些日子有记录），dateInterval 只返回占位区间，
+    /// rangeSnapshot 会以记录日窗口覆盖 snapshot.interval
+    case recentRecords(count: Int)
     /// 全部记录（调用方负责以习惯创建日为界）
     case all
     /// 自定义范围（start/end 均为自然日，end 含当天）
     case custom(start: Date, end: Date)
+
+    /// 「最近记录」档默认取的记录日数
+    static let defaultRecentCount = 30
 
     /// 半开区间 [start, end)，end 不超过明天零点。
     func dateInterval(now: Date, calendar: Calendar) -> DateInterval {
@@ -38,7 +46,7 @@ enum HabitReviewRange: Equatable {
         case .lastDays(let days):
             start = calendar.date(byAdding: .day, value: -(max(days, 1) - 1), to: today) ?? today
             nominalEnd = tomorrow
-        case .all:
+        case .recentRecords, .all:
             start = calendar.startOfDay(for: .distantPast)
             nominalEnd = tomorrow
         case .custom(let s, let e):
@@ -71,6 +79,8 @@ enum HabitReviewRange: Equatable {
             return formatter.string(from: monthStart)
         case .lastDays(let days):
             return String(localized: "最近 \(days) 天")
+        case .recentRecords:
+            return String(localized: "最近记录")
         case .all:
             return String(localized: "全部记录")
         case .custom:
@@ -317,7 +327,28 @@ enum HabitReviewProjector {
     ) -> HabitRangeSnapshot {
         // 范围按该习惯的日界坐标展开：「今天」在结算时间前仍是前一天
         let dayEndMinutes = data.dayEndMinutes(for: info.id)
-        let interval = range.dateInterval(now: data.now(for: info.id), calendar: data.calendar)
+        let now = data.now(for: info.id)
+        let interval: DateInterval
+        if case .recentRecords(let count) = range {
+            // 「最近记录」：从该习惯全部有效记录日取最近 count 个，最早一天为
+            // 窗口起点（真实区间依赖数据，dateInterval 的 distantPast 占位在此覆盖）
+            let allFacts = data.recordsByHabit[info.id] ?? []
+            var allDays: Set<Date> = []
+            if info.kind == .checkIn {
+                for fact in allFacts where fact.isCompleted {
+                    allDays.insert(data.dayStart(fact.date))
+                }
+            } else {
+                for fact in allFacts where fact.finiteValue != nil {
+                    allDays.insert(data.dayStart(fact.date))
+                }
+            }
+            let recent = allDays.sorted(by: >).prefix(max(count, 1))
+            let start = recent.min() ?? data.dayStart(now)
+            interval = DateInterval(start: start, end: range.dateInterval(now: now, calendar: data.calendar).end)
+        } else {
+            interval = range.dateInterval(now: now, calendar: data.calendar)
+        }
         // 半开归属 [start, end)：DateInterval.contains 含 end，界日（次月零点）
         // 会漏进本月（与 containsDay 同一个坑，必须手写比较）
         let facts = (data.recordsByHabit[info.id] ?? []).filter {
@@ -650,7 +681,8 @@ extension HabitReviewProjector {
             current: current,
             previous: previous,
             previousStart: previousStart,
-            previousLabel: previousLabel(for: snapshot.range, start: previousStart, calendar: calendar)
+            previousLabel: previousLabel(for: snapshot.range, start: previousStart, end: previousEnd,
+                                         calendar: calendar)
         )
     }
 
@@ -685,17 +717,18 @@ extension HabitReviewProjector {
         )
     }
 
-    /// 上期称谓：月范围 →「上月同期」；其余 →「前 N 天」
+    /// 上期称谓：月范围 →「上月同期」；其余 →「前 N 天」（N = 上期窗口自然日长。
+    /// 旧实现拿 start→start-1 算出恒 0，「前 0 天」2026-10-26 模拟器实锤）
     private static func previousLabel(
         for range: HabitReviewRange,
         start: Date,
+        end: Date,
         calendar: Calendar
     ) -> String {
         if case .month = range {
             return String(localized: "上月同期")
         }
-        let end = calendar.date(byAdding: .day, value: -1, to: start) ?? start
-        let days = (calendar.dateComponents([.day], from: start, to: end).day ?? 0) + 1
+        let days = max(calendar.dateComponents([.day], from: start, to: end).day ?? 0, 1)
         return String(localized: "前 \(days) 天")
     }
 }

@@ -27,9 +27,9 @@ struct HoloMacApp: App {
             await ThoughtSemanticPipeline.shared.bootstrap()
         }
 
-        // 触发 Core Data 异步加载（容器由主线程先建立，与 iOS 启动序一致，
-        // 防后台任务抢跑懒加载与 viewContext 主队列互锁）
-        CoreDataStack.shared.prepareIfNeeded()
+        // 注意：此处不再主线程同步 prepareIfNeeded——2026-10-27 实测，容器目录
+        // 的沙盒访问被系统层挂起时，主线程同步打开会把整个启动冻结成「无窗口
+        // 假死」。连接改为 MacAppRootView 后台执行（带超时与状态呈现）。
     }
 
     var body: some Scene {
@@ -40,13 +40,22 @@ struct HoloMacApp: App {
                 // （openWindow(id:) 在启动帧会被静默吞掉，自检窗口直接当主窗口开）
                 MacEditorIMEDiagnosticView()
             } else {
-                workspaceRoot
+                MacAppRootView()
             }
             #else
-            workspaceRoot
+            MacAppRootView()
             #endif
         }
         .commands {
+            // 标准「设置…」菜单位（⌘,）：与工作台齿轮同入口（经快捷键总线广播）
+            CommandGroup(replacing: .appSettings) {
+                Button(String(localized: "设置…")) {
+                    HoloShortcutBus.shared.post(.openSettings)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+                .accessibilityIdentifier("mac.menu.settings")
+            }
+
             CommandMenu(String(localized: "视图")) {
                 #if DEBUG
                 Button(String(localized: "同步验证页")) {
@@ -64,6 +73,18 @@ struct HoloMacApp: App {
                 }
                 .keyboardShortcut("f", modifiers: .command)
             }
+
+            // 前往 ⌘1/⌘2：模块切换（2026-10-28 任务模块迁移）
+            CommandMenu(String(localized: "前往")) {
+                Button(String(localized: "想法")) {
+                    HoloShortcutBus.shared.post(.switchToThoughts)
+                }
+                .keyboardShortcut("1", modifiers: .command)
+                Button(String(localized: "任务")) {
+                    HoloShortcutBus.shared.post(.switchToTasks)
+                }
+                .keyboardShortcut("2", modifiers: .command)
+            }
         }
 
         #if DEBUG
@@ -80,28 +101,18 @@ struct HoloMacApp: App {
         #endif
     }
 
-    /// 主工作台（含启动链与前台化续做；IME 自检模式下不挂载）
-    private var workspaceRoot: some View {
-        MacThoughtsWorkspaceView()
-            .task {
-                await organizationStartup()
-            }
-            .onChange(of: scenePhase) { _, phase in
-                guard phase == .active else { return }
-                // 与 iOS 回前台同链：pending 队列续做 + 语义对账续跑（均幂等）
-                ThoughtOrganizationQueue.shared.appWillEnterForeground()
-                Task {
-                    await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts()
-                    await ThoughtSemanticPipeline.shared.kickQueue()
-                }
-            }
+    /// 主工作台容器：启动链与前台化续做已上移 MacAppRootView
+    /// （2026-10-27 恢复链上移重构，库失败态由 Root 的恢复页接管）
+    /// 2026-10-28 起由 MacModuleRootView 承载「想法 | 任务」模块切换
+    static func makeWorkspaceRoot() -> some View {
+        MacModuleRootView()
     }
 
     // MARK: - AI 想法整理启动链
 
     /// 与 iOS HoloApp 启动链中「想法整理相关」调用同清单（HoloApp.swift .task 段）：
     /// V2 标签整理 backfill / 队列恢复 / 归并任务恢复。全部幂等。
-    private func organizationStartup() async {
+    static func runOrganizationStartup() async {
         await CoreDataStack.shared.waitUntilReady()
 
         // AI 想法整理：首次启动 backfill + 存量标签归一化

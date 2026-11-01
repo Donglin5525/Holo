@@ -154,7 +154,7 @@ struct TodayAgendaSection: View {
                         }
                     }
                 }
-                .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color(.secondarySystemGroupedBackground)))
+                .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoSecondaryGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
         }
@@ -168,7 +168,7 @@ struct TodayAgendaSection: View {
             VStack(spacing: 0) {
                 content()
             }
-            .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color(.secondarySystemGroupedBackground)))
+            .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoSecondaryGroupedBackground))
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
     }
@@ -432,7 +432,7 @@ struct TodayAgendaSection: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.lg)
-                        .fill(Color(.secondarySystemGroupedBackground))
+                        .fill(Color.holoSecondaryGroupedBackground)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
 

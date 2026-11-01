@@ -37,7 +37,7 @@ struct TodayRoutineStrip: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.lg)
-                        .fill(Color(.secondarySystemGroupedBackground))
+                        .fill(Color.holoSecondaryGroupedBackground)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
@@ -70,7 +70,7 @@ struct TodayRoutineStrip: View {
             .frame(minHeight: 44)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.holoSecondaryGroupedBackground)
             )
             .contentShape(Rectangle())
         }

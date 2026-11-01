@@ -297,7 +297,7 @@ final class HabitListReorderModel: ObservableObject {
     private func updateAutoScroll(locationY: CGFloat) {
         if locationY < HabitReorderFeel.autoScrollEdge {
             startAutoScroll(direction: -1)
-        } else if locationY > UIScreen.main.bounds.height - HabitReorderFeel.autoScrollEdge {
+        } else if locationY > holoScreenHeight() - HabitReorderFeel.autoScrollEdge {
             startAutoScroll(direction: 1)
         } else {
             stopAutoScroll()

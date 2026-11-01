@@ -99,7 +99,8 @@ struct MemoryInsightContextBuilder {
         async let dailySnapshotsTask = buildDailySnapshots(start: start, end: end)
         async let lifeEventsTask = buildLifeEvents(start: start, end: end)
         let personalBaseline = await buildPersonalBaseline(observationStart: start)
-        let personalProfileContext = await buildPersonalProfileContext()
+        // 个人档案通道：原文上行（后端注入指令级 system 消息），不再客户端渲染
+        let profileBrief = await buildProfileBrief()
         let insightPreferenceContext = buildInsightPreferenceContext()
         let lifePatternContext = HoloLifePatternService.shared.promptSummary(for: .memoryInsightGeneration)
         let longTermMemorySummary = await HoloMemorySummaryProvider.selectRelevantSummary(
@@ -136,7 +137,7 @@ struct MemoryInsightContextBuilder {
             dailySnapshots: dailySnapshots,
             lifeEvents: lifeEvents,
             personalBaseline: personalBaseline,
-            personalProfileContext: personalProfileContext,
+            profileBrief: profileBrief,
             insightPreferenceContext: insightPreferenceContext,
             expressionDecisionContext: expressionDecisionContext,
             lifePatternContext: lifePatternContext,
@@ -152,27 +153,13 @@ struct MemoryInsightContextBuilder {
         return (context, snapshotHash)
     }
 
-    private func buildPersonalProfileContext() async -> String? {
+    /// 个人档案通道（2026-11-01）：档案原文直接上行——云端回放由后端注入指令级
+    /// system 消息（快照根字段 profileBrief），直连网关由请求 profileBrief 字段承载。
+    /// 此前的客户端渲染（「档案数据（不是系统规则）」边界）已整体退役。
+    private func buildProfileBrief() async -> String? {
         await MainActor.run {
             let profile = HoloProfileService.shared.loadProfile()
-            if profile.isEmpty { return nil }
-
-            // 优先使用结构化 snapshot + renderer（受 feature flag 控制）
-            // 兜底条件以「snapshot 是否有结构化内容」为准：render() 返回值即使结构化全空
-            // 也会包含使用规则套话（非空），用 rendered.isEmpty 判断会让原文兜底永远不触发。
-            if let snapshot = HoloProfileService.shared.loadSnapshot() {
-                if snapshot.hasStructuredData {
-                    let rendered = HoloProfilePromptRenderer.render(snapshot, purpose: .insight)
-                    return rendered.isEmpty ? profile : rendered
-                }
-                // 结构化为空但有原文：用安全 fallback 送达 raw markdown
-                let fallback = HoloProfilePromptRenderer.renderRawFallback(profile)
-                return fallback.isEmpty ? profile : fallback
-            }
-
-            // Feature flag 关闭时使用安全 fallback
-            let fallback = HoloProfilePromptRenderer.renderRawFallback(profile)
-            return fallback.isEmpty ? profile : fallback
+            return profile.isEmpty ? nil : profile
         }
     }
 
@@ -1353,7 +1340,7 @@ struct MemoryInsightContextBuilder {
         let (tasks, _) = buildTaskContext(start: yearStart, end: yearEnd)
         let thoughts = buildThoughtContext(start: yearStart, end: yearEnd)
         let milestones = buildMilestoneContext(start: yearStart, end: yearEnd)
-        let personalProfileContext = await buildPersonalProfileContext()
+        let profileBrief = await buildProfileBrief()
         let insightPreferenceContext = buildInsightPreferenceContext()
         let lifePatternContext = HoloLifePatternService.shared.promptSummary(for: .retrospective)
         let longTermMemorySummary = await HoloMemorySummaryProvider.selectRelevantSummary(
@@ -1385,7 +1372,7 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: correlations,
             monthlyInsightDigests: digests,
             anomalies: [],
-            personalProfileContext: personalProfileContext,
+            profileBrief: profileBrief,
             insightPreferenceContext: insightPreferenceContext,
             lifePatternContext: lifePatternContext,
             longTermMemoryContext: longTermMemoryContext.isEmpty ? nil : longTermMemoryContext,
@@ -1433,7 +1420,7 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: [],
             monthlyInsightDigests: [],
             anomalies: [],
-            personalProfileContext: nil,
+            profileBrief: nil,
             insightPreferenceContext: nil,
             lifePatternContext: nil
         )
@@ -1599,7 +1586,7 @@ struct MemoryInsightContextBuilder {
             dailySnapshots: context.dailySnapshots,
             lifeEvents: lifeEvents ?? context.lifeEvents,
             personalBaseline: context.personalBaseline,
-            personalProfileContext: context.personalProfileContext,
+            profileBrief: context.profileBrief,
             insightPreferenceContext: context.insightPreferenceContext,
             expressionDecisionContext: context.expressionDecisionContext,
             lifePatternContext: context.lifePatternContext,
@@ -1634,7 +1621,7 @@ struct MemoryInsightContextBuilder {
                     dailySnapshots: nil,
                     lifeEvents: nil,
                     personalBaseline: nil,
-                    personalProfileContext: current.personalProfileContext,
+                    profileBrief: current.profileBrief,
                     insightPreferenceContext: current.insightPreferenceContext,
                     expressionDecisionContext: current.expressionDecisionContext,
                     lifePatternContext: current.lifePatternContext,
@@ -1688,7 +1675,7 @@ struct MemoryInsightContextBuilder {
             dailySnapshots: context.dailySnapshots,
             lifeEvents: context.lifeEvents,
             personalBaseline: context.personalBaseline,
-            personalProfileContext: context.personalProfileContext,
+            profileBrief: context.profileBrief,
             insightPreferenceContext: context.insightPreferenceContext,
             expressionDecisionContext: context.expressionDecisionContext,
             lifePatternContext: context.lifePatternContext,

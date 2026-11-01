@@ -1003,6 +1003,9 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
         let explicitScenario = consumeExplicitScenarioIntent(for: text)
         inputText = ""
         errorMessage = nil
+        // 上一轮的记忆署名提示随新一轮发送收起（提示不再 3 秒自动消失后，
+        // 由发送动作负责生命周期：核对入口保留完整一轮）。
+        memoryNotice = nil
 
         // 目标规划分流。会话可能因页面重建（切 Tab / 杀 App）丢失，先从持久化恢复：
         // 恢复失败就当普通消息走路由，不再让回答掉进意图识别被误判成建任务（2026-09-18）
@@ -3989,6 +3992,9 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
     }
 
     /// 返回剥离 marker 后的正文 + 实际引用的记忆 ID（供消息持久署名）。
+    /// 只认模型显式引用标记（09-R13）：词重合兜底已删除——「我不游泳」也会被
+    /// 词重合算成引用游泳记忆（实测反例），冒领的归因比没有归因更糟。
+    /// 缺标记时只保留「本次提供」事实，不擅称「回答引用」。
     private func consumeMemoryUsageMarker(
         from text: String,
         availableMemoryIDs: [String],
@@ -3999,17 +4005,7 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
             text,
             allowedMemoryIDs: Set(availableMemoryIDs)
         )
-        var usedMemoryIDs = result.usedMemoryIDs
-        if usedMemoryIDs.isEmpty, !memoryEntries.isEmpty {
-            // 署名兜底：注入了记忆但模型没吐引用标记时，按内容词对账补署名，
-            // 避免「用了记忆却不说来源」。
-            usedMemoryIDs = HoloMemoryAttributionReconciler.matchedMemoryIDs(
-                reply: result.cleanText,
-                entries: memoryEntries.map {
-                    HoloMemoryAttributionReconciler.Entry(id: $0.id, text: $0.title + "\n" + $0.aiUseSummary)
-                }
-            )
-        }
+        let usedMemoryIDs = result.usedMemoryIDs
         if !usedMemoryIDs.isEmpty {
             let notice = String(localized: "Holo 参考了 \(usedMemoryIDs.count) 条已记住的信息")
             HoloMemoryReceiptStore.record(
@@ -4019,13 +4015,10 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                 message: notice
             )
             recordMemoryUsage(usedMemoryIDs)
+            // 提示保留到下一轮（减法原型⑥）：署名入口不能 3 秒消失，
+            // 否则用户来不及核对「用了哪几条」。memoryNotice 在下一条
+            // 用户消息发送流程中会被置空。
             memoryNotice = notice
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(3))
-                if self?.memoryNotice == notice {
-                    self?.memoryNotice = nil
-                }
-            }
         }
         return (result.cleanText, usedMemoryIDs)
     }

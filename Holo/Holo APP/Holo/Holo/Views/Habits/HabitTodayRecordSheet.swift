@@ -24,10 +24,16 @@ struct HabitTodayRecordSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var dayRecords: [HabitRecord] = []
-    /// 近 7 天快照（近况一眼；方案A：30 天大图已撤，走势与对比去长期回顾）
+    /// 近况快照：打卡型=近 7 天点阵；数值型=「最近记录」（最近 10 个记录日，
+    /// 固定日历窗对断续记录只剩两三笔，2026-10-27 东林拍板退役「近 7 天」小图）
     @State private var historySnapshot: HabitRangeSnapshot?
-    /// 全量快照（「上次记录」不受 7 天窗截断）
+    /// 全量快照（「上次记录」不受近况窗截断）
     @State private var allTimeSnapshot: HabitRangeSnapshot?
+    /// 今天没记录时的兜底列表：最近的记录（最多 3 条，带日期可编辑可删）
+    @State private var recentRecords: [HabitRecord] = []
+    /// 抽屉默认开大档：改版后内容变高（最近记录图 + 记录列表），medium 档
+    /// 列表会被贴底主按钮压住（2026-10-27 判读实锤）；仍可拖回 medium 收起
+    @State private var drawerDetent: PresentationDetent = .large
 
     // MARK: 生命周期管理（方案A配套：··· 直达暂停/归档/删除，不再埋在设置表单底部）
 
@@ -80,11 +86,11 @@ struct HabitTodayRecordSheet: View {
                     primaryAction(row)
                 }
             }
-            .navigationTitle(row?.name ?? String(localized: "今天的记录"))
-            #if canImport(UIKit)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
+        .navigationTitle(row?.name ?? String(localized: "今天的记录"))
+        #if canImport(UIKit)
+        .navigationBarTitleDisplayMode(.inline)
+        #endif
+        .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "关闭")) { dismiss() }
                 }
@@ -123,7 +129,7 @@ struct HabitTodayRecordSheet: View {
                 Text(lifecycleConfirmMessage)
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large], selection: $drawerDetent)
         .onAppear { reloadRecords() }
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
             reloadRecords()
@@ -369,17 +375,22 @@ struct HabitTodayRecordSheet: View {
         Rectangle().fill(Color.holoToolBorder.opacity(0.5)).frame(height: 0.5)
     }
 
-    // MARK: 今日记录列表
+    // MARK: 记录列表（今天有记录照旧；今天没记录 → 直接看「最近的记录」3 条，
+    // 点开就有东西看，2026-10-27 东林拍板）
 
     private func recordsSection(_ row: HabitRowSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let showsRecent = dayRecords.isEmpty
+        return VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(String(localized: "今天的记录"))
+                Text(showsRecent
+                     ? String(localized: "最近的记录")
+                     : String(localized: "今天的记录"))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.holoToolText)
                 Spacer()
-                if dayRecords.count > 1 {
-                    Text(String(localized: "\(dayRecords.count) 条"))
+                let count = showsRecent ? recentRecords.count : dayRecords.count
+                if count > 1 {
+                    Text(String(localized: "\(count) 条"))
                         .font(.system(size: 11))
                         .foregroundColor(.holoToolTextSecondary)
                         .padding(.horizontal, 7)
@@ -389,11 +400,17 @@ struct HabitTodayRecordSheet: View {
             }
             .padding(.bottom, 4)
 
-            if dayRecords.isEmpty {
-                Text(String(localized: "今天还没有记录。"))
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            if showsRecent {
+                if recentRecords.isEmpty {
+                    Text(String(localized: "还没有记录。"))
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoToolTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                } else {
+                    ForEach(recentRecords) { record in
+                        recordRow(record, row: row, showsDate: true)
+                    }
+                }
             } else {
                 ForEach(dayRecords) { record in
                     recordRow(record, row: row)
@@ -402,13 +419,21 @@ struct HabitTodayRecordSheet: View {
         }
     }
 
-    private func recordRow(_ record: HabitRecord, row: HabitRowSnapshot) -> some View {
+    private func recordRow(_ record: HabitRecord, row: HabitRowSnapshot, showsDate: Bool = false) -> some View {
         HStack(alignment: .center, spacing: HoloSpacing.sm) {
             Button {
                 editingRecord = EditTarget(recordId: record.id)
             } label: {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
+                        if showsDate {
+                            Text(shortDate(record.date))
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundColor(.holoToolTextSecondary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(RoundedRectangle(cornerRadius: 5).fill(Color.holoToolInset))
+                        }
                         Text(record.formattedTime)
                             .font(.system(size: 10))
                             .foregroundColor(.holoToolTextSecondary)
@@ -469,36 +494,74 @@ struct HabitTodayRecordSheet: View {
         return record.formattedValue(unit: row.target?.unit)
     }
 
-    // MARK: 近 7 天（方案A：弹层回归操作层，只留一眼近况；走势与对比去长期回顾）
+    // MARK: 近况一眼（打卡型=近 7 天点阵不动，逐日本质；
+    // 数值型=「最近记录」最近 10 个记录日、按真实时间定位，2026-10-27 东林拍板：
+    // 固定日历窗对断续记录只剩两三笔，一个月的断档完全看不见）
 
     private func historySection(_ row: HabitRowSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(String(localized: "近 7 天"))
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.holoToolText)
-
             if let snapshot = historySnapshot {
-                if snapshot.records.isEmpty {
-                    Text(String(localized: "近 7 天还没有记录。"))
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoToolTextSecondary)
-                } else if snapshot.info.kind == .checkIn {
-                    historyStitches(snapshot, accent: Color(hex: row.colorHex))
-                    stitchLegend(accent: Color(hex: row.colorHex))
+                if snapshot.info.kind == .checkIn {
+                    historySectionCheckIn(row, snapshot: snapshot)
                 } else {
-                    HabitMiniTrendLine(
-                        values: snapshot.dailyValues.map { ($0.date, $0.value) },
-                        color: Color(hex: row.colorHex),
-                        today: model.projectionNow
-                    )
-                    .frame(height: 52)
-                    Text(String(localized: "只留一眼近况；走势与对比都在长期回顾里看。"))
-                        .font(.system(size: 10.5))
-                        .foregroundColor(.holoToolTextSecondary)
+                    historySectionNumeric(row, snapshot: snapshot)
                 }
             }
         }
         .accessibilityIdentifier("habit.todayrecord.history")
+    }
+
+    private func historySectionCheckIn(_ row: HabitRowSnapshot, snapshot: HabitRangeSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(String(localized: "近 7 天"))
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.holoToolText)
+            if snapshot.records.isEmpty {
+                Text(String(localized: "近 7 天还没有记录。"))
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoToolTextSecondary)
+            } else {
+                historyStitches(snapshot, accent: Color(hex: row.colorHex))
+                stitchLegend(accent: Color(hex: row.colorHex))
+            }
+        }
+    }
+
+    private func historySectionNumeric(_ row: HabitRowSnapshot, snapshot: HabitRangeSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(String(localized: "最近记录"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.holoToolText)
+                Spacer(minLength: 8)
+                if let range = recentRangeText(snapshot) {
+                    Text(range)
+                        .font(.system(size: 10.5))
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+            }
+            if snapshot.dailyValues.isEmpty {
+                Text(String(localized: "还没有记录。"))
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoToolTextSecondary)
+            } else {
+                HabitMiniTrendLine(
+                    values: snapshot.dailyValues.map { ($0.date, $0.value) },
+                    color: Color(hex: row.colorHex),
+                    today: model.projectionNow
+                )
+                .frame(height: 52)
+                Text(String(localized: "最近 10 个记录日；断档期如实拉开。走势与对比都在长期回顾里看。"))
+                    .font(.system(size: 10.5))
+                    .foregroundColor(.holoToolTextSecondary)
+            }
+        }
+    }
+
+    /// 「最近记录」覆盖起止（如 5/31 – 10/27），一眼知道这串点覆盖到多远
+    private func recentRangeText(_ snapshot: HabitRangeSnapshot) -> String? {
+        guard let first = snapshot.dailyValues.first, let last = snapshot.dailyValues.last else { return nil }
+        return "\(shortDate(first.date)) – \(shortDate(last.date))"
     }
 
     /// 打卡型 30 天点阵（大实心圆=已记录 / 空心圆=补录 / 小灰点=未记录 / 搭线=暂停 /
@@ -816,12 +879,14 @@ struct HabitTodayRecordSheet: View {
         rebuildHistory()
     }
 
-    /// 与单习惯回顾页同一投影管道（HabitReviewProjector），7 天窗供近况一眼、
-    /// 全量窗供「上次记录」——7 天外的前史不断档。
+    /// 与单习惯回顾页同一投影管道（HabitReviewProjector）：数值型近况窗取
+    /// 「最近记录」（10 个记录日，不按日历长短），打卡型保持近 7 天点阵；
+    /// 全量窗供「上次记录」——近况窗外的前史不断档。
     private func rebuildHistory() {
         guard let habit = HabitRepository.shared.findHabit(by: habitId) else {
             historySnapshot = nil
             allTimeSnapshot = nil
+            refreshRecentRecords()
             return
         }
         let lifecycle: HabitLifecycle = {
@@ -835,8 +900,21 @@ struct HabitTodayRecordSheet: View {
             dayEndMinutesByHabit: [habitId: habit.dayEndMinutes],
             now: model.projectionNow
         )
-        historySnapshot = HabitReviewProjector.rangeSnapshot(info: info, range: .lastDays(7), data: data)
+        let recentRange: HabitReviewRange = habit.isCheckInType ? .lastDays(7) : .recentRecords(count: 10)
+        historySnapshot = HabitReviewProjector.rangeSnapshot(info: info, range: recentRange, data: data)
         allTimeSnapshot = HabitReviewProjector.rangeSnapshot(info: info, range: .all, data: data)
+        refreshRecentRecords()
+    }
+
+    /// 「最近的记录」兜底：今天没记录时展示最近 3 条（任意日期，可编辑可删），
+    /// 不再是一句「今天还没有记录。」空话（2026-10-27 东林拍板抽屉改版）
+    private func refreshRecentRecords() {
+        guard dayRecords.isEmpty, let snapshot = allTimeSnapshot else {
+            recentRecords = []
+            return
+        }
+        let latestFacts = snapshot.records.sorted { $0.date > $1.date }.prefix(3)
+        recentRecords = latestFacts.compactMap { findRecord($0.id) }
     }
 
     private func findRecord(_ recordId: UUID) -> HabitRecord? {
@@ -847,7 +925,8 @@ struct HabitTodayRecordSheet: View {
     }
 }
 
-// MARK: - 近 7 天迷你折线（数值型弹层；末点空心=今天游标）
+// MARK: - 最近记录迷你折线（数值型弹层；x 按真实时间定位，断档如实拉开；
+// 末点空心=今天/最新游标。旧实现按序数等分，一个月断档被画成相邻点，2026-10-27 拍板改）
 
 struct HabitMiniTrendLine: View {
 
@@ -863,9 +942,15 @@ struct HabitMiniTrendLine: View {
                 let lo = values.map(\.value).min() ?? 0
                 let hi = values.map(\.value).max() ?? 1
                 let span = max(hi - lo, 0.0001)
-                let points = values.enumerated().map { index, item in
-                    CGPoint(x: w * CGFloat(index) / CGFloat(values.count - 1),
-                            y: h - 4 - (h - 8) * CGFloat((item.value - lo) / span))
+                let calendar = Calendar.current
+                let startDay = calendar.startOfDay(for: values[0].date)
+                let endDay = calendar.startOfDay(for: values[values.count - 1].date)
+                let totalDays = max(calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 0, 1)
+                let points = values.map { item -> CGPoint in
+                    let offset = max(calendar.dateComponents([.day], from: startDay, to: item.date).day ?? 0, 0)
+                    let x = 3 + (w - 6) * CGFloat(offset) / CGFloat(totalDays)
+                    let y = h - 4 - (h - 8) * CGFloat((item.value - lo) / span)
+                    return CGPoint(x: x, y: y)
                 }
                 ZStack {
                     Path { path in

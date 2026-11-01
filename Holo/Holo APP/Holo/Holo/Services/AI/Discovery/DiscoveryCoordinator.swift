@@ -196,6 +196,8 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
     private let idProvider: () -> String
     private let resourceSnapshotProvider: () -> DiscoveryResourceSnapshot
     private let sideStore: DiscoveryCoordinatorSideStore
+    /// 知识仓库提供者（融合联动）。nil = 测试装配：知识特性惰性降级，不影响发现主链。
+    private let knowledgeRepositoryProvider: (@Sendable () async throws -> CoreDataHoloMemoryRepository)?
 
     // MARK: 运行状态（UI 单一事实源）
 
@@ -206,15 +208,37 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
 
     /// 在途批次任务（测试可 await 其完成）
     private(set) var batchTask: Task<Void, Never>?
-    private var retryTask: Task<Void, Never>?
+    /// 已排定的重试任务（测试观察预算窗口重试是否已排）
+    private(set) var retryTask: Task<Void, Never>?
 
     private var dirtyMarks: [DiscoveryDirtyMark] = []
     /// 首次开启后的受限历史准备尚未完成（不消费到批次终态）
     private var firstRunPending = false
+
+    /// 关键路径可观测日志（notice 级进系统日志流；2026-10-30 事故诊断加，
+    /// 此前该链路零埋点，真机「批次从不发起」只能盲猜）。
+    /// 2026-11-01 增文件通道：真机 oslog/syslog 抓取时灵时不灵（三轮实锤），
+    /// 同时 append 到沙盒 Documents/disp-diag.log（8KB 滚动），devicectl 直拉 100% 可靠。
+    private static let diagLog: DiscoveryDiagLog = {
+        let logger = Logger(subsystem: "com.holo.app", category: "Discovery")
+        let url = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("disp-diag.log")
+        return DiscoveryDiagLog(logger: logger, fileURL: url)
+    }()
     /// 最近一次运行所处相位（waitingForMaterial 是无 runID 的纯展示态）
     private var lastPhase: DiscoveryRunPhase = .waitingForMaterial
     private var lastFailure: DiscoveryFailureKind?
-    private var budgetResetAt: Date?
+    /// 连续网络失败的退避阶梯计数（5/15/45 分钟；预检通过即复位）
+    private var networkRetryAttempt = 0
+    /// 诊断（2026-10-30）：任何赋值都留痕——排查新进程预算态来源异常
+    private var budgetResetAt: Date? {
+        didSet {
+            if oldValue != budgetResetAt {
+                let captured = budgetResetAt
+                Self.diagLog.notice("disp budgetResetAt SET \(String(describing: oldValue)) → \(String(describing: captured))")
+            }
+        }
+    }
     private var dailyBatchAvailable = true
     private var serverCapabilitiesEnabled = true
     private var versions = DiscoveryVersionBundle()
@@ -242,7 +266,8 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         consentProvider: @escaping () -> Bool = { HoloAIDataProcessingConsent.shared.isGranted },
         idProvider: @escaping () -> String = { UUID().uuidString },
         resourceSnapshotProvider: (() -> DiscoveryResourceSnapshot)? = nil,
-        sideStore: DiscoveryCoordinatorSideStore = DiscoveryCoordinatorSideStore()
+        sideStore: DiscoveryCoordinatorSideStore = DiscoveryCoordinatorSideStore(),
+        knowledgeRepositoryProvider: (@Sendable () async throws -> CoreDataHoloMemoryRepository)? = nil
     ) {
         let resolvedAdapters = adapters ?? [
             DiscoveryThoughtAdapter(),
@@ -276,6 +301,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         self.idProvider = idProvider
         self.resourceSnapshotProvider = resourceSnapshotProvider ?? { resolvedEnvironmentProvider.snapshot() }
         self.sideStore = sideStore
+        self.knowledgeRepositoryProvider = knowledgeRepositoryProvider
         super.init()
 
         // App kill 恢复（T41）：在途旧 run 保守标 cancelled（本地），不重调已 dispatch 阶段；
@@ -292,11 +318,28 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             }
         }
 
+        // 首跑待办恢复（2026-10-30）：firstRunPending 是「已开启但从未成功终态」的派生态，
+        // 从持久化事实推导，不依赖内存（此前仅存内存，重启即丢且无恢复——10-28 东林真机
+        // 首跑撞预算 429 后，重启被快路径永远挡住，功能卡死在「还在等足够的记录」）。
+        // processedRecord 只在成功终态写入（含发布），nil ⟺ 从未跑完过一个批次。
+        let restoreEnabled = settings.snapshot().isEnabled
+        let restoreProcessed = sideStore.processedRecord != nil
+        if restoreEnabled, !restoreProcessed {
+            firstRunPending = true
+        }
+        Self.diagLog.notice("disp init restore: enabled=\(restoreEnabled) processedRecord=\(restoreProcessed) → firstRunPending=\(self.firstRunPending)")
+
         self.invalidationService.start()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(handleSettingsChange(_:)),
             name: .holoDiscoverySettingsDidChange,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleKnowledgeControl(_:)),
+            name: .holoKnowledgeControlDidApply,
             object: nil
         )
         recomputePresentation()
@@ -311,7 +354,10 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         activityProvider: @escaping @Sendable () -> DiscoveryUserActivityState = { DiscoveryUserActivityState() }
     ) -> DiscoveryCoordinator {
         let store = try! DiscoveryStore()
-        return DiscoveryCoordinator(store: store)
+        return DiscoveryCoordinator(
+            store: store,
+            knowledgeRepositoryProvider: { try await HoloMemoryRuntime.shared.repository() }
+        )
     }
 
     /// 进程级单例：ChatViewModel/设置页/ChatView 的统一服务面（ChatViewModel 以 @StateObject
@@ -334,6 +380,13 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
     }
 
     // MARK: - Dirty 登记（三域变更事件接入点）
+
+    /// 距上次成功终态是否已跨自然日（「每天一个发现」的日历首查资格）。
+    /// 无成功终态记录时恒 false（该场景由 firstRunPending 资格覆盖，不重复计算）。
+    private func isPastDaySinceLastTerminal(now: Date) -> Bool {
+        guard let processed = sideStore.processedRecord else { return false }
+        return !calendar.isDate(processed.processedAt, inSameDayAs: now)
+    }
 
     /// 有效来源变更登记（03 §4.3：仅查看/同步相同版本/改展示设置不产生 mark）。
     /// 同域同 digest 增量去重（改回原样不累积新材料）。
@@ -358,7 +411,11 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
 
     /// 排一次批次（utility 优先级）。单飞：在途批次不叠加；批次结束后释放。
     func runBatch(reason: DiscoveryRunReason) {
-        guard !isBatchRunning else { return }
+        if isBatchRunning {
+            Self.diagLog.notice("disp runBatch skip: batch in flight, reason=\(String(describing: reason))")
+            return
+        }
+        Self.diagLog.notice("disp runBatch start: reason=\(String(describing: reason))")
         isBatchRunning = true
         batchGeneration += 1
         let generation = batchGeneration
@@ -376,20 +433,40 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
 
     private func executeBatch(reason: DiscoveryRunReason, epoch: Int) async {
         // 离线撤权意图未补交确认前，永不发起（01 §5）
-        guard !sideStore.hasPendingDisableIntent else { return }
+        guard !sideStore.hasPendingDisableIntent else {
+            Self.diagLog.notice("disp exit: pendingDisableIntent")
+            return
+        }
 
         let settingsSnapshot = settings.snapshot()
-        guard settingsSnapshot.isEnabled, consentProvider() else {
+        let consentGranted = consentProvider()
+        guard settingsSnapshot.isEnabled, consentGranted else {
+            Self.diagLog.notice("disp exit: enabled=\(settingsSnapshot.isEnabled) consent=\(consentGranted)")
             await stopAndHide(.controlDisabled, runID: nil)
             return
         }
 
-        // 快路径：无未消费变更且非首开 → 无新材料（本地零读源，前台激活便宜）
-        if dirtyMarks.isEmpty && !firstRunPending {
+        // 快路径：无未消费变更、非首开、且未跨自然日 → 无新材料（本地零读源，前台激活便宜）。
+        // 跨日放行进完整决策：由扫描自比 manifestDigest 判定材料是否真的变了（T20 拦住未变日）。
+        let fastPathNow = clock()
+        let marksCount = dirtyMarks.count
+        let firstRunStillPending = firstRunPending
+        if marksCount == 0 && !firstRunStillPending && !isPastDaySinceLastTerminal(now: fastPathNow) {
+            Self.diagLog.notice("disp exit: fastPath marks=\(marksCount) firstRunPending=\(firstRunStillPending)")
             lastPhase = .waitingForMaterial
             recomputePresentation()
             return
         }
+
+        // 网络预检提前到重活之前：decide 的 networkUnavailable 分支原本在 90 天窗口
+        // 全量扫描+召回之后才生效，断网时会每 5 分钟空转一轮全量 CoreData 重活。
+        // 此处先挡（未 dispatch、不消耗任何东西），重试仍按退避排程
+        if !resourceSnapshotProvider().isNetworkAvailable {
+            Self.diagLog.notice("disp exit: preCheck network unavailable")
+            applyDeferred(.networkUnavailable, now: fastPathNow)
+            return
+        }
+        networkRetryAttempt = 0   // 网络已通：退避阶梯复位
 
         // ---- 检查位 1：读源前（localGrant/总授权/范围/来源排除的统一门控）----
         let controlRevision = storedControlRevision
@@ -398,6 +475,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             accessPolicy.canReadSources(domain: $0, environment: environment).isAllowed
         }
         guard !grantedDomains.isEmpty else {
+            Self.diagLog.notice("disp exit: no granted domains (scope)")
             await stopAndHide(.scopeInvalid, runID: nil)
             return
         }
@@ -420,10 +498,12 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
                 )
             }.value
         } catch {
+            Self.diagLog.notice("disp exit: scan threw \(String(describing: error))")
             lastPhase = .waitingForMaterial
             recomputePresentation()
             return
         }
+        Self.diagLog.notice("disp scan ok: refs=\(scannedRefs.count) domains=\(grantedDomains.map(\.rawValue))")
         let recallRequest = DiscoveryRetriever.Request(
             changedSourceRefs: scannedRefs,
             topicRefs: [],
@@ -439,6 +519,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             }.value
         } catch {
             // 读源失败（store/谓词异常）：按无材料处理，不消耗批次
+            Self.diagLog.notice("disp exit: recall threw \(String(describing: error))")
             lastPhase = .waitingForMaterial
             recomputePresentation()
             return
@@ -450,6 +531,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         // 本批材料摘要（与 store.sourceManifestDigest 同口径：sourceRef=version 序列化）
         let manifestEntries = Self.manifestEntries(from: material.supportAtoms, fetchedAt: now)
         let currentDigest = Self.manifestDigest(of: manifestEntries)
+        Self.diagLog.notice("disp material: atoms=\(material.supportAtoms.count) qualification=\(qualification) digest=\(currentDigest)")
 
         // ---- 调度决策（03 §4.3/§4.4）----
         refreshBudgetWindow(now: now)
@@ -457,12 +539,19 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             marks: dirtyMarks,
             qualification: qualification,
             isFirstEnableAfterGrant: firstRunPending,
+            isNewDaySinceLastTerminal: isPastDaySinceLastTerminal(now: now),
             controlEnabled: settings.snapshot().isEnabled,
             consentGranted: consentProvider(),
             scopeValid: !settings.snapshot().allowedDomains.isEmpty,
             dailyBatchAvailable: dailyBatchAvailable,
             budgetResetAt: budgetResetAt,
-            processedToday: sideStore.processedRecord,
+            processedToday: {
+                // 2026-11-01 报告问题4：processedToday 按自然日过滤——跨天的同材料终态
+                // 不再拦截（产品语义=每天可再分析一次；成本由日配额与预算池兜底）
+                guard let record = sideStore.processedRecord,
+                      calendar.isDate(record.processedAt, inSameDayAs: now) else { return nil }
+                return record
+            }(),
             currentSourceManifestDigest: currentDigest,
             policyVersion: versions.policyVersion,
             promptVersion: versions.candidatePromptVersion,
@@ -472,16 +561,24 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
 
         switch decision {
         case .stopAndHide(let stopReason):
+            Self.diagLog.notice("disp decision: stopAndHide \(String(describing: stopReason))")
             await stopAndHide(stopReason, runID: nil)
             return
         case .waitingForMaterial:
+            Self.diagLog.notice("disp decision: waitingForMaterial")
             lastPhase = .waitingForMaterial
             recomputePresentation()
             return
         case .deferred(let deferredReason):
+            Self.diagLog.notice("disp decision: deferred \(String(describing: deferredReason))")
+            if case .resourceYield = deferredReason {
+                let snap = resourceSnapshotProvider()
+                Self.diagLog.notice("disp yield detail: input=\(snap.isTextInputActive) recording=\(snap.isRecording) manualAI=\(snap.isManualAIRunning) thermal=\(snap.isThermallyConstrained) lowPower=\(snap.isLowPowerMode) lowData=\(snap.isLowDataMode)")
+            }
             applyDeferred(deferredReason, now: now)
             return
         case .prepare:
+            Self.diagLog.notice("disp decision: prepare → creating run")
             lastFailure = nil   // 新批次已在途：清掉上次的失败展示态（运行期如实显示「正在准备」）
         }
 
@@ -563,6 +660,13 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
                 return
             }
 
+            // 版本回填（2026-11-01 报告问题4）：后端实际使用的 prompt 版本写回本地版本包，
+            // 使 processedRecord 的「同版本不重跑」随服务端升级自动获得重评估资格
+            if let serverPromptVersion = stageResponse.promptVersion, serverPromptVersion != versions.candidatePromptVersion {
+                versions.candidatePromptVersion = serverPromptVersion
+                Self.diagLog.notice("disp prompt version synced: candidate v\(serverPromptVersion)")
+            }
+
             // ---- 结构门禁（02 §5 八条；1/3 的 schema 部分已在客户端解码时完成）----
             let historyWindow = DiscoveryRetriever.windows(for: recallRequest, now: now).history
             let gate = runStructuralGate(
@@ -570,6 +674,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
                 material: material,
                 historyWindow: historyWindow
             )
+            Self.diagLog.notice("disp gate: received=\(envelope.candidates.count) survivors=\(gate.survivors.count) diagnostics=\(gate.diagnostics.map(\.rawValue))")
 
             if envelope.candidates.isEmpty {
                 // 服务端对空候选自动 completeRun（03 §4.2），客户端不调 verify、不 cancel
@@ -578,6 +683,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             }
             if gate.survivors.isEmpty {
                 // 本地全拒：cancel 释放后续语义（不承诺第三方未处理），并记成功终态
+                Self.diagLog.notice("disp cancel: structural gate rejected all")
                 _ = try? await client.cancel(runID: runID, requestID: idProvider())
                 try finishBatchNoFinding(runID: runID, digest: freeze.sourceManifestDigest, diagnostics: gate.diagnostics)
                 return
@@ -669,7 +775,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
                 epoch: epoch
             )
         } catch {
-            handleStageFailure(error, runID: runID)
+            handleStageFailure(error, runID: runID, digest: freeze.sourceManifestDigest)
         }
     }
 
@@ -800,19 +906,66 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         epoch: Int
     ) async throws {
         // 核验归属：缺结果/非 accept 的候选直接出局（02 §7）
-        let acceptedCandidates: [AcceptedCandidate] = verifiedCandidates.compactMap { candidate in
+        var acceptedCandidates: [AcceptedCandidate] = verifiedCandidates.compactMap { candidate in
             guard let result = verification.candidateResults.first(where: { $0.candidateID == candidate.candidateID })
             else { return nil }
-            guard result.verdict == .accept else { return nil }
-            return AcceptedCandidate(
-                candidate: candidate,
+            if result.verdict == .accept {
+                return AcceptedCandidate(
+                    candidate: candidate,
+                    verification: result,
+                    counterEvidenceCount: mergedCounterBlocks.count
+                )
+            }
+            // 2026-11-01 部分支持修剪：核验常给「2 supported + 1 unsupported」整候选 reject
+            //（真机/模拟器连续三轮实锤，用户永远等不到发现）。标题句与至少一条事实句
+            // supported 时，丢弃不支持的事实句保守发布——每条展示句仍全 supported，
+            // 只减信息量不降真实性；标题句不支持或事实句全灭仍整体出局。
+            let verdicts = Dictionary(
+                result.claimResults.map { ($0.claimID, $0.verdict) },
+                uniquingKeysWith: { first, _ in first }
+            )
+            guard verdicts[candidate.titleClaimID] == .supported else { return nil }
+            let supportedBodyIDs = candidate.bodyClaimIDs.filter { verdicts[$0] == .supported }
+            guard !supportedBodyIDs.isEmpty else { return nil }
+            let keptIDs = Set([candidate.titleClaimID] + supportedBodyIDs)
+            let keptClaims = candidate.claims.filter { keptIDs.contains($0.claimID) }
+            let keptEvidence = Set(keptClaims.flatMap { $0.citations.map(\.evidenceID) })
+            let trimmed = DiscoveryCandidate(
+                candidateID: candidate.candidateID,
+                type: candidate.type,
+                subjectKey: candidate.subjectKey,
+                scopeKind: candidate.scopeKind,
+                timeRange: candidate.timeRange,
+                claims: keptClaims,
+                titleClaimID: candidate.titleClaimID,
+                bodyClaimIDs: supportedBodyIDs,
+                supportEvidenceIDs: candidate.supportEvidenceIDs.filter { keptEvidence.contains($0) },
+                counterSearch: candidate.counterSearch,
+                sensitivity: candidate.sensitivity,
+                comparisonPeriods: candidate.comparisonPeriods
+            )
+            Self.diagLog.notice("disp verify trim: candidate=\(candidate.candidateID) kept=\(keptClaims.count)/\(candidate.claims.count)")
+            var trimmedAccepted = AcceptedCandidate(
+                candidate: trimmed,
                 verification: result,
                 counterEvidenceCount: mergedCounterBlocks.count
             )
+            trimmedAccepted.publishEligibleAfterTrim = true
+            return trimmedAccepted
         }
         let digest = freeze.sourceManifestDigest
         guard !acceptedCandidates.isEmpty else {
             // 全部被核验拒绝：verify 已完成服务端 run，记成功终态（同材料不隔天重跑）
+            try finishBatchNoFinding(runID: runID, digest: digest, diagnostics: [.noNontrivialObservation])
+            return
+        }
+        // 跨入口去重（融合契约 §6 / D03）：已确认且无新信息的命题不包装成新发现；
+        // 用户在任一入口暂缓的语义版本共用冷却。只读知识操作元数据，不触发模型。
+        acceptedCandidates = await excludingKnowledgeDuplicates(acceptedCandidates)
+        if acceptedCandidates.isEmpty {
+            Self.diagLog.notice("disp publish rejected: knowledge duplicates")
+        }
+        guard !acceptedCandidates.isEmpty else {
             try finishBatchNoFinding(runID: runID, digest: digest, diagnostics: [.noNontrivialObservation])
             return
         }
@@ -873,6 +1026,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
 
         switch outcome {
         case .rejectAll(let rejections):
+            Self.diagLog.notice("disp publish rejected: \(rejections.map { String(describing: $0.reason) })")
             let diagnostics = rejections.map { Self.diagnosticCode(for: $0.reason) }
             try finishBatchNoFinding(runID: runID, digest: digest, diagnostics: diagnostics)
         case .publish(let payload):
@@ -925,7 +1079,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             let resolvedDependencies = dependencies
 
             let publishedAt = clock()
-            try store.publishFinding(
+            let findingID = try store.publishFinding(
                 runID: runID,
                 payload: backfilled,
                 dependencies: resolvedDependencies,
@@ -933,6 +1087,25 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
                 expiresAt: publishedAt.addingTimeInterval(14 * 24 * 3600),
                 freezeDigest: Self.freezeDigest(of: freeze)
             )
+            // claim → 命题/语义/证据身份的版本化关联（程序生成，不入模型 schema；可重建投影）。
+            if let published = acceptedCandidates.first(where: { $0.candidate.candidateID == payload.candidateID }) {
+                let package = counterPackages[published.candidate.candidateID]
+                var coverageComplete = false
+                if let package {
+                    let searched = package.coverageState == .complete || package.coverageState == .completedNoHit
+                    coverageComplete = searched && package.rejectedQueryCount == 0
+                }
+                let linkages = DiscoveryKnowledgeBridge.linkages(
+                    findingID: findingID,
+                    runID: runID,
+                    candidate: published.candidate,
+                    atoms: availableEvidence,
+                    counterAtoms: package?.blocks ?? [],
+                    counterCoverageComplete: coverageComplete,
+                    now: publishedAt
+                )
+                try store.saveClaimLinkages(linkages)
+            }
             try store.updateRunPhase(runID: runID, phase: .ready, diagnostics: [], now: publishedAt)
             sideStore.recordProcessed(
                 digest: digest,
@@ -972,15 +1145,16 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
 
     // MARK: - 失败与退避（03 §4.4）
 
-    private func handleStageFailure(_ error: Error, runID: String) {
+    private func handleStageFailure(_ error: Error, runID: String, digest: String) {
         let now = clock()
         let failure = Self.classify(error)
 
         switch failure {
         case .networkUnavailablePreDispatch:
-            // 未 dispatch：保持 dirty，有限退避，不报「生成中」
+            // 未 dispatch：保持 dirty，有限退避（5/15/45 阶梯），不报「生成中」
             lastFailure = failure
-            if let next = schedulerCore.nextAttemptAfterFailure(failure: failure, now: now) {
+            if let next = schedulerCore.nextAttemptAfterFailure(failure: failure, now: now, attempt: networkRetryAttempt) {
+                networkRetryAttempt += 1
                 scheduleRetry(after: next.timeIntervalSince(now))
             }
             recomputePresentation()
@@ -989,11 +1163,33 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             lastFailure = failure
             dailyBatchAvailable = false
             budgetResetAt = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
+            // 窗口恢复后自动重试（2026-10-30）：此前只关当日不排重试，恢复完全依赖前台触发；
+            // 若重启后 firstRunPending/marks 均空，快路径会吞掉所有触发 → 永久卡「还在等足够的记录」。
+            // resetAt 为本地近似（次日零点）；月限等更长窗口醒来后仍 429 会排下一轮，自愈。
+            scheduleRetry(after: budgetResetAt!.timeIntervalSince(now))
         case .schemaRejectedByModel, .semanticRejected:
+            // 模型确定性拒绝 = 成功终态（03 §4.4/T20、DiscoveryProcessedRecord 文档）：
+            // 记 processedRecord 后同材料同版本不再重跑（版本升级仍可受控重评估），
+            // 且消费 dirty/首开标记——否则每次回前台/重启都会完整重跑一次批次，
+            // 逐次烧光服务端 runsPerDay，用户永远等不到发现
             lastFailure = failure
+            sideStore.recordProcessed(
+                digest: digest,
+                policyVersion: versions.policyVersion,
+                promptVersion: versions.candidatePromptVersion,
+                at: now
+            )
+            consumeDirtyMarks()
+            firstRunPending = false
         case .stageResultLost, .upstreamErrorPostDispatch, .leaseExpired:
-            // dispatch 后失败：本阶段不重复调用，终止本批（03 §4.4）
+            // dispatch 后失败：本阶段不重复调用，终止本批（03 §4.4）。
+            // 「下一资格=次日新批次」此前只写在注释里：服务端 run 已被本批消耗，
+            // 若不本地关当日闸，每次回前台都会重跑完整批次，逐次烧光服务端日批次
+            // 直到 429。这里与 budgetExceeded 同款关闸+排次日重试
             lastFailure = failure
+            dailyBatchAvailable = false
+            budgetResetAt = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
+            scheduleRetry(after: budgetResetAt!.timeIntervalSince(now))
         }
 
         if settings.snapshot().isEnabled {
@@ -1004,8 +1200,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
                 now: now
             )
         }
-        // 失败一律保持 dirty（未成功终态不消费变更；「材料不变不重跑」由 processedRecord
-        // 只在成功终态记录来保证）。重试节奏受日批次与有限退避约束。
+        // 除模型拒绝（已按成功终态收口）外，失败一律保持 dirty；重试节奏受日批次与有限退避约束
         lastPhase = .backoff
         recomputePresentation()
     }
@@ -1042,7 +1237,8 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             scheduleRetry(after: remaining)
         case .networkUnavailable:
             lastFailure = .networkUnavailablePreDispatch
-            if let next = schedulerCore.nextAttemptAfterFailure(failure: .networkUnavailablePreDispatch, now: now) {
+            if let next = schedulerCore.nextAttemptAfterFailure(failure: .networkUnavailablePreDispatch, now: now, attempt: networkRetryAttempt) {
+                networkRetryAttempt += 1
                 scheduleRetry(after: next.timeIntervalSince(now))
             }
         case .resourceYield, .leaseActive:
@@ -1052,6 +1248,8 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             dailyBatchAvailable = false
             // 无服务端 resetAt 时保守到次日自然日（上海日界由服务端口径，本机按本地日近似）
             budgetResetAt = resetAt ?? calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
+            // 窗口恢复后自动重试（与 handleStageFailure 的 budgetExceeded 同一根因，双入口都要排）
+            scheduleRetry(after: max(0, budgetResetAt!.timeIntervalSince(now)))
         case .alreadyProcessedToday:
             break   // 同材料已成功终态：安静等待新材料
         }
@@ -1241,7 +1439,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         if error is CancellationError { return .cancelled }
         let apiError = error as? APIError
         Logger(subsystem: "com.holo.app", category: "Discovery").error(
-            "发现开启失败 stage=\(stage, privacy: .public) category=\(apiError?.diagnosticCategory ?? String(describing: type(of: error)), privacy: .public) requestID=\(apiError?.requestId ?? "none", privacy: .public)")
+            "发现开启失败 stage=\(stage) category=\(apiError?.diagnosticCategory ?? String(describing: type(of: error))) requestID=\(apiError?.requestId ?? "none")")
         return .failed(DiscoveryEnableFailure.from(error))
     }
 
@@ -1304,13 +1502,16 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
     func submitFeedback(_ action: DiscoveryFeedbackAction) async {
         switch action {
         case .accurate:
-            return   // 回执：不弹任务、不写长期记忆（01 §3）
+            // 轻反馈：只作为该有限观察的就地回执，写共同提示记录（acknowledged）；
+            // 不新增确认、独立证据、置信度或自动保存资格（融合契约 §5）。
+            await recordKnowledgePrompt(outcome: "acknowledged")
+            return
         case .manageDismiss:
             isDetailPresented = false
             recomputePresentation()
             return
         case .inaccurate(let reason):
-            // 先撤下，再记最小否定（点击后无需等联网）
+            // 先撤下，再记最小否定（点击后无需等联网）；首次点击立即生效
             guard let record = readableFinding(now: clock()) else { return }
             let material = record.payload.fingerprintMaterial
             // 幂等：先查再写（连续点击不重复写入）
@@ -1318,14 +1519,359 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
                 try? store.recordNegativeFeedback(fingerprintMaterial: material, now: clock())
             }
             try? store.markFinding(id: record.id, status: .rejected, now: clock())
-            if reason == .notInterested {
-                // 类别持续抑制（可在子页恢复；resetFeedbackSuppression 清除）
+            switch reason {
+            case .notInterested:
+                // 展示偏好：停止该范围的主动呈现；不是事实否定、不判假整个主题（D06）。
                 sideStore.addSuppressedCategory(material)
+            case .wrongEvidence, .wrongUnderstanding, .notApplicableNow:
+                // 事实控制：作用于两侧准确关联内容（发现撤下 + 知识操作），不整主题封禁。
+                await applyKnowledgeFeedback(reason: reason, findingRecord: record)
             }
             currentFinding = nil
             isDetailPresented = false
             recomputePresentation()
         }
+    }
+
+    /// 「不太准确」三种子作用域 → 统一知识操作（融合契约 §5 表）。
+    private func applyKnowledgeFeedback(
+        reason: DiscoveryInaccurateReason,
+        findingRecord: DiscoveryPublishedFindingRecord
+    ) async {
+        guard let repository = await knowledgeRepository(),
+              let linkages = try? store.claimLinkages(findingID: findingRecord.id),
+              !linkages.isEmpty else { return }
+        let now = clock()
+        let scope: HoloKnowledgeInaccurateScope
+        switch reason {
+        case .wrongEvidence: scope = .evidence
+        case .wrongUnderstanding: scope = .understanding
+        case .notApplicableNow: scope = .applicability
+        case .notInterested: return
+        }
+        let control = HoloKnowledgeControlService(repository: repository)
+        for linkage in linkages {
+            // notApplicableNow → 收窄当前有效范围，保留历史（不假定以前从未发生）。
+            let action: HoloKnowledgeControlAction = (reason == .notApplicableNow)
+                ? .narrowScope(validTo: now)
+                : .markInaccurate(reason: nil, scope: scope)
+            let request = HoloKnowledgeControlRequest(
+                operationID: "disc-fb-\(linkage.propositionID)-\(linkage.semanticDigest)-\(reason.rawValue)",
+                propositionID: linkage.propositionID,
+                expectedSemanticDigest: linkage.semanticDigest,
+                knownOperationIDs: [],
+                action: action,
+                entry: DiscoveryKnowledgeBridge.originEntry,
+                issuedAt: now
+            )
+            _ = try? await control.apply(request)
+        }
+    }
+
+    /// 共同提示记录（轻反馈/暂缓）：避免同版本跨入口重复询问。
+    private func recordKnowledgePrompt(outcome: String) async {
+        guard let repository = await knowledgeRepository(),
+              let record = readableFinding(now: clock()),
+              let linkages = try? store.claimLinkages(findingID: record.id) else { return }
+        let now = clock()
+        let operations = linkages.map { linkage in
+            HoloKnowledgeOperation(
+                operationID: "disc-prompt-\(linkage.propositionID)-\(linkage.semanticDigest)-\(outcome)-\(Int(now.timeIntervalSince1970 / 86_400))",
+                kind: .promptRecord,
+                propositionID: linkage.propositionID,
+                targetSemanticDigest: linkage.semanticDigest,
+                controlGeneration: 0,
+                payload: .promptRecord(
+                    entry: DiscoveryKnowledgeBridge.originEntry,
+                    semanticDigest: linkage.semanticDigest,
+                    outcome: outcome
+                ),
+                partition: .normal,
+                issuedAt: now
+            )
+        }
+        try? await repository.saveKnowledgeRevisionAndOperation(revision: nil, operations: operations)
+    }
+
+    // MARK: - DiscoveryService：确认并记住（融合契约 §4）
+
+    func knowledgeSaveState(for findingID: String) async -> DiscoveryKnowledgeSaveState {
+        guard let record = readableFinding(now: clock()),
+              record.id.uuidString == findingID else {
+            return .unavailable(reason: "findingGone")
+        }
+        guard let repository = await knowledgeRepository(),
+              let linkages = try? store.claimLinkages(findingID: record.id) else {
+            return .notEligible
+        }
+        for linkage in linkages
+        where await Self.hasStandaloneBlock(repository: repository, propositionID: linkage.propositionID, digest: linkage.semanticDigest, now: clock()) {
+            return .unavailable(reason: "restricted")
+        }
+        guard let eligibleLinkage = await eligibleKnowledgeLinkage(linkages: linkages, repository: repository) else {
+            return .notEligible
+        }
+        // 已确认且无新信息：两处显示同一已记住状态（D02/D03）。
+        // 2026-10-31 审计 E4：inactive 不并入「已记住」——已确认后被停用/否定/遗忘的命题
+        // 必须落到下方 restricted 分支，否则发现详情对被用户限制的理解仍显示「已记住」。
+        if let resolved = try? await repository.resolvedKnowledge(propositionID: eligibleLinkage.propositionID, now: clock()),
+           resolved.confirmedSemanticDigest == eligibleLinkage.semanticDigest,
+           resolved.decision.isUsableForAnswering {
+            let answeringEnabled = ((try? await repository.loadControlState())?.memoryAssistedAnsweringEnabled) ?? false
+            return .remembered(
+                propositionID: eligibleLinkage.propositionID,
+                answeringEnabled: answeringEnabled
+            )
+        }
+        if let resolved = try? await repository.resolvedKnowledge(propositionID: eligibleLinkage.propositionID, now: clock()),
+           resolved.decision == .inactive,
+           !resolved.restrictingOperationIDs.isEmpty {
+            return .unavailable(reason: "restricted")
+        }
+        return .eligible(
+            claimID: eligibleLinkage.claimID,
+            preview: eligibleLinkage.semantic.displayText,
+            usesDescription: "用于相关帮助；实际使用遵守记忆辅助回答开关"
+        )
+    }
+
+    /// claim 级成熟度：跨发现批次聚合同一命题的证据后按统一准入判定（D15 共用事实）。
+    private func eligibleKnowledgeLinkage(
+        linkages: [DiscoveryClaimLinkage],
+        repository: CoreDataHoloMemoryRepository
+    ) async -> DiscoveryClaimLinkage? {
+        let now = clock()
+        for linkage in linkages where linkage.semantic.evidenceForm != .explicitSemanticFact {
+            // 跨批次证据聚合：同命题全部关联的独立事件并集（同一血缘只计一次）。
+            var allLinkages = [linkage]
+            if let historical = try? store.claimLinkages(propositionID: linkage.propositionID) {
+                allLinkages.append(contentsOf: historical)
+            }
+            var support = linkage.evidenceSnapshot.supportRefs
+            var lineages = Set(support.map(\.lineageKey))
+            var dates = support.map(\.observedAt)
+            for other in allLinkages {
+                for ref in other.evidenceSnapshot.supportRefs where !lineages.contains(ref.lineageKey) {
+                    lineages.insert(ref.lineageKey)
+                    support.append(ref)
+                    dates.append(ref.observedAt)
+                }
+            }
+            // 反例检索状态聚合（2026-10-31 审计 E1）：三态如实合并——
+            // 任一批 searchedFound → found；否则全部批次都查过无反例才可写 searchedNoneFound；
+            // 有批次未查且未发现 → notSearched（「未查明」不冒充「查过没有」，09-R12 同则），
+            // 否则 notSearched 的批次攒够支持证据就能绕过 requiresCounterexampleSearch 门槛。
+            let counterStatuses = allLinkages.map(\.evidenceSnapshot.counterexampleSearch)
+            let aggregatedCounterStatus: HoloKnowledgeCounterexampleSearchStatus
+            if counterStatuses.contains(.searchedFound) {
+                aggregatedCounterStatus = .searchedFound
+            } else if counterStatuses.allSatisfy({ $0 == .searchedNoneFound }) {
+                aggregatedCounterStatus = .searchedNoneFound
+            } else {
+                aggregatedCounterStatus = .notSearched
+            }
+            // 历史批次的反例引用并入聚合快照（此前只保留当前批次，历史反例会丢）
+            var counters = linkage.evidenceSnapshot.counterRefs
+            var counterKeys = Set(counters.map(\.lineageKey))
+            for other in allLinkages {
+                for ref in other.evidenceSnapshot.counterRefs where !counterKeys.contains(ref.lineageKey) {
+                    counterKeys.insert(ref.lineageKey)
+                    counters.append(ref)
+                }
+            }
+            let templateID = linkage.evidenceSnapshot.templateID
+            let evidence = HoloKnowledgeEvidenceSnapshot(
+                supportRefs: support,
+                counterRefs: counters,
+                observationWindowFrom: dates.min(),
+                observationWindowTo: dates.max(),
+                independentEventCount: lineages.count,
+                coveragePercent: DiscoveryKnowledgeBridge.weeklyCoverage(of: dates),
+                counterexampleSearch: aggregatedCounterStatus,
+                templateID: templateID,
+                statsSummary: linkage.evidenceSnapshot.statsSummary,
+                sourceRevisions: linkage.evidenceSnapshot.sourceRevisions,
+                holdoutValidatedPeriods: linkage.evidenceSnapshot.holdoutValidatedPeriods,
+                capturedAt: now
+            )
+            let verdict = HoloKnowledgeAdmission.assess(
+                semantic: linkage.semantic,
+                evidence: evidence,
+                authorizedSourceDomains: DiscoveryKnowledgeBridge.discoveryAuthorizedDomains
+            )
+            switch verdict {
+            case .worthConfirming, .remembered:
+                return linkage
+            case .reject, .internalOnly:
+                continue
+            }
+        }
+        return nil
+    }
+
+    func confirmAndRemember(findingID: String, claimID: String) async -> DiscoveryKnowledgeSaveOutcome {
+        guard let record = readableFinding(now: clock()),
+              record.id.uuidString == findingID,
+              let linkage = (try? store.claimLinkages(findingID: record.id))?
+                  .first(where: { $0.claimID == claimID }) else {
+            return .failed(description: "findingGone")
+        }
+        guard let repository = await knowledgeRepository() else {
+            return .failed(description: "knowledgeUnavailable")
+        }
+        let now = clock()
+        // 保存前重核：来源仍有效（依赖索引回源核验同通道）。
+        if await continuationBuilder.validateForSend(findingID: findingID) == false {
+            return .conflict(reason: "sourceChanged")
+        }
+        do {
+            let revision = DiscoveryKnowledgeBridge.revision(from: linkage, now: now)
+            try await repository.saveKnowledgeRevisionAndOperation(revision: revision, operations: [])
+            let control = HoloKnowledgeControlService(repository: repository)
+            let outcome = try await control.apply(HoloKnowledgeControlRequest(
+                operationID: "disc-save-\(linkage.propositionID)-\(linkage.semanticDigest)",
+                propositionID: linkage.propositionID,
+                expectedSemanticDigest: linkage.semanticDigest,
+                knownOperationIDs: [],
+                action: .confirm,
+                entry: DiscoveryKnowledgeBridge.originEntry,
+                issuedAt: now
+            ))
+            switch outcome {
+            case .applied(let propositionID, _):
+                return .saved(propositionID: propositionID)
+            case .alreadyApplied:
+                return .alreadySaved(propositionID: linkage.propositionID)
+            case .conflict(_, let reason):
+                return .conflict(reason: reason)
+            case .notFound:
+                return .failed(description: "notFound")
+            case .notAllowed(let reason):
+                return .conflict(reason: reason)
+            case .persistenceFailed(let description):
+                return .failed(description: description)
+            }
+        } catch {
+            return .failed(description: String(describing: error))
+        }
+    }
+
+    /// 「暂时不说」：最低限度的不打扰记录（不构成认可/否定；冷却共用）。
+    func recordMinimalDeference(findingID: String) async {
+        guard let record = readableFinding(now: clock()),
+              record.id.uuidString == findingID,
+              let repository = await knowledgeRepository(),
+              let linkages = try? store.claimLinkages(findingID: record.id),
+              !linkages.isEmpty else { return }
+        let now = clock()
+        let control = HoloKnowledgeControlService(repository: repository)
+        for linkage in linkages {
+            _ = try? await control.apply(HoloKnowledgeControlRequest(
+                operationID: "disc-defer-\(linkage.propositionID)-\(linkage.semanticDigest)",
+                propositionID: linkage.propositionID,
+                expectedSemanticDigest: linkage.semanticDigest,
+                knownOperationIDs: [],
+                action: .deferCooldown,
+                entry: DiscoveryKnowledgeBridge.originEntry,
+                issuedAt: now
+            ))
+        }
+        isDetailPresented = false
+        recomputePresentation()
+    }
+
+    // MARK: 记忆控制 → 发现侧撤下（融合契约 §5/§7；D04/D18）
+
+    @objc private func handleKnowledgeControl(_ note: Notification) {
+        guard let propositionID = note.userInfo?["propositionID"] as? String,
+              let kindRaw = note.userInfo?["kind"] as? String,
+              let kind = HoloKnowledgeOperationKind(rawValue: kindRaw),
+              kind.isUsageRestricting else { return }
+        Task { @MainActor in
+            self.withdrawFindingsLinked(toPropositionIDs: [propositionID])
+        }
+    }
+
+    private func withdrawFindingsLinked(toPropositionIDs propositionIDs: Set<String>) {
+        let now = clock()
+        guard let hitIDs = try? store.activeFindingIDs(linkedToPropositionIDs: propositionIDs, now: now),
+              !hitIDs.isEmpty else { return }
+        for id in hitIDs {
+            try? store.invalidateFinding(id: id, now: now)
+        }
+        if let active = currentFinding,
+           let activeID = UUID(uuidString: active.findingID),
+           hitIDs.contains(activeID) {
+            currentFinding = nil
+        }
+        recomputePresentation()
+    }
+
+    private func knowledgeRepository() async -> CoreDataHoloMemoryRepository? {
+        guard let provider = knowledgeRepositoryProvider else { return nil }
+        return try? await provider()
+    }
+
+    /// 无修订命题上的独立限制（不准确/收窄）或生效中的暂缓冷却。
+    static func hasStandaloneBlock(
+        repository: CoreDataHoloMemoryRepository,
+        propositionID: String,
+        digest: String,
+        now: Date
+    ) async -> Bool {
+        guard let snapshot = try? await repository.knowledgeStoreSnapshot(propositionID: propositionID),
+              snapshot.revisions.isEmpty else { return false }
+        for operation in snapshot.operations {
+            switch operation.kind {
+            case .markInaccurate, .narrowScope:
+                if operation.targetSemanticDigest == nil || operation.targetSemanticDigest == digest { return true }
+            case .deferCooldown:
+                if case .cooldown(let until) = operation.payload, until > now,
+                   operation.targetSemanticDigest == nil || operation.targetSemanticDigest == digest {
+                    return true
+                }
+            default:
+                continue
+            }
+        }
+        return false
+    }
+
+    /// 已确认同语义（无新信息）或处于暂缓冷却的候选不再作为「新发现」呈现。
+    private func excludingKnowledgeDuplicates(_ candidates: [AcceptedCandidate]) async -> [AcceptedCandidate] {
+        guard let repository = await knowledgeRepository() else { return candidates }
+        let now = clock()
+        var survivors: [AcceptedCandidate] = []
+        for accepted in candidates {
+            var duplicate = false
+            for claim in accepted.candidate.claims {
+                let semantic = DiscoveryKnowledgeBridge.semantic(for: claim, candidate: accepted.candidate)
+                let propositionID = HoloKnowledgeIdentity.propositionID(for: semantic)
+                // 未保存 claim 的独立限制/暂缓（无修订，resolve 为 nil）：按操作元数据判定（D05/D18）
+                if await Self.hasStandaloneBlock(repository: repository, propositionID: propositionID, digest: semantic.semanticDigest, now: now) {
+                    duplicate = true
+                    break
+                }
+                guard let resolved = try? await repository.resolvedKnowledge(propositionID: propositionID, now: now) else { continue }
+                if resolved.confirmedSemanticDigest == semantic.semanticDigest {
+                    duplicate = true
+                    break
+                }
+                if let cooldown = resolved.cooldownUntil, cooldown > now,
+                   resolved.proposedRevision?.semanticDigest == semantic.semanticDigest
+                    || resolved.currentRevision?.semanticDigest == semantic.semanticDigest {
+                    duplicate = true
+                    break
+                }
+                // 记忆侧已否定/遗忘该语义：不得换入口再次推荐（D18）。
+                if resolved.decision == .inactive, !resolved.restrictingOperationIDs.isEmpty {
+                    duplicate = true
+                    break
+                }
+            }
+            if !duplicate { survivors.append(accepted) }
+        }
+        return survivors
     }
 
     func buildConversationDraft() -> DiscoveryConversationDraft? {
@@ -1371,8 +1917,15 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         await refreshControlSnapshot()
         recomputePresentation()
         // 前台激活只做轻量检查并安排 utility 任务（03 §4.3；完整资格由 decide 判定）
-        if environmentProvider.foregroundCheck() == .scheduleUtilityCheck {
+        let check = environmentProvider.foregroundCheck()
+        Self.diagLog.notice("disp refresh: check=\(String(describing: check))")
+        if check == .scheduleUtilityCheck {
             runBatch(reason: .refresh)
+        } else {
+            // 冷启动竞态兜底（2026-11-01）：NWPathMonitor 首个 path 更新可迟到至秒级，
+            // 启动瞬间的 refresh 会 skip 且不排任何后续 → 批次静默丢失（真机三轮实测两轮撞上）。
+            // skip 一律 30 秒后补查（幂等：届时在跑则 runBatch 自守卫；让位类原因届时重判）。
+            scheduleRetry(after: 30)
         }
     }
 
@@ -1858,4 +2411,38 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         }
         return .none
     }
+}
+
+// MARK: - 诊断日志双通道（os_log + 沙盒文件；2026-11-01 真机日志抓取不稳增文件通道）
+
+/// notice 进系统日志 + 同步 append 沙盒文件（8KB 滚动，devicectl 可直拉）。
+nonisolated final class DiscoveryDiagLog {
+    private let logger: Logger
+    private let fileURL: URL?
+    private let queue = DispatchQueue(label: "holo.discovery.diaglog")
+
+    init(logger: Logger, fileURL: URL?) {
+        self.logger = logger
+        self.fileURL = fileURL
+    }
+
+    func notice(_ message: String) {
+        logger.notice("\(message)")
+        guard let url = fileURL else { return }
+        queue.async {
+            let line = Self.formatter.string(from: Date()) + " " + message + "\n"
+            let fm = FileManager.default
+            if let existing = (try? String(contentsOf: url, encoding: .utf8)), existing.utf8.count > 8192 {
+                try? String(existing.suffix(4096)).write(to: url, atomically: true, encoding: .utf8)
+            }
+            let current = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+            try? (current + line).write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+
+    private static let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MM-dd HH:mm:ss.SSS"
+        return f
+    }()
 }

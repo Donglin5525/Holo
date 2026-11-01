@@ -11,8 +11,9 @@
 //  本面板允许下拉关闭（退出＝不产生认可、不推断不感兴趣），故无 interactiveDismissDisabled，
 //  也无需 sheetDismissGuard（项目规则：禁下拉的 sheet 才须配 guard）。
 //
-//  协议缺口（交付报告已列）：「不太准确」要求点击即生成最小否定记录并先撤下，
-//  协议只有带 reason 的 submitFeedback；「暂时不说」路径目前无法落最小否定记录。
+//  2026-10-27 记忆联动（融合契约 §4/§5）：④½ 内联区域由 DiscoveryKnowledgeSaveSection 承担
+//  （成熟才出现「确认并记住」；已保存显示「已记住」并收起「有点像」）；「暂时不说」接
+//  recordMinimalDeference（最低不打扰记录，共用冷却）；原协议缺口已关闭。
 //
 
 import SwiftUI
@@ -42,6 +43,8 @@ struct DiscoveryDetailSheet: View {
 
     @State private var feedbackPhase: FeedbackPhase = .reading
     @State private var showsEvidence = false
+    /// 已从本面板保存进记忆（撤下「有点像」与新的保存邀请；融合契约 §4）
+    @State private var hasRememberedFromFinding = false
 
     var body: some View {
         if feedbackPhase == .reasonPicking {
@@ -117,8 +120,18 @@ struct DiscoveryDetailSheet: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
         }
 
-        // ⑤ 可选反馈
-        feedbackArea
+        // ④½ 记忆内联区域：成熟且允许保存才出现「确认并记住」；已保存显示「已记住」
+        DiscoveryKnowledgeSaveSection(
+            findingID: finding.findingID,
+            service: service,
+            onRemembered: { _ in hasRememberedFromFinding = true },
+            onOpenMemory: { _ in onOpenSettings() }
+        )
+
+        // ⑤ 可选反馈（已保存的发现不再出现「有点像」）
+        if !hasRememberedFromFinding {
+            feedbackArea
+        }
 
         // ⑥ 低强调「管理一个发现」（主按钮「聊聊这个」由脚手架贴底呈现）
         Button {
@@ -274,10 +287,13 @@ struct DiscoveryDetailSheet: View {
                     .padding(.vertical, HoloSpacing.xs)
                     .holoSurface()
 
-                    // TODO(协议缺口)：「暂时不说」也应落最小否定记录（01 §3 已生成最小否定记录，
-                    // 点击后无需等联网）；协议缺无 reason 的撤下入口，主会话补协议后接线。
+                    // 「暂时不说」：最低限度不打扰记录（不构成认可/否定；与记忆推荐区共用冷却）
                     Button {
-                        onDismiss()
+                        guard let findingID = finding?.findingID else { onDismiss(); return }
+                        Task {
+                            await service.recordMinimalDeference(findingID: findingID)
+                            onDismiss()
+                        }
                     } label: {
                         Text("暂时不说")
                             .holoText(.supporting)

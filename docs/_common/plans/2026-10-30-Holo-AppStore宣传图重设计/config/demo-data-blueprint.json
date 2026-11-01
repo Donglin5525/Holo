@@ -1,0 +1,359 @@
+{
+  "schema_version": 1,
+  "status": "planning_only_not_seeded",
+  "fixture_version": "aso-v10-20261030-1",
+  "timezone": "Asia/Shanghai",
+  "reference_date_policy": "resolve_at_execution",
+  "historical_months": {
+    "base_offset": -2,
+    "focus_offset": -1,
+    "full_calendar_months": true,
+    "example_reference": "2026-10-30",
+    "example_base": "2026-08",
+    "example_focus": "2026-09"
+  },
+  "persona": {
+    "name": "小满",
+    "occupation": "普通上班族",
+    "location": "不写真实定位",
+    "privacy": "全部虚构演示，不取日用库"
+  },
+  "accounts": [
+    {
+      "logical_id": "ACC-DAILY",
+      "name": "日常账户",
+      "opening_balance_cents": 200000
+    }
+  ],
+  "finance_expected": {
+    "-2": {
+      "transactions": 52,
+      "income_cents": 1200000,
+      "expense_cents": 541000,
+      "dining_cents": 108000,
+      "dining_count": 24,
+      "dinner_cents": 18400
+    },
+    "-1": {
+      "transactions": 56,
+      "income_cents": 1200000,
+      "expense_cents": 588000,
+      "dining_cents": 140000,
+      "dining_count": 28,
+      "dinner_cents": 45000
+    }
+  },
+  "expected_dining_delta_cents": 32000,
+  "expected_dinner_delta_cents": 26600,
+  "project": {
+    "logical_id": "PROJ-CITY",
+    "name": "城市漫游",
+    "month_offset": -1,
+    "budget_cents": 80000,
+    "spent_cents": 24600,
+    "remaining_cents": 55400
+  },
+  "habits": [
+    {
+      "id": "H-WALK",
+      "name": "散步",
+      "kind": "checkIn",
+      "positive": true,
+      "span_days": 90,
+      "completed_day_offsets": [
+        -89,
+        -87,
+        -85,
+        -82,
+        -80,
+        -77,
+        -75,
+        -72,
+        -70,
+        -67,
+        -65,
+        -62,
+        -60,
+        -57,
+        -55,
+        -52,
+        -50,
+        -47,
+        -45,
+        -43,
+        -40,
+        -38,
+        -35,
+        -33,
+        -30,
+        -28,
+        -25,
+        -23,
+        -20,
+        -18,
+        -15,
+        -13,
+        -10,
+        -8,
+        -5,
+        -1,
+        0
+      ],
+      "seed_without_today": true,
+      "expected_before_ui_action": 36,
+      "expected_after_ui_action": 37,
+      "expected_current_streak_after": 2
+    },
+    {
+      "id": "H-READ",
+      "name": "阅读",
+      "kind": "count",
+      "unit": "分钟",
+      "entries": [
+        {
+          "day_offset": -36,
+          "value": 29
+        },
+        {
+          "day_offset": -34,
+          "value": 33
+        },
+        {
+          "day_offset": -32,
+          "value": 37
+        },
+        {
+          "day_offset": -30,
+          "value": 31
+        },
+        {
+          "day_offset": -28,
+          "value": 40
+        },
+        {
+          "day_offset": -26,
+          "value": 34
+        },
+        {
+          "day_offset": -24,
+          "value": 32
+        },
+        {
+          "day_offset": -22,
+          "value": 38
+        },
+        {
+          "day_offset": -20,
+          "value": 28
+        },
+        {
+          "day_offset": -18,
+          "value": 32
+        },
+        {
+          "day_offset": -16,
+          "value": 36
+        },
+        {
+          "day_offset": -14,
+          "value": 30
+        },
+        {
+          "day_offset": -12,
+          "value": 39
+        },
+        {
+          "day_offset": -10,
+          "value": 33
+        },
+        {
+          "day_offset": -8,
+          "value": 31
+        },
+        {
+          "day_offset": -6,
+          "value": 37
+        },
+        {
+          "day_offset": -4,
+          "value": 28
+        },
+        {
+          "day_offset": -2,
+          "value": 32
+        }
+      ],
+      "expected_total": 600,
+      "expected_entries": 18
+    }
+  ],
+  "notes": [
+    {
+      "id": "N01",
+      "day_offset": -12,
+      "body": "会议前先列三个要回答的问题，比临场找材料轻松得多。",
+      "expected_topic": "工作节奏"
+    },
+    {
+      "id": "N02",
+      "day_offset": -9,
+      "body": "今天把准备材料拆成两次做，终于没有拖到最后一晚。",
+      "expected_topic": "工作节奏"
+    },
+    {
+      "id": "N03",
+      "day_offset": -6,
+      "body": "需要专注的事放在上午，零碎回复集中到下午试试。",
+      "expected_topic": "工作节奏"
+    },
+    {
+      "id": "N04",
+      "day_offset": -3,
+      "body": "重新看前几天的记录，我想给重要会议留一点准备时间。",
+      "quote_id": "N01",
+      "expected_topic": "工作节奏"
+    },
+    {
+      "id": "N05",
+      "day_offset": -7,
+      "body": "旅行最想留住的，有时只是街边的一顿饭。",
+      "expected_topic": "出行片段"
+    },
+    {
+      "id": "N06",
+      "day_offset": -4,
+      "body": "书读得慢一点也没关系，先记住今天想继续看的那一页。",
+      "expected_topic": "阅读随记"
+    },
+    {
+      "id": "N07",
+      "day_offset": -1,
+      "body": "下班绕到河边走了一小段。天色慢慢暗下来，今天就先记住这阵风。",
+      "style": "field",
+      "photos": [
+        "PHOTO-01",
+        "PHOTO-02"
+      ],
+      "expected_topic": "日常片刻"
+    },
+    {
+      "id": "N08",
+      "day_offset": -2,
+      "body": "今天没有把所有事做完，但把最重要的一件往前推了一步。",
+      "style": "calendar",
+      "expected_topic": "日常片刻"
+    },
+    {
+      "id": "N09",
+      "day_offset": 0,
+      "body": "买到一本想读很久的书，先从十页开始。",
+      "create_after": "MIX-01",
+      "expected_topic": "阅读随记"
+    }
+  ],
+  "tasks": {
+    "today": [
+      {
+        "id": "T-TODAY-1",
+        "title": "整理周会要点",
+        "completed": false,
+        "important": true,
+        "urgent": true
+      },
+      {
+        "id": "T-TODAY-2",
+        "title": "列出出行准备清单",
+        "completed": false,
+        "important": true,
+        "urgent": false
+      },
+      {
+        "id": "T-TODAY-3",
+        "title": "归档报销凭证",
+        "completed": true,
+        "important": false,
+        "urgent": false
+      }
+    ],
+    "last_complete_week": {
+      "done_titles": [
+        "整理项目资料",
+        "确认本周会议安排",
+        "完成一次阅读记录",
+        "整理出行想法",
+        "核对一笔报销"
+      ],
+      "open_titles": [
+        "补充行李清单",
+        "把阅读笔记整理到主题"
+      ],
+      "done_count": 5,
+      "open_count": 2,
+      "note": "完成一次阅读记录是任务名称；不能据此重复增加习惯记录"
+    }
+  },
+  "inputs": {
+    "MIX-01": "记一笔买书38元；{tomorrow_date}上午10点项目周会；{day_plus_3_date}18点准备出行材料。",
+    "Q-FIN-01": "请只比较{base_year}年{base_month}月和{focus_year}年{focus_month}月的餐饮支出。分别花了多少、相差多少？聚餐部分变化了多少？请依据实际记录说明，能提供来源时让我核对，不要推测原因。",
+    "PLAN-01": "帮我想想两周后去附近城市住两晚怎么安排。请结合我的情况，把出行准备整理成可确认的待办草案：{tomorrow_date}20点查询交通，{day_plus_3_date}20点预订住宿，{day_plus_7_date}20点整理行李。请先给草案，我确认后再保存，不要先创建。",
+    "MEM-01": "请记住：安排重要会议前，我希望预留30分钟整理材料。这是我的明确偏好。",
+    "MEM-02": "请记住：本周我想在晚饭后读十页书。这只是本周的安排。",
+    "WEEK-01": "请回顾{last_week_start}到{last_week_end}的任务和习惯记录：完成了哪些具体事情，还有哪些待办没完成？只说记录能支持的内容，区分任务完成与习惯记录，提供实际可用的核对入口。",
+    "MIX-VOICE-01": "记一笔咖啡十八元，明天下午三点整理资料。"
+  },
+  "receipts": {
+    "REC-01": {
+      "merchant": "北街小馆",
+      "amount_cents": 4250,
+      "currency": "CNY",
+      "payment_status": "completed",
+      "date": "execution_date",
+      "label": "演示凭证",
+      "platform_brand": null
+    },
+    "REC-02": {
+      "title": "当日消费记录",
+      "date": "execution_date",
+      "entries": [
+        {
+          "merchant": "晨间早餐",
+          "amount_cents": 2400
+        },
+        {
+          "merchant": "地铁出行",
+          "amount_cents": 950
+        },
+        {
+          "merchant": "便利店",
+          "amount_cents": 1600
+        }
+      ],
+      "total_cents": 4950,
+      "currency": "CNY",
+      "label": "演示清单",
+      "platform_brand": null
+    }
+  },
+  "photos": [
+    {
+      "id": "PHOTO-01",
+      "subject": "傍晚河边的树影与天空，无人物面部、无地标与文字",
+      "rights_policy": "自有、明确授权，或调用图像生成工具生成虚构示例；保留来源"
+    },
+    {
+      "id": "PHOTO-02",
+      "subject": "桌上的书和一杯咖啡，无品牌与可识别书籍封面",
+      "rights_policy": "同上"
+    }
+  ],
+  "runtime_only_fields": [
+    "referenceDate",
+    "absoluteDates",
+    "liveRecordIDs",
+    "actualAIOutputs",
+    "sourceRects",
+    "entitlementStatus",
+    "quotaStatus"
+  ],
+  "topic_seeding_policy": "Expected topics are labels only; do not prelink N01-N04 when proving AI organization."
+}

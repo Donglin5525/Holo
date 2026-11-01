@@ -1,6 +1,8 @@
 import SwiftUI
 
-/// 收支与余额共用时间桶，各自保持真实数值轴，不再压缩尖峰或叠加双轴。
+/// 收支与余额共用时间桶；余额独立分区保持真实数值轴。
+/// 收支柱量级悬殊（最大值差三倍以上）时支出/收入各立数值轴（2026-11-01 东林实报
+/// 「收入被支出压成矮柱」），量级接近时仍共轴直接可比；读数区恒显真实金额。
 /// 下钻页复用同一张卡做联动：selectedDate 把列表侧选中日同步到图上，
 /// onScrubDate 把图上点选/滑动回传定位列表（选日即定位，实时生效）。
 /// 不传（总览/项目/账户页签）时行为与之前完全一致。
@@ -39,7 +41,7 @@ struct TrendChartView: View {
             HoloBarChart(buckets: flowBuckets,
                          series: [.init(id: "expense", title: "支出", color: .holoError),
                                   .init(id: "income", title: "收入", color: .holoSuccess)],
-                         selection: $selection, height: 160,
+                         selection: $selection, height: 160, dualValueAxes: true,
                          valueText: { NumberFormatter.currency.string(from: NSNumber(value: $0)) ?? "—" },
                          onInspect: { bucket in
                              if let date = date(ofBucketID: bucket.id) { onScrubDate?(date) }

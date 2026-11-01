@@ -76,7 +76,8 @@ enum RecycleBinModule: String, CaseIterable, Identifiable {
             return ["MemoryInsight", "MemoryInsightFeedback"]
         case .memory:
             return ["HoloMemoryRecordMO", "HoloMemoryEvidenceMO", "HoloMemoryAnchorAliasMO",
-                    "HoloMemoryObservationRunMO", "HoloMemoryTombstoneMO"]
+                    "HoloMemoryObservationRunMO", "HoloMemoryTombstoneMO",
+                    "HoloMemoryKnowledgeRevisionMO"]
         case .lifePlan:
             return ["LifePlanMO", "PlanPriorityMO", "PlanActionMO", "PlanSignalMO",
                     "PlanFeedbackMO", "PlanRunMO"]
@@ -507,7 +508,7 @@ final class RecycleBinService: ObservableObject {
         "ChatMessage",
         "MemoryInsight", "MemoryInsightFeedback",
         "HoloMemoryRecordMO", "HoloMemoryEvidenceMO", "HoloMemoryAnchorAliasMO",
-        "HoloMemoryObservationRunMO", "HoloMemoryTombstoneMO",
+        "HoloMemoryObservationRunMO", "HoloMemoryTombstoneMO", "HoloMemoryKnowledgeRevisionMO",
         "LifePlanMO", "PlanPriorityMO", "PlanActionMO", "PlanSignalMO",
         "PlanFeedbackMO", "PlanRunMO",
         // 「今天减负」当日计划版本（辅助实体：跟随任务模块批次清理）

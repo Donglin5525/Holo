@@ -79,7 +79,26 @@ extension HoloMemoryDomain {
     }
 }
 
+/// 预计算的领域分组。此前分组是计算属性，body 每次求值都对全量 records
+/// 跑「9 组 × 全量过滤 + 每组求最新时间」，真机 2500+ 条记忆下滚动期
+/// 主线程每帧数万次谓词调用；改为只在 records 变化时重建一次，body 只读。
+private struct DomainMemoryGroupSection: Identifiable {
+    let group: HoloMemoryDisplayGroup
+    let records: [HoloMemoryRecord]
+    let latestUpdatedAt: Date
+
+    var id: String { group.rawValue }
+}
+
 struct DomainMemorySection: View {
+    /// 拍平形态：内容直接作为外层 LazyVStack 的行（组头、每张记忆卡各自成行），
+    /// 视口外不构建、滚出即回收——洞察页窄屏路径用它根治全量渲染卡顿。
+    /// false = VStack 整体包装（宽屏双栏路径，布局语义与历史版本一致）。
+    var flat: Bool = false
+    /// 拍平形态下 section 头行与上一个区块的间距，由组装方（洞察页）按
+    /// 上方是否有报告门卡传入，保持与原列布局等价的节奏。
+    var headerTopSpacing: CGFloat = HoloSpacing.lg
+
     @ObservedObject private var memorySettings = HoloMemorySettings.shared
     @State private var records: [HoloMemoryRecord] = []
     @State private var isLoading = true
@@ -97,62 +116,41 @@ struct DomainMemorySection: View {
     )
     @State private var showsInboxSummary = false
 
+    // MARK: - 分组缓存（records 变化时 rebuild，body 只读）
+
+    @State private var pendingGroupRecords: [HoloMemoryRecord] = []
+    @State private var domainGroups: [DomainMemoryGroupSection] = []
+    @State private var observingGroupRecords: [HoloMemoryRecord] = []
+    @State private var archivedGroupRecords: [HoloMemoryRecord] = []
+
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            header
-
-            if !records.isEmpty, !memorySettings.memoryAssistedAnsweringEnabled {
-                answeringHintBar
-            }
-
-            if showsInboxSummary, !inboxSnapshot.isEmpty {
-                inboxSummaryCard
-            }
-
-            if isLoading {
-                loadingCard
-            } else if let loadError {
-                failureCard(loadError)
-            } else if records.isEmpty {
-                emptyCard
+        Group {
+            if flat {
+                flatContent
             } else {
-                if !pendingRecords.isEmpty {
-                    // 回滚口径（收件箱开关关闭）保留旧「想和你确认的」任务组。
-                    specialMemoryGroup(
-                        title: String(localized: "想和你确认的"),
-                        icon: "questionmark.bubble",
-                        records: pendingRecords,
-                        subtitle: String(localized: "Holo 不太有把握的总结，确认后才会用于回答"),
-                        actionTitle: pendingRecords.count > 3 ? String(localized: "逐条过一遍") : nil,
-                        action: { showsConfirmationQueue = true },
-                        showsQuickConfirm: true
-                    )
-                }
-                // 「Holo 会参考」：领域分组里的可用内容（明确记忆 + 会谨慎参考的限定观察）。
-                ForEach(nonemptyGroups) { group in
-                    memoryGroup(group)
-                }
-                if !observingRecords.isEmpty {
-                    observingSection
-                }
-                if !archivedRecords.isEmpty {
-                    specialMemoryGroup(
-                        title: String(localized: "过去记忆"),
-                        icon: "archivebox",
-                        records: archivedRecords
-                    )
+                VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                    stackedContent
                 }
             }
         }
+        // 生命周期修饰符挂 section 主体而非任何具体行：拍平后行会随滚动被
+        // LazyVStack 回收（sheet 锚随行消失=深区点卡弹层失效，实测教训），
+        // section 自身的 @State 与 presentation 绑定不随行回收。
         .overlay(alignment: .top) {
             if let notice {
                 MemoryNoticeToast(text: notice) { self.notice = nil }
             }
         }
-        .task { await load() }
+        .task {
+            // 拍平后行滚出视口会取消行级 task；section 级 task 不受影响。数据已在
+            // 时短路（单条变更走 syncRecord 局部同步），只有首场与失败态才全量拉取。
+            guard records.isEmpty || loadError != nil else { return }
+            await load()
+        }
         .sheet(isPresented: $showsMemorySettings) {
             NavigationStack {
-                PersonalMemorySettingsView()
+                // 用户已在记忆长廊内：「进入记忆长廊」= 关掉设置 sheet 回长廊
+                PersonalMemorySettingsView(onOpenMemoryGallery: { showsMemorySettings = false })
             }
         }
         .sheet(item: $selectedRecord) { record in
@@ -174,6 +172,166 @@ struct DomainMemorySection: View {
                     }
                 }
             )
+        }
+    }
+
+    // MARK: - 拍平形态（LazyVStack 直行）
+
+    /// 行级 padding 规则（与原 VStack 布局等距）：header 底 sm/2；普通块行
+    /// 上 md−sm/2 下 sm/2（与 header 拼 md）；组头行上 md−sm/2 下 sm/2
+    /// （与上一组末卡拼 md）；卡行上下各 sm/2（卡间拼 sm）。横向统一 md，
+    /// 对应原列级 horizontal padding——拍平后不能在 section 外包 padding，
+    /// 否则修饰符会把整棵树重新包成单个懒加载单元。
+    private func flatRow<Content: View>(
+        top: CGFloat = HoloSpacing.md - HoloSpacing.sm / 2,
+        bottom: CGFloat = HoloSpacing.sm / 2,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        content()
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.top, top)
+            .padding(.bottom, bottom)
+    }
+
+    @ViewBuilder
+    private var flatContent: some View {
+        headerRow
+
+        if !records.isEmpty, !memorySettings.memoryAssistedAnsweringEnabled {
+            flatRow { answeringHintBar }
+        }
+
+        if showsInboxSummary, !inboxSnapshot.isEmpty {
+            flatRow { inboxSummaryCard }
+        }
+
+        if isLoading {
+            flatRow { loadingCard }
+        } else if let loadError {
+            flatRow { failureCard(loadError) }
+        } else if records.isEmpty {
+            flatRow { emptyCard }
+        } else {
+            if !pendingGroupRecords.isEmpty {
+                // 回滚口径（收件箱开关关闭）保留旧「想和你确认的」任务组。
+                pendingGroupHeader
+                ForEach(pendingGroupRecords) { record in
+                    flatRow(top: HoloSpacing.sm / 2) {
+                        memoryCard(record, showsQuickConfirm: true, showsSourceInMetadata: true)
+                    }
+                }
+            }
+            // 「Holo 会参考」：领域分组里的可用内容（明确记忆 + 会谨慎参考的限定观察）。
+            ForEach(domainGroups) { section in
+                domainGroupHeader(section)
+                ForEach(section.records) { record in
+                    flatRow(top: HoloSpacing.sm / 2) {
+                        memoryCard(record)
+                    }
+                }
+            }
+            if !observingGroupRecords.isEmpty {
+                observingSection
+            }
+            if !archivedGroupRecords.isEmpty {
+                archivedGroupHeader
+                ForEach(archivedGroupRecords) { record in
+                    flatRow(top: HoloSpacing.sm / 2) {
+                        memoryCard(record, showsSourceInMetadata: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private var headerRow: some View {
+        header
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.top, headerTopSpacing)
+            .padding(.bottom, HoloSpacing.sm / 2)
+    }
+
+    // MARK: - 组头（拍平形态的独立行；堆叠形态并入组 VStack）
+
+    private var pendingGroupHeader: some View {
+        flatRow {
+            groupHeaderRow(
+                title: String(localized: "想和你确认的"),
+                icon: "questionmark.bubble",
+                count: pendingGroupRecords.count,
+                subtitle: String(localized: "Holo 不太有把握的总结，确认后才会用于回答"),
+                actionTitle: pendingGroupRecords.count > 3 ? String(localized: "逐条过一遍") : nil,
+                action: { showsConfirmationQueue = true }
+            )
+        }
+    }
+
+    private var archivedGroupHeader: some View {
+        flatRow {
+            groupHeaderRow(
+                title: String(localized: "过去记忆"),
+                icon: "archivebox",
+                count: archivedGroupRecords.count
+            )
+        }
+    }
+
+    private func domainGroupHeader(_ section: DomainMemoryGroupSection) -> some View {
+        flatRow {
+            groupHeaderRow(
+                title: section.group.title,
+                icon: section.group.icon,
+                count: section.records.count,
+                latest: section.latestUpdatedAt
+            )
+        }
+    }
+
+    // MARK: - 堆叠形态（宽屏双栏；行结构沿用历史版本）
+
+    @ViewBuilder
+    private var stackedContent: some View {
+        header
+
+        if !records.isEmpty, !memorySettings.memoryAssistedAnsweringEnabled {
+            answeringHintBar
+        }
+
+        if showsInboxSummary, !inboxSnapshot.isEmpty {
+            inboxSummaryCard
+        }
+
+        if isLoading {
+            loadingCard
+        } else if let loadError {
+            failureCard(loadError)
+        } else if records.isEmpty {
+            emptyCard
+        } else {
+            if !pendingGroupRecords.isEmpty {
+                specialMemoryGroup(
+                    title: String(localized: "想和你确认的"),
+                    icon: "questionmark.bubble",
+                    records: pendingGroupRecords,
+                    subtitle: String(localized: "Holo 不太有把握的总结，确认后才会用于回答"),
+                    actionTitle: pendingGroupRecords.count > 3 ? String(localized: "逐条过一遍") : nil,
+                    action: { showsConfirmationQueue = true },
+                    showsQuickConfirm: true
+                )
+            }
+            ForEach(domainGroups) { section in
+                memoryGroup(section)
+            }
+            if !observingGroupRecords.isEmpty {
+                observingSection
+            }
+            if !archivedGroupRecords.isEmpty {
+                specialMemoryGroup(
+                    title: String(localized: "过去记忆"),
+                    icon: "archivebox",
+                    records: archivedGroupRecords
+                )
+            }
         }
     }
 
@@ -227,53 +385,39 @@ struct DomainMemorySection: View {
         .buttonStyle(.plain)
     }
 
-    /// 分组顺序按「组内最新一条记忆的更新时间」倒序：最新变化的领域排最前，
-    /// 用户从上往下看就是从新到旧，不再被固定枚举顺序（财务常驻第一组）淹没。
+    /// 分组语义与历史计算属性 1:1（「Holo 会参考」= factEligible + qualifiedAdvice；
+    /// 收件箱下线后 observe 类 candidate 移入「观察中」折叠组，不混入领域分组 §8.3）。
+    /// 组顺序按「组内最新一条记忆的更新时间」倒序：最新变化的领域排最前，
     /// 时间并列时显式回退枚举声明顺序（Swift sort 不保证稳定）。
-    private var nonemptyGroups: [HoloMemoryDisplayGroup] {
-        HoloMemoryDisplayGroup.allCases
-            .enumerated()
-            .filter { _, group in
-                currentRecords.contains { HoloMemoryDisplayGroup.group(for: $0) == group }
+    private func rebuildGroupedRecords() {
+        let current = records.filter { record in
+            record.state != .candidate && record.state != .archived
+        }
+        domainGroups = HoloMemoryDisplayGroup.allCases
+            .compactMap { group -> DomainMemoryGroupSection? in
+                let groupRecords = current.filter { HoloMemoryDisplayGroup.group(for: $0) == group }
+                guard !groupRecords.isEmpty else { return nil }
+                return DomainMemoryGroupSection(
+                    group: group,
+                    records: groupRecords,
+                    latestUpdatedAt: groupRecords.map(\.updatedAt).max() ?? .distantPast
+                )
             }
+            .enumerated()
             .sorted { lhs, rhs in
-                let l = latestUpdatedAt(in: lhs.element)
-                let r = latestUpdatedAt(in: rhs.element)
+                let l = lhs.element.latestUpdatedAt, r = rhs.element.latestUpdatedAt
                 return l == r ? lhs.offset < rhs.offset : l > r
             }
             .map(\.element)
-    }
 
-    private func latestUpdatedAt(in group: HoloMemoryDisplayGroup) -> Date {
-        currentRecords
-            .lazy
-            .filter { HoloMemoryDisplayGroup.group(for: $0) == group }
-            .map(\.updatedAt)
-            .max() ?? .distantPast
-    }
+        pendingGroupRecords = records.filter { HoloMemoryAttentionPolicy.requiresDailyConfirmation($0) }
+        archivedGroupRecords = records.filter { $0.state == .archived }
 
-    private var pendingRecords: [HoloMemoryRecord] {
-        // 统一走 AttentionPolicy 口径（不再裸用 state == candidate）；
-        // 收件箱下线后「想和你确认的」任务组整体消失（方案 §8.2/§12.1）。
-        records.filter { HoloMemoryAttentionPolicy.requiresDailyConfirmation($0) }
-    }
-
-    private var archivedRecords: [HoloMemoryRecord] {
-        records.filter { $0.state == .archived }
-    }
-
-    private var currentRecords: [HoloMemoryRecord] {
-        // 「Holo 会参考」= factEligible + qualifiedAdvice（都会影响回答/建议）。
-        // 收件箱下线后 observe 类 candidate 移入「观察中」折叠组，不混入领域分组（§8.3）。
-        records.filter { record in
-            record.state != .candidate && record.state != .archived
+        guard HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled else {
+            observingGroupRecords = []
+            return
         }
-    }
-
-    /// 「观察中」：observeOnly / 未触发的 askWhenRelevant——不用于回答，默认折叠（§8.3）。
-    private var observingRecords: [HoloMemoryRecord] {
-        guard HoloMemoryAttentionPolicy.isDailyConfirmationInboxDisabled else { return [] }
-        return records.filter { record in
+        observingGroupRecords = records.filter { record in
             guard record.state == .candidate,
                   ![.rejected, .markedIrrelevant, .forgotten].contains(record.userDecision) else {
                 return false
@@ -285,50 +429,110 @@ struct DomainMemorySection: View {
     /// 「观察中」折叠组：无计数徽章、无清空义务，用户可主动打开纠正（§8.3）。
     /// 卡片带「对/不对」快捷确认：点「对」即经既有反馈链路置 active，立即可用于回答
     /// ——这是观察中记忆唯一的手动升级出口（收件箱已下线，后台不会自动升级）。
+    /// 拍平形态下 DisclosureGroup 自身作为 LazyVStack 的一行（展开内容默认折叠不构建）；
+    /// 堆叠形态保持组级块。
     private var observingSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
-            DisclosureGroup(isExpanded: $showsObservingSection) {
-                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                    ForEach(observingRecords) { record in
-                        memoryCard(record, showsQuickConfirm: true, showsSourceInMetadata: true)
+        Group {
+            if flat {
+                DisclosureGroup(isExpanded: $showsObservingSection) {
+                    VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                        ForEach(observingGroupRecords) { record in
+                            memoryCard(record, showsQuickConfirm: true, showsSourceInMetadata: true)
+                        }
                     }
+                    .padding(.top, HoloSpacing.xs)
+                } label: {
+                    observingSectionLabel
                 }
-                .padding(.top, HoloSpacing.xs)
-            } label: {
-                HStack(spacing: HoloSpacing.xs) {
-                    Image(systemName: "eye")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary)
-                    Text("观察中")
-                        .font(.holoLabel)
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.top, HoloSpacing.md - HoloSpacing.sm / 2)
+                .padding(.bottom, HoloSpacing.sm / 2)
+                Text("点「对」即可让 Holo 在回答中使用；不确认就继续观察。")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.bottom, HoloSpacing.sm / 2)
+            } else {
+                VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                    DisclosureGroup(isExpanded: $showsObservingSection) {
+                        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                            ForEach(observingGroupRecords) { record in
+                                memoryCard(record, showsQuickConfirm: true, showsSourceInMetadata: true)
+                            }
+                        }
+                        .padding(.top, HoloSpacing.xs)
+                    } label: {
+                        observingSectionLabel
+                    }
+                    Text("点「对」即可让 Holo 在回答中使用；不确认就继续观察。")
+                        .font(.holoTinyLabel)
                         .foregroundColor(.holoTextSecondary)
                 }
             }
-            Text("点「对」即可让 Holo 在回答中使用；不确认就继续观察。")
-                .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
         }
     }
     @State private var showsObservingSection = false
 
-    private func memoryGroup(_ group: HoloMemoryDisplayGroup) -> some View {
-        let groupRecords = currentRecords.filter { HoloMemoryDisplayGroup.group(for: $0) == group }
-        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+    private var observingSectionLabel: some View {
+        HStack(spacing: HoloSpacing.xs) {
+            Image(systemName: "eye")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.holoTextSecondary)
+            Text("观察中")
+                .font(.holoLabel)
+                .foregroundColor(.holoTextSecondary)
+        }
+    }
+
+    private func memoryGroup(_ section: DomainMemoryGroupSection) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            groupHeaderRow(
+                title: section.group.title,
+                icon: section.group.icon,
+                count: section.records.count,
+                latest: section.latestUpdatedAt
+            )
+
+            ForEach(section.records) { record in
+                memoryCard(record)
+            }
+        }
+    }
+
+    /// 组头行：条数徽章 + 组内最新更新日期（时间倒序排列后这是「新的在上面」的
+    /// 直接线索）。拍平与堆叠形态共用。
+    private func groupHeaderRow(
+        title: String,
+        icon: String,
+        count: Int,
+        latest: Date? = nil,
+        subtitle: String? = nil,
+        actionTitle: String? = nil,
+        action: (() -> Void)? = nil
+    ) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
             HStack(spacing: HoloSpacing.xs) {
-                Image(systemName: group.icon)
+                Image(systemName: icon)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.holoPrimary)
-                Text(group.title)
+                Text(title)
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
                 Spacer()
-                Text(Self.groupMetaText(count: groupRecords.count, latest: latestUpdatedAt(in: group)))
+                if let actionTitle, let action {
+                    Button(actionTitle, action: action)
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoPrimary)
+                }
+                Text(Self.groupMetaText(count: count, latest: latest ?? .distantPast))
                     .font(.holoTinyLabel)
                     .foregroundColor(.holoTextPlaceholder)
             }
 
-            ForEach(groupRecords) { record in
-                memoryCard(record)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextPlaceholder)
             }
         }
     }
@@ -355,29 +559,14 @@ struct DomainMemorySection: View {
         showsQuickConfirm: Bool = false
     ) -> some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack(spacing: HoloSpacing.xs) {
-                Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoPrimary)
-                Text(title)
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
-                Spacer()
-                if let actionTitle, let action {
-                    Button(actionTitle, action: action)
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoPrimary)
-                }
-                Text("\(records.count) 条")
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextPlaceholder)
-            }
-
-            if let subtitle {
-                Text(subtitle)
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextPlaceholder)
-            }
+            groupHeaderRow(
+                title: title,
+                icon: icon,
+                count: records.count,
+                subtitle: subtitle,
+                actionTitle: actionTitle,
+                action: action
+            )
 
             ForEach(records) { record in
                 memoryCard(record, showsQuickConfirm: showsQuickConfirm, showsSourceInMetadata: true)
@@ -622,15 +811,17 @@ struct DomainMemorySection: View {
             inboxSnapshot = await HoloMemoryReceiptStore.inboxSnapshot()
             showsInboxSummary = !inboxSnapshot.isEmpty
             records = try await repository.query(.all).filter(Self.isUserVisible)
+            rebuildGroupedRecords()
             isLoading = false
             #if DEBUG
             if HoloAppStoreScreenshotSeeder.requestedRoute == .memoryExtraction,
-               !pendingRecords.isEmpty {
+               !pendingGroupRecords.isEmpty {
                 showsConfirmationQueue = true
             }
             #endif
         } catch {
             records = []
+            rebuildGroupedRecords()
             loadError = String(localized: "你原来的记录没有丢失，可以稍后重试。")
             isLoading = false
         }
@@ -656,6 +847,7 @@ struct DomainMemorySection: View {
             withAnimation(HoloAnimation.smooth) {
                 records.removeAll { $0.id == id }
             }
+            rebuildGroupedRecords()
             selectedRecord = nil
         }
     }
@@ -674,6 +866,7 @@ struct DomainMemorySection: View {
                 withAnimation(HoloAnimation.smooth) {
                     records.removeAll { $0.id == record.id }
                 }
+                rebuildGroupedRecords()
             }
             refreshInboxSnapshot()
         } catch {
@@ -693,6 +886,7 @@ struct DomainMemorySection: View {
             withAnimation(HoloAnimation.smooth) {
                 records.removeAll { $0.id == id }
             }
+            rebuildGroupedRecords()
         }
         refreshInboxSnapshot()
     }
@@ -706,6 +900,7 @@ struct DomainMemorySection: View {
                 records.removeAll { $0.id == record.id }
             }
         }
+        rebuildGroupedRecords()
     }
 
     private func refreshInboxSnapshot() {

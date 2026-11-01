@@ -24,16 +24,10 @@ final class HoloMemoryCenterViewModel: ObservableObject {
         case failed
     }
 
+    /// 分段（减法原型 ①②）：已记住 / 值得确认。搜索与筛选始终作用于已记住列表。
     enum BucketSelection: Equatable {
         case remembered
-        case observing
-
-        var bucket: HoloMemoryManagementBucket {
-            switch self {
-            case .remembered: return .remembered
-            case .observing: return .observing
-            }
-        }
+        case worthConfirming
     }
 
     enum TimeFilter: String, CaseIterable, Identifiable {
@@ -97,6 +91,36 @@ final class HoloMemoryCenterViewModel: ObservableObject {
     @Published var originFilter: OriginFilter = .all
     @Published var domainFilter: HoloMemoryDomain?
 
+    // MARK: - 列表行元数据（四类分组 + 一行来源灰字，减法原型 ①）
+
+    /// 单行的展示元数据：分组 + 灰字（从记录投影，列表不再挂彩色胶囊）。
+    struct HoloMemoryListRowMeta: Equatable {
+        let group: HoloMemoryListGroup
+        let subline: String
+    }
+
+    @Published private(set) var rowMetaByRecordID: [String: HoloMemoryListRowMeta] = [:]
+
+    /// 四类分组下的已记住行（空分组隐藏；顺序 = 偏好与约束/当前关注/重要经历/生活规律）。
+    struct RememberedGroup: Identifiable, Equatable {
+        let group: HoloMemoryListGroup
+        let rows: [HoloMemoryManagementProjection]
+        var id: Int { group.rawValue }
+    }
+
+    var rememberedGroups: [RememberedGroup] {
+        let rows = currentRows
+        var byGroup: [HoloMemoryListGroup: [HoloMemoryManagementProjection]] = [:]
+        for row in rows {
+            let meta = rowMetaByRecordID[row.recordID]
+            byGroup[meta?.group ?? .focus, default: []].append(row)
+        }
+        return HoloMemoryListGroup.allCases.compactMap { group in
+            guard let rows = byGroup[group], !rows.isEmpty else { return nil }
+            return RememberedGroup(group: group, rows: rows)
+        }
+    }
+
     // MARK: - 操作回执（§5.1：行内回执 + 撤销；保存成功才展示成功）
 
     struct ActionReceipt: Identifiable, Equatable {
@@ -110,6 +134,88 @@ final class HoloMemoryCenterViewModel: ObservableObject {
     @Published var receipt: ActionReceipt?
     /// 非成功路径的行内提示（冲突/被拒/落库失败；条目与草稿不动，§2.3）。
     @Published var actionNotice: String?
+
+    // MARK: - 值得确认（v2.2 §5：推荐区一次最多 3 条；成熟候选可主动查看全部；不展示半成品数量）
+
+    @Published private(set) var worthConfirming: [HoloResolvedKnowledge] = []
+    @Published var showsAllWorthConfirming = false
+
+    static let worthConfirmingRecommendationLimit = 3
+
+    /// 推荐区：排除冷却中的（暂不处理 30 天仍可在「全部」里主动查到），按新增信息排序。
+    var recommendedWorthConfirming: [HoloResolvedKnowledge] {
+        let now = Date()
+        let active = worthConfirming.filter { ($0.cooldownUntil ?? .distantPast) <= now }
+        return Array(active.prefix(Self.worthConfirmingRecommendationLimit))
+    }
+
+    /// 已确认的知识理解（规律确认、发现保存等知识层条目；无记录载体，
+    /// 单独成组展示在「已记住」顶部，否则确认完即消失——2026-11-01 补件）。
+    @Published private(set) var confirmedKnowledge: [HoloResolvedKnowledge] = []
+
+    var hasMoreWorthConfirming: Bool {
+        worthConfirming.count > recommendedWorthConfirming.count
+    }
+
+    /// 知识层控制：确认绑定当前语义指纹；保存成功才回执。
+    @MainActor
+    func performKnowledge(
+        _ action: HoloKnowledgeControlAction,
+        on knowledge: HoloResolvedKnowledge
+    ) async {
+        do {
+            let repository = try await HoloMemoryRuntime.shared.repository()
+            let service = HoloKnowledgeControlService(repository: repository)
+            let digest = knowledge.proposedRevision?.semanticDigest ?? knowledge.currentRevision?.semanticDigest
+            let request = HoloKnowledgeControlRequest(
+                propositionID: knowledge.propositionID,
+                expectedSemanticDigest: digest,
+                knownOperationIDs: knowledge.restrictingOperationIDs,
+                action: action,
+                entry: "memoryCenter"
+            )
+            let outcome = try await service.apply(request)
+            switch outcome {
+            case .applied(_, let undoableID):
+                if let undoableID {
+                    receipt = ActionReceipt(
+                        recordID: knowledge.propositionID,
+                        text: knowledgeReceiptText(for: action),
+                        operationID: undoableID,
+                        contentVersionAfterApply: 0
+                    )
+                }
+                await load()
+            case .alreadyApplied:
+                await load()
+            case .conflict:
+                actionNotice = "这条理解刚有更新，先看看最新版本再操作。"
+            case .notFound:
+                actionNotice = "这条理解已不存在，列表已刷新。"
+                await load()
+            case .notAllowed(let reason):
+                actionNotice = reason == "notMature" ? "这条观察还没有达到可确认的证据门槛。" : "这个操作在这里不适用。"
+            case .persistenceFailed:
+                actionNotice = "保存没成功，内容没丢，稍后再试。"
+            }
+        } catch {
+            NSLog("[HoloMemoryCenter] 知识操作异常: \(String(describing: error))")
+            actionNotice = "暂时没做成，稍后再试一次。"
+        }
+    }
+
+    private func knowledgeReceiptText(for action: HoloKnowledgeControlAction) -> String {
+        switch action {
+        case .confirm: return "已记住 · 相关回答会参考这条理解"
+        case .correct: return "已改好 · 回答将使用你的说法"
+        case .markInaccurate: return "已标记不准确 · 不再用于回答"
+        case .narrowScope: return "已标记现在不适用 · 保留历史"
+        case .disable: return "已停用 · 不再影响回答"
+        case .restore: return "已重新启用"
+        case .deferCooldown: return "先放着 · 30 天内不再主动提"
+        case .forget, .undo: return "已完成"
+        }
+    }
 
     private var controlService: HoloMemoryUserControlService?
 
@@ -258,9 +364,38 @@ final class HoloMemoryCenterViewModel: ObservableObject {
             let warmupService = try await makeControlService()
             _ = try await warmupService.reconcileOutstanding()
             let repository = try await HoloMemoryRuntime.shared.repository()
-            let service = HoloMemoryManagementReadService(repository: repository)
+            // 来源实时核验（v2.2 W1：unknown 不再默认放行；管理页「来源已失效」反映真实状态）。
+            let verifier = HoloKnowledgeCoreDataSourceVerifier(
+                businessContainer: CoreDataStack.shared.persistentContainer
+            )
+            let service = HoloMemoryManagementReadService(
+                repository: repository,
+                sourceVerifier: HoloKnowledgeSourceAvailabilityBridge(verifier: verifier)
+            )
             let snapshot = try await service.loadSnapshot(
                 answeringEnabled: settings.memoryAssistedAnsweringEnabled
+            )
+            // 值得确认：统一决策投影里的成熟行为规律（确认前不跨会话使用）。
+            // 已确认：知识层条目（规律确认/发现保存），「已记住」顶部单独成组。
+            let resolved = try await repository.resolvedKnowledgeAll(now: Date())
+            worthConfirming = resolved
+                .filter { $0.decision == .worthConfirming }
+                .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
+            confirmedKnowledge = resolved
+                .filter { $0.decision == .confirmedValid }
+                .sorted { $0.lastUpdatedAt > $1.lastUpdatedAt }
+            // 行元数据：四类分组 + 一行来源灰字（originLabel 复用快照投影，减法原型 ①）。
+            // 记录复用快照的同一次全量读取，不再二次查库（2026-11-01 性能修复批）。
+            let recordsByID = snapshot.recordsByID
+            rowMetaByRecordID = Dictionary(
+                snapshot.projections.compactMap { projection in
+                    guard let record = recordsByID[projection.recordID] else { return nil }
+                    return (projection.recordID, HoloMemoryListRowMeta(
+                        group: HoloMemoryListGroup.group(for: record),
+                        subline: HoloMemorySourceLine.listSubline(origin: projection.originLabel, record: record)
+                    ))
+                },
+                uniquingKeysWith: { first, _ in first }
             )
             state = .loaded(snapshot)
         } catch {
@@ -280,26 +415,18 @@ final class HoloMemoryCenterViewModel: ObservableObject {
     var rememberedCount: Int { snapshot?.summary.remembered ?? 0 }
     var observingCount: Int { snapshot?.summary.observing ?? 0 }
 
-    /// 当前桶（已记住时按时间分组拆两段，§4.1）。
+    /// 当前桶的列表行（搜索/筛选取自已记住列表；值得确认分段走知识层卡片）。
     var currentRows: [HoloMemoryManagementProjection] {
         rows(matching: currentQuery())
     }
 
-    var recentRows: [HoloMemoryManagementProjection] {
-        rows(matching: currentQuery(timeGroup: .recent))
-    }
-
-    var longTermRows: [HoloMemoryManagementProjection] {
-        rows(matching: currentQuery(timeGroup: .longTerm))
-    }
-
-    /// 搜索/筛选取自当前分段视图；默认不含过去与停用（§4.3）。
+    /// 搜索/筛选取自已记住列表；默认不含过去与停用（§4.3）。
     private func currentQuery(
         timeGroup: HoloMemoryManagementTimeGroup? = nil
     ) -> HoloMemoryManagementListQuery {
         HoloMemoryManagementListQuery(
-            bucket: selectedBucket.bucket,
-            timeGroup: timeGroup ?? (selectedBucket == .remembered ? timeFilter.timeGroup : nil),
+            bucket: .remembered,
+            timeGroup: timeGroup ?? timeFilter.timeGroup,
             origin: originFilter.origin,
             domain: domainFilter,
             searchText: searchText.isEmpty ? nil : searchText

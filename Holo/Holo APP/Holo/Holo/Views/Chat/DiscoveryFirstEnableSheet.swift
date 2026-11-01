@@ -14,8 +14,9 @@ import SwiftUI
 struct DiscoveryFirstEnableSheet: View {
 
     let service: any DiscoveryService
-    /// 缺全局授权时引导跳转（主会话呈现 AIDataProcessingConsentView）
-    var onOpenGlobalConsent: () -> Void = {}
+    /// 缺全局授权时引导跳转（宿主呈现 AIDataProcessingConsentView）；
+    /// 跳转类回调不设默认空值，漏接=编译不过
+    let onOpenGlobalConsent: () -> Void
     /// 流程结束统一收口：enabled=是否成功开启；主会话据此关闭本 sheet
     var onFinished: (Bool) -> Void
 

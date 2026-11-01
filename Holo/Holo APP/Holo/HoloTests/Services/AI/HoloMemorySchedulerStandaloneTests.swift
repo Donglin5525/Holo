@@ -68,7 +68,9 @@ struct HoloMemorySchedulerStandaloneTests {
         testObservationKeyContract()
         testResourceBudget()
         try await testIdempotencyFrequencyAndRetry()
-        try await testPeakWindowDefersToValley()
+        // 2026-10-15 切 qwen 后无峰谷差价，HoloAIWindowPolicy 已改为恒谷（isValleyWindow 恒 true），
+        // 「高峰期顺延」语义失效；WindowPolicy 恢复峰谷门控时再启用本用例。
+        // try await testPeakWindowDefersToValley()
         try await testCommitValidationRefusedDefersToNextLocalDay()
         try await testMaterialThresholdCrossDomainAndDailyBudget()
         try await testOnlyOneAIJobRunsAtATime()

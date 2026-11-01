@@ -66,3 +66,34 @@ final class HoloMemoryControlStateMO: NSManagedObject {
     @NSManaged var userDecisionVersion: Int64
     @NSManaged var updatedAt: Date
 }
+
+// MARK: - 通用知识（方案 v2.2 §7.1 两个 vNext 实体；契约见 HoloKnowledgeContract）
+// 与上方实体同文件：本文件同时编进 HoloWidgets 目标（小组件共享记忆模型），
+// 实体工厂的 NSStringFromClass 需要两端都能解析到类。
+
+@objc(HoloMemoryKnowledgeRevisionMO)
+final class HoloMemoryKnowledgeRevisionMO: NSManagedObject {
+    @NSManaged var propositionID: String
+    @NSManaged var semanticRevisionID: String
+    @NSManaged var semanticDigest: String
+    @NSManaged var topicID: String
+    @NSManaged var partition: String
+    @NSManaged var revisionData: Data
+    @NSManaged var createdAt: Date
+    @NSManaged var schemaVersion: Int64
+}
+
+@objc(HoloMemoryKnowledgeOperationMO)
+final class HoloMemoryKnowledgeOperationMO: NSManagedObject {
+    @NSManaged var operationID: String
+    @NSManaged var propositionID: String
+    @NSManaged var kind: String
+    @NSManaged var targetSemanticRevisionID: String?
+    @NSManaged var priorOperationIDsJSON: String
+    @NSManaged var controlGeneration: Int64
+    @NSManaged var partition: String
+    @NSManaged var operationData: Data
+    @NSManaged var issuedAt: Date
+    @NSManaged var appliedAt: Date?
+    @NSManaged var schemaVersion: Int64
+}

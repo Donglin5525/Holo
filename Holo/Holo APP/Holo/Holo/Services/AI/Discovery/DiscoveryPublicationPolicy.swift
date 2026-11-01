@@ -31,6 +31,11 @@ nonisolated struct AcceptedCandidate: Sendable {
     let verification: DiscoveryCandidateResult
     /// 核验输入时反例块的实际数量（0 且覆盖 complete = 搜索完成无命中）。
     let counterEvidenceCount: Int
+    /// 可发布资格与原始核验结论分离（2026-11-01 独立诊断报告问题2）：
+    /// 整候选 reject 但经「部分支持修剪」（title supported + 保留 body 全 supported、
+    /// 不支持句已移除）后仍可发布——此标记 true。原始 verification 保持 reject 不改写，
+    /// 供知识联动/回执使用真实结论。
+    var publishEligibleAfterTrim: Bool = false
 }
 
 /// 独立事件计数摘要（EvidenceBatch 的门禁视图）。
@@ -103,8 +108,11 @@ nonisolated final class DiscoveryPublicationPolicy {
 
             // 核验必须 accept 且所有展示句 supported（结构层已保证 accept ⇒ 全 supported，
             // 这里防御性复核核验结果归属——串候选的核验结果不接受）
-            guard accepted.verification.verdict == .accept,
-                  accepted.verification.candidateID == id else {
+            // 发布资格（2026-11-01 报告问题2）：accept，或经修剪的保守发布
+            //（publishEligibleAfterTrim 的候选其保留句已全部 supported，且候选对象
+            // 已是不含不支持句的修剪版——下方独立事件数/敏感边界照常按修剪后候选复核）。
+            guard accepted.verification.candidateID == id,
+                  accepted.verification.verdict == .accept || accepted.publishEligibleAfterTrim else {
                 rejections.append(.init(candidateID: id, reason: .notAcceptedByVerification))
                 continue
             }

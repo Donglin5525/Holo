@@ -87,29 +87,27 @@ struct FinanceProjectDetailView: View {
                         .accessibilityIdentifier("projectDetail.edit")
                         if project.statusEnum == .active {
                             Button {
-                                try? projectRepo.updateStatus(project, status: .completed)
-                                loadData()
+                                changeStatus(to: .completed, toast: String(localized: "「\(project.name)」已完结"), type: .success)
                             } label: {
                                 Label("完结项目", systemImage: "checkmark.circle")
                             }
+                            .accessibilityIdentifier("projectDetail.complete")
                         } else if project.statusEnum == .completed {
                             Button {
-                                try? projectRepo.updateStatus(project, status: .active)
-                                loadData()
+                                changeStatus(to: .active, toast: String(localized: "「\(project.name)」已重新开启"), type: .info)
                             } label: {
                                 Label("重新开启", systemImage: "arrow.counterclockwise")
                             }
                         }
                         if project.statusEnum == .archived {
                             Button {
-                                try? projectRepo.updateStatus(project, status: .active)
-                                loadData()
+                                changeStatus(to: .active, toast: String(localized: "「\(project.name)」已取消归档"), type: .info)
                             } label: {
                                 Label("取消归档", systemImage: "tray.and.arrow.up")
                             }
                         } else {
                             Button {
-                                try? projectRepo.updateStatus(project, status: .archived)
+                                changeStatus(to: .archived, toast: String(localized: "「\(project.name)」已归档"), type: .info)
                                 dismiss()
                             } label: {
                                 Label("归档项目", systemImage: "archivebox")
@@ -175,6 +173,19 @@ struct FinanceProjectDetailView: View {
         pendingDeletionID = nil
         guard let project = try? projectRepo.context.existingObject(with: projectID) as? FinanceProject else { return }
         try? projectRepo.deleteProject(project)
+    }
+
+    /// 状态流转统一出口：存库 → 全局 toast（成功态自带触觉）→ 头卡状态胶囊随动画切换。
+    /// 原先只改库不吭声，点「完结项目」后页面毫无动静（2026-10-29 东林实报）
+    private func changeStatus(to status: FinanceProjectStatus, toast: String, type: ToastType) {
+        do {
+            try projectRepo.updateStatus(project, status: status)
+        } catch {
+            HoloToastCenter.shared.show(String(localized: "操作没有成功，状态保持原样。请重试。"), type: .error)
+            return
+        }
+        HoloToastCenter.shared.show(toast, type: type)
+        withAnimation(HoloAnimation.quick) { loadData() }
     }
 
     // MARK: - 头卡

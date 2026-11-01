@@ -103,7 +103,10 @@ func holoScreenHeight() -> CGFloat {
 
 // MARK: - 跨平台导航工具栏位
 
-/// iOS 的导航栏左右位在 macOS 无直接对应：映射到 .navigation / .primaryAction（语义降级，位置仍合理）
+/// iOS 的导航栏左右位在 macOS 无直接对应。
+/// macOS 注意（2026-10-27 实测）：.navigation 位在 sheet 的 toolbar 里不渲染
+/// ToolbarItem——设置中心/转任务/主题确认等页左上按钮曾全部隐形。
+/// .cancellationAction 是 macOS sheet 左上按钮的标准位，语义（关闭/返回）一致。
 #if canImport(UIKit)
 enum HoloToolbarPlacement {
     static let navLeading: ToolbarItemPlacement = .navigationBarLeading
@@ -113,9 +116,9 @@ enum HoloToolbarPlacement {
 }
 #else
 enum HoloToolbarPlacement {
-    static let navLeading: ToolbarItemPlacement = .navigation
+    static let navLeading: ToolbarItemPlacement = .cancellationAction
     static let navTrailing: ToolbarItemPlacement = .primaryAction
-    static let topBarLeading: ToolbarItemPlacement = .navigation
+    static let topBarLeading: ToolbarItemPlacement = .cancellationAction
     static let topBarTrailing: ToolbarItemPlacement = .primaryAction
 }
 #endif

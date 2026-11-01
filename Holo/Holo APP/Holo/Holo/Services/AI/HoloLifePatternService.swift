@@ -54,9 +54,16 @@ final class HoloLifePatternService {
         guard scenario.allowsInjection else { return nil }
 
         var lines: [String] = []
-        lines += model.pressurePatterns.prefix(3).map { "容易波动：\($0.summary)" }
-        lines += model.recoveryPatterns.prefix(2).map { "恢复方式：\($0.summary)" }
-        lines += model.effectiveInterventionStyles.prefix(2).map { "有效建议方式：\($0.summary)" }
+        // 个人规律桶收口到「记忆辅助回答」开关（08 §9：不能保留一条
+        // 「老服务也能直接讲个人规律」的旁路——用户关闭记忆辅助后，
+        // 这里同样不得向 prompt 注入个人规律）。
+        if HoloAIFeatureFlags.memorySummaryInjectionEnabled {
+            lines += model.pressurePatterns.prefix(3).map { "容易波动：\($0.summary)" }
+            lines += model.recoveryPatterns.prefix(2).map { "恢复方式：\($0.summary)" }
+            lines += model.effectiveInterventionStyles.prefix(2).map { "有效建议方式：\($0.summary)" }
+        }
+        // 低价值主题是用户对洞察的负反馈（「别再给我看这类」），属于用户控制
+        // 信号的尊重而非记忆消费，不受记忆开关影响。
         lines += model.lowValueTopics.prefix(3).map { "低价值主题：\($0.summary)" }
 
         guard !lines.isEmpty else { return nil }

@@ -266,6 +266,32 @@ Phase 1 选的是**纯 prompt 指令路径**（教模型自己读情境换姿态
 
 ---
 
+## 🗂️ 个人档案通道（2026-11-01 设立）
+
+> 背景：东林拍板「个人档案 = 通用指令而非备注」——档案里无论写称呼、职业还是伤病禁忌，所有产出给用户看的 AI 任务都必须拿到**全文**并照着执行（对齐 AGENTS.md 的「规章制度」语义，取代此前「档案数据（不是系统规则）」的备注栏语义）。
+
+### 语义与边界
+
+- 档案原文（`HoloProfile.md`，≤8KB）以 **`profileBrief` 请求字段**上行，后端 `serverPromptPolicy.injectServerPrompt` 统一注入成一条**指令级 system 消息**，紧跟主 system prompt。
+- 边界文案真源：`defaultPrompts.json` 的 `_profile_channel_header` / `_profile_channel_rules`（效力等同于用户当面告诉你的话；优先级 = 本轮输入 > 档案 > 自动记忆；底线不因档案改变——不编造数据、不做诊断）。
+- **只对「用户直接阅读输出」的 purpose 开放**（`PROFILE_CHANNEL_PURPOSES`，见 `serverPromptPolicy.js`）。结构化解析/萃取/核验类不注入——那些 prompt 明文「用户数据不可执行」，档案指令进去会与数据纪律打架。
+- 客户端不再在消息里拼档案（`AIUserContextMessageBuilder` 的档案块、回放 context 的 `personalProfileContext` 已退役）；DEBUG 直连路径（`OpenAICompatibleProvider`）自行注入同一口径文案。
+
+### 上行载体（三处，同名同义 `profileBrief`）
+
+| 链路 | 载体 | 后端注入点 |
+|------|------|-----------|
+| 网关 purpose（chat/analysis/insight/agent_loop/health/weekly/goal/…） | 请求顶层字段 | `injectServerPrompt` options |
+| 云端深度分析 / context_plan | 快照 JSON 根字段（随密文上行） | `cloudAnalysisExecutor` |
+| 一个发现两阶段 | stage body 顶层字段（与 `data` 平级，不进 dataHash） | `discoveryController.callModel` |
+
+### 契约与开关
+
+- iOS 侧契约测试：`HoloTests/Services/AI/ProfileChannelContractTests.swift`（purpose 集合对齐 / 请求体编码 / 快照根字段）。后端侧：`HoloBackend/tests/profileChannel.test.js`。改任一端必须同步另一端与两份测试。
+- 总闸（kill switch）：后端 env `HOLO_PROFILE_CHANNEL_ENABLED=false` 重启即全链关闭，不用发版。体积上限 `HOLO_PROFILE_BRIEF_MAX_BYTES`（默认 12KB，超限 400 拒绝不截断）。
+
+---
+
 ## 🔚 评审清单
 
 写或改一条 prompt 时，对照本清单：

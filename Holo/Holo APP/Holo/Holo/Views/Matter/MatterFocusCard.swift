@@ -100,13 +100,13 @@ struct MatterFocusCard: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color(.tertiarySystemGroupedBackground)))
+                .background(RoundedRectangle(cornerRadius: 10).fill(Color.holoTertiaryGroupedBackground))
             }
         }
         .padding(14)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .fill(Color(.systemBackground))
+                .fill(Color.holoSystemBackground)
                 .shadow(color: Color.black.opacity(0.05), radius: 8, y: 2)
         )
         .overlay(
@@ -153,7 +153,7 @@ struct MatterFocusCard: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .fill(Color(.systemBackground))
+                .fill(Color.holoSystemBackground)
                 .shadow(color: Color.black.opacity(0.04), radius: 6, y: 2)
         )
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.md))

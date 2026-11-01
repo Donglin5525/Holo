@@ -9,9 +9,10 @@ import SwiftUI
 
 struct PersonalMemorySettingsView: View {
     @ObservedObject private var memorySettings = HoloMemorySettings.shared
+    /// 跳转记忆长廊：跨模块路由必须由宿主接线（跳转类回调不设默认空值，漏接=编译不过）
     let onOpenMemoryGallery: () -> Void
 
-    init(onOpenMemoryGallery: @escaping () -> Void = {}) {
+    init(onOpenMemoryGallery: @escaping () -> Void) {
         self.onOpenMemoryGallery = onOpenMemoryGallery
     }
 
@@ -165,6 +166,6 @@ struct PersonalMemorySettingsView: View {
 
 #Preview {
     NavigationStack {
-        PersonalMemorySettingsView()
+        PersonalMemorySettingsView(onOpenMemoryGallery: {})
     }
 }

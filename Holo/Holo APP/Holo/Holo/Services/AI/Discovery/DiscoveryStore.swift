@@ -294,6 +294,22 @@ final class DiscoveryBoundedRetrievalIndexMO: NSManagedObject {
     @NSManaged var createdAt: Date
 }
 
+/// claim → 知识命题/语义版本/证据快照 的版本化关联（融合契约 §3）。
+/// 可重建投影：权威确认位于知识操作中，本表不承担已保存知识的真源。
+@objc(DiscoveryClaimLinkageMO)
+final class DiscoveryClaimLinkageMO: NSManagedObject {
+    @NSManaged var id: UUID
+    @NSManaged var findingID: UUID
+    @NSManaged var runID: String
+    @NSManaged var candidateID: String
+    @NSManaged var claimID: String
+    @NSManaged var propositionID: String
+    @NSManaged var semanticDigest: String
+    @NSManaged var evidenceSnapshotID: String
+    @NSManaged var linkageJSON: String
+    @NSManaged var createdAt: Date
+}
+
 // MARK: - 程序化模型
 
 /// 程序化模型工厂。全进程只允许一份 NSManagedObjectModel 实例：
@@ -309,6 +325,7 @@ private enum DiscoveryStoreModelFactory {
         "DiscoveryPublishedFindingMO",
         "DiscoveryFeedbackTombstoneMO",
         "DiscoveryBoundedRetrievalIndexMO",
+        "DiscoveryClaimLinkageMO",
     ]
 
     static func makeModel() -> NSManagedObjectModel {
@@ -321,8 +338,29 @@ private enum DiscoveryStoreModelFactory {
             makePublishedFindingEntity(),
             makeFeedbackTombstoneEntity(),
             makeBoundedRetrievalIndexEntity(),
+            makeClaimLinkageEntity(),
         ]
         return model
+    }
+
+    /// claim → 知识身份的版本化关联（融合契约 §3；本机 store，轻量迁移新增实体）。
+    private static func makeClaimLinkageEntity() -> NSEntityDescription {
+        let entity = NSEntityDescription()
+        entity.name = "DiscoveryClaimLinkageMO"
+        entity.managedObjectClassName = "Holo.DiscoveryClaimLinkageMO"
+        let id = attribute("id", .UUIDAttributeType, defaultValue: UUID())
+        let findingID = attribute("findingID", .UUIDAttributeType, defaultValue: UUID())
+        let runID = attribute("runID", .stringAttributeType, defaultValue: "")
+        let candidateID = attribute("candidateID", .stringAttributeType, defaultValue: "")
+        let claimID = attribute("claimID", .stringAttributeType, defaultValue: "")
+        let propositionID = attribute("propositionID", .stringAttributeType, defaultValue: "")
+        let semanticDigest = attribute("semanticDigest", .stringAttributeType, defaultValue: "")
+        let evidenceSnapshotID = attribute("evidenceSnapshotID", .stringAttributeType, defaultValue: "")
+        let linkageJSON = attribute("linkageJSON", .stringAttributeType, defaultValue: "{}")
+        let createdAt = attribute("createdAt", .dateAttributeType, defaultValue: Date())
+        entity.properties = [id, findingID, runID, candidateID, claimID, propositionID, semanticDigest, evidenceSnapshotID, linkageJSON, createdAt]
+        CoreDataStack.applyIndexes(to: entity, on: ["id": id, "findingID": findingID, "propositionID": propositionID])
+        return entity
     }
 
     private static func attribute(
@@ -739,6 +777,7 @@ nonisolated final class DiscoveryStore {
             )
             for existing in try context.fetch(activeRequest) {
                 Self.deleteDependencies(ofFinding: existing.id, context: context)
+                Self.deleteClaimLinkages(ofFinding: existing.id, context: context)
                 context.delete(existing)
             }
 
@@ -923,6 +962,8 @@ nonisolated final class DiscoveryStore {
             try Self.deleteAll(entityName: "DiscoveryBoundedRetrievalIndexMO", context: context)
             try Self.deleteAll(entityName: "DiscoverySourceDependencyIndexMO", context: context)
             try Self.deleteAll(entityName: "DiscoveryPublishedFindingMO", context: context)
+            // claim 关联是发现目的的可重建投影：随账号清理一并清，不删已独立保存的知识。
+            try Self.deleteAll(entityName: "DiscoveryClaimLinkageMO", context: context)
         }
     }
 
@@ -957,6 +998,16 @@ nonisolated final class DiscoveryStore {
         mo.createdAt = now
         mo.updatedAt = now
         return mo
+    }
+
+    static func deleteClaimLinkages(ofFinding findingID: UUID, context: NSManagedObjectContext) {
+        let request = NSFetchRequest<DiscoveryClaimLinkageMO>(entityName: "DiscoveryClaimLinkageMO")
+        request.predicate = NSPredicate(format: "findingID == %@", findingID as CVarArg)
+        if let rows = try? context.fetch(request) {
+            for row in rows {
+                context.delete(row)
+            }
+        }
     }
 
     private static func deleteDependencies(ofFinding findingID: UUID, context: NSManagedObjectContext) {

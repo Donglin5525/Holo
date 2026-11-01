@@ -77,7 +77,7 @@ struct MatterPlanLaunchCard: View {
             }
         }
         .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.holoSecondaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .task(id: messageID) { restoreIfNeeded() }
         .alert(
@@ -229,7 +229,7 @@ struct MatterPlanLaunchCard: View {
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(.tertiarySystemGroupedBackground))
+                .background(Color.holoTertiaryGroupedBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
@@ -421,7 +421,7 @@ struct MatterPlanLaunchedReceiptCard: View {
             .controlSize(.large)
         }
         .padding(16)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.holoSecondaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }

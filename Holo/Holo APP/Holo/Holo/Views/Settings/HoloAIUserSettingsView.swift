@@ -23,8 +23,9 @@ struct HoloAIUserSettingsView: View {
     /// 「一个发现」主条目状态摘要（主会话观察服务后传入）
     let discoveryState: DiscoverySettingsDetailState
     let discoveryService: any DiscoveryService
-    /// 长期记忆子页内「查看与管理记忆」（记忆长廊）的路由由主会话接
-    var onOpenMemoryGallery: () -> Void = {}
+    /// 长期记忆子页内「查看与管理记忆」（记忆长廊）的路由由宿主接线；
+    /// 跳转类回调不设默认空值，漏接=编译不过
+    let onOpenMemoryGallery: () -> Void
 
     var body: some View {
         NavigationStack {
@@ -49,7 +50,7 @@ struct HoloAIUserSettingsContent: View {
 
     let discoveryState: DiscoverySettingsDetailState
     let discoveryService: any DiscoveryService
-    var onOpenMemoryGallery: () -> Void = {}
+    let onOpenMemoryGallery: () -> Void
 
     private enum Destination: String, Hashable {
         case discovery

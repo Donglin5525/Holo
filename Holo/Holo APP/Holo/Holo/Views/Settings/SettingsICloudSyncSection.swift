@@ -312,6 +312,9 @@ struct SettingsICloudSyncSection: View {
                 NavigationStack {
                     SyncDiagnosticsView()
                 }
+                #if !canImport(UIKit)
+                .frame(minWidth: 480, minHeight: 560)
+                #endif
             }
             #if canImport(UIKit)
             .fullScreenCover(isPresented: $showCloudRepull) {
@@ -322,8 +325,9 @@ struct SettingsICloudSyncSection: View {
                     }
             }
             #else
-                        .sheet(isPresented: $showCloudRepull) {
+            .sheet(isPresented: $showCloudRepull) {
                 CloudRepullView()
+                    .frame(minWidth: 520, minHeight: 640)
                     .task {
                         // 弹层即启动：确认弹层是唯一的入口闸，这里不再二次确认
                         await CloudRepullService.shared.start()

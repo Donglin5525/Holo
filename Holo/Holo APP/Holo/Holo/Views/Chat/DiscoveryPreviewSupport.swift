@@ -155,6 +155,26 @@ final class MockDiscoveryServiceForPreview: ObservableObject, DiscoveryService {
         }
     }
 
+    /// 预览：成熟态走 eligible 展示内联保存区域；保存后转已记住。
+    var previewSaveState: DiscoveryKnowledgeSaveState = .eligible(
+        claimID: "C01",
+        preview: DiscoveryServicePreviewSamples.finding.title,
+        usesDescription: "用于相关帮助；实际使用遵守记忆辅助回答开关"
+    )
+
+    func knowledgeSaveState(for findingID: String) async -> DiscoveryKnowledgeSaveState {
+        previewSaveState
+    }
+
+    func confirmAndRemember(findingID: String, claimID: String) async -> DiscoveryKnowledgeSaveOutcome {
+        previewSaveState = .remembered(propositionID: "preview-prop", answeringEnabled: true)
+        return .saved(propositionID: "preview-prop")
+    }
+
+    func recordMinimalDeference(findingID: String) async {
+        isDetailPresented = false
+    }
+
     func buildConversationDraft() -> DiscoveryConversationDraft? {
         DiscoveryConversationDraft(
             findingTitle: DiscoveryServicePreviewSamples.finding.title,

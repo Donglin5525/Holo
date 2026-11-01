@@ -16,6 +16,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct MacThoughtListColumnView: View {
 
@@ -44,6 +45,8 @@ struct MacThoughtListColumnView: View {
     @State private var showConfirmationQueue = false
     /// 右键「删除想法」待确认的想法（非 nil 即弹二次确认）
     @State private var deleteConfirmThought: Thought?
+    /// 右键「生成分享卡」：跨平台分享卡面板（sheet item 承载）
+    @State private var shareCardThought: Thought?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -65,7 +68,7 @@ struct MacThoughtListColumnView: View {
             model.reload()
         }
         // ⌘F：菜单栏「视图 > 搜索想法」广播 → 聚焦搜索框（沿用全 App 快捷键总线）
-        .onReceive(HoloShortcutBus.shared.$lastEvent) { event in
+        .onReceive(HoloShortcutBus.shared.$lastEvent.dropFirst()) { event in
             guard event?.action == .searchInCurrentModule else { return }
             searchFieldFocused = true
         }
@@ -103,8 +106,13 @@ struct MacThoughtListColumnView: View {
             }
             Button("取消", role: .cancel) {}
         } message: { _ in
-            // 单条删除已建批次进回收站（2026-09-06 拍板），30 天内可在最近删除自助恢复
+            // 单条删除已建批次进回收站（2026-09-06 拍板），30 天内可在「最近删除」自助恢复
             Text(String(localized: "删除后将进入回收站并保留 30 天，可在「设置 → 数据管理 → 最近删除」中恢复。"))
+        }
+        // 右键「生成分享卡」：跨平台分享卡面板（与 iOS 卡片「…」菜单同一组件）
+        .sheet(item: $shareCardThought) { thought in
+            ThoughtShareSheet(thought: thought)
+                .frame(minWidth: 480, minHeight: 640)
         }
     }
 
@@ -286,7 +294,13 @@ struct MacThoughtListColumnView: View {
                         Button {
                             copyThoughtToPasteboard(thought)
                         } label: {
-                            Label(String(localized: "复制"), systemImage: "doc.on.doc")
+                            Label(String(localized: "复制文字"), systemImage: "doc.on.doc")
+                        }
+                        // 生成分享卡（iOS 卡片「…」菜单同一面板：预览/模板/ShareLink 分享）
+                        Button {
+                            shareCardThought = thought
+                        } label: {
+                            Label(String(localized: "生成分享卡"), systemImage: "square.and.arrow.up")
                         }
                         Divider()
                         // 删除：destructive + 二次确认，软删进 30 天回收站（与 iOS 同口径）

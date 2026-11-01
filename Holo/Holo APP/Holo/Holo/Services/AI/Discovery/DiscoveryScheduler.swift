@@ -93,6 +93,9 @@ nonisolated final class DiscoverySchedulerCore {
     ///   - marks: 未消费的来源变更（含静默窗内最新时刻）。
     ///   - qualification: 当前可独立定位材料数（由证据构建器计数，不是段数）。
     ///   - isFirstEnableAfterGrant: 首次开启的受限历史准备（无需等新增记录）。
+    ///   - isNewDaySinceLastTerminal: 距上次成功终态已跨自然日（「每天一个发现」的日历资格：
+    ///     三域变更事件未接线期间，跨天首查由扫描自比 digest 代替事件触发；材料未变会被
+    ///     alreadyProcessedToday 拦下，不空跑模型）。
     ///   - dailyBatchAvailable: 服务端当日批次是否可用（capability/control 拉取结果）。
     ///   - budgetResetAt: 后台总预算不足时的服务端 resetAt（不轮询撞 429）。
     ///   - processedToday: 今日已成功终态（noFinding/rejected）的记录。
@@ -101,6 +104,7 @@ nonisolated final class DiscoverySchedulerCore {
         marks: [DiscoveryDirtyMark],
         qualification: Int,
         isFirstEnableAfterGrant: Bool,
+        isNewDaySinceLastTerminal: Bool,
         controlEnabled: Bool,
         consentGranted: Bool,
         scopeValid: Bool,
@@ -118,11 +122,11 @@ nonisolated final class DiscoverySchedulerCore {
         guard consentGranted else { return .stopAndHide(.consentWithdrawn) }
         guard scopeValid else { return .stopAndHide(.scopeInvalid) }
 
-        // 资格：首开受限历史准备 或 有未消费的实质变更
+        // 资格：首开受限历史准备、跨自然日的日历首查、或未消费的实质变更
         let hasFreshMaterial = marks.contains { mark in
             now.timeIntervalSince(mark.changedAt) >= 0
         }
-        if !isFirstEnableAfterGrant {
+        if !isFirstEnableAfterGrant && !isNewDaySinceLastTerminal {
             guard hasFreshMaterial else { return .waitingForMaterial }
             // 静默窗：以最新变更时刻起算
             if let latest = marks.map(\.changedAt).max(),

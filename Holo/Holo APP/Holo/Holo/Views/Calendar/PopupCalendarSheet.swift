@@ -216,7 +216,7 @@ struct PopupCalendarSheet: View {
     
     /// 月切换动画
     private func performSwipe(forward: Bool) {
-        let slide: CGFloat = forward ? -UIScreen.main.bounds.width * 0.3 : UIScreen.main.bounds.width * 0.3
+        let slide: CGFloat = forward ? -holoScreenWidth() * 0.3 : holoScreenWidth() * 0.3
         withAnimation(HoloAnimation.enter) { swipeOffset = slide }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             if forward { calendarState.goToNextMonth() }

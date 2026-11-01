@@ -40,6 +40,9 @@ nonisolated struct HoloMemoryManagementSnapshot: Equatable, Sendable {
     let projections: [HoloMemoryManagementProjection]
     let summary: HoloMemoryManagementProjectionSummary
     let generatedAt: Date
+    /// 原始记录（按 ID）：调用方（行元数据、详情跳转）复用同一次全量读取，
+    /// 不再各自再查一遍全库（2026-11-01 性能修复批）。
+    let recordsByID: [String: HoloMemoryRecord]
 
     /// 应用查询契约（§4.3：计数与列表同一投影，跨域记忆只计一次）。
     func applying(_ query: HoloMemoryManagementListQuery) -> [HoloMemoryManagementProjection] {
@@ -73,6 +76,21 @@ protocol HoloMemorySourceAvailabilityVerifying: Sendable {
     func availability(of record: HoloMemoryRecord) async -> HoloMemoryManagementSourceAvailability
 }
 
+extension HoloMemorySourceAvailabilityVerifying {
+    /// 整页批量核验（按记录 ID 返回）。默认逐条；高效实现按实体分批查库
+    /// （管理页全量核验从每证据一次查库降为每实体常数次）。
+    func availabilities(
+        for records: [HoloMemoryRecord]
+    ) async -> [String: HoloMemoryManagementSourceAvailability] {
+        var out: [String: HoloMemoryManagementSourceAvailability] = [:]
+        out.reserveCapacity(records.count)
+        for record in records {
+            out[record.id] = await availability(of: record)
+        }
+        return out
+    }
+}
+
 /// 默认核验器：恒 .unknown（M02 过渡口径，见协议注释）。
 struct HoloMemoryUnknownSourceVerifier: HoloMemorySourceAvailabilityVerifying {
     func availability(of record: HoloMemoryRecord) async -> HoloMemoryManagementSourceAvailability {
@@ -104,14 +122,30 @@ final class HoloMemoryManagementReadService: Sendable {
         let now = now ?? Date()
         let context = HoloMemoryManagementProjectionContext(now: now, answeringEnabled: answeringEnabled)
 
-        var projections: [HoloMemoryManagementSnapshotItem] = []
-        projections.reserveCapacity(records.count)
+        // 展示集合先收敛，再对**展示集合**做批量来源核验（整页一次分批查库，
+        // 不再逐记录逐证据单行查——2026-11-01 性能修复批）。
+        var visible: [HoloMemoryRecord] = []
+        visible.reserveCapacity(records.count)
         for record in records {
-            let availability = await sourceVerifier.availability(of: record)
+            // v2.2 §4/§7.2：自动单次流水退出主记忆展示；未确认的行为推断不再以
+            // 「观察中」成堆出现——成熟者经统一准入进「值得确认」区（该区读知识侧
+            // 投影，与本列表互不代位）。记录本身不删：原业务事实仍在各模块，全局导出仍包含。
+            switch HoloKnowledgeLegacyAdapter.classify(record) {
+            case .autoLowValue, .autoInferenceUnconfirmed:
+                continue
+            default:
+                visible.append(record)
+            }
+        }
+        let availabilityByRecordID = await sourceVerifier.availabilities(for: visible)
+
+        var projections: [HoloMemoryManagementSnapshotItem] = []
+        projections.reserveCapacity(visible.count)
+        for record in visible {
             let input = HoloMemoryManagementProjectionInput(
                 record: record,
                 hasUserControlTombstone: tombstonedRecordIDs.contains(record.id),
-                sourceAvailability: availability
+                sourceAvailability: availabilityByRecordID[record.id] ?? .unknown
             )
             projections.append(
                 HoloMemoryManagementSnapshotItem(
@@ -130,6 +164,10 @@ final class HoloMemoryManagementReadService: Sendable {
             projections: sorted.map(\.projection),
             summary: HoloMemoryManagementProjection.summarize(sorted.map(\.projection)),
             generatedAt: now,
+            recordsByID: Dictionary(
+                records.map { ($0.id, $0) },
+                uniquingKeysWith: { first, _ in first }
+            ),
             sourceDomainsByRecordID: Dictionary(
                 sorted.map { ($0.projection.recordID, $0.sourceDomains) },
                 uniquingKeysWith: { first, _ in first }

@@ -378,6 +378,9 @@ struct ThoughtShareSheet: View {
                     ) {
                         actionLabel(title: String(localized: "分享图片"), icon: "square.and.arrow.up", filled: true)
                     }
+                    // 保存到相册仅 iOS：macOS 无相册写入 API，原先只弹 Mac 上不可见
+                    // 的 toast（等于按钮点了没反应），Mac 上不渲染该按钮
+                    #if canImport(UIKit)
                     Button {
                         saveToAlbum(renderedImage)
                     } label: {
@@ -388,11 +391,14 @@ struct ThoughtShareSheet: View {
                         )
                     }
                     .disabled(saveState == .saved)
+                    #endif
                 } else {
                     actionLabel(title: String(localized: "分享图片"), icon: "square.and.arrow.up", filled: true)
                         .opacity(0.4)
+                    #if canImport(UIKit)
                     actionLabel(title: String(localized: "保存到相册"), icon: "square.and.arrow.down", filled: false)
                         .opacity(0.4)
+                    #endif
                 }
             }
             .padding(.horizontal, 24)

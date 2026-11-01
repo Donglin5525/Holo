@@ -1,0 +1,59 @@
+{
+  "checked_on": "2026-10-30",
+  "plan_structure": {
+    "result": "plan_config_valid",
+    "checks": 1284,
+    "errors": [],
+    "series": 17,
+    "pages_per_device": 106,
+    "total_three_devices": 318,
+    "capture_cards": 38,
+    "referenced_raw_ids": 36,
+    "historical_transactions": 108,
+    "finance_observed": {
+      "-2": {
+        "transactions": 52,
+        "expense_cents": 541000,
+        "income_cents": 1200000,
+        "dining_cents": 108000,
+        "dinner_cents": 18400
+      },
+      "-1": {
+        "transactions": 56,
+        "expense_cents": 588000,
+        "income_cents": 1200000,
+        "dining_cents": 140000,
+        "dinner_cents": 45000
+      }
+    },
+    "app_verified": false,
+    "simulator_run": false,
+    "images_generated": false,
+    "visual_qa_completed": false,
+    "scope": "仅计划、配置、数据蓝图与文档引用的一致性；不证明App能力、拍摄或成片通过"
+  },
+  "title_typography": {
+    "available_width": 1062,
+    "font": "PingFangSC-Semibold",
+    "longest_line": "也看得见之前的努力",
+    "maximum_title_line_width": 792,
+    "overflow": [],
+    "scope": "仅标题字宽；非视觉验收或成片验证",
+    "size": 88
+  },
+  "production_status": "not_started",
+  "note": "已检查方案结构、蓝图金额、素材引用、布局边界与当前机器字体下的标题字宽；没有运行App、模拟器或生成正式宣传图。 本文件是生产开始前的历史方案结构检查记录，不是当前生产状态；当前截图、草稿及审阅状态以progress.md和production-manifest.json为准。",
+  "device_scope_revision": {
+    "minimum_required_groups": [
+      "iphone-large",
+      "ipad-13"
+    ],
+    "optional_group": [
+      "iphone-medium"
+    ],
+    "minimum_pages": 212,
+    "all_three_group_pages": 318,
+    "basis": "Apple 2026-10-30 screenshot specifications; same UI can use highest required screenshot scaled down",
+    "current_medium_drafts_are_final_assets": false
+  }
+}

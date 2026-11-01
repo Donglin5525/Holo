@@ -126,6 +126,10 @@ struct HoloBarChart: View {
     @Binding var selection: String?
     var height: CGFloat = 160
     var yDomain: ClosedRange<Double>? = nil
+    /// 双系列量级悬殊（最大值差三倍以上）时各立数值轴：右轴=第 0 系列、左轴=第 1 系列，
+    /// 刻度随系列色；量级接近自动回落共用一轴。仅纵向柱状生效，且必须用于两种不同
+    /// 指标（如支出/收入）；同一指标的同期对比（同比）量级悬殊也是真实差距，不许开启。
+    var dualValueAxes = false
     var summary: String = "本期合计 · 点按或横滑查看"
     var summaryValues: [Double?]? = nil
     var valueText: (Double) -> String = HoloChartFormat.number
@@ -138,7 +142,8 @@ struct HoloBarChart: View {
                                    valueText: valueText, onOpenDetail: onOpenDetail, onInspect: onInspect)
         } else {
             HoloCartesianChart(buckets: buckets, series: series, selection: $selection, style: .bar,
-                           height: height, yDomain: yDomain, summary: summary, summaryValues: summaryValues, valueText: valueText,
+                           height: height, yDomain: yDomain, dualValueAxes: dualValueAxes,
+                           summary: summary, summaryValues: summaryValues, valueText: valueText,
                            onInspect: onInspect, onOpenDetail: onOpenDetail)
         }
     }
@@ -217,6 +222,8 @@ struct HoloLineChart: View {
     /// 未选中时不显示伪读数（默认读数取末桶/合计，与实际选中日的数值无关），
     /// 由 summary 文案提示滑动查看；总览类图表（idle 读数即本期合计）保持 false 不变。
     var hidesIdleValues = false
+    /// 折线每个数据点恒显（测量记录点视图：点即数据，不只孤立点/选中点显示）
+    var alwaysShowPoints = false
     var onInspect: ((HoloChartBucket) -> Void)? = nil
     var onOpenDetail: ((HoloChartBucket) -> Void)? = nil
 
@@ -224,7 +231,7 @@ struct HoloLineChart: View {
         HoloCartesianChart(buckets: buckets, series: series, selection: $selection, style: .line,
                            height: height, yDomain: yDomain, baseline: baseline, summary: summary,
                            summaryValues: summaryValues, valueText: valueText, showsReadout: showsReadout,
-                           hidesIdleValues: hidesIdleValues,
+                           hidesIdleValues: hidesIdleValues, alwaysShowPoints: alwaysShowPoints,
                            onInspect: onInspect, onOpenDetail: onOpenDetail)
     }
 }
@@ -237,12 +244,15 @@ private struct HoloCartesianChart: View {
     let style: Style
     var height: CGFloat
     var yDomain: ClosedRange<Double>?
+    var dualValueAxes = false
     var baseline: Double? = nil
     var summary: String
     var summaryValues: [Double?]? = nil
     var valueText: (Double) -> String
     var showsReadout = true
     var hidesIdleValues = false
+    /// 折线每个数据点恒显（测量记录点视图：点即数据）
+    var alwaysShowPoints = false
     var onInspect: ((HoloChartBucket) -> Void)?
     var onOpenDetail: ((HoloChartBucket) -> Void)?
     @State private var plotWidth: CGFloat = 300
@@ -264,6 +274,24 @@ private struct HoloCartesianChart: View {
             values: buckets.indices.flatMap { index in series.indices.compactMap { value(at: index, series: $0) } }
                 + (baseline.map { [$0] } ?? []),
             includesZero: style == .bar)
+    }
+    /// 双轴生效时两个系列的独立坐标域；nil = 未生效回落共轴（非柱状/非双系列/有系列无正数/量级接近）。
+    private var splitDomains: [ClosedRange<Double>]? {
+        guard dualValueAxes, style == .bar, series.count == 2, yDomain == nil else { return nil }
+        let primary = buckets.indices.compactMap { value(at: $0, series: 0) }
+        let secondary = buckets.indices.compactMap { value(at: $0, series: 1) }
+        guard HoloChartGeometry.shouldSplitDualAxes(primary: primary, secondary: secondary),
+              let first = HoloChartGeometry.dualAxisDomain(values: primary),
+              let second = HoloChartGeometry.dualAxisDomain(values: secondary) else { return nil }
+        return [first, second]
+    }
+    private var isSplitAxes: Bool { splitDomains != nil }
+    private var plotDomain: ClosedRange<Double> { isSplitAxes ? 0...1 : domain }
+    /// 绘图值：双轴生效时换算进本系列的 0…1 归一空间；共轴时原值直通。读数与无障碍值仍用真实值。
+    private func plotValue(_ raw: Double, series seriesIndex: Int) -> Double {
+        guard let domains = splitDomains, domains.indices.contains(seriesIndex) else { return raw }
+        let domain = domains[seriesIndex]
+        return (raw - domain.lowerBound) / (domain.upperBound - domain.lowerBound)
     }
     private var dataSignature: [HoloChartBucket] { buckets }
     private var idleValues: [Double?] {
@@ -298,9 +326,9 @@ private struct HoloCartesianChart: View {
                 if style == .bar {
                     ForEach(buckets.indices, id: \.self) { index in
                         if !buckets[index].isFuture, let value = value(at: index, series: seriesIndex) {
-                            BarMark(x: .value("时间", x(index)), y: .value("数值", value),
-                                    width: .fixed(HoloChartGeometry.barWidth(plotWidth: plotWidth, count: buckets.count, seriesCount: series.count)))
-                                .position(by: .value("系列", series[seriesIndex].id))
+                            BarMark(x: .value("时间", x(index) + barXOffset(series: seriesIndex)),
+                                    y: .value("数值", plotValue(value, series: seriesIndex)),
+                                    width: .fixed(barWidth))
                                 .foregroundStyle(series[seriesIndex].color)
                                 .cornerRadius(3)
                                 .accessibilityLabel(buckets[index].detail ?? buckets[index].label)
@@ -316,7 +344,7 @@ private struct HoloCartesianChart: View {
                                     .foregroundStyle(series[seriesIndex].color)
                                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
                                     .interpolationMethod(.linear)
-                                if segment.count == 1 || buckets.count <= 7 || buckets[index].id == selection {
+                                if segment.count == 1 || buckets.count <= 7 || alwaysShowPoints || buckets[index].id == selection {
                                     PointMark(x: .value("时间", x(index)), y: .value("数值", value))
                                         .foregroundStyle(series[seriesIndex].color)
                                         .symbolSize(buckets[index].id == selection ? 42 : 18)
@@ -338,16 +366,19 @@ private struct HoloCartesianChart: View {
             }
         }
         .chartXScale(domain: xDomain)
-        .chartYScale(domain: domain, range: .plotDimension(startPadding: 6, endPadding: 6))
+        .chartYScale(domain: plotDomain, range: .plotDimension(startPadding: 6, endPadding: 6))
         .chartXAxis(.hidden)
         .chartLegend(.hidden)
         .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
-                AxisGridLine().foregroundStyle(Color.holoToolBorder.opacity(0.6))
-                AxisValueLabel {
-                    if let number = value.as(Double.self) {
-                        Text(HoloChartFormat.axisNumber(number)).font(.system(size: axisSize))
-                            .foregroundStyle(Color.holoToolTextSecondary)
+            // 双轴时刻度带由 dualAxisStrips 自绘（两条轴、各自换算），原生轴隐藏。
+            if !isSplitAxes {
+                AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
+                    AxisGridLine().foregroundStyle(Color.holoToolBorder.opacity(0.6))
+                    AxisValueLabel {
+                        if let number = value.as(Double.self) {
+                            Text(HoloChartFormat.axisNumber(number)).font(.system(size: axisSize))
+                                .foregroundStyle(Color.holoToolTextSecondary)
+                        }
                     }
                 }
             }
@@ -361,6 +392,9 @@ private struct HoloCartesianChart: View {
                         .allowsHitTesting(false)
                     // 装饰层不接收触摸；轴带的高度由本组件预留。
                     tickLabels(proxy: proxy, plot: plot).allowsHitTesting(false)
+                    if isSplitAxes {
+                        dualAxisStrips(plot: plot).allowsHitTesting(false)
+                    }
                     DirectionalChartGestureOverlay(
                         onChanged: { point in inspect(point, proxy: proxy, plot: plot, clamped: true) },
                         onEnded: { _ in }, onCancelled: {},
@@ -378,6 +412,7 @@ private struct HoloCartesianChart: View {
             }
         }
         .frame(height: height)
+        .padding(.horizontal, isSplitAxes ? 36 : 0)
         .padding(.bottom, axisSize + 12)
         .accessibilityIdentifier("holo.chart.plot")
         .accessibilityAdjustableAction { direction in
@@ -389,6 +424,18 @@ private struct HoloCartesianChart: View {
 
     private func value(at index: Int, series: Int) -> Double? {
         buckets[index].value(forSeries: series)
+    }
+
+    private var barWidth: CGFloat {
+        HoloChartGeometry.barWidth(plotWidth: plotWidth, count: buckets.count, seriesCount: series.count)
+    }
+
+    /// 多系列柱并排：组内 pt 偏移换算成 x 数据单位（x 轴无内边距，域宽 ÷ 绘图区宽即换算比）。
+    /// position(by:) 在数值轴上不分组、退回堆叠，并排只能自行错开 x
+    private func barXOffset(series seriesIndex: Int) -> Double {
+        let points = HoloChartGeometry.seriesOffset(seriesIndex: seriesIndex, seriesCount: series.count, barWidth: barWidth)
+        guard points != 0 else { return 0 }
+        return Double(points) * (xDomain.upperBound - xDomain.lowerBound) / Double(max(plotWidth, 1))
     }
 
     private func lineSegments(series: Int) -> [[Int]] {
@@ -410,17 +457,81 @@ private struct HoloCartesianChart: View {
         onInspect?(buckets[index])
     }
 
+    private struct TickLabel: Identifiable {
+        let id: Int
+        let text: String
+        let alignment: Alignment
+        let anchorX: CGFloat
+    }
+
     private func tickLabels(proxy: ChartProxy, plot: CGRect) -> some View {
-        ForEach(HoloChartGeometry.tickIndices(count: buckets.count, width: plot.width, fontSize: axisSize), id: \.self) { index in
-            if let position = proxy.position(forX: x(index)) {
-                let width = min(max(plot.width / 5, 32), 80)
-                Text(buckets[index].label)
-                    .font(.system(size: axisSize)).foregroundStyle(Color.holoToolTextSecondary)
-                    .lineLimit(1).minimumScaleFactor(0.8).frame(width: width)
-                    .position(x: min(max(plot.minX + position, plot.minX + width / 2), plot.maxX - width / 2),
-                              y: plot.maxY + axisSize / 2 + 7)
+        let labelWidth = HoloChartGeometry.tickLabelWidth(plotWidth: plot.width)
+        let pixelX = buckets.indices.map { proxy.position(forX: x($0)) ?? .infinity }
+        // position 域（连续时间，如测量记录点）按像素最小间距选刻度；等宽槽位按预算等分
+        let picked: [Int]
+        if buckets.first?.position != nil {
+            picked = HoloChartGeometry.tickIndicesForPositions(pixelPositions: pixelX, minSpacing: labelWidth)
+        } else {
+            picked = HoloChartGeometry.tickIndices(count: buckets.count, width: plot.width)
+        }
+        let labels = picked.compactMap { index -> TickLabel? in
+            guard pixelX.indices.contains(index), pixelX[index].isFinite else { return nil }
+            let alignment: Alignment
+            let anchorX: CGFloat
+            if index == picked.first {
+                // 首尾贴边对齐：不再向图内钳位，端点标签不会压到邻居
+                alignment = .leading
+                anchorX = plot.minX + labelWidth / 2
+            } else if index == picked.last {
+                alignment = .trailing
+                anchorX = plot.maxX - labelWidth / 2
+            } else {
+                alignment = .center
+                anchorX = plot.minX + pixelX[index]
+            }
+            return TickLabel(id: index, text: buckets[index].label, alignment: alignment, anchorX: anchorX)
+        }
+        return ForEach(labels) { label in
+            Text(label.text)
+                .font(.system(size: axisSize)).foregroundStyle(Color.holoToolTextSecondary)
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .frame(width: labelWidth, alignment: label.alignment)
+                .position(x: label.anchorX, y: plot.maxY + axisSize / 2 + 7)
+        }
+    }
+
+    /// 双轴刻度带：右轴=第 0 系列、左轴=第 1 系列，各取 0 / 半值 / 顶值三档——两个系列的
+    /// 这三档位于同一比例位置，网格线可共用；数值按各自坐标域换算，刻度颜色随系列色，
+    /// 表达「哪根柱子看哪条轴」。标签画在绘图区两侧，空间由 horizontal padding 预留。
+    private func dualAxisStrips(plot: CGRect) -> some View {
+        let domains = splitDomains ?? []
+        return ZStack {
+            ForEach([0.0, 0.5, 1.0], id: \.self) { fraction in
+                let y = plot.maxY - fraction * plot.height
+                Rectangle()
+                    .fill(Color.holoToolBorder.opacity(0.6))
+                    .frame(width: plot.width, height: 0.5)
+                    .position(x: plot.midX, y: y)
+                dualAxisLabel(domainIndex: 0, fraction: fraction, domains: domains)
+                    .frame(width: 32, alignment: .leading)
+                    .position(x: plot.maxX + 20, y: y)
+                dualAxisLabel(domainIndex: 1, fraction: fraction, domains: domains)
+                    .frame(width: 32, alignment: .trailing)
+                    .position(x: plot.minX - 20, y: y)
             }
         }
+    }
+
+    private func dualAxisLabel(domainIndex: Int, fraction: Double, domains: [ClosedRange<Double>]) -> some View {
+        guard domains.indices.contains(domainIndex) else { return AnyView(EmptyView()) }
+        let domain = domains[domainIndex]
+        let value = domain.lowerBound + (domain.upperBound - domain.lowerBound) * fraction
+        return AnyView(
+            Text(HoloChartFormat.axisNumber(value))
+                .font(.system(size: axisSize))
+                .foregroundStyle(series[domainIndex].color)
+                .lineLimit(1).minimumScaleFactor(0.8)
+        )
     }
 }
 

@@ -29,6 +29,14 @@ struct HoloChartGeometryStandaloneTests {
                     let bar = HoloChartGeometry.barWidth(plotWidth: width, count: count, seriesCount: series)
                     expect(bar <= (series == 1 ? 18 : 10), "柱宽不得超过上限")
                     expect(bar * CGFloat(series) <= pitch, "双柱不得伸出所属日期槽")
+                    let offsets = (0..<series).map { HoloChartGeometry.seriesOffset(seriesIndex: $0, seriesCount: series, barWidth: bar) }
+                    if series == 1 {
+                        expect(offsets == [0], "单系列柱必须居中零偏移")
+                    } else {
+                        expect(offsets[0] < 0 && offsets[0] == -offsets[1], "双柱须围绕槽位中心对称错开")
+                        expect(offsets[1] - offsets[0] >= bar, "并排两柱不得互相重叠")
+                        expect((offsets[1] + bar / 2) - (offsets[0] - bar / 2) <= pitch, "并排整组不得伸出所属日期槽")
+                    }
                 }
             }
         }
@@ -61,6 +69,18 @@ struct HoloChartGeometryStandaloneTests {
         let days = HoloChartGeometry.dates(from: start, through: end, calendar: calendar)
         expect(days.count == 4, "夏令时切换仍是四个自然日")
         expect(days.map { calendar.component(.day, from: $0) } == [7,8,9,10], "不能按固定秒数错过日期")
+        // 双数值轴：上限取整、零基线、无正数不参与、三倍差距才分轴
+        expect(HoloChartGeometry.roundAxisUpper(18_900) == 20_000, "上限取不小于值的最小整齐刻度")
+        expect(HoloChartGeometry.roundAxisUpper(9_975) == 10_000, "贴近整万要进到整万")
+        expect(HoloChartGeometry.roundAxisUpper(840) == 900, "百级同样按步进取整")
+        expect(HoloChartGeometry.roundAxisUpper(26_250) == 30_000, "超 2.5 万进 3 万，半值 1.5 万保持一位小数")
+        expect(HoloChartGeometry.dualAxisDomain(values: [0, 18_000]) == 0...20_000, "双轴域零基线且上限整齐")
+        expect(HoloChartGeometry.dualAxisDomain(values: [0, 0, 0]) == nil, "全零系列没有可立的轴")
+        expect(HoloChartGeometry.dualAxisDomain(values: []) == nil, "空系列不参与分轴")
+        expect(HoloChartGeometry.shouldSplitDualAxes(primary: [18_000], secondary: [2_600]), "量级悬殊（约八倍）必须分轴")
+        expect(!HoloChartGeometry.shouldSplitDualAxes(primary: [8_000], secondary: [6_000]), "量级接近保持共轴直接可比")
+        expect(!HoloChartGeometry.shouldSplitDualAxes(primary: [18_000], secondary: [0]), "一侧无正数时分轴无意义")
+        expect(HoloChartGeometry.shouldSplitDualAxes(primary: [3_000], secondary: [30_000]), "反向悬殊（收入远大于支出）同样分轴")
         print("图表几何回归通过：\(assertions) 项断言")
     }
 }

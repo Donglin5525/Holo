@@ -72,6 +72,7 @@ enum HoloAppStoreScreenshotSeeder {
     static var isRequested: Bool {
         #if targetEnvironment(simulator)
         ProcessInfo.processInfo.environment[modeKey] == "1"
+            || ProcessInfo.processInfo.environment["HOLO_ASO_V10"] == "1"
         #else
         false
         #endif
@@ -94,6 +95,17 @@ enum HoloAppStoreScreenshotSeeder {
         now: Date = Date()
     ) async -> Bool {
         #if targetEnvironment(simulator)
+        if environment["HOLO_ASO_V10"] == "1" {
+            do {
+                if environment["HOLO_ASO_FINANCE"] == "1" {
+                    return try await HoloASOFinanceSeeder.seedIfRequested(environment: environment)
+                }
+                return try HoloASOCaptureHarness.seedHabitsIfRequested(environment: environment)
+            } catch {
+                print("[HoloASO] 演示数据写入失败：\(error)")
+                return false
+            }
+        }
         guard environment[modeKey] == "1" else { return false }
 
         // 截图摆拍一律按 Plus 展示（小组件等 Plus 权益需完整出镜）；权益快照同步写给桌面小组件

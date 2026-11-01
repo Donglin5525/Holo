@@ -10,22 +10,31 @@ import CoreData
 import Foundation
 
 nonisolated enum HoloMemoryEvidenceRouter {
-    /// entityRef 证据指向原始业务记录；观点域的用户原话证据 sourceID 同样指向原始想法，一并直达。
+    /// 证据 → 原始业务记录深链。sourceID 统一按 HoloLifeSourceKeys 剥域前缀解析
+    /// （09-R01：个人情境证据的 sourceID 是带前缀 sourceKey，裸 UUID 解析必 nil）。
+    /// 跳转目标按**来源域**分派而非 kind 组合（2026-10-29 QA 实抓存量兼容：旧数据
+    /// 的 kind 被整体错标 explicitUserStatement——按 (kind, domain) 组合分派会让
+    /// 财务/任务卡的入口直接消失）。kind 仅用于排除聚合统计型（无单一出处）。
+    /// habit-checkin: 指向打卡记录（无独立详情页），走出处弹层。
     static func deepLinkTarget(for evidence: HoloMemoryEvidenceRef) -> DeepLinkTarget? {
         guard let sourceID = evidence.sourceID,
-              let uuid = UUID(uuidString: sourceID) else { return nil }
-        switch (evidence.kind, evidence.sourceDomain) {
-        case (.entityRef, .finance):
+              evidence.kind != .aggregateSnapshot else { return nil }
+        if sourceID.hasPrefix(HoloLifeSourceKeys.habitCheckinPrefix) { return nil }
+        let entityID = HoloLifeSourceKeys.entityID(of: sourceID)
+        guard let uuid = UUID(uuidString: entityID) else { return nil }
+        switch evidence.sourceDomain {
+        case .finance:
             return .transactionDetail(transactionId: uuid)
-        case (.entityRef, .task):
+        case .task:
             return .taskDetail(taskId: uuid)
-        case (.entityRef, .thought), (.explicitUserStatement, .thought):
+        case .thought:
             return .thoughtDetail(thoughtId: uuid)
-        case (.entityRef, .habit):
+        case .habit:
             return .habitDetail(habitId: uuid)
-        case (.entityRef, .goal):
+        case .goal:
             return .goalDetail(goalId: uuid)
-        default:
+        case .conversation, .health, .profile:
+            // 无独立详情页的来源走出处弹层（原文回查），不虚构跳转目标。
             return nil
         }
     }
@@ -41,6 +50,33 @@ nonisolated enum HoloMemoryEvidenceRouter {
         case .goal: return "Goal"
         default: return nil
         }
+    }
+
+    /// 可路由证据的 sourceID 是否仍指向一条未删除的原始记录（新旧详情页共用的点击前置校验）。
+    /// 与 deepLinkTarget 同源剥前缀解析；打卡/对话等无详情页证据恒 false（走弹层）。
+    /// 存活谓词按实体真实字段分派（2026-10-29 QA 实抓：统一 deletedAt 谓词会把
+    /// deletedFlag/archived/isArchived 软删体系的活记录误判成「已被清除」）。
+    static func isSourceAlive(for evidence: HoloMemoryEvidenceRef) -> Bool {
+        guard let entityName = sourceEntityName(for: evidence),
+              let sourceID = evidence.sourceID else { return false }
+        let entityID = HoloLifeSourceKeys.entityID(of: sourceID)
+        guard let uuid = UUID(uuidString: entityID) else { return false }
+        let alivePredicate: String
+        switch entityName {
+        case "TodoTask":
+            alivePredicate = "id == %@ AND deletedFlag == NO AND archived == NO"
+        case "Thought":
+            alivePredicate = "id == %@ AND deletedAt == nil AND isArchived == NO"
+        case "Habit":
+            alivePredicate = "id == %@ AND isArchived == NO"
+        default:
+            // Transaction / Goal 用 deletedAt 软删
+            alivePredicate = "id == %@ AND deletedAt == nil"
+        }
+        let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
+        request.predicate = NSPredicate(format: alivePredicate, uuid as CVarArg)
+        request.fetchLimit = 1
+        return ((try? CoreDataStack.shared.viewContext.count(for: request)) ?? 0) > 0
     }
 }
 

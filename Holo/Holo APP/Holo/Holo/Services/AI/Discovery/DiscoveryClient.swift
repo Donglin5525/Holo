@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import OSLog
 
 nonisolated final class DiscoveryClient {
 
@@ -25,7 +26,19 @@ nonisolated final class DiscoveryClient {
         self.deviceIdProvider = deviceIdProvider
     }
 
+    /// 个人档案通道：档案原文（带缓存，@MainActor 隔离读取）。
+    /// 「一个发现」两阶段都携带——发现的措辞与建议取舍同受档案约束。
+    private static func profileBrief() async -> String? {
+        let raw = await MainActor.run { HoloProfileService.shared.loadProfile() }
+        return raw.isEmpty ? nil : raw
+    }
+
     // MARK: - 响应模型
+    //
+    // ⚠️ 契约纪律：以下每个模型必须与后端 controller 的 context.json 返回体逐字段一致
+    // （真源=HoloBackend/src/discovery/discoveryController.js）；改任一端必须同步另一端
+    // 与 DiscoveryContractTests（后端真实形状字面量对拍）。规范：docs/standards/跨端接口契约规范.md
+    // （2026-10-28 事故：grant 被声明为 String 而后端返回对象，服务端开启成功、客户端误报失败。）
 
     struct CapabilitiesResponse: Decodable, Sendable {
         let protocolVersion: Int
@@ -88,7 +101,16 @@ nonisolated final class DiscoveryClient {
         let scopeRevision: Int
         let allowedDomains: [String]
         let ownerDeviceId: String?
-        let grant: String?
+        /// 开启租约。形状真源 = 后端 discoveryControlStore.js enable() 的 grant
+        /// （嵌套对象，2026-10-28 曾因声明为 String 解码必挂、开启被误报失败）。
+        struct Grant: Decodable, Sendable {
+            let deviceId: String
+            let revision: Int
+            let scopeRevision: Int
+            let dayKey: String
+            let leaseExpiresAt: Int
+        }
+        let grant: Grant?
         let replayed: Bool?
     }
 
@@ -279,7 +301,7 @@ nonisolated final class DiscoveryClient {
     /// 阶段一：候选生成。data 为结构化输入（evidence/coverage/computedFacts…，05 §2.1 形态）。
     /// 返回值附带解码后的严格信封；校验失败按本批终止处理，不宽松解析。
     func candidates(runID: String, runToken: String, requestID: String?, data: DiscoveryJSONValue) async throws -> (response: StageResponse, envelope: DiscoveryCandidateEnvelope) {
-        let body = StageBody(runToken: runToken, requestID: requestID, candidates: nil, candidatesHash: nil, data: data)
+        let body = StageBody(runToken: runToken, requestID: requestID, candidates: nil, candidatesHash: nil, data: data, profileBrief: await Self.profileBrief())
         let response: StageResponse = try await apiClient.send(request(
             path: "/v1/discovery/runs/\(runID)/candidates",
             body: body,
@@ -289,6 +311,10 @@ nonisolated final class DiscoveryClient {
         do {
             envelope = try DiscoveryAIPacket.decodeValidatedCandidateEnvelope(from: DiscoveryCanonicalJSON.data(from: response.envelope))
         } catch {
+            // 2026-11-01 诊断保留（独立诊断报告问题1）：具体字段级错误不得吞掉——
+            // notice 级进系统日志（配合 Coordinator 的 disp-diag.log 排查契约缝隙）
+            Logger(subsystem: "com.holo.app", category: "Discovery")
+                .notice("disp envelope rejected: stage=candidates run=\(runID, privacy: .public) error=\(String(describing: error), privacy: .public)")
             throw DiscoveryClientError.unexpectedStageEnvelope(runID: runID)
         }
         return (response, envelope)
@@ -312,7 +338,8 @@ nonisolated final class DiscoveryClient {
             requestID: requestID,
             candidates: candidates,
             candidatesHash: hash,
-            data: data
+            data: data,
+            profileBrief: await Self.profileBrief()
         )
         let response: StageResponse = try await apiClient.send(request(
             path: "/v1/discovery/runs/\(runID)/verify",
@@ -323,6 +350,10 @@ nonisolated final class DiscoveryClient {
         do {
             envelope = try DiscoveryAIPacket.decodeValidatedVerificationEnvelope(from: DiscoveryCanonicalJSON.data(from: response.envelope))
         } catch {
+            // 2026-11-01 诊断保留（独立诊断报告问题1）：具体字段级错误不得吞掉——
+            // notice 级进系统日志（配合 Coordinator 的 disp-diag.log 排查契约缝隙）
+            Logger(subsystem: "com.holo.app", category: "Discovery")
+                .notice("disp envelope rejected: stage=verify run=\(runID, privacy: .public) error=\(String(describing: error), privacy: .public)")
             throw DiscoveryClientError.unexpectedStageEnvelope(runID: runID)
         }
         return (response, envelope)
@@ -346,6 +377,10 @@ nonisolated final class DiscoveryClient {
         let candidates: DiscoveryJSONValue?
         let candidatesHash: String?
         let data: DiscoveryJSONValue
+        /// 个人档案通道（2026-11-01）：档案原文与 data 平级上行（不进 data——发现幂等键
+        /// 锚定环境数据，档案更新不应触发阶段 409）；后端注入指令级 system 消息。
+        /// nil 时不编码该键。
+        let profileBrief: String?
     }
 
     private func request(

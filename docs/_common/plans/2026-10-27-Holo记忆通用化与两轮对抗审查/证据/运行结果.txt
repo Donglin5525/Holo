@@ -1,0 +1,8 @@
+2026-10-27：基于当前真实源码的缺口诊断；true 表示对应缺口复现，不是修复通过。
+P01 future top-level field lost on current-model round-trip: true
+P02 unreadable decision envelope active recall allowed: true
+P03 candidate with unknown decision offers confirm: true
+P04 unknown outer claim kind fails whole-array decode: true
+P05 unknown positive record schema passes validation: true
+P06 expired record allowed by direct-reader eligibility: true
+P06 expired record allowed by recall policy: false

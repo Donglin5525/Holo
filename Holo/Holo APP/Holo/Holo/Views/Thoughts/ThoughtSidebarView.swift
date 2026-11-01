@@ -248,6 +248,7 @@ struct ThoughtSidebarView: View {
                         icon: pin.kind == .topic ? "leaf.fill" : "number",
                         isSelected: scope == pinScope,
                         showIndentLine: false,
+                        isPinned: true,
                         onRemovePin: { togglePin(pin) }) {
                         select(pinScope)
                     }
@@ -280,6 +281,7 @@ struct ThoughtSidebarView: View {
             emptyText: String(localized: "同类想法记多了会自动聚成主题，也可在「想法设置」里手动新建"),
             isEmpty: topics.isEmpty && suggestedCluster == nil) {
             ForEach(topics, id: \.id) { topic in
+                let topicPin = ThoughtSidebarPin(kind: .topic, topicID: topic.id, tagPathKey: nil)
                 sidebarRow(
                     title: topic.title,
                     icon: "leaf.fill",
@@ -287,7 +289,8 @@ struct ThoughtSidebarView: View {
                     isSelected: scope == .topic(topic.id),
                     showIndentLine: false,
                     subtitle: String(localized: "\(ThoughtTopicLinkProjection.effectiveActiveThoughtCount(of: topic)) 条想法"),
-                    onRemovePin: { togglePin(.init(kind: .topic, topicID: topic.id, tagPathKey: nil)) }) {
+                    isPinned: isPinned(topicPin),
+                    onRemovePin: { togglePin(topicPin) }) {
                     select(.topic(topic.id))
                 }
             }
@@ -614,6 +617,7 @@ struct ThoughtSidebarView: View {
                             isSelected: Bool,
                             showIndentLine: Bool = true,
                             subtitle: String? = nil,
+                            isPinned: Bool = false,
                             onRemovePin: (() -> Void)? = nil,
                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -651,22 +655,22 @@ struct ThoughtSidebarView: View {
         .buttonStyle(.plain)
         .contextMenu {
             if let onRemovePin {
-                pinMenuButton(for: nil, customAction: onRemovePin)
+                // togglePin 的增删语义天然正确，标签由 isPinned 决定：
+                // 已置顶行显示「取消置顶」，未置顶行显示「置顶」
+                pinMenuButton(isPinned: isPinned, customAction: onRemovePin)
             }
         }
     }
 
     /// 置顶/取消置顶菜单项（原节点 contextMenu 入口，§5.6：不由 AI 自动置顶）
     @ViewBuilder
-    private func pinMenuButton(for pin: ThoughtSidebarPin?, customAction: (() -> Void)? = nil) -> some View {
+    private func pinMenuButton(isPinned: Bool, customAction: (() -> Void)? = nil) -> some View {
         Button {
             if let customAction {
                 customAction()
-            } else if let pin {
-                togglePin(pin)
             }
         } label: {
-            if let pin, isPinned(pin) {
+            if isPinned {
                 Label("取消置顶", systemImage: "pin.slash")
             } else {
                 Label("置顶", systemImage: "pin")

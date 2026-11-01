@@ -77,6 +77,10 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         /// 目标闭环 §6.3：该目标的统一事实快照（结果 / 执行 / 限制 / 覆盖 / 资金演算），
         /// 确定性数字的唯一来源——后端注入冻结块并入白名单；模型解释，不重算。
         var goalReview: GoalEvaluationSnapshot? = nil
+        /// 个人档案通道（2026-11-01 东林拍板「档案=通用指令而非备注」）：
+        /// 用户亲写档案原文（≤8KB）随快照上行，后端注入指令级 system 消息——
+        /// 报告的称呼/身份视角/健康行动限制由此生效。旧后端忽略；nil 时不编码该键。
+        var profileBrief: String? = nil
     }
 
     enum JSONValue: Encodable {
@@ -266,6 +270,11 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         let checkupLedger: String? = panoramicWindowDays != nil
             ? await CrossDomainCheckupLedgerBuilder.build(now: now, windowDays: panoramicWindowDays ?? 30)
             : nil
+        // 个人档案通道：档案原文随快照上行（深度分析/云端报告统一生效入口）
+        let profileBrief = await MainActor.run {
+            let raw = HoloProfileService.shared.loadProfile()
+            return raw.isEmpty ? nil : raw
+        }
         let snapshot = Snapshot(
             version: 1,
             generatedAt: now,
@@ -277,7 +286,8 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             financeSemantics: financeSemantics,
             personalSituationBrief: situationBrief.isEmpty ? nil : situationBrief,
             goalScope: goalScope,
-            goalReview: goalReview
+            goalReview: goalReview,
+            profileBrief: profileBrief
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

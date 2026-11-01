@@ -27,10 +27,11 @@ metadata:
 
 1. **只有东林明确要求发版才执行**。诊断、检查、看日志一律不做远程写操作。脚本本身有闸门：必须带 `HOLO_DEPLOY_CONFIRM=yes` 才会动。
 2. 发布前说清本次后端改动范围（Prompt / 路由 / 依赖 / Docker / 配置），并提醒「后端改动需要发版」是协作约定，但提醒 ≠ 授权。
-3. 不读取、打印、询问 `.env.production`、API Key、管理员密码等秘密。
-4. 提交只允许 `HoloBackend/` 路径范围（脚本按 pathspec 提交并事后断言）；不得带入 iOS、文档、临时文件。
-5. **绝不在 ECS 跑 `git clean`**（2026-08-23 曾把生产库目录删掉，靠 `/proc/PID/fd` 救回）；脚本只用 `reset --hard`，它不碰未跟踪的 `deploy/data/`。
-6. 不绕过 `deploy.sh` 手敲 `docker compose build --no-cache`：BuildKit 会把本地基础镜像误判为需从 Docker Hub 拉取而卡死；镜像层自引用堆积坑也已由 Dockerfile 的 `holo-backend-base` 解耦解决。
+3. **跨端契约检查（2026-10-28 设）**：发布前 diff 本次改动，若涉及任何 API 返回体变化（controller 的 `context.json(...)` 字段/类型/嵌套结构），必须确认 iOS 侧对应 `*ContractTests.swift` 字面量已同步并跑绿，否则停下向东林报告「契约未对拍」——后端先上会造成「服务端成功、客户端误报失败」的生产事故（「一个发现」grant 事故实录；规范：`docs/standards/跨端接口契约规范.md`）。
+4. 不读取、打印、询问 `.env.production`、API Key、管理员密码等秘密。
+5. 提交只允许 `HoloBackend/` 路径范围（脚本按 pathspec 提交并事后断言）；不得带入 iOS、文档、临时文件。
+6. **绝不在 ECS 跑 `git clean`**（2026-08-23 曾把生产库目录删掉，靠 `/proc/PID/fd` 救回）；脚本只用 `reset --hard`，它不碰未跟踪的 `deploy/data/`。
+7. 不绕过 `deploy.sh` 手敲 `docker compose build --no-cache`：BuildKit 会把本地基础镜像误判为需从 Docker Hub 拉取而卡死；镜像层自引用堆积坑也已由 Dockerfile 的 `holo-backend-base` 解耦解决。
 
 ## 标准流程（一条命令）
 

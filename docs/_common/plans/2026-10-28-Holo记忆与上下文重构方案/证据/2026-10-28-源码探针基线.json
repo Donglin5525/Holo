@@ -1,0 +1,35 @@
+{
+  "scope": "只读当前工作树源码；合成局部探针，非 App/数据库/同步/发布验收",
+  "head": "618d51aa71a99ff731b4759c264b6f4fdd1a44b2",
+  "sourceSHA256": {
+    "Holo/Holo APP/Holo/Holo/Models/AI/HoloKnowledgeContract.swift": "f3e892b9853bf4cddfe9ea71d20c5f2d2206bcd2bbd25b91de525b1aa4fc9181",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Knowledge/HoloKnowledgeRepository+CoreData.swift": "5ba281efad2084c73ec4c5db19e4fc0bae9f668edbf213ee864f11f2ce7f7dc7",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Knowledge/HoloKnowledgeInvalidationService.swift": "b8f44cd3913bdce76d3080c27fc82ce0e1e079b0f55003c1ba347640ea265490",
+    "Holo/Holo APP/Holo/Holo/Services/AI/HoloMemoryAttributionReconciler.swift": "baeb995f4a47cafcaa0b3726dd424c5c3ce7d269aee8144b51ccb957985c0fde",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Knowledge/HoloKnowledgeControlService.swift": "940db3a7f5fafa02e02ad4ad90bbb0478ce7ab08b7bf2ff363db702f0e5e665b",
+    "Holo/Holo APP/Holo/Holo/Services/AI/Knowledge/HoloKnowledgeAdmission.swift": "fb67e93615c3ce03f8266deb746b424450b98682fae88f415c3228789f756d5d",
+    "Holo/Holo APP/Holo/Holo/Models/AI/HoloKnowledgeResolution.swift": "f1db7e15fd60115628eeb1e78632615e45a43def2cc932b8f96323d5e9cfc6a0"
+  },
+  "modelProbe": [
+    "unknown operation evidenceManifestChunk: decode rejected",
+    "unknown operation sessionMemoryExclusion: decode rejected",
+    "future evidence field preserved: false",
+    "text-only correction keeps semantic digest: true",
+    "text-only correction keeps revision ID: true",
+    "changed coverage/window keeps evidence ID: true",
+    "old evidence with later issuedAt after deletion: verified",
+    "remote empty conservative event proceeds: false",
+    "known source change proceeds: true"
+  ],
+  "attributionProbe": [
+    "overlap attribution case 1: [\"memory-1\"]",
+    "overlap attribution case 2: [\"memory-2\"]"
+  ],
+  "staticChecks": {
+    "invalidationUsesInitialSnapshot": true,
+    "reconcilerUsesInitialSupport": true,
+    "completePeriodsConfigured": true,
+    "completePeriodsCheckedInAdmission": false,
+    "latestRefreshFilteredByTarget": "未由此脚本判定；见人工源码审查 R04"
+  }
+}

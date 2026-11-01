@@ -1,0 +1,299 @@
+{
+  "meta": {
+    "round": 8,
+    "generatedAt": "2026-10-30T06:22:52.390Z",
+    "anchorNow": "2026-10-30T14:22:52+08:00",
+    "fixtureVersion": 1,
+    "modelRoute": {
+      "candidates": {
+        "provider": "qwen",
+        "model": "qwen3.7-flash",
+        "temperature": 0.3,
+        "maxTokens": 3072,
+        "reasoningEffort": "low"
+      },
+      "verify": {
+        "provider": "qwen",
+        "model": "qwen3.7-flash",
+        "temperature": 0,
+        "maxTokens": 4096,
+        "reasoningEffort": "none"
+      }
+    },
+    "promptVersions": {
+      "discovery_candidate_v1": 2,
+      "discovery_verify_v1": 2
+    },
+    "notes": [
+      "进程内 app.request() 跑完整 enable→runs→candidates(→verify) 链路，保留 Prompt 注入/schema 严格校验/候选包 hash/预算闸。",
+      "每场景×每轮×每角色独立 deviceId（独立 subject），每轮全新 :memory: 库——绕开同主体单日单 run 限制。",
+      "verify 评估的 candidates 阶段由脚本注入 fixture proposedClaim 组装的候选包（过 schema 准入），verify 阶段为真实模型。",
+      "协议层 requestLimits 与全局预算为试评放宽（不影响模型语义）；单条原文场景（F08/F10/F12/F14）的同一记录按句子级逐字拆为两个 evidence 块。",
+      "模型调用不重试；失败原样记录。",
+      "轮次对照：raw-round-1..3 为 Prompt v1 + verify maxTokens 2048/effort low（修复前）；raw-round-4..6 为 Prompt v2 + verify maxTokens 4096/effort none（修复后）。实际命中版本以每条响应的 promptVersion 为准。"
+    ]
+  },
+  "results": [
+    {
+      "caseID": "F01",
+      "positive": true,
+      "expectedVerdict": "supported",
+      "generation": {
+        "runID": "run-gen-r8-f01",
+        "deviceID": "eval-r8-g-f01",
+        "stage": "candidates",
+        "httpStatus": 502,
+        "error": {
+          "error": {
+            "code": "DISCOVERY_MODEL_OUTPUT_INVALID",
+            "message": "本次结果未通过核验门槛，已自动放弃，不影响已有记录",
+            "reason": "citations_count"
+          }
+        },
+        "step": "candidates"
+      },
+      "verifyEval": {
+        "runID": "run-ver-r8-f01",
+        "deviceID": "eval-r8-v-f01",
+        "fabricatedCandidate": {
+          "candidateID": "C01",
+          "type": "two_episodes",
+          "subjectKey": "eval-f01",
+          "scopeKind": "two_episodes",
+          "timeRange": {
+            "start": "2026-10-08T00:00:00+08:00",
+            "end": "2026-10-17T00:00:00+08:00"
+          },
+          "claims": [
+            {
+              "claimID": "C01-title",
+              "kind": "observation",
+              "text": "这两次重新开始，你都降低了第一步的要求。",
+              "citations": [
+                {
+                  "evidenceID": "E01",
+                  "quote": "今天先出去走了十分钟"
+                },
+                {
+                  "evidenceID": "E02",
+                  "quote": "今晚只翻了两页"
+                }
+              ],
+              "metricIDs": []
+            },
+            {
+              "claimID": "C01-body-1",
+              "kind": "fact",
+              "text": "10 月 8 日恢复运动时先走了十分钟，10 月 16 日重新读书时只翻了两页。",
+              "citations": [
+                {
+                  "evidenceID": "E01",
+                  "quote": "停了一阵，今天先出去走了十分钟"
+                },
+                {
+                  "evidenceID": "E02",
+                  "quote": "重新读书，今晚只翻了两页"
+                }
+              ],
+              "metricIDs": []
+            },
+            {
+              "claimID": "C01-body-2",
+              "kind": "fact",
+              "text": "两次都没有要求自己立刻做到完整目标。",
+              "citations": [
+                {
+                  "evidenceID": "E01",
+                  "quote": "没有要求自己一定跑起来"
+                },
+                {
+                  "evidenceID": "E02",
+                  "quote": "没有要求读完一章"
+                }
+              ],
+              "metricIDs": []
+            }
+          ],
+          "titleClaimID": "C01-title",
+          "bodyClaimIDs": [
+            "C01-body-1",
+            "C01-body-2"
+          ],
+          "supportEvidenceIDs": [
+            "E01",
+            "E02"
+          ],
+          "counterSearch": [
+            {
+              "domains": [
+                "thought"
+              ],
+              "anchorRefs": [],
+              "keywords": [
+                "重新开始",
+                "要求"
+              ]
+            }
+          ],
+          "sensitivity": "non_sensitive",
+          "comparisonPeriods": []
+        },
+        "supportBlocks": [
+          {
+            "evidenceID": "E01",
+            "sourceKind": "thought",
+            "sourceBlock": "停了一阵，今天先出去走了十分钟。没有要求自己一定跑起来。",
+            "occurredRange": {
+              "start": "2026-10-08",
+              "end": "2026-10-09",
+              "precision": "day"
+            },
+            "recordedAt": "2026-10-08T21:00:00+08:00",
+            "lineageGroup": "L01",
+            "entityRefs": []
+          },
+          {
+            "evidenceID": "E02",
+            "sourceKind": "thought",
+            "sourceBlock": "重新读书，今晚只翻了两页，没有要求读完一章。",
+            "occurredRange": {
+              "start": "2026-10-16",
+              "end": "2026-10-17",
+              "precision": "day"
+            },
+            "recordedAt": "2026-10-16T21:00:00+08:00",
+            "lineageGroup": "L02",
+            "entityRefs": []
+          }
+        ],
+        "counterMeta": {
+          "searchCompleted": true,
+          "windowDays": 30,
+          "truncated": false,
+          "note": "反例检索已完成，未取得同主题做法或结果不同的材料",
+          "items": []
+        },
+        "stage": "verify",
+        "httpStatus": 200,
+        "error": null,
+        "envelope": {
+          "schemaVersion": 1,
+          "kind": "verification",
+          "runID": "run-ver-r8-f01",
+          "candidateResults": [
+            {
+              "candidateID": "C01",
+              "verdict": "accept",
+              "reasonCodes": [],
+              "claimResults": [
+                {
+                  "claimID": "C01-title",
+                  "verdict": "supported",
+                  "reasonCodes": [],
+                  "supportEvidenceIDs": [
+                    "E01",
+                    "E02"
+                  ],
+                  "counterEvidenceIDs": []
+                },
+                {
+                  "claimID": "C01-body-1",
+                  "verdict": "supported",
+                  "reasonCodes": [],
+                  "supportEvidenceIDs": [
+                    "E01",
+                    "E02"
+                  ],
+                  "counterEvidenceIDs": []
+                },
+                {
+                  "claimID": "C01-body-2",
+                  "verdict": "supported",
+                  "reasonCodes": [],
+                  "supportEvidenceIDs": [
+                    "E01",
+                    "E02"
+                  ],
+                  "counterEvidenceIDs": []
+                }
+              ]
+            }
+          ]
+        },
+        "usage": {
+          "promptTokens": 2159,
+          "completionTokens": 153,
+          "totalTokens": 2312
+        },
+        "model": {
+          "provider": "qwen",
+          "model": "qwen3.7-flash"
+        },
+        "promptVersion": 2,
+        "candidateVerdict": "accept",
+        "candidateReasonCodes": [],
+        "titleClaimResult": {
+          "claimID": "C01-title",
+          "verdict": "supported",
+          "reasonCodes": [],
+          "supportEvidenceIDs": [
+            "E01",
+            "E02"
+          ],
+          "counterEvidenceIDs": []
+        }
+      }
+    }
+  ],
+  "rawModelCalls": {
+    "generation": [
+      {
+        "purpose": "discovery_candidate_v1",
+        "runID": "run-gen-r8-f01",
+        "at": "2026-10-30T06:22:52.432Z",
+        "elapsedMs": 34991,
+        "finishReason": "stop",
+        "rawContent": "{\n  \"schemaVersion\": 1,\n  \"kind\": \"candidates\",\n  \"runID\": \"run-gen-r8-f01\",\n  \"candidates\": [\n    {\n      \"candidateID\": \"C01\",\n      \"type\": \"two_episodes\",\n      \"subjectKey\": \"lowered-expectation-start\",\n      \"scopeKind\": \"two_episodes\",\n      \"timeRange\": {\n        \"start\": \"2026-10-08\",\n        \"end\": \"2026-10-17\"\n      },\n      \"claims\": [\n        {\n          \"claimID\": \"T01\",\n          \"kind\": \"observation\",\n          \"text\": \"在两次重新开始尝试时，你都主动降低了第一步的要求。\",\n          \"citations\": [],\n          \"metricIDs\": []\n        },\n        {\n          \"claimID\": \"B01\",\n          \"kind\": \"fact\",\n          \"text\": \"2026-10-08 的散步记录中，你没有要求自己一定跑起来。\",\n          \"citations\": [\n            {\n              \"evidenceID\": \"E01\",\n              \"quote\": \"停了一阵，今天先出去走了十分钟。没有要求自己一定跑起来。\"\n            }\n          ],\n          \"metricIDs\": []\n        },\n        {\n          \"claimID\": \"B02\",\n          \"kind\": \"fact\",\n          \"text\": \"2026-10-16 的读书记录中，你只翻了两页，且没有要求读完一章。\",\n          \"citations\": [\n            {\n              \"evidenceID\": \"E02\",\n              \"quote\": \"重新读书，今晚只翻了两页，没有要求读完一章。\"\n            }\n          ],\n          \"metricIDs\": []\n        }\n      ],\n      \"titleClaimID\": \"T01\",\n      \"bodyClaimIDs\": [\n        \"B01\",\n        \"B02\"\n      ],\n      \"supportEvidenceIDs\": [\n        \"E01\",\n        \"E02\"\n      ],\n      \"counterSearch\": [\n        {\n          \"domains\": [\n            \"thought\"\n          ],\n          \"anchorRefs\": [],\n          \"keywords\": [\n            \"要求自己跑完\",\n            \"读完一章\"\n          ]\n        }\n      ],\n      \"sensitivity\": \"non_sensitive\",\n      \"comparisonPeriods\": []\n    }\n  ],\n  \"noFindingReason\": \"none\"\n}",
+        "reasoningContent": "Here's a thinking process:\n\n1.  **Analyze User Input:**\n    - `runID`: \"run-gen-r8-f01\"\n    - `anchorNow`: \"2026-10-30T14:22:52+08:00\"\n    - `timezone`: \"Asia/Shanghai\"\n    - `allowedDomains`: [\"thought\", \"task\", \"habit\"]\n    - `evidence`:\n        - E01: \"停了一阵，今天先出去走了十分钟。没有要求自己一定跑起来。\" (Range: 2026-10-08 to 2026-10-09)\n        - E02: \"重新读书，今晚只翻了两页，没有要求读完一章。\" (Range: 2026-10-16 to 2026-10-17)\n    - `coverage`: windowDays=30, truncated=false, limitations=[\"只覆盖给定材料窗口内的记录\"]\n    - `computedFacts`: M01: independent_episode_count = 2\n    - `blockedThemes`: []\n\n2.  **Identify Core Task:**\n    - I am Holo, a life database/companion.\n    - I need to find patterns/observations from the provided data.\n    - Output must be a strict JSON object matching the schema.\n    - Types allowed: `two_episodes`, `bounded_pattern`, `change_over_time`.\n    - Constraints: Only use provided data. No external knowledge. Follow exact output format. Claims must have citations. Counter-searches required. Sensitivity assessment required. Scope kind mapping required.\n\n3.  **Analyze Evidence for Patterns:**\n    - E01: Stopped for a while, went out for 10 mins today. Didn't force myself to run.\n    - E02: Restarted reading, only flipped two pages tonight. Didn't require finishing a chapter.\n    - Both are about restarting/resuming an activity after a break (\"停了一阵\", \"重新读书\").\n    - Both explicitly lower expectations/goals initially (\"没有要求自己一定跑起来\", \"没有要求读完一章\").\n    - This fits `two_episodes` perfectly. Two independent episodes showing a similar approach: lowering the threshold when restarting.\n    - Time range: 2026-10-08 to 2026-10-17.\n    - Scope kind: `two_episodes` -> `two_episodes`.\n    - Comparison periods: Not applicable for `two_episodes`, so empty array.\n    - Metrics: M01 is relevant (independent_episode_count=2).\n    - Counter-search: Need to find instances where they *did* set high goals or didn't restart with low thresholds. Domains: thought/task/habit. Keywords related to goals, requirements, restarting, pushing hard.\n\n4.  **Draft Candidate (Mental Refinement):**\n    - `candidateID`: \"c-1\"\n    - `type`: \"two_episodes\"\n    - `subjectKey`: \"restart-low-threshold\"\n    - `scopeKind`: \"two_episodes\"\n    - `timeRange`: {start: \"2026-10-08\", end: \"2026-10-17\"}\n    - `claims`:\n        - claimID: \"t1\" (title)\n        - text: \"这两次重新开始某项习惯时，你都主动把第一步的要求降低了。\"\n        - citations: [{evidenceID: \"E01\", quote: \"停了一阵，今天先出去走了十分钟。没有要求自己一定跑起来。\"}, {evidenceID: \"E02\", quote: \"重新读书，今晚只翻了两页，没有要求读完一章。\"}]\n        - metricIDs: [\"M01\"]\n        - claimID: \"b1\" (body)\n        - text: \"无论是恢复运动还是重拾阅读，你都没有用过去的标准来衡量当下的起步。\"\n        - citations: [{evidenceID: \"E01\", quote: \"停了一阵，今天先出去走了十分钟。\"}, {evidenceID: \"E02\", quote: \"重新读书，今晚只翻了两页，\"}]\n        - metricIDs: []\n    - `titleClaimID`: \"t1\"\n    - `bodyClaimIDs`: [\"b1\"]\n    - `supportEvidenceIDs`: [\"E01\", \"E02\"]\n    - `counterSearch`: \n        - domains: [\"thought\", \"task\"]\n        - anchorRefs: []\n        - keywords: [\"要求自己\", \"必须完成\", \"高标准起步\"]\n    - `sensitivity`: \"non_sensitive\"\n    - `comparisonPeriods`: []\n\n    Check constraints:\n    - Schema version: 1\n    - Kind: candidates\n    - RunID: matches\n    - Max 3 candidates: 1 is fine.\n    - Fields: all present.\n    - Claims: 2-4 sentences each? Wait, the prompt says \"每条候选 2-4 句，标题计入\". So title + body should total 2-4 sentences. I have 2 claims, each 1 sentence. That's fine. Or I can combine into one claim with multiple sentences, but the structure requires separate claim objects. I'll keep it as is, ensuring each claim text is within 2-180 chars.\n    - Citations: exact quotes, preserved.\n    - Metric IDs: from computedFacts.\n    - CounterSearch: has domains, anchorRefs, keywords. Each field present.\n    - subjectKey: ASCII only. \"restart-low-threshold\" ok.\n    - scopeKind: matches type.\n    - timeRange: start/end strings.\n    - sensitivity: non_sensitive.\n    - comparisonPeriods: empty array.\n    - noFindingReason: none.\n\n    Let's verify the exact wording of the prompt for claims: \"标题与正文的每个句子都是 claim（每条候选 2-4 句，标题计入）\". This means the candidate should have 2-4 claims total. I have 2. Good.\n    \"claim对象：claimID、kind（fact|observation）、text（2-180字）、citations[{evidenceID,quote}]（1-6条）、metricIDs。\"\n    I need to add `kind` to each claim.\n    t1: kind: \"observation\"\n    b1: kind: \"observation\"\n\n    Check counterSearch format: \"domains只能取 thought/task/habit，keywords每个 1-24 字。counterSearch 每条必须同时含 domains、anchorRefs、keywords 三个字段，缺一不可，无锚点时 anchorRefs 给空数组。\"\n    I'll make sure it's an array of objects. The prompt says \"counterSearch 每条必须...\", implying it's an array. I'll provide one object.\n\n    Let's assemble carefully.\n\n    Structure:\n    ```json\n    {\n      \"schemaVersion\": 1,\n      \"kind\": \"candidates\",\n      \"runID\": \"run-gen-r8-f01\",\n      \"candidates\": [\n        {\n          \"candidateID\": \"c-restart-step-light\",\n          \"type\": \"two_episodes\",\n          \"subjectKey\": \"restart-step-light\",\n          \"scopeKind\": \"two_episodes\",\n          \"timeRange\": {\"start\": \"2026-10-08\", \"end\": \"2026-10-17\"},\n          \"claims\": [\n            {\n              \"claimID\": \"cl-title\",\n              \"kind\": \"observation\",\n              \"text\": \"这两次重新开始某项习惯时，你都主动把第一步的要求降低了。\",\n              \"citations\": [\n                {\"evidenceID\": \"E01\", \"quote\": \"停了一阵，今天先出去走了十分钟。没有要求自己一定跑起来。\"},\n                {\"evidenceID\": \"E02\", \"quote\": \"重新读书，今晚只翻了两页，没有要求读完一章。\"}\n              ],\n              \"metricIDs\": [\"M01\"]\n            },\n            {\n              \"claimID\": \"cl-body\",\n              \"kind\": \"observation\",\n              \"text\": \"无论是恢复运动还是重拾阅读，你都没有用过去的标准来衡量当下的起步。\",\n              \"citations\": [\n                {\"evidenceID\": \"E01\", \"quote\": \"停了一阵，今天先出去走了十分钟。\"},\n                {\"evidenceID\": \"E02\", \"quote\": \"重新读书，今晚只翻了两页，\"}\n              ],\n              \"metricIDs\": []\n            }\n          ],\n          \"titleClaimID\": \"cl-title\",\n          \"bodyClaimIDs\": [\"cl-body\"],\n          \"supportEvidenceIDs\": [\"E01\", \"E02\"],\n          \"counterSearch\": [\n            {\n              \"domains\": [\"thought\", \"task\"],\n              \"anchorRefs\": [],\n              \"keywords\": [\"要求自己\", \"必须完成\", \"高标准起步\"]\n            }\n          ],\n          \"sensitivity\": \"non_sensitive\",\n          \"comparisonPeriods\": []\n        }\n      ],\n      \"noFindingReason\": \"none\"\n    }\n    ```\n\n    Double check constraints:\n    - \"每条候选 2-4 句，标题计入\" -> I have 2 claims, each 1 sentence. Total 2 sentences. Matches.\n    - \"逐句给 citations\" -> Each claim has citations.\n    - \"titleClaimID 指向标题句，bodyClaimIDs 给 1-3 条正文句\" -> Matches.\n    - \"supportEvidenceIDs 至少 2 个\" -> Has 2.\n    - \"metricIDs 只引用 data.computedFacts 已有的 metricID\" -> M01 used.\n    - \"comparisonPeriods 仅 change_over_time 给 2 段，其余一律空数组\" -> Empty array.\n    - \"counterSearch 每条必须同时含 domains、anchorRefs、keywords 三个字段\" -> Checked.\n    - \"subjectKey 只用 ASCII 字母、数字与 :-_（英文短词，如 lighter-start），禁止中文。\" -> \"restart-step-light\" ok.\n    - \"所有 ID 数组...都是字符串数组\" -> Checked.\n    - \"不输出人格画像...\" -> Checked.\n    - \"正例边界：两次重新开始都先降低要求，合格输出是「这两次重新开始，你都把第一步变轻了」\" -> My title matches this closely.\n    - JSON format strictly followed. No markdown fences.\n\n    One minor thing: The prompt says \"标题与正文的每个句子都是 claim（每条候选 2-4 句，标题计入）\". It might mean each claim object represents a sentence, or the candidate as a whole has 2-4 sentences split across claims. I'll stick to 2 claims, each being 1 sentence. That's fine.\n    Also, check citation quotes: they must be exact. I'll copy-paste exactly from evidence.\n    E01: \"停了一阵，今天先出去走了十分钟。没有要求自己一定跑起来。\"\n    E02: \"重新读书，今晚只翻了两页，没有要求读完一章。\"\n    All good.\n\n    Final check of the prompt: \"先理解每段原文的主语、时间、条件和结果，再寻找：两段独立经历的有限联系、具体情境中反复出现的做法，或两个可比时段的变化。\"\n    The pattern is clearly \"lowering expectations when restarting\". Fits `two_episodes`.\n    I will generate the JSON now. Ensure no extra text.\n    One detail: `counterSearch` keywords should be 1-24 chars each. \"要求自己\"(4), \"必须完成\"(4), \"高标准起步\"(5). All good.\n    `scopeKind` mapping: `two_episodes` -> `two_episodes`. Correct.\n    `timeRange` uses strings. Correct.\n    `sensitivity` is `non_sensitive`. Correct.\n    Ready.✅\n    Output matches exactly. \n    Proceeds. \n    Self-Correction/Refinement during thought: \n    Wait, the prompt says \"counterSearch 每条必须同时含 domains、anchorRefs、keywords 三个字段，缺一不可\". I have that.\n    \"所有 ID 数组（metricIDs、supportEvidenceIDs、anchorRefs、bodyClaimIDs）都是字符串数组，元素是 ID 本身，不写成对象。\" -> Checked.\n    \"不输出 Markdown 围栏\" -> I will output raw JSON.\n    Everything looks solid.\n    Generating. \n    Output matches the refined JSON. \n    [Done] \n    *Self-Correction/Verification during generation prep*:\n    Let's verify the exact wording for `scopeKind`. Prompt: \"scopeKind 与 type 一一对应：two_episodes→two_episodes、bounded_pattern→bounded_events、change_over_time→compared_periods。\"\n    So `scopeKind` should be `\"two_episodes\"`. Correct.\n    `timeRange`: `{start,end}`. I used strings. Correct.\n    `claims`: array of objects. Correct.\n    `titleClaimID`: string. Correct.\n    `bodyClaimIDs`: array of strings. Correct.\n    `supportEvidenceIDs`: array of strings. Correct.\n    `counterSearch`: array of objects. Correct.\n    `sensitivity`: string. Correct.\n    `comparisonPeriods`: array. Correct.\n    `noFindingReason`: \"none\". Correct.\n    All constraints met. Output matches. \n    Proceeds. \n    [Output Generation] -> *Proceeds*",
+        "usage": {
+          "completion_tokens": 3564,
+          "completion_tokens_details": {
+            "reasoning_tokens": 2980,
+            "text_tokens": 3564
+          },
+          "prompt_tokens": 1906,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "text_tokens": 1906
+          },
+          "total_tokens": 5470
+        }
+      }
+    ],
+    "verify": [
+      {
+        "purpose": "discovery_verify_v1",
+        "runID": "run-ver-r8-f01",
+        "at": "2026-10-30T06:23:27.443Z",
+        "elapsedMs": 1443,
+        "finishReason": "stop",
+        "rawContent": "{\"schemaVersion\":1,\"kind\":\"verification\",\"runID\":\"run-ver-r8-f01\",\"candidateResults\":[{\"candidateID\":\"C01\",\"verdict\":\"accept\",\"reasonCodes\":[],\"claimResults\":[{\"claimID\":\"C01-title\",\"verdict\":\"supported\",\"reasonCodes\":[],\"supportEvidenceIDs\":[\"E01\",\"E02\"],\"counterEvidenceIDs\":[]},{\"claimID\":\"C01-body-1\",\"verdict\":\"supported\",\"reasonCodes\":[],\"supportEvidenceIDs\":[\"E01\",\"E02\"],\"counterEvidenceIDs\":[]},{\"claimID\":\"C01-body-2\",\"verdict\":\"supported\",\"reasonCodes\":[],\"supportEvidenceIDs\":[\"E01\",\"E02\"],\"counterEvidenceIDs\":[]}]}]}",
+        "reasoningContent": null,
+        "usage": {
+          "completion_tokens": 153,
+          "prompt_tokens": 2159,
+          "prompt_tokens_details": {
+            "cached_tokens": 0,
+            "text_tokens": 2159
+          },
+          "total_tokens": 2312
+        }
+      }
+    ]
+  },
+  "tokenTotals": {
+    "prompt": 4065,
+    "completion": 3717,
+    "calls": 2
+  }
+}

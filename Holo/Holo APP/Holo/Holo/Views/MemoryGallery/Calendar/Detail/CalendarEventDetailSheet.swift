@@ -384,12 +384,18 @@ struct CalendarEventGroupDetailSheet: View {
             RoundedRectangle(cornerRadius: HoloRadius.md)
                 .stroke(Color.holoBorder.opacity(0.75), lineWidth: 1)
         )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            // 想法行直达想法详情（与卡片直跳一致）；其他模块维持纯列表展示
-            guard event.module == .thought else { return }
+        // 想法行直达想法详情（与卡片直跳一致）；其他模块纯列表展示——
+        // 命中区只挂在可点的想法行上，非想法行点击穿透，避免整行死区
+        .contentShapeIf(event.module == .thought, shape: Rectangle())
+        .onTapGestureIf(event.module == .thought) {
             CalendarEventOriginResolver.resolve(event) { target in
-                guard let target else { return }
+                guard let target else {
+                    HoloToastCenter.shared.show(
+                        String(localized: "原记录可能已被删除，或当前版本暂时无法打开。"),
+                        type: .info
+                    )
+                    return
+                }
                 dismiss()
                 DispatchQueue.main.async {
                     DeepLinkState.shared.navigate(to: target)

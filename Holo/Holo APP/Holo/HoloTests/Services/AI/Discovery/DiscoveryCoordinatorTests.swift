@@ -38,6 +38,8 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
     var controlOwnerDeviceId: String?
     var disableError: Error?
     var candidatesSpec: CandidatesSpec = .happy
+    /// 阶段失败注入（预算 429 等）：置位后 candidates 直接抛出，不再按 spec 构造
+    var candidatesError: Error?
     var verifyEnvelopeOverride: DiscoveryVerificationEnvelope?
     var holdVerify = false
     var releaseVerify = false
@@ -100,7 +102,13 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
             scopeRevision: 1,
             allowedDomains: allowedDomains,
             ownerDeviceId: "device-A",
-            grant: "grant-1",
+            grant: .init(
+                deviceId: "device-A",
+                revision: controlRevisionValue,
+                scopeRevision: 1,
+                dayKey: "2026-10-23",
+                leaseExpiresAt: 1_790_000_600
+            ),
             replayed: false
         )
     }
@@ -148,6 +156,7 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
         data: DiscoveryJSONValue
     ) async throws -> (response: DiscoveryClient.StageResponse, envelope: DiscoveryCandidateEnvelope) {
         candidatesCallCount += 1
+        if let candidatesError { throw candidatesError }
         switch candidatesSpec {
         case .empty:
             let envelope = DiscoveryCandidateEnvelope(runID: runID, candidates: [], noFindingReason: .noMaterial)
@@ -403,7 +412,8 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         )
     }
 
-    private func makeCoordinator(consentProvider: @escaping () -> Bool = { true }) -> DiscoveryCoordinator {
+    private func makeCoordinator(knowledgeRepository: CoreDataHoloMemoryRepository? = nil,
+                                 consentProvider: @escaping () -> Bool = { true }) -> DiscoveryCoordinator {
         let coordinator = DiscoveryCoordinator(
             settings: settings,
             store: store,
@@ -420,10 +430,22 @@ final class DiscoveryCoordinatorTests: XCTestCase {
             consentProvider: consentProvider,
             idProvider: { "req-\(UUID().uuidString)" },
             resourceSnapshotProvider: { self.resourceBox.value },
-            sideStore: DiscoveryCoordinatorSideStore(defaults: defaults)
+            sideStore: DiscoveryCoordinatorSideStore(defaults: defaults),
+            knowledgeRepositoryProvider: knowledgeRepository.map { repository in { repository } }
         )
         Self.pinned.append(coordinator)
         return coordinator
+    }
+
+    private func makeKnowledgeRepository() throws -> CoreDataHoloMemoryRepository {
+        let controller = try HoloMemoryPersistenceController(inMemory: true)
+        Self.pinned.append(controller)
+        return CoreDataHoloMemoryRepository(controller: controller)
+    }
+
+    private func currentFindingID(_ coordinator: DiscoveryCoordinator) -> String {
+        if case .available(let id, _) = coordinator.presentationState { return id }
+        return ""
     }
 
     /// 触发一次批次：登记一条已过静默窗的变更并等待批次结束
@@ -586,6 +608,65 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.presentationState, .waitingForMaterial)
     }
 
+    // MARK: - 重启恢复与预算重试（2026-10-30 首跑卡死修复）
+
+    /// 事故回放：开启成功 → 首跑撞预算 429 → 重启。firstRunPending 仅存内存且无恢复，
+    /// 三域变更事件又未接线 → 快路径永远吞掉前台触发，卡死「还在等足够的记录」。
+    /// 修复=init 从「已开启 && 从未成功终态」推导恢复首跑待办。
+    func test_首跑待办恢复_重启后开启且从未成功终态前台激活即发起首跑() async throws {
+        // setUp 已 enable；无 processedRecord = 从未成功终态
+        let coordinator = makeCoordinator()   // 模拟新进程
+
+        coordinator.runBatch(reason: .foregroundActivation)   // 无 dirty marks 的前台激活
+        await coordinator.batchTask?.value
+
+        XCTAssertEqual(mock.createRunCallCount, 1, "首跑待办从持久化事实恢复：不等（尚未接线的）变更事件")
+        XCTAssertNotEqual(coordinator.presentationState, .waitingForMaterial, "不得再卡「还在等足够的记录」")
+    }
+
+    /// 已成功终态的账号重启后不得误恢复首跑（首跑待办恢复只针对从未跑完的）。
+    func test_首跑待办恢复_已有成功终态不误恢复() async throws {
+        let sideStore = DiscoveryCoordinatorSideStore(defaults: defaults)
+        sideStore.recordProcessed(digest: "done-digest", policyVersion: 1, promptVersion: 1, at: fixedNow)
+
+        let coordinator = makeCoordinator()
+        coordinator.runBatch(reason: .foregroundActivation)
+        await coordinator.batchTask?.value
+
+        XCTAssertEqual(mock.createRunCallCount, 0, "已有成功终态且同日：快路径拦截，零网络")
+    }
+
+    /// 「每天一个发现」的日历资格：跨自然日后第一次前台激活放行完整决策，
+    /// 由扫描自比 manifestDigest 决定重跑；同一天再次激活被快路径拦截。
+    func test_跨天资格_昨日成功终态新一天首查放行同日拦截() async throws {
+        let sideStore = DiscoveryCoordinatorSideStore(defaults: defaults)
+        // 昨天 noFinding 终态，digest 与今日材料不同（今日材料变了才值得重跑）
+        sideStore.recordProcessed(digest: "yesterday-digest", policyVersion: 1, promptVersion: 1,
+                                  at: fixedNow.addingTimeInterval(-86400))
+
+        let coordinator = makeCoordinator()
+        coordinator.runBatch(reason: .foregroundActivation)
+        await coordinator.batchTask?.value
+        XCTAssertEqual(mock.createRunCallCount, 1, "跨自然日：快路径放行进完整决策")
+
+        // 上一批成功终态把 processedAt 刷成今天 → 同日再激活走快路径，零网络
+        coordinator.runBatch(reason: .foregroundActivation)
+        await coordinator.batchTask?.value
+        XCTAssertEqual(mock.createRunCallCount, 1, "同日无变更：快路径拦截，不重复发起")
+    }
+
+    /// 预算 429 后：状态如实显示「暂未更新」（不误报材料不足），且窗口恢复的重试已排定。
+    func test_预算超限_429后状态paused且排定窗口重试() async throws {
+        mock.candidatesError = APIError.rateLimited("后台整理额度已用完")
+        let coordinator = makeCoordinator()
+        coordinator.runBatch(reason: .foregroundActivation)
+        await coordinator.batchTask?.value
+
+        XCTAssertEqual(mock.candidatesCallCount, 1, "candidates 被调且撞预算 429")
+        XCTAssertEqual(coordinator.presentationState, .temporarilyUnavailable, "预算态如实显示，不误报「记录还不够」")
+        XCTAssertNotNil(coordinator.retryTask, "预算窗口恢复后的自动重试已排定（此前只关当日不排重试）")
+    }
+
     // MARK: - 反馈幂等
 
     func test_反馈幂等_连续两次inaccurate只写一条tombstone() async throws {
@@ -695,6 +776,151 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         // ID 不匹配同样拒绝
         let mismatch = await coordinator.validateConversationDraftForSend(findingID: "not-a-finding")
         XCTAssertFalse(mismatch)
+    }
+    // MARK: - 记忆联动（v2.2 §6.1 / 融合契约；场景 D01–D05/D14/D18）
+
+    func test_联动_发布时写claim关联_两次经历不达记忆门槛不显示保存按钮() async throws {
+        let repository = try makeKnowledgeRepository()
+        let coordinator = makeCoordinator(knowledgeRepository: repository)
+        await runOneBatch(coordinator)
+        guard let record = try store.activeFinding(now: fixedNow) else { return XCTFail("前置：已发布") }
+
+        let linkages = try store.claimLinkages(findingID: record.id)
+        XCTAssertEqual(linkages.map(\.claimID).sorted(), ["K1", "K2"], "每个 claim 一条版本化关联（D17 精确到结论）")
+        XCTAssertTrue(linkages.allSatisfy { $0.propositionID.hasPrefix("holo-prop-") && !$0.semanticDigest.isEmpty })
+        XCTAssertNotEqual(linkages[0].propositionID, linkages[1].propositionID, "不同 claim 不同命题")
+        XCTAssertTrue(linkages.allSatisfy { $0.evidenceSnapshot.templateID == nil }, "D01 两次经历不是规律模板")
+        XCTAssertTrue(linkages.allSatisfy { $0.evidenceSnapshot.supportRefs.allSatisfy { $0.sourceDomain == .thought } }, "来源仅想法域")
+
+        let state = await coordinator.knowledgeSaveState(for: currentFindingID(coordinator))
+        XCTAssertEqual(state, .notEligible, "D01 未达记忆门槛：不显示不能兑现的保存按钮")
+        let outcome = await coordinator.confirmAndRemember(findingID: currentFindingID(coordinator), claimID: "K1")
+        XCTAssertFalse(outcome.isSuccess, "两次经历不能越级保存为规律")
+        let snapshot = try await repository.knowledgeStoreSnapshot()
+        XCTAssertFalse(snapshot.operations.contains { $0.kind == .confirm }, "没有确认操作")
+    }
+
+    func test_联动_有点像只写提示记录_不建知识不增样本() async throws {
+        let repository = try makeKnowledgeRepository()
+        let coordinator = makeCoordinator(knowledgeRepository: repository)
+        await runOneBatch(coordinator)
+        _ = coordinator.openFinding()
+
+        await coordinator.submitFeedback(.accurate)
+
+        let snapshot = try await repository.knowledgeStoreSnapshot()
+        XCTAssertTrue(snapshot.revisions.isEmpty, "D01 有点像不暗中保存")
+        let prompts = snapshot.operations.filter { $0.kind == .promptRecord }
+        XCTAssertEqual(prompts.count, 2, "每个 claim 一条轻反馈提示记录")
+        XCTAssertTrue(prompts.allSatisfy { op in
+            if case .promptRecord(let entry, _, let outcome) = op.payload { return entry == "discovery" && outcome == "acknowledged" }
+            return false
+        })
+        XCTAssertTrue(snapshot.operations.filter { $0.kind.isUsageRestricting || $0.kind == .confirm }.isEmpty, "无确认无限制")
+        XCTAssertNotNil(try store.activeFinding(now: fixedNow), "有点像不撤下")
+    }
+
+    func test_联动_理解不对立即撤下并写最低否定_同义不再推荐() async throws {
+        let repository = try makeKnowledgeRepository()
+        let coordinator = makeCoordinator(knowledgeRepository: repository)
+        await runOneBatch(coordinator)
+        guard let record = try store.activeFinding(now: fixedNow) else { return XCTFail("前置：已发布") }
+        let linkages = try store.claimLinkages(findingID: record.id)
+        _ = coordinator.openFinding()
+
+        await coordinator.submitFeedback(.inaccurate(reason: .wrongUnderstanding))
+
+        XCTAssertNil(try store.activeFinding(now: fixedNow), "D05 首次点击立即撤下")
+        let snapshot = try await repository.knowledgeStoreSnapshot()
+        let inaccurate = snapshot.operations.filter { $0.kind == .markInaccurate }
+        XCTAssertEqual(inaccurate.count, linkages.count, "每个关联 claim 一条准确范围的最低否定（不封禁整个主题）")
+        XCTAssertEqual(Set(inaccurate.compactMap(\.targetSemanticDigest)), Set(linkages.map(\.semanticDigest)), "否定绑定准确语义指纹")
+        XCTAssertTrue(snapshot.revisions.isEmpty, "否定不需要先把错误理解写成修订")
+
+        // D18/D04：同一准确语义再被生成时，发布门禁按知识侧限制排除（不换入口复活）
+        for linkage in linkages {
+            let blocked = await DiscoveryCoordinator.hasStandaloneBlock(
+                repository: repository, propositionID: linkage.propositionID,
+                digest: linkage.semanticDigest, now: fixedNow
+            )
+            XCTAssertTrue(blocked, "被否定语义在发布去重中命中")
+        }
+        let reworded = await DiscoveryCoordinator.hasStandaloneBlock(
+            repository: repository, propositionID: linkages[0].propositionID,
+            digest: "sd-other-version", now: fixedNow
+        )
+        XCTAssertFalse(reworded, "否定只阻断该准确语义版本，不封禁整个主题")
+        XCTAssertEqual(coordinator.presentationState, .waitingForMaterial)
+    }
+
+    func test_联动_现在不适用收窄范围_暂时不说只记冷却() async throws {
+        let repository = try makeKnowledgeRepository()
+        let coordinator = makeCoordinator(knowledgeRepository: repository)
+        await runOneBatch(coordinator)
+        _ = coordinator.openFinding()
+
+        await coordinator.recordMinimalDeference(findingID: currentFindingID(coordinator))
+        var snapshot = try await repository.knowledgeStoreSnapshot()
+        let deferred = snapshot.operations.filter { $0.kind == .deferCooldown }
+        XCTAssertEqual(deferred.count, 2, "暂时不说：每个 claim 一条冷却（不构成认可/否定）")
+        XCTAssertTrue(snapshot.operations.filter { $0.kind.isUsageRestricting }.isEmpty, "暂时不说不是限制")
+        XCTAssertNotNil(try store.activeFinding(now: fixedNow), "暂时不说不撤下发现本身")
+        XCTAssertFalse(coordinator.isDetailPresented)
+
+        // 冷却期内同语义不再作为新发现（D03 共用冷却）
+        let cooled = await DiscoveryCoordinator.hasStandaloneBlock(
+            repository: repository, propositionID: deferred[0].propositionID,
+            digest: deferred[0].targetSemanticDigest ?? "", now: fixedNow
+        )
+        XCTAssertTrue(cooled, "暂缓的语义版本在冷却期内不再主动推荐")
+        let afterCooldown = await DiscoveryCoordinator.hasStandaloneBlock(
+            repository: repository, propositionID: deferred[0].propositionID,
+            digest: deferred[0].targetSemanticDigest ?? "", now: fixedNow.addingTimeInterval(31 * 86_400)
+        )
+        XCTAssertFalse(afterCooldown, "冷却到期后可再评估")
+
+        _ = coordinator.openFinding()
+        await coordinator.submitFeedback(.inaccurate(reason: .notApplicableNow))
+        snapshot = try await repository.knowledgeStoreSnapshot()
+        XCTAssertEqual(snapshot.operations.filter { $0.kind == .narrowScope }.count, 2, "现在不适用 → 收窄范围，保留历史")
+        XCTAssertNil(try store.activeFinding(now: fixedNow), "撤下当前呈现")
+    }
+
+    func test_联动_记忆侧限制后发现撤下() async throws {
+        let repository = try makeKnowledgeRepository()
+        let coordinator = makeCoordinator(knowledgeRepository: repository)
+        await runOneBatch(coordinator)
+        guard let record = try store.activeFinding(now: fixedNow),
+              let linkage = try store.claimLinkages(findingID: record.id).first else { return XCTFail("前置：已发布") }
+
+        // 用户在记忆侧（另一入口）否定同一准确语义
+        let service = HoloKnowledgeControlService(repository: repository)
+        let outcome = try await service.apply(HoloKnowledgeControlRequest(
+            operationID: "mc-inaccurate", propositionID: linkage.propositionID,
+            expectedSemanticDigest: linkage.semanticDigest, knownOperationIDs: [],
+            action: .markInaccurate(reason: nil, scope: .understanding), entry: "memoryCenter", issuedAt: fixedNow
+        ))
+        XCTAssertTrue(outcome.isSuccess)
+
+        // 通知经 MainActor Task 投递：让出几次运行循环
+        for _ in 0..<20 where (try? store.activeFinding(now: fixedNow)) != nil {
+            await Task.yield()
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertNil(try store.activeFinding(now: fixedNow), "D04 记忆侧纠正/判错 → 引用旧语义的发现撤下")
+    }
+
+    func test_联动_不想看这类只是展示偏好_不写知识否定() async throws {
+        let repository = try makeKnowledgeRepository()
+        let coordinator = makeCoordinator(knowledgeRepository: repository)
+        await runOneBatch(coordinator)
+        _ = coordinator.openFinding()
+
+        await coordinator.submitFeedback(.inaccurate(reason: .notInterested))
+
+        let snapshot = try await repository.knowledgeStoreSnapshot()
+        XCTAssertTrue(snapshot.operations.filter { $0.kind.isUsageRestricting }.isEmpty, "D06 不想再提示 ≠ 事实否定")
+        XCTAssertNil(try store.activeFinding(now: fixedNow), "但当前呈现停止")
     }
     func test_线上能力响应_v前缀策略版本可以解码() throws {
         let payload = #"{"protocolVersion":1,"enabled":true,"policyVersion":"v1","allowedDomains":["thought","task","habit"],"budget":{"runsPerDay":1,"candidateMaxTokens":3072,"verifyMaxTokens":4096,"inputBudgetTokens":16384}}"#
