@@ -125,11 +125,15 @@ def main():
         newer = work / "newer"
         run("seed-new", newer)
         run("downgrade", fixture("downgrade", newer))
+        # 跳版老用户（2026-11-02）：老表加过字段的 1.1.2 形态旧库按升级登记簿放行，先备份、旧数据零损
+        registered = work / "registered"
+        run("seed-registered", registered)
+        run("registered", registered)
         if args.fixture_output:
             assert not args.fixture_output.exists(), "夹具输出目录已存在，不覆盖"
             shutil.copytree(legacy, args.fixture_output)
             print(f"旧库合成夹具：{args.fixture_output}")
-        print("PASS：真实 63→65 增量升级、全部旧字段/关系/对象 URI/外置附件、WAL 备份、重复打开、拒绝降级及备份失败保护")
+        print("PASS：真实 63→65 增量升级、1.1.2 形态跳版登记升级、全部旧字段/关系/对象 URI/外置附件、WAL 备份、重复打开、拒绝降级及备份失败保护")
 
 
 if __name__ == "__main__":

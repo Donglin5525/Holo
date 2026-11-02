@@ -25,6 +25,23 @@ struct CoreDataKnownUpgradeStandaloneTests {
         return model
     }
 
+    /// 1.1.3 之后才加的五张表（真实 1.1.2 旧库 60 实体里没有它们）
+    static let laterThan112Entities: Set<String> = [
+        "GoalReviewLinkMO", "HabitDailyConfirmationMO", "HoloMemoryControlEventMO",
+        "HoloMemoryKnowledgeRevisionMO", "HoloMemoryKnowledgeOperationMO"
+    ]
+
+    /// 1.1.1/1.1.2 正式版形态：按登记簿倒推掉 1.1.3 起的新增项，再去掉之后加的表——
+    /// 与本机 10-18 真实旧库（60 实体）指纹一致，用来验证「老表加过字段」的跳版升级
+    static func registeredLegacyModel() -> NSManagedObjectModel {
+        guard let index = CoreDataStoreUpgrade.propertyHistory.firstIndex(where: { $0.release == "1.1.3" }) else {
+            fatalError("登记簿必须有 1.1.3 批次")
+        }
+        let model = CoreDataStack.shared.legacyDataModel(removing: CoreDataStoreUpgrade.additions(since: index))
+        model.entities = model.entities.filter { !laterThan112Entities.contains($0.name ?? "") }
+        return model
+    }
+
     static func container(_ model: NSManagedObjectModel, at url: URL) -> NSPersistentContainer {
         let container = UpgradeTestContainer(name: "UpgradeTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription(url: url)
@@ -62,12 +79,13 @@ struct CoreDataKnownUpgradeStandaloneTests {
         }
     }
 
-    static func snapshot(_ container: NSPersistentContainer) throws -> Data {
+    /// shape：只比对该形态里存在的实体/属性/关系（登记升级后新增项不属于旧数据）
+    static func snapshot(_ container: NSPersistentContainer, shape: NSManagedObjectModel? = nil) throws -> Data {
         let context = container.viewContext
         var rows: [String: Any] = [:]
         // 夹具专用合成实体（wide-additive 模式追加）不参与内容比对
         let skippedNames = CoreDataStoreUpgrade.knowledgeEntityNames.union(["UnsupportedNewEntity"])
-        for entity in container.managedObjectModel.entities where !skippedNames.contains(entity.name ?? "") {
+        for entity in (shape ?? container.managedObjectModel).entities where !skippedNames.contains(entity.name ?? "") {
             let name = entity.name!
             let objects = try context.fetch(NSFetchRequest<NSManagedObject>(entityName: name))
             rows[name] = objects.map { object -> [String: Any] in
@@ -154,6 +172,17 @@ struct CoreDataKnownUpgradeStandaloneTests {
             print("PASS 旧模型独立读取备份，全部原始记录一致")
             return
         }
+        if mode == "seed-registered" {
+            // 跳版老用户（2026-11-02）：1.1.2 正式版形态的旧库——老表比现在少字段，纯加表规则认不出
+            let legacyModel = registeredLegacyModel()
+            expect(legacyModel.entities.count == 60, "必须是与真实 1.1.2 旧库一致的 60 实体形态")
+            let container = container(legacyModel, at: storeURL)
+            expect(load(container, productionGate: false) == nil, "1.1.2 形态旧库必须成功建立")
+            try seed(container)
+            try snapshot(container).write(to: directory.appendingPathComponent("snapshot.json"))
+            print("PASS seed-registered: 60 实体 1.1.2 形态旧库，全部实体均有保存记录")
+            return
+        }
         var lockedDatabase: OpaquePointer?
         if mode == "locked-wal" {
             expect(sqlite3_open(storeURL.path, &lockedDatabase) == SQLITE_OK, "测试连接必须打开")
@@ -195,6 +224,22 @@ struct CoreDataKnownUpgradeStandaloneTests {
             return
         }
         if let error { throw error }
+        if mode == "registered" {
+            let backups = (try? FileManager.default.contentsOfDirectory(
+                at: directory.appendingPathComponent("StoreUpgradeBackups"), includingPropertiesForKeys: nil)) ?? []
+            expect(backups.count == 1, "登记形态升级前必须先做一致性备份")
+            expect(try snapshot(container, shape: registeredLegacyModel()) == Data(contentsOf: directory.appendingPathComponent("snapshot.json")),
+                   "跳版升级后全部旧字段、关联、对象 URI 与 BLOB 必须一致")
+            let habit = try container.viewContext.fetch(NSFetchRequest<NSManagedObject>(entityName: "Habit")).first
+            expect((habit?.value(forKey: "dayEndHour") as? NSNumber)?.intValue == 0, "老表新增字段必须按默认值补齐")
+            for name in CoreDataStoreUpgrade.knowledgeEntityNames {
+                let row = NSEntityDescription.insertNewObject(forEntityName: name, into: container.viewContext)
+                row.setValue("upgrade-probe", forKey: "propositionID")
+            }
+            try container.viewContext.save()
+            print("PASS registered: 1.1.2 形态 60→65 跳版升级，先备份、旧记录与对象身份一致、新字段补默认、新表可保存")
+            return
+        }
         expect(try snapshot(container) == Data(contentsOf: directory.appendingPathComponent("snapshot.json")), "升级前后全部原始字段、关联、对象 URI 与 BLOB 必须一致")
         let expectedEntities = (mode == "wide-additive") ? 66 : 65
         expect(container.managedObjectModel.entities.count == expectedEntities, "升级后必须真正注册全部新表")

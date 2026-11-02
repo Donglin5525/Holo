@@ -189,7 +189,7 @@ nonisolated class CoreDataStack: @unchecked Sendable {
     }
 
     /// 打开前只读核对 store 的模型指纹与当前模型是否一致。
-    /// 返回 nil = 新库、指纹一致，或纯加表向前升级（见 CoreDataStoreUpgrade.isAdditiveUpgrade）；
+    /// 返回 nil = 新库、指纹一致、纯加表，或登记簿认得的已发版旧形态（见 CoreDataStoreUpgrade.verdict）；
     /// 返回错误 = 拒绝打开。只做只读检查，绝不迁移、绝不改写库文件。
     nonisolated static func storeFingerprintRejection(
         at url: URL,
@@ -203,22 +203,34 @@ nonisolated class CoreDataStack: @unchecked Sendable {
                 reason: .unreadableMetadata(detail: "Z_METADATA 不可读")
             )
         }
+        guard upgradeVerdict(store: storeHashes, model: model) == .rejected else { return nil }
         let modelHashes = model.entityVersionHashesByName
-        let onlyInStore = storeHashes.keys.filter { modelHashes[$0] == nil }.sorted()
-        let onlyInModel = modelHashes.keys.filter { storeHashes[$0] == nil }.sorted()
-        let hashDifferences = storeHashes.keys
-            .filter { modelHashes[$0] != nil && storeHashes[$0] != modelHashes[$0] }
-            .sorted()
-        if CoreDataStoreUpgrade.isAdditiveUpgrade(store: storeHashes, model: modelHashes) {
-            return nil
-        }
-        guard onlyInStore.isEmpty, onlyInModel.isEmpty, hashDifferences.isEmpty else {
-            return StoreFingerprintRejection(
-                storePath: url.path,
-                reason: .mismatch(onlyInStore: onlyInStore, onlyInModel: onlyInModel, hashDifferences: hashDifferences)
+        return StoreFingerprintRejection(
+            storePath: url.path,
+            reason: .mismatch(
+                onlyInStore: storeHashes.keys.filter { modelHashes[$0] == nil }.sorted(),
+                onlyInModel: modelHashes.keys.filter { storeHashes[$0] == nil }.sorted(),
+                hashDifferences: storeHashes.keys
+                    .filter { modelHashes[$0] != nil && storeHashes[$0] != modelHashes[$0] }
+                    .sorted()
             )
+        )
+    }
+
+    /// 库指纹对当前模型的升级判定；登记簿形态只在前两档不成立时按需倒推（每档建模一次）
+    nonisolated static func upgradeVerdict(
+        store: [String: Data],
+        model: NSManagedObjectModel
+    ) -> CoreDataStoreUpgrade.Verdict {
+        var shapes: [Int: [String: Data]] = [:]
+        return CoreDataStoreUpgrade.verdict(store: store, model: model.entityVersionHashesByName) { index in
+            if let shape = shapes[index] { return shape }
+            let shape = CoreDataStack.shared.legacyModelHashes(
+                removing: CoreDataStoreUpgrade.additions(since: index)
+            )
+            shapes[index] = shape
+            return shape
         }
-        return nil
     }
 
     /// 优先读取实时 WAL；无待合并 WAL 时才允许只读主文件。
@@ -266,8 +278,8 @@ nonisolated class CoreDataStack: @unchecked Sendable {
         return hashes
     }
 
-    /// 打开前验证指纹；只允许「已有实体哈希全部不变 + 纯加表」的向前升级。
-    /// 加表升级先做一致性备份；其他差异及所有加载失败都保留原库，不再自动重建空库。
+    /// 打开前验证指纹；只允许「已有实体哈希全部不变 + 纯加表」或登记簿认得的已发版旧形态向前升级。
+    /// 升级先做一致性备份；其他差异及所有加载失败都保留原库，不再自动重建空库。
     nonisolated static func loadStoreAllowingRecovery(
         _ container: NSPersistentContainer,
         logger: Logger,
@@ -280,15 +292,17 @@ nonisolated class CoreDataStack: @unchecked Sendable {
                     onFinish(rejection)
                     return
                 }
-                if let hashes = readStoreModelVersionHashes(at: storeURL),
-                   CoreDataStoreUpgrade.isAdditiveUpgrade(store: hashes, model: container.managedObjectModel.entityVersionHashesByName) {
-                    do {
-                        let backup = try CoreDataStoreUpgrade.makeBackup(of: storeURL)
-                        logger.notice("已知知识表增量升级：一致性备份已完成 \(backup.lastPathComponent, privacy: .public)")
-                    } catch {
-                        logger.fault("升级前备份失败，保留原库并停止装载：\(error.localizedDescription, privacy: .public)")
-                        onFinish(error)
-                        return
+                if let hashes = readStoreModelVersionHashes(at: storeURL) {
+                    let verdict = upgradeVerdict(store: hashes, model: container.managedObjectModel)
+                    if verdict != .identical {
+                        do {
+                            let backup = try CoreDataStoreUpgrade.makeBackup(of: storeURL)
+                            logger.notice("增量升级（\(String(describing: verdict), privacy: .public)）：一致性备份已完成 \(backup.lastPathComponent, privacy: .public)")
+                        } catch {
+                            logger.fault("升级前备份失败，保留原库并停止装载：\(error.localizedDescription, privacy: .public)")
+                            onFinish(error)
+                            return
+                        }
                     }
                 }
             }
@@ -588,6 +602,29 @@ nonisolated class CoreDataStack: @unchecked Sendable {
 
     nonisolated func createDataModel() -> NSManagedObjectModel {
         Self.sharedDataModel
+    }
+
+    /// 升级登记簿倒推：全新构建一份模型（不碰全进程共享实例），删去指定的新增属性/关系，得到旧版形态。
+    /// 这份模型只用于算指纹（测试另用它造旧库），生产中绝不装载；类名一律改回 NSManagedObject，
+    /// 免与共享模型争抢子类映射（134020 族）。删关系时同步断开对端反向引用，模型才自洽
+    /// （对端实体都是更晚加的表，不参与旧库比对）。
+    nonisolated func legacyDataModel(removing additions: [String: Set<String>]) -> NSManagedObjectModel {
+        let model = makeDataModel()
+        for entity in model.entities {
+            entity.managedObjectClassName = NSStringFromClass(NSManagedObject.self)
+        }
+        for entity in model.entities {
+            guard let names = additions[entity.name ?? ""] else { continue }
+            for case let relation as NSRelationshipDescription in entity.properties where names.contains(relation.name) {
+                relation.inverseRelationship?.inverseRelationship = nil
+            }
+            entity.properties = entity.properties.filter { !names.contains($0.name) }
+        }
+        return model
+    }
+
+    nonisolated func legacyModelHashes(removing additions: [String: Set<String>]) -> [String: Data] {
+        legacyDataModel(removing: additions).entityVersionHashesByName
     }
 
     /// 通过代码创建 Core Data 数据模型（仅由 sharedDataModel 惰性初始化调用一次）
