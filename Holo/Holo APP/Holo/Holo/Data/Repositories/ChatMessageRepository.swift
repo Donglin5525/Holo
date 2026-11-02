@@ -698,6 +698,16 @@ final class ChatMessageRepository: ObservableObject {
     ) {
         guard let message = messageForUpdate(messageId) else { return }
 
+        // 规划终态同进退（2026-11-02 真机事故）：消息已带终态规划信封时，迟到的
+        // 定稿写不得把「已就绪+方案」拆散——nil/旧信封/迟到失败写此前会把
+        // contextPlanJSON 整条抹空、留下「已就绪无方案」死卡（updateContextPlanRun
+        // 早有同款单字段保护，这里把同一不变式补到整条消息定稿通道）。
+        let (plannedJSON, plannedRunJSON) = resolveContextPlanWrite(
+            message: message,
+            incomingPlanJSON: contextPlanJSON,
+            incomingRunJSON: contextPlanRunJSON
+        )
+
         // Core Data 写入（单次 save）
         message.content = finalContent
         message.isStreaming = false
@@ -710,8 +720,8 @@ final class ChatMessageRepository: ObservableObject {
         message.rawLogJSON = nil
         message.agentResultJSON = agentResultJSON
         message.insightResultJSON = insightResultJSON
-        message.contextPlanJSON = contextPlanJSON
-        message.contextPlanRunJSON = contextPlanRunJSON
+        message.contextPlanJSON = plannedJSON
+        message.contextPlanRunJSON = plannedRunJSON
         message.todayReliefJSON = todayReliefJSON
         if let messageType {
             message.messageType = messageType.rawValue
@@ -770,14 +780,61 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.rawLog = nil
             snapshot.agentResult = decodedAgentResult
             snapshot.insightResult = decodedInsightResult
-            snapshot.contextPlanJSON = contextPlanJSON
-            snapshot.contextPlanRunJSON = contextPlanRunJSON
+            snapshot.contextPlanJSON = plannedJSON
+            snapshot.contextPlanRunJSON = plannedRunJSON
             if let messageType {
                 snapshot.messageType = messageType
             }
             // finalizeMessage 已收到并解析完整元数据，当前快照可立即渲染结构化卡片。
             snapshot.metadataState = .loaded
         }
+    }
+
+    /// finalizeMessage 的规划终态裁决（2026-11-02）：决定这一笔定稿写最终落到
+    /// 消息上的方案/信封字段。规则与 updateContextPlanRun 的单字段终态保护同源，
+    /// 并额外守住「draftReady 必带方案」这条不变式：
+    /// - 既有终态信封 + 来写为 nil / 非终态 / revision 回退 → 保留既有信封；
+    ///   既有就绪态时方案一并保留（迟到写不得清空已交付方案）。
+    /// - 既有 draftReady + 方案在库，来写为 failed/cancelled 且不带方案 → 整体拒绝
+    /// （领取已成功的运行，迟到的失败收尾没有意义，抹掉等于毁掉已交付结果）。
+    /// - 就绪孤儿（draftReady 但方案本就缺失）转诚实失败 → 放行，孤儿收治依赖此路。
+    private func resolveContextPlanWrite(
+        message: ChatMessage,
+        incomingPlanJSON: String?,
+        incomingRunJSON: String?
+    ) -> (planJSON: String?, runJSON: String?) {
+        guard let existingData = message.contextPlanRunJSON,
+              let existing = HoloContextPlanRunController.decode(existingData),
+              existing.stage.isTerminal
+        else {
+            return (incomingPlanJSON, incomingRunJSON) // 无终态基线：按来写直落
+        }
+        let incoming = incomingRunJSON.flatMap { HoloContextPlanRunController.decode($0) }
+
+        // 已交付保护：就绪 + 方案在库，来写却要改判失败/取消并清掉方案——
+        // 领取已成功的运行，迟到的失败收尾没有意义，整体拒绝保住已交付结果。
+        if existing.stage == .draftReady,
+           message.contextPlanJSON?.isEmpty == false,
+           incomingPlanJSON == nil,
+           incoming?.stage != .draftReady {
+            logger.error("PLAN-DIAG 定稿写被拦截：已交付方案拒绝抹除（stage=\(existing.stage.rawValue)）")
+            return (message.contextPlanJSON, existingData)
+        }
+
+        // 终态保护：nil/非终态/revision 回退的来写不得覆盖既有终态
+        let isLegalAdvance = incoming?.stage.isTerminal == true
+            && incoming!.stageRevision >= existing.stageRevision
+        guard isLegalAdvance else {
+            logger.error("PLAN-DIAG 定稿写被拦截：旧写不得回退终态（stage=\(existing.stage.rawValue)）")
+            return (existing.stage == .draftReady ? message.contextPlanJSON : incomingPlanJSON, existingData)
+        }
+
+        // 合法终态推进，但就绪写不带方案：不制造新的「已就绪无方案」
+        if incoming?.stage == .draftReady && incomingPlanJSON == nil,
+           let kept = message.contextPlanJSON, !kept.isEmpty {
+            return (kept, incomingRunJSON)
+        }
+        return (incomingPlanJSON, incomingRunJSON)
     }
 
     /// 规划运行状态的原子单字段写入（实施方案 §6.3：每次真实状态迁移原子落盘）。
@@ -819,6 +876,27 @@ final class ChatMessageRepository: ObservableObject {
     /// ack 即焚不可逆，必须确认方案真的写到消息上才允许销毁云端副本）。
     func contextPlanDraftJSON(_ messageId: UUID) -> String? {
         messageForUpdate(messageId)?.contextPlanJSON
+    }
+
+    /// 规划方案「已提交存储」回读（2026-11-02，ack 即焚门禁专用）：
+    /// 主上下文托管对象在 save 失败时仍保留未持久化的内存值，用它放行 ack 会
+    /// 销毁云端唯一可恢复副本。这里从干净的后台上下文直读存储行——只有真正
+    /// 提交成功的方案才返回非空；save 未生效时返回 nil，ack 不放行、结果留云端
+    /// 由对账补领。轻量装载的孤儿兜底回填仍走上面的托管对象通道（职责不同）。
+    func committedContextPlanDraftJSON(_ messageId: UUID) async -> String? {
+        await CoreDataStack.shared.waitUntilReady()
+        return await Task.detached(priority: .utility) {
+            let context = CoreDataStack.shared.newBackgroundContext()
+            return await context.perform {
+                let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                request.resultType = .dictionaryResultType
+                request.propertiesToFetch = ["contextPlanJSON"]
+                request.predicate = NSPredicate(format: "id == %@", messageId as CVarArg)
+                request.fetchLimit = 1
+                let row = (try? context.fetch(request))?.first as? [String: Any]
+                return row?["contextPlanJSON"] as? String
+            }
+        }.value
     }
 
     /// Agent 结果 JSON 回读（D02，2026-10-04 体检：普通云分析 ack 前的落库校验，

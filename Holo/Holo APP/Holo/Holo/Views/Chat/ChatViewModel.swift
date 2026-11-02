@@ -342,7 +342,15 @@ final class ChatViewModel: ObservableObject {
     /// 有则交 analysisService 处理三类悬挂（超截止终结 / 进度刷新 / 无 job 落地中断）。
     /// 一次性孤儿清理（bootstrap 时跑一次 + 180s 宽限）接不住「强杀后短时间内
     /// 重进并停留在聊天页」的场景——用户会看着「分析中」永远转圈。
+    /// 2026-11-02：同轮补上规划运行对账——规划此前只在冷启动 bootstrap 收治一次，
+    /// 「App 冻结/轮询任务随页面销毁静默退出 + 仅前后台切换」的运行卡会无限期
+    /// 停在旧阶段（真机实锤：卡片转 3 小时，云端 35 秒已完成）；页面驻留每 8 秒
+    /// 复查一次，中断运行/就绪孤儿都在 ~10s 内进入补领或诚实失败。
     private var analysisReconcileTask: Task<Void, Never>?
+
+    /// 规划恢复在途防重入：云查证+补领链路一次可达分钟级（本机检索重建慢），
+    /// 对账循环每 8 秒都会扫到同一条非终态消息，没有守卫会叠出并发补领。
+    private var planningRecoveryInFlight = Set<UUID>()
 
     private func startAnalysisReconcileLoop() {
         guard analysisReconcileTask == nil else { return }
@@ -351,6 +359,7 @@ final class ChatViewModel: ObservableObject {
                 try? await Task.sleep(for: .seconds(8))
                 guard let self else { return }
                 await self.analysisService.reconcileStalledAnalysisMessages()
+                self.reconcileInterruptedPlanningRuns()
             }
         }
     }
@@ -3574,7 +3583,7 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
         let loadedMessages = chatRepo?.messages ?? messages
         let interruptedIDs = HoloContextPlanRunController.interruptedRunIDs(from: loadedMessages)
         let orphanReadyIDs = HoloContextPlanRunController.orphanReadyRunIDs(from: loadedMessages)
-        for messageID in interruptedIDs {
+        for messageID in interruptedIDs where !planningRecoveryInFlight.contains(messageID) {
             guard let view = loadedMessages.first(where: { $0.id == messageID }),
                   let envelope = HoloContextPlanRunController.decode(view.contextPlanRunJSON) else { continue }
             // 云端查证优先：有云端任务 ID 的先尝试恢复，而不是直接判死
@@ -3583,7 +3592,10 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                     .flatMap { parentID in loadedMessages.first(where: { $0.id == parentID }) }?
                     .content ?? ""
                 let parentMessageID = view.parentMessageId?.uuidString
-                Task { @MainActor in
+                planningRecoveryInFlight.insert(messageID)
+                Task { @MainActor [weak self] in
+                    defer { self?.planningRecoveryInFlight.remove(messageID) }
+                    guard let self else { return }
                     await self.resumeInterruptedCloudRun(
                         messageID: messageID,
                         previous: envelope,
@@ -3596,7 +3608,7 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
             }
             finalizeInterruptedRun(messageID: messageID, previous: envelope)
         }
-        for messageID in orphanReadyIDs {
+        for messageID in orphanReadyIDs where !planningRecoveryInFlight.contains(messageID) {
             guard let view = loadedMessages.first(where: { $0.id == messageID }),
                   let envelope = HoloContextPlanRunController.decode(view.contextPlanRunJSON) else { continue }
             guard let cloudTaskID = envelope.cloudTaskID, !cloudTaskID.isEmpty else {
@@ -3607,7 +3619,10 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                 .flatMap { parentID in loadedMessages.first(where: { $0.id == parentID }) }?
                 .content ?? ""
             let parentMessageID = view.parentMessageId?.uuidString
-            Task { @MainActor in
+            planningRecoveryInFlight.insert(messageID)
+            Task { @MainActor [weak self] in
+                defer { self?.planningRecoveryInFlight.remove(messageID) }
+                guard let self else { return }
                 await self.recoverOrphanReadyRun(
                     messageID: messageID,
                     previous: envelope,
@@ -3746,8 +3761,9 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
             messageType: .contextPlan
         )
         // ack 前回读校验：方案没落上绝不销毁云端结果（ack 即焚不可逆；未 ack 的
-        // 结果留云端 7 天，由重进对账补领恢复）。
-        if let landed = chatRepo?.contextPlanDraftJSON(messageID), !landed.isEmpty {
+        // 结果留云端 7 天，由重进对账补领恢复）。2026-11-02：改读「已提交存储」——
+        // 主上下文对象在 save 失败时仍带内存值，据此 ack 会把云端唯一副本销毁掉。
+        if let landed = await chatRepo?.committedContextPlanDraftJSON(messageID), !landed.isEmpty {
             try? await client.ackResult(taskId: start.cloudTaskID)
             logger.info("PLAN-DIAG 云端方案已落卡并确认领取：task=\(start.cloudTaskID)")
             return true
@@ -3966,14 +3982,41 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
     }
 
     /// 云端运行失败终态的统一落盘（信封失败终态 + 消息定稿为运行卡失败态）。
+    /// 2026-11-02：两类历史病灶收口——
+    /// ① 领取已成功（消息已带方案+就绪终态）时，迟到的失败收尾整体跳过：
+    ///   此前会把已交付方案抹成「已就绪无方案」死卡（真机实锤）；
+    /// ② 控制器信封已终态（fail 被终态锁拒绝）或控制器缺席时，不再把
+    ///   「就绪信封/nil 信封」当失败载荷写库——一律从消息当前信封强制构造
+    ///   failed 终态，保证失败定稿永远携带失败信封。
     private func finishCloudRunAsFailed(
         aiMessageId: UUID,
         runController: HoloContextPlanRunController?,
         code: String,
         copy: String
     ) {
+        let currentView = (chatRepo?.messages ?? messages).first(where: { $0.id == aiMessageId })
+        // 已交付保护：方案在库且信封已就绪，这条失败写没有意义
+        if let envelope = currentView?.contextPlanRunJSON.flatMap(HoloContextPlanRunController.decode(_:)),
+           envelope.stage == .draftReady,
+           currentView?.contextPlanJSON?.isEmpty == false {
+            logger.error("PLAN-DIAG 迟到失败写被丢弃（方案已交付）：message=\(aiMessageId) code=\(code)")
+            return
+        }
         runController?.fail(code: code)
-        let failedRunJSON = runController.flatMap { HoloContextPlanRunController.encode($0.envelope) }
+        let previous: HoloContextPlanRunEnvelope?
+        if runController?.envelope.stage == .failed {
+            previous = runController?.envelope
+        } else {
+            // fail 被终态锁拒绝（如控制器已 draftReady）或无控制器：回读消息信封兜底
+            previous = currentView?.contextPlanRunJSON.flatMap(HoloContextPlanRunController.decode(_:))
+        }
+        let failedRunJSON = HoloContextPlanRunController.encode(
+            HoloContextPlanRunController.interruptedEnvelope(
+                for: aiMessageId,
+                previous: previous,
+                failureCode: code
+            )
+        )
         chatRepo?.finalizeMessage(
             aiMessageId,
             finalContent: copy,
