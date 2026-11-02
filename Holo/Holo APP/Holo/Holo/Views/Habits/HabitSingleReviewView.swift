@@ -28,11 +28,15 @@ struct HabitSingleReviewView: View {
     @State private var vizMode: VizMode = .calendar
     @State private var selectedDay: Date?
     @State private var calendarMonth: Date = Date()
+    /// 当前选中的趋势柱（周/月）；日历随它翻月
     @State private var snapshot: HabitRangeSnapshot?
     /// 本期 vs 上期对比（方案A：替代旧摘要区，回答「有没有进步」）
     @State private var comparison: HabitPeriodComparison?
-    /// 打卡型每周走势（方案A：打卡型第一次有走势图）
-    @State private var weeklyTrend: (mode: HabitWeeklyTrendMode, bars: [HabitWeeklyBar])?
+    /// 趋势柱（打卡 = 完成率/天数；计数 = 合计）。范围落在一个自然月内时为 nil（直接看日历）
+    @State private var trend: HabitTrend?
+    /// 全量最近一次测量值（范围内无记录时的大数字回落值，2026-11-02：记录没丢，只是不在本期）
+    @State private var latestOverall: (value: Double, day: Date)?
+    @State private var selectedBar: HabitTrendBar?
     @State private var sourceRoute: HabitSourceRoute?
     @State private var rangeSheetShown = false
     @State private var editingRecord: RecordTarget?
@@ -121,15 +125,21 @@ struct HabitSingleReviewView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 headerHead(snapshot.info)
-                rangeChips
-                Button("记录明细与每日确认") {
-                    sourceRoute = HabitSourceRoute(habitID: habitId, start: snapshot.interval.start, endExclusive: snapshot.interval.end)
-                }.holoText(.supporting).frame(minHeight: 44).foregroundStyle(Color.holoToolAction)
-                if let comparison {
-                    periodCompareCard(comparison, info: snapshot.info)
-                        .padding(.top, 14)
-                }
+                rangeRow
+                statsLine(snapshot, comparison: comparison)
+                    .padding(.top, 10)
                 vizSection(snapshot)
+                NavigationLink {
+                    HabitSourceDetailView(route: HabitSourceRoute(
+                        habitID: habitId, start: snapshot.interval.start, endExclusive: snapshot.interval.end))
+                } label: {
+                    Label(String(localized: "全部记录"), systemImage: "list.bullet")
+                        .holoText(.supporting)
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
                 if let day = selectedDay {
                     dayDetailSection(snapshot, day: day)
                         .id(day)
@@ -172,6 +182,12 @@ struct HabitSingleReviewView: View {
                 Text(info.name)
                     .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(.holoToolText)
+                if let description = habit?.habitDescription {
+                    Text(description)
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoToolTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 headerSubtitle(info)
                     .font(.system(size: 12))
                     .foregroundColor(.holoToolTextSecondary)
@@ -199,13 +215,9 @@ struct HabitSingleReviewView: View {
         return SnapshotIconBox(icon: info.icon, isCustomIcon: info.isCustomIcon, color: color)
     }
 
-    // MARK: 范围切换（2026-10-13 整改：内联一排胶囊点一下即切，删掉弹窗滚轮）
+    // MARK: 范围（灰轨白块分段，§8.8.3 唯一样式；其余范围走「···」弹层）
 
-    private func isQuickRangeSelected(_ range: HabitReviewRange) -> Bool {
-        selectedRange == range
-    }
-
-    /// 从整体页继承的是过去月：行首插入该月胶囊（选中态），点快捷档即回
+    /// 从整体页继承的是过去月：分段首位插入该月（选中态），点快捷档即回
     private var inheritedPastMonth: Date? {
         if case .month(let monthStart) = selectedRange {
             let calendar = Calendar.current
@@ -217,75 +229,257 @@ struct HabitSingleReviewView: View {
         return nil
     }
 
-    private var rangeChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
+    private var quickRanges: [HabitReviewRange] {
+        var ranges: [HabitReviewRange] = []
+        if let pastMonth = inheritedPastMonth { ranges.append(.month(pastMonth)) }
+        ranges.append(.month(currentMonthStart))
+        if snapshot?.info.kind == .checkIn {
+            ranges.append(.lastDays(30))
+            ranges.append(.lastDays(90))
+        } else {
+            ranges.append(.recentRecords(count: HabitReviewRange.defaultRecentCount))
+        }
+        ranges.append(.all)
+        return ranges
+    }
+
+    private var rangeRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                if let pastMonth = inheritedPastMonth {
-                    rangeChip(monthText(pastMonth), selected: true) {
-                        rangeSheetShown = true
+                HStack(spacing: 0) {
+                    ForEach(quickRanges.indices, id: \.self) { index in
+                        rangeSegment(quickRanges[index])
                     }
-                    .accessibilityIdentifier("habit.single.range.past")
                 }
-                rangeChip(String(localized: "本月"), selected: isQuickRangeSelected(.month(currentMonthStart))) {
-                    applyRange(.month(currentMonthStart))
-                }
-                .accessibilityIdentifier("habit.single.range.month")
-                // 数值型不设固定时间窗档（90 天会漏掉半年一记的低频记录）：
-                // 「最近记录」= 最近 N 个记录日的窗口（2026-10-26 东林拍板）
-                if habit?.isCheckInType == true {
-                    rangeChip(String(localized: "近30天"), selected: isQuickRangeSelected(.lastDays(30))) {
-                        applyRange(.lastDays(30))
-                    }
-                    .accessibilityIdentifier("habit.single.range.d30")
-                    rangeChip(String(localized: "近90天"), selected: isQuickRangeSelected(.lastDays(90))) {
-                        applyRange(.lastDays(90))
-                    }
-                    .accessibilityIdentifier("habit.single.range.d90")
-                } else {
-                    rangeChip(String(localized: "最近记录"), selected: isQuickRangeSelected(.recentRecords(count: HabitReviewRange.defaultRecentCount))) {
-                        applyRange(.recentRecords(count: HabitReviewRange.defaultRecentCount))
-                    }
-                    .accessibilityIdentifier("habit.single.range.recent")
-                }
-                rangeChip(String(localized: "全部"), selected: isQuickRangeSelected(.all)) {
-                    applyRange(.all)
-                }
-                .accessibilityIdentifier("habit.single.range.all")
+                .padding(3)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.holoToolInset))
                 Button {
                     rangeSheetShown = true
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.holoToolTextSecondary)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 44, height: 44)
                         .background(
-                            Capsule().strokeBorder(Color.holoToolBorder.opacity(0.7))
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(Color.holoToolBorder.opacity(0.7))
                         )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(Text(String(localized: "更多范围")))
+                .accessibilityLabel(Text(String(localized: "选范围")))
                 .accessibilityIdentifier("habit.single.range.more")
             }
-            .padding(.vertical, 2)
+            Text(rangeDatesText)
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
         }
         .padding(.top, 4)
     }
 
-    private func rangeChip(_ text: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(text)
-                .font(.system(size: 12.5, weight: selected ? .semibold : .regular))
-                .foregroundColor(selected ? .holoPrimary : .holoToolTextSecondary)
-                .padding(.horizontal, 13)
-                .frame(minHeight: 34)
+    private func rangeSegment(_ range: HabitReviewRange) -> some View {
+        let selected = selectedRange == range
+        return Button {
+            applyRange(range)
+        } label: {
+            Text(rangeShortTitle(range))
+                .font(.system(size: 13, weight: selected ? .semibold : .regular))
+                .foregroundColor(selected ? .holoToolText : .holoToolTextSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 38)
                 .background(
-                    Capsule().fill(selected ? Color.holoPrimary.opacity(0.14) : Color.holoToolInset)
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(selected ? Color.holoToolSurface : .clear)
+                        .shadow(color: .black.opacity(selected ? 0.08 : 0), radius: 1.5, y: 1)
                 )
-                .overlay(
-                    Capsule().strokeBorder(selected ? Color.holoPrimary.opacity(0.5) : .clear, lineWidth: 1)
-                )
+                .contentShape(Rectangle())
         }
-        .buttonStyle(HoloPressStyle())
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(rangeAXId(range))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// 范围行日期：本月 =「11月」；过去月 =「2026年10月」；其余 =「M月d日 – M月d日」（全部从创建日起）
+    private var rangeDatesText: String {
+        let calendar = Calendar.current
+        if case .month(let monthStart) = selectedRange {
+            return calendar.isDate(monthStart, equalTo: model.projectionNow, toGranularity: .month)
+                ? monthOnlyText(monthStart) : monthText(monthStart)
+        }
+        guard let snapshot else { return "" }
+        let start = HabitReviewProjector.effectiveStart(snapshot, calendar: calendar)
+        // 「最近记录」的区间终点是最后记录日（interval.end 是明天零点的占位，写出来会和横轴对不上）
+        let end: Date
+        if case .recentRecords = selectedRange, let last = snapshot.dailyValues.last?.date {
+            end = last
+        } else {
+            end = calendar.date(byAdding: .day, value: -1, to: snapshot.interval.end) ?? snapshot.interval.end
+        }
+        var text = "\(mdText(start)) – \(mdText(end))"
+        if case .recentRecords(let count) = selectedRange {
+            text = String(localized: "最近 \(min(count, snapshot.dailyValues.count)) 次 · ") + text
+        }
+        return text
+    }
+
+    private func rangeShortTitle(_ range: HabitReviewRange) -> String {
+        switch range {
+        case .month(let monthStart):
+            return Calendar.current.isDate(monthStart, equalTo: model.projectionNow, toGranularity: .month)
+                ? String(localized: "本月") : monthOnlyText(monthStart)
+        case .lastDays(let days): return String(localized: "近\(days)天")
+        case .recentRecords: return String(localized: "最近记录")
+        case .all: return String(localized: "全部")
+        case .custom: return String(localized: "自定义")
+        }
+    }
+
+    private func rangeAXId(_ range: HabitReviewRange) -> String {
+        switch range {
+        case .month: return "habit.single.range.month"
+        case .lastDays(30): return "habit.single.range.d30"
+        case .lastDays(90): return "habit.single.range.d90"
+        case .lastDays: return "habit.single.range.days"
+        case .recentRecords: return "habit.single.range.recent"
+        case .all: return "habit.single.range.all"
+        case .custom: return "habit.single.range.custom"
+        }
+    }
+
+    // MARK: 统计行（每个数字直接回答一个问题）
+
+    @ViewBuilder
+    private func statsLine(_ snapshot: HabitRangeSnapshot, comparison: HabitPeriodComparison?) -> some View {
+        HStack(alignment: .bottom) {
+            currentStat(snapshot, comparison: comparison)
+            Spacer(minLength: 16)
+            VStack(alignment: .trailing, spacing: 2) {
+                secondaryStat(snapshot, comparison: comparison)
+                if let comparison, let text = previousStatText(snapshot, comparison: comparison) {
+                    Text(text)
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+            }
+        }
+    }
+
+    /// 左侧主数字
+    @ViewBuilder
+    private func currentStat(_ snapshot: HabitRangeSnapshot, comparison: HabitPeriodComparison?) -> some View {
+        let info = snapshot.info
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            switch info.kind {
+            case .checkIn:
+                Text(verbatim: "\(snapshot.recordedDayCount)")
+                    .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                Text(info.isBadHabit
+                    ? String(localized: "天发生")
+                    : String(localized: "/ \(comparison?.current.validDays ?? snapshot.elapsedDays) 天"))
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
+            case .count:
+                Text(verbatim: HabitPresentationProjector.formatValue(snapshot.countTotal ?? 0))
+                    .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                Text(info.unit.isEmpty ? String(localized: "合计") : String(localized: "\(info.unit) 合计"))
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
+            case .measure:
+                Text(verbatim: measureMainValue(snapshot))
+                    .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
+                Text(verbatim: measureMainUnit(snapshot))
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
+            }
+        }
+    }
+
+    /// 右侧数字：打卡完成率 / 计数日均 / 测量变化
+    @ViewBuilder
+    private func secondaryStat(_ snapshot: HabitRangeSnapshot, comparison: HabitPeriodComparison?) -> some View {
+        let info = snapshot.info
+        switch info.kind {
+        case .checkIn where info.frequency == .daily && !info.isBadHabit:
+            if let completion = comparison?.current.completion {
+                statValue("\(Int((completion * 100).rounded()))%", caption: String(localized: "完成率"))
+            }
+        case .checkIn:
+            EmptyView()
+        case .count:
+            let days = max(snapshot.elapsedDays, 1)
+            statValue(HabitPresentationProjector.formatValue((snapshot.countTotal ?? 0) / Double(days)),
+                      caption: String(localized: "日均\(info.unit)"))
+        case .measure:
+            if let change = measureChange(snapshot) {
+                statValue(HabitPresentationProjector.formatValue(abs(change)) + (info.unit.isEmpty ? "" : " \(info.unit)"),
+                          caption: String(localized: change > 0 ? "涨了" : "降了"))
+            }
+        }
+    }
+
+    private func statValue(_ value: String, caption: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(verbatim: caption)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
+            Text(verbatim: value)
+                .font(.system(size: 19, weight: .semibold, design: .rounded).monospacedDigit())
+                .foregroundColor(.holoToolText)
+        }
+    }
+
+    /// 上期对比（上期没有有效天不比；「全部」不比）
+    private func previousStatText(_ snapshot: HabitRangeSnapshot,
+                                  comparison: HabitPeriodComparison) -> String? {
+        guard let previous = comparison.previous else { return nil }
+        let info = snapshot.info
+        switch info.kind {
+        case .checkIn where info.frequency == .daily && !info.isBadHabit:
+            guard let completion = previous.completion else { return nil }
+            return String(localized: "\(comparison.previousLabel) \(Int((completion * 100).rounded()))%")
+        case .checkIn:
+            return String(localized: "\(comparison.previousLabel) \(previous.recordedDays) 天")
+        case .count:
+            guard let total = previous.countTotal else { return nil }
+            let text = HabitPresentationProjector.formatValue(total)
+            return String(localized: "\(comparison.previousLabel) \(text)\(info.unit.isEmpty ? "" : " \(info.unit)")")
+        case .measure:
+            guard let average = previous.measureAverage else { return nil }
+            let text = HabitPresentationProjector.formatValue(average)
+            return String(localized: "\(comparison.previousLabel) \(text)\(info.unit.isEmpty ? "" : " \(info.unit)")")
+        }
+    }
+
+    // MARK: 测量型数字口径（最近一次 + 变化）
+
+    /// 大数字 = 最近一次测量值；范围内无记录时回落到全量最近一次（记录没丢，只是不在本期）
+    private func measureMainValue(_ snapshot: HabitRangeSnapshot) -> String {
+        let latest = snapshot.latestMeasure ?? latestOverall
+        return latest.map { HabitPresentationProjector.formatValue($0.value) } ?? "—"
+    }
+
+    private func measureMainUnit(_ snapshot: HabitRangeSnapshot) -> String {
+        guard let latest = snapshot.latestMeasure ?? latestOverall else { return "" }
+        let unit = snapshot.info.unit.isEmpty ? "" : snapshot.info.unit
+        let calendar = Calendar.current
+        let dayText = "\(calendar.component(.month, from: latest.day))/\(calendar.component(.day, from: latest.day))"
+        return unit.isEmpty ? dayText : "\(unit) · \(dayText)"
+    }
+
+    /// 变化 = 范围内最早 → 最晚之差（至少 2 个不同的日子才有）
+    private func measureChange(_ snapshot: HabitRangeSnapshot) -> Double? {
+        guard let first = snapshot.dailyValues.first, let last = snapshot.dailyValues.last,
+              first.date != last.date else { return nil }
+        return last.value - first.value
+    }
+
+    private func monthOnlyText(_ month: Date) -> String {
+        String(localized: "\(Calendar.current.component(.month, from: month))月")
+    }
+
+    private func mdText(_ date: Date) -> String {
+        let calendar = Calendar.current
+        return "\(calendar.component(.month, from: date))月\(calendar.component(.day, from: date))日"
     }
 
     private func monthText(_ month: Date) -> String {
@@ -295,304 +489,138 @@ struct HabitSingleReviewView: View {
         return formatter.string(from: month)
     }
 
-    // MARK: 本期 vs 上期对比卡（2026-10-13 整改瘦身：两行结构，删装饰性迷你折线）
-
     private var summarySeparator: some View {
         Rectangle().fill(Color.holoToolBorder.opacity(0.5)).frame(height: 0.5)
     }
 
-    @ViewBuilder
-    private func periodCompareCard(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Text(compareCaption(comparison, info: info))
-                .font(.system(size: 10.5))
-                .foregroundColor(.holoToolTextSecondary)
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(compareMainValue(comparison, info: info))
-                    .font(.system(size: 21, weight: .semibold).monospacedDigit())
-                    .foregroundColor(.holoToolText)
-                if let delta = compareDelta(comparison, info: info) {
-                    Text(delta.text)
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .foregroundColor(delta.color)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(delta.color.opacity(0.14)))
-                }
-                Spacer(minLength: 4)
-                Text(compareSubline(comparison, info: info))
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoToolTextSecondary)
-            }
-        }
-        .padding(.vertical, 14)
-        .overlay(alignment: .top) { summarySeparator }
-        .overlay(alignment: .bottom) { summarySeparator }
-        .accessibilityElement(children: .combine)
-    }
-
-    /// 标题行：「本月 vs 上月同期」/「最近 30 天 vs 前 30 天」
-    private func compareCaption(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> String {
-        let currentLabel: String
-        if case .month(let monthStart) = selectedRange {
-            let calendar = Calendar.current
-            let current = calendar.date(from: calendar.dateComponents([.year, .month], from: Date())) ?? Date()
-            currentLabel = calendar.isDate(monthStart, equalTo: current, toGranularity: .month)
-                ? String(localized: "本月") : String(localized: "该月")
-        } else {
-            currentLabel = selectedRange.label(now: model.projectionNow, calendar: .current)
-        }
-        guard comparison.previous != nil else {
-            return currentLabel
-        }
-        return "\(currentLabel) vs \(comparison.previousLabel)"
-    }
-
-    /// 主数字：打卡=记录天数 / 计数=累计 / 测量=均值
-    private func compareMainValue(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> String {
-        switch info.kind {
-        case .checkIn:
-            let noun = info.isBadHabit ? String(localized: "发生") : String(localized: "记录")
-            return "\(noun) \(comparison.current.recordedDays) \(String(localized: "天"))"
-        case .count:
-            let total = HabitPresentationProjector.formatValue(comparison.current.countTotal ?? 0)
-            return info.unit.isEmpty ? total : "\(total) \(info.unit)"
-        case .measure:
-            guard let avg = comparison.current.measureAverage else { return "—" }
-            let text = HabitPresentationProjector.formatValue(avg)
-            return info.unit.isEmpty ? text : "\(text) \(info.unit)"
-        }
-    }
-
-    /// 变化胶囊：好习惯升=绿、坏习惯降=绿；测量型只标方向不判好坏（增减目标因人而异）
-    private func compareDelta(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> (text: String, color: Color)? {
-        guard let previous = comparison.previous else { return nil }
-        let good = Color(hex: "#5BC98A")
-        let bad = Color(hex: "#F27A7A")
-        let neutral = Color.holoToolText
-        func capsule(_ value: Double, _ text: String) -> (String, Color)? {
-            guard abs(value) > 0.0001 else { return nil }
-            let isGoodDirection = info.isBadHabit ? value < 0 : value > 0
-            let color: Color = info.kind == .measure ? neutral : (isGoodDirection ? good : bad)
-            return (text, color)
-        }
-        switch info.kind {
-        case .checkIn:
-            if info.frequency == .daily && !info.isBadHabit,
-               let cur = comparison.current.completion, let prev = previous.completion {
-                let diff = (cur - prev) * 100
-                return capsule(diff, String(localized: "\(diff >= 0 ? "↑" : "↓") \(Int(abs(diff).rounded()))%"))
-            }
-            let diff = Double(comparison.current.recordedDays - previous.recordedDays)
-            return capsule(diff, String(localized: "\(diff >= 0 ? "↑" : "↓") \(Int(abs(diff))) \(String(localized: "天"))"))
-        case .count:
-            guard let curTotal = comparison.current.countTotal, let prevTotal = previous.countTotal else { return nil }
-            let curRate = dailyRate(curTotal, days: comparison.current.validDays)
-            let prevRate = dailyRate(prevTotal, days: previous.validDays)
-            let diff = curRate - prevRate
-            guard abs(diff) > 0.05 else { return nil }
-            let text = HabitPresentationProjector.formatValue(abs(diff))
-            return capsule(diff, String(localized: "日均 \(diff >= 0 ? "↑" : "↓") \(text)"))
-        case .measure:
-            guard let cur = comparison.current.measureAverage, let prev = previous.measureAverage else { return nil }
-            let diff = cur - prev
-            let text = HabitPresentationProjector.formatValue(abs(diff))
-            return capsule(diff, String(localized: "\(diff >= 0 ? "↑" : "↓") \(text)"))
-        }
-    }
-
-    private func dailyRate(_ total: Double, days: Int) -> Double {
-        guard days > 0 else { return 0 }
-        return total / Double(days)
-    }
-
-    /// 副行：完成率口径 / 上期值 / 上期均值
-    private func compareSubline(_ comparison: HabitPeriodComparison, info: HabitReviewHabitInfo) -> String {
-        guard let previous = comparison.previous else {
-            // 无上期可比（全部/最近记录档，或上期全在习惯创建前）：只陈述总量事实。
-            // 旧文案「还没有更早的记录」被误读为数据丢失（2026-10-26 东林实报）
-            return String(localized: "共 \(comparison.current.recordedDays) 天有记录")
-        }
-        switch info.kind {
-        case .checkIn:
-            if info.frequency == .daily && !info.isBadHabit,
-               let cur = comparison.current.completion {
-                return String(localized: "完成率 \(Int((cur * 100).rounded()))%")
-            }
-            return String(localized: "上期\(info.isBadHabit ? "发生" : "记录") \(previous.recordedDays) \(String(localized: "天"))")
-        case .count:
-            let cur = dailyRate(comparison.current.countTotal ?? 0, days: comparison.current.validDays)
-            let curText = HabitPresentationProjector.formatValue(cur)
-            return String(localized: "日均 \(curText)")
-        case .measure:
-            // 上期存在但没留下测量值：显示事实，不造「均值 0」（2026-10-26 模拟器实锤）
-            guard let prevAvg = previous.measureAverage else {
-                return String(localized: "上期无记录")
-            }
-            let prevText = HabitPresentationProjector.formatValue(prevAvg)
-            return String(localized: "上期均值 \(prevText)\(info.unit.isEmpty ? "" : " \(info.unit)")")
-        }
-    }
-
-    // MARK: 打卡型趋势视图（每周完成率/天数柱；柱顶标数值，不靠图注嘴补）
-
-    @ViewBuilder
-    private func weeklyChartView(_ info: HabitReviewHabitInfo) -> some View {
-        if let trend = weeklyTrend {
-            if trend.bars.isEmpty || trend.bars.allSatisfy({ $0.days == 0 }) {
-                Text(String(localized: "这个范围还没有可统计的周。"))
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 22)
-            } else {
-                WeeklyRateChart(
-                    bars: trend.bars,
-                    mode: trend.mode,
-                    color: Color(hex: info.colorHex),
-                    isBadHabit: info.isBadHabit,
-                    today: model.projectionNow,
-                    selectedWeek: $selectedWeek
-                )
-                .frame(minHeight: 220)
-            }
-        }
-    }
-
-    @State private var selectedWeek: Date?
-
-    // MARK: 可视化（打卡型=每周走势+记录日历上下并存，东林认可的原型屏C形态；
-    // 数值型保留「趋势⇄日历」切换——体重看趋势、日历核对，二选一合理）
+    // MARK: 可视化（打卡 = 趋势柱 + 日历常驻；数值 = 趋势 | 日历 切换）
 
     @ViewBuilder
     private func vizSection(_ snapshot: HabitRangeSnapshot) -> some View {
         if snapshot.info.kind == .checkIn {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(weeklyTrend?.mode.title ?? String(localized: "每周完成率"))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoToolText)
-                    .padding(.top, 16)
-                weeklyChartView(snapshot.info)
-
-                Text(snapshot.info.isBadHabit
-                     ? String(localized: "发生日历")
-                     : String(localized: "记录日历"))
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoToolText)
-                    .padding(.top, 8)
-                if vizMode == .dates {
-                    dateListView(snapshot)
-                } else {
-                    calendarView(snapshot)
+            VStack(alignment: .leading, spacing: 8) {
+                if let trend {
+                    trendChartSection(trend, info: snapshot.info)
                 }
-
-                // 窄屏/大字号或 VoiceOver 的日期列表入口（§7.2）
-                Button {
-                    withAnimation(HoloAnimation.quick) {
-                        vizMode = vizMode == .dates ? .calendar : .dates
-                    }
-                } label: {
-                    Text(vizMode == .dates ? String(localized: "返回日历") : String(localized: "按日期选择"))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                        .frame(minHeight: 40)
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity)
+                calendarView(snapshot)
             }
         } else {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text(vizTitle(snapshot.info))
-                        .font(.system(size: 12, weight: .semibold))
+                    Text(snapshot.info.kind == .count ? amountTrendTitle
+                                                        : numericChartTitle(snapshot.info))
+                        .holoText(.supporting)
+                        .fontWeight(.semibold)
                         .foregroundColor(.holoToolText)
                     Spacer()
                     vizSwitch
                 }
-                .padding(.top, 16)
-
-                switch vizMode {
-                case .calendar:
+                .padding(.top, 10)
+                if vizMode == .trend {
+                    numericTrendView(snapshot)
+                } else {
                     calendarView(snapshot)
-                case .trend:
-                    trendView(snapshot)
-                case .dates:
-                    dateListView(snapshot)
-                }
-
-                if vizMode == .calendar || vizMode == .dates {
-                    Button {
-                        withAnimation(HoloAnimation.quick) {
-                            vizMode = vizMode == .dates ? .calendar : .dates
-                        }
-                    } label: {
-                        Text(vizMode == .dates ? String(localized: "返回日历") : String(localized: "按日期选择"))
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.holoPrimary)
-                            .frame(minHeight: 40)
-                    }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity)
                 }
             }
         }
     }
 
-    private func vizTitle(_ info: HabitReviewHabitInfo) -> String {
-        switch vizMode {
-        case .dates: return String(localized: "按日期查看")
-        case .calendar:
-            return info.isBadHabit ? String(localized: "发生日历") : String(localized: "记录日历")
-        case .trend:
-            if info.kind == .checkIn {
-                return weeklyTrend?.mode.title ?? String(localized: "每周完成率")
-            }
-            return info.kind == .count
-                ? String(localized: "每天的累计量")
-                : String(localized: "每天的最新值")
+    /// 打卡型趋势标题
+    private var trendTitle: String {
+        guard let trend else { return "" }
+        switch (trend.mode, trend.granularity) {
+        case (.completionRate, .week): return String(localized: "每周完成率")
+        case (.completionRate, .month): return String(localized: "每月完成率")
+        case (.weeklyDays, .week): return String(localized: "每周记录天数")
+        case (.weeklyDays, .month): return String(localized: "每月记录天数")
+        case (_, .day): return String(localized: "每天")
+        case (.amount, _): return ""   // 计数型走 amountTrendTitle
         }
     }
 
-    /// 趋势 / 日历 互斥切换（所有类型；打卡型的趋势=每周完成率/天数柱）
+    /// 计数型趋势标题（跟粒度走，量词用习惯自己的单位）
+    private var amountTrendTitle: String {
+        guard let trend, let info = snapshot?.info else { return "" }
+        let unit = info.unit.isEmpty ? "" : "（\(info.unit)）"
+        switch trend.granularity {
+        case .day: return String(localized: "每天\(unit)")
+        case .week: return String(localized: "每周\(unit)")
+        case .month: return String(localized: "每月\(unit)")
+        }
+    }
+
+    private func trendChartSection(_ trend: HabitTrend, info: HabitReviewHabitInfo) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(trendTitle)
+                .holoText(.supporting)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoToolText)
+                .padding(.top, 10)
+            HabitTrendBarChart(trend: trend, color: Color(hex: info.colorHex), unit: info.unit) { bar in
+                selectBar(bar)
+            }
+        }
+    }
+
+    private func selectBar(_ bar: HabitTrendBar) {
+        selectedBar = bar
+        // 日历联动：周柱看周四所在月、月/日柱看柱首月
+        let calendar = Calendar.current
+        let anchor = trend?.granularity == .week
+            ? (calendar.date(byAdding: .day, value: 3, to: bar.start) ?? bar.start)
+            : bar.start
+        let month = calendar.date(from: calendar.dateComponents([.year, .month], from: anchor)) ?? calendarMonth
+        if month != calendarMonth { calendarMonth = month }
+    }
+
+    /// 数值型图表标题：计数用习惯自己的单位说话，测量直接用习惯名
+    private func numericChartTitle(_ info: HabitReviewHabitInfo) -> String {
+        if info.kind == .count {
+            return info.unit.isEmpty ? String(localized: "每天") : String(localized: "每天（\(info.unit)）")
+        }
+        return info.unit.isEmpty ? info.name : String(localized: "\(info.name)（\(info.unit)）")
+    }
+
+    /// 趋势 / 日历 互斥切换（灰轨白块，与范围分段同一语言）
     private var vizSwitch: some View {
-        HStack(spacing: 2) {
-            modeChip(String(localized: "趋势"), active: vizMode == .trend,
-                     identifier: "habit.single.viz.trend") {
-                vizMode = .trend
+        HStack(spacing: 0) {
+            vizSegment(String(localized: "趋势"), active: vizMode == .trend) {
+                if vizMode != .trend { vizMode = .trend }
             }
-            modeChip(String(localized: "日历"), active: vizMode == .calendar,
-                     identifier: "habit.single.viz.calendar") {
-                vizMode = .calendar
+            vizSegment(String(localized: "日历"), active: vizMode == .calendar) {
+                if vizMode != .calendar { vizMode = .calendar }
             }
         }
-        .padding(2)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.holoToolInset))
+        .padding(2.5)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.holoToolInset))
     }
 
-    private func modeChip(_ text: String, active: Bool, identifier: String, action: @escaping () -> Void) -> some View {
+    private func vizSegment(_ text: String, active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(text)
-                .font(.system(size: 11, weight: active ? .semibold : .regular))
+                .font(.system(size: 13, weight: active ? .semibold : .regular))
                 .foregroundColor(active ? .holoToolText : .holoToolTextSecondary)
-                .padding(.horizontal, 9)
-                .frame(minHeight: 32)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 36)
                 .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(active ? Color.holoToolSurface : Color.clear)
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(active ? Color.holoToolSurface : .clear)
+                        .shadow(color: .black.opacity(active ? 0.08 : 0), radius: 1.5, y: 1)
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
-
     // MARK: 日历
 
     private func calendarView(_ snapshot: HabitRangeSnapshot) -> some View {
         VStack(spacing: 8) {
-            // 非「月」范围：范围内翻月（只改显示月，不改统计范围，§7.2）
             if case .month = selectedRange {
-                EmptyView()
+                // 月范围：日历就是这个月（范围行已写明月份；补顶距，别贴着统计行）
+                Color.clear.frame(height: 16)
             } else {
+                // 跨月范围：范围内翻月（只改显示月，不改统计范围）
                 calendarMonthNav(snapshot)
             }
             ReviewCalendarGrid(
@@ -666,34 +694,57 @@ struct HabitSingleReviewView: View {
                 Text(String(localized: "暂停"))
             }
         }
-        .font(.system(size: 10))
+        .font(.system(size: 12))
         .foregroundColor(.holoToolTextSecondary)
     }
 
-    // MARK: 趋势图（计数柱 / 测量分段点线）
+    // MARK: 数值型趋势（计数 = 柱；测量 = 点线；横轴首尾 = 所选范围）
 
     @ViewBuilder
-    private func trendView(_ snapshot: HabitRangeSnapshot) -> some View {
-        if snapshot.dailyValues.isEmpty {
-            Text(String(localized: "这个范围还没有数值记录。\n无记录不会被填成 0。"))
-                .font(.system(size: 12))
-                .foregroundColor(.holoToolTextSecondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 28)
+    private func numericTrendView(_ snapshot: HabitRangeSnapshot) -> some View {
+        if snapshot.info.kind == .count {
+            if let trend {
+                HabitTrendBarChart(trend: trend, color: Color(hex: snapshot.info.colorHex),
+                                   unit: snapshot.info.unit) { bar in
+                    selectBar(bar)
+                }
+            } else {
+                Text(numericEmptyTitle(snapshot))
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            }
+        } else if snapshot.dailyValues.isEmpty {
+            VStack(spacing: 10) {
+                Text(numericEmptyTitle(snapshot))
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
+                if let latest = latestOverall {
+                    Button {
+                        onGoTodayRecord(habitId)
+                    } label: {
+                        Text(String(localized: "记一记"))
+                            .holoText(.supporting)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.holoToolAction)
+                            .frame(minHeight: 44)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 24)
         } else {
-            ReviewTrendChart(
-                values: snapshot.dailyValues,
-                kind: snapshot.info.kind,
-                color: Color(hex: snapshot.info.colorHex),
-                unit: snapshot.info.unit,
-                interval: snapshot.interval,
-                today: model.projectionNow,
-                selectedDay: selectedDay,
-                onSelectDay: { day in selectDay(day) }
-            )
-            .frame(minHeight: 230)
+            MeasureTrendChart(snapshot: snapshot, now: model.projectionNow, selectedDay: selectedDay) { day in
+                selectDay(day)
+            }
         }
+    }
+
+    private func numericEmptyTitle(_ snapshot: HabitRangeSnapshot) -> String {
+        if case .month = selectedRange { return String(localized: "这个月还没有记录") }
+        return String(localized: "这个范围还没有记录")
     }
 
     // MARK: 按日期列表（大字号/VoiceOver 同构入口）
@@ -881,32 +932,121 @@ struct HabitSingleReviewView: View {
         return record.formattedValue(unit: snapshot.info.unit)
     }
 
-    // MARK: 更多范围（上月 / 自定义；快捷档已内联在切换条里）
+    // MARK: 选范围弹层（快捷档之外的范围；§8.8 统一壳）
+
+    private struct RangeSheet: View {
+        let currentRange: HabitReviewRange
+        var onPick: (HabitReviewRange) -> Void
+        var onDismiss: () -> Void
+
+        @State private var customStart = Date()
+        @State private var customEnd = Date()
+
+        private var today: Date { Calendar.current.startOfDay(for: Date()) }
+        private var lastMonth: Date {
+            let calendar = Calendar.current
+            let thisMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: today)) ?? today
+            return calendar.date(byAdding: .month, value: -1, to: thisMonth) ?? today
+        }
+        private var yearStart: Date {
+            let calendar = Calendar.current
+            return calendar.date(from: calendar.dateComponents([.year], from: today)) ?? today
+        }
+        private var customValid: Bool {
+            let calendar = Calendar.current
+            let s = calendar.startOfDay(for: customStart)
+            let e = calendar.startOfDay(for: customEnd)
+            return s <= e && e <= today
+        }
+
+        var body: some View {
+            HoloSheetScaffold(
+                title: String(localized: "选范围"),
+                onClose: onDismiss,
+                primaryTitle: String(localized: "用这个范围"),
+                primaryAction: customValid
+                    ? { onPick(.custom(start: Calendar.current.startOfDay(for: customStart),
+                                      end: Calendar.current.startOfDay(for: customEnd))) }
+                    : nil,
+                primaryDisabled: !customValid
+            ) {
+                VStack(alignment: .leading, spacing: 10) {
+                    quickOption(String(localized: "上个月"), for: .month(lastMonth))
+                    quickOption(String(localized: "今年"), for: .custom(start: yearStart, end: today))
+
+                    Text(String(localized: "自定义"))
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
+                        .padding(.top, 10)
+                    HStack(spacing: 10) {
+                        datePicker(String(localized: "开始"), selection: $customStart)
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 13))
+                            .foregroundColor(.holoToolTextSecondary)
+                        datePicker(String(localized: "结束"), selection: $customEnd)
+                    }
+                    if !customValid {
+                        Text(String(localized: "开始要早于结束，且不能选未来"))
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolError)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.md)
+            }
+            .presentationDetents([.height(420)])
+            .onAppear {
+                // 自定义默认值 = 最近 30 天（dateInterval 对「最近记录」返回 distantPast 占位，
+                // 直接取会落到两年前，2026-11-03 判读实锤）
+                let calendar = Calendar.current
+                customEnd = today
+                customStart = calendar.date(byAdding: .day, value: -29, to: today) ?? today
+            }
+        }
+
+        private func quickOption(_ title: String, for range: HabitReviewRange) -> some View {
+            Button {
+                onPick(range)
+            } label: {
+                HStack {
+                    Text(title)
+                        .holoText(.body)
+                        .foregroundColor(.holoToolText)
+                    Spacer()
+                    if currentRange == range {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.holoToolAction)
+                    }
+                }
+                .frame(minHeight: 48)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+
+        private func datePicker(_ label: String, selection: Binding<Date>) -> some View {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(label)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
+                DatePicker(label, selection: selection,
+                           in: ...today, displayedComponents: .date)
+                    .datePickerStyle(.compact)
+                    .labelsHidden()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
 
     private var rangeSheet: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(String(localized: "更多范围"))
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundColor(.holoToolText)
-            Text(String(localized: "摘要、图和明细使用同一个范围。"))
-                .font(.system(size: 12))
-                .foregroundColor(.holoToolTextSecondary)
-                .padding(.top, 4)
-                .padding(.bottom, 14)
-
-            if let prev = Calendar.current.date(byAdding: .month, value: -1, to: currentMonthStart) {
-                rangeOption(monthText(prev), for: .month(prev))
-                    .padding(.bottom, 12)
-            }
-
-            ReviewCustomRangeForm { start, end in
-                applyRange(.custom(start: start, end: end))
-            }
-            Spacer(minLength: 0)
+        RangeSheet(currentRange: selectedRange) { range in
+            rangeSheetShown = false
+            applyRange(range)
+        } onDismiss: {
+            rangeSheetShown = false
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.top, HoloSpacing.md)
-        .presentationDetents([.height(360)])
     }
 
     private var currentMonthStart: Date {
@@ -914,30 +1054,12 @@ struct HabitSingleReviewView: View {
         return calendar.date(from: calendar.dateComponents([.year, .month], from: Date())) ?? Date()
     }
 
-    private func rangeOption(_ title: String, for range: HabitReviewRange) -> some View {
-        Button {
-            applyRange(range)
-        } label: {
-            Text(title)
-                .font(.system(size: 12))
-                .foregroundColor(selectedRange == range ? .holoPrimary : .holoToolText)
-                .frame(maxWidth: .infinity, minHeight: 46)
-                .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(selectedRange == range
-                                      ? Color.holoPrimary
-                                      : Color.holoToolBorder.opacity(0.7))
-                )
-        }
-        .buttonStyle(HoloPressStyle())
-    }
-
     private func applyRange(_ range: HabitReviewRange) {
         selectedRange = range
         selectedDay = nil
+        selectedBar = nil
         rangeSheetShown = false
-        // 翻月状态归位到新范围的「末月」（最近的月份）：.all 的范围首日是公元 1 年，
-        // 按首月归位会把日历翻到 0001/1 空白月（2026-10-13 判读实锤）；末月总是有意义的近期
+        // 日历默认看范围里最近的月份（.all 的首日是公元 1 年，按首月归位会翻到空白月）
         let calendar = Calendar.current
         let rangeEnd = range.dateInterval(now: model.projectionNow, calendar: calendar).end
         let endMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: rangeEnd))
@@ -1032,7 +1154,18 @@ struct HabitSingleReviewView: View {
         let snap = HabitReviewProjector.rangeSnapshot(info: info, range: selectedRange, data: data)
         snapshot = snap
         comparison = HabitReviewProjector.periodComparison(snapshot: snap, data: data)
-        weeklyTrend = HabitReviewProjector.weeklyTrend(snapshot: snap, data: data)
+        switch info.kind {
+        case .checkIn: trend = HabitReviewProjector.checkInTrend(snapshot: snap, data: data)
+        case .count: trend = HabitReviewProjector.countTrend(snapshot: snap, data: data)
+        case .measure: trend = nil
+        }
+        // 测量型大数字的回落值：全量最近一次（范围内没记时也说得出上次是多少）
+        if info.kind == .measure {
+            let allSnap = HabitReviewProjector.rangeSnapshot(info: info, range: .all, data: data)
+            latestOverall = allSnap.latestMeasure.map { (value: $0.value, day: $0.day) }
+        } else {
+            latestOverall = nil
+        }
         // 选中日失效（范围切换后外置）时清空
         if let day = selectedDay, let snap = snapshot,
            !snap.containsDay(day, calendar: .current) {
@@ -1119,90 +1252,203 @@ private struct SnapshotIconBox: View {
     }
 }
 
-// MARK: - 自定义范围表单
+// MARK: - 趋势柱图（打卡完成率/天数、计数合计；财务图表套件同款画法）
 
-private struct ReviewCustomRangeForm: View {
+/// 与财务图表同一套几何与交互规则：柱宽同参封顶、X 刻度 chartOverlay 自绘、
+/// 拖动/点按沿途选中；默认选中最后一根（最近一期先说话，2026-11-02 轴即范围整改）
+struct HabitTrendBarChart: View {
+    let trend: HabitTrend
+    let color: Color
+    var unit: String = ""
+    var onInspect: (HabitTrendBar) -> Void
 
-    var onApply: (Date, Date) -> Void
+    @State private var selection: String?
 
-    @State private var start = Calendar.current.startOfDay(for: Date())
-    @State private var end = Calendar.current.startOfDay(for: Date())
-    @State private var errorMessage: String?
+    private var isRate: Bool { trend.mode == .completionRate }
+    private var isAmount: Bool { trend.mode == .amount }
 
-    private var dateRange: ClosedRange<Date> {
-        // 自定义范围只禁未来；上界取当天（下方校验 e <= today 同口径）。
-        // 此前误写成 today...today，两个选择器都被锁死只剩「今天」一格。
-        return .distantPast...Calendar.current.startOfDay(for: Date())
+    private var series: [HoloChartSeries] {
+        [.init(id: "habit",
+               title: trend.granularity == .day || isAmount
+                   ? String(localized: "合计")
+                   : (isRate ? String(localized: "完成率") : String(localized: "记录")),
+               color: color)]
+    }
+
+    private var buckets: [HoloChartBucket] {
+        trend.bars.map { bar in
+            HoloChartBucket(
+                id: String(bar.start.timeIntervalSince1970),
+                label: axisLabel(bar.start),
+                detail: readoutLabel(bar),
+                values: [value(for: bar)],
+                isFuture: bar.isFuture
+            )
+        }
+    }
+
+    private func value(for bar: HabitTrendBar) -> Double? {
+        if trend.granularity == .day || isAmount { return bar.total }
+        if isRate { return bar.fraction.map { $0 * 100 } }
+        return bar.days > 0 ? Double(bar.recordedDays) : nil
+    }
+
+    private func axisLabel(_ date: Date) -> String {
+        switch trend.granularity {
+        case .day, .week:
+            return HoloChartFormat.date(date)
+        case .month:
+            let formatter = DateFormatter()
+            formatter.locale = Locale.current
+            formatter.setLocalizedDateFormatFromTemplate("M月")
+            return formatter.string(from: date)
+        }
+    }
+
+    /// 读数小字：周/月写起止与分母（「10/26 – 11/1 · 7/7 天」），天写整日
+    private func readoutLabel(_ bar: HabitTrendBar) -> String {
+        switch trend.granularity {
+        case .day:
+            return HoloChartFormat.date(bar.start, template: "yMEd")
+        case .week:
+            let calendar = Calendar.current
+            let last = calendar.date(byAdding: .day, value: -1, to: bar.end) ?? bar.start
+            return "\(HoloChartFormat.date(bar.start)) – \(HoloChartFormat.date(last)) · \(bar.recordedDays)/\(bar.days) \(String(localized: "天"))"
+        case .month:
+            let formatter = DateFormatter()
+            formatter.locale = Locale.current
+            formatter.setLocalizedDateFormatFromTemplate("y年M月")
+            return "\(formatter.string(from: bar.start)) · \(bar.recordedDays)/\(bar.days) \(String(localized: "天"))"
+        }
+    }
+
+    private var yDomain: ClosedRange<Double>? {
+        switch (trend.mode, trend.granularity) {
+        case (.completionRate, _): return 0...100
+        case (.weeklyDays, .week): return 0...7
+        case (.weeklyDays, .month): return 0...31
+        case (.amount, _), (_, .day): return nil
+        }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(String(localized: "自定义范围"))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(.holoToolTextSecondary)
-            HStack(spacing: 8) {
-                DatePicker(String(localized: "开始日期"), selection: $start, in: dateRange,
-                           displayedComponents: .date)
-                    .labelsHidden()
-                DatePicker(String(localized: "结束日期"), selection: $end, in: dateRange,
-                           displayedComponents: .date)
-                    .labelsHidden()
-            }
-            if let errorMessage {
-                Text(errorMessage)
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoToolError)
-            }
-            Button {
-                let calendar = Calendar.current
-                let s = calendar.startOfDay(for: start)
-                let e = calendar.startOfDay(for: end)
-                let today = calendar.startOfDay(for: Date())
-                guard s <= e, e <= today else {
-                    errorMessage = String(localized: "请选择有效的开始和结束日期，不能选择未来日期。")
-                    return
+        HoloBarChart(
+            buckets: buckets,
+            series: series,
+            selection: $selection,
+            height: 140,
+            yDomain: yDomain,
+            summary: "",
+            summaryValues: isRate ? [nil] : nil,
+            valueText: { value in
+                if trend.granularity == .day || isAmount {
+                    return HabitPresentationProjector.formatValue(value)
+                        + (unit.isEmpty ? "" : " \(unit)")
                 }
-                onApply(s, e)
-            } label: {
-                Text(String(localized: "应用这个范围"))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.holoToolText)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(Color.holoToolBorder.opacity(0.7))
-                    )
+                if isRate { return "\(HoloChartFormat.number(value))%" }
+                return "\(Int(value)) \(String(localized: "天"))"
+            },
+            defaultSelectsLastBucket: true,
+            slotTicks: trend.granularity == .day ? mondayTickIndices : nil,
+            onInspect: { bucket in
+                if let bar = trend.bars.first(where: { String($0.start.timeIntervalSince1970) == bucket.id }) {
+                    onInspect(bar)
+                }
             }
-            .buttonStyle(HoloPressStyle())
+        )
+    }
+
+    /// 按天粒度的刻度统一放每周一（与回顾日历周一首列同语言）；最后一天若不是周一也补一枚，
+    /// 柱子永远对准自己的日期（2026-11-03 判读实锤：等分索引刻度会把「11/2」读成「11/1」）
+    private var mondayTickIndices: [Int] {
+        let calendar = Calendar.current
+        var result: [Int] = []
+        for (index, bar) in trend.bars.enumerated()
+        where calendar.component(.weekday, from: bar.start) == 2 {
+            result.append(index)
         }
+        if let last = trend.bars.indices.last, result.last != last {
+            result.append(last)
+        }
+        return result
     }
 }
 
-// MARK: - 每周走势图（打卡型：完成率柱 / 每周天数柱；财务图表套件同款画法）
+// MARK: - 测量型点线（横轴首尾 = 所选范围；点按真实日期落位）
 
-/// 与 ReviewTrendChart 同一套几何与交互规则（ReviewTrendChartLayout 复用）：
-/// 柱宽同参封顶、X 刻度 chartOverlay 自绘、横向拖动/点按沿途选中、气泡跟随。
-struct WeeklyRateChart: View {
-    let bars: [HabitWeeklyBar]
-    let mode: HabitWeeklyTrendMode
-    let color: Color
-    let isBadHabit: Bool
-    let today: Date
-    @Binding var selectedWeek: Date?
+struct MeasureTrendChart: View {
+    let snapshot: HabitRangeSnapshot
+    let now: Date
+    var selectedDay: Date?
+    var onSelectDay: (Date) -> Void
+
     @State private var selection: String?
 
+    private var calendar: Calendar { .current }
+
+    private var axis: (start: Date, dayCount: Int) {
+        HabitReviewProjector.measureAxis(snapshot: snapshot, calendar: calendar)
+    }
+
+    private var buckets: [HoloChartBucket] {
+        guard axis.dayCount > 0 else { return [] }
+        return snapshot.dailyValues.map { daily in
+            let day = calendar.startOfDay(for: daily.date)
+            let offset = calendar.dateComponents([.day], from: axis.start, to: day).day ?? 0
+            return HoloChartBucket(
+                id: String(day.timeIntervalSince1970),
+                label: HoloChartFormat.date(day),
+                detail: HoloChartFormat.date(day, template: "yMEd"),
+                values: [daily.value],
+                position: Double(max(offset, 0))
+            )
+        }
+    }
+
+    /// 横轴 = 范围首尾；单点时以点为中心留一天
+    private var domain: ClosedRange<Double> {
+        let upper = Double(max(axis.dayCount - 1, 0))
+        return upper == 0 ? -1...1 : 0...upper
+    }
+
+    private var ticks: [HoloChartTick] {
+        var result = [HoloChartTick(position: domain.lowerBound, label: HoloChartFormat.date(axis.start))]
+        let lastDay = calendar.date(byAdding: .day, value: axis.dayCount - 1, to: axis.start) ?? axis.start
+        if axis.dayCount > 1 {
+            result.append(HoloChartTick(position: domain.upperBound, label: HoloChartFormat.date(lastDay)))
+        }
+        if axis.dayCount > 45 {
+            let middle = calendar.date(byAdding: .day, value: axis.dayCount / 2, to: axis.start) ?? lastDay
+            result.insert(HoloChartTick(position: Double(axis.dayCount / 2), label: HoloChartFormat.date(middle)),
+                          at: 1)
+        }
+        return result
+    }
+
     var body: some View {
-        HoloBarChart(buckets: bars.map { bar in
-            HoloChartBucket(id: String(bar.weekStart.timeIntervalSince1970),
-                            label: HoloChartFormat.date(bar.weekStart),
-                            detail: HoloChartFormat.date(bar.weekStart) + " 起",
-                            values: [mode == .completionRate ? bar.fraction.map { $0 * 100 } : (bar.days > 0 ? Double(bar.recordedDays) : nil)],
-                            isFuture: bar.weekStart > today)
-        }, series: [.init(id: "habit", title: mode == .completionRate ? "完成率" : (isBadHabit ? "发生天数" : "记录天数"), color: color)],
-           selection: $selection, height: 140, yDomain: mode == .completionRate ? 0...100 : 0...8,
-           valueText: { mode == .completionRate ? "\(HoloChartFormat.number($0))%" : "\(Int($0)) 天" },
-           onInspect: { bucket in selectedWeek = bars.first { String($0.weekStart.timeIntervalSince1970) == bucket.id }?.weekStart })
-        .onChange(of: mode) { _, _ in selection = nil; selectedWeek = nil }
+        HoloLineChart(
+            buckets: buckets,
+            series: [.init(id: "habit", title: snapshot.info.name, color: Color(hex: snapshot.info.colorHex))],
+            selection: $selection,
+            height: 160,
+            summary: "",
+            valueText: { value in
+                HabitPresentationProjector.formatValue(value)
+                    + (snapshot.info.unit.isEmpty ? "" : " \(snapshot.info.unit)")
+            },
+            defaultSelectsLastBucket: true,
+            alwaysShowPoints: true,
+            positionDomain: domain,
+            positionTicks: ticks,
+            onInspect: { bucket in
+                if let timestamp = Double(bucket.id) {
+                    onSelectDay(Date(timeIntervalSince1970: timestamp))
+                }
+            }
+        )
+        .onChange(of: selectedDay) { _, day in
+            selection = day.map { String(calendar.startOfDay(for: $0).timeIntervalSince1970) }
+        }
     }
 }
 
@@ -1446,60 +1692,5 @@ enum ReviewTrendChartLayout {
             }
         }
         return (nominalStart, max(spanDays, 0) + 1)
-    }
-}
-
-// MARK: - 回顾趋势图（计数柱 / 测量分段点线；拖动沿途选中）
-
-struct ReviewTrendChart: View {
-    let values: [HabitDailyNumericValue]
-    let kind: HabitRowKind
-    let color: Color
-    let unit: String
-    let interval: DateInterval
-    let today: Date
-    let selectedDay: Date?
-    var onSelectDay: (Date) -> Void
-    var sparseCollapse = false
-    @State private var selection: String?
-
-    private var buckets: [HoloChartBucket] {
-        // 测量型（体重等断续采样）：记录点按真实时间定位，点即数据、连线贯通，
-        // 不再一天一槽铺日历（223 槽挤压出「竖线+孤点」碎片，2026-10-26 实锤）
-        if kind == .measure {
-            let calendar = Calendar.current
-            let layout = ReviewTrendChartLayout.measurePositions(values: values, calendar: calendar)
-            return values.indices.map { index in
-                let value = values[index]
-                return HoloChartBucket(
-                    id: String(calendar.startOfDay(for: value.date).timeIntervalSince1970),
-                    label: HoloChartFormat.date(value.date),
-                    detail: HoloChartFormat.date(value.date, template: "yMMMd"),
-                    values: [value.value],
-                    position: layout.positions[index]
-                )
-            }
-        }
-        let range = ReviewTrendChartLayout.chartRange(interval: interval, today: today, values: values,
-                                                    calendar: .current, sparseCollapse: sparseCollapse)
-        let end = Calendar.current.date(byAdding: .day, value: range.dayCount - 1, to: range.start) ?? range.start
-        return HoloChartFormat.days(from: range.start, through: end, values: values.map { ($0.date, $0.value) })
-    }
-    private var series: [HoloChartSeries] { [.init(id: "habit", title: kind == .count ? "记录量" : "测量值", color: color)] }
-    private func format(_ value: Double) -> String { HabitPresentationProjector.formatValue(value) + (unit.isEmpty ? "" : " \(unit)") }
-    private func inspect(_ bucket: HoloChartBucket) {
-        if let timestamp = Double(bucket.id) { onSelectDay(Date(timeIntervalSince1970: timestamp)) }
-    }
-    var body: some View {
-        Group {
-            if kind == .count {
-                HoloBarChart(buckets: buckets, series: series, selection: $selection, height: 150,
-                             valueText: format, onInspect: inspect)
-            } else {
-                HoloLineChart(buckets: buckets, series: series, selection: $selection, height: 150,
-                              valueText: format, alwaysShowPoints: true, onInspect: inspect)
-            }
-        }
-        .onChange(of: selectedDay) { _, day in selection = day.map { String(Calendar.current.startOfDay(for: $0).timeIntervalSince1970) } }
     }
 }

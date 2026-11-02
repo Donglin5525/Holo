@@ -139,6 +139,18 @@ struct HabitRowView: View {
             }
             .padding(.vertical, 10)
 
+            if let description = snapshot.habitDescription {
+                Text(description)
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoToolTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 34 + HoloSpacing.md)
+                    .padding(.top, -4)
+                    .padding(.bottom, 6)
+                    .allowsHitTesting(false)
+            }
+
             // 当月缝线：只读积累摘要（不承担导航，V2 §5.1）
             trailStitches
                 .frame(maxWidth: .infinity, minHeight: 20, alignment: .leading)

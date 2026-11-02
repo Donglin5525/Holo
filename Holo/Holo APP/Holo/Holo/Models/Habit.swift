@@ -238,8 +238,10 @@ extension Habit: Identifiable {}
 // MARK: - 习惯描述
 
 extension Habit {
-    /// 描述字数上限（按用户看到的字计，一个 Emoji 算 1 个）
-    nonisolated static let descriptionLimit = 50
+    /// 描述字数上限（按用户看到的字计，Emoji、空格、英文都算 1 个）。
+    /// 由最窄展示位反推：375pt 宽 iPhone 今天页大卡描述行可用 241pt，13pt 下汉字 12.9pt、Emoji 19pt（CoreText 实测），
+    /// 16 字含至多 5 个 Emoji 都在一行内（2026-11-02 东林：算一个最大值，超了就输不进去，页面不出现「…」）
+    nonisolated static let descriptionLimit = 16
 
     /// 描述入库唯一口径（新建/编辑共用）：去首尾空白，空串即 nil，超出上限截断
     nonisolated static func normalizedDescription(_ raw: String?) -> String? {

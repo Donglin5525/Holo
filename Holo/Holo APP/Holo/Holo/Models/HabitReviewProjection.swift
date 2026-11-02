@@ -182,6 +182,14 @@ struct HabitRangeSnapshot: Equatable {
 
     var recordedDayCount: Int { recordedDays.count }
 
+    /// 已过的自然日数（含今天，从创建日起；不含未来）——「x / y 天」里的 y 用它兜底
+    var elapsedDays: Int {
+        let calendar = Calendar.current
+        let start = max(interval.start, creationDay(calendar: calendar))
+        let end = min(interval.end, calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) ?? interval.end)
+        return max(calendar.dateComponents([.day], from: start, to: end).day ?? 0, 0)
+    }
+
     /// 真实时刻 → 该习惯口径的日（startOfDay）
     func attributedDay(_ moment: Date, calendar: Calendar) -> Date {
         HabitDayAttribution.attributedDay(moment, dayEndMinutes: dayEndMinutes, calendar: calendar)
@@ -513,39 +521,51 @@ enum HabitReviewProjector {
     }
 }
 
-// MARK: - 打卡型周走势（2026-10-12 方案A：打卡型第一次有走势图）
+// MARK: - 趋势柱（2026-11-02 轴即范围：只画完整落在范围内的自然日/周/月）
 
-/// 周走势的柱口径：完成率（daily 好习惯）或每周天数（坏习惯 / 周、月习惯）
+/// 趋势柱口径：完成率 / 记录天数 / 数量合计
 enum HabitWeeklyTrendMode: Equatable {
     /// 记录天数 ÷ 有效天数（0...1）；仅 daily 好习惯
     case completionRate
-    /// 每周记录（发生）天数；坏习惯往下走是好事，周习惯一周记 1 次即达成
+    /// 记录（发生）天数；坏习惯往下走是好事，周习惯一周记 1 次即达成
     case weeklyDays
-
-    var title: String {
-        switch self {
-        case .completionRate: return String(localized: "每周完成率")
-        case .weeklyDays: return String(localized: "每周天数")
-        }
-    }
+    /// 数量合计（计数型；周/月粒度把整段加总）
+    case amount
 }
 
-/// 一周一根柱的数据（周一起界，与回顾日历的周一首列一致）
-struct HabitWeeklyBar: Equatable, Identifiable {
-    /// 该周周一零点
-    let weekStart: Date
-    /// 有效天数（分母；创建前 / 暂停日剔除，本周只数到今天）
+/// 趋势粒度：范围 ≤31 天按天（仅计数型）、≤92 天按周、更长按月
+enum HabitTrendGranularity: Equatable {
+    case day
+    case week
+    case month
+}
+
+/// 一根趋势柱 = 一个完整的自然日 / 周（周一起）/ 月，半开区间 [start, end)
+struct HabitTrendBar: Equatable, Identifiable {
+    let start: Date
+    let end: Date
+    /// 有效天数（分母；创建前 / 暂停 / 未来剔除）
     let days: Int
     /// 有记录的天数（分子）
     let recordedDays: Int
+    /// 计数型合计（区间内无记录 nil）
+    let total: Double?
+    /// 整根在未来（只有计数型「本月」按天铺满整月时出现）
+    let isFuture: Bool
 
-    var id: Date { weekStart }
+    var id: Date { start }
 
-    /// 完成率（0...1）；分母为 0 的周不画柱（那时习惯还不存在或整周暂停）
+    /// 完成率（0...1）；分母为 0 的柱不画（那时习惯还不存在或整段暂停）
     var fraction: Double? {
         guard days > 0 else { return nil }
         return Double(recordedDays) / Double(days)
     }
+}
+
+struct HabitTrend: Equatable {
+    let granularity: HabitTrendGranularity
+    let mode: HabitWeeklyTrendMode
+    let bars: [HabitTrendBar]
 }
 
 // MARK: - 本期 vs 上期对比（方案A：回答「有没有进步」）
@@ -575,7 +595,7 @@ struct HabitPeriodComparison {
     let previous: HabitPeriodSide?
     /// 上期窗口起日（nil = 无上期，如范围 all / 习惯创建晚于上期窗口）
     let previousStart: Date?
-    /// 上期称谓（如「上月同期」「前 30 天」）
+    /// 上期称谓（如「上月同期」「之前 30 天」）
     let previousLabel: String
 }
 
@@ -583,56 +603,148 @@ struct HabitPeriodComparison {
 
 extension HabitReviewProjector {
 
-    /// 打卡型周走势柱（升序，最多 maxWeeks 根；范围 all 时只取最近 maxWeeks 周）
-    static func weeklyTrend(
-        snapshot: HabitRangeSnapshot,
-        data: HabitProjectionData,
-        maxWeeks: Int = 12
-    ) -> (mode: HabitWeeklyTrendMode, bars: [HabitWeeklyBar]) {
-        guard snapshot.info.kind == .checkIn else {
-            return (mode: .weeklyDays, bars: [])
+    /// 统计起日：「全部」的区间起点是 distantPast 占位，一律以创建日为界（也防逐日空转卡死）
+    static func effectiveStart(_ snapshot: HabitRangeSnapshot, calendar: Calendar) -> Date {
+        max(snapshot.interval.start, snapshot.creationDay(calendar: calendar))
+    }
+
+    /// 名义终点：月范围 = 次月一日（按天画时铺满整月，未来日留空槽）；其余 = 区间终点（明天零点）
+    static func nominalEnd(_ snapshot: HabitRangeSnapshot, calendar: Calendar) -> Date {
+        if case .month(let monthStart) = snapshot.range {
+            let start = calendar.startOfDay(for: monthStart)
+            return calendar.date(byAdding: .month, value: 1, to: start) ?? snapshot.interval.end
         }
+        return snapshot.interval.end
+    }
+
+    /// 打卡型趋势：范围落在一个自然月内 → nil（直接看日历）；跨月 ≤92 天按周、更长按月。
+    /// 只画完整落在范围内且已过完的周 / 月——不满一个周期不画柱，轴上不会出现范围外的日期
+    static func checkInTrend(snapshot: HabitRangeSnapshot, data: HabitProjectionData) -> HabitTrend? {
+        guard snapshot.info.kind == .checkIn else { return nil }
         let calendar = data.calendar
+        let start = effectiveStart(snapshot, calendar: calendar)
+        let end = snapshot.interval.end
+        guard start < end,
+              let lastDay = calendar.date(byAdding: .day, value: -1, to: nominalEnd(snapshot, calendar: calendar)),
+              !calendar.isDate(start, equalTo: lastDay, toGranularity: .month) else { return nil }
+        let span = calendar.dateComponents([.day], from: start, to: end).day ?? 0
+        let granularity: HabitTrendGranularity = span <= 92 ? .week : .month
         let mode: HabitWeeklyTrendMode =
-            (snapshot.info.frequency == .daily && !snapshot.info.isBadHabit)
-            ? .completionRate : .weeklyDays
+            (snapshot.info.frequency == .daily && !snapshot.info.isBadHabit) ? .completionRate : .weeklyDays
+        // 只画已过完的完整周期：进行中的周/月只过了一部分，画出来矮柱永远像「退步」
+        let cap = granularity == .week ? 26 : 36
+        let bars = completePeriods(granularity, from: start, to: min(end, data.now),
+                                   calendar: calendar, cap: cap)
+            .map { trendBar(snapshot, data: data, start: $0.start, end: $0.end) }
+        return bars.isEmpty ? nil : HabitTrend(granularity: granularity, mode: mode, bars: bars)
+    }
 
-        // 首桶周一 = 范围首日所在周的周一（首周可能不足 7 天，如实画）；
-        // 但必须被「末桶往回 maxWeeks 周」封底——「全部记录」的范围首日是 distantPast，
-        // 从那里逐周迭代到今天≈10万+次循环直接卡死主线程（2026-10-13 东林真机点「全部」闪退实锤）
-        let firstDay = snapshot.interval.start
-        let weekday = calendar.component(.weekday, from: firstDay)
-        let mondayOffset = (weekday + 5) % 7  // 周日=0 → 6，周一=0
-        let rangeFirstMonday = calendar.date(byAdding: .day, value: -mondayOffset, to: firstDay) ?? firstDay
-        let lastDay = calendar.date(byAdding: .day, value: -1, to: snapshot.interval.end) ?? firstDay
-        let lastWeekday = calendar.component(.weekday, from: lastDay)
-        let lastMonday = calendar.date(byAdding: .day, value: -((lastWeekday + 5) % 7), to: lastDay) ?? lastDay
-        let floorMonday = calendar.date(byAdding: .day, value: -7 * (maxWeeks - 1), to: lastMonday) ?? lastMonday
-        let firstMonday = max(rangeFirstMonday, floorMonday)
+    /// 计数型趋势：「最近记录」按天铺满真实区间；≤31 天按天（月范围铺满整月）、
+    /// ≤92 天按周合计、更长按月合计（周 / 月只取完整的）
+    static func countTrend(snapshot: HabitRangeSnapshot, data: HabitProjectionData) -> HabitTrend? {
+        guard snapshot.info.kind == .count else { return nil }
+        let calendar = data.calendar
+        let start = effectiveStart(snapshot, calendar: calendar)
+        let end = nominalEnd(snapshot, calendar: calendar)
+        guard start < end else { return nil }
+        let span = calendar.dateComponents([.day], from: start, to: end).day ?? 0
+        // 「最近记录」按天铺满真实区间（判读实锤：按周会把最近一次记录折进上周，用户找不到）
+        let granularity: HabitTrendGranularity
+        if case .recentRecords = snapshot.range {
+            granularity = .day
+        } else {
+            granularity = span <= 31 ? .day : (span <= 92 ? .week : .month)
+        }
+        // 按天铺满整月（未来日空槽）；按周/月只画已过完的完整周期
+        let periodEnd = granularity == .day ? end : min(snapshot.interval.end, data.now)
+        let cap = granularity == .day ? 62 : (granularity == .week ? 26 : 36)
+        let bars = completePeriods(granularity, from: start, to: periodEnd,
+                                   calendar: calendar, cap: cap)
+            .map { trendBar(snapshot, data: data, start: $0.start, end: $0.end) }
+        return bars.isEmpty ? nil : HabitTrend(granularity: granularity, mode: .amount, bars: bars)
+    }
 
-        var bars: [HabitWeeklyBar] = []
-        var weekStart = firstMonday
-        while weekStart < snapshot.interval.end {
-            let nextWeek = calendar.date(byAdding: .day, value: 7, to: weekStart) ?? weekStart
-            var days = 0
-            var recorded = 0
-            // 首桶从范围首日起数（周一首界早于范围时，范围前的天不计入分母）
-            var day = max(weekStart, snapshot.interval.start)
-            while day < nextWeek && day < snapshot.interval.end {
-                let info = snapshot.day(day, today: data.now, calendar: calendar)
-                if !info.isBeforeCreation && !info.isPaused && !info.isFuture {
-                    days += 1
-                    if info.isRecorded { recorded += 1 }
-                }
-                day = calendar.date(byAdding: .day, value: 1, to: day) ?? day
+    /// 测量型横轴：起日 + 天数。最近记录 = 首末记录日；月范围 = 整月；其余 = 范围起止（不早于创建日）
+    static func measureAxis(snapshot: HabitRangeSnapshot, calendar: Calendar) -> (start: Date, dayCount: Int) {
+        if case .recentRecords = snapshot.range,
+           let first = snapshot.dailyValues.first?.date, let last = snapshot.dailyValues.last?.date {
+            let start = calendar.startOfDay(for: first)
+            let days = calendar.dateComponents([.day], from: start, to: calendar.startOfDay(for: last)).day ?? 0
+            return (start, days + 1)
+        }
+        let start = effectiveStart(snapshot, calendar: calendar)
+        let end = nominalEnd(snapshot, calendar: calendar)
+        return (start, max(calendar.dateComponents([.day], from: start, to: end).day ?? 1, 1))
+    }
+
+    /// [from, to) 内完整的自然日 / 周（周一起）/ 月，最多取最近 cap 个。
+    /// 先定位最后一个周期起点、再倒推 cap 个起生成——夹具/同步副本可能带公元起的创建日，
+    /// 从头逐周期迭代十万次会卡死主线程（2026-10-13「点全部闪退」同族，矩阵测试实锤 8s/2.4 万桶）
+    static func completePeriods(_ granularity: HabitTrendGranularity, from: Date, to: Date,
+                                calendar: Calendar, cap: Int) -> [(start: Date, end: Date)] {
+        guard to > from, cap > 0 else { return [] }
+        func step(_ date: Date, _ count: Int) -> Date? {
+            switch granularity {
+            case .day: return calendar.date(byAdding: .day, value: count, to: date)
+            case .week: return calendar.date(byAdding: .day, value: 7 * count, to: date)
+            case .month: return calendar.date(byAdding: .month, value: count, to: date)
             }
-            bars.append(HabitWeeklyBar(weekStart: weekStart, days: days, recordedDays: recorded))
-            weekStart = nextWeek
         }
-        if bars.count > maxWeeks {
-            bars = Array(bars.suffix(maxWeeks))
+        /// 某时刻所在周期的起点（day=当天；week=所在周周一；month=所在月 1 日）
+        func periodStart(of moment: Date) -> Date {
+            let day = calendar.startOfDay(for: moment)
+            switch granularity {
+            case .day:
+                return day
+            case .week:
+                let offset = (calendar.component(.weekday, from: day) + 5) % 7
+                return calendar.date(byAdding: .day, value: -offset, to: day) ?? day
+            case .month:
+                return calendar.date(from: calendar.dateComponents([.year, .month], from: day)) ?? day
+            }
         }
-        return (mode: mode, bars: bars)
+        // 范围内第一个完整周期：from 当天或之后的第一个周期起点
+        //（from 落在周期中段时，本周期不完整，从下一周期起）
+        var first = periodStart(of: from)
+        if first < from { first = step(first, 1) ?? first }
+        // 最后一个完整周期：to 前最后一刻所在周期；它还没过完（end > to）时回退一个
+        var last = periodStart(of: to.addingTimeInterval(-0.001))
+        if let end = step(last, 1), end > to {
+            last = step(last, -1) ?? last
+        }
+        guard last >= first, let lastEnd = step(last, 1), lastEnd <= to, first >= from else { return [] }
+        // 倒推封顶：起点最多往前挪 cap - 1 个周期
+        if let cappedFirst = step(last, -(cap - 1)), cappedFirst > first {
+            first = cappedFirst
+        }
+        var periods: [(start: Date, end: Date)] = []
+        var cursor = first
+        while cursor <= last, let end = step(cursor, 1) {
+            periods.append((cursor, end))
+            guard let next = step(cursor, 1) else { break }
+            cursor = next
+        }
+        return periods
+    }
+
+    private static func trendBar(_ snapshot: HabitRangeSnapshot, data: HabitProjectionData,
+                                 start: Date, end: Date) -> HabitTrendBar {
+        let calendar = data.calendar
+        var days = 0
+        var recorded = 0
+        var total: Double?
+        var day = start
+        while day < end {
+            let info = snapshot.day(day, today: data.now, calendar: calendar)
+            if !info.isBeforeCreation && !info.isPaused && !info.isFuture {
+                days += 1
+                if info.isRecorded { recorded += 1 }
+            }
+            if let value = info.dailyValue { total = (total ?? 0) + value }
+            day = calendar.date(byAdding: .day, value: 1, to: day) ?? end
+        }
+        return HabitTrendBar(start: start, end: end, days: days, recordedDays: recorded, total: total,
+                             isFuture: snapshot.day(start, today: data.now, calendar: calendar).isFuture)
     }
 
     /// 本期 vs 上期对比。上期窗口紧邻本期起点、等长于本期已过天数；
@@ -659,9 +771,18 @@ extension HabitReviewProjector {
         }
         let current = side(of: snapshot, data: data)
 
-        // 上期窗口 [start - elapsed, start)
-        let previousEnd = snapshot.interval.start
-        let previousStart = calendar.date(byAdding: .day, value: -elapsedDays, to: previousEnd) ?? previousEnd
+        // 上期窗口：月范围 = 上月同一段日子（11/1–11/2 对 10/1–10/2，按上月天数封顶）；
+        // 其余 = 紧邻本期之前的等长窗口。旧实现月范围也取紧邻窗口，标签却写「上月同期」（2026-11-02 挑刺 N6）
+        let previousStart: Date
+        let previousEnd: Date
+        if case .month(let monthStart) = snapshot.range {
+            let thisMonth = calendar.startOfDay(for: monthStart)
+            previousStart = calendar.date(byAdding: .month, value: -1, to: thisMonth) ?? thisMonth
+            previousEnd = min(calendar.date(byAdding: .day, value: elapsedDays, to: previousStart) ?? thisMonth, thisMonth)
+        } else {
+            previousEnd = snapshot.interval.start
+            previousStart = calendar.date(byAdding: .day, value: -elapsedDays, to: previousEnd) ?? previousEnd
+        }
         guard previousStart < previousEnd else {
             return HabitPeriodComparison(current: current, previous: nil,
                                          previousStart: nil, previousLabel: "")
@@ -717,7 +838,7 @@ extension HabitReviewProjector {
         )
     }
 
-    /// 上期称谓：月范围 →「上月同期」；其余 →「前 N 天」（N = 上期窗口自然日长。
+    /// 上期称谓：月范围 →「上月同期」；其余 →「之前 N 天」（N = 上期窗口自然日长；「前 N 天」易被读成「最初 N 天」。
     /// 旧实现拿 start→start-1 算出恒 0，「前 0 天」2026-10-26 模拟器实锤）
     private static func previousLabel(
         for range: HabitReviewRange,
@@ -729,7 +850,7 @@ extension HabitReviewProjector {
             return String(localized: "上月同期")
         }
         let days = max(calendar.dateComponents([.day], from: start, to: end).day ?? 0, 1)
-        return String(localized: "前 \(days) 天")
+        return String(localized: "之前 \(days) 天")
     }
 }
 

@@ -257,13 +257,13 @@ final class HabitActionCoordinatorTests: XCTestCase {
         func stored() throws -> String? { try XCTUnwrap(repoRef.findHabit(by: habit.id)).habitDescription }
 
         var payload = HabitEditPayload(name: "晨跑", icon: "figure.run", color: "#F46D38", type: .checkIn)
-        payload.habitDescription = .set("  🏃 为了年底的半马，每天 3 公里 \n")
+        payload.habitDescription = .set("  🏃 为了半马，每天跑三公里 \n")
         try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
-        XCTAssertEqual(try stored(), "🏃 为了年底的半马，每天 3 公里", "设置时去首尾空白，Emoji 原样保留")
+        XCTAssertEqual(try stored(), "🏃 为了半马，每天跑三公里", "设置时去首尾空白，Emoji 原样保留")
 
         payload.habitDescription = .keep
         try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
-        XCTAssertEqual(try stored(), "🏃 为了年底的半马，每天 3 公里", ".keep 不修改")
+        XCTAssertEqual(try stored(), "🏃 为了半马，每天跑三公里", ".keep 不修改")
 
         payload.habitDescription = .set(" \n ")
         try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)

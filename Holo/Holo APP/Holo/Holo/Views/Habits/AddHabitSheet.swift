@@ -45,6 +45,8 @@ struct AddHabitSheet: View {
 
     // 表单状态
     @State private var name: String = ""
+    /// 习惯描述草稿（上限 Habit.descriptionLimit，输入时截断）
+    @State private var habitDescription: String = ""
     @State private var selectedType: HabitType = .checkIn
     @State private var selectedIcon: String = "checkmark.circle"
     @State private var selectedColor: String = "#13A4EC"
@@ -199,6 +201,7 @@ struct AddHabitSheet: View {
         if let habit = editingHabit {
             // 编辑模式：比较与原始习惯的差异
             var changed = name != habit.name
+                || Habit.normalizedDescription(habitDescription) != habit.habitDescription
                 || selectedIcon != habit.icon
                 || selectedColor != habit.color
                 || selectedType.rawValue != habit.type
@@ -228,6 +231,7 @@ struct AddHabitSheet: View {
         } else {
             // 新增模式：检查是否输入了内容
             return !name.trimmingCharacters(in: .whitespaces).isEmpty
+                || Habit.normalizedDescription(habitDescription) != nil
         }
     }
 
@@ -242,6 +246,7 @@ struct AddHabitSheet: View {
     private func loadEditingData() {
         if let habit = editingHabit {
             name = habit.name
+            habitDescription = habit.habitDescription ?? ""
             selectedType = habit.habitType
             selectedIcon = habit.icon
             selectedColor = habit.color
@@ -295,8 +300,40 @@ struct AddHabitSheet: View {
                         .fill(Color.holoToolSurface)
                 )
 
-            HabitPreviewTile(name: name, icon: selectedIcon, color: selectedColor)
+            descriptionField
+
+            HabitPreviewTile(name: name, description: Habit.normalizedDescription(habitDescription),
+                             icon: selectedIcon, color: selectedColor)
         }
+    }
+
+    /// 习惯描述：单行，满 Habit.descriptionLimit 个字就输不进去（Emoji、空格、英文都算 1 个字）。
+    /// 上限按最窄展示位算出：13pt 下 375pt 宽 iPhone 今天页大卡描述行可用 241pt，
+    /// 16 字（含至多 5 个 Emoji）一行放下；系统字号调大时换行，任何位置都不截成「…」
+    private var descriptionField: some View {
+        HStack(spacing: 10) {
+            TextField(String(localized: "一句话，为什么开始（选填）"), text: $habitDescription)
+                .font(.holoBody)
+                .foregroundColor(.holoToolText)
+                .tint(Color.holoToolAction)
+                .onChange(of: habitDescription) { _, newValue in
+                    if newValue.count > Habit.descriptionLimit {
+                        habitDescription = String(newValue.prefix(Habit.descriptionLimit))
+                    }
+                }
+                .accessibilityIdentifier("habit.edit.description")
+            Text(verbatim: "\(habitDescription.count)/\(Habit.descriptionLimit)")
+                .holoText(.metadata)
+                .monospacedDigit()
+                .foregroundColor(.holoToolTextSecondary)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
+                .fill(Color.holoToolSurface)
+        )
     }
 
     // MARK: - 记录方式（三卡，P2 白话化：技术词翻译成用户动词）
@@ -784,6 +821,7 @@ struct AddHabitSheet: View {
                 }
             }
             payload.unit = targetEnabled ? (u.map { HabitFieldUpdate<String>.set($0) } ?? .clear) : .clear
+            payload.habitDescription = Habit.normalizedDescription(habitDescription).map { .set($0) } ?? .clear
             // 目标关系三态
             switch (initialGoalId, goalSelection?.id) {
             case (.none, .none): payload.goalId = .keep
@@ -822,6 +860,7 @@ struct AddHabitSheet: View {
                     targetCount: selectedType == .checkIn ? tc : nil,
                     targetValue: selectedType == .numeric ? tv : nil,
                     unit: selectedType == .numeric ? u : nil,
+                    habitDescription: habitDescription,
                     aggregationType: selectedAggregationType,
                     isBadHabit: badHabit,
                     reminderMode: isCheckIn ? reminderMode : .follow,
@@ -866,6 +905,7 @@ struct AddHabitSheet: View {
 /// （纸感卡 + 淡底 chip + 右上空心环），名字/图标/颜色实时跟随表单。
 private struct HabitPreviewTile: View {
     let name: String
+    let description: String?
     let icon: String
     let color: String
 
@@ -881,15 +921,23 @@ private struct HabitPreviewTile: View {
         HStack(spacing: 8) {
             iconChip
             if !trimmedName.isEmpty {
-                Text(name)
-                    .holoText(.body)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    // 尾部安全距离：长名不贴右上空心环
-                    .padding(.trailing, 26)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .holoText(.body)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoToolText)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if let description {
+                        Text(description)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoToolTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                // 尾部安全距离：长名不贴右上空心环
+                .padding(.trailing, 26)
             } else {
                 Spacer(minLength: 0)
             }

@@ -133,6 +133,11 @@ struct HoloBarChart: View {
     var summary: String = "本期合计 · 点按或横滑查看"
     var summaryValues: [Double?]? = nil
     var valueText: (Double) -> String = HoloChartFormat.number
+    /// 首次出现即选中最后一根（时间序列：最近一期先说话，避免空读数或无意义的合计）
+    var defaultSelectsLastBucket = false
+    /// 等宽槽位的指定刻度（桶下标；如按天图的每周一同列）。走公共摆放规则（贴边/等宽/预算），
+    /// 不在此之上叠私有画法
+    var slotTicks: [Int]? = nil
     var onInspect: ((HoloChartBucket) -> Void)? = nil
     var onOpenDetail: ((HoloChartBucket) -> Void)? = nil
 
@@ -144,6 +149,7 @@ struct HoloBarChart: View {
             HoloCartesianChart(buckets: buckets, series: series, selection: $selection, style: .bar,
                            height: height, yDomain: yDomain, dualValueAxes: dualValueAxes,
                            summary: summary, summaryValues: summaryValues, valueText: valueText,
+                           defaultSelectsLastBucket: defaultSelectsLastBucket, slotTicks: slotTicks,
                            onInspect: onInspect, onOpenDetail: onOpenDetail)
         }
     }
@@ -208,6 +214,12 @@ private struct HoloHorizontalBarChart: View {
     }
 }
 
+/// 连续时间轴的指定刻度（position 坐标 + 文案）
+struct HoloChartTick: Equatable {
+    let position: Double
+    let label: String
+}
+
 struct HoloLineChart: View {
     let buckets: [HoloChartBucket]
     let series: [HoloChartSeries]
@@ -218,20 +230,26 @@ struct HoloLineChart: View {
     var summary: String = "最近记录 · 点按或横滑查看"
     var summaryValues: [Double?]? = nil
     var valueText: (Double) -> String = HoloChartFormat.number
+    var defaultSelectsLastBucket = false
     var showsReadout = true
     /// 未选中时不显示伪读数（默认读数取末桶/合计，与实际选中日的数值无关），
     /// 由 summary 文案提示滑动查看；总览类图表（idle 读数即本期合计）保持 false 不变。
     var hidesIdleValues = false
     /// 折线每个数据点恒显（测量记录点视图：点即数据，不只孤立点/选中点显示）
     var alwaysShowPoints = false
+    /// 连续时间轴的显式范围与刻度：横轴首尾 = 所选范围首尾，不随首末记录收缩（2026-11-02 轴即范围）
+    var positionDomain: ClosedRange<Double>? = nil
+    var positionTicks: [HoloChartTick]? = nil
     var onInspect: ((HoloChartBucket) -> Void)? = nil
     var onOpenDetail: ((HoloChartBucket) -> Void)? = nil
 
     var body: some View {
         HoloCartesianChart(buckets: buckets, series: series, selection: $selection, style: .line,
                            height: height, yDomain: yDomain, baseline: baseline, summary: summary,
-                           summaryValues: summaryValues, valueText: valueText, showsReadout: showsReadout,
+                           summaryValues: summaryValues, valueText: valueText,
+                           defaultSelectsLastBucket: defaultSelectsLastBucket, showsReadout: showsReadout,
                            hidesIdleValues: hidesIdleValues, alwaysShowPoints: alwaysShowPoints,
+                           positionDomain: positionDomain, positionTicks: positionTicks,
                            onInspect: onInspect, onOpenDetail: onOpenDetail)
     }
 }
@@ -249,10 +267,14 @@ private struct HoloCartesianChart: View {
     var summary: String
     var summaryValues: [Double?]? = nil
     var valueText: (Double) -> String
+    var defaultSelectsLastBucket = false
+    var slotTicks: [Int]? = nil
     var showsReadout = true
     var hidesIdleValues = false
     /// 折线每个数据点恒显（测量记录点视图：点即数据）
     var alwaysShowPoints = false
+    var positionDomain: ClosedRange<Double>? = nil
+    var positionTicks: [HoloChartTick]? = nil
     var onInspect: ((HoloChartBucket) -> Void)?
     var onOpenDetail: ((HoloChartBucket) -> Void)?
     @State private var plotWidth: CGFloat = 300
@@ -262,6 +284,7 @@ private struct HoloCartesianChart: View {
     private func x(_ index: Int) -> Double { buckets[index].position ?? Double(index) }
     private var xDomain: ClosedRange<Double> {
         guard !buckets.isEmpty else { return -0.5...0.5 }
+        if let positionDomain { return positionDomain }
         if buckets[0].position != nil {
             let first = x(0), last = x(buckets.count - 1)
             let padding = max((last - first) * 0.015, 1)
@@ -316,8 +339,24 @@ private struct HoloCartesianChart: View {
                 chart
             }
         }
-        .onChange(of: dataSignature) { _, _ in selection = nil }
+        .onChange(of: dataSignature) { _, buckets in
+            // 数据一换即重选：默认选中模式跟着新数据的最后一根（否则回到求和读数，
+            // 完成率类会重现「百分比相加 >100%」——2026-11-03 真机判读实锤「全部」页 263.5%）
+            if defaultSelectsLastBucket {
+                let candidates = buckets.filter { !$0.isFuture }
+                selection = (candidates.last(where: { $0.values.contains { $0 != nil } }) ?? candidates.last)?.id
+            } else {
+                selection = nil
+            }
+        }
         .onChange(of: series.map(\.id)) { _, _ in selection = nil }
+        .onAppear {
+            guard defaultSelectsLastBucket, selection == nil else { return }
+            let candidates = buckets.filter { !$0.isFuture }
+            if let last = candidates.last(where: { $0.values.contains { $0 != nil } }) ?? candidates.last {
+                selection = last.id
+            }
+        }
     }
 
     private var chart: some View {
@@ -466,6 +505,49 @@ private struct HoloCartesianChart: View {
 
     private func tickLabels(proxy: ChartProxy, plot: CGRect) -> some View {
         let labelWidth = HoloChartGeometry.tickLabelWidth(plotWidth: plot.width)
+        if let slotTicks {
+            let labels = slotTicks.compactMap { index -> TickLabel? in
+                guard buckets.indices.contains(index) else { return nil }
+                if slotTicks.count > 1 && index == slotTicks.first {
+                    return TickLabel(id: index, text: buckets[index].label, alignment: .leading,
+                                     anchorX: plot.minX + labelWidth / 2)
+                }
+                if slotTicks.count > 1 && index == slotTicks.last {
+                    return TickLabel(id: index, text: buckets[index].label, alignment: .trailing,
+                                     anchorX: plot.maxX - labelWidth / 2)
+                }
+                let center = buckets.indices.count > 1
+                    ? plot.minX + plot.width * (CGFloat(index) + 0.5) / CGFloat(buckets.count)
+                    : plot.midX
+                return TickLabel(id: index, text: buckets[index].label, alignment: .center, anchorX: center)
+            }
+            return AnyView(ForEach(labels) { label in
+                Text(label.text)
+                    .font(.system(size: axisSize)).foregroundStyle(Color.holoToolTextSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                    .frame(width: labelWidth, alignment: label.alignment)
+                    .position(x: label.anchorX, y: plot.maxY + axisSize / 2 + 7)
+            })
+        }
+        if let positionTicks {
+            let labels = positionTicks.enumerated().compactMap { index, tick -> TickLabel? in
+                guard let pixel = proxy.position(forX: tick.position) else { return nil }
+                if positionTicks.count > 1 && index == 0 {
+                    return TickLabel(id: index, text: tick.label, alignment: .leading, anchorX: plot.minX + labelWidth / 2)
+                }
+                if positionTicks.count > 1 && index == positionTicks.count - 1 {
+                    return TickLabel(id: index, text: tick.label, alignment: .trailing, anchorX: plot.maxX - labelWidth / 2)
+                }
+                return TickLabel(id: index, text: tick.label, alignment: .center, anchorX: plot.minX + pixel)
+            }
+            return AnyView(ForEach(labels) { label in
+                Text(label.text)
+                    .font(.system(size: axisSize)).foregroundStyle(Color.holoToolTextSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                    .frame(width: labelWidth, alignment: label.alignment)
+                    .position(x: label.anchorX, y: plot.maxY + axisSize / 2 + 7)
+            })
+        }
         let pixelX = buckets.indices.map { proxy.position(forX: x($0)) ?? .infinity }
         // position 域（连续时间，如测量记录点）按像素最小间距选刻度；等宽槽位按预算等分
         let picked: [Int]
@@ -491,13 +573,13 @@ private struct HoloCartesianChart: View {
             }
             return TickLabel(id: index, text: buckets[index].label, alignment: alignment, anchorX: anchorX)
         }
-        return ForEach(labels) { label in
+        return AnyView(ForEach(labels) { label in
             Text(label.text)
                 .font(.system(size: axisSize)).foregroundStyle(Color.holoToolTextSecondary)
                 .lineLimit(1).minimumScaleFactor(0.8)
                 .frame(width: labelWidth, alignment: label.alignment)
                 .position(x: label.anchorX, y: plot.maxY + axisSize / 2 + 7)
-        }
+        })
     }
 
     /// 双轴刻度带：右轴=第 0 系列、左轴=第 1 系列，各取 0 / 半值 / 顶值三档——两个系列的

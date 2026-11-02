@@ -180,6 +180,12 @@ struct HabitTodayRecordSheet: View {
                 Text(row.name)
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundColor(.holoToolText)
+                if let description = row.habitDescription {
+                    Text(description)
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoToolTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Text(fullTodayText)
                     .font(.system(size: 12))
                     .foregroundColor(.holoToolTextSecondary)

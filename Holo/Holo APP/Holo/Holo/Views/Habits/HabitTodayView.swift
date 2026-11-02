@@ -251,64 +251,75 @@ struct HabitTodayView: View {
     private func heroCard(_ row: HabitRowSnapshot) -> some View {
         let done = row.today.isRecorded
         let accent = Color(hex: row.colorHex)
-        return HStack(spacing: HoloSpacing.md) {
-            // 左侧信息区=行主体（AX 单元素，identifier 与普通行同款；点开概览弹层）
-            Button {
-                onOpenTodayRecords(row.id)
-            } label: {
-                HStack(spacing: HoloSpacing.md) {
-                    row.iconImage(size: 20)
-                        .foregroundColor(accent)
-                        .frame(width: 42, height: 42)
-                        .background(RoundedRectangle(cornerRadius: 13, style: .continuous)
-                            .fill(accent.opacity(0.12)))
-                        .accessibilityHidden(true)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        if let streak = row.streak, streak.value > 0 {
-                            Text("\(streak.value) \(streak.unitName)")
-                                .font(.system(size: 27, weight: .bold, design: .rounded).monospacedDigit())
-                                .foregroundColor(accent)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.6)
-                        }
-                        Text(heroSubtitle(row))
-                            .font(.system(size: 11.5))
-                            .foregroundColor(.holoToolTextSecondary.opacity(0.9))
-                            .lineLimit(1)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("habit.rowbody.\(row.id)")
-            .accessibilityLabel(Text(String(localized: "查看\(row.name)今天的记录")))
-            .accessibilityHint(Text(String(localized: "连续打卡中")))
-
-            Button {
-                Task { await model.record(kind: .toggleCheckIn, habitId: row.id) }
-            } label: {
-                Group {
-                    if done {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(Circle().fill(accent))
-                    } else {
-                        Text(String(localized: "打卡"))
-                            .font(.system(size: 15, weight: .semibold))
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: HoloSpacing.md) {
+                // 左侧信息区=行主体（AX 单元素，identifier 与普通行同款；点开概览弹层）
+                Button {
+                    onOpenTodayRecords(row.id)
+                } label: {
+                    HStack(spacing: HoloSpacing.md) {
+                        row.iconImage(size: 20)
                             .foregroundColor(accent)
-                            .frame(width: 66, height: 52)
-                            .background(Capsule().fill(accent.opacity(0.14)))
+                            .frame(width: 42, height: 42)
+                            .background(RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                .fill(accent.opacity(0.12)))
+                            .accessibilityHidden(true)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            if let streak = row.streak, streak.value > 0 {
+                                Text("\(streak.value) \(streak.unitName)")
+                                    .font(.system(size: 27, weight: .bold, design: .rounded).monospacedDigit())
+                                    .foregroundColor(accent)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.6)
+                            }
+                            Text(heroSubtitle(row))
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoToolTextSecondary.opacity(0.9))
+                                .lineLimit(1)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("habit.rowbody.\(row.id)")
+                .accessibilityLabel(Text(String(localized: "查看\(row.name)今天的记录")))
+                .accessibilityHint(Text(String(localized: "连续打卡中")))
+
+                Button {
+                    Task { await model.record(kind: .toggleCheckIn, habitId: row.id) }
+                } label: {
+                    Group {
+                        if done {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 56, height: 56)
+                                .background(Circle().fill(accent))
+                        } else {
+                            Text(String(localized: "打卡"))
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(accent)
+                                .frame(width: 66, height: 52)
+                                .background(Capsule().fill(accent.opacity(0.14)))
+                        }
                     }
                 }
+                .buttonStyle(HoloPressStyle())
+                .disabled(model.coordinator.savingHabitIds.contains(row.id))
+                .accessibilityIdentifier("habit.row.\(row.id).record")
+                .accessibilityLabel(Text(done ? String(localized: "取消打卡") : String(localized: "打卡")))
             }
-            .buttonStyle(HoloPressStyle())
-            .disabled(model.coordinator.savingHabitIds.contains(row.id))
-            .accessibilityIdentifier("habit.row.\(row.id).record")
-            .accessibilityLabel(Text(done ? String(localized: "取消打卡") : String(localized: "打卡")))
+            if let description = row.habitDescription {
+                // 描述：伸到打卡钮下方取满宽（375pt 屏 241pt，16 字一行放下）；不截断，字号调大时换行
+                Text(description)
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoToolTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 42 + HoloSpacing.md)
+                    .allowsHitTesting(false)
+            }
         }
         .padding(14)
         .background(
