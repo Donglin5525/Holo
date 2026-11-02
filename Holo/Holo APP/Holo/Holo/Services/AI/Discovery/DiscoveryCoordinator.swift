@@ -520,6 +520,14 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         }
         Self.diagLog.notice("disp init restore: enabled=\(restoreEnabled) processedRecord=\(restoreProcessed) → firstRunPending=\(self.firstRunPending)")
 
+        // 1.1.5 结局状态一次性回填：升级前跑完的批次没有侧储结局记录 → 从本机运行记录还原
+        // 「整理过了」（只认 noFinding；最近一单是发布或失败时不猜，按发现本身 / 材料不够显示）
+        if restoreEnabled, sideStore.lastOutcome == nil,
+           let latest = try? store.latestTerminalRun(), latest.phase == .noFinding {
+            sideStore.recordLastOutcome(.noFinding(at: latest.updatedAt))
+            Self.diagLog.notice("disp init restore: backfilled lastOutcome=noFinding from run=\(latest.runID)")
+        }
+
         self.invalidationService.start()
         NotificationCenter.default.addObserver(
             self,

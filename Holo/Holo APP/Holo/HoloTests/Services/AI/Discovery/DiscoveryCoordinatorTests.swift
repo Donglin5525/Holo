@@ -1314,6 +1314,20 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         XCTAssertNil(DiscoveryCoordinatorSideStore(defaults: defaults).lastOutcome, "关闭即删派生的结局状态")
     }
 
+    func test_状态拆分_升级前跑完的批次_启动时从运行记录回填整理过了() async throws {
+        mock.candidatesSpec = .empty
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        // 模拟升级前：批次已跑完（运行记录 noFinding），但旧版本没有写结局记录
+        DiscoveryCoordinatorSideStore(defaults: defaults).clearLastOutcome()
+
+        let upgraded = makeCoordinator()
+        upgraded.runBatch(reason: .foregroundActivation)
+        await upgraded.batchTask?.value
+        XCTAssertEqual(upgraded.settingsDetailState, .checkedNoFinding(checkedAt: fixedNow),
+                       "升级后首次启动即如实显示，不必等下一次整理")
+    }
+
     func test_状态拆分_文案可区分() {
         let now = fixedNow
         let copy = DiscoverySettingsCopy.self
