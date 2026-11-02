@@ -194,6 +194,40 @@ nonisolated final class DiscoveryClient {
         let alreadyClosed: Bool
     }
 
+    /// 1.1.5 候选异步作业状态（`candidates/async` 与 `candidates/result` 同一形状；
+    /// 字面量逐字抄 HoloBackend/src/discovery/discoveryController.js `jobStatusResponse`）。
+    /// 字段恒齐全，不适用为 null：running 带 pollAfterSeconds；completed 带 result（与同步
+    /// `/candidates` 200 响应同形）；failed 带 error 与 retryAvailable（当天还有尝试次数）。
+    struct CandidateJobStatus: Decodable, Sendable {
+        enum JobState: String, Decodable, Sendable {
+            case running
+            case completed
+            case failed
+        }
+
+        struct JobError: Decodable, Sendable {
+            let code: String?
+            let reason: String?
+        }
+
+        let runID: String
+        let stage: String
+        let jobStatus: JobState
+        let pollAfterSeconds: Int?
+        /// run 租约到期（毫秒时间戳）；过期后客户端放弃取件
+        let leaseExpiresAt: Int64?
+        let result: StageResponse?
+        let error: JobError?
+        let retryAvailable: Bool
+        let replayed: Bool?
+    }
+
+    /// 一次取件的结果：completed 时附带经严格解码的候选信封（与同步 candidates() 同一道防线）。
+    struct CandidateJobPoll: Sendable {
+        let status: CandidateJobStatus
+        let completed: (response: StageResponse, envelope: DiscoveryCandidateEnvelope)?
+    }
+
     // MARK: - 错误
 
     enum DiscoveryClientError: Error, LocalizedError {
@@ -201,6 +235,10 @@ nonisolated final class DiscoveryClient {
         case controlConflict(detail: String)
         case hashMismatch
         case unexpectedStageEnvelope(runID: String)
+        /// 服务端（或测试替身）不支持候选异步作业：调用方回落同步端点
+        case asyncCandidatesUnsupported
+        /// 候选作业在服务端失败；retryAvailable=服务端判定当天还有尝试次数（失败不烧名额）
+        case candidateJobFailed(code: String?, retryAvailable: Bool)
 
         var errorDescription: String? {
             switch self {
@@ -208,6 +246,8 @@ nonisolated final class DiscoveryClient {
             case .controlConflict(let detail): return "发现控制版本冲突，需刷新控制状态：\(detail)"
             case .hashMismatch: return "候选包与服务端响应不一致"
             case .unexpectedStageEnvelope: return "阶段响应格式不符"
+            case .asyncCandidatesUnsupported: return "服务端未开放候选异步作业"
+            case .candidateJobFailed(let code, _): return "候选作业失败：\(code ?? "unknown")"
             }
         }
     }
@@ -307,9 +347,53 @@ nonisolated final class DiscoveryClient {
             body: body,
             timeout: 180
         ))
-        let envelope: DiscoveryCandidateEnvelope
+        return (response, try await Self.validatedCandidateEnvelope(response, runID: runID))
+    }
+
+    /// 1.1.5 阶段一（异步）：交材料即返回 running，服务端后台生成。请求体与同步 candidates() 逐字段相同
+    /// （阶段 hash 只锚 data；profileBrief 平级不进 hash）。requestID 由调用方持久化复用，重交同 body 幂等。
+    func startCandidatesAsync(runID: String, runToken: String, requestID: String?, data: DiscoveryJSONValue) async throws -> CandidateJobPoll {
+        let body = StageBody(runToken: runToken, requestID: requestID, candidates: nil, candidatesHash: nil, data: data, profileBrief: await Self.profileBrief())
+        let status: CandidateJobStatus = try await apiClient.send(request(
+            path: "/v1/discovery/runs/\(runID)/candidates/async",
+            body: body,
+            timeout: 30
+        ))
+        return try await Self.poll(from: status, runID: runID)
+    }
+
+    /// 1.1.5 取件：POST 携带 runToken（不进 URL/访问日志）。作业不存在 → 404 DISCOVERY_JOB_NOT_FOUND。
+    func candidatesResult(runID: String, runToken: String) async throws -> CandidateJobPoll {
+        struct Body: Encodable {
+            let runToken: String
+        }
+        let status: CandidateJobStatus = try await apiClient.send(request(
+            path: "/v1/discovery/runs/\(runID)/candidates/result",
+            body: Body(runToken: runToken),
+            timeout: 30
+        ))
+        return try await Self.poll(from: status, runID: runID)
+    }
+
+    @MainActor
+    private static func poll(from status: CandidateJobStatus, runID: String) throws -> CandidateJobPoll {
+        guard status.runID == runID else {
+            throw DiscoveryClientError.unexpectedStageEnvelope(runID: runID)
+        }
+        guard status.jobStatus == .completed else {
+            return CandidateJobPoll(status: status, completed: nil)
+        }
+        guard let response = status.result else {
+            throw DiscoveryClientError.unexpectedStageEnvelope(runID: runID)
+        }
+        return CandidateJobPoll(status: status, completed: (response, try validatedCandidateEnvelope(response, runID: runID)))
+    }
+
+    /// 候选信封严格解码（同步与异步取件共用同一道防线，不宽松解析）。
+    @MainActor
+    private static func validatedCandidateEnvelope(_ response: StageResponse, runID: String) throws -> DiscoveryCandidateEnvelope {
         do {
-            envelope = try DiscoveryAIPacket.decodeValidatedCandidateEnvelope(from: DiscoveryCanonicalJSON.data(from: response.envelope))
+            return try DiscoveryAIPacket.decodeValidatedCandidateEnvelope(from: DiscoveryCanonicalJSON.data(from: response.envelope))
         } catch {
             // 2026-11-01 诊断保留（独立诊断报告问题1）：具体字段级错误不得吞掉——
             // notice 级进系统日志（配合 Coordinator 的 disp-diag.log 排查契约缝隙）
@@ -317,7 +401,6 @@ nonisolated final class DiscoveryClient {
                 .notice("disp envelope rejected: stage=candidates run=\(runID, privacy: .public) error=\(String(describing: error), privacy: .public)")
             throw DiscoveryClientError.unexpectedStageEnvelope(runID: runID)
         }
-        return (response, envelope)
     }
 
     /// 阶段二：独立核验。candidates 必须是阶段一响应 envelope.candidates 的**原样无类型值**

@@ -25,7 +25,8 @@ import Foundation
 // MARK: - 初次召回结果
 
 /// 初次召回材料包（进入候选生成前的完整支持材料）。
-struct DiscoveryMaterialPackage: Equatable, Sendable {
+/// Codable（1.1.5）：异步取件期间原样缓存到本机，App 被回收后接着做门禁与反例召回。
+struct DiscoveryMaterialPackage: Codable, Equatable, Sendable {
     /// 采用的支持块（≤ Limits.totalBlocks；末位附 1 个 computedFact atom）
     let supportAtoms: [DiscoveryFactAtom]
     /// 生成阶段材料（≤ Limits.generationBlocks；调用一输入的匿名 evidence 集）

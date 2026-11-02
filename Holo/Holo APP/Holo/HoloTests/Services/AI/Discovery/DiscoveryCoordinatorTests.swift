@@ -58,6 +58,7 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
     var totalNetworkCalls: Int {
         capabilitiesCallCount + controlCallCount + enableCallCount + disableCallCount
             + createRunCallCount + candidatesCallCount + verifyCallCount + cancelCallCount
+            + asyncStartCallCount + asyncResultCallCount
     }
 
     func capabilities() async throws -> DiscoveryClient.CapabilitiesResponse {
@@ -200,6 +201,67 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
         cancelCallCount += 1
         cancelledRunIDs.append(runID)
         return DiscoveryClient.CancelResponse(runID: runID, status: "cancelled", alreadyClosed: false)
+    }
+
+    // MARK: 1.1.5 候选异步作业
+
+    var asyncEnabled = false
+    /// 取件时先回几次 running 再给终态
+    var asyncRunningPolls = 0
+    /// 置位后作业以 failed 收尾
+    var asyncFailure: (code: String, retryAvailable: Bool)?
+    private(set) var asyncStartCallCount = 0
+    private(set) var asyncResultCallCount = 0
+    private var asyncPollsSoFar: [String: Int] = [:]
+
+    func startCandidatesAsync(
+        runID: String,
+        runToken: String,
+        requestID: String?,
+        data: DiscoveryJSONValue
+    ) async throws -> DiscoveryClient.CandidateJobPoll {
+        asyncStartCallCount += 1
+        guard asyncEnabled else { throw DiscoveryClient.DiscoveryClientError.asyncCandidatesUnsupported }
+        if asyncPollsSoFar[runID] == nil { asyncPollsSoFar[runID] = 0 }
+        return try jobPoll(runID: runID, state: .running)
+    }
+
+    func candidatesResult(runID: String, runToken: String) async throws -> DiscoveryClient.CandidateJobPoll {
+        asyncResultCallCount += 1
+        guard asyncEnabled else { throw DiscoveryClient.DiscoveryClientError.asyncCandidatesUnsupported }
+        guard let soFar = asyncPollsSoFar[runID] else {
+            throw APIError.backendError(statusCode: 404, code: "DISCOVERY_JOB_NOT_FOUND", message: "not found", requestId: nil)
+        }
+        if soFar < asyncRunningPolls {
+            asyncPollsSoFar[runID] = soFar + 1
+            return try jobPoll(runID: runID, state: .running)
+        }
+        return try jobPoll(runID: runID, state: asyncFailure == nil ? .completed : .failed)
+    }
+
+    private func jobPoll(runID: String, state: DiscoveryClient.CandidateJobStatus.JobState) throws -> DiscoveryClient.CandidateJobPoll {
+        var completed: (response: DiscoveryClient.StageResponse, envelope: DiscoveryCandidateEnvelope)?
+        if state == .completed {
+            let envelope = DiscoveryFixtures.candidateEnvelope(runID: runID, quoteOverride: nil)
+            let response = try Self.stageResponse(runID: runID, stage: "candidates", envelopeObject: [
+                "schemaVersion": 1, "kind": "candidates", "runID": runID,
+                "candidates": [DiscoveryFixtures.candidateObject(quoteOverride: nil)],
+                "noFindingReason": "none",
+            ])
+            completed = (response, envelope)
+        }
+        let status = DiscoveryClient.CandidateJobStatus(
+            runID: runID,
+            stage: "candidates",
+            jobStatus: state,
+            pollAfterSeconds: state == .running ? 3 : nil,
+            leaseExpiresAt: 1_790_086_400_000,
+            result: completed?.response,
+            error: state == .failed ? .init(code: asyncFailure?.code, reason: nil) : nil,
+            retryAvailable: state == .failed ? (asyncFailure?.retryAvailable ?? false) : false,
+            replayed: false
+        )
+        return DiscoveryClient.CandidateJobPoll(status: status, completed: completed)
     }
 
     /// StageResponse 只有 init(from:)，经 JSON 解码构造
@@ -413,7 +475,8 @@ final class DiscoveryCoordinatorTests: XCTestCase {
     }
 
     private func makeCoordinator(knowledgeRepository: CoreDataHoloMemoryRepository? = nil,
-                                 consentProvider: @escaping () -> Bool = { true }) -> DiscoveryCoordinator {
+                                 consentProvider: @escaping () -> Bool = { true },
+                                 pendingJobStore: DiscoveryPendingCandidateJobStore? = nil) -> DiscoveryCoordinator {
         let coordinator = DiscoveryCoordinator(
             settings: settings,
             store: store,
@@ -431,7 +494,9 @@ final class DiscoveryCoordinatorTests: XCTestCase {
             idProvider: { "req-\(UUID().uuidString)" },
             resourceSnapshotProvider: { self.resourceBox.value },
             sideStore: DiscoveryCoordinatorSideStore(defaults: defaults),
-            knowledgeRepositoryProvider: knowledgeRepository.map { repository in { repository } }
+            knowledgeRepositoryProvider: knowledgeRepository.map { repository in { repository } },
+            pendingJobStore: pendingJobStore,
+            pollSleeper: { _ in }
         )
         Self.pinned.append(coordinator)
         return coordinator
@@ -1014,5 +1079,156 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         XCTAssertFalse(settings.snapshot().isEnabled)
         XCTAssertEqual(mock.disableCallCount, 1)
         XCTAssertEqual(mock.createRunCallCount, 0)
+    }
+
+    // MARK: - 1.1.5 候选异步作业（服务端缓存候选 → 手机取件 → 本机找反例 → 核验）
+
+    private func tempPendingURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("discovery-pending-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("pending-candidate-job.json")
+    }
+
+    private func makePendingStore(_ url: URL) -> DiscoveryPendingCandidateJobStore {
+        let pending = DiscoveryPendingCandidateJobStore(fileURL: url)
+        Self.pinned.append(pending)
+        return pending
+    }
+
+    func test_异步_交材料即返回_前台取件后本机门禁反例核验并发布() async throws {
+        mock.asyncEnabled = true
+        mock.asyncRunningPolls = 2
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+
+        XCTAssertEqual(mock.createRunCallCount, 1)
+        XCTAssertEqual(mock.asyncStartCallCount, 1)
+        XCTAssertEqual(mock.asyncResultCallCount, 3, "running×2 → completed")
+        XCTAssertEqual(mock.candidatesCallCount, 0, "异步可用时不走同步候选端点（服务端两路不混用）")
+        XCTAssertEqual(mock.verifyCallCount, 1, "取到候选后照常本机门禁+反例召回+核验")
+        guard case .available = coordinator.presentationState else {
+            return XCTFail("发布后应为 available，实际 \(coordinator.presentationState)")
+        }
+        XCTAssertEqual(try store.runState(runID: mock.createdRunIDs[0])?.phase, .ready)
+    }
+
+    func test_异步_App被回收后重启_凭本机缓存接着取件_不重开run不另占名额() async throws {
+        let url = tempPendingURL()
+        mock.asyncEnabled = true
+        mock.asyncRunningPolls = 10_000   // 本次前台一直没等到
+        let first = makeCoordinator(pendingJobStore: makePendingStore(url))
+        await runOneBatch(first)
+        first.retryTask?.cancel()
+
+        let runID = try XCTUnwrap(mock.createdRunIDs.first)
+        XCTAssertEqual(mock.asyncStartCallCount, 1)
+        XCTAssertEqual(mock.verifyCallCount, 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), "未取到候选：取件缓存落盘")
+        XCTAssertEqual(try store.runState(runID: runID)?.phase, .preparing)
+        XCTAssertEqual(first.presentationState, .preparing, "如实显示「正在准备」")
+
+        // 进程被回收后重启：新协调器 + 新槽位实例读同一文件；服务端此时已算完
+        mock.asyncRunningPolls = 0
+        let second = makeCoordinator(pendingJobStore: makePendingStore(url))
+        XCTAssertEqual(try store.runState(runID: runID)?.phase, .preparing, "待取件的 run 不被 T41 冷启动误关")
+        second.runBatch(reason: .refresh)
+        await second.batchTask?.value
+
+        XCTAssertEqual(mock.createRunCallCount, 1, "续取不重开 run（不另占名额）")
+        XCTAssertEqual(mock.asyncStartCallCount, 1, "续取不重交材料")
+        XCTAssertEqual(mock.verifyCallCount, 1)
+        guard case .available = second.presentationState else {
+            return XCTFail("续取后应发布，实际 \(second.presentationState)")
+        }
+        XCTAssertEqual(try store.runState(runID: runID)?.phase, .ready)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path), "run 终态后取件缓存即删")
+    }
+
+    func test_异步_服务端判可重试失败_不关当日闸_下一批照常开() async throws {
+        mock.asyncEnabled = true
+        mock.asyncFailure = ("DISCOVERY_MODEL_OUTPUT_INVALID", true)
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        XCTAssertNotNil(coordinator.retryTask, "可重试失败排定稍后重试")
+        coordinator.retryTask?.cancel()
+        XCTAssertEqual(mock.verifyCallCount, 0)
+        XCTAssertEqual(try store.runState(runID: mock.createdRunIDs[0])?.phase, .backoff)
+
+        mock.asyncFailure = nil
+        await runOneBatch(coordinator, digest: "digest-2")
+        XCTAssertEqual(mock.createRunCallCount, 2, "失败不烧名额：同日下一批照常开 run")
+        XCTAssertEqual(mock.verifyCallCount, 1)
+        guard case .available = coordinator.presentationState else {
+            return XCTFail("重试后应发布，实际 \(coordinator.presentationState)")
+        }
+    }
+
+    func test_异步_服务端判不可重试_本机关当日闸() async throws {
+        mock.asyncEnabled = true
+        mock.asyncFailure = ("DISCOVERY_MODEL_OUTPUT_INVALID", false)
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        coordinator.retryTask?.cancel()
+
+        mock.asyncFailure = nil
+        await runOneBatch(coordinator, digest: "digest-2")
+        XCTAssertEqual(mock.createRunCallCount, 1, "服务端说当天次数用完：不再开 run")
+        coordinator.retryTask?.cancel()
+    }
+
+    func test_服务端不支持异步_回落同步端点全链照常() async throws {
+        let coordinator = makeCoordinator()   // 替身 asyncEnabled=false
+        await runOneBatch(coordinator)
+
+        XCTAssertEqual(mock.asyncStartCallCount, 1, "先探测异步")
+        XCTAssertEqual(mock.candidatesCallCount, 1, "不支持即回落同步")
+        XCTAssertEqual(mock.verifyCallCount, 1)
+        guard case .available = coordinator.presentationState else {
+            return XCTFail("回落同步后应发布，实际 \(coordinator.presentationState)")
+        }
+    }
+
+    func test_异步_等待取件时关闭发现_取件缓存即删() async throws {
+        let url = tempPendingURL()
+        mock.asyncEnabled = true
+        mock.asyncRunningPolls = 10_000
+        let coordinator = makeCoordinator(pendingJobStore: makePendingStore(url))
+        await runOneBatch(coordinator)
+        coordinator.retryTask?.cancel()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+
+        await coordinator.disable()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path), "取件缓存属派生数据，关闭即删")
+    }
+
+    @MainActor
+    func test_契约_候选作业三态按后端字面量解码_缓存结构不认识即丢弃() throws {
+        // 字面量逐字抄 HoloBackend/src/discovery/discoveryController.js jobStatusResponse
+        let running = #"{"runID":"r1","stage":"candidates","jobStatus":"running","pollAfterSeconds":3,"leaseExpiresAt":1790086400000,"result":null,"error":null,"retryAvailable":false,"replayed":false}"#
+        let failed = #"{"runID":"r1","stage":"candidates","jobStatus":"failed","pollAfterSeconds":null,"leaseExpiresAt":1790086400000,"result":null,"error":{"code":"DISCOVERY_MODEL_OUTPUT_INVALID","reason":"time_range_value"},"retryAvailable":true,"replayed":false}"#
+        let completed = #"{"runID":"r1","stage":"candidates","jobStatus":"completed","pollAfterSeconds":null,"leaseExpiresAt":1790086400000,"result":{"runID":"r1","stage":"candidates","envelope":{"schemaVersion":1,"kind":"candidates","runID":"r1","candidates":[],"noFindingReason":"no_material"},"promptType":"discovery_candidate_v1","promptVersion":1,"replayed":false,"candidatesHash":"abc"},"error":null,"retryAvailable":false,"replayed":true}"#
+        let decoder = JSONDecoder()
+        let r = try decoder.decode(DiscoveryClient.CandidateJobStatus.self, from: Data(running.utf8))
+        XCTAssertEqual(r.jobStatus, .running)
+        XCTAssertEqual(r.pollAfterSeconds, 3)
+        XCTAssertNil(r.result)
+        let f = try decoder.decode(DiscoveryClient.CandidateJobStatus.self, from: Data(failed.utf8))
+        XCTAssertEqual(f.jobStatus, .failed)
+        XCTAssertEqual(f.error?.code, "DISCOVERY_MODEL_OUTPUT_INVALID")
+        XCTAssertEqual(f.error?.reason, "time_range_value")
+        XCTAssertTrue(f.retryAvailable)
+        let c = try decoder.decode(DiscoveryClient.CandidateJobStatus.self, from: Data(completed.utf8))
+        XCTAssertEqual(c.jobStatus, .completed)
+        XCTAssertEqual(c.result?.runID, "r1")
+        XCTAssertEqual(c.result?.candidatesHash, "abc")
+        XCTAssertEqual(c.leaseExpiresAt, 1_790_086_400_000)
+
+        // 本机缓存结构不认识（版本升级/损坏）：丢弃，不阻塞后续批次
+        let url = tempPendingURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(#"{"schemaVersion":99}"#.utf8).write(to: url)
+        let pending = makePendingStore(url)
+        XCTAssertNil(pending.load())
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
     }
 }
