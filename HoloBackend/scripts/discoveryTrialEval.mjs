@@ -568,7 +568,10 @@ async function runCandidatesAsync(app, runID, deviceID, runToken, data, result) 
   if (started.status !== 200) return started;
   let status = started.json;
   while (status.jobStatus === "running") {
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // 与 iOS 客户端同口径：按服务端 pollAfterSeconds（夹在 1–15s）轮询。
+    // 固定 500ms 在 qwen（候选 ~40s）下单作业即超 discovery_poll 30 次/分钟（r19 实测 RATE_LIMITED minute_limit）。
+    const waitSeconds = Math.min(Math.max(Number(status.pollAfterSeconds ?? 3), 1), 15);
+    await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
     const polled = await post(app, `/v1/discovery/runs/${runID}/candidates/result`, deviceID, { runToken });
     timing.polls += 1;
     if (polled.status !== 200) return polled;

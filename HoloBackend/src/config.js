@@ -560,11 +560,12 @@ const DEFAULT_CONFIG = {
     // HoloAI「一个发现」两阶段（2026-10-23 实施包 §4 预算初值 生成 ≤3072、核验 ≤2048；1.1.5 S7 起生成 ≤8192 含思考草稿）；
     // 输入 16k 总上限由 backgroundCostGuard.maxInputBytes + 端点 96KiB body 闸共同兜底。
     // 专用控制器调用，通用 chat 端点显式拒绝这两个 purpose（防旁路，见 app.js）。
-    // 1.1.5 S2：provider/model 经 discoveryRouteTarget 选取——默认钉 deepseek-chat，不回落聊天模型。
+    // 1.1.5 S8：provider/model 经 discoveryRouteTarget 选取——显式 env 优先，否则跟随聊天通道（同 HoloAI 其他功能）。
     discovery_candidate_v1: {
       ...discoveryRouteTarget(process.env, "CANDIDATE"),
       temperature: Number(process.env.HOLO_DISCOVERY_CANDIDATE_TEMPERATURE ?? 0.3),
-      // 1.1.5 S7：3072 → 8192。deepseek-chat 在 reasoning_effort=low 下草稿与正文共用 max_tokens：
+      // 1.1.5 S7：3072 → 8192。deepseek-chat 在 reasoning_effort=low 下草稿与正文共用 max_tokens
+      //（qwen3.7-flash 经 DashScope 时 max_tokens 只限正文，生产实测 completion 达 8182 而上限 3072）：
       // 2026-11-02 真机 20:32 成功 2817（草稿 1913），21:08 顶到 3072 截断（TRUNCATED_MODEL_RESPONSE）；
       // r17 试评亦有一次恰好 3072。正文本身 p50≈750，8192 给草稿留足余量；异步取件下多出的耗时用户无感。
       maxTokens: Number(process.env.HOLO_DISCOVERY_CANDIDATE_MAX_TOKENS ?? 8192),
@@ -800,26 +801,22 @@ export function insightMaxTokensFor(periodType, baseMaxTokens) {
 }
 
 /**
- * 「一个发现」阶段路由的 provider/model 选择（1.1.5 S2，2026-11-02）。
- * 显式 HOLO_DISCOVERY_<STAGE>_PROVIDER/MODEL 优先；否则有 DeepSeek 钥匙即钉 deepseek-chat；
- * 都没有（开发/测试）才回落聊天路由。不再默认回落聊天模型的原因：生产聊天是开思考的
- * qwen3.7-flash，候选阶段每次 60–71s，超过客户端 60s 超时（真机日志 + 生产 ai_call_logs）。
- * deepseek-chat 同 18 场景试评候选中位 3.4–4.1s、最长 17.1s，核验整体结论 18/18（试评 r15–r17）。
+ * 「一个发现」阶段路由的 provider/model 选择（1.1.5 S8，2026-11-02 东林拍板）。
+ * 与 HoloAI 其他功能同口径：显式 HOLO_DISCOVERY_<STAGE>_PROVIDER/MODEL 优先，否则跟随聊天通道
+ * （生产 HOLO_CHAT_PROVIDER/MODEL = qwen/qwen3.7-flash）。
+ * 撤销 S2「有 DeepSeek 钥匙即钉 deepseek-chat」：S2 是同步链路下的止血（qwen 候选 60–71s 超客户端
+ * 60s 超时）；S3/S4 异步取件后客户端轮询 ≈4 分钟/会话、作业上限 5 分钟，慢模型不再阻断。
+ * 显式 env 保留为回滚通道（例：HOLO_DISCOVERY_CANDIDATE_PROVIDER=deepseek + _MODEL=deepseek-chat）。
  * 函数声明会提升，DEFAULT_CONFIG 在模块顶部即可调用。
  * @param {Record<string, string|undefined>} env
  * @param {"CANDIDATE"|"VERIFY"} stage
  * @returns {{ provider: string, model: string }}
  */
 export function discoveryRouteTarget(env, stage) {
-  const explicitProvider = env[`HOLO_DISCOVERY_${stage}_PROVIDER`];
-  const explicitModel = env[`HOLO_DISCOVERY_${stage}_MODEL`];
-  if (explicitProvider) {
-    return { provider: explicitProvider, model: explicitModel ?? env.HOLO_CHAT_MODEL ?? "holo-mock" };
-  }
-  if (env.DEEPSEEK_API_KEY) {
-    return { provider: "deepseek", model: explicitModel ?? "deepseek-chat" };
-  }
-  return { provider: env.HOLO_CHAT_PROVIDER ?? "mock", model: explicitModel ?? env.HOLO_CHAT_MODEL ?? "holo-mock" };
+  return {
+    provider: env[`HOLO_DISCOVERY_${stage}_PROVIDER`] ?? env.HOLO_CHAT_PROVIDER ?? "mock",
+    model: env[`HOLO_DISCOVERY_${stage}_MODEL`] ?? env.HOLO_CHAT_MODEL ?? "holo-mock",
+  };
 }
 
 export function loadConfig(overrides = {}) {
