@@ -90,6 +90,14 @@ extension CoreDataStack {
         habitUnit.attributeType = .stringAttributeType
         habitUnit.isOptional = true
         habitAttributes.append(habitUnit)
+
+        // 习惯描述：用户自写的一句话（为什么坚持、怎么做；可含 Emoji）。可选，空即不展示。
+        // 给已有实体加字段：已在 CoreDataStoreUpgrade.propertyHistory 登记「1.1.6（习惯描述）」（2026-11-02）
+        let habitDescription = NSAttributeDescription()
+        habitDescription.name = "habitDescription"
+        habitDescription.attributeType = .stringAttributeType
+        habitDescription.isOptional = true
+        habitAttributes.append(habitDescription)
         
         // 聚合类型：0=SUM(计数类，如抽烟次数), 1=LATEST(测量类，如体重)
         let habitAggregationType = NSAttributeDescription()

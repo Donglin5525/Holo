@@ -25,6 +25,8 @@ public class Habit: NSManagedObject {
     @NSManaged public var targetCount: NSNumber?
     @NSManaged public var targetValue: NSNumber?
     @NSManaged public var unit: String?
+    /// 习惯描述（用户自写一句话，可含 Emoji；nil = 没写）。写入一律经 normalizedDescription
+    @NSManaged public var habitDescription: String?
     @NSManaged public var aggregationType: Int16
     @NSManaged public var isBadHabit: Bool
     @NSManaged public var isArchived: Bool
@@ -232,6 +234,21 @@ public class Habit: NSManagedObject {
 // MARK: - Identifiable
 
 extension Habit: Identifiable {}
+
+// MARK: - 习惯描述
+
+extension Habit {
+    /// 描述字数上限（按用户看到的字计，一个 Emoji 算 1 个）
+    nonisolated static let descriptionLimit = 50
+
+    /// 描述入库唯一口径（新建/编辑共用）：去首尾空白，空串即 nil，超出上限截断
+    nonisolated static func normalizedDescription(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return String(trimmed.prefix(descriptionLimit))
+    }
+}
 
 // MARK: - 暂停窗口
 

@@ -95,6 +95,7 @@ extension HabitRepository {
         let oTargetCount = habit.targetCount
         let oTargetValue = habit.targetValue
         let oUnit = habit.unit
+        let oDescription = habit.habitDescription
         let oIsBad = habit.isBadHabit
         let oReminderMode = habit.habitReminderMode
         let oReminderTime = habit.reminderTime
@@ -111,6 +112,7 @@ extension HabitRepository {
             habit.targetCount = oTargetCount
             habit.targetValue = oTargetValue
             habit.unit = oUnit
+            habit.habitDescription = oDescription
             habit.isBadHabit = oIsBad
             habit.habitReminderMode = oReminderMode
             habit.reminderTime = oReminderTime
@@ -150,6 +152,11 @@ extension HabitRepository {
         case .keep: break
         case .set(let value): habit.unit = value
         case .clear: habit.unit = nil
+        }
+        switch payload.habitDescription {
+        case .keep: break
+        case .set(let value): habit.habitDescription = Habit.normalizedDescription(value)
+        case .clear: habit.habitDescription = nil
         }
         switch payload.goalId {
         case .keep: break

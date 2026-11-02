@@ -59,6 +59,9 @@ nonisolated enum CoreDataStoreUpgrade {
             "Thought": ["appearanceRaw"],
             "ThoughtTag": ["excludeFromAI"],
             "GoalPlanRevisionMO": ["planPayloadJSON", "baseRevisionID", "operationID", "effectiveFrom"]
+        ]),
+        PropertyBatch(release: "1.1.6（习惯描述）", additions: [
+            "Habit": ["habitDescription"]
         ])
     ]
 

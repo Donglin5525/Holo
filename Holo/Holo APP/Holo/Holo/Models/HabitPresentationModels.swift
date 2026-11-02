@@ -120,6 +120,8 @@ struct HabitTrailDay: Equatable, Identifiable {
 struct HabitRowSnapshot: Identifiable, Equatable {
     let id: UUID
     let name: String
+    /// 习惯描述（已清洗；nil = 没写，界面不占位）
+    let habitDescription: String?
     let icon: String
     let isCustomIcon: Bool
     let colorHex: String
@@ -250,6 +252,8 @@ struct HabitEditPayload {
     var targetCount: HabitFieldUpdate<Int> = .keep
     var targetValue: HabitFieldUpdate<Double> = .keep
     var unit: HabitFieldUpdate<String> = .keep
+    /// 习惯描述三态（keep = 没碰；set = 改成新文案；clear = 删掉描述）
+    var habitDescription: HabitFieldUpdate<String> = .keep
     var isBadHabit: Bool
     var reminderMode: HabitReminderMode
     var reminderTime: (hour: Int, minute: Int)

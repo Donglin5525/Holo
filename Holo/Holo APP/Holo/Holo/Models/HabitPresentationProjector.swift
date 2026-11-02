@@ -288,6 +288,7 @@ enum HabitPresentationProjector {
         return HabitRowSnapshot(
             id: habit.id,
             name: habit.name,
+            habitDescription: habit.habitDescription,
             icon: habit.icon,
             isCustomIcon: habit.isCustomIcon,
             colorHex: habit.color,

@@ -247,6 +247,54 @@ final class HabitActionCoordinatorTests: XCTestCase {
         XCTAssertEqual(habitReloaded.unit, "杯", ".keep 不修改")
     }
 
+    // MARK: - 习惯描述（2026-11-02）
+
+    func test_习惯描述_设置清洗保留与清除() async throws {
+        let (repo, repoRef, context) = try makeStack()
+        _ = repo
+        let habit = try makeHabit(in: context, type: .checkIn)
+        try context.save()
+        func stored() throws -> String? { try XCTUnwrap(repoRef.findHabit(by: habit.id)).habitDescription }
+
+        var payload = HabitEditPayload(name: "晨跑", icon: "figure.run", color: "#F46D38", type: .checkIn)
+        payload.habitDescription = .set("  🏃 为了年底的半马，每天 3 公里 \n")
+        try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
+        XCTAssertEqual(try stored(), "🏃 为了年底的半马，每天 3 公里", "设置时去首尾空白，Emoji 原样保留")
+
+        payload.habitDescription = .keep
+        try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
+        XCTAssertEqual(try stored(), "🏃 为了年底的半马，每天 3 公里", ".keep 不修改")
+
+        payload.habitDescription = .set(" \n ")
+        try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
+        XCTAssertNil(try stored(), "只有空白等于没写")
+
+        payload.habitDescription = .set("睡前读几页")
+        try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
+        payload.habitDescription = .clear
+        try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
+        XCTAssertNil(try stored(), ".clear 真移除")
+    }
+
+    func test_习惯描述_按用户看到的字截断且组合Emoji算一个() {
+        let longEmoji = String(repeating: "🏃‍♂️", count: Habit.descriptionLimit + 3)
+        XCTAssertEqual(Habit.normalizedDescription(longEmoji)?.count, Habit.descriptionLimit, "组合 Emoji 按一个字计")
+        XCTAssertNil(Habit.normalizedDescription(nil))
+        XCTAssertNil(Habit.normalizedDescription("\n \t"))
+    }
+
+    func test_习惯描述_新建入库并进入列表快照() async throws {
+        let (_, repoRef, _) = try makeStack()
+        let habit = try repoRef.createHabit(name: "阅读", icon: "book.fill", color: "#81708D", type: .checkIn,
+                                            habitDescription: " 📚 睡前读 30 分钟 ")
+        XCTAssertEqual(habit.habitDescription, "📚 睡前读 30 分钟")
+        let snapshot = HabitPresentationProjector.rowSnapshot(
+            habit: habit, lifecycle: .active,
+            data: HabitPresentationProjector.buildData(records: [], pauseWindowsByHabit: [:],
+                                                       dayEndMinutesByHabit: [:], now: Date()))
+        XCTAssertEqual(snapshot.habitDescription, "📚 睡前读 30 分钟")
+    }
+
     func test_空名字拒绝保存() async throws {
         let (_, repoRef, context) = try makeStack()
         let habit = try makeHabit(in: context, type: .checkIn)

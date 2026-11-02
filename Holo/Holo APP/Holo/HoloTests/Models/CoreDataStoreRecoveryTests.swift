@@ -353,7 +353,7 @@ final class CoreDataSchemaHistoryTests: XCTestCase {
         XCTAssertEqual(verdict(["A": a, "B": b, "C": c, "D": Data([4])]), .rejected, "库比模型多出实体 = 降级，必须拒开")
     }
 
-    // MARK: 当前模型快照（1.1.4，65 实体；取自 1.1.4 构建写下的真实库）
+    // MARK: 当前模型快照（1.1.6，65 实体；Habit 含习惯描述，其余取自 1.1.4 构建写下的真实库）
     static let currentEntityHashes: [String: String] = [
         "Account": "ovMHcXG4YxhTNgKPpW8eLMO0cUcZWllBCcle/nWSGkI=",
         "Anniversary": "CsOU1vM24WP4iciccGy3T9+iiqEqRk1dwgfd7Vy8Ecc=",
@@ -369,7 +369,7 @@ final class CoreDataSchemaHistoryTests: XCTestCase {
         "GoalPlanRevisionMO": "rYag1nJkfPRtCQdkWPfbDtajnruma0TiuvBlFsQJjgA=",
         "GoalReviewLinkMO": "8JNdN7j7LY7HZwBNWrtHYPWz6XgTLcH3dPT89zu3nDg=",
         "GoalWorkshopSessionMO": "pYgJBbdBRy5RhlWZwEPEkaeYGo5++H8pcGe5LKcyS5I=",
-        "Habit": "3MlFS2KW4u3JuzCrbYywWg/yVWOEFWXTPjG7wQ6VmUM=",
+        "Habit": "sTtC95zHqoXzSl1iZ7zs0zptX1g9lPosT1QX27K1q1E=",
         "HabitDailyConfirmationMO": "MP5sdx6f3gV3uMUjVjvozfxmwylPv6mF4ssI67GumwE=",
         "HabitRecord": "HA+8OUQuXUOmCDv+lmEYppXSd/usihlFqMYScKp3ANM=",
         "HoloMatter": "QnFKzi5qiMscz4Qi2LiuWRs/UTzbyZhOoI7GJ4RXmow=",
@@ -424,6 +424,9 @@ final class CoreDataSchemaHistoryTests: XCTestCase {
 
     // MARK: 历史形态锚点（真实旧库中与当前不同的实体指纹）
     static let legacyAnchors: [(release: String, note: String, hashes: [String: String])] = [
+        ("1.1.6（习惯描述）", "11-02 库 · 1.1.3/1.1.4 正式版形态", [
+            "Habit": "3MlFS2KW4u3JuzCrbYywWg/yVWOEFWXTPjG7wQ6VmUM=",
+        ]),
         ("1.1.3", "10-18 库 · 1.1.1/1.1.2 正式版形态", [
             "GoalPlanRevisionMO": "Ad638sYoGieQGV4k4OUB3oWPvCzJPZ3124nvzI8PV48=",
             "Habit": "QBk9RTR8QrKuNK3b34zJCHgCdEimdJ4KY/b7unhrdO0=",
