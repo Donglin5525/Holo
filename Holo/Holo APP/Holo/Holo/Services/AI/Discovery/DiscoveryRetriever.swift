@@ -419,16 +419,17 @@ struct DiscoveryRetriever {
             guard let refs = refsByKind[adapter.sourceKind], !refs.isEmpty else { continue }
             let snapshots = try adapter.fetchSnapshots(
                 localIDs: refs.map(\.localID),
-                limit: max(Limits.channelFetchLimit, refs.count)
+                limit: max(Limits.channelFetchLimit, DiscoverySnapshotRevisionIndex.refetchLimit(idCount: refs.count))
             )
-            let byCanonical = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.sourceRefCanonical, $0) })
+            // 同 id 副本会取回多条同 canonical 快照（见 DiscoverySnapshotRevisionIndex）
+            let revisionsByCanonical = DiscoverySnapshotRevisionIndex.revisionsByCanonical(snapshots)
             for ref in refs {
                 guard let atom = atomByCanonical[ref.canonical] else { continue }
-                guard let current = byCanonical[ref.canonical] else {
+                guard let currentRevisions = revisionsByCanonical[ref.canonical] else {
                     stale.append(DiscoveryStaleEvidence(evidenceID: atom.evidenceID, sourceRef: ref.canonical, reason: .sourceMissing))
                     continue
                 }
-                if current.sourceRevision != atom.sourceRevision {
+                if !currentRevisions.contains(atom.sourceRevision) {
                     stale.append(DiscoveryStaleEvidence(evidenceID: atom.evidenceID, sourceRef: ref.canonical, reason: .revisionChanged))
                 }
             }

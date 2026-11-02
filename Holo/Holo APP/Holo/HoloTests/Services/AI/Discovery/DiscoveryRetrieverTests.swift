@@ -419,6 +419,65 @@ final class DiscoveryRetrieverTests: XCTestCase {
         XCTAssertEqual(missing.first?.reason, .sourceMissing)
     }
 
+    // MARK: - 同 id 副本（2026-11-02 真机崩溃回归）
+    //
+    // 真机库（CloudKit 镜像，Core Data 无唯一约束）存在同 id 的 Thought 副本：
+    // 225 行 / 117 个 id。回源按 `id IN %@` 取回两条同 canonical 快照，
+    // 旧实现 Dictionary(uniqueKeysWithValues:) 直接 trap（Holo-2026-11-02-203215.ips，
+    // DiscoveryRetriever.revalidate → _NativeDictionary.merge → _assertionFailure）。
+
+    func test_revalidate_同id副本_版本一致_不崩溃且不失效() throws {
+        let adapter = SyntheticThoughtAdapter()
+        let original = thoughtSnapshot(id: "t1", text: "原文内容：先走了十分钟。", daysAgo: 5)
+        adapter.snapshots = [original, original]
+        let atoms = supportAtoms(from: [original])
+        let retriever = makeRetriever(adapter)
+
+        XCTAssertTrue(try retriever.revalidate(atoms: atoms, environment: environment, now: fixedNow).isEmpty,
+                      "副本与原件版本一致 → 来源仍有效")
+    }
+
+    func test_revalidate_同id副本_任一副本版本一致即有效() throws {
+        let adapter = SyntheticThoughtAdapter()
+        let original = thoughtSnapshot(id: "t1", text: "原文内容：先走了十分钟。", daysAgo: 5)
+        let edited = thoughtSnapshot(id: "t1", text: "改后的内容：跑了五公里。", daysAgo: 5)
+        adapter.snapshots = [edited, original]
+        let atoms = supportAtoms(from: [original])
+        let retriever = makeRetriever(adapter)
+
+        XCTAssertTrue(try retriever.revalidate(atoms: atoms, environment: environment, now: fixedNow).isEmpty,
+                      "AI 看到的那一版仍在 → 不失效")
+    }
+
+    func test_revalidate_同id副本_全部变化_只报一次版本变化() throws {
+        let adapter = SyntheticThoughtAdapter()
+        let original = thoughtSnapshot(id: "t1", text: "原文内容：先走了十分钟。", daysAgo: 5)
+        adapter.snapshots = [
+            thoughtSnapshot(id: "t1", text: "改后的内容：跑了五公里。", daysAgo: 5),
+            thoughtSnapshot(id: "t1", text: "再改一版：游了一千米。", daysAgo: 5),
+        ]
+        let atoms = supportAtoms(from: [original])
+        let retriever = makeRetriever(adapter)
+
+        let stale = try retriever.revalidate(atoms: atoms, environment: environment, now: fixedNow)
+        XCTAssertEqual(stale.count, 1, "同一来源只报一次")
+        XCTAssertEqual(stale.first?.reason, .revisionChanged)
+        XCTAssertEqual(stale.first?.sourceRef, "thought:t1")
+    }
+
+    func test_版本聚合_同canonical多版本全部保留() {
+        let a = thoughtSnapshot(id: "t1", text: "版本甲", daysAgo: 5)
+        let b = thoughtSnapshot(id: "t1", text: "版本乙", daysAgo: 5)
+        let c = thoughtSnapshot(id: "t2", text: "另一条", daysAgo: 3)
+        let index = DiscoverySnapshotRevisionIndex.revisionsByCanonical([a, b, a, c])
+        XCTAssertEqual(index.count, 2)
+        XCTAssertEqual(index["thought:t1"], [a.sourceRevision, b.sourceRevision])
+        XCTAssertEqual(index["thought:t2"], [c.sourceRevision])
+        // 回源 limit 须给副本留余量（真机约 2 份/id），否则副本把其他 id 挤出结果
+        XCTAssertGreaterThanOrEqual(DiscoverySnapshotRevisionIndex.refetchLimit(idCount: 25), 25 * 3)
+        XCTAssertGreaterThanOrEqual(DiscoverySnapshotRevisionIndex.refetchLimit(idCount: 0), 1)
+    }
+
     // MARK: - accessRevision
 
     func test_accessRevision_随范围与代数变化() {
