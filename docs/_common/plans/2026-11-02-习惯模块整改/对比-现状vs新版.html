@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>习惯模块整改 · 现状 vs 新版（对比版 v2）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "PingFang SC", sans-serif; background: #2A2A2C; padding: 24px; color: #333; }
+  h1 { color: #fff; font-size: 18px; }
+  .hint { color: #9B9B9B; font-size: 12.5px; margin: 6px 0 20px; line-height: 1.6; }
+  h2 { color: #FFB38A; font-size: 15px; margin: 30px 0 4px; }
+  .scene-hint { color: #9B9B9B; font-size: 12px; margin-bottom: 10px; }
+  .pair { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .side { width: 390px; flex-shrink: 0; }
+  .side-label { display: inline-block; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 10px; margin-bottom: 8px; }
+  .side-label.now { background: #4A3A36; color: #F0A9A0; }
+  .side-label.new { background: #2F4436; color: #8FD6AC; }
+  .frame { border: 2px solid #555; border-radius: 26px; overflow: hidden; background: #FDFCF8; }
+  .frame img { width: 100%; display: block; }
+  .frame .screen { background: #FDFCF8; }
+  .changes { background: #262628; border-radius: 14px; padding: 14px 16px; margin-top: 12px; color: #CFCFCF; font-size: 12.5px; line-height: 1.65; width: 390px; }
+  .changes b { color: #FFB38A; }
+  .changes .n { display: inline-block; min-width: 17px; color: #8FD6AC; font-weight: 700; }
+
+  /* ===== 新版通用元件 ===== */
+  .phone { border-radius: 24px; overflow: hidden; background: #FDFCF8; }
+  .phone .inner { height: 770px; overflow: hidden; position: relative; }
+  .notch { height: 42px; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; font-size: 13px; font-weight: 600; color: #333; }
+  .t-secondary { color: #6E6E6E; }
+  .iconbox { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+  .chiprow { display: flex; gap: 8px; align-items: center; padding: 6px 20px 0; }
+  .chip { font-size: 13px; color: #6E6E6E; background: #F0EAE2; border-radius: 16px; padding: 0 14px; height: 44px; display: flex; align-items: center; white-space: nowrap; }
+  .chip.sel { background: #FFFFFF; box-shadow: 0 1px 4px rgba(0,0,0,.12); color: #333; font-weight: 600; }
+  .chip.more { width: 44px; justify-content: center; padding: 0; font-size: 16px; letter-spacing: 1px; }
+  .chiprow { gap: 0; }
+  .chiprow .chip:not(.more) { flex: 1; justify-content: center; padding: 0 4px; border-radius: 0; background: #EEE9E2; }
+  .chiprow .chip:first-child { border-radius: 12px 0 0 12px; }
+  .chiprow .chip:nth-last-child(2) { border-radius: 0 12px 12px 0; }
+  .chiprow .chip.sel { background: #fff; border-radius: 12px; box-shadow: inset 0 0 0 3px #EEE9E2, 0 1px 3px rgba(0,0,0,.10); }
+  .chiprow .chip.more { margin-left: 8px; background: #fff; border: 1px solid #E9E4DA; border-radius: 12px; }
+  .desc1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stepper { display: flex; align-items: center; gap: 10px; margin-left: auto; white-space: nowrap; font-size: 15px; }
+  .stepper .m { width: 32px; height: 32px; border-radius: 16px; border: 1px solid #E0D9CE; display: flex; align-items: center; justify-content: center; color: #6E6E6E; }
+  .stepper .p { width: 32px; height: 32px; border-radius: 16px; background: #81708D; color: #fff; display: flex; align-items: center; justify-content: center; }
+  .range-line { padding: 8px 24px 0; font-size: 13px; color: #6E6E6E; }
+  .card { margin: 14px 20px 0; background: #fff; border: 0.5px solid #E9E4DA; border-radius: 16px; padding: 14px 16px; }
+  .compare-title { font-size: 13px; color: #6E6E6E; line-height: 1.5; }
+  .compare-main { display: flex; align-items: baseline; gap: 10px; margin-top: 5px; flex-wrap: wrap; }
+  .compare-main .num { font-size: 21px; font-weight: 600; }
+  .compare-main .unit { font-size: 13px; }
+  .delta { font-size: 13px; background: rgba(91,201,138,.14); color: #3F9E6E; border-radius: 9px; padding: 2px 9px; font-weight: 600; }
+  .subline { font-size: 13px; color: #6E6E6E; margin-top: 4px; }
+  .chart-title { display: flex; align-items: baseline; justify-content: space-between; padding: 20px 20px 0; }
+  .chart-title .t { font-size: 15px; font-weight: 600; }
+  .chart-title .r { font-size: 13px; color: #6E6E6E; }
+  .readout { display: flex; gap: 10px; align-items: baseline; padding: 10px 20px 4px; }
+  .readout .when { font-size: 15px; font-weight: 600; }
+  .readout .what { font-size: 13px; color: #6E6E6E; }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 148px; margin: 6px 20px 0; border-bottom: 1px solid #E4DFD5; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+  .bar { width: 100%; max-width: 20px; border-radius: 5px 5px 2px 2px; background: #F46D38; }
+  .bar.sel { outline: 2px solid #E2842F; outline-offset: 1px; }
+  .axis { display: flex; margin: 6px 20px 0; }
+  .axis span { flex: 1; text-align: center; font-size: 12px; color: #6E6E6E; }
+  .axis-note { margin: 6px 20px 0; font-size: 12px; color: #9B9B9B; }
+  .linechart { position: relative; height: 165px; margin: 8px 20px 0; border-bottom: 1px solid #E4DFD5; }
+  .linechart svg { width: 100%; height: 100%; }
+  .dot { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: #4EA772; border: 2px solid #fff; transform: translate(-50%,-50%); }
+  .dot.sel { box-shadow: 0 0 0 4px rgba(78,167,114,.25); }
+  .grid { position: absolute; left: 0; right: 0; border-top: 1px dashed #EAE5DB; }
+
+  /* 今天页大卡/普通行 */
+  .hero { border: 1px solid rgba(244,109,56,.25); background: linear-gradient(135deg, rgba(244,109,56,.10), rgba(244,109,56,.045)); border-radius: 18px; padding: 14px; display: flex; align-items: center; margin-top: 14px; }
+  .hero .big { font-size: 27px; font-weight: 800; color: #F46D38; }
+  .hero .btn { font-size: 15px; font-weight: 600; color: #F46D38; background: rgba(244,109,56,.14); border-radius: 16px; padding: 0 20px; height: 44px; line-height: 44px; margin-left: auto; }
+  .rowitem { border: 0.5px solid #E9E4DA; border-radius: 14px; background: #fff; padding: 12px 14px; display: flex; align-items: center; margin-top: 10px; }
+  .rowitem .sm { width: 36px; height: 36px; font-size: 16px; }
+  .rowitem .val { font-size: 13px; color: #F46D38; margin-left: auto; }
+
+  /* 弹层 */
+  .sheet-wrap { background: #FDFCF8; border-radius: 24px 24px 0 0; padding: 8px 20px 0; position: absolute; left: 0; right: 0; bottom: 0; height: 470px; }
+  .grabber { width: 40px; height: 5px; border-radius: 3px; background: #D9D3C8; margin: 0 auto 12px; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; }
+  .xbtn { width: 32px; height: 32px; border-radius: 16px; background: #F0EAE2; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #6E6E6E; }
+  .sheet-title { font-size: 17px; font-weight: 600; }
+  .sheet-sub { font-size: 13px; color: #6E6E6E; margin-top: 10px; }
+  .quick { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-top: 16px; }
+  .quick .chip { justify-content: center; padding: 0; }
+  .quick .chip.on { background: #F46D38; color: #fff; font-weight: 600; }
+  .custom-label { font-size: 13px; font-weight: 600; margin: 20px 0 6px; }
+  .dateboxes { display: flex; align-items: center; gap: 8px; }
+  .datebox { flex: 1; border: 1px solid #E9E4DA; border-radius: 12px; padding: 10px 12px; background: #fff; }
+  .datebox .k { font-size: 12px; color: #9B9B9B; }
+  .datebox .v { font-size: 15px; font-weight: 500; margin-top: 2px; color: #B9B2A6; }
+  .datebox .v.filled { color: #333; }
+  .arrow { color: #9B9B9B; font-size: 14px; }
+  .daycount { font-size: 12px; color: #9B9B9B; margin-top: 6px; }
+  .cta { position: absolute; left: 20px; right: 20px; bottom: 24px; font-size: 15px; font-weight: 600; color: #fff; background: #EA580C; border-radius: 14px; height: 48px; line-height: 48px; text-align: center; }
+  .cta.disabled { background: #F0EAE2; color: #9B9B9B; }
+  .sheet-title-ghost { font-size: 17px; font-weight: 600; text-align: left; }
+
+  /* 表单 */
+  .input { background: #F7F1EA; border-radius: 12px; padding: 10px 14px; font-size: 16px; }
+  .input.multiline { min-height: 62px; font-size: 15px; line-height: 1.5; }
+  .input .ph { color: #B9B2A6; }
+  .count { text-align: right; font-size: 12px; color: #9B9B9B; margin-top: 4px; }
+  .preview { margin-top: 16px; border: 0.5px solid #E9E4DA; border-radius: 16px; background: #fff; padding: 14px; }
+  .preview .cap { font-size: 12px; color: #9B9B9B; margin-bottom: 8px; }
+  .preview .big { font-size: 24px; font-weight: 800; color: #F46D38; }
+</style>
+</head>
+<body>
+
+<h1>习惯模块整改 · 现状 vs 新版</h1>
+<div class="hint">每一节左边是<b>现状真实截图</b>（走查模拟器实测，同一份数据：晨跑 6/25 创建、86 次打卡，今天 11/2 周一），右边是<b>改后的样子</b>。改后原型里的所有数字都和左边截图同源，可直接对账。带 <span style="color:#8FD6AC">①②③</span> 的是改动点，逐条写在右侧下方。手机屏等比缩小 5%，浏览器缩放即可看全。</div>
+
+<!-- ================================================================ -->
+<h2>一 · 打卡型回顾「本月」——你点名的「时间轴看不懂」</h2>
+<div class="scene-hint">晨跑，11 月才过 2 天，11/1 打了卡、11/2（今天）还没打。</div>
+<div class="pair">
+  <div class="side">
+    <span class="side-label now">现状</span>
+    <div class="frame"><img src="现状截图/L15-single-run-month-top.jpg"></div>
+  </div>
+  <div class="side">
+    <span class="side-label new">新版（周图方案 A）</span>
+    <div class="frame phone"><div class="inner">
+      <div class="notch"><span>9:41</span><span>●●●●</span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:12px 20px 0;">
+        <div class="iconbox" style="background:rgba(244,109,56,.12); color:#F46D38;">🏃</div>
+        <div>
+          <div style="font-size:20px; font-weight:600;">晨跑</div>
+          <div style="font-size:13px;" class="t-secondary">🏃 为了年底的半马，每天 3 公里</div>
+        </div>
+      </div>
+      <div class="chiprow">
+        <div class="chip sel">本月</div><div class="chip">近30天</div><div class="chip">近90天</div><div class="chip">全部</div><div class="chip more">···</div>
+      </div>
+      <div class="range-line">11月1日–11月2日 · 已过 2 天</div>
+      <div class="card">
+        <div class="compare-title">已过 2 天</div>
+        <div class="compare-main"><span class="num">1</span><span class="unit">天</span>
+          <span class="subline" style="margin-top:0;">上月同期 10/1–10/2 · 记录 2 天</span></div>
+      </div>
+      <div class="card" style="display:flex; align-items:center; gap:12px; background:#FFF8F2; border-color:#F3D9C4;">
+        <div style="font-size:13px; line-height:1.55; color:#6E6E6E;">本月还没有完整的周<br><b style="color:#333; font-size:13.5px;">先看记录日历，11/9（下周一）这里出现第一根周柱</b></div>
+      </div>
+      <div class="chart-title"><span class="t">记录日历 · 11月</span><span class="r">11/9 起出周柱</span></div>
+      <div style="margin:8px 20px 0; border:0.5px solid #E9E4DA; border-radius:12px; padding:10px;">
+        <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:6px; font-size:12px; color:#6E6E6E; padding-bottom:6px; text-align:center;">
+          <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:6px;">
+          <div></div><div></div><div></div><div></div><div></div><div></div>
+          <div style="aspect-ratio:1; border-radius:8px; background:#F46D38;"></div>
+          <div style="aspect-ratio:1; border-radius:8px; border:1.5px dashed #D8CDBE;"></div>
+          <div></div><div></div><div></div><div></div><div></div><div></div>
+        </div>
+      </div>
+      <div style="height:20px"></div>
+    </div></div>
+    <div class="changes">
+      <span class="n">①</span> <b>时间轴跟着范围走</b>：范围行直接写「11月1日–11月2日」，摘要、图、明细共用这一套起止——现状是选了「本月」图上却出现上周的 10/26。<br>
+      <span class="n">②</span> <b>月初不满整周就不画柱</b>：现状那根「10/26 · 100%」其实只统计了 2 天还画成整周高度；新版等 11/9 出现第一根完整的 11/2–11/8 柱。<br>
+      <span class="n">③</span> <b>对比卡写明口径</b>：「1 天 · 上月同期 10/1–10/2 记录 2 天」，不再出现对不上账的「↓50%」。<br>
+      <span class="n">④</span> 习惯名下多了一行<b>习惯描述</b>（没写就不占位）。<br>
+      <span class="n">⑤</span> 范围切换条换成标准分段控件（灰轨白块、44pt 高）。
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2>二 · 打卡型「近90天」——周柱读得懂、和范围对得上</h2>
+<div class="scene-hint">同一习惯切到「近90天」。真实数据：8/4–11/1 共 90 天完成 63 天 = 70%。</div>
+<div class="pair">
+  <div class="side">
+    <span class="side-label now">现状</span>
+    <div class="frame"><img src="现状截图/L18-single-run-90d.jpg"></div>
+  </div>
+  <div class="side">
+    <span class="side-label new">新版</span>
+    <div class="frame phone"><div class="inner">
+      <div class="notch"><span>9:41</span><span>●●●●</span></div>
+      <div class="chiprow" style="padding-top:14px;">
+        <div class="chip">本月</div><div class="chip">近30天</div><div class="chip sel">近90天</div><div class="chip">全部</div><div class="chip more">···</div>
+      </div>
+      <div class="range-line">近90天 = 8月4日–11月1日 · 共 90 天（今天不计入）</div>
+      <div class="card">
+        <div class="compare-title">近90天 vs 前90天（5月6日–8月3日）</div>
+        <div class="compare-main"><span class="num">63</span><span class="unit">天</span><span class="delta">↑ 40 天</span></div>
+        <div class="subline">完成率 70% · 前90天 57%（习惯 6/25 创建，前一期只有 40 个有效天）</div>
+      </div>
+      <div class="chart-title"><span class="t">每周完成率</span><span class="r">8/10–11/1 · 12 个整周</span></div>
+      <div class="readout"><span class="when">10/19–10/25</span><span class="what">完成 5/7 天 · 71%</span></div>
+      <div class="bars">
+        <div class="bar-col"><div class="bar" style="height:71%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:57%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:100%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:57%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:71%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:71%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:71%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:86%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:57%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:29%"></div></div>
+        <div class="bar-col"><div class="bar sel" style="height:71%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:100%"></div></div>
+      </div>
+      <div class="axis"><span style="text-align:left">8/10</span><span>9/7</span><span>10/5</span><span style="text-align:right">10/26</span></div>
+      <div class="axis-note">8/4–8/9 不满一个自然周（周一到周日），只在日历里显示</div>
+      <div style="height:20px"></div>
+    </div></div>
+    <div class="changes">
+      <span class="n">①</span> <b>「近90天」是哪 90 天写明白</b>：8/4–11/1，今天不计入（现状图最右边留一周空白，看着像「这周挂了」）。<br>
+      <span class="n">②</span> <b>每根柱 = 一个自然周（周一到周日）</b>：从 8/10 起画满 12 个整周，读数「10/19–10/25 完成 5/7 天」，不再只有孤零零的「10/26 起」；不满一周的 8/4–8/9 不画假柱。未选中的大读数改成<b>整期完成率 70%</b>——现状把 12 根柱的百分比加起来显示「771%」。<br>
+      <span class="n">③</span> <b>涨跌只用天数</b>：↑40 天；完成率（70% vs 57%）单独一行。现状「63 天 ↑14%」把百分点差标成天数涨幅，对不上账。<br>
+      <span class="n">④</span> 前 90 天只有 40 个有效天（习惯 6/25 才创建）——如实写出来，不再显得前一期很完整。
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2>三 · 「全部」——不再是「近90天」的复制版</h2>
+<div class="scene-hint">晨跑从 6 月 25 日开始，共 130 天、打卡 86 天。</div>
+<div class="pair">
+  <div class="side">
+    <span class="side-label now">现状</span>
+    <div class="frame"><img src="现状截图/L19-single-run-all.jpg"></div>
+  </div>
+  <div class="side">
+    <span class="side-label new">新版（「全部」自动切月柱）</span>
+    <div class="frame phone"><div class="inner">
+      <div class="notch"><span>9:41</span><span>●●●●</span></div>
+      <div class="chiprow" style="padding-top:14px;">
+        <div class="chip">本月</div><div class="chip">近30天</div><div class="chip">近90天</div><div class="chip sel">全部</div><div class="chip more">···</div>
+      </div>
+      <div class="range-line">全部 = 6月25日–11月1日 · 共 130 天</div>
+      <div class="card">
+        <div class="compare-title">全部记录（6月25日起）</div>
+        <div class="compare-main"><span class="num">86</span><span class="unit">天</span></div>
+        <div class="subline">完成率 66% · 高峰 8 月（74%）</div>
+      </div>
+      <div class="chart-title"><span class="t">每月完成率</span><span class="r">7月–10月 · 4 个整月</span></div>
+      <div class="readout"><span class="when">8月</span><span class="what">完成 23/31 天 · 74%</span></div>
+      <div class="bars">
+        <div class="bar-col"><div class="bar" style="height:52%"></div></div>
+        <div class="bar-col"><div class="bar sel" style="height:74%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:70%"></div></div>
+        <div class="bar-col"><div class="bar" style="height:68%"></div></div>
+      </div>
+      <div class="axis"><span>7月</span><span>8月</span><span>9月</span><span>10月</span></div>
+      <div class="axis-note">6/25–6/30（打卡 4 天）和 11/1 不满整月，只在日历里显示</div>
+      <div style="height:20px"></div>
+    </div></div>
+    <div class="changes">
+      <span class="n">①</span> <b>「全部」按月画</b>：6 月底到 11 月的完整历程一眼看全——现状「全部」只画最近 12 周，和「近90天」一模一样，6/25–8/16 共 53 天的打卡凭空消失。<br>
+      <span class="n">②</span> <b>只画整月</b>：6 月底、11 月初不满一个月的日子不画柱（否则 11 月只过 1 天就是一根 100% 的假柱），图下注明去日历看——和周柱同一个原则。
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2>四 · 测量型（体重）——「本月没称」不再像数据丢了</h2>
+<div class="scene-hint">体重最近一次称是 10/29（70.5 kg），11 月还没称过。</div>
+<div class="pair">
+  <div class="side">
+    <span class="side-label now">现状</span>
+    <div class="frame"><img src="现状截图/L23-single-weight-month.jpg"></div>
+  </div>
+  <div class="side">
+    <span class="side-label new">新版</span>
+    <div class="frame phone"><div class="inner">
+      <div class="notch"><span>9:41</span><span>●●●●</span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:12px 20px 0;">
+        <div class="iconbox" style="background:rgba(91,201,138,.12); color:#4EA772;">⚖️</div>
+        <div>
+          <div style="font-size:20px; font-weight:600;">体重</div>
+          <div style="font-size:13px;" class="t-secondary">🩺 控制在 70kg 以内，健康查体指标</div>
+        </div>
+      </div>
+      <div class="chiprow">
+        <div class="chip sel">本月</div><div class="chip">最近记录</div><div class="chip">全部</div><div class="chip more">···</div>
+      </div>
+      <div class="range-line">11月1日–11月2日 · 已过 2 天</div>
+      <div class="card">
+        <div class="compare-title">已过 2 天</div>
+        <div class="compare-main"><span class="num">0</span><span class="unit">天</span></div>
+      </div>
+      <div class="card" style="background:#FFF8F2; border-color:#F3D9C4; text-align:center; padding:18px 16px;">
+        <div style="font-size:15px; font-weight:600;">这个月还没有称过</div>
+        <div style="font-size:13px; margin-top:6px;" class="t-secondary">上次记录 10/29 · 70.5 kg</div>
+        <div style="display:inline-block; margin-top:12px; font-size:14px; font-weight:600; color:#fff; background:#EA580C; border-radius:14px; padding:0 18px; height:38px; line-height:38px;">去记今天的体重</div>
+      </div>
+      <div style="height:20px"></div>
+    </div></div>
+    <div class="changes">
+      <span class="n">①</span> 主数字不再是一个孤零零的「—」（现状像渲染坏了），照实说「0 天」。<br>
+      <span class="n">②</span> <b>把「记录没丢」讲出来</b>：上次 10/29 · 70.5 kg 就在卡片上，还给一个「去记录」按钮——现状整页近空，像数据丢了。<br>
+      <span class="n">③</span> 空图说明从开发者口吻（「无记录不会被填成 0。」）换成用户语言。
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2>五 · 测量型「最近记录」——横轴=真实时间，首尾贴边</h2>
+<div class="scene-hint">体重 7/6–10/29 共 20 次记录（7/6 72.8 → 10/29 70.5，前一次 10/28 70.9）。</div>
+<div class="pair">
+  <div class="side">
+    <span class="side-label now">现状</span>
+    <div class="frame"><img src="现状截图/L22-single-weight-recent.jpg"></div>
+  </div>
+  <div class="side">
+    <span class="side-label new">新版</span>
+    <div class="frame phone"><div class="inner">
+      <div class="notch"><span>9:41</span><span>●●●●</span></div>
+      <div class="chiprow" style="padding-top:14px;">
+        <div class="chip">本月</div><div class="chip sel">最近记录</div><div class="chip">全部</div><div class="chip more">···</div>
+      </div>
+      <div class="range-line">最近 30 次记录 · 7/6–10/29（实有 20 次）</div>
+      <div class="card">
+        <div class="compare-title">平均 71.7 kg · 共 20 次记录</div>
+        <div class="compare-main"><span class="num">70.5</span><span class="unit">kg</span><span class="delta">↓ 0.4</span></div>
+        <div class="subline">最近一次 10/29 · 前一次 10/28 · 70.9（↓ = 比前一次轻，方向因人而异）</div>
+      </div>
+      <div class="chart-title"><span class="t">趋势</span><span class="r">7/6–10/29</span></div>
+      <div class="readout"><span class="when">10/29</span><span class="what">70.5 kg</span></div>
+      <div class="linechart">
+        <div class="grid" style="top:0%"></div><div class="grid" style="top:50%"></div><div class="grid" style="top:100%"></div>
+        <span style="position:absolute; right:0; top:-14px; font-size:11px; color:#9B9B9B;">73</span>
+        <span style="position:absolute; right:0; top:calc(50% - 14px); font-size:11px; color:#9B9B9B;">71.5</span>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+          <polyline points="0.0,6.67 3.48,10.0 7.83,20.0 12.17,20.0 20.0,26.67 23.48,16.67 31.3,26.67 33.04,40.0 35.65,30.0 47.83,43.33 52.17,36.67 64.35,46.67 67.83,46.67 80.0,56.67 82.61,60.0 90.43,70.0 93.04,73.33 97.39,63.33 99.13,70.0 100.0,83.33"
+                    fill="none" stroke="#4EA772" stroke-width="1.4" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+        </svg>
+        <div class="dot" style="left:0.0%; top:6.67%"></div>
+        <div class="dot" style="left:3.48%; top:10.0%"></div>
+        <div class="dot" style="left:7.83%; top:20.0%"></div>
+        <div class="dot" style="left:12.17%; top:20.0%"></div>
+        <div class="dot" style="left:20.0%; top:26.67%"></div>
+        <div class="dot" style="left:23.48%; top:16.67%"></div>
+        <div class="dot" style="left:31.3%; top:26.67%"></div>
+        <div class="dot" style="left:33.04%; top:40.0%"></div>
+        <div class="dot" style="left:35.65%; top:30.0%"></div>
+        <div class="dot" style="left:47.83%; top:43.33%"></div>
+        <div class="dot" style="left:52.17%; top:36.67%"></div>
+        <div class="dot" style="left:64.35%; top:46.67%"></div>
+        <div class="dot" style="left:67.83%; top:46.67%"></div>
+        <div class="dot" style="left:80.0%; top:56.67%"></div>
+        <div class="dot" style="left:82.61%; top:60.0%"></div>
+        <div class="dot" style="left:90.43%; top:70.0%"></div>
+        <div class="dot" style="left:93.04%; top:73.33%"></div>
+        <div class="dot" style="left:97.39%; top:63.33%"></div>
+        <div class="dot" style="left:99.13%; top:70.0%"></div>
+        <div class="dot sel" style="left:100.0%; top:83.33%"></div>
+      </div>
+      <div style="position:relative; height:18px; margin:6px 20px 0;"><span style="position:absolute; left:0.0%; transform:translateX(0); font-size:12px; color:#6E6E6E; white-space:nowrap;">7/6</span><span style="position:absolute; left:22.61%; transform:translateX(-50%); font-size:12px; color:#6E6E6E; white-space:nowrap;">8/1</span><span style="position:absolute; left:49.57%; transform:translateX(-50%); font-size:12px; color:#6E6E6E; white-space:nowrap;">9/1</span><span style="position:absolute; left:75.65%; transform:translateX(-50%); font-size:12px; color:#6E6E6E; white-space:nowrap;">10/1</span><span style="position:absolute; left:100.0%; transform:translateX(-100%); font-size:12px; color:#6E6E6E; white-space:nowrap;">10/29</span></div>
+      <div style="height:20px"></div>
+    </div></div>
+    <div class="changes">
+      <span class="n">①</span> <b>大数字 = 最近一次 70.5 kg</b>，均值 71.7 写进标题——现状大数字是均值却不说，和图上最后一个点（70.5）打架，像算错了。<br>
+      <span class="n">②</span> <b>「最近记录」是多久写明白</b>：「最近 30 次记录 · 7/6–10/29」。<br>
+      <span class="n">③</span> 变化 = 和前一次比（↓0.4，70.9→70.5），测量型只标方向。
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2>六 · 「更多范围」——你点名的卡片，整个重做</h2>
+<div class="pair">
+  <div class="side">
+    <span class="side-label now">现状</span>
+    <div class="frame"><img src="现状截图/L31-more-range-sheet.jpg"></div>
+  </div>
+  <div class="side">
+    <span class="side-label new">新版「选范围」</span>
+    <div class="frame phone"><div class="inner" style="background:#1C1C1E;">
+      <div class="notch" style="color:#fff;"><span>9:41</span><span>●●●●</span></div>
+      <div class="sheet-wrap">
+        <div class="grabber"></div>
+        <div class="sheet-head">
+          <div class="xbtn">✕</div>
+          <div class="sheet-title">选范围</div>
+          <div style="width:32px"></div>
+        </div>
+        <div class="sheet-sub">摘要、图表和明细使用同一个时间范围。</div>
+        <div class="custom-label" style="margin-top:14px;">快速选</div>
+        <div class="quick">
+          <div class="chip">本月</div><div class="chip">上月</div><div class="chip">近30天</div><div class="chip on">近90天</div>
+        </div>
+        <div class="custom-label">自定义</div>
+        <div class="dateboxes">
+          <div class="datebox"><div class="k">开始</div><div class="v">选择日期</div></div>
+          <div class="arrow">→</div>
+          <div class="datebox"><div class="k">结束</div><div class="v">选择日期</div></div>
+        </div>
+        <div class="daycount">选好开始和结束，这里显示共几天</div>
+        <div class="cta disabled">用这个范围</div>
+      </div>
+    </div></div>
+    <div class="changes">
+      <span class="n">①</span> <b>标准弹层壳</b>：拖拽条 + 左上 ✕ + 说明左对齐——现状没有壳，不知道从哪儿关。<br>
+      <span class="n">②</span> <b>「上月」一键可选</b>——现状只有一个看不懂的「2026/10」孤按钮，还和当前选中的「本月」对不上。<br>
+      <span class="n">③</span> <b>两个日期框带「开始 / 结束」标签</b>——现状两个框长得一模一样还默认同一天。<br>
+      <span class="n">④</span> <b>主按钮橙色实心、贴底</b>，没选完日期时置灰——现状是描边灰字按钮悬在半空，像输入框。<br>
+      <span class="n">⑤</span> 选好日期实时显示「共 N 天」。
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================ -->
+<h2>七 · 习惯描述（新功能）——新建页加一个输入框</h2>
+<div class="scene-hint">新建「晨跑」时写一句描述，支持 Emoji。</div>
+<div class="pair">
+  <div class="side">
+    <span class="side-label now">现状</span>
+    <div class="frame"><img src="现状截图/L33-add-sheet-top.jpg"></div>
+  </div>
+  <div class="side">
+    <span class="side-label new">新版 · 新建页</span>
+    <div class="frame phone"><div class="inner">
+      <div class="notch"><span>9:41</span><span>●●●●</span></div>
+      <div style="padding:10px 20px 0;">
+        <div class="grabber"></div>
+        <div class="sheet-head" style="margin-bottom:12px;">
+          <div class="xbtn">✕</div>
+          <div class="sheet-title">新建习惯</div>
+          <div style="width:32px"></div>
+        </div>
+        <div class="input">晨跑</div>
+        <div class="input multiline" style="margin-top:10px;">🏃 为了年底的半马，每天 3 公里</div>
+        <div class="count">17 / 50</div>
+        <div style="font-size:12px; color:#9B9B9B; margin-top:2px;">为什么开始？这句话会陪你打卡（可选，支持 Emoji）</div>
+        <div class="preview">
+          <div class="cap">在今天页会这样显示</div>
+          <div style="display:flex; align-items:center;">
+            <div class="iconbox" style="background:rgba(244,109,56,.12); color:#F46D38;">🏃</div>
+            <div style="margin-left:12px; min-width:0;">
+              <div class="big">0 天</div>
+              <div style="font-size:13px; color:#6E6E6E;">晨跑</div>
+              <div class="desc1" style="font-size:13px; color:#8A8A8A;">🏃 为了年底的半马，每天 3 公里</div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:13px; color:#6E6E6E; margin:18px 0 8px 4px;">你每天要记什么？</div>
+        <div class="rowitem" style="margin-top:0; border:1.5px solid #F46D38; background:#FFF8F2;"><div style="font-size:15px; font-weight:600;">做了没</div><div style="font-size:13px; color:#6E6E6E; margin-left:10px;">打了勾就算完成</div></div>
+        <div class="rowitem"><div style="font-size:15px;">数几次</div></div>
+      </div>
+      <div class="cta" style="bottom:20px;">保存</div>
+    </div></div>
+    <div class="changes">
+      <span class="n">①</span> 名称下面加<b>多行描述输入框</b>：框内占位提示「为什么开始？…」，框下一行辅助说明（可选、支持 Emoji）。<br>
+      <span class="n">②</span> 右下角显示<b>字数 17/50</b>：最多 50 字，一个 Emoji 算 1 个字（这部分数据层已做好并入库）。<br>
+      <span class="n">③</span> <b>预览卡</b>直接告诉你它在今天页的样子——顺带替换掉现状名字下面那行看不懂的「空白描边框」。<br><span style="color:#9B9B9B">（「记一个数 / 想减少的事 / 图标与颜色 / 更多设置」与现状一致，图上省略。）</span>
+    </div>
+  </div>
+</div>
+
+<h2>八 · 习惯描述——今天页怎么展示</h2>
+<div class="scene-hint">晨跑写了描述、冥想没写；阅读写了描述、喝水没写。</div>
+<div class="pair">
+  <div class="side">
+    <span class="side-label now">现状</span>
+    <div class="frame"><img src="现状截图/L01-today-top.jpg"></div>
+  </div>
+  <div class="side">
+    <span class="side-label new">新版 · 今天页（推荐：描述另起一行）</span>
+    <div class="frame phone"><div class="inner">
+      <div class="notch"><span>9:41</span><span>●●●●</span></div>
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 20px 0;">
+        <div class="xbtn" style="width:40px; height:40px; border-radius:20px; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.12); font-size:18px;">‹</div>
+        <div style="font-size:20px; color:#6E6E6E;">＋ &nbsp;···</div>
+      </div>
+      <div style="padding:6px 20px 0;">
+        <div style="font-size:28px; font-weight:700;">习惯</div>
+        <div style="font-size:13px; color:#6E6E6E; margin-top:6px;">11月2日 星期一 · 今天已记录 2 项</div>
+        <div style="font-size:13px; color:#6E6E6E; margin:14px 0 0 4px;">今天的打卡 · 2 个</div>
+        <div class="hero" style="margin-top:8px;">
+          <div class="iconbox" style="background:rgba(244,109,56,.12); color:#F46D38;">🏃</div>
+          <div style="margin-left:12px; min-width:0; flex:1;">
+            <div class="big">11 天</div>
+            <div style="font-size:13px; color:#6E6E6E; margin-top:2px;">晨跑 · 别断了今天</div>
+            <div class="desc1" style="font-size:13px; color:#8A8A8A; margin-top:1px;">🏃 为了年底的半马，每天 3 公里</div>
+          </div>
+          <div class="btn" style="margin-left:10px;">打卡</div>
+        </div>
+        <div class="hero" style="margin-top:10px; border-color:rgba(123,108,246,.25); background:linear-gradient(135deg, rgba(123,108,246,.10), rgba(123,108,246,.045));">
+          <div class="iconbox" style="background:rgba(123,108,246,.12); color:#7B6CF6;">🧘</div>
+          <div style="margin-left:12px; flex:1;">
+            <div class="big" style="color:#7B6CF6;">1 天</div>
+            <div style="font-size:13px; color:#6E6E6E; margin-top:2px;">冥想 · 别断了今天</div>
+          </div>
+          <div class="btn" style="color:#7B6CF6; background:rgba(123,108,246,.14); margin-left:10px;">打卡</div>
+        </div>
+        <div style="font-size:13px; color:#6E6E6E; margin:16px 0 0 4px;">记数字 · 4 个</div>
+        <div class="rowitem">
+          <div class="iconbox sm" style="background:rgba(129,112,141,.12); color:#81708D;">📖</div>
+          <div style="margin-left:12px; min-width:0; flex:1;">
+            <div style="font-size:16px; font-weight:500;">阅读</div>
+            <div class="desc1" style="font-size:13px; color:#8A8A8A;">📚 睡前读 30 分钟，读完随手记一笔感想</div>
+            <div style="font-size:13px; color:#6E6E6E;">今天 20/30 分钟</div>
+          </div>
+          <div class="stepper" style="margin-left:10px;"><span class="m">−</span><b>20</b><span class="p">＋</span></div>
+        </div>
+        <div class="rowitem">
+          <div class="iconbox sm" style="background:rgba(59,163,229,.12); color:#3BA3E5;">💧</div>
+          <div style="margin-left:12px; flex:1;">
+            <div style="font-size:16px; font-weight:500;">喝水</div>
+            <div style="font-size:13px; color:#6E6E6E;">今天 2/8 杯</div>
+          </div>
+          <div class="stepper"><span class="m">−</span><b>2</b><span class="p" style="background:#3BA3E5;">＋</span></div>
+        </div>
+      </div>
+    </div></div>
+    <div class="changes">
+      <span class="n">①</span> 写了描述的习惯，在名字下面<b>多一行描述</b>（大卡、普通行同一规则）。<br>
+      <span class="n">②</span> 没写描述的（冥想、喝水）<b>和现在一模一样</b>，不占位。<br>
+      <span class="n">③</span> 描述太长一行放不下时<b>省略号收尾</b>，点开概览弹层看全文。<br>
+      <span class="n">④</span> 另一个方案（描述直接替换「别断了今天」那一行）会让大卡丢掉「晨跑」两个字、普通行丢掉进度，<b>不推荐</b>。<br><span style="color:#9B9B9B">（体重、血压两行与现状一致，图上省略。）</span>
+    </div>
+  </div>
+</div>
+
+<h2>九 · 计数型（阅读）「本月」——孤立一根柱不再悬空</h2>
+<div class="scene-hint">阅读 11/1 没记、11/2 记了 20 分钟。</div>
+<div class="pair">
+  <div class="side">
+    <span class="side-label now">现状</span>
+    <div class="frame"><img src="现状截图/L27-single-reading-month.jpg"></div>
+  </div>
+  <div class="side">
+    <span class="side-label new">新版</span>
+    <div class="frame phone"><div class="inner">
+      <div class="notch"><span>9:41</span><span>●●●●</span></div>
+      <div class="chiprow" style="padding-top:14px;">
+        <div class="chip sel">本月</div><div class="chip">最近记录</div><div class="chip">全部</div><div class="chip more">···</div>
+      </div>
+      <div class="range-line">11月1日–11月2日 · 已过 2 天</div>
+      <div class="card">
+        <div class="compare-title">已过 2 天</div>
+        <div class="compare-main"><span class="num">20</span><span class="unit">分钟</span></div>
+        <div class="subline">上月同期 10/1–10/2 · 无记录（本月刚开始，不着急下结论）</div>
+      </div>
+      <div class="chart-title"><span class="t">每天的阅读分钟</span><span class="r">11/1–11/2</span></div>
+      <div class="readout"><span class="when">11/2 · 今天</span><span class="what">20 分钟</span></div>
+      <div class="bars">
+        <div class="bar-col"><div style="width:100%; max-width:20px; height:3px; border-radius:2px; background:#E7E1D7;"></div></div>
+        <div class="bar-col"><div class="bar sel" style="height:62%"></div></div>
+      </div>
+      <div class="axis"><span>11/1</span><span>11/2 · 今天</span></div>
+      <div style="height:20px"></div>
+    </div></div>
+    <div class="changes">
+      <span class="n">①</span> <b>每天的柱子站在自己的日子上</b>：11/1 没记是浅槽、11/2 的柱子贴着今天标签——现状那根柱子悬在两个日期中间，分不清是哪天的。<br>
+      <span class="n">②</span> 月初样本太少时，对比卡<b>不显示涨跌箭头</b>——现状「日均 ↓22.5」红标像暴跌，真相是 10/1–10/2 根本没记录，没法比。<br>
+      <span class="n">③</span> 图表标题从「每天的累计量」改成「每天的阅读分钟」——直接用这个习惯自己的单位说话。
+    </div>
+  </div>
+</div>
+
+<div class="hint" style="margin-top:28px;">另外三组补充对照：血压只记 1 次时「点悬在图中间、轴上只有一个 11/1」→ 新版横轴始终是所选范围首尾、点按真实时间落位（见第五节同款改法）；回顾总览列表不按你在「回顾展示与顺序」里排的顺序 → 新版按你的排序；「更多范围」深色下背景透出底图 → 新版弹层不透明底。</div>
+
+</body>
+</html>
