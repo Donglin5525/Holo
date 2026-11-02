@@ -32,6 +32,7 @@ metadata:
 5. 提交只允许 `HoloBackend/` 路径范围（脚本按 pathspec 提交并事后断言）；不得带入 iOS、文档、临时文件。
 6. **绝不在 ECS 跑 `git clean`**（2026-08-23 曾把生产库目录删掉，靠 `/proc/PID/fd` 救回）；脚本只用 `reset --hard`，它不碰未跟踪的 `deploy/data/`。
 7. 不绕过 `deploy.sh` 手敲 `docker compose build --no-cache`：BuildKit 会把本地基础镜像误判为需从 Docker Hub 拉取而卡死；镜像层自引用堆积坑也已由 Dockerfile 的 `holo-backend-base` 解耦解决。
+8. **容器运行时，宿主机只许只读打开生产库**（2026-11-02 事故）：`sqlite3 -readonly` / Python `file:...?mode=ro`。容器内后端进程的锁对宿主机不可见，宿主机任何可写连接（含 `.backup`、一次 UPDATE）关闭时都会自认「最后一个连接」→ checkpoint 后删除 `-wal`/`-shm`，运行中的后端继续写已删除的 WAL：新连接（含 sqlite3 查询）看不到之后的数据，非正常退出即丢。确需改数据：先 `docker stop holo-backend`（正常关库）→ 宿主机改 → `docker start`；或走后端自身接口。发现已脱挂：按 `/proc/<PID>/fd` 拷出三件做快照 → `docker restart`（SIGTERM 正常关库会把已删除 WAL checkpoint 回主库）→ 只读核对。
 
 ## 标准流程（一条命令）
 

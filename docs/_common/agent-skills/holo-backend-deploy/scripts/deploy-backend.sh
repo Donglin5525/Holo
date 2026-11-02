@@ -164,16 +164,19 @@ cd "$DEPLOY_DIR"
 [ -f .env.production ] || fail "缺少 $DEPLOY_DIR/.env.production"
 
 # A02：一致性备份（在线备份 API 会带走 WAL 中已提交事务）；失败即阻止发布，不退回 cp 热拷贝
+# 源库必须只读打开（2026-11-02 事故）：容器内后端进程的锁对宿主机不可见，宿主机可写连接
+# 关闭时会自认「最后一个连接」→ checkpoint 后删除 -wal/-shm，运行中的后端继续写已删除的
+# WAL（新连接看不到新数据，非正常退出即丢）。只读连接不做关闭 checkpoint、不删 WAL。
 if [ "$HAD_DB" = 1 ]; then
   mkdir -p "$DATA_DIR/backups"
   OUT="$DATA_DIR/backups/holo-backend-$(date +%Y%m%d-%H%M%S).db"
   if command -v sqlite3 >/dev/null 2>&1; then
-    sqlite3 "$DB" ".backup '$OUT'" || fail "sqlite3 .backup 失败，拒绝发布"
+    sqlite3 -readonly "$DB" ".backup '$OUT'" || fail "sqlite3 .backup 失败，拒绝发布"
     sqlite3 "$OUT" "PRAGMA integrity_check;" | grep -qx ok || fail "备份完整性校验失败：$OUT"
   elif command -v python3 >/dev/null 2>&1; then
     python3 - "$DB" "$OUT" <<'PY' || fail "python3 sqlite backup 失败，拒绝发布"
 import sqlite3, sys
-src = sqlite3.connect(sys.argv[1]); dst = sqlite3.connect(sys.argv[2])
+src = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True); dst = sqlite3.connect(sys.argv[2])
 src.backup(dst)
 ok = dst.execute("PRAGMA integrity_check").fetchone()[0]
 dst.close(); src.close()
