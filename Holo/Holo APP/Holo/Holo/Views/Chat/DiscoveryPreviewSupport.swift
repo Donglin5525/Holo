@@ -20,11 +20,13 @@ import Combine
 enum DiscoveryPreviewRow: String, CaseIterable, Identifiable {
     case disabled                  // 默认未开启
     case preparing                 // 首次确认后
-    case waitingForMaterial        // 材料不足／无合格候选
+    case waitingForMaterial        // 材料不足
+    case checkedNoFinding          // 1.1.5：整理过了，无合格
     case availableUnread           // 有有效且未看发现（淡橙胶囊）
     case availableRead             // 已看但仍有效（普通胶囊）
     case stale                     // 有效内容过期／来源失效
-    case pausedTemporarily         // 网络失败／预算不足
+    case failedRetrySoon           // 1.1.5：没整理成功，之后再试
+    case failedDailyLimit          // 1.1.5：今天的整理次数已用完
     case revoked                   // 撤权／关闭
     case serverUnsupported         // 后端不支持
 
@@ -33,12 +35,14 @@ enum DiscoveryPreviewRow: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .disabled: return "1 默认未开启"
-        case .preparing: return "2 首次确认后（正在准备）"
-        case .waitingForMaterial: return "3 材料不足／无合格候选"
+        case .preparing: return "2 正在整理"
+        case .waitingForMaterial: return "3 材料不足"
+        case .checkedNoFinding: return "3b 整理过了·无合格"
         case .availableUnread: return "4 有发现·未看"
         case .availableRead: return "5 有发现·已看"
         case .stale: return "6 过期／来源失效"
-        case .pausedTemporarily: return "7 网络失败／预算不足"
+        case .failedRetrySoon: return "7 没整理成功·之后再试"
+        case .failedDailyLimit: return "7b 今天次数已用完"
         case .revoked: return "8 撤权／关闭"
         case .serverUnsupported: return "9 后端不支持"
         }
@@ -85,6 +89,10 @@ final class MockDiscoveryServiceForPreview: ObservableObject, DiscoveryService {
             presentationState = .waitingForMaterial
             settingsDetailState = .waitingForMaterial
             currentFinding = nil
+        case .checkedNoFinding:
+            presentationState = .waitingForMaterial
+            settingsDetailState = .checkedNoFinding(checkedAt: Date())
+            currentFinding = nil
         case .availableUnread:
             presentationState = .available(findingID: finding.findingID, viewed: false)
             settingsDetailState = .hasFinding(viewed: false)
@@ -97,9 +105,13 @@ final class MockDiscoveryServiceForPreview: ObservableObject, DiscoveryService {
             presentationState = .waitingForMaterial
             settingsDetailState = .stale
             currentFinding = nil
-        case .pausedTemporarily:
+        case .failedRetrySoon:
             presentationState = .temporarilyUnavailable
-            settingsDetailState = .pausedTemporarily
+            settingsDetailState = .failed(reason: .service, retry: .soon)
+            currentFinding = nil
+        case .failedDailyLimit:
+            presentationState = .temporarilyUnavailable
+            settingsDetailState = .failed(reason: .dailyLimit, retry: .tomorrow)
             currentFinding = nil
         case .revoked:
             presentationState = .disabled

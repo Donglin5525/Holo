@@ -20,15 +20,49 @@ enum DiscoveryPresentationState: Sendable, Equatable {
 }
 
 /// 设置页用的详情文案状态（与胶囊状态同源，描述更细）。
+/// 1.1.5：原 waitingForMaterial 同时承载「材料不够」与「整理过了但没有合格的」，
+/// 原 pausedTemporarily 承载所有失败——用户分不清「坏了」还是「太严」。现拆为：
+/// waitingForMaterial（真材料不够）/ checkedNoFinding（整理过、无合格）/ failed（没整理成功）。
 enum DiscoverySettingsDetailState: Sendable, Equatable {
     case disabled
     case preparing
     case waitingForMaterial
+    case checkedNoFinding(checkedAt: Date)          // 整理过了，没有足够可靠的发现
     case hasFinding(viewed: Bool)
     case stale                      // 等待新的线索
-    case pausedTemporarily          // 暂未更新，不催用户重试
+    case failed(reason: DiscoveryLastOutcome.FailureReason, retry: DiscoveryLastOutcome.Retry)   // 没整理成功
     case revoked                    // 授权已撤回
     case serverUnsupported
+}
+
+/// 最近一次整理的结局（本机持久化，重启不丢；只存结局类别与时刻，不存任何记录内容）。
+nonisolated struct DiscoveryLastOutcome: Codable, Sendable, Equatable {
+    enum Kind: String, Codable, Sendable {
+        case noFinding          // 跑完了：没有候选 / 本地、核验或发布环节全部未通过
+        case failed             // 没跑完：网络、服务或当日次数原因
+    }
+    enum FailureReason: String, Codable, Sendable {
+        case network            // 网络不可用
+        case service            // 服务繁忙或出错（超时、截断、上游失败等）
+        case dailyLimit         // 当日整理次数已用完
+    }
+    enum Retry: String, Codable, Sendable {
+        case soon               // 之后会自动再试（同日）
+        case tomorrow           // 明天自动再试
+    }
+
+    let kind: Kind
+    let at: Date
+    let failureReason: FailureReason?
+    let retry: Retry?
+
+    static func noFinding(at date: Date) -> DiscoveryLastOutcome {
+        DiscoveryLastOutcome(kind: .noFinding, at: date, failureReason: nil, retry: nil)
+    }
+
+    static func failed(_ reason: FailureReason, retry: Retry, at date: Date) -> DiscoveryLastOutcome {
+        DiscoveryLastOutcome(kind: .failed, at: date, failureReason: reason, retry: retry)
+    }
 }
 
 /// 反馈动作（01 §3 反馈表；幂等，连续点击不重复写入）。

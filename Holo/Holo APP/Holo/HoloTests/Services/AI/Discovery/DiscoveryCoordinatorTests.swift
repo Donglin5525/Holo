@@ -1151,6 +1151,8 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         await runOneBatch(coordinator)
         XCTAssertNotNil(coordinator.retryTask, "可重试失败排定稍后重试")
         coordinator.retryTask?.cancel()
+        XCTAssertEqual(coordinator.settingsDetailState, .failed(reason: .service, retry: .soon),
+                       "1.1.5：服务端原因失败如实显示「没整理成功，之后再试」，不再是「还在等足够的记录」")
         XCTAssertEqual(mock.verifyCallCount, 0)
         XCTAssertEqual(try store.runState(runID: mock.createdRunIDs[0])?.phase, .backoff)
 
@@ -1169,6 +1171,7 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         let coordinator = makeCoordinator()
         await runOneBatch(coordinator)
         coordinator.retryTask?.cancel()
+        XCTAssertEqual(coordinator.settingsDetailState, .failed(reason: .service, retry: .tomorrow))
 
         mock.asyncFailure = nil
         await runOneBatch(coordinator, digest: "digest-2")
@@ -1230,5 +1233,102 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         let pending = makePendingStore(url)
         XCTAssertNil(pending.load())
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    // MARK: - 1.1.5 设置页状态拆分（整理过了 / 没整理成功 / 材料不够）
+
+    func test_状态拆分_空候选后显示今天整理过了_重启后不丢() async throws {
+        mock.candidatesSpec = .empty
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        XCTAssertEqual(coordinator.settingsDetailState, .checkedNoFinding(checkedAt: fixedNow),
+                       "跑完无合格：不再显示「还在等足够的记录」")
+        XCTAssertEqual(coordinator.presentationState, .waitingForMaterial, "胶囊口径不变（无胶囊）")
+
+        // 模拟 App 重启：同一份本机侧储重建协调器（内存态全丢），回前台后仍如实显示
+        let relaunched = makeCoordinator()
+        relaunched.runBatch(reason: .foregroundActivation)
+        await relaunched.batchTask?.value
+        XCTAssertEqual(relaunched.settingsDetailState, .checkedNoFinding(checkedAt: fixedNow), "重启后结局不丢")
+    }
+
+    func test_状态拆分_预算429显示今天次数已用完() async throws {
+        mock.candidatesError = APIError.rateLimited("后台整理额度已用完")
+        let coordinator = makeCoordinator()
+        coordinator.runBatch(reason: .foregroundActivation)
+        await coordinator.batchTask?.value
+        coordinator.retryTask?.cancel()
+        XCTAssertEqual(coordinator.settingsDetailState, .failed(reason: .dailyLimit, retry: .tomorrow))
+    }
+
+    func test_状态拆分_断网显示没整理成功会再试() async throws {
+        var snapshot = DiscoveryResourceSnapshot()
+        snapshot.isNetworkAvailable = false
+        resourceBox.value = snapshot
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        coordinator.retryTask?.cancel()
+        XCTAssertEqual(coordinator.settingsDetailState, .failed(reason: .network, retry: .soon))
+    }
+
+    func test_状态拆分_当天已整理过_次数用完仍显示整理过了() async throws {
+        let checkedAt = fixedNow.addingTimeInterval(-3600)   // 同一自然日（上海 21:13）
+        DiscoveryCoordinatorSideStore(defaults: defaults).recordLastOutcome(.noFinding(at: checkedAt))
+        mock.candidatesError = APIError.rateLimited("后台整理额度已用完")
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        coordinator.retryTask?.cancel()
+        XCTAssertEqual(coordinator.settingsDetailState, .checkedNoFinding(checkedAt: checkedAt),
+                       "「今天整理过了」比「次数已用完」更有信息量，不被覆盖")
+    }
+
+    func test_状态拆分_映射优先级与跨天() {
+        let yesterday = fixedNow.addingTimeInterval(-86_400)
+        XCTAssertEqual(
+            DiscoveryCoordinator.settingsDetail(findingRecentlyLost: false,
+                                                lastOutcome: .failed(.service, retry: .tomorrow, at: yesterday),
+                                                now: fixedNow, calendar: shanghaiCalendar),
+            .waitingForMaterial, "前一天的失败不再显示（避免过期的「明天再试」）")
+        XCTAssertEqual(
+            DiscoveryCoordinator.settingsDetail(findingRecentlyLost: false,
+                                                lastOutcome: .noFinding(at: yesterday),
+                                                now: fixedNow, calendar: shanghaiCalendar),
+            .checkedNoFinding(checkedAt: yesterday), "「整理过了」跨天仍显示，带日期")
+        XCTAssertEqual(
+            DiscoveryCoordinator.settingsDetail(findingRecentlyLost: true,
+                                                lastOutcome: .noFinding(at: fixedNow),
+                                                now: fixedNow, calendar: shanghaiCalendar),
+            .stale, "刚失去发现时优先说明「等待新的线索」")
+        XCTAssertEqual(
+            DiscoveryCoordinator.settingsDetail(findingRecentlyLost: false, lastOutcome: nil,
+                                                now: fixedNow, calendar: shanghaiCalendar),
+            .waitingForMaterial)
+    }
+
+    func test_状态拆分_关闭后清除结局() async throws {
+        mock.candidatesSpec = .empty
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        XCTAssertNotNil(DiscoveryCoordinatorSideStore(defaults: defaults).lastOutcome)
+        await coordinator.disable()
+        XCTAssertNil(DiscoveryCoordinatorSideStore(defaults: defaults).lastOutcome, "关闭即删派生的结局状态")
+    }
+
+    func test_状态拆分_文案可区分() {
+        let now = fixedNow
+        let copy = DiscoverySettingsCopy.self
+        XCTAssertEqual(copy.statusText(for: .checkedNoFinding(checkedAt: now), now: now, calendar: shanghaiCalendar), "今天整理过了")
+        XCTAssertEqual(copy.statusText(for: .checkedNoFinding(checkedAt: now.addingTimeInterval(-86_400)), now: now, calendar: shanghaiCalendar), "昨天整理过了")
+        XCTAssertEqual(copy.statusText(for: .checkedNoFinding(checkedAt: now.addingTimeInterval(-3 * 86_400)), now: now, calendar: shanghaiCalendar), "9月18日整理过了")
+        XCTAssertEqual(copy.statusText(for: .failed(reason: .service, retry: .soon)), "这次没整理成功")
+        XCTAssertEqual(copy.statusText(for: .failed(reason: .service, retry: .tomorrow)), "今天没整理成功")
+        XCTAssertEqual(copy.statusText(for: .failed(reason: .dailyLimit, retry: .tomorrow)), "今天的整理次数已用完")
+        XCTAssertEqual(copy.statusText(for: .waitingForMaterial), "还在等足够的记录")
+        XCTAssertEqual(copy.statusText(for: .preparing), "正在整理")
+        // 每种失败原因都有各自的说明，且都不要求用户操作
+        for reason in [DiscoveryLastOutcome.FailureReason.network, .service, .dailyLimit] {
+            let detail = copy.statusDetailText(for: .failed(reason: reason, retry: .soon))
+            XCTAssertTrue(detail.contains("自动"), "\(reason) 说明需告知会自动再试：\(detail)")
+        }
     }
 }

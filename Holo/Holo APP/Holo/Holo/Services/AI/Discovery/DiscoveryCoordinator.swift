@@ -258,6 +258,7 @@ nonisolated final class DiscoveryCoordinatorSideStore {
         static let processedAt = Keys.prefix + "processed.at"
         static let processedPolicyVersion = Keys.prefix + "processed.policyVersion"
         static let processedPromptVersion = Keys.prefix + "processed.promptVersion"
+        static let lastOutcome = Keys.prefix + "lastOutcome.v1"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -309,6 +310,22 @@ nonisolated final class DiscoveryCoordinatorSideStore {
         defaults.set(at.timeIntervalSince1970, forKey: Keys.processedAt)
         defaults.set(policyVersion, forKey: Keys.processedPolicyVersion)
         defaults.set(promptVersion, forKey: Keys.processedPromptVersion)
+    }
+
+    // 1.1.5：最近一次整理的结局（设置页区分「整理过了没合格」与「没整理成功」；重启不丢）。
+    // 只存类别与时刻，不存记录内容；关闭/撤权/服务端停用时随派生数据一起清。
+    var lastOutcome: DiscoveryLastOutcome? {
+        guard let data = defaults.data(forKey: Keys.lastOutcome) else { return nil }
+        return try? JSONDecoder().decode(DiscoveryLastOutcome.self, from: data)
+    }
+
+    func recordLastOutcome(_ outcome: DiscoveryLastOutcome) {
+        guard let data = try? JSONEncoder().encode(outcome) else { return }
+        defaults.set(data, forKey: Keys.lastOutcome)
+    }
+
+    func clearLastOutcome() {
+        defaults.removeObject(forKey: Keys.lastOutcome)
     }
 }
 
@@ -1592,6 +1609,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             consumeDirtyMarks()
             firstRunPending = false
             lastFailure = nil
+            sideStore.clearLastOutcome()   // 已发布：以发现本身为准（失效后显示「等待新的线索」）
             lastPhase = .ready
             findingRecentlyLost = false
             recomputePresentation()
@@ -1614,6 +1632,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         consumeDirtyMarks()
         firstRunPending = false
         lastFailure = nil
+        sideStore.recordLastOutcome(.noFinding(at: clock()))
         lastPhase = .noFinding
         findingRecentlyLost = false
         recomputePresentation()
@@ -1629,6 +1648,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         case .networkUnavailablePreDispatch:
             // 未 dispatch：保持 dirty，有限退避（5/15/45 阶梯），不报「生成中」
             lastFailure = failure
+            sideStore.recordLastOutcome(.failed(.network, retry: .soon, at: now))
             if let next = schedulerCore.nextAttemptAfterFailure(failure: failure, now: now, attempt: networkRetryAttempt) {
                 networkRetryAttempt += 1
                 scheduleRetry(after: next.timeIntervalSince(now))
@@ -1637,6 +1657,9 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             return
         case .budgetExceeded:
             lastFailure = failure
+            if !hasNoFindingOutcome(sameDayAs: now) {
+                sideStore.recordLastOutcome(.failed(.dailyLimit, retry: .tomorrow, at: now))
+            }
             dailyBatchAvailable = false
             budgetResetAt = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
             // 窗口恢复后自动重试（2026-10-30）：此前只关当日不排重试，恢复完全依赖前台触发；
@@ -1649,6 +1672,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             // 且消费 dirty/首开标记——否则每次回前台/重启都会完整重跑一次批次，
             // 逐次烧光服务端 runsPerDay，用户永远等不到发现
             lastFailure = failure
+            sideStore.recordLastOutcome(.noFinding(at: now))   // 模型确定性拒绝 = 跑完了、没有合格的
             sideStore.recordProcessed(
                 digest: digest,
                 policyVersion: versions.policyVersion,
@@ -1668,8 +1692,10 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
                 // 名额以服务端为准：真用完时 createRun 回 429 走 budgetExceeded 关闸；
                 // 本机同日最多再试 maxServerRetriesPerDay 次兜底，不会无限重跑
                 Self.diagLog.notice("disp failure: server-retryable, retry in \(Int(Self.serverRetryDelay))s (count=\(serverRetryCount))")
+                sideStore.recordLastOutcome(.failed(.service, retry: .soon, at: now))
                 scheduleRetry(after: Self.serverRetryDelay)
             } else {
+                sideStore.recordLastOutcome(.failed(.service, retry: .tomorrow, at: now))
                 dailyBatchAvailable = false
                 budgetResetAt = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
                 scheduleRetry(after: budgetResetAt!.timeIntervalSince(now))
@@ -1748,6 +1774,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             scheduleRetry(after: remaining)
         case .networkUnavailable:
             lastFailure = .networkUnavailablePreDispatch
+            sideStore.recordLastOutcome(.failed(.network, retry: .soon, at: now))
             if let next = schedulerCore.nextAttemptAfterFailure(failure: .networkUnavailablePreDispatch, now: now, attempt: networkRetryAttempt) {
                 networkRetryAttempt += 1
                 scheduleRetry(after: next.timeIntervalSince(now))
@@ -1756,6 +1783,10 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             break   // 前台激活/变更事件的轻量检查会再触发
         case .dailyBudgetExhausted(let resetAt):
             lastFailure = .budgetExceeded
+            // 当天已整理过（无合格）时保留「今天整理过了」——比「次数已用完」更有信息量
+            if !hasNoFindingOutcome(sameDayAs: now) {
+                sideStore.recordLastOutcome(.failed(.dailyLimit, retry: .tomorrow, at: now))
+            }
             dailyBatchAvailable = false
             // 无服务端 resetAt 时保守到次日自然日（上海日界由服务端口径，本机按本地日近似）
             budgetResetAt = resetAt ?? calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
@@ -1766,6 +1797,11 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         }
         if lastPhase != .ready { lastPhase = .waitingForMaterial }
         recomputePresentation()
+    }
+
+    private func hasNoFindingOutcome(sameDayAs now: Date) -> Bool {
+        guard let outcome = sideStore.lastOutcome, outcome.kind == .noFinding else { return false }
+        return calendar.isDate(outcome.at, inSameDayAs: now)
     }
 
     private func scheduleRetry(after delay: TimeInterval) {
@@ -1977,6 +2013,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         currentFinding = nil
         isDetailPresented = false
         pendingJobStore.clear()   // 1.1.5：取件缓存属派生数据，关闭即删
+        sideStore.clearLastOutcome()   // 1.1.5：结局状态同属派生数据，重新开启从头显示
         do {
             try store.clearAllForAccount(now: clock())
         } catch {
@@ -2460,6 +2497,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             currentFinding = nil
             isDetailPresented = false
             pendingJobStore.clear()
+            sideStore.clearLastOutcome()
             try? store.clearAllForAccount(now: now)
             return
         }
@@ -2521,26 +2559,55 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         }
         currentFinding = nil
 
-        // 网络失败/预算不足：旧内容可读否则无胶囊；设置页不催用户重试
-        if let failure = lastFailure {
-            switch failure {
-            case .networkUnavailablePreDispatch, .budgetExceeded, .upstreamErrorPostDispatch, .stageResultLost:
-                presentationState = .temporarilyUnavailable
-                settingsDetailState = .pausedTemporarily
-                return
-            default:
-                break
-            }
-        }
-
-        switch lastPhase {
-        case .preparing, .scheduled:
+        // 在途（正在整理）优先
+        if lastPhase == .preparing || lastPhase == .scheduled {
             presentationState = .preparing
             settingsDetailState = .preparing
-        case .ready, .noFinding, .waitingForMaterial, .backoff, .cancelled:
-            presentationState = .waitingForMaterial
-            settingsDetailState = findingRecentlyLost ? .stale : .waitingForMaterial
+            return
         }
+
+        // 胶囊口径不变（均无胶囊）：网络失败/预算不足/派发后失败 → temporarilyUnavailable，其余 → waitingForMaterial
+        let capsuleUnavailable: Bool
+        switch lastFailure {
+        case .networkUnavailablePreDispatch?, .budgetExceeded?, .upstreamErrorPostDispatch?, .stageResultLost?:
+            capsuleUnavailable = true
+        default:
+            capsuleUnavailable = false
+        }
+        presentationState = capsuleUnavailable ? .temporarilyUnavailable : .waitingForMaterial
+
+        // 设置页（1.1.5）：如实区分「整理过了没合格」「没整理成功」「材料不够」，以本机持久化的最近结局为准
+        settingsDetailState = Self.settingsDetail(
+            findingRecentlyLost: findingRecentlyLost,
+            lastOutcome: sideStore.lastOutcome,
+            now: now,
+            calendar: calendar
+        )
+    }
+
+    /// 设置页状态（非在途、无可读发现时）：刚失去发现 → 最近一次结局 → 材料不够，取第一个成立的。
+    /// 「没整理成功」只在当天有效：跨天后由新一天的整理接替，不再显示「明天再试」这类过期说法；
+    /// 「整理过了」不限当天，带日期显示（「昨天整理过了」），直到下一次整理给出新结局。
+    static func settingsDetail(
+        findingRecentlyLost: Bool,
+        lastOutcome: DiscoveryLastOutcome?,
+        now: Date,
+        calendar: Calendar
+    ) -> DiscoverySettingsDetailState {
+        if findingRecentlyLost { return .stale }
+        if let outcome = lastOutcome {
+            switch outcome.kind {
+            case .noFinding:
+                return .checkedNoFinding(checkedAt: outcome.at)
+            case .failed:
+                if calendar.isDate(outcome.at, inSameDayAs: now),
+                   let reason = outcome.failureReason,
+                   let retry = outcome.retry {
+                    return .failed(reason: reason, retry: retry)
+                }
+            }
+        }
+        return .waitingForMaterial
     }
 
     /// 展示前检查（检查位 5）：canDisplay 门控 + 否定命中不展示。
