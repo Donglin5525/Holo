@@ -1223,6 +1223,11 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                 // 云端异步规划已启动（§5.3）：流式会话立即收尾（输入不锁死），
                 // 轮询/领取/ack 由独立任务接管；运行卡按真实阶段推进。
                 if let cloudStart = processResult.contextPlanCloudStart {
+                    // 云端任务接管即注册推送（「个性化规划已就绪」通知；拒绝不影响规划）——
+                    // 2026-11-02 实锤：规划路径此前从不注册，完成推送无处可发。
+                    #if canImport(UIKit)
+                    HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
+                    #endif
                     planningRunBox.value?.advance(to: .uploadingContext, cloudTaskID: cloudStart.cloudTaskID)
                     planningRunBox.value?.advance(to: .cloudPlanning)
                     let runController = planningRunBox.value

@@ -22,6 +22,10 @@ nonisolated struct HoloKnowledgeStoreSnapshot: Sendable {
     /// 解析器对受影响命题保守限制，不以 fetch 顺序决胜（09-R07）。
     var conflictingRevisionIDs: Set<String> = []
     var conflictingOperationIDs: Set<String> = []
+    /// 受冲突行影响的命题集合：快照构建期一次性归并（2026-11-02）。
+    /// resolvedKnowledgeAll 的全命题循环此前逐命题全量扫修订/操作表判定冲突
+    /// （O(P×R)，数千命题×数千修订=百万次比较），是 query(.active) 的大头之一。
+    var conflictedPropositionIDs: Set<String> = []
     /// 原字节在库但解码失败的行所属命题（受影响命题限制使用，原始字节保留待诊断，09-R06）。
     var unreadablePropositionIDs: Set<String> = []
 
@@ -36,6 +40,13 @@ nonisolated struct HoloKnowledgeStoreSnapshot: Sendable {
         if revisions.contains(where: { $0.propositionID == propositionID && conflictingRevisionIDs.contains($0.semanticRevisionID) }) { return true }
         if operations.contains(where: { $0.propositionID == propositionID && conflictingOperationIDs.contains($0.operationID) }) { return true }
         return false
+    }
+
+    /// 预计算版判定（全命题循环专用）：与 isUnreadableOrConflicted 同语义，
+    /// 但用构建期归并好的命题集合做 O(1) 查找，替代逐命题全表扫。
+    func isRestrictedByDataIssues(propositionID: String) -> Bool {
+        unreadablePropositionIDs.contains(propositionID)
+            || conflictedPropositionIDs.contains(propositionID)
     }
 }
 
@@ -246,6 +257,7 @@ extension CoreDataHoloMemoryRepository {
             revisionsByID[revision.semanticRevisionID, default: []].append(revision)
         }
         var mergedRevisions: [HoloKnowledgeRevision] = []
+        var conflictedPropositions: Set<String> = []
         for (id, group) in revisionsByID {
             if group.count == 1 {
                 mergedRevisions.append(group[0])
@@ -254,6 +266,7 @@ extension CoreDataHoloMemoryRepository {
             } else {
                 mergedRevisions.append(contentsOf: group)
                 conflictingRevisionIDs.insert(id)
+                conflictedPropositions.insert(group[0].propositionID)
             }
         }
         var operationsByID: [String: [HoloKnowledgeOperation]] = [:]
@@ -269,6 +282,7 @@ extension CoreDataHoloMemoryRepository {
             } else {
                 mergedOperations.append(contentsOf: group)
                 conflictingOperationIDs.insert(id)
+                conflictedPropositions.insert(group[0].propositionID)
             }
         }
         if !conflictingRevisionIDs.isEmpty || !conflictingOperationIDs.isEmpty {
@@ -279,6 +293,7 @@ extension CoreDataHoloMemoryRepository {
             operations: mergedOperations.sorted { $0.issuedAt < $1.issuedAt },
             conflictingRevisionIDs: conflictingRevisionIDs,
             conflictingOperationIDs: conflictingOperationIDs,
+            conflictedPropositionIDs: conflictedPropositions,
             unreadablePropositionIDs: unreadablePropositionIDs
         )
     }
@@ -352,7 +367,7 @@ extension CoreDataHoloMemoryRepository {
                 sourceStatus: HoloKnowledgeResolver.persistedSourceStatus(operations: operations),
                 controlGeneration: control.userDecisionVersion,
                 learningBaselineAt: control.learningBaselineAt,
-                hasUnreadableData: snapshot.isUnreadableOrConflicted(propositionID: propositionID),
+                hasUnreadableData: snapshot.isRestrictedByDataIssues(propositionID: propositionID),
                 now: now
             )
             if let resolved = HoloKnowledgeResolver.resolve(resolution) {

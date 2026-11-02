@@ -339,6 +339,9 @@ struct HoloApp: App {
                     HoloBackgroundContinuationManager.shared.startNetworkRecoveryMonitoring()
                     // 云端分析：恢复上次会话未领取的云端任务（结果云端暂存 ≤7 天）
                     HoloCloudAnalysisService.shared.recoverIfNeeded()
+                    // 启动即注册远程通知（不弹授权）：云端任务完成推送的令牌上报失败
+                    // 在下次启动自动补报——注册面不再只依赖深度分析/回放两个入口
+                    HoloCloudPushTokenService.shared.registerRemoteNotifications()
                     // 设备会话预热（S01）：提前持钥换会话，首个业务请求不必等两段往返
                     HoloDeviceSessionManager.shared.warmUp()
                     }

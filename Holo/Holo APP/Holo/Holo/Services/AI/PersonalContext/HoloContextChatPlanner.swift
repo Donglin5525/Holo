@@ -350,11 +350,17 @@ enum HoloContextChatPlanner {
             goalSummary: utterance,
             referenceTime: Date()
         )
-        return try await coordinator.preparePrompt(
+        // 分段计时（2026-11-02）：补领 74 秒无法归因，此后每段可直接对号。
+        let clock = ContinuousClock()
+        let started = clock.now
+        let prepared = try await coordinator.preparePrompt(
             frame: frame,
             parentMessageID: parentMessageID,
             onStage: nil
         )
+        let elapsed = clock.now - started
+        logger.error("PLAN-DIAG 补领准备耗时 \((Int(elapsed.components.seconds) * 1000 + Int(elapsed.components.attoseconds / 1_000_000_000_000_000)))ms records=\(prepared.records.count)")
+        return prepared
     }
 
     /// 云端异步路径第二步：领取云端产物 → 本机解析+校验+落库（真相源不外移）。
@@ -384,7 +390,11 @@ enum HoloContextChatPlanner {
             persistence: HoloPlanningMemoryRunPersistence(),
             contextCountOut: ContextCountBox()
         )
+        let deliverClock = ContinuousClock()
+        let deliverStarted = deliverClock.now
         let outcome = try await coordinator.deliverCloudOutput(start.preparation, output: output)
+        let deliverElapsed = deliverClock.now - deliverStarted
+        logger.error("PLAN-DIAG 补领交付耗时 \((Int(deliverElapsed.components.seconds) * 1000 + Int(deliverElapsed.components.attoseconds / 1_000_000_000_000_000)))ms")
         HoloPersonalContextDiagnostics.recordPlanning(
             contextCount: 0,
             candidates: outcome.retrievalResult.entries.count,

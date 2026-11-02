@@ -448,6 +448,55 @@ final class ContextPlanRunDeliverySafetyTests: XCTestCase {
         XCTAssertEqual(committed, draftJSON, "已提交方案必须能从干净上下文读到")
     }
 
+    /// 2026-11-02 性能根治回归：query(.active) 知识门闸从逐命题全表扫（O(P×R)）
+    /// 换成快照构建期预计算命题集合（O(P)）。锁两条：①新判定与旧判定同语义
+    /// （冲突/不可读命题必须仍然受限——丢了限制会让冲突数据悄悄进规划候选）；
+    /// ②干净命题不受限。
+    func testKnowledgeSnapshotRestrictedPredicatesStayEquivalent() {
+        func makeRevision(propositionID: String, semanticRevisionID: String) -> HoloKnowledgeRevision {
+            HoloKnowledgeRevision(
+                propositionID: propositionID,
+                semanticRevisionID: semanticRevisionID,
+                semanticDigest: "digest-\(semanticRevisionID)",
+                topicID: "topic",
+                topicLabel: "主题",
+                domains: [.conversation],
+                sensitivity: .normal,
+                partition: .normal,
+                semantic: HoloKnowledgeSemantic(
+                    subjectRef: "self",
+                    relation: "likes",
+                    dimension: "diet",
+                    formation: .directExpression,
+                    evidenceForm: .explicitSemanticFact,
+                    displayText: "喜欢吃辣",
+                    aiUseText: "喜欢吃辣"
+                ),
+                initialEvidenceSnapshot: HoloKnowledgeEvidenceSnapshot(capturedAt: Date()),
+                createdAt: Date()
+            )
+        }
+        let conflicted = makeRevision(propositionID: "p-conflict", semanticRevisionID: "rev-dup")
+        let clean = makeRevision(propositionID: "p-clean", semanticRevisionID: "rev-clean")
+        var snapshot = HoloKnowledgeStoreSnapshot(
+            revisions: [conflicted, clean],
+            operations: []
+        )
+        snapshot.conflictingRevisionIDs = ["rev-dup"]
+        // 与 knowledgeStoreSnapshot 构建期归并口径一致：冲突修订所属命题整体受限
+        snapshot.conflictedPropositionIDs = ["p-conflict"]
+        snapshot.unreadablePropositionIDs = ["p-unreadable"]
+
+        // 受限命题：新旧判定必须同时为真（语义等价）
+        XCTAssertTrue(snapshot.isUnreadableOrConflicted(propositionID: "p-conflict"), "旧判定：冲突命题受限")
+        XCTAssertTrue(snapshot.isRestrictedByDataIssues(propositionID: "p-conflict"), "新判定：冲突命题不得因预计算漏判")
+        XCTAssertTrue(snapshot.isUnreadableOrConflicted(propositionID: "p-unreadable"), "旧判定：不可读命题受限")
+        XCTAssertTrue(snapshot.isRestrictedByDataIssues(propositionID: "p-unreadable"), "新判定：不可读命题不得漏判")
+        // 干净命题：两者都必须放行
+        XCTAssertFalse(snapshot.isUnreadableOrConflicted(propositionID: "p-clean"))
+        XCTAssertFalse(snapshot.isRestrictedByDataIssues(propositionID: "p-clean"))
+    }
+
     // MARK: - 探针（临时诊断）：对 PROBE_STORE 指定的外部库做轻量取数
     // （已弃用：外部库路径在测试沙盒内不可达，保留 XCTSkip 分支避免误跑）
 

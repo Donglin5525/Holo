@@ -152,6 +152,10 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
         let retrievalResult: HoloContextRetrievalResult
         let fallbackSegments: [HoloContextSegment]
         let rawFallbackUsed: Bool
+        /// 准备期已装载的候选记录（2026-11-02）：交付阶段的澄清注入复用这份快照，
+        /// 不再第二次全量 query(.active)——补领链路实测此双查是大头（检索与校验
+        /// 本就以准备期产物为真相源，澄清注入的轻微时间差与之同口径）。
+        let records: [HoloMemoryRecord]
         /// contextID → 来源域（证据引用回源跳转用）。
         let domainMap: [String: String]
     }
@@ -243,6 +247,7 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
             retrievalResult: retrievalResult,
             fallbackSegments: fallbackSegments,
             rawFallbackUsed: rawFallbackUsed,
+            records: records,
             domainMap: Self.contextDomainMap(from: records)
         )
     }
@@ -280,7 +285,7 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
             var draft = sanitized
             await Self.injectMemoryClarificationIfNeeded(
                 into: &draft,
-                recordsProvider: recordsProvider,
+                records: prepared.records,
                 now: now
             )
             run.state = .draftReady
@@ -450,7 +455,7 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
         // 按需澄清：草案定稿前注入（§17 P4；聊天/Context Plan/Voice 三入口共用本协调器）。
         await Self.injectMemoryClarificationIfNeeded(
             into: &draft,
-            recordsProvider: recordsProvider,
+            records: records,
             now: now
         )
 
@@ -619,13 +624,15 @@ nonisolated struct HoloContextPlanningCoordinator: Sendable {
     /// 草案定稿前注入至多一个记忆澄清问题：只有当前结果真实依赖的 askWhenRelevant
     /// 记录才会出现（预算/冷却由 HoloMemoryClarificationCoordinator 统一裁决），
     /// 与模型已产出的 unknowns 合并去重后仍受 2 条上限约束；零新增串行模型调用。
+    /// 2026-11-02：记录改由调用方传入（准备期快照）——此前交付时再全量查一次
+    /// 记忆库，补领链路双倍全量查询是 74 秒的大头之一。
     private static func injectMemoryClarificationIfNeeded(
         into draft: inout HoloContextPlanDraft,
-        recordsProvider: @Sendable () async throws -> [HoloMemoryRecord],
+        records: [HoloMemoryRecord],
         now: Date
     ) async {
         guard HoloMemoryClarificationCoordinator.isEnabled else { return }
-        guard let records = try? await recordsProvider() else { return }
+        guard !records.isEmpty else { return }
         let history = HoloMemoryClarificationCoordinator.loadHistory()
         guard let (question, updatedHistory) = HoloMemoryClarificationCoordinator.selectQuestion(
             records: records,

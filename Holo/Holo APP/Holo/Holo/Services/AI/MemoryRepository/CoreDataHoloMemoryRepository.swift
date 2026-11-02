@@ -223,8 +223,14 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
     }
 
     func query(_ query: HoloMemoryRepositoryQuery) async throws -> [HoloMemoryRecord] {
+        // 分段计时（2026-11-02 性能归因）：全量读+知识门闸的单次耗时此前完全黑箱，
+        // 补领 74 秒无法归因。超 400ms 才落日志，正常量级不刷屏。
+        let queryClock = ContinuousClock()
+        let queryStart = queryClock.now
+        let fetchStart = queryClock.now
         let main = try await fetchAll(in: .main)
         let sensitive = try await fetchAll(in: .sensitive)
+        let fetchElapsed = queryClock.now - fetchStart
         var byID: [String: HoloMemoryRecord] = [:]
         for record in main + sensitive {
             if let existing = byID[record.id] {
@@ -264,8 +270,17 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         guard query != .all else { return filtered }
         // 统一决策门闸（v2.2 §4/§6）：所有消费者经由同一 HoloResolvedKnowledge 判定，
         // 不再有 active 旁路。未迁移旧记录走 §7.2 受限只读投影，不通过旧 active 悄悄回退。
+        let gateStart = queryClock.now
         let gate = try await knowledgeUsageGate(now: Date())
-        return filtered.filter { gate.isUsable($0) }
+        let gateElapsed = queryClock.now - gateStart
+        let result = filtered.filter { gate.isUsable($0) }
+        let totalElapsed = queryClock.now - queryStart
+        if totalElapsed > .milliseconds(400) {
+            let kind = query == .active ? "active" : (query == .all ? "all" : "domain")
+            func ms(_ d: Duration) -> Int { Int(d.components.seconds) * 1000 + Int(d.components.attoseconds / 1_000_000_000_000_000) }
+            NSLog("[HoloMemoryRepository] PERF query(\(kind)) 慢: total=\(ms(totalElapsed))ms fetch=\(ms(fetchElapsed))ms gate=\(ms(gateElapsed))ms records=\(main.count + sensitive.count) usable=\(result.count)")
+        }
+        return result
     }
 
     /// 命题知识可用性 → 旧记录别名的门闸投影。

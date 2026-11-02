@@ -41,6 +41,18 @@ final class HoloCloudPushTokenService {
         }
     }
 
+    /// 启动期注册（2026-11-02 推送失联根治）：只注册远程通知、不弹授权询问。
+    /// 此前注册只挂在「深度分析/周期回放」两个入口上，个性化规划等云端任务从不
+    /// 注册；一旦某次令牌上报失败（lastReportedToken 只在成功后落盘），下次要再
+    /// 碰到那两个入口才有重试机会——东林设备实证：10-31 用过回放+深度分析，服务器
+    /// 始终无令牌，11-02 规划完成推送无处可发。改为每次启动注册：系统每次都会
+    /// 回调最新 token，上报失败次日启动自动补报；授权弹窗时机仍留在业务入口。
+    func registerRemoteNotifications() {
+        Task { @MainActor in
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+    }
+
     /// AppDelegate 回调：APNs token（hex）。与上次成功上报一致则跳过。
     func handleDeviceToken(_ data: Data) {
         let token = data.map { String(format: "%02x", $0) }.joined()
