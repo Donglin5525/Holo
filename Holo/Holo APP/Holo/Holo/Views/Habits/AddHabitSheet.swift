@@ -49,7 +49,7 @@ struct AddHabitSheet: View {
     @State private var habitDescription: String = ""
     @State private var selectedType: HabitType = .checkIn
     @State private var selectedIcon: String = "checkmark.circle"
-    @State private var selectedColor: String = "#13A4EC"
+    @State private var selectedColor: String = Self.quickColors[0]
     @State private var selectedFrequency: HabitFrequency = .daily
     @State private var targetCount: String = ""
     @State private var targetValue: String = ""
@@ -115,8 +115,8 @@ struct AddHabitSheet: View {
         ) {
             ScrollView {
                 VStack(spacing: 16) {
-                    // 名称：第一个必要决定（下方磁贴实时预览成型的习惯）
-                    nameAndPreviewSection
+                    // 录入：名字（必填）+ 描述（选填）同一张卡
+                    inputSection
 
                     // 记录方式：第二个必要决定（打卡/计数/测量，方案 §8.1）
                     methodSection
@@ -162,9 +162,9 @@ struct AddHabitSheet: View {
                         )
                     }
                 }
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.top, HoloSpacing.sm)
-                .padding(.bottom, 28)
+                .padding(.horizontal, HoloSpacing.page)
+                .padding(.top, HoloSpacing.md)
+                .padding(.bottom, 24)
             }
         }
         .onAppear {
@@ -180,6 +180,8 @@ struct AddHabitSheet: View {
                 goalSelection = goal
             }
         }
+        // 内容收拢后不长占整屏：默认 680 档、可拖到全屏（§8.3 定高优先）
+        .presentationDetents([.height(680), .large])
         .swipeBackToDismiss {
             if hasUnsavedChanges {
                 showDismissAlert = true
@@ -288,217 +290,189 @@ struct AddHabitSheet: View {
 
     // MARK: - 名称输入 + 活预览磁贴
 
-    private var nameAndPreviewSection: some View {
-        VStack(spacing: 8) {
+    /// 录入卡：名字（唯一必填）+ 描述同一张卡、分隔线隔开——输入即所见，
+    /// 不再放预览磁贴复读同一段文字（2026-11-03 东林真机「没对齐没美感」判读 TOP1）
+    private var inputSection: some View {
+        VStack(spacing: 0) {
             TextField(String(localized: "起个名字，如：早起、喝水"), text: $name)
-                .font(.holoBody)
+                .holoText(.body)
                 .foregroundColor(.holoToolText)
                 .tint(Color.holoToolAction)
                 .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
-                        .fill(Color.holoToolSurface)
-                )
+                .frame(minHeight: 50, alignment: .leading)
 
-            descriptionField
+            Rectangle()
+                .fill(Color.holoToolBorder.opacity(0.5))
+                .frame(height: 0.5)
+                .padding(.horizontal, 16)
 
-            HabitPreviewTile(name: name, description: Habit.normalizedDescription(habitDescription),
-                             icon: selectedIcon, color: selectedColor)
+            HStack(spacing: 10) {
+                // 习惯描述：满 Habit.descriptionLimit 个字就输不进去（Emoji、空格、英文都算 1 个字）。
+                // 上限按最窄展示位算出：375pt 宽 iPhone 今天页大卡描述行 13pt 下可用 241pt，
+                // 16 字（含至多 5 个 Emoji）一行放下；系统字号调大时换行，任何位置不截成「…」
+                TextField(String(localized: "一句话，为什么开始（选填）"), text: $habitDescription)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolText)
+                    .tint(Color.holoToolAction)
+                    .onChange(of: habitDescription) { _, newValue in
+                        if newValue.count > Habit.descriptionLimit {
+                            habitDescription = String(newValue.prefix(Habit.descriptionLimit))
+                        }
+                    }
+                    .accessibilityIdentifier("habit.edit.description")
+                Text(verbatim: "\(habitDescription.count)/\(Habit.descriptionLimit)")
+                    .holoText(.metadata)
+                    .monospacedDigit()
+                    .foregroundColor(.holoToolTextSecondary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 46, alignment: .leading)
         }
+        .editorCardBackground()
     }
 
-    /// 习惯描述：单行，满 Habit.descriptionLimit 个字就输不进去（Emoji、空格、英文都算 1 个字）。
-    /// 上限按最窄展示位算出：13pt 下 375pt 宽 iPhone 今天页大卡描述行可用 241pt，
-    /// 16 字（含至多 5 个 Emoji）一行放下；系统字号调大时换行，任何位置都不截成「…」
-    private var descriptionField: some View {
-        HStack(spacing: 10) {
-            TextField(String(localized: "一句话，为什么开始（选填）"), text: $habitDescription)
-                .font(.holoCaption)
-                .foregroundColor(.holoToolText)
-                .tint(Color.holoToolAction)
-                .onChange(of: habitDescription) { _, newValue in
-                    if newValue.count > Habit.descriptionLimit {
-                        habitDescription = String(newValue.prefix(Habit.descriptionLimit))
+    // MARK: - 记录方式（分段控件灰轨白块 §8.8.3；「想减少」= 记录方向的第四分支，同卡）
+
+    /// 三档与存储类型的映射（selection 双字段）
+    private var recordMethodIndex: Binding<Int> {
+        Binding(
+            get: {
+                if selectedType == .checkIn { return 0 }
+                return selectedAggregationType == .sum ? 1 : 2
+            },
+            set: { index in
+                withAnimation(allowsMotion ? HoloAnimation.standard : nil) {
+                    switch index {
+                    case 0: selectedType = .checkIn; selectedAggregationType = .sum
+                    case 1: selectedType = .numeric; selectedAggregationType = .sum
+                    default: selectedType = .numeric; selectedAggregationType = .latest
                     }
                 }
-                .accessibilityIdentifier("habit.edit.description")
-            Text(verbatim: "\(habitDescription.count)/\(Habit.descriptionLimit)")
-                .holoText(.metadata)
-                .monospacedDigit()
-                .foregroundColor(.holoToolTextSecondary)
-                .accessibilityHidden(true)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
-                .fill(Color.holoToolSurface)
+            }
         )
     }
-
-    // MARK: - 记录方式（三卡，P2 白话化：技术词翻译成用户动词）
 
     private var methodSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(String(localized: "你每天要记什么？"))
-                .holoText(.metadata)
-                .foregroundColor(.holoToolTextSecondary)
+                .holoText(.sectionTitle)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoToolText)
 
-            VStack(spacing: 10) {
-                methodCard(.checkIn, .sum,
-                           title: String(localized: "做了没"),
-                           subtitle: String(localized: "打了勾就算完成，如：冥想、跑步"),
-                           icon: "checkmark")
-                methodCard(.numeric, .sum,
-                           title: String(localized: "数几次"),
-                           subtitle: String(localized: "做了就 +1，如：喝水 8 杯"),
-                           icon: "number")
-                methodCard(.numeric, .latest,
-                           title: String(localized: "记一个数"),
-                           subtitle: String(localized: "每天记一个数字，如：体重 75"),
-                           icon: "scalemass")
+            VStack(spacing: 0) {
+                Picker(String(localized: "记录方式"), selection: recordMethodIndex) {
+                    Text(String(localized: "做了没")).tag(0)
+                    Text(String(localized: "数几次")).tag(1)
+                    Text(String(localized: "记一个数")).tag(2)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .accessibilityIdentifier("habit.edit.method")
+
+                Rectangle()
+                    .fill(Color.holoToolBorder.opacity(0.5))
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+
+                badHabitRow
             }
-
-            badHabitRow
+            .editorCardBackground()
         }
     }
-
-    /// 记录方式卡：白卡未选中；选中 = 主色淡底 + 描边 + 说明行 + 右上勾弹性蹦入
-    private func methodCard(_ type: HabitType, _ aggregation: HabitAggregationType,
-                            title: String, subtitle: String, icon: String) -> some View {
-        let isSelected = selectedType == type && selectedAggregationType == aggregation
-        return Button {
-            withAnimation(allowsMotion ? HoloAnimation.snappy : nil) {
-                selectedType = type
-                selectedAggregationType = aggregation
-            }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoToolTextSecondary)
-                    .frame(width: 32)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.holoBody)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.holoToolText)
-                    if isSelected {
-                        Text(subtitle)
-                            .font(.holoCaption)
-                            .foregroundColor(.holoToolTextSecondary)
-                            .transition(.opacity)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12)
-            .frame(minHeight: 44)
-            .overlay(alignment: .topTrailing) {
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.holoPrimary)
-                        .padding(.top, 10)
-                        .padding(.trailing, 10)
-                        .transition(.scale(scale: 0.5).combined(with: .opacity))
-                }
-            }
-            .background(
-                RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous)
-                    .fill(isSelected
-                          ? Color.holoPrimary.opacity(Color.habitTileTintOpacity(colorScheme))
-                          : Color.holoToolSurface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous)
-                    .strokeBorder(isSelected ? Color.holoPrimary.opacity(0.5) : .clear, lineWidth: 1)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - 坏习惯行（P2 白话化：从三态选择降为一行小开关，不占决策位）
 
     private var badHabitRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(String(localized: "这是想减少的事"))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(.holoToolTextSecondary)
+                    .holoText(.body)
+                    .foregroundColor(.holoToolText)
                 Spacer()
                 Toggle("", isOn: $isBadHabit)
                     .labelsHidden()
                     .tint(Color.holoError)
-                    .scaleEffect(0.82)
+                    .scaleEffect(0.88)
+                    .accessibilityLabel(Text(String(localized: "这是想减少的事")))
             }
+            .frame(minHeight: 44)
             if isBadHabit {
                 Text(String(localized: "记录「发生了」，超过目标会提醒你控制"))
-                    .font(.system(size: 13))
+                    .holoText(.metadata)
                     .foregroundColor(.holoToolTextSecondary)
+                    .padding(.bottom, 8)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous)
-                .fill(isBadHabit ? Color.holoError.opacity(0.05) : Color.holoToolSurface)
-        )
+        .padding(.horizontal, 16)
+        .padding(.top, 2)
+        .padding(.bottom, isBadHabit ? 0 : 10)
         .animation(allowsMotion ? HoloAnimation.standard : nil, value: isBadHabit)
     }
 
-    // MARK: - 外观行（图标入口 + 5 个快捷色点）
+    // MARK: - 外观卡（行 1 图标入口；行 2 色点均分整行 → 每点热区约 56pt）
 
     /// 外观行快捷色（色板前 5 色；全量 12 色在图标选择器底部）
     private static let quickColors: [String] = ["#3B76C9", "#D9662C", "#2FA360", "#8063CE", "#A87B0F"]
 
     private var appearanceSection: some View {
-        HStack(spacing: 12) {
-            Button {
-                showIconPicker = true
-            } label: {
-                ZStack {
-                    Circle()
-                        .fill(Color(hex: selectedColor).opacity(colorScheme == .dark ? 0.20 : 0.12))
-                    if EmojiCatalog.isEmojiIcon(selectedIcon) {
-                        Text(selectedIcon)
-                            .font(.system(size: 18))
-                    } else {
-                        HabitPreviewIcon(icon: selectedIcon).iconImage(size: 20)
-                            .foregroundColor(Color(hex: selectedColor))
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button {
+                    showIconPicker = true
+                } label: {
+                    ZStack {
+                        Circle()
+                            .fill(Color(hex: selectedColor).opacity(colorScheme == .dark ? 0.20 : 0.12))
+                        if EmojiCatalog.isEmojiIcon(selectedIcon) {
+                            Text(selectedIcon)
+                                .font(.system(size: 18))
+                        } else {
+                            HabitPreviewIcon(icon: selectedIcon).iconImage(size: 20)
+                                .foregroundColor(Color(hex: selectedColor))
+                        }
                     }
+                    .frame(width: 44, height: 44)
                 }
-                .frame(width: 44, height: 44)
-            }
-            .buttonStyle(.plain)
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(String(localized: "图标与颜色")))
 
-            Button {
-                showIconPicker = true
-            } label: {
-                Text(String(localized: "图标与颜色"))
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(.holoToolText)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+                Button {
+                    showIconPicker = true
+                } label: {
+                    Text(String(localized: "图标与颜色"))
+                        .holoText(.body)
+                        .foregroundColor(.holoToolText)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
 
-            HStack(spacing: 10) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.holoToolTextSecondary)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 6)
+
+            Rectangle()
+                .fill(Color.holoToolBorder.opacity(0.5))
+                .frame(height: 0.5)
+                .padding(.horizontal, 16)
+
+            // 五色点均分行宽：每点热区 ≈ 行宽/5 ≈ 56pt（≥44 规范）
+            HStack(spacing: 0) {
                 ForEach(Self.quickColors, id: \.self) { color in
                     HabitQuickColorDot(color: color, isSelected: selectedColor == color) {
                         selectedColor = color
                     }
+                    .frame(maxWidth: .infinity)
                 }
             }
+            .padding(.vertical, 8)
         }
-        .padding(.horizontal, 14)
-        .frame(minHeight: 56)
-        .background(
-            RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous)
-                .fill(Color.holoToolSurface)
-        )
+        .editorCardBackground()
     }
 
     // MARK: - 「更多设置」单一折叠区（频率 · 目标 · 提醒 · 关联）
@@ -512,7 +486,7 @@ struct AddHabitSheet: View {
             } label: {
                 HStack(spacing: 8) {
                     Text(String(localized: "更多设置"))
-                        .font(.system(size: 13, weight: .medium))
+                        .holoText(.body)
                         .foregroundColor(.holoToolText)
                     Spacer(minLength: 8)
                     Text(moreSettingsSummary)
@@ -532,7 +506,7 @@ struct AddHabitSheet: View {
             .buttonStyle(.plain)
 
             if expandedMoreSettings {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 16) {
                     frequencySection
                     targetSection
                     if selectedType == .checkIn {
@@ -685,23 +659,13 @@ struct AddHabitSheet: View {
                 .holoText(.metadata)
                 .foregroundColor(.holoToolTextSecondary)
 
-            HStack(spacing: 8) {
+            Picker(String(localized: "频率"), selection: $selectedFrequency) {
                 ForEach(HabitFrequency.allCases) { freq in
-                    Button {
-                        selectedFrequency = freq
-                    } label: {
-                        Text(freq.displayName)
-                            .font(.holoCaption)
-                            .foregroundColor(selectedFrequency == freq ? .white : .holoToolText)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous)
-                                    .fill(selectedFrequency == freq ? Color.holoPrimary : Color.holoToolInset)
-                            )
-                    }
+                    Text(freq.displayName).tag(freq)
                 }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
         }
     }
 
@@ -906,94 +870,32 @@ struct AddHabitSheet: View {
     }
 }
 
-// MARK: - 活预览磁贴
+// MARK: - 图标渲染适配器
 
-/// 名称输入下方的只读预览磁贴：对照 HabitTileView 未完成态画法
-/// （纸感卡 + 淡底 chip + 右上空心环），名字/图标/颜色实时跟随表单。
-private struct HabitPreviewTile: View {
-    let name: String
-    let description: String?
+/// 让表单里的图标字符串复用 HabitIconRenderable 的三分支渲染（emoji/自定义资产/SF Symbol）
+private struct HabitPreviewIcon: HabitIconRenderable {
     let icon: String
-    let color: String
-
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(HoloMotionRollout.interactionKey) private var motionEnabled = true
-    private var allowsMotion: Bool { motionEnabled && !reduceMotion }
-
-    private var habitColor: Color { Color(hex: color) }
-    private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            iconChip
-                .frame(width: 32)
-            if !trimmedName.isEmpty {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(name)
-                        .holoText(.body)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.holoToolText)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    if let description {
-                        Text(description)
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoToolTextSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                Text(String(localized: "习惯名会出现在这里"))
-                    .holoText(.metadata)
-                    .foregroundColor(Color.holoToolTextSecondary.opacity(0.7))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            // 未完成态空心环（行内置，与图标/文字垂直居中；对照 HabitTileView）
-            Circle()
-                .strokeBorder(Color.holoToolTextSecondary.opacity(0.45), lineWidth: 1.6)
-                .frame(width: 21, height: 21)
-        }
-        .frame(minHeight: 36, alignment: .center)
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.tile, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.tile, style: .continuous)
-                .strokeBorder(Color.holoToolBorder, lineWidth: 1)
-        )
-        // 换色柔和过渡；名字变化不加动画
-        .animation(allowsMotion ? HoloAnimation.standard : nil, value: color)
-    }
-
-    /// 32×32 淡底 chip：习惯色 8%/16% 底 + 习惯色图标（emoji 原色直出）
-    private var iconChip: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(habitColor.opacity(Color.habitTileTintOpacity(colorScheme)))
-
-            Group {
-                if EmojiCatalog.isEmojiIcon(icon) {
-                    Text(icon)
-                        .font(.system(size: 17))
-                } else {
-                    HabitPreviewIcon(icon: icon).iconImage(size: 17)
-                        .foregroundColor(habitColor)
-                }
-            }
-            .id(icon)
-            .transition(.opacity.combined(with: .scale(scale: 0.9)))
-        }
-        .frame(width: 32, height: 32)
-        .animation(allowsMotion ? HoloAnimation.snappy : nil, value: icon)
+    var isCustomIcon: Bool {
+        UnifiedIconCatalog.isAssetIcon(icon)
     }
 }
 
-// MARK: - 快捷色点
+/// 编辑页统一卡片外观：16 圆角、ToolSurface 底、0.5 描边（全页一档，无杂值）
+private extension View {
+    func editorCardBackground() -> some View {
+        self.background(
+            RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                .fill(Color.holoToolSurface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                .strokeBorder(Color.holoToolBorder, lineWidth: 0.5)
+        )
+    }
+}
 
-/// 外观行 / 图标选择器共用的 24pt 色点：选中 = 1.17 弹性放大 + 白内环 + 同色外晕
+// MARK: - 色点（编辑卡与图标选择器 footer 共用）
+
 private struct HabitQuickColorDot: View {
     let color: String
     let isSelected: Bool
@@ -1011,34 +913,22 @@ private struct HabitQuickColorDot: View {
                 action()
             }
         } label: {
-            // 选中态 = 放大 + 深灰外环（原同色描边在色板上不可见，2026-11-03 判读实锤）
-            Circle()
-                .fill(Color(hex: color))
-                .frame(width: 24, height: 24)
-                .overlay(
-                    Circle()
-                        .stroke(Color(hex: color).opacity(0.3), lineWidth: isSelected ? 1 : 0)
-                        .padding(-1)
-                )
-                .scaleEffect(isSelected ? 1.17 : 1)
-                .overlay(
-                    Circle()
-                        .stroke(Color.holoToolText.opacity(isSelected ? 0.55 : 0), lineWidth: 2)
-                        .frame(width: 30, height: 30)
-                )
-                .animation(allowsMotion ? HoloAnimation.snappy : nil, value: isSelected)
+            ZStack {
+                Circle()
+                    .fill(Color(hex: color))
+                    .frame(width: 24, height: 24)
+                    .scaleEffect(isSelected ? 1.1 : 1)
+                // 选中外环：2pt 全不透明深灰（0.55 透明度在浅色卡上判读实锤不可见）
+                Circle()
+                    .stroke(Color.holoToolText.opacity(isSelected ? 1.0 : 0), lineWidth: 2)
+                    .frame(width: 29, height: 29)
+            }
+            .frame(width: 44, height: 44)   // 热区 44pt（规范底线；编辑卡内由外层均分加宽到 ~56pt）
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - 图标渲染适配器
-
-/// 让表单里的图标字符串复用 HabitIconRenderable 的三分支渲染（emoji/自定义资产/SF Symbol）
-private struct HabitPreviewIcon: HabitIconRenderable {
-    let icon: String
-    var isCustomIcon: Bool {
-        UnifiedIconCatalog.isAssetIcon(icon)
+        .accessibilityLabel(Text(String(localized: "颜色")))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
