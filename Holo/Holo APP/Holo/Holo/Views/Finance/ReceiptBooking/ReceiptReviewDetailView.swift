@@ -12,6 +12,14 @@
 
 import SwiftUI
 
+#if canImport(UIKit)
+/// iOS 上 Category 与系统类型同名冲突，用模块限定 Holo.Category；macOS 模块名是 HoloMac，
+/// 统一经此别名引用（两端都指向本 App 的记账分类实体；本文件仅主 App 与 Mac target 编译）
+typealias HoloFinanceCategory = Holo.Category
+#else
+typealias HoloFinanceCategory = Category
+#endif
+
 struct ReceiptReviewDetailView: View {
     let draft: ReceiptBookingResultStore.StoredDraft
     var onFinished: () -> Void
@@ -39,8 +47,8 @@ struct ReceiptReviewDetailView: View {
     @State private var itemStates: [ItemEditState] = []
     @State private var accounts: [Account] = []
     @State private var projects: [FinanceProject] = []
-    @State private var expenseCategories: [Holo.Category] = []
-    @State private var incomeCategories: [Holo.Category] = []
+    @State private var expenseCategories: [HoloFinanceCategory] = []
+    @State private var incomeCategories: [HoloFinanceCategory] = []
     @State private var evidenceImage: UIImage?
     @State private var evidenceExpanded = false
     @State private var isCommitting = false
@@ -50,18 +58,23 @@ struct ReceiptReviewDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                summaryCard
-                reasonCard
+                metaLine
+                if let pageReasonText {
+                    Text(pageReasonText)
+                        .font(.caption)
+                        .foregroundStyle(Color.orange)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 ForEach($itemStates) { $state in
                     itemCard(for: $state)
                 }
-                if evidenceImage != nil {
+                if itemStates.count > 1, evidenceImage != nil {
                     evidenceCard
                 }
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.footnote)
-                        .foregroundStyle(Color.red)
+                        .foregroundStyle(Color.holoToolError)
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
@@ -70,11 +83,13 @@ struct ReceiptReviewDetailView: View {
             .padding(.bottom, HoloSpacing.xl)
         }
         .background(
-            Color(UIColor.systemGroupedBackground)
+            Color.holoSecondaryGroupedBackground
                 .ignoresSafeArea()
         )
         .navigationTitle(itemStates.count > 1 ? Text("确认这几笔账") : Text("确认这笔账"))
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .safeAreaInset(edge: .bottom) {
             actionButtons
                 .padding(.horizontal, HoloSpacing.lg)
@@ -98,40 +113,19 @@ struct ReceiptReviewDetailView: View {
 
     // MARK: - 卡片
 
-    /// 汇总：多笔显示笔数与同向合计；识别时间必显（2026-09-23 起旧草案一眼可辨）
-    private var summaryCard: some View {
-        card {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(itemCountText)
-                        .font(.holoBody.weight(.semibold))
-                        .foregroundColor(.holoTextPrimary)
-                    Spacer()
-                    if let total = uniformTotalText {
-                        Text("¥\(total)")
-                            .font(.title3.weight(.bold))
-                            .monospacedDigit()
-                            .foregroundColor(.holoTextPrimary)
-                    }
-                }
-                Text("识别于 \(ReceiptRecognizedTimeText.text(for: draft.createdAt))")
+    /// 信息行：识别时间必显（2026-09-23 起旧草案一眼可辨）；多笔附笔数与同向合计。
+    /// 单笔不出汇总卡——金额就在笔卡内（2026-10-13 改版，原型画板②）
+    private var metaLine: some View {
+        HStack {
+            Text("识别于 \(ReceiptRecognizedTimeText.text(for: draft.createdAt))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            if itemStates.count > 1, let total = uniformTotalText {
+                Text("\(includedStates.count) 笔待确认 · 合计 ¥\(total)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    /// 触发原因 + 票面证据
-    private var reasonCard: some View {
-        card {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .foregroundStyle(Color.orange)
-                    Text(reviewReasonText)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.primary)
-                }
+                    .monospacedDigit()
             }
         }
     }
@@ -141,11 +135,19 @@ struct ReceiptReviewDetailView: View {
             DisclosureGroup("查看原图核对", isExpanded: $evidenceExpanded) {
                 VStack(spacing: 8) {
                     if let evidenceImage {
+                        #if canImport(UIKit)
                         Image(uiImage: evidenceImage)
                             .resizable()
                             .scaledToFit()
                             .frame(maxHeight: 220)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
+                        #else
+                        Image(nsImage: evidenceImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 220)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        #endif
                     }
                     Text("仅在本机暂存，确认或删除后自动清理")
                         .font(.caption2)
@@ -158,20 +160,35 @@ struct ReceiptReviewDetailView: View {
         }
     }
 
-    /// 单笔编辑卡：可剔除 + 金额/方向/科目/账户/项目/日期/备注
+    /// 单笔编辑卡：可剔除 + 名称/金额/方向/科目/账户/项目/日期
+    /// 2026-10-13 改版（原型画板②③ + 东林名称反馈）：名称=唯一文本输入（表单第一行，
+    /// 预填 AI 商户名，直接落账本显示名 Transaction.note——商户名此前从未落库）；
+    /// 开关带「记这笔」标签（旧版 labelsHidden 裸开关且文案与绑定语义相反）；
+    /// 单笔时原图缩略图行进卡内（多笔仍走页面底部证据卡）。
     private func itemCard(for state: Binding<ItemEditState>) -> some View {
         card {
             VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Text(state.wrappedValue.title)
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(state.wrappedValue.title)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundColor(.holoTextSecondary)
+                        if itemStates.count > 1 {
+                            Text("¥\(state.wrappedValue.amountText)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
                     Spacer()
-                    Toggle("不记这笔", isOn: state.included)
-                        .labelsHidden()
+                    // fixedSize：Toggle 默认占满行宽（标签贴左开关贴右成断裂感），
+                    // 压回内容宽让「记这笔 [开关]」紧排成组；开关用系统绿——
+                    // 主按钮已是大块主题橙，同为橙则撞色（2026-10-13 东林「不和谐」反馈）
+                    Toggle("记这笔", isOn: state.included)
+                        .font(.footnote)
                         .toggleStyle(.switch)
-                        .tint(.holoPrimary)
                         .disabled(isCommitting)
+                        .fixedSize()
                 }
 
                 if state.wrappedValue.included {
@@ -186,11 +203,36 @@ struct ReceiptReviewDetailView: View {
                     }
                 }
 
+                // 单笔：原图贴卡内（核对依据跟着这笔账，不再压页面底部）
+                if itemStates.count == 1, let evidenceImage {
+                    evidenceThumbRow(image: evidenceImage)
+                }
+
+                // 名称=这笔账在账本里的显示名（Transaction.note），唯一且可编辑；
+                // 预填 AI 认出的商户名——此前商户名只做摆设标题且从未落库，
+                // 账本里这笔交易连名字都没有（2026-10-13 东林反馈根治）。
+                // 预填态占位符不显示，须带常驻「名称」标签否则用户认不出这是名称字段
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("名称")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                    TextField("名称", text: state.note)
+                        .font(.body)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.holoSystemGray6)
+                        )
+                }
+
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text("¥").font(.title2.weight(.semibold))
                         TextField("0.00", text: state.amountText)
                             .font(.system(.title, design: .rounded).weight(.bold))
+                            #if canImport(UIKit)
                             .keyboardType(.decimalPad)
+                            #endif
                             .monospacedDigit()
                     }
                     Picker("方向", selection: state.typeIsIncome) {
@@ -228,10 +270,70 @@ struct ReceiptReviewDetailView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         DatePicker("日期", selection: state.date, displayedComponents: .date)
                             .font(.holoBody)
-                        TextField("备注", text: state.note)
-                            .font(.holoBody)
                     }
+                } else {
+                    Text("这笔不记，确认时将跳过")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
+            }
+        }
+    }
+
+    /// 原图缩略图行（单笔卡内）：点开/收起大图
+    private func evidenceThumbRow(image: UIImage) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                evidenceExpanded.toggle()
+            } label: {
+                HStack(spacing: 12) {
+                    #if canImport(UIKit)
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 72, height: 52)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                    #else
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 72, height: 52)
+                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                    #endif
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("查看原图核对")
+                            .font(.footnote.weight(.medium))
+                            .foregroundColor(.holoTextPrimary)
+                        Text("仅在本机暂存，确认或删除后自动清理")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Image(systemName: evidenceExpanded ? "chevron.down" : "chevron.right")
+                        .font(.footnote)
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(8)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.holoSystemGray6)
+                )
+            }
+            .buttonStyle(.plain)
+            if evidenceExpanded {
+                #if canImport(UIKit)
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                #else
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                #endif
             }
         }
     }
@@ -351,32 +453,27 @@ struct ReceiptReviewDetailView: View {
                     .frame(maxWidth: .infinity)
             }
 
-            Button {
-                dismiss()
-            } label: {
-                Text("稍后处理")
-                    .font(.holoBody)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(Color.holoCardBackground)
-                    )
+            // 低频操作收一行（2026-10-13 原型画板②：三按钮竖排≈250pt 吃掉小屏首屏）
+            HStack(spacing: 22) {
+                Button {
+                    dismiss()
+                } label: {
+                    Text("稍后处理")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .disabled(isCommitting)
+                Text("·").foregroundStyle(.tertiary)
+                Button {
+                    showDeleteConfirmation = true
+                } label: {
+                    Text("删除草稿")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.holoToolError)
+                }
+                .disabled(isCommitting)
             }
-            .disabled(isCommitting)
-
-            // 删除与「确认/稍后」并列为三选一（2026-10-02 东林拍板：从「…」菜单提为页面一等操作）
-            Button {
-                showDeleteConfirmation = true
-            } label: {
-                Label("删除这条草稿", systemImage: "trash")
-                    .font(.holoBody)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
-            }
-            .tint(.red)
-            .disabled(isCommitting)
+            .frame(maxWidth: .infinity)
         }
         .padding(.top, HoloSpacing.xs)
     }
@@ -397,12 +494,6 @@ struct ReceiptReviewDetailView: View {
         itemStates.filter(\.included)
     }
 
-    private var itemCountText: String {
-        includedStates.count == 1
-            ? String(localized: "1 笔待确认")
-            : String(localized: "\(includedStates.count) 笔待确认")
-    }
-
     private var uniformTotalText: String? {
         let included = includedStates
         guard let first = included.first, !included.isEmpty else { return nil }
@@ -415,7 +506,11 @@ struct ReceiptReviewDetailView: View {
 
     private var commitButtonTitle: String {
         let count = includedStates.count
-        return count == 1 ? String(localized: "确认记账") : String(localized: "确认记 \(count) 笔")
+        let total = uniformTotalText
+        if count == 1 {
+            return total.map { String(localized: "确认记账 ¥\($0)") } ?? String(localized: "确认记账")
+        }
+        return total.map { String(localized: "确认记 \(count) 笔 · ¥\($0)") } ?? String(localized: "确认记 \(count) 笔")
     }
 
     private var canCommit: Bool {
@@ -427,16 +522,16 @@ struct ReceiptReviewDetailView: View {
         }
     }
 
-    private func topLevelCategories(in categories: [Holo.Category]) -> [Holo.Category] {
+    private func topLevelCategories(in categories: [HoloFinanceCategory]) -> [HoloFinanceCategory] {
         categories.filter { $0.isTopLevel }
     }
 
-    private func subCategories(of top: Holo.Category, in categories: [Holo.Category]) -> [Holo.Category] {
+    private func subCategories(of top: HoloFinanceCategory, in categories: [HoloFinanceCategory]) -> [HoloFinanceCategory] {
         categories.filter { !$0.isTopLevel && $0.parentId == top.id }
     }
 
     /// 当前生效科目名：用户改选 > AI 解析建议
-    private func currentCategoryTitle(for state: ItemEditState, categories: [Holo.Category]) -> String {
+    private func currentCategoryTitle(for state: ItemEditState, categories: [HoloFinanceCategory]) -> String {
         if let selectedCategoryID = state.selectedCategoryID,
            let selected = categories.first(where: { $0.id == selectedCategoryID }) {
             return selected.name
@@ -464,9 +559,12 @@ struct ReceiptReviewDetailView: View {
         itemStates.firstIndex { $0.id == itemKey }
     }
 
-    private var reviewReasonText: String {
+    /// 页面级复核原因：只在有具体原因时显示一行（2026-10-13 原型画板②：
+    /// 「这笔账需要你确认。」兜底文案每张卡都有=零信息，不再展示）；
+    /// 笔级原因（金额没认准等）由各笔卡内的 reviewNotes 行承载
+    private var pageReasonText: String? {
         guard let first = draft.reasons.first, let reason = ReceiptBookingReason(rawValue: first) else {
-            return String(localized: "这笔账需要你确认。")
+            return nil
         }
         switch reason {
         case .reviewMultipleTransactions:
@@ -483,7 +581,7 @@ struct ReceiptReviewDetailView: View {
         case .reviewContractGuarded: return String(localized: "识别结果有异常，请人工核对。")
         // 人话文案（2026-09-15 东林反馈）：旧契约灰度提示不该说「服务需要更新」
         case .reviewLegacyContract: return String(localized: "识别信息不完整，请核对后保存。")
-        default: return String(localized: "这笔账需要你确认。")
+        default: return nil
         }
     }
 
@@ -524,7 +622,9 @@ struct ReceiptReviewDetailView: View {
                     state.date = parsed
                 }
             }
-            state.note = item.note ?? ""
+            // 名称预填：商户名优先（它就是这笔账在账本里的名字），无商户回退 AI 备注原文
+            let merchant = draft.merchant?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            state.note = merchant.isEmpty ? (item.note ?? "") : merchant
             // 账户建议（§25.2）：固定账户仍有效则整单预填；否则按该笔自己的渠道解析；再落默认
             if state.selectedAccountID == nil {
                 var suggested: UUID?
@@ -567,7 +667,13 @@ struct ReceiptReviewDetailView: View {
         // 本机暂存的复核证据图（确认/删除后随之删除）；降采样加载防整幅原图解码
         if let url = ReceiptBookingResultStore.evidenceImageURL(for: draft.id) {
             Task { @MainActor in
+                #if canImport(UIKit)
                 evidenceImage = await ImageDownsampler.image(at: url)
+                #else
+                if let data = try? Data(contentsOf: url) {
+                    evidenceImage = UIImage(data: data)
+                }
+                #endif
             }
         }
     }
@@ -621,7 +727,7 @@ struct ReceiptReviewDetailView: View {
 
                 // 科目：用户改选 > 完整分类链重解析 > 待分类
                 let categories = item.typeIsIncome ? incomeCategories : expenseCategories
-                let category: Holo.Category?
+                let category: HoloFinanceCategory?
                 if let selectedCategoryID = item.selectedCategoryID {
                     category = repo.findCategory(by: selectedCategoryID)
                 } else {
@@ -639,8 +745,20 @@ struct ReceiptReviewDetailView: View {
                         category = nil
                     }
                 }
-                let finalCategory: Holo.Category = category ?? repo.ensurePendingCategory(type: item.typeIsIncome ? .income : .expense)
+                let finalCategory: HoloFinanceCategory = category ?? repo.ensurePendingCategory(type: item.typeIsIncome ? .income : .expense)
                 let names = repo.resolveCategoryNames(from: finalCategory)
+                // 分类学习写回：用户在确认页改选过科目才学，AI 建议被直接确认不学；
+                // 用户所选科目已失效（解析落空）时目标不可信，同样不学
+                if item.selectedCategoryID != nil, category != nil {
+                    ReceiptBookingCoordinator.recordCategoryLearningIfNeeded(
+                        userSelectedCategoryID: item.selectedCategoryID,
+                        categoryCandidate: item.item.categoryCandidate,
+                        merchant: draft.merchant,
+                        typeIsIncome: item.typeIsIncome,
+                        targetPrimary: names.primary,
+                        targetSub: names.sub ?? names.primary
+                    )
+                }
                 let accountName = repo.findAccount(by: accountID)?.name ?? ""
 
                 let draftToCommit = ResolvedTransactionDraft(
@@ -649,7 +767,8 @@ struct ReceiptReviewDetailView: View {
                     typeIsIncome: item.typeIsIncome,
                     date: item.date,
                     dateInferredFromCapture: item.item.dateText == nil,
-                    note: item.note.isEmpty ? item.item.note : item.note,
+                    // 名称即账本显示名：用户清空=明确不要名字（账本回退显示科目名）
+                    note: item.note.isEmpty ? nil : item.note,
                     remark: nil,
                     categoryID: finalCategory.id,
                     categoryPrimaryName: names.primary,
@@ -678,8 +797,12 @@ struct ReceiptReviewDetailView: View {
                     if result.created {
                         // 只有本次新建的笔才有撤销权；幂等命中的是账本里已存在的交易，不能撤
                         committedIDs.append(result.transactionID)
-                        // 一图多笔：每笔都挂证据票根（开关关时方法内直接返回）
-                        FinanceTransactionCommandService.shared.archiveEvidenceIfNeeded(
+                        // 产品埋点：识图复核确认入账成功（此路径不经过 FinanceRepository 的手动/聊天汇聚点；
+                        // 一图多笔逐笔上报，与字典「记账一笔落库成功」口径一致；不收金额内容）
+                        HoloProductAnalytics.shared.track(.billCreated, ["source": "ai"])
+                        // 一图多笔：每笔都挂证据票根（开关关时方法内直接返回；
+                        // await 保证读证据文件先于循环后的草案删除）
+                        await FinanceTransactionCommandService.shared.archiveEvidenceIfNeeded(
                             draftID: draft.id,
                             transactionID: result.transactionID
                         )

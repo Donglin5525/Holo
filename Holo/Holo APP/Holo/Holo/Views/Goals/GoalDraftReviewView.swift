@@ -25,6 +25,8 @@ struct GoalDraftReviewView: View {
     @State private var workshopSuccessEvidence: String
     @State private var workshopAssumptions: [String]
     @State private var deadlineDate: Date?
+    /// 目标闭环 v2：结果来源 / 回顾 / 预算 / 期次 / 限制 的用户最终确认状态
+    @State private var confirmation: GoalPlanConfirmation
 
     let workshopSession: GoalWorkshopSessionV1?
     let onCancel: () -> Void
@@ -40,10 +42,18 @@ struct GoalDraftReviewView: View {
         _workshopSuccessEvidence = State(initialValue: workshopContext?.successEvidence ?? "")
         _workshopAssumptions = State(initialValue: workshopContext?.assumptions ?? [])
         _deadlineDate = State(initialValue: GoalWorkshopValidator.strictDayFormatter.date(from: draft.deadlineText ?? ""))
+        let now = Date()
+        if let session = workshopContext?.session, let plan = session.plan {
+            _confirmation = State(initialValue: GoalPlanConfirmation.from(plan: plan, candidates: session.candidates, now: now))
+        } else {
+            _confirmation = State(initialValue: GoalPlanConfirmation.defaults(from: draft, successEvidence: workshopContext?.successEvidence ?? "", now: now))
+        }
         self.workshopSession = workshopContext?.session
         self.onCancel = onCancel
         self.onSaved = onSaved
     }
+
+    private var candidates: GoalWorkshopAuthorizedCandidates { workshopSession?.candidates ?? .empty }
 
     var body: some View {
         NavigationStack {
@@ -54,9 +64,18 @@ struct GoalDraftReviewView: View {
                     if let workshopSession {
                         workshopCard(for: workshopSession)
                     }
+                    if workshopSession != nil || confirmation.resultSource != nil {
+                        GoalResultSourceConfirmCard(confirmation: $confirmation, draft: draft, candidates: candidates)
+                    }
                     if !draft.missingInfoWarnings.isEmpty { warningsCard }
                     if !draft.tasks.isEmpty { tasksCard }
                     if !draft.habits.isEmpty { habitsCard }
+                    if !confirmation.constraints.isEmpty || confirmation.budget != nil || !confirmation.fundSchedule.isEmpty {
+                        GoalConstraintsConfirmCard(confirmation: $confirmation, draft: draft, candidates: candidates)
+                    }
+                    if workshopSession != nil {
+                        GoalReviewCadenceConfirmCard(review: $confirmation.review)
+                    }
                     aiContextCard
                     if let saveErrorText {
                         Label {
@@ -64,7 +83,7 @@ struct GoalDraftReviewView: View {
                         } icon: {
                             Image(systemName: "exclamationmark.triangle.fill")
                         }
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
@@ -72,12 +91,15 @@ struct GoalDraftReviewView: View {
                 .padding(.top, HoloSpacing.md)
                 .padding(.bottom, 100)
             }
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
             .navigationTitle("确认目标计划")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { showCancelConfirm = true }
+                    Button("取消", action: requestCancel)
+                        .disabled(isSaving)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(isSaving ? String(localized: "保存中") : String(localized: "保存")) { save() }
@@ -98,10 +120,16 @@ struct GoalDraftReviewView: View {
                 bottomActions
             }
         }
-        .swipeBackToDismiss {
-            onCancel()
-            dismiss()
-        }
+        .holoSheetShell()
+        .interactiveDismissDisabled(true)
+        .sheetDismissGuard(onAttempt: requestCancel)
+        .swipeBackToDismiss(isEnabled: !isSaving, onDismiss: requestCancel)
+    }
+
+    /// 取消、下拉和边缘返回都经过同一确认，保存期间不退出。
+    private func requestCancel() {
+        guard !isSaving else { return }
+        showCancelConfirm = true
     }
 
     // MARK: - Goal Info Card
@@ -117,12 +145,12 @@ struct GoalDraftReviewView: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("标题")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 TextField("目标标题", text: $draft.title)
                     .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .padding(HoloSpacing.sm)
-                    .background(Color.holoBackground)
+                    .background(Color.holoToolBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
             }
 
@@ -130,16 +158,16 @@ struct GoalDraftReviewView: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("说明")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 TextField("目标说明（可选）", text: Binding(
                     get: { draft.summary ?? "" },
                     set: { draft.summary = $0 }
                 ), axis: .vertical)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(2...4)
                 .padding(HoloSpacing.sm)
-                .background(Color.holoBackground)
+                .background(Color.holoToolBackground)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
             }
 
@@ -147,7 +175,7 @@ struct GoalDraftReviewView: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("领域")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Picker("领域", selection: $draft.domain) {
                     ForEach(GoalDomain.allCases) { domain in
                         HStack(spacing: 6) {
@@ -161,7 +189,7 @@ struct GoalDraftReviewView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -181,7 +209,7 @@ struct GoalDraftReviewView: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("期望结果")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 TextField("达成后是什么样子（可选）", text: Binding(
                     get: { draft.desiredOutcome ?? "" },
                     set: { draft.desiredOutcome = $0.isEmpty ? nil : $0 }
@@ -189,14 +217,14 @@ struct GoalDraftReviewView: View {
                     .font(.holoCaption)
                     .lineLimit(1...3)
                     .padding(HoloSpacing.sm)
-                    .background(Color.holoBackground)
+                    .background(Color.holoToolBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
             }
 
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("动机")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 TextField("为什么现在想做这件事（可选）", text: Binding(
                     get: { draft.motivation ?? "" },
                     set: { draft.motivation = $0.isEmpty ? nil : $0 }
@@ -204,7 +232,7 @@ struct GoalDraftReviewView: View {
                     .font(.holoCaption)
                     .lineLimit(1...3)
                     .padding(HoloSpacing.sm)
-                    .background(Color.holoBackground)
+                    .background(Color.holoToolBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
             }
 
@@ -225,7 +253,7 @@ struct GoalDraftReviewView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(RoundedRectangle(cornerRadius: HoloRadius.md).stroke(Color.holoBorder, lineWidth: 1))
     }
@@ -241,12 +269,12 @@ struct GoalDraftReviewView: View {
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text("成功证据（能观察到什么）")
                     .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 TextField("例如：连续四周在周会至少发言一次", text: $workshopSuccessEvidence, axis: .vertical)
                     .font(.holoCaption)
                     .lineLimit(1...3)
                     .padding(HoloSpacing.sm)
-                    .background(Color.holoBackground)
+                    .background(Color.holoToolBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
             }
 
@@ -255,10 +283,10 @@ struct GoalDraftReviewView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("所选路径：\(route.title)")
                         .font(.holoCaption)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     Text("这条路的代价：\(route.tradeoff)")
                         .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
 
@@ -266,7 +294,7 @@ struct GoalDraftReviewView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("关键假设（未确认信息，可删）")
                         .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     ForEach(workshopAssumptions.indices, id: \.self) { index in
                         HStack {
                             Label {
@@ -281,7 +309,7 @@ struct GoalDraftReviewView: View {
                                 Image(systemName: "xmark.circle.fill")
                             }
                         }
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     }
                 }
             }
@@ -289,14 +317,14 @@ struct GoalDraftReviewView: View {
             if let plan = session.plan {
                 if !plan.milestones.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("里程碑").font(.holoLabel).foregroundColor(.holoTextSecondary)
+                        Text("里程碑").font(.holoLabel).foregroundColor(.holoToolTextSecondary)
                         ForEach(plan.milestones) { milestone in
                             HStack {
                                 Image(systemName: "flag").font(.holoLabel)
                                 Text(milestone.title).font(.holoLabel)
                                 Spacer()
                                 if let date = milestone.dateText {
-                                    Text(date).font(.holoTinyLabel).foregroundColor(.holoTextSecondary)
+                                    Text(date).font(.holoTinyLabel).foregroundColor(.holoToolTextSecondary)
                                 }
                             }
                         }
@@ -314,7 +342,7 @@ struct GoalDraftReviewView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(RoundedRectangle(cornerRadius: HoloRadius.md).stroke(Color.holoBorder, lineWidth: 1))
     }
@@ -327,14 +355,14 @@ struct GoalDraftReviewView: View {
             CardDivider()
             ForEach(draft.missingInfoWarnings, id: \.self) { warning in
                 Label {
-                    Text(warning).font(.holoCaption).foregroundColor(.holoTextSecondary)
+                    Text(warning).font(.holoCaption).foregroundColor(.holoToolTextSecondary)
                 } icon: {
                     Image(systemName: "info.circle")
                 }
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(RoundedRectangle(cornerRadius: HoloRadius.md).stroke(Color.holoBorder, lineWidth: 1))
     }
@@ -359,8 +387,8 @@ struct GoalDraftReviewView: View {
 
                     TextField("任务标题", text: $task.title)
                         .font(.holoCaption)
-                        .foregroundColor(.holoTextPrimary)
-                        .strikethrough(!task.isSelected, color: .holoTextSecondary)
+                        .foregroundColor(.holoToolText)
+                        .strikethrough(!task.isSelected, color: .holoToolTextSecondary)
                 }
                 .padding(.vertical, HoloSpacing.xs)
 
@@ -370,7 +398,7 @@ struct GoalDraftReviewView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -400,8 +428,8 @@ struct GoalDraftReviewView: View {
 
                         TextField("习惯名称", text: $habit.name)
                             .font(.holoCaption)
-                            .foregroundColor(.holoTextPrimary)
-                            .strikethrough(!habit.isSelected, color: .holoTextSecondary)
+                            .foregroundColor(.holoToolText)
+                            .strikethrough(!habit.isSelected, color: .holoToolTextSecondary)
                     }
 
                     if habit.isSelected {
@@ -420,7 +448,7 @@ struct GoalDraftReviewView: View {
                             ), in: 1...30)
                             .font(.holoLabel)
                         }
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                     }
                 }
                 .padding(.vertical, HoloSpacing.xs)
@@ -431,7 +459,7 @@ struct GoalDraftReviewView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -452,16 +480,16 @@ struct GoalDraftReviewView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("允许 HoloAI 参考此目标")
                         .font(.holoCaption)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
                     Text("HoloAI 会基于此目标给出更精准的建议")
                         .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
             .tint(.holoPrimary)
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -479,10 +507,10 @@ struct GoalDraftReviewView: View {
             } label: {
                 Text("取消")
                     .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(Color.holoCardBackground)
+                    .background(Color.holoToolSurface)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                     .overlay(
                         RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -516,7 +544,7 @@ struct GoalDraftReviewView: View {
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.md)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: -2)
     }
 
@@ -531,7 +559,7 @@ struct GoalDraftReviewView: View {
 
             Text(title)
                 .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             Spacer()
 
@@ -564,6 +592,22 @@ struct GoalDraftReviewView: View {
 
         isSaving = true
         saveErrorText = nil
+        var finalConfirmation = confirmation
+        finalConfirmation.successCriteria = workshopSuccessEvidence.isEmpty
+            ? finalConfirmation.successCriteria
+            : workshopSuccessEvidence
+        // 习惯来源没有落到任何真实/新建习惯上（含引用的新建习惯已在「习惯」卡被取消）→ 待补齐，
+        // 计划照常建立；不让一个解析不出的引用进提交器
+        if let source = finalConfirmation.resultSource,
+           source.sourceType == .habit, source.sourceID == nil, !source.isPending {
+            let draftStillSelected = finalConfirmation.resultSourceHabitDraftID.map { draftID in
+                draft.habits.contains { $0.id == draftID && $0.isSelected }
+            } ?? false
+            if !draftStillSelected {
+                finalConfirmation.resultSource?.isPending = true
+                finalConfirmation.resultSourceHabitDraftID = nil
+            }
+        }
         Task { @MainActor in
             do {
                 let result: GoalDraftSaveResult
@@ -573,7 +617,8 @@ struct GoalDraftReviewView: View {
                         draft: draft,
                         successEvidence: workshopSuccessEvidence,
                         assumptions: workshopAssumptions,
-                        allowAIContext: allowAIContext
+                        allowAIContext: allowAIContext,
+                        confirmation: finalConfirmation
                     )
                     let receipt = try await GoalWorkshopCommitService.shared.commitWorkshop(input)
                     guard let goal = GoalRepository.shared.findGoal(by: receipt.goalID) else {
@@ -604,6 +649,7 @@ struct GoalDraftReviewView: View {
             case .validation(let reason): return "没保存成功：\(reason)"
             case .saveFailed(let reason): return "没保存成功：\(reason)。内容还在，稍后再试一次。"
             case .sessionAlreadyApplied: return "这个目标已经保存过，不用重复保存。"
+            case .budgetConflict: return "这个账户同周期已经有一份预算了。请在「限制」里选择复用现有预算，或先取消预算再保存。"
             }
         }
         if let validationError = error as? GoalWorkshopValidationError {

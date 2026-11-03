@@ -1,0 +1,37 @@
+{
+  "license": "SIL Open Font License 1.1; modified subset names HoloNoteSerif / HoloNoteHand",
+  "serif": "https://github.com/google/fonts/tree/main/ofl/notoserifsc",
+  "hand": "https://github.com/lxgw/LxgwWenKai-Lite",
+  "sourceSHA256": {
+    "serif-vf.ttf": "050080d9255a86808f2945bffac582b31ef32bc36411ce29563b4961670c66f9",
+    "hand-regular.ttf": "f799a538a3355877e597a0ae04050e897932c9ae7689eb9227c2953c5dd549ea",
+    "hand-medium.ttf": "9282063131640c9558a102560cf6d6f8ecc4bb441e74f2bcff032ce4786238d0"
+  },
+  "coverage": "GB2312 + Big5 frequent ideographs + Latin/punctuation; system glyph fallback for other text",
+  "fonts": [
+    {
+      "file": "HoloNoteSerif-Regular.ttf",
+      "glyphs": 9949,
+      "bytes": 4674148,
+      "sha256": "f1b5fac4d08e1bac9594dcca740ae2a6ba8a9d041252c884cd28cc29bfeaa5a0"
+    },
+    {
+      "file": "HoloNoteSerif-Bold.ttf",
+      "glyphs": 9949,
+      "bytes": 4674068,
+      "sha256": "fd6f39dc474fa90d5d15f78b5371a98e8b54cbc80ee1fc38af0de121177e7239"
+    },
+    {
+      "file": "HoloNoteHand-Regular.ttf",
+      "glyphs": 10279,
+      "bytes": 5067248,
+      "sha256": "ff5d70eaf173ab3816e7818e1ae91f5691f4ae13e5054c238fda569d98b793af"
+    },
+    {
+      "file": "HoloNoteHand-Bold.ttf",
+      "glyphs": 10279,
+      "bytes": 5078516,
+      "sha256": "4acb97d6634effafcdbc6f59df2f8966065baebc172c427b613138eadea0b900"
+    }
+  ]
+}

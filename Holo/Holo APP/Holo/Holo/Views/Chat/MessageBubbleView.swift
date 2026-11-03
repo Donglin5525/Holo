@@ -21,6 +21,9 @@ struct MessageBubbleView: View {
     /// 草案卡只允许落在最新一条 AI 规划消息上：否则草案就绪期间（含恢复场景）
     /// 历史追问消息会全部渲染成草案卡
     var latestGoalPlanningAssistantMessageID: UUID? = nil
+    /// 名头分组（iMessage/微信惯例）：连续 Holo 消息仅组首显示「Holo + AI」名头行，
+    /// 由上层按相邻消息预计算传入；默认 true 保持独立渲染场景不变
+    var showsAIHeader: Bool = true
     var onIntentTagTap: ((ChatMessageViewData) -> Void)? = nil
     var onCardTap: ((ChatMessageViewData, ChatCardData) -> Void)? = nil
     var onFlexibleQueryTransactionTap: ((UUID) -> Void)? = nil
@@ -109,6 +112,27 @@ struct MessageBubbleView: View {
         .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2), lineWidth: 0.8))
     }
 
+    /// 报告追问胶囊（2026-11-01 追问链路原型）：这条消息是从某份报告发起的追问时，
+    /// 气泡上方交代锚定的根报告提问——追问消息与普通聊天一眼可辨。
+    @ViewBuilder
+    private var continuationBadge: some View {
+        if let rootQuestion = message.continuationRootQuestion {
+            HStack(spacing: 3) {
+                Image(systemName: "arrowshape.turn.up.left.fill")
+                    .font(.system(size: 8.5, weight: .bold))
+                Text(String(localized: "就报告「\(rootQuestion)」追问"))
+                    .font(.system(size: 9.5, weight: .bold))
+                    .lineLimit(1)
+            }
+            .foregroundColor(Color.holoFollowUpTint)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(Color.holoFollowUpTint.opacity(0.10), in: Capsule())
+            .overlay(Capsule().stroke(Color.holoFollowUpTint.opacity(0.25), lineWidth: 0.8))
+            .accessibilityLabel(String(localized: "报告追问：锚定报告「\(rootQuestion)」"))
+        }
+    }
+
     private var isUser: Bool {
         message.role == "user"
     }
@@ -129,6 +153,7 @@ struct MessageBubbleView: View {
                         if showsPlanningBadge {
                             planningBadge
                         }
+                        continuationBadge
                         if let thumbURL = VisionImageStore.thumbnailURL(for: message.id) {
                             VisionChatThumbnail(url: thumbURL)
                             if !isImageOnlyCaption {
@@ -142,7 +167,9 @@ struct MessageBubbleView: View {
                 }
             } else {
                 VStack(alignment: .leading, spacing: 10) {
-                    aiHeader
+                    if showsAIHeader {
+                        aiHeader
+                    }
                     if showsPlanningBadge {
                         planningBadge
                     }
@@ -438,12 +465,12 @@ struct MessageBubbleView: View {
 
     private var aiAvatar: some View {
         Circle()
-            .fill(Color.holoPrimary.opacity(0.15))
+            .fill(Color.holoToolAI.opacity(0.15))
             .frame(width: 32, height: 32)
             .overlay {
                 Image(systemName: "sparkles")
                     .font(.system(size: 14))
-                    .foregroundColor(.holoPrimary)
+                    .foregroundColor(.holoToolAI)
             }
     }
 
@@ -457,10 +484,10 @@ struct MessageBubbleView: View {
 
             Text("AI")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.holoPrimary)
+                .foregroundColor(.holoToolAI)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(Color.holoPrimary.opacity(0.12))
+                .background(Color.holoToolAI.opacity(0.12))
                 .clipShape(Capsule())
 
             Spacer(minLength: 0)
@@ -681,8 +708,8 @@ struct MessageBubbleView: View {
         case .createNote: return "note.text"
         case .createAnniversary, .updateAnniversary: return "calendar"
         case .queryTasks: return "list.bullet.circle"
-        case .queryHabits: return "chart.circle"
-        case .recordWeight: return "figure.scale"
+        case .queryHabits: return "chart.bar.xaxis"
+        case .recordWeight: return "scalemass"
         case .unknown: return "questionmark.circle"
         default: return "sparkles"
         }
@@ -698,6 +725,7 @@ extension MessageBubbleView: Equatable {
         lhs.message == rhs.message
             && lhs.streamingText == rhs.streamingText
             && lhs.goalDraftForReview == rhs.goalDraftForReview
+            && lhs.showsAIHeader == rhs.showsAIHeader
     }
 }
 
@@ -746,9 +774,15 @@ struct VisionChatThumbnail: View {
     var body: some View {
         Group {
             if let image {
+                #if canImport(UIKit)
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
+                #else
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+                #endif
             } else {
                 Color.holoToolSurface
             }

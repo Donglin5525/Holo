@@ -57,21 +57,6 @@ nonisolated enum HoloDomainSignalBuilder {
     }
 
     static func sanitizeUserText(_ value: String) -> String {
-        let withoutControls = String(value.unicodeScalars.filter {
-            !CharacterSet.controlCharacters.contains($0)
-        })
-        let roleMarkers = [
-            "<|system|>", "<|assistant|>", "<|user|>",
-            "system:", "assistant:", "user:"
-        ]
-        var isolated = withoutControls
-        for marker in roleMarkers {
-            isolated = isolated.replacingOccurrences(
-                of: marker,
-                with: "［role-marker］",
-                options: [.caseInsensitive]
-            )
-        }
-        return String(isolated.prefix(maximumUserTextLength))
+        HoloUserTextSanitizer.sanitize(value)
     }
 }

@@ -245,6 +245,7 @@ nonisolated final class APIClient {
         struct ErrorPayload: Decodable {
             let code: String?
             let message: String?
+            let reason: String?
         }
     }
 
@@ -281,6 +282,12 @@ nonisolated final class APIClient {
                 throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? String(localized: "请求冲突，请稍后重试"))
             }
         case 429:
+            // 整理预算、日次数与分钟频率是不同等待条件，不能丢掉后端原因。
+            if backendError?.code == "BUDGET_EXCEEDED" || backendError?.reason == "daily_limit" {
+                throw APIError.backendError(statusCode: 429,
+                    code: backendError?.reason == "daily_limit" ? "DAILY_RATE_LIMITED" : backendError?.code,
+                    message: backendMessage ?? String(localized: "今日处理次数已达上限"), requestId: requestId)
+            }
             throw APIError.rateLimited(backendMessage)
         case 401:
             // 设备会话类拒绝是可恢复的（刷新会话重试），与其余 401 区分（S01）

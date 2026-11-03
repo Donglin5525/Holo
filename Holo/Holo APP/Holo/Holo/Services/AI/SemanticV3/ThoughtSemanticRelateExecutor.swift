@@ -44,21 +44,34 @@ actor ThoughtSemanticRelateExecutor {
                     kind: "relate")) ?? nil
             guard let job = claimed else { break }
             processed += 1
-            await run(job: job, store: store, index: index)
+            // 撞预算墙（当日额度用尽）即停批：池子是全设备共享的，继续领下一条
+            // 只会再撞一次墙——风暴的另一半来源（2026-11-01 实锤）
+            if await run(job: job, store: store, index: index) == .budgetExhausted { break }
+            // 服务每分钟处理 20 次；历史队列串行匀速消费，避免刚恢复就再次撞限流。
+            if processed < limit {
+                do { try await Task.sleep(for: .seconds(4)) } catch { break }
+            }
         }
+    }
+
+    private enum JobOutcome {
+        case done
+        /// 后台/整理预算墙：当日额度已尽，本批剩余任务全部推迟到次日
+        case budgetExhausted
     }
 
     private func run(job: ThoughtSemanticStore.SemanticJob,
                      store: ThoughtSemanticStore,
-                     index: (any LocalSemanticIndex)?) async {
+                     index: (any LocalSemanticIndex)?) async -> JobOutcome {
         // 1. 本地快照重验：未删除且正文 hash 与任务一致（正文已变：feed 已为新版
-        //    入队 embed→relate 全流程，本任务针对旧版本直接完成）
+        // 入队 embed→relate 全流程，本任务针对旧版本直接完成）
         let snapshot: (id: UUID, text: String)? = await MainActor.run {
             let context = CoreDataStack.shared.viewContext
             var out: (UUID, String)?
             context.performAndWait {
                 let request = Thought.fetchRequest()
-                request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil AND isArchived == NO", job.thoughtID as CVarArg)
+                // 执行时再查一次排除（入队后用户可能才打上「不参与 AI」标签）
+                request.predicate = ThoughtAIAudience.processablePredicate(thoughtID: job.thoughtID)
                 request.fetchLimit = 1
                 if let thought = (try? context.fetch(request))?.first {
                     out = (thought.id, thought.content)
@@ -68,23 +81,23 @@ actor ThoughtSemanticRelateExecutor {
         }
         guard let snapshot else {
             try? await store.finishJob(id: job.id, state: "done", errorCode: "thought_unavailable")
-            return
+            return .done
         }
         guard ThoughtSemanticText.contentHash( snapshot.text) == job.contentHash else {
             try? await store.finishJob(id: job.id, state: "done", errorCode: "stale_content")
-            return
+            return .done
         }
         let redacted = ThoughtIndexV2Policy.redactedText(forUpload: snapshot.text)
         guard !redacted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             try? await store.finishJob(id: job.id, state: "done", errorCode: "text_unavailable")
-            return
+            return .done
         }
         // 2. 读回向量（真身 SQLite；无 active 向量=任务不应存在，防御性完成）
         guard (try? await store.hasActiveItem(thoughtID: snapshot.id, contentHash: job.contentHash, modelVersion: ThoughtSemanticStore.defaultModelVersion)) == true,
               let vector = (try? await store.loadVector(thoughtID: snapshot.id)) ?? nil,
               !vector.isEmpty else {
             try? await store.finishJob(id: job.id, state: "done", errorCode: "vector_unavailable")
-            return
+            return .done
         }
 
         // 3. flag 与校准门（§6.2：无正式校准 JSON 一律 shadow）
@@ -110,15 +123,21 @@ actor ThoughtSemanticRelateExecutor {
                     consentGeneration: job.consentGeneration)
             }
             try await store.finishJob(id: job.id, state: "done")
+            return .done
         } catch {
             let attempt = job.attemptCount + 1
             let terminal = isTerminalError(error)
+            let code = ThoughtSemanticRetryPolicy.code(error)
             let next = Date().addingTimeInterval(ThoughtSemanticRetryPolicy.delay(error, attempt: attempt))
             try? await store.finishJob(id: job.id,
                                        state: terminal ? "failed_terminal" : "pending",
                                        nextAttemptAt: terminal ? nil : next,
-                                       errorCode: ThoughtSemanticRetryPolicy.code(error))
+                                       errorCode: code)
             logger.error("relate 失败 thought=\(job.thoughtID) attempt=\(attempt) terminal=\(terminal)：\(error.localizedDescription)")
+            if code == "BUDGET_EXCEEDED" || code == "BACKGROUND_BUDGET_EXCEEDED" || code == "DAILY_RATE_LIMITED" {
+                return .budgetExhausted
+            }
+            return .done
         }
     }
 

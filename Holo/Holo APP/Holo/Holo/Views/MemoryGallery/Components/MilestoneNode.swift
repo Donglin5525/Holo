@@ -10,6 +10,7 @@ import SwiftUI
 
 struct MilestoneNode: View {
     let data: MilestoneData
+    @State private var selectedGrowthEvent: HoloGrowthMilestone?
 
     private let accent = Color.holoPrimary
 
@@ -43,6 +44,13 @@ struct MilestoneNode: View {
             }
 
             Spacer(minLength: 0)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { selectedGrowthEvent = data.growthEvent }
+        .accessibilityAddTraits(data.growthEvent == nil ? [] : .isButton)
+        .accessibilityAction { selectedGrowthEvent = data.growthEvent }
+        .sheet(item: $selectedGrowthEvent) { event in
+            NavigationStack { HoloGrowthMilestoneView(event: event) }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)

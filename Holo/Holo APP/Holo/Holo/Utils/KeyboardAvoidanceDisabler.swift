@@ -15,12 +15,16 @@
 //  sheet / fullScreenCover 有独立的 hosting controller，不受影响，仍保留系统避让。
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
+import Foundation
 
 /// 在 hosting controller 上禁用键盘 safe area 区域（保留容器安全区）
 /// 通过 UIViewRepresentable 把自己插入视图层级，再沿响应链找到所属 UIHostingController。
 /// 注意：Swift 泛型不协变，UIHostingController<具体View> 不能 as? 成 UIHostingController<AnyView>，
 /// 这里用 Mirror 反射拿到实例后按 UIKit 公开属性赋值（safeAreaRegions 是公开 API）。
+#if canImport(UIKit)
 struct KeyboardAvoidanceDisabler: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIView {
@@ -70,9 +74,17 @@ extension UIViewController {
 
 // MARK: - View 扩展
 
+#endif
+
 extension View {
     /// 关闭所在 hosting controller 的系统键盘避让（对顶部搜索框等布局有效）
+    /// macOS 无 UIKit 键盘避让行为，空实现
+    @ViewBuilder
     func disableKeyboardAvoidance() -> some View {
+        #if canImport(UIKit)
         background(KeyboardAvoidanceDisabler())
+        #else
+        self
+        #endif
     }
 }

@@ -9,7 +9,7 @@ import CoreData
 import Foundation
 
 actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
-    private enum Storage: Sendable {
+    enum Storage: Sendable {
         case main
         case sensitive
     }
@@ -19,7 +19,7 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         var storage: Storage
     }
 
-    private let controller: HoloMemoryPersistenceController
+    let controller: HoloMemoryPersistenceController
     private var mutationLocked = false
     private var mutationWaiters: [CheckedContinuation<Void, Never>] = []
 
@@ -181,11 +181,18 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
 
             let context = container(for: target).newBackgroundContext()
             context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+            let controlGeneration = control.userDecisionVersion
             try await context.perform {
                 for item in prepared {
                     try Self.upsertRecord(
                         item.record,
                         observationKey: target == .main ? observationKey : nil,
+                        in: context
+                    )
+                    try HoloKnowledgeIngestion.ingest(
+                        record: item.record,
+                        controlGeneration: controlGeneration,
+                        now: completedAt,
                         in: context
                     )
                 }
@@ -216,8 +223,14 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
     }
 
     func query(_ query: HoloMemoryRepositoryQuery) async throws -> [HoloMemoryRecord] {
+        // 分段计时（2026-11-02 性能归因）：全量读+知识门闸的单次耗时此前完全黑箱，
+        // 补领 74 秒无法归因。超 400ms 才落日志，正常量级不刷屏。
+        let queryClock = ContinuousClock()
+        let queryStart = queryClock.now
+        let fetchStart = queryClock.now
         let main = try await fetchAll(in: .main)
         let sensitive = try await fetchAll(in: .sensitive)
+        let fetchElapsed = queryClock.now - fetchStart
         var byID: [String: HoloMemoryRecord] = [:]
         for record in main + sensitive {
             if let existing = byID[record.id] {
@@ -231,7 +244,7 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
             .superseded, .invalidated, .archived, .suppressed, .tombstoned, .deleted
         ]
         let control = try await loadControlState()
-        return byID.values.filter { record in
+        let filtered = byID.values.filter { record in
             let predatesLearningBaseline: Bool
             if let baseline = control.learningBaselineAt {
                 predatesLearningBaseline = !record.evidenceRefs.isEmpty &&
@@ -253,6 +266,47 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
             if $0.updatedAt == $1.updatedAt { return $0.id < $1.id }
             return $0.updatedAt > $1.updatedAt
         }
+
+        guard query != .all else { return filtered }
+        // 统一决策门闸（v2.2 §4/§6）：所有消费者经由同一 HoloResolvedKnowledge 判定，
+        // 不再有 active 旁路。未迁移旧记录走 §7.2 受限只读投影，不通过旧 active 悄悄回退。
+        let gateStart = queryClock.now
+        let gate = try await knowledgeUsageGate(now: Date())
+        let gateElapsed = queryClock.now - gateStart
+        let result = filtered.filter { gate.isUsable($0) }
+        let totalElapsed = queryClock.now - queryStart
+        if totalElapsed > .milliseconds(400) {
+            let kind = query == .active ? "active" : (query == .all ? "all" : "domain")
+            func ms(_ d: Duration) -> Int { Int(d.components.seconds) * 1000 + Int(d.components.attoseconds / 1_000_000_000_000_000) }
+            NSLog("[HoloMemoryRepository] PERF query(\(kind)) 慢: total=\(ms(totalElapsed))ms fetch=\(ms(fetchElapsed))ms gate=\(ms(gateElapsed))ms records=\(main.count + sensitive.count) usable=\(result.count)")
+        }
+        return result
+    }
+
+    /// 命题知识可用性 → 旧记录别名的门闸投影。
+    struct HoloKnowledgeUsageGate: Sendable {
+        let usableAliases: Set<String>
+        let knownAliases: Set<String>
+
+        func isUsable(_ record: HoloMemoryRecord) -> Bool {
+            if knownAliases.contains(record.id) {
+                return usableAliases.contains(record.id)
+            }
+            return HoloKnowledgeLegacyAdapter.isUsableWithoutMigration(record)
+        }
+    }
+
+    func knowledgeUsageGate(now: Date) async throws -> HoloKnowledgeUsageGate {
+        let resolved = try await resolvedKnowledgeAll(now: now)
+        var usable: Set<String> = []
+        var known: Set<String> = []
+        for item in resolved {
+            known.formUnion(item.legacyAliases)
+            if item.decision.isUsableForAnswering {
+                usable.formUnion(item.legacyAliases)
+            }
+        }
+        return HoloKnowledgeUsageGate(usableAliases: usable, knownAliases: known)
     }
 
     func markUserDecision(
@@ -263,6 +317,29 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         try await withMutationLock {
             try await markUserDecisionUnlocked(id: id, decision: decision, now: now)
         }
+    }
+
+    /// 存量大扫除（2026-10-29 东林拍板）：把被错误激活的单次流水/单日打卡碎片
+    /// 从「已记住」收进历史（archived）。保护边界见 HoloLegacySweepPolicy——
+    /// 用户确认/纠正/否决过的与敏感内容一条不碰。幂等：归档后不再命中。
+    /// 返回本次归档条数；走正常持久化通道，随 CloudKit 同步到全部设备。
+    func archiveLegacyFlowRecords(now: Date) async throws -> Int {
+        let candidates = try await query(.all)
+        var archived = 0
+        for record in candidates where HoloLegacySweepPolicy.shouldSweep(record) {
+            try await withMutationLock {
+                guard let stored = try await fetchStored(id: record.id) else { return }
+                var updated = stored.record
+                guard HoloLegacySweepPolicy.shouldSweep(updated) else { return }
+                updated.state = .archived
+                updated.recordVersion += 1
+                updated.predecessorVersionID = stored.record.versionID
+                updated.updatedAt = now
+                try await persist(updated, in: stored.storage, observationKey: nil)
+                archived += 1
+            }
+        }
+        return archived
     }
 
     private func markUserDecisionUnlocked(
@@ -544,6 +621,43 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         }
     }
 
+    /// 标签级 AI 排除（2026-10-21 方案）：删除由指定想法派生的记忆。
+    /// 口径「证据含排除想法即删」：thought 域证据命中直接删；跨域融合记录的 evidenceRefs
+    /// 可能不含想法 UUID，但上游记忆被删后 upstreamMemoryIDs 悬空，一并删除，
+    /// 由观察器从剩余想法重新沉淀。排除语义（隐私）优先于记忆保留。
+    /// - Returns: 实际删除条数
+    @discardableResult
+    func deleteRecordsDerived(fromThoughtIDs thoughtIDs: Set<String>) async throws -> Int {
+        guard !thoughtIDs.isEmpty else { return 0 }
+        return try await withMutationLock {
+            let records = try await query(.all)
+            let normalizedKeys = Set(thoughtIDs.map { $0.lowercased() })
+            func referencesExcludedThought(_ record: HoloMemoryRecord) -> Bool {
+                record.evidenceRefs.contains { ref in
+                    guard ref.sourceDomain == .thought else { return false }
+                    if let sourceID = ref.sourceID, normalizedKeys.contains(sourceID.lowercased()) { return true }
+                    return ref.lineageKey.lowercased().hasPrefix("thought:")
+                        && normalizedKeys.contains(String(ref.lineageKey.dropFirst("thought:".count)).lowercased())
+                }
+            }
+            var deletedIDs = Set(records.filter(referencesExcludedThought).map(\.id))
+            // 级联：跨域融合记录引用了被删上游
+            for record in records where record.scope == .crossDomain && !deletedIDs.contains(record.id) {
+                if !Set(record.upstreamMemoryIDs).isDisjoint(with: deletedIDs) {
+                    deletedIDs.insert(record.id)
+                }
+            }
+            var deleted = 0
+            for id in deletedIDs {
+                if let stored = try await fetchStored(id: id) {
+                    try await deletePersistedRecord(id: id, from: stored.storage)
+                    deleted += 1
+                }
+            }
+            return deleted
+        }
+    }
+
     func replaceRecordForMigration(_ record: HoloMemoryRecord) async throws {
         do {
             try record.validate()
@@ -622,13 +736,21 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
             let request = NSFetchRequest<HoloMemoryRecordMO>(entityName: "HoloMemoryRecordMO")
             request.predicate = NSPredicate(format: "deletedAt == nil")
             let objects = try context.fetch(request)
-            do {
-                return try objects.map {
-                    try Self.decoder().decode(HoloMemoryRecord.self, from: $0.recordData)
+            // 逐行隔离（方案 v2.2 §7.5 / M06）：单条未知外层枚举或损坏字节不拖垮整批；
+            // 原字节保留在库中待诊断，不新建非法枚举、不在消费端 catch 成空列表。
+            var decoded: [HoloMemoryRecord] = []
+            var quarantined = 0
+            for object in objects {
+                do {
+                    decoded.append(try Self.decoder().decode(HoloMemoryRecord.self, from: object.recordData))
+                } catch {
+                    quarantined += 1
                 }
-            } catch {
-                throw HoloMemoryRepositoryError.persistenceFailed
             }
+            if quarantined > 0 {
+                NSLog("[HoloMemoryRepository] 隔离无法解码的记忆行: \(quarantined)（原字节保留）")
+            }
+            return decoded
         }
     }
 
@@ -637,10 +759,19 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         in storage: Storage,
         observationKey: String?
     ) async throws {
+        let controlGeneration = try await loadControlState().userDecisionVersion
         let context = container(for: storage).newBackgroundContext()
         context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         try await context.perform {
             try Self.upsertRecord(record, observationKey: observationKey, in: context)
+            // 统一写入（v2.2 §6）：旧记录作为来源/候选契约载体，在同一事务内经统一准入
+            // 落知识修订；不向旧 recordData 双写新知识，不直接用候选状态授权当前理解。
+            try HoloKnowledgeIngestion.ingest(
+                record: record,
+                controlGeneration: controlGeneration,
+                now: record.updatedAt,
+                in: context
+            )
             do {
                 try context.save()
             } catch {
@@ -826,7 +957,7 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         }
     }
 
-    private func container(for storage: Storage) -> NSPersistentContainer {
+    func container(for storage: Storage) -> NSPersistentContainer {
         switch storage {
         case .main: return controller.mainContainer
         case .sensitive: return controller.sensitiveContainer
@@ -834,7 +965,7 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
     }
 
     /// actor 在 await Core Data context 时允许重入，因此写操作还需要显式事务门。
-    private func withMutationLock<ResultValue>(
+    func withMutationLock<ResultValue>(
         _ operation: () async throws -> ResultValue
     ) async rethrows -> ResultValue {
         await acquireMutationLock()

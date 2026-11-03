@@ -24,9 +24,11 @@ struct CloudRepullView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("从 iCloud 重新拉取")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     if service.canDismiss {
                         Button {
                             service.dismiss()
@@ -136,7 +138,7 @@ struct CloudRepullView: View {
                 Label(String(localized: "拉取未完成"), systemImage: "exclamationmark.triangle.fill")
                     .font(.holoBody)
                     .fontWeight(.semibold)
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                 Text(message)
                     .font(.system(size: 13))
                     .foregroundColor(.holoTextSecondary)

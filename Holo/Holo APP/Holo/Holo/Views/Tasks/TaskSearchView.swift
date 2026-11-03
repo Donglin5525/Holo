@@ -242,10 +242,19 @@ struct TaskSearchView: View {
 
             LazyVStack(spacing: HoloSpacing.sm) {
                 ForEach(searchResults, id: \.id) { task in
-                    TaskCardView(task: task, repository: repository)
-                        .onTapGesture {
-                            selectedTask = TaskSelection(id: task.id)
+                    TaskCardView(
+                        task: task,
+                        repository: repository,
+                        onNavigateToAnniversary: { anniversaryId in
+                            DeepLinkState.shared.navigate(to: .anniversaryDetail(anniversaryId: anniversaryId))
                         }
+                    )
+                    .onTapGesture {
+                        // 点结果先收键盘再弹详情（键盘避让崩溃由呈现层
+                        // disableKeyboardAvoidance 根治，这里只做合理交互收起）
+                        isSearchFocused = false
+                        selectedTask = TaskSelection(id: task.id)
+                    }
                 }
             }
             .padding(.horizontal, HoloSpacing.lg)

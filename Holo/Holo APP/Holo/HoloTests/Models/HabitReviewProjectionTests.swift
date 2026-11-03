@@ -93,6 +93,42 @@ final class HabitReviewProjectionTests: XCTestCase {
         XCTAssertFalse(day(2026, 10, 4, hour: 0) >= interval.start && day(2026, 10, 4, hour: 0) < interval.end)
     }
 
+    // MARK: - 日历显示月派生（2026-10-09 真机实锤：切「上月」后日历仍画本月）
+
+    func test_月范围显示月恒为范围月_不落翻月状态() {
+        let staleCalendarMonth = oct // 翻月状态停在十月（切「上月」前的残留）
+        let display = HabitReviewRange.month(sep)
+            .calendarDisplayMonth(fallback: staleCalendarMonth)
+        XCTAssertEqual(display, sep)
+    }
+
+    func test_跨月范围显示月用翻月状态() {
+        let panned = day(2026, 9, 1)
+        XCTAssertEqual(HabitReviewRange.lastDays(30).calendarDisplayMonth(fallback: panned), panned)
+        XCTAssertEqual(HabitReviewRange.all.calendarDisplayMonth(fallback: panned), panned)
+    }
+
+    // MARK: - 界日记录归属（rangeSnapshot 过滤必须半开）
+
+    func test_次月零点整记录不漏进本月范围() {
+        let id = UUID()
+        let facts = [
+            fact(id, oct),                       // 10/1 00:00 整（界日）
+            fact(id, day(2026, 9, 15)),
+        ]
+        let data = buildData(facts)
+        // 九月快照：只认 9/15，界日记录不算九月
+        let sepSnapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id), range: .month(sep), data: data)
+        XCTAssertEqual(sepSnapshot.recordedDayCount, 1)
+        XCTAssertTrue(sepSnapshot.containsDay(day(2026, 9, 15), calendar: calendar))
+        XCTAssertFalse(sepSnapshot.containsDay(oct, calendar: calendar))
+        // 十月快照：界日记录归十月
+        let octSnapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id), range: .month(oct), data: data)
+        XCTAssertEqual(octSnapshot.recordedDayCount, 1)
+    }
+
     // MARK: - 记录日去重（R08）
 
     func test_同习惯同日多条记录只算一个记录日() {
@@ -316,5 +352,384 @@ final class HabitReviewProjectionTests: XCTestCase {
         XCTAssertTrue(d.isPaused)       // 暂停期间有记录：两个事实并存
         XCTAssertTrue(d.isRetroactive)
         XCTAssertEqual(d.dailyValue, 3) // 当日 SUM
+    }
+
+    // MARK: - 周走势（方案A 2026-10-12：打卡型第一次有走势图）
+
+    /// now=10/7（周三）：本月范围首桶周一=9/28，但只从范围首日 10/1 起数
+    func test_周走势_分桶周一首界_范围前不计分母() {
+        let id = UUID()
+        let facts = [
+            fact(id, day(2026, 10, 1)), fact(id, day(2026, 10, 2)),
+            fact(id, day(2026, 10, 5)), fact(id, day(2026, 10, 6)), fact(id, day(2026, 10, 7)),
+        ]
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id), range: .custom(start: day(2026, 9, 25), end: day(2026, 10, 7)), data: buildData(facts))
+        let trend = HabitReviewProjector.checkInTrend(snapshot: snapshot, data: buildData(facts))
+        XCTAssertEqual(trend?.mode, .completionRate)
+        // 只画已过完的完整周：9/28–10/4 一根（10/5 起的周才到周三，进行中不画）
+        XCTAssertEqual(trend?.granularity, .week)
+        XCTAssertEqual(trend?.bars.count, 1)
+        XCTAssertEqual(trend?.bars[0].start, calendar.startOfDay(for: day(2026, 9, 28)))
+        XCTAssertEqual(trend?.bars[0].days, 7)   // 完整周 7 天全在范围内（9/25–10/7 跨月自定义）
+        XCTAssertEqual(trend?.bars[0].recordedDays, 2)
+        XCTAssertEqual(trend?.bars[0].fraction ?? -1, 2.0 / 7.0, accuracy: 0.001)
+    }
+
+    func test_周走势_创建前与暂停日不计入分母() {
+        let id = UUID()
+        let habitInfo = HabitReviewHabitInfo(
+            id: id, kind: .checkIn, createdAt: day(2026, 9, 28),
+            pauseWindows: [HabitPauseWindow(startDate: day(2026, 9, 29), endDate: day(2026, 9, 30))])
+        let facts = [fact(id, day(2026, 10, 1))]
+        let data = buildData(facts)
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: habitInfo, range: .custom(start: day(2026, 9, 25), end: day(2026, 10, 7)), data: data)
+        let trend = HabitReviewProjector.checkInTrend(snapshot: snapshot, data: data)
+        // 唯一完整已过周 9/28–10/4：9/29、9/30 暂停剔除 → 5 个有效天，只记了 10/1
+        XCTAssertEqual(trend?.bars.count, 1)
+        XCTAssertEqual(trend?.bars[0].days, 5)
+        XCTAssertEqual(trend?.bars[0].recordedDays, 1)
+    }
+
+    func test_周走势_坏习惯与周月习惯用每周天数模式() {
+        let badId = UUID()
+        let badSnapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(badId, bad: true), range: .lastDays(90), data: buildData([fact(badId, now)]))
+        XCTAssertEqual(HabitReviewProjector.checkInTrend(snapshot: badSnapshot, data: buildData([fact(badId, now)]))?.mode,
+                       .weeklyDays)
+
+        let weeklyId = UUID()
+        let weeklyInfo = HabitReviewHabitInfo(id: weeklyId, kind: .checkIn, frequency: .weekly)
+        let weeklySnapshot = HabitReviewProjector.rangeSnapshot(
+            info: weeklyInfo, range: .lastDays(90), data: buildData([fact(weeklyId, now)]))
+        XCTAssertEqual(HabitReviewProjector.checkInTrend(snapshot: weeklySnapshot, data: buildData([fact(weeklyId, now)]))?.mode,
+                       .weeklyDays)
+
+        // 单月范围不画趋势柱（直接看日历）
+        let monthSnapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(UUID()), range: .month(oct), data: buildData([]))
+        XCTAssertNil(HabitReviewProjector.checkInTrend(snapshot: monthSnapshot, data: buildData([])))
+    }
+
+    func test_周走势_超长范围只保留最近12周() {
+        let id = UUID()
+        let start = day(2026, 7, 10)
+        let end = day(2026, 10, 6)
+        let data = buildData([])
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id), range: .custom(start: start, end: end), data: data)
+        let trend = HabitReviewProjector.checkInTrend(snapshot: snapshot, data: data)
+        XCTAssertEqual(trend?.granularity, .week)
+        // 习惯 8/1 创建：完整已过周从 8/3 到 9/28 共 9 根（范围起点 7/10 被创建日裁剪）
+        XCTAssertEqual(trend?.bars.count, 9)
+    }
+
+    // MARK: - 「全部」范围不卡死（2026-10-13 真机点「全部」闪退实锤，两闸门均漏）
+
+    /// 「全部」的范围首日是 distantPast：分桶必须被封底在 maxWeeks 周内，
+    /// 从公元逐周迭代会卡死主线程被 watchdog 杀掉
+    func test_周走势_全部范围封底12桶_不起死循环() {
+        let id = UUID()
+        let facts = [fact(id, now)]  // 只有今天一条
+        let data = buildData(facts)
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id), range: .all, data: data)
+        let started = Date()
+        let trend = HabitReviewProjector.checkInTrend(snapshot: snapshot, data: data)
+        let elapsed = Date().timeIntervalSince(started)
+        XCTAssertLessThan(elapsed, 2.0, "全部范围分桶应在秒级完成")
+        XCTAssertFalse(trend?.bars.isEmpty ?? true)
+        // 「全部」（创建 8/1 → 10/7，67 天）按周画；末桶 = 最后一个完整周（9/28–10/4）
+        XCTAssertEqual(trend?.granularity, .week)
+        XCTAssertEqual(trend?.bars.last?.start, calendar.startOfDay(for: day(2026, 9, 28)))
+    }
+
+    /// 「全部」没有「再往前一段」的语义：不比上期；等长上期窗口（约74万天）逐日循环同样卡死
+    func test_上期对比_全部范围不比上期() {
+        let id = UUID()
+        let data = buildData([fact(id, now)])
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id), range: .all, data: data)
+        let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+        XCTAssertNil(comparison.previous)
+        XCTAssertNil(comparison.previousStart)
+    }
+
+    func test_上期对比_超长自定义范围钳制不比上期() {
+        let id = UUID()
+        let data = buildData([fact(id, now)])
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id),
+            range: .custom(start: day(2024, 1, 1), end: day(2026, 10, 6)),
+            data: data)
+        let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+        XCTAssertNil(comparison.previous)
+    }
+
+    // MARK: - 本期 vs 上期对比（方案A：等长窗口 + 完成率归一）
+
+    func test_上期对比_月范围上期为上月同一段日子() {
+        let id = UUID()
+        // 本期 10/1-10/7（7 天）记 5 天；上月同期 9/1-9/8 记 2 天（月范围上期 = 上月同一段日子）
+        let facts = [
+            fact(id, day(2026, 10, 1)), fact(id, day(2026, 10, 2)), fact(id, day(2026, 10, 3)),
+            fact(id, day(2026, 10, 4)), fact(id, day(2026, 10, 5)),
+            fact(id, day(2026, 9, 1)), fact(id, day(2026, 9, 2)),
+        ]
+        let data = buildData(facts)
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id), range: .month(oct), data: data)
+        let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+        XCTAssertEqual(comparison.current.recordedDays, 5)
+        XCTAssertEqual(comparison.current.validDays, 7)
+        XCTAssertEqual(comparison.previous?.recordedDays, 2)
+        XCTAssertEqual(comparison.previous?.validDays, 7)
+        XCTAssertEqual(comparison.previousLabel, "上月同期")
+        XCTAssertEqual(comparison.previousStart, calendar.startOfDay(for: day(2026, 9, 1)))
+    }
+
+    func test_上期对比_上期全在创建前不比() {
+        let id = UUID()
+        // 创建日 10/1：上期窗口 9/24-9/30 全在创建前，没有可比基线
+        let data = buildData([fact(id, day(2026, 10, 1))])
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, created: day(2026, 10, 1)), range: .month(oct), data: data)
+        let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+        XCTAssertNil(comparison.previous)
+        XCTAssertEqual(comparison.current.recordedDays, 1)
+    }
+
+    func test_上期对比_暂停日从有效天剔除() {
+        let id = UUID()
+        let habitInfo = HabitReviewHabitInfo(
+            id: id, kind: .checkIn, createdAt: day(2026, 8, 1),
+            pauseWindows: [HabitPauseWindow(startDate: day(2026, 9, 2), endDate: day(2026, 9, 3))])
+        let facts = [fact(id, day(2026, 10, 1)), fact(id, day(2026, 9, 4))]
+        let data = buildData(facts)
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: habitInfo, range: .month(oct), data: data)
+        let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+        // 本月 interval 被钳到今天（10/1–10/8，7 天）→ 上月同期 9/1–9/8；
+        // 其中 9/2、9/3 暂停剔除 → 5 个有效天，记 1 天
+        XCTAssertEqual(comparison.previous?.validDays, 5)
+        XCTAssertEqual(comparison.previous?.recordedDays, 1)
+    }
+
+    func test_上期对比_测量均值口径() {
+        let id = UUID()
+        let facts = [
+            fact(id, day(2026, 10, 1), completed: false, value: 74),
+            fact(id, day(2026, 10, 2), completed: false, value: 75),
+            fact(id, day(2026, 9, 1), completed: false, value: 76),
+            fact(id, day(2026, 9, 2), completed: false, value: 78),
+        ]
+        let data = buildData(facts)
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, kind: .measure, unit: "kg"), range: .month(oct), data: data)
+        let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+        XCTAssertEqual(comparison.current.measureAverage ?? -1, 74.5, accuracy: 0.001)
+        XCTAssertEqual(comparison.previous?.measureAverage ?? -1, 77.0, accuracy: 0.001)
+    }
+
+    /// 近 N 天的上期 = 紧邻本期之前的等长窗口；标签「之前 N 天」
+    func test_上期对比_近N天上期为紧邻等长窗口() {
+        let id = UUID()
+        // 本期近 30 天 = 9/8–10/7；上期 = 8/9–9/7（各 30 天）
+        var facts = [fact(id, day(2026, 10, 1))]
+        for dayOffset in 9...16 { facts.append(fact(id, day(2026, 8, dayOffset))) }
+        let data = buildData(facts)
+        let snapshot = HabitReviewProjector.rangeSnapshot(info: info(id), range: .lastDays(30), data: data)
+        let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+        XCTAssertEqual(comparison.previousStart, calendar.startOfDay(for: day(2026, 8, 9)))
+        XCTAssertEqual(comparison.previous?.validDays, 30)
+        XCTAssertEqual(comparison.previous?.recordedDays, 8)
+        XCTAssertEqual(comparison.previousLabel, "之前 30 天")
+    }
+
+    /// 计数型单月范围按天铺满整月：未来的日子是空槽（isFuture），合计逐日可对
+    func test_计数趋势_单月按天铺满整月_未来日空槽() {
+        let id = UUID()
+        let facts = [
+            fact(id, day(2026, 10, 1), completed: false, value: 5),
+            fact(id, day(2026, 10, 2), completed: false, value: 3),
+        ]
+        let data = buildData(facts)
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, kind: .count, unit: "分钟"), range: .month(oct), data: data)
+        let trend = HabitReviewProjector.countTrend(snapshot: snapshot, data: data)
+        XCTAssertEqual(trend?.granularity, .day)
+        XCTAssertEqual(trend?.bars.count, 31)
+        XCTAssertEqual(trend?.bars[0].total ?? -1, 5, accuracy: 0.001)
+        XCTAssertEqual(trend?.bars[1].total ?? -1, 3, accuracy: 0.001)
+        XCTAssertNil(trend?.bars[2].total)
+        XCTAssertFalse(trend?.bars[6].isFuture ?? true)   // 10/7 = today
+        XCTAssertTrue(trend?.bars[7].isFuture ?? false)   // 10/8 起
+        // 近 90 天的计数习惯按周合计
+        let longSnapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, kind: .count, unit: "分钟"), range: .lastDays(90), data: data)
+        let longTrend = HabitReviewProjector.countTrend(snapshot: longSnapshot, data: data)
+        XCTAssertEqual(longTrend?.granularity, .week)
+        XCTAssertNil(longTrend?.bars.first?.total)   // 创建日 8/1，首周（8/3–8/9）无记录
+        XCTAssertEqual(longTrend?.bars.last?.start, calendar.startOfDay(for: day(2026, 9, 28)))
+        XCTAssertEqual(longTrend?.bars.last?.total ?? -1, 8, accuracy: 0.001)  // 9/28–10/4 整周合计
+    }
+
+    // MARK: - 全范围×全类型矩阵（2026-10-13 东林「不想再发生下一次」总闸：任何组合不许卡死）
+
+    /// 六种习惯形态 × 六个范围档全部组合：统计计算须在时限内完成、结果有界。
+    /// 「点全部闪退」这类缺陷的根因是某个组合没被测过——此用例保证没有漏网组合。
+    func test_全范围全类型矩阵_计算有界不卡死() {
+        let calendar = self.calendar
+        // 记录铺开：昨天 / 7天前 / 40天前 / 100天前 / 300天前（覆盖所有范围的窗口）
+        let offsets = [1, 7, 40, 100, 300]
+        func fixtures(_ id: UUID, kind: HabitRowKind) -> [HabitRecordFact] {
+            offsets.compactMap { offset in
+                guard let day = calendar.date(byAdding: .day, value: -offset, to: now) else { return nil }
+                if kind == .checkIn {
+                    return fact(id, day)
+                }
+                return fact(id, day, completed: false, value: Double(offset % 9 + 1))
+            }
+        }
+
+        let ids = (
+            checkInDaily: UUID(), checkInDailyBad: UUID(), checkInWeekly: UUID(),
+            checkInMonthly: UUID(), count: UUID(), measure: UUID()
+        )
+        let habits: [(String, HabitReviewHabitInfo)] = [
+            ("打卡·每日·好", info(ids.checkInDaily)),
+            ("打卡·每日·坏", info(ids.checkInDailyBad, bad: true)),
+            ("打卡·每周", HabitReviewHabitInfo(id: ids.checkInWeekly, kind: .checkIn, frequency: .weekly)),
+            ("打卡·每月", HabitReviewHabitInfo(id: ids.checkInMonthly, kind: .checkIn, frequency: .monthly)),
+            ("计数", info(ids.count, kind: .count, unit: "次")),
+            ("测量", info(ids.measure, kind: .measure, unit: "kg")),
+        ]
+        let ranges: [(String, HabitReviewRange)] = [
+            ("本月", .month(oct)),
+            ("过去月", .month(sep)),
+            ("近30天", .lastDays(30)),
+            ("近90天", .lastDays(90)),
+            ("全部", .all),
+            ("超长自定义", .custom(start: day(2024, 1, 1), end: day(2026, 10, 6))),
+        ]
+
+        for (typeName, habitInfo) in habits {
+            let data = buildData(fixtures(habitInfo.id, kind: habitInfo.kind))
+            for (rangeName, range) in ranges {
+                let snapshot = HabitReviewProjector.rangeSnapshot(info: habitInfo, range: range, data: data)
+                let started = Date()
+                let trend = habitInfo.kind == .checkIn
+                    ? HabitReviewProjector.checkInTrend(snapshot: snapshot, data: data)
+                    : HabitReviewProjector.countTrend(snapshot: snapshot, data: data)
+                let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+                let elapsed = Date().timeIntervalSince(started)
+                XCTAssertLessThan(elapsed, 1.0,
+                                  "\(typeName)×\(rangeName) 统计超时（\(elapsed)s）——卡死回归")
+                XCTAssertLessThanOrEqual(trend?.bars.count ?? 0, 36,
+                                          "\(typeName)×\(rangeName) 周桶超界")
+                if comparison.previous != nil {
+                    XCTAssertNotNil(comparison.previousLabel)
+                    XCTAssertFalse(comparison.previousLabel.isEmpty)
+                }
+            }
+        }
+    }
+
+    /// 空记录习惯 × 全范围：不崩、不出负数、不出荒谬完成率
+    func test_空记录习惯全范围_空态有界() {
+        let emptyId = UUID()
+        let data = buildData([])
+        for range in [HabitReviewRange.month(oct), .lastDays(30), .lastDays(90), .all,
+                      .recentRecords(count: 30),
+                      .custom(start: day(2024, 1, 1), end: day(2026, 10, 6))] {
+            let snapshot = HabitReviewProjector.rangeSnapshot(
+                info: info(emptyId), range: range, data: data)
+            let trend = HabitReviewProjector.checkInTrend(snapshot: snapshot, data: data)
+            let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+            XCTAssertFalse(trend?.bars.contains { ($0.fraction ?? 0) < 0 || ($0.fraction ?? 0) > 1 } ?? false,
+                           "空记录出现越界完成率")
+            if let completion = comparison.current.completion {
+                XCTAssertGreaterThanOrEqual(completion, 0)
+                XCTAssertLessThanOrEqual(completion, 1)
+            }
+        }
+    }
+
+    // MARK: - 「最近记录」窗口（2026-10-26：数值型默认视野，不按固定时间长短取）
+
+    func test_最近记录_低频断续记录全部纳入窗口() {
+        let id = UUID()
+        // 3 月一记、停半年、9-10 月再记：记录日少于 count → 窗口覆盖全部，
+        // 起点 = 最早记录日（「半年一记也能看到最近一批」的拍板底线）
+        let facts = [
+            fact(id, day(2026, 3, 18), value: 84.0),
+            fact(id, day(2026, 9, 19), value: 82.0),
+            fact(id, day(2026, 10, 6), value: 81.5),
+            fact(id, day(2026, 10, 7), value: 82.2),
+        ]
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, kind: .measure, unit: "KG"),
+            range: .recentRecords(count: 30), data: buildData(facts))
+        XCTAssertEqual(snapshot.recordedDayCount, 4)
+        XCTAssertEqual(snapshot.interval.start, calendar.startOfDay(for: day(2026, 3, 18)))
+        XCTAssertEqual(snapshot.dailyValues.count, 4)
+        XCTAssertEqual(snapshot.latestMeasure?.value ?? 0, 82.2, accuracy: 0.001)
+    }
+
+    func test_最近记录_高频只取最近N个记录日() {
+        let id = UUID()
+        // 9/1 起连续 37 个记录日（到今天 10/7），取最近 30 个 → 起点 9/8，
+        // 最早 7 天的记录不进窗口
+        let facts = (0..<37).map { offset in
+            fact(id, calendar.date(byAdding: .day, value: offset, to: day(2026, 9, 1))!,
+                 value: Double(offset))
+        }
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, kind: .measure),
+            range: .recentRecords(count: 30), data: buildData(facts))
+        XCTAssertEqual(snapshot.recordedDayCount, 30)
+        XCTAssertEqual(snapshot.interval.start, calendar.startOfDay(for: day(2026, 9, 8)))
+        XCTAssertEqual(snapshot.dailyValues.count, 30)
+        XCTAssertFalse(snapshot.dailyValues.contains {
+            calendar.startOfDay(for: $0.date) == calendar.startOfDay(for: day(2026, 9, 1))
+        }, "窗口外的最早记录不得回流")
+    }
+
+    func test_最近记录_同日多条只占一个记录日() {
+        let id = UUID()
+        let facts = [
+            fact(id, day(2026, 10, 7, hour: 8), value: 82.0),
+            fact(id, day(2026, 10, 7, hour: 20), value: 82.4),
+            fact(id, day(2026, 10, 6), value: 81.5),
+        ]
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, kind: .measure),
+            range: .recentRecords(count: 30), data: buildData(facts))
+        XCTAssertEqual(snapshot.recordedDayCount, 2, "同日多条只算一个记录日")
+    }
+
+    func test_最近记录_无记录时空窗口落在今天_有界() {
+        let id = UUID()
+        let data = buildData([])
+        let snapshot = HabitReviewProjector.rangeSnapshot(
+            info: info(id, kind: .measure),
+            range: .recentRecords(count: 30), data: data)
+        XCTAssertEqual(snapshot.recordedDayCount, 0)
+        XCTAssertEqual(snapshot.interval.start, calendar.startOfDay(for: now))
+        XCTAssertTrue(snapshot.dailyValues.isEmpty)
+        // 对比计算有界（窗口落在今天，上期即昨天）
+        let comparison = HabitReviewProjector.periodComparison(snapshot: snapshot, data: data)
+        XCTAssertEqual(comparison.current.recordedDays, 0)
+    }
+
+    func test_最近记录_标签与显示月语义() {
+        XCTAssertEqual(
+            HabitReviewRange.recentRecords(count: 30).label(now: now, calendar: calendar),
+            String(localized: "最近记录"))
+        let panned = day(2026, 9, 1)
+        XCTAssertEqual(
+            HabitReviewRange.recentRecords(count: 30).calendarDisplayMonth(fallback: panned),
+            panned, "跨月范围显示月跟随翻月状态")
     }
 }

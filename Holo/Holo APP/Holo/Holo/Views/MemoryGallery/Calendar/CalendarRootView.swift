@@ -90,7 +90,14 @@ struct CalendarRootView: View {
             return
         }
         CalendarEventOriginResolver.resolve(event) { target in
-            guard let target else { return }
+            guard let target else {
+                // 卡片文案承诺「轻点查看全文」，回查失败必须有反馈（与组弹层 alert 同口径）
+                HoloToastCenter.shared.show(
+                    String(localized: "原记录可能已被删除，或当前版本暂时无法打开。"),
+                    type: .info
+                )
+                return
+            }
             DeepLinkState.shared.navigate(to: target)
         }
     }
@@ -123,6 +130,7 @@ struct CalendarRootView: View {
         DailyReplayView(
             focusedDate: $viewModel.focusedDate,
             eventsByDay: viewModel.eventsByDay,
+            dayPresentations: viewModel.dayPresentations,
             moduleFilter: $viewModel.moduleFilter,
             isInitialLoading: viewModel.isInitialLoading,
             onSelect: { handleEventSelect($0) },
@@ -149,6 +157,8 @@ struct CalendarRootView: View {
             WeeklyGridView(
                 weekDays: viewModel.currentWeekDays,
                 eventsByDay: viewModel.eventsByDay,
+                dayPresentations: viewModel.dayPresentations,
+                dataRevision: viewModel.presentationSnapshot.revision,
                 focusedDate: $viewModel.focusedDate,
                 onSelect: { handleEventSelect($0) },
                 onSelectGroup: { selectedEventGroup = CalendarEventGroup(events: $0) },
@@ -165,7 +175,7 @@ struct CalendarRootView: View {
     /// 月档：时间章节 + 安静月历 + 当天记忆时刻。健康周摘要移出月历，避免跨口径信息干扰。
     private var monthlyContent: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
+            LazyVStack(spacing: 0) {
                 scaleChapterHeader
 
                 if viewModel.observationSummary.tone != .empty {
@@ -190,7 +200,7 @@ struct CalendarRootView: View {
 
                 DayDetailCard(
                     day: viewModel.focusedDate,
-                    events: viewModel.selectedDayEvents,
+                    presentation: viewModel.selectedDayPresentation,
                     onSelect: { handleEventSelect($0) },
                     onSelectGroup: { selectedEventGroup = CalendarEventGroup(events: $0) },
                     onReplay: viewModel.selectedDayEvents.isEmpty ? nil : {
@@ -279,15 +289,15 @@ struct CalendarRootView: View {
         }
     }
 
-    /// 轴档选日期按钮：与回正按钮同一胶囊语言，轻点打开日历
+    /// 轴档选日期按钮：工具操作用灰圆（2026-10-12 橙纪律：头部去橙），轻点打开日历
     private var datePickerButton: some View {
         Button(action: openScaleDatePicker) {
             Image(systemName: "calendar")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(.holoPrimary)
-                .frame(width: 44, height: 44)
-                .background(Capsule().fill(Color.holoPrimary.opacity(0.10)))
-                .contentShape(Rectangle())
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.holoToolTextSecondary)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(Color.holoToolSurface))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "选择日期"))
@@ -332,8 +342,9 @@ struct CalendarRootView: View {
                     }
                 }
                 .overlay(
+                    // 深色下选中块贴轨道色（Surface 比 Inset 轨道还暗一档）：描边改 token 灰兜出边界
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .stroke(isSelected ? Color.holoPrimary.opacity(0.16) : Color.clear, lineWidth: 1)
+                        .strokeBorder(isSelected ? Color.holoToolBorder : Color.clear, lineWidth: 1)
                 )
                 .contentShape(Rectangle())
         }
@@ -380,7 +391,7 @@ struct CalendarRootView: View {
             legendDot(color: CalendarHeatmap.color(forLevel: 2, colorScheme: colorScheme))
             legendDot(color: CalendarHeatmap.color(forLevel: 4, colorScheme: colorScheme))
             Text("多")
-            Text("暖色=活跃度 · 细线=来源")
+            Text("色深=记录数 · 细线=来源")
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 0)
@@ -402,7 +413,7 @@ struct CalendarRootView: View {
         HStack(spacing: HoloSpacing.xs) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 12))
-                .foregroundColor(.holoError)
+                .foregroundColor(.holoToolError)
             Text("部分数据暂未载入")
                 .holoText(.supporting)
                 .foregroundColor(.holoToolTextSecondary)
@@ -418,7 +429,8 @@ struct CalendarRootView: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
-        .background(Color.holoErrorLight.opacity(0.5))
+        // 深色下固定浅红底会糊成脏粉：改自染低透明红底（两模式自然）
+        .background(Color.holoError.opacity(0.12))
     }
 }
 
@@ -443,7 +455,9 @@ private struct CalendarScaleDatePickerSheet: View {
             .tint(.holoPrimary)
             .padding()
             .navigationTitle(navigationTitle)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { isPresented = false }

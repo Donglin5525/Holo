@@ -70,6 +70,8 @@ struct CategoryMoveTargetPicker: View {
             }
         }
         .navigationTitle(String(localized: "选择目标分类"))
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 }

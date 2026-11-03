@@ -14,7 +14,7 @@ struct HealthDetailView: View {
     @Binding var selectedDate: Date
 
     @Environment(\.dismiss) private var dismiss
-    @StateObject private var repository = HealthRepository.shared
+    @ObservedObject private var repository = HealthRepository.shared
     @State private var weeklyData: [DailyHealthData] = []
     @State private var isLoading = true
     /// 日/周加载共享代数（R10，2026-10-04 体检）：快速切天时过期请求不发布、不提前关加载态
@@ -48,15 +48,19 @@ struct HealthDetailView: View {
                     // 阅读动线：当日大环 → 当日结构（为什么）→ 周统计 → 周趋势 → 解读（洞察/关联），
                     // 同粒度内容相邻，避免日/周来回跳
                     VStack(spacing: HoloSpacing.md) {
-                        bigRingCard
+                        if type == .sleep {
+                            sleepSummaryCard
+                        } else {
+                            bigRingCard
+                        }
 
                         if type == .sleep {
                             // 阶段三态：有分期=总量卡+时间轴卡；无分期但有时长=引导卡；无数据=不显示
                             if let sleepDetail, sleepDetail.hasStageData {
-                                SleepStagesCard(detail: sleepDetail)
                                 if let sleepTimeline {
                                     SleepTimelineCard(timeline: sleepTimeline, detail: sleepDetail)
                                 }
+                                SleepStagesCard(detail: sleepDetail)
                             } else if let sleepDetail, sleepDetail.totalHours > 0 {
                                 SleepStageGuideCard()
                             }
@@ -82,7 +86,7 @@ struct HealthDetailView: View {
                         trendSection
 
                         insightSection
-                        relatedSection
+                        if !relatedRows.isEmpty { relatedSection }
                     }
                     .padding(HoloSpacing.md)
                     // 纵读详情页在 iPad 限宽居中（通宵冲刺 D1，B-P1-3）；iPhone 直通
@@ -91,7 +95,9 @@ struct HealthDetailView: View {
             }
         }
         .background(Color.holoToolBackground)
+        #if canImport(UIKit)
         .toolbar(.hidden, for: .navigationBar)
+        #endif
         .swipeBackToDismiss(ignoreNavigationStack: true) {
             dismiss()
         }
@@ -128,7 +134,7 @@ struct HealthDetailView: View {
     /// 近 7 天趋势（图内自带标题与均值行，外层不再重复标题）
     private var trendSection: some View {
         ZStack(alignment: .topTrailing) {
-            HealthTrendChart(data: weeklyData, type: type)
+            HealthTrendChart(data: weeklyData, type: type, endingOn: selectedDate)
             if isLoading {
                 ProgressView()
                     .scaleEffect(0.75)
@@ -151,12 +157,12 @@ struct HealthDetailView: View {
 
                         Spacer(minLength: HoloSpacing.sm)
 
-                        detailStatusBadge
+                        if type != .sleep { detailStatusBadge }
                     }
 
                     VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                         detailHeaderText
-                        detailStatusBadge
+                        if type != .sleep { detailStatusBadge }
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -165,7 +171,7 @@ struct HealthDetailView: View {
 
             HealthDateNavigator(selectedDate: $selectedDate)
         }
-        .padding(.horizontal, HoloSpacing.md)
+        .padding(.horizontal, HoloSpacing.page)
         .padding(.top, HoloSpacing.sm)
         .padding(.bottom, HoloSpacing.sm)
     }
@@ -198,36 +204,17 @@ struct HealthDetailView: View {
 
     /// 返回按钮（对齐全局 fullScreenCover 模块约定，复用 HealthView 样式）
     private var backButton: some View {
-        Button {
+        HoloIconButton(systemName: "chevron.left", title: "返回", showsSurface: true) {
             dismiss()
-        } label: {
-            Image(systemName: "chevron.left")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.holoToolText)
-                .frame(width: 40, height: 40)
-                .background(Color.holoToolSurface)
-                .clipShape(Circle())
-                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         }
-        .buttonStyle(.plain)
     }
 
     private var bigRingCard: some View {
         HStack(spacing: HoloSpacing.md) {
             ZStack {
-                Circle()
-                    .stroke(Color.holoDivider, lineWidth: 18)
+                HoloProgress(value: metric.availability == .available ? metric.progress : nil,
+                             color: type.color, shape: .ring, lineWidth: 18)
                     .frame(width: 152, height: 152)
-
-                Circle()
-                    .trim(from: 0, to: metric.progress)
-                    .stroke(
-                        type.color,
-                        style: StrokeStyle(lineWidth: 18, lineCap: .round)
-                    )
-                    .frame(width: 152, height: 152)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.45), value: metric.progress)
 
                 VStack(spacing: 2) {
                     Text(metric.valueText)
@@ -275,11 +262,42 @@ struct HealthDetailView: View {
         .shadow(color: HoloShadow.card, radius: 6, y: 2)
     }
 
+    /// 睡眠优先展示记录与时长目标，避免把达标百分比误读成睡眠质量评分。
+    private var sleepSummaryCard: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                Text("总睡眠")
+                    .holoText(.body)
+                    .foregroundStyle(Color.holoToolText)
+                Text(sleepDetail.map { SleepStagesCard.formatHours($0.totalHours) } ?? String(localized: "未记录"))
+                    .holoText(.amount)
+                    .foregroundStyle(Color.holoToolText)
+                    .monospacedDigit()
+                    .fixedSize(horizontal: false, vertical: true)
+                Text((sleepDetail?.napCount ?? 0) > 0 ? "按起床日汇总 · 含小睡" : "按起床日汇总")
+                    .holoText(.metadata)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: HoloSpacing.sm) {
+                Text(String(localized: "时长目标 \(SleepStagesCard.formatHours(type.dailyGoal))"))
+                Spacer(minLength: HoloSpacing.sm)
+                Text(metric.availability == .available ? metric.statusText : String(localized: "未记录"))
+                    .monospacedDigit()
+            }
+            .holoText(.metadata)
+            .foregroundStyle(Color.holoToolTextSecondary)
+            HoloProgress(value: metric.availability == .available ? metric.progress : nil, color: type.color, lineWidth: 8)
+                .accessibilityHidden(true)
+        }
+        .padding(HoloSpacing.md)
+        .holoSurface()
+    }
+
     private var statsSection: some View {
         HStack(spacing: HoloSpacing.sm) {
-            statCard(title: String(localized: "7 天平均"), value: type.formatValue(weeklyAverage), unit: type.unit)
-            statCard(title: String(localized: "最高值"), value: type.formatValue(weeklyMax), unit: type.unit)
-            statCard(title: String(localized: "达标天数"), value: "\(goalDays)", unit: String(localized: "天"))
+            statCard(title: type == .sleep ? String(localized: "有记录晚均") : String(localized: "7 天平均"), value: weeklyData.isEmpty ? "—" : type.formatValue(weeklyAverage), unit: type.unit)
+            statCard(title: type == .sleep ? String(localized: "最长睡眠") : String(localized: "最高值"), value: weeklyData.isEmpty ? "—" : type.formatValue(weeklyMax), unit: type.unit)
+            statCard(title: type == .sleep ? String(localized: "时长达标") : String(localized: "达标天数"), value: weeklyData.isEmpty ? "—" : "\(goalDays)", unit: type == .sleep ? String(localized: "晚") : String(localized: "天"))
         }
     }
 
@@ -396,8 +414,9 @@ struct HealthDetailView: View {
             let detail = await repository.fetchSleepDetailRange(from: date, to: date).first
             let timeline = await repository.fetchSleepTimeline(forWakeDay: date)
             guard generation == detailLoadGeneration else { return }
-            currentValue = data.sleep
-            currentAvailability = data.sleep > 0 ? .available : .noData
+            // 总览、阶段和近七晚都按起床日归属，避免午夜把同一晚拆成两种时长。
+            currentValue = detail?.totalHours ?? 0
+            currentAvailability = detail == nil ? .noData : .available
             sleepDetail = detail
             sleepTimeline = timeline
         case .standHours:
@@ -417,11 +436,11 @@ struct HealthDetailView: View {
     }
 
     private var weeklyAverage: Double {
-        guard !weeklyData.isEmpty else { return 0 }
-        return weeklyData.reduce(0) { $0 + $1.value } / Double(weeklyData.count)
+        DailyHealthData.averageValue(in: weeklyData) ?? 0
     }
 
     private var detailSubtitleText: String {
+        if type == .sleep { return String(localized: "整晚记录与近 7 天趋势") }
         let calendar = Calendar.current
         if calendar.isDateInToday(selectedDate) {
             return String(localized: "近 7 天趋势与关联线索")
@@ -501,7 +520,7 @@ struct HealthDetailView: View {
         case .steps:
             return String(localized: "活动建议")
         case .sleep:
-            return String(localized: "恢复洞察")
+            return String(localized: "近 7 晚记录")
         case .standHours, .activeMinutes:
             return String(localized: "久坐提醒")
         case .workout:
@@ -514,7 +533,8 @@ struct HealthDetailView: View {
         case .steps:
             return String(localized: "本周低步数日通常也是久坐日，可以把站立提醒和散步目标合并触发。")
         case .sleep:
-            return String(localized: "高睡眠日，任务完成率更稳定；低睡眠日，咖啡支出和压力记录更值得回看。")
+            if weeklyData.isEmpty { return String(localized: "近 7 晚尚无睡眠记录，暂无可比较的趋势。") }
+            return String(localized: "7 晚中有 \(weeklyData.count) 晚记录，其中 \(goalDays) 晚达到时长目标。其余 \(max(7 - weeklyData.count, 0)) 晚未记录，不参与平均值计算。")
         case .standHours:
             return String(localized: "站立不足时，压力类想法更容易集中出现，下午适合设置轻提醒。")
         case .activeMinutes:
@@ -532,10 +552,8 @@ struct HealthDetailView: View {
                 (String(localized: "任"), String(localized: "低步数日适合少排外出任务"), String(localized: "活动不足时，任务安排可以更轻。"), .holoChart1)
             ]
         case .sleep:
-            return [
-                (String(localized: "任"), String(localized: "任务关联"), String(localized: "高睡眠日，任务完成率更稳定。"), .holoChart1),
-                (String(localized: "财"), String(localized: "消费关联"), String(localized: "低睡眠日，咖啡支出更容易上升。"), .holoChart8)
-            ]
+            // 尚无成对数据分析，不能把固定文案包装成个人关联结论。
+            return []
         case .standHours, .activeMinutes:
             return [
                 (String(localized: "想"), String(localized: "压力关联"), String(localized: "久坐日更适合回看压力类想法。"), .holoChart7),
@@ -553,7 +571,16 @@ struct HealthDetailView: View {
         detailLoadGeneration += 1
         let generation = detailLoadGeneration
         isLoading = true
-        let data = await repository.fetchWeeklyData(for: type, endingOn: date)
+        let data: [DailyHealthData]
+        if type == .sleep {
+            let end = Calendar.current.startOfDay(for: date)
+            let start = Calendar.current.date(byAdding: .day, value: -6, to: end) ?? end
+            data = await repository.fetchSleepDetailRange(from: start, to: end).map {
+                DailyHealthData(date: $0.date, value: $0.totalHours)
+            }
+        } else {
+            data = await repository.fetchChartWeeklyData(for: type, endingOn: date)
+        }
         // R10：过期请求不发布，也不替新请求提前关掉加载态
         guard generation == detailLoadGeneration else { return }
         weeklyData = data

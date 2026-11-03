@@ -51,7 +51,8 @@ actor ThoughtSemanticEmbeddingExecutor {
                 let context = CoreDataStack.shared.viewContext
                 return context.performAndWait {
                     let request = Thought.fetchRequest()
-                    request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil AND isArchived == NO", job.thoughtID as CVarArg)
+                    // 执行时再查一次排除（入队后用户可能才打上「不参与 AI」标签）
+                    request.predicate = ThoughtAIAudience.processablePredicate(thoughtID: job.thoughtID)
                     return (try? context.fetch(request))?.first?.value(forKey: "content") as? String
                 }
             }
@@ -135,7 +136,8 @@ actor ThoughtSemanticEmbeddingExecutor {
             var out: (UUID, String)?
             context.performAndWait {
                 let request = Thought.fetchRequest()
-                request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil AND isArchived == NO", job.thoughtID as CVarArg)
+                // 执行时再查一次排除（入队后用户可能才打上「不参与 AI」标签）
+                request.predicate = ThoughtAIAudience.processablePredicate(thoughtID: job.thoughtID)
                 request.fetchLimit = 1
                 if let thought = (try? context.fetch(request))?.first {
                     out = (thought.id, thought.content)
@@ -144,7 +146,7 @@ actor ThoughtSemanticEmbeddingExecutor {
             return out
         }
         guard let snapshot else {
-            // 想法已删/软删：任务完成，向量槽位已在 feed 侧 tombstone
+            // 想法已删/软删/已退出 AI：任务完成，向量槽位已在 feed 侧 tombstone
             try? await store.finishJob(id: job.id, state: "done", errorCode: "thought_unavailable")
             return
         }
@@ -206,7 +208,7 @@ actor ThoughtSemanticEmbeddingExecutor {
         }
     }
 
-    /// 提交前复核：ID 仍存在、未软删、当前正文 hash 与 job 一致、授权代数未变且授权仍有效。
+    /// 提交前复核：ID 仍存在、未软删、未退出 AI、当前正文 hash 与 job 一致、授权代数未变且授权仍有效。
     private func revalidateBeforeCommit(thoughtID: UUID,
                                         expectedHash: String,
                                         jobConsentGeneration: Int64) async -> Bool {
@@ -218,7 +220,7 @@ actor ThoughtSemanticEmbeddingExecutor {
             var valid = false
             context.performAndWait {
                 let request = Thought.fetchRequest()
-                request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil AND isArchived == NO", thoughtID as CVarArg)
+                request.predicate = ThoughtAIAudience.processablePredicate(thoughtID: thoughtID)
                 request.fetchLimit = 1
                 if let thought = (try? context.fetch(request))?.first,
                    let content = thought.value(forKey: "content") as? String,

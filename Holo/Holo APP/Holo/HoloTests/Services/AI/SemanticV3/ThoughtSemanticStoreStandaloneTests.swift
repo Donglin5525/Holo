@@ -27,6 +27,8 @@ struct ThoughtSemanticStoreStandaloneTests {
         let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("semantic-v3-test-\(UUID().uuidString)")
         try await storeLifecycleAndCRUD(tmp)
         try await jobQueueSemantics(tmp)
+        try await completedRelationsWithCategoryBriefs(tmp.appendingPathComponent("brief-dedup"))
+        try await legacyQueueRecovery(tmp.appendingPathComponent("legacy"))
         await flatIndexBehavior()
         vectorMath()
         try await destroySemantics(tmp)
@@ -86,6 +88,50 @@ struct ThoughtSemanticStoreStandaloneTests {
         check(m2.nextVectorKey == key + 1, "重开后 manifest 延续（vectorKey 不回卷）")
     }
 
+    /// 复现「104 条一直待整理」：已有类别理解时，成功回执必须阻止原样重复入队。
+    static func completedRelationsWithCategoryBriefs(_ root: URL) async throws {
+        let store = await ThoughtSemanticStore(root: root)
+        try await store.open()
+        let catalogVersion = "thought_semantic_v3.2:catalog:live"
+        let topics = (0..<7).map { _ in UUID() }
+        for topicID in topics {
+            try await store.saveCategoryBrief(.init(topicID: topicID, version: 1,
+                definition: "生活中的观察", exclusions: [], basisMemberCount: 5,
+                basisRemovalCount: 0, updatedAt: Date()))
+        }
+        // 旧执行器实际写入的完整指纹；入队端此前只拿 catalogVersion 查询，必然落空。
+        let briefKeys = try await store.allCategoryBriefVersionKeys()
+        let recordedVersion = catalogVersion + ":brief=" + briefKeys.joined(separator: "|")
+        let thoughts = (0..<104).map { _ in UUID() }
+        for (i, thoughtID) in thoughts.enumerated() {
+            try await store.recordRelationCandidate(thoughtID: thoughtID, topicID: thoughtID,
+                contentHash: "unchanged", scoreFeatures: "{}",
+                verifierResult: i.isMultiple(of: 2) ? "evaluated" : "no_match",
+                state: "evaluated", engineVersion: recordedVersion, expiryDays: 14)
+        }
+        for pass in 1...3 {
+            var requeued = 0
+            for thoughtID in thoughts {
+                if try await !store.hasRelationRecord(thoughtID: thoughtID, contentHash: "unchanged",
+                                                       evaluationVersion: catalogVersion) {
+                    requeued += 1
+                }
+            }
+            check(requeued == 0, "第 \(pass) 次核对把 \(requeued)/104 条已整理笔记误判为需要重跑")
+        }
+        check(!(try await store.hasRelationRecord(thoughtID: thoughts[0], contentHash: "edited",
+                                                   evaluationVersion: catalogVersion)), "正文变化仍需重评")
+        check(!(try await store.hasRelationRecord(thoughtID: thoughts[0], contentHash: "unchanged",
+                                                   evaluationVersion: "new-catalog")), "主题目录变化仍需重评")
+        try await store.saveCategoryBrief(.init(topicID: topics[0], version: 2,
+            definition: "生活与工作中的观察", exclusions: [], basisMemberCount: 10,
+            basisRemovalCount: 0, updatedAt: Date()))
+        check(!(try await store.hasRelationRecord(thoughtID: thoughts[0], contentHash: "unchanged",
+                                                   evaluationVersion: catalogVersion)), "类别理解升版仍需重评")
+        await store.close()
+        print("PASS: 7 份类别理解下 104 条完成回执连续三次核对不重排，正文/目录/类别版本变化仍重评")
+    }
+
     // MARK: - 2. job 队列语义
 
     static func jobQueueSemantics(_ root: URL) async throws {
@@ -138,6 +184,23 @@ struct ThoughtSemanticStoreStandaloneTests {
         check(try await recovered.claimNextDueJob(consentGeneration: 6, kind: "relate") == nil, "旧授权代数不能领取")
         check(try await recovered.claimNextDueJob(consentGeneration: 5, kind: "relate")?.id == relate.id)
         try await recovered.cancelAllJobs()
+        // 代数自愈（2026-10-19）：改设置开关递增 generation 后，旧代数 pending 任务
+        // re-stamp 恢复可领；running 保持原代数（落库侧防线不动）。
+        // enqueueJob 语义=同 thought 同 kind 仅一个在途，用同一 thought 的 embed+relate 两种任务。
+        let t2 = UUID()
+        let embedRunning = ThoughtSemanticStore.SemanticJob(id: UUID(), thoughtID: t2, contentHash: "h9", kind: "embed", priority: 0, state: "pending", attemptCount: 0, nextAttemptAt: nil, consentGeneration: 5, lastErrorCode: nil)
+        let relatePending = ThoughtSemanticStore.SemanticJob(id: UUID(), thoughtID: t2, contentHash: "h9", kind: "relate", priority: 0, state: "pending", attemptCount: 0, nextAttemptAt: nil, consentGeneration: 5, lastErrorCode: nil)
+        try await recovered.enqueueJob(embedRunning)
+        try await recovered.enqueueJob(relatePending)
+        let executing = try await recovered.claimNextDueJob(consentGeneration: 5, kind: "embed")
+        check(executing?.id == embedRunning.id, "旧代数下正常领取")
+        check(try await recovered.claimNextDueJob(consentGeneration: 7, kind: "relate") == nil, "旧代数 pending 不被新代数领取")
+        try await recovered.restampStalePendingJobs(to: 7)
+        let revivedJob = try await recovered.claimNextDueJob(consentGeneration: 7, kind: "relate")
+        check(revivedJob?.id == relatePending.id, "re-stamp 后 pending 恢复可领")
+        check(try await recovered.claimNextDueJob(consentGeneration: 7, kind: "embed") == nil, "running 保持旧代数，不被 re-stamp")
+        try await recovered.finishJob(id: executing!.id, state: "cancelled")
+        try await recovered.finishJob(id: revivedJob!.id, state: "cancelled")
         try await recovered.recordRelationCandidate(thoughtID: t, topicID: t, contentHash: "eval", scoreFeatures: "{}", verifierResult: "no_match", state: "evaluated", engineVersion: "catalog1", expiryDays: 1)
         check(try await recovered.hasRelationRecord(thoughtID: t, contentHash: "eval", evaluationVersion: "catalog1"))
         check(!(try await recovered.hasRelationRecord(thoughtID: t, contentHash: "eval", evaluationVersion: "catalog2")), "新目录必须重评")
@@ -155,6 +218,46 @@ struct ThoughtSemanticStoreStandaloneTests {
     }
 
     // MARK: - 3. Flat 索引检索正确性
+
+    static func legacyQueueRecovery(_ root: URL) async throws {
+        let store = await ThoughtSemanticStore(root: root)
+        try await store.open()
+        let thoughtID = UUID(), jobID = UUID()
+        let job = ThoughtSemanticStore.SemanticJob(id: jobID, thoughtID: thoughtID, contentHash: "latest",
+            kind: "embed", priority: 0, state: "pending", attemptCount: 1,
+            nextAttemptAt: Date().addingTimeInterval(3_600), consentGeneration: 0, lastErrorCode: "RATE_LIMITED")
+        try await store.enqueueJob(job)
+        await store.close()
+        var db: OpaquePointer?
+        check(sqlite3_open(root.appendingPathComponent("ThoughtSemanticV3/semantic.sqlite").path, &db) == SQLITE_OK)
+        check(sqlite3_exec(db, "DROP INDEX idx_semantic_job_active_unique", nil, nil, nil) == SQLITE_OK)
+        // 模拟手机上的旧版重复任务：同一正文累计四个在途记录。
+        for _ in 0..<3 {
+            check(sqlite3_exec(db, "INSERT INTO semantic_job SELECT randomblob(16),thought_id,content_hash,kind,priority,state,attempt_count,next_attempt_at,consent_generation,last_error_code,finished_at FROM semantic_job LIMIT 1", nil, nil, nil) == SQLITE_OK)
+        }
+        sqlite3_close(db)
+        let repaired = await ThoughtSemanticStore(root: root)
+        try await repaired.open()
+        check(try await repaired.pendingJobCount() == 1, "升级必须把四个重复任务恢复为一个")
+        check(try await repaired.indexStats().unfinishedThoughts == 1, "状态按笔记数统计")
+        let claimed = try await repaired.claimNextDueJob(consentGeneration: 0, kind: "embed")
+        check(claimed?.thoughtID == thoughtID && claimed?.nextAttemptAt == nil, "旧的一小时限流等待应立即恢复")
+        try await repaired.finishJob(id: claimed!.id, state: "failed_terminal")
+        try await repaired.enqueueJob(.init(id: UUID(), thoughtID: thoughtID, contentHash: "newer", kind: "embed",
+            priority: 0, state: "pending", attemptCount: 0, nextAttemptAt: nil, consentGeneration: 0, lastErrorCode: nil))
+        try await repaired.retryFailedJobs()
+        check(try await repaired.pendingJobCount() == 1, "重试不能重新点燃旧正文失败项")
+        check(try await repaired.indexStats().failedJobs == 0, "旧正文失败不能混入当前失败数")
+        try await repaired.enqueueJob(.init(id: UUID(), thoughtID: thoughtID, contentHash: "newer", kind: "relate",
+            priority: 0, state: "pending", attemptCount: 3, nextAttemptAt: Date().addingTimeInterval(3_600),
+            consentGeneration: 0, lastErrorCode: "MODEL_OUTPUT_INVALID"))
+        await repaired.close()
+        let retryRecovery = await ThoughtSemanticStore(root: root)
+        try await retryRecovery.open()
+        let due = try await retryRecovery.claimNextDueJob(now: Date().addingTimeInterval(61), consentGeneration: 0, kind: "relate")
+        check(due?.lastErrorCode == "MODEL_OUTPUT_INVALID", "旧模型格式错误不得继续等待一小时")
+        await retryRecovery.close()
+    }
 
     static func flatIndexBehavior() async {
         let index = FlatSemanticIndex()

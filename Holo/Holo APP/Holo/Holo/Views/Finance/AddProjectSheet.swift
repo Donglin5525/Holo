@@ -3,7 +3,7 @@
 //  Holo
 //
 //  新建/编辑财务项目 Sheet
-//  名称（必填）+ emoji 图标 + 颜色 + 时间范围（可选）+ 预算（可选）+ 备注
+//  名称（必填）+ 图标（统一精选单色 / emoji）+ 颜色 + 时间范围（可选）+ 预算（可选）+ 备注
 //
 
 import SwiftUI
@@ -57,13 +57,16 @@ struct AddProjectSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle(isEditMode ? "编辑项目" : "新建项目")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭"))
                         .foregroundColor(.holoToolTextSecondary)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("保存") { save() }
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(canSave ? .holoPrimary : .holoToolTextSecondary)
@@ -72,7 +75,7 @@ struct AddProjectSheet: View {
                 }
             }
             .sheet(isPresented: $showIconPicker) {
-                EmojiIconPickerSheet(currentIcon: icon) { icon = $0 }
+                UnifiedIconPickerSheet(currentIcon: icon) { icon = $0 }
             }
             .onAppear { populateForEdit() }
         }
@@ -94,8 +97,7 @@ struct AddProjectSheet: View {
                 Button {
                     showIconPicker = true
                 } label: {
-                    Text(icon)
-                        .font(.system(size: 26))
+                    entityIconGlyph(icon, size: 26, color: Color(hex: color))
                         .frame(width: 52, height: 52)
                         .background(Color.holoToolSurface)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
@@ -197,7 +199,7 @@ struct AddProjectSheet: View {
 
     private var budgetSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("预算（选填）")
+            Text("预算（可选）")
                 .font(.holoLabel)
                 .foregroundColor(.holoToolTextSecondary)
 
@@ -208,7 +210,9 @@ struct AddProjectSheet: View {
 
                 TextField("0.00", text: $budgetText)
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    #if canImport(UIKit)
                     .keyboardType(.decimalPad)
+                    #endif
                     .accessibilityIdentifier("projectSheet.budgetField")
             }
             .padding(HoloSpacing.md)

@@ -482,7 +482,6 @@ enum HoloTodayReliefSessionFactory {
             taskIDs.insert(task.id)
         }
         let facts = repository.facts(taskIDs: taskIDs, stepIDs: [])
-        let execution = HoloTaskExecutionRepository(context: CoreDataStack.shared.viewContext)
 
         var matterLookup: [UUID: String] = [:]
         if HoloMatterRolloutPolicy.storageEnabled {
@@ -498,15 +497,22 @@ enum HoloTodayReliefSessionFactory {
         var displays: [HoloTodayReliefDisplayFacts.TaskDisplay] = []
         for id in taskIDs {
             guard let task = facts.tasks[id], task.visible, !task.completed else { continue }
-            let step = execution.steps(taskID: id).first {
-                $0.deletedAt == nil && $0.kind == .action && $0.state != .done
+            // 2026-10-11 拆开瘦身：执行步骤退役，「当前一步」改读第一个未完成子任务
+            let firstOpenItem: CheckItem?
+            if let managed = todoRepo.findTask(by: id) {
+                firstOpenItem = ((managed.checkItems?.allObjects as? [CheckItem]) ?? [])
+                    .sorted { $0.order < $1.order }
+                    .first { !$0.isChecked }
+            } else {
+                firstOpenItem = nil
             }
             var stepFingerprint: String? = nil
-            if let step {
+            if let item = firstOpenItem {
                 let fact = HoloTodayReliefPolicy.StepFact(
-                    id: step.id, taskID: step.taskID,
-                    actionText: step.actionText, doneWhen: step.doneWhen,
-                    stateRaw: step.stateRaw, originRevisionID: step.originRevisionID
+                    id: item.id, taskID: id,
+                    actionText: item.title, doneWhen: nil,
+                    stateRaw: item.isWaiting ? "waiting" : "pending",
+                    originRevisionID: item.task?.id ?? item.id
                 )
                 stepFingerprint = HoloTodayReliefPolicy.stepFingerprint(fact)
             }
@@ -520,11 +526,11 @@ enum HoloTodayReliefSessionFactory {
                 isAllDay: task.isAllDay,
                 isOverdue: isOverdue,
                 matterTitle: matterLookup[id],
-                currentStepID: step?.id,
-                currentStepAction: step?.actionText,
+                currentStepID: firstOpenItem?.id,
+                currentStepAction: firstOpenItem?.title,
                 currentStepFingerprint: stepFingerprint,
-                currentStepRevisionID: step?.originRevisionID,
-                hasSteps: execution.activeRevision(taskID: id) != nil,
+                currentStepRevisionID: nil,
+                hasSteps: firstOpenItem != nil,
                 completed: task.completed
             ))
         }

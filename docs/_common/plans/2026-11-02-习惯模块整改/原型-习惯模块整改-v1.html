@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>习惯模块整改原型 v1</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, "PingFang SC", sans-serif; background: #2A2A2C; padding: 24px; color: #333; }
+  h1 { color: #fff; font-size: 18px; margin-bottom: 6px; }
+  .hint { color: #999; font-size: 12px; margin-bottom: 18px; }
+  .row { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
+
+  /* ===== 手机壳 ===== */
+  .phone { width: 390px; background: #FDFCF8; border-radius: 28px; overflow: hidden; flex-shrink: 0;
+           box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+  .phone .screen { height: 780px; overflow-y: auto; position: relative; }
+  .notch { height: 44px; display:flex; align-items:center; justify-content:space-between; padding: 0 24px;
+           font-size: 13px; color: #333; font-weight: 600; }
+  .cap { background:#2F2F31; color:#ddd; font-size:12.5px; padding:10px 14px; line-height:1.55; }
+  .cap b { color:#FFB38A; }
+
+  /* ===== 通用元件（对照 DesignSystem） ===== */
+  .t-secondary { color:#6E6E6E; }
+  .iconbox { width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0; }
+  .chiprow { display:flex; gap:8px; align-items:center; padding: 6px 20px 0; overflow-x:auto; }
+  .chip { font-size:13px; color:#6E6E6E; background:#F0EAE2; border-radius:16px; padding: 0 14px; height:44px; display:flex; align-items:center; white-space:nowrap; }
+  .chip.more { width:44px; justify-content:center; padding:0; font-size:16px; letter-spacing:1px; }
+  .card-outer { margin: 0 20px; background:#fff; border:0.5px solid #E9E4DA; border-radius:16px; padding:16px; }
+
+  /* ===== 打卡型周柱图（B方案） ===== */
+  .weekly-head { display:flex; align-items:baseline; justify-content:space-between; padding: 18px 20px 4px; }
+  .weekly-title { font-size:15px; font-weight:600; color:#333; }
+  .weekly-range { font-size:13px; color:#6E6E6E; }
+  .readout { display:flex; gap:10px; align-items:baseline; padding: 10px 20px 6px; }
+  .readout .when { font-size:15px; font-weight:600; color:#333; }
+  .readout .what { font-size:13px; color:#6E6E6E; }
+  .bars { display:flex; align-items:flex-end; gap:6px; height:150px; margin: 8px 20px 2px; border-bottom:1px solid #E4DFD5; position:relative; }
+  .bar-col { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%; }
+  .bar { width:100%; max-width:20px; border-radius:5px 5px 2px 2px; background:#F46D38; }
+  .bar.part { opacity:.45; }
+  .bar.sel { outline:2px solid #E2842F; outline-offset:1px; }
+  .bar-null { width:100%; max-width:20px; height:3px; border-radius:2px; background:#E7E1D7; }
+  .axis { display:flex; margin: 6px 20px 0; }
+  .axis span { flex:1; text-align:center; font-size:12px; color:#6E6E6E; }
+  .axis-note { margin: 4px 20px 0; font-size:12px; color:#9B9B9B; }
+
+  /* ===== 测量型点线图 ===== */
+  .linechart { position:relative; height:170px; margin: 10px 20px 0; border-bottom:1px solid #E4DFD5; }
+  .linechart svg { width:100%; height:100%; }
+  .dot { position:absolute; width:10px; height:10px; border-radius:50%; background:#4EA772; border:2px solid #fff; transform:translate(-50%,-50%); }
+  .dot.sel { box-shadow:0 0 0 4px rgba(78,167,114,.25); }
+  .grid { position:absolute; left:0; right:0; border-top:1px dashed #EAE5DB; }
+
+  /* ===== 单根柱悬浮读数 ===== */
+  .readout-ghost { margin: 0 20px; background:#FFF8F2; border:1px solid #F3D9C4; border-radius:12px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; }
+  .readout-ghost .d { font-size:14px; font-weight:600; }
+  .readout-ghost .v { font-size:13px; color:#6E6E6E; }
+</style>
+</head>
+<body>
+
+<h1>习惯模块整改原型 v1 · 待拍板</h1>
+<div class="hint">说明文字灰底的「A/B」是给东林看的选择题；橙字是本轮方案的要点。手机屏可滚动。</div>
+
+<!-- ======================================================= -->
+<!-- 屏 1：打卡型 · 本月（稀疏：11月才过2天，只有11/1打了卡） -->
+<!-- ======================================================= -->
+<div class="row" id="row1">
+  <div class="phone"><div class="screen">
+    <div class="notch"><span>9:41</span><span>●●●●</span></div>
+
+    <div style="display:flex; align-items:center; gap:12px; padding:14px 20px 0;">
+      <div class="iconbox" style="background:rgba(244,109,56,.12); color:#F46D38;">🏃</div>
+      <div>
+        <div style="font-size:20px; font-weight:600;">晨跑</div>
+        <div style="font-size:13px;" class="t-secondary">🏃 为了年底的半马，每天 3 公里</div>
+      </div>
+    </div>
+
+    <div class="chiprow">
+      <div class="chip">本月</div>
+      <div class="chip">近30天</div>
+      <div class="chip">近90天</div>
+      <div class="chip">全部</div>
+      <div class="chip more">···</div>
+    </div>
+
+    <div class="card-outer" style="margin-top:14px;">
+      <div style="font-size:13px;" class="t-secondary">11月1日–11月2日 · 已过 2 天</div>
+      <div style="display:flex; align-items:baseline; gap:10px; margin-top:4px;">
+        <div><span style="font-size:21px; font-weight:600;">1</span><span style="font-size:13px;"> 天</span></div>
+        <span style="font-size:13px;" class="t-secondary">上月同期 10/1–10/2 · 记录 0 天</span>
+      </div>
+    </div>
+
+    <div class="weekly-head">
+      <span class="weekly-title">每周完成率</span>
+      <span class="weekly-range">10/26–11/1</span>
+    </div>
+    <div class="readout">
+      <span class="when">10/26–11/1</span>
+      <span class="what">完成 1/7 天 · 14%</span>
+    </div>
+    <div class="bars">
+      <div class="bar-col"><div class="bar part sel" style="height:14%"></div></div>
+    </div>
+    <div class="axis"><span>10/26–11/1</span></div>
+    <div class="axis-note">显示到上个完整周；本周（11/2 今天起）下周一出现</div>
+
+    <div style="font-size:15px; font-weight:600; padding:18px 20px 4px;">记录日历 · 11月</div>
+    <div style="margin: 8px 20px; border:0.5px solid #E9E4DA; border-radius:12px; padding:10px; text-align:center;">
+      <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:6px; font-size:12px; color:#6E6E6E; padding-bottom:6px;">
+        <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:6px;">
+        <div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div>
+        <div style="aspect-ratio:1; border-radius:8px; background:#F46D38;"></div>
+        <div style="aspect-ratio:1; border-radius:8px; border:1.5px dashed #D8CDBE;"></div>
+        <div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div>
+        <div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div><div style="aspect-ratio:1;"></div>
+      </div>
+    </div>
+    <div style="height:24px"></div>
+  </div></div>
+  <div class="cap" style="max-width:420px;">
+    <b>屏1 · 打卡型「本月」（新习惯/月初的最惨稀疏态）</b><br><br>
+    ① 头部习惯名下新增<b>习惯描述</b>一行（「🏃 为了年底的半马，每天 3 公里」）——没写描述的习惯不显示这一行。<br>
+    ② 对比卡写明起止日期与已过天数；上月同期 0 天时如实写「记录 0 天」，不出涨跌箭头。<br>
+    ③ <b>B方案整周柱</b>：只显示完整周（10/26–11/1），轴标即周起止，残周不画假柱、注明「本周下周一起出现」——而不是现状的「10/26 一根 100%」。<br>
+    ④ 空虚圆 = 今天（尚未打卡）；月历按周一起排，11/1 在周日列。
+  </div>
+</div>
+
+<!-- ======================================================= -->
+<!-- 屏 2：打卡型 · 近90天 -->
+<!-- ======================================================= -->
+<div class="row" id="row2" style="margin-top:28px;">
+  <div class="phone"><div class="screen">
+    <div class="notch"><span>9:41</span><span>●●●●</span></div>
+
+    <div style="display:flex; align-items:center; gap:12px; padding:14px 20px 0;">
+      <div class="iconbox" style="background:rgba(244,109,56,.12); color:#F46D38;">🏃</div>
+      <div>
+        <div style="font-size:20px; font-weight:600;">晨跑</div>
+        <div style="font-size:13px;" class="t-secondary">🏃 为了年底的半马，每天 3 公里</div>
+      </div>
+    </div>
+
+    <div class="chiprow">
+      <div class="chip">本月</div>
+      <div class="chip">近30天</div>
+      <div class="chip" style="background:#FFFFFF; box-shadow:0 1px 4px rgba(0,0,0,.12); color:#333; font-weight:600;">近90天</div>
+      <div class="chip">全部</div>
+      <div class="chip more">···</div>
+    </div>
+    <div style="padding:8px 20px 0; font-size:13px;" class="t-secondary">8月5日–11月2日 · 共 90 天</div>
+
+    <div class="card-outer" style="margin-top:14px;">
+      <div style="font-size:13px;" class="t-secondary">近90天 vs 前90天（5/7–8/4）</div>
+      <div style="display:flex; align-items:baseline; gap:10px; margin-top:4px;">
+        <div><span style="font-size:21px; font-weight:600;">63</span><span style="font-size:13px;"> 天</span></div>
+        <span style="font-size:13px; background:rgba(91,201,138,.14); color:#3F9E6E; border-radius:9px; padding:2px 9px; font-weight:600;">↑ 14 天</span>
+      </div>
+      <div style="font-size:13px; margin-top:4px;" class="t-secondary">完成率 70% · 前90天 54%（↑16 个百分点）</div>
+    </div>
+
+    <div class="weekly-head">
+      <span class="weekly-title">每周完成率</span>
+      <span class="weekly-range">8/10–11/1</span>
+    </div>
+    <div class="readout">
+      <span class="when">10/19–10/25</span>
+      <span class="what">完成 5/7 天 · 71%</span>
+    </div>
+    <div class="bars">
+      <div class="bar-col"><div class="bar part" style="height:57%"></div></div>
+      <div class="bar-col"><div class="bar" style="height:100%"></div></div>
+      <div class="bar-col"><div class="bar" style="height:57%"></div></div>
+      <div class="bar-col"><div class="bar" style="height:71%"></div></div>
+      <div class="bar-col"><div class="bar" style="height:71%"></div></div>
+      <div class="bar-col"><div class="bar" style="height:71%"></div></div>
+      <div class="bar-col"><div class="bar" style="height:86%"></div></div>
+      <div class="bar-col"><div class="bar" style="height:57%"></div></div>
+      <div class="bar-col"><div class="bar" style="height:29%"></div></div>
+      <div class="bar-col"><div class="bar sel" style="height:71%"></div></div>
+      <div class="bar-col"><div class="bar" style="height:100%"></div></div>
+      <div class="bar-col"><div class="bar" style="height:14%"></div></div>
+    </div>
+    <div class="axis">
+      <span>8/10</span><span></span><span>9/7</span><span></span><span>10/5</span><span></span><span>10/26</span>
+    </div>
+    <div style="height:24px"></div>
+  </div></div>
+  <div class="cap" style="max-width:420px;">
+    <b>屏2 · 打卡型「近90天」</b><br><br>
+    ① <b>B方案</b>：整周到上个完整周（8/10–11/1），12 根柱每根都是完整 7 天；首尾残周不画假柱。<br>
+    ② 涨跌胶囊只用天数口径（↑14 天）；完成率口径写进副行（70% vs 54%）——现状「63 天 ↑14%」的口径混排正是被挑刺的 P0。<br>
+    ③ 选中柱读数 = 「10/19–10/25 完成 5/7 天 · 71%」，一眼看出柱子代表一周。<br>
+    ④ 轴标 4 处（8/10 · 9/7 · 10/5 · 10/26），与 12 根整周柱对齐。<br>
+    ⑤ 橙色选中态示意范围胶囊的新选中样式（白底浮起块）。
+  </div>
+
+  <!-- 屏 3：测量型（体重）本月 -->
+  <div class="phone"><div class="screen">
+    <div class="notch"><span>9:41</span><span>●●●●</span></div>
+
+    <div style="display:flex; align-items:center; gap:12px; padding:14px 20px 0;">
+      <div class="iconbox" style="background:rgba(91,201,138,.12); color:#4EA772;">⚖️</div>
+      <div>
+        <div style="font-size:20px; font-weight:600;">体重</div>
+        <div style="font-size:13px;" class="t-secondary">🩺 控制在 70kg 以内，健康查体指标</div>
+      </div>
+    </div>
+
+    <div class="chiprow">
+      <div class="chip" style="background:#FFFFFF; box-shadow:0 1px 4px rgba(0,0,0,.12); color:#333; font-weight:600;">本月</div>
+      <div class="chip">最近记录</div>
+      <div class="chip">全部</div>
+      <div class="chip more">···</div>
+    </div>
+
+    <div class="card-outer" style="margin-top:14px;">
+      <div style="font-size:13px;" class="t-secondary">11月1日–11月2日 · 已过 2 天</div>
+      <div style="display:flex; align-items:baseline; gap:10px; margin-top:4px;">
+        <span style="font-size:21px; font-weight:600;">0 天</span>
+      </div>
+      <div style="font-size:13px; margin-top:4px;" class="t-secondary">这个月还没有记录 · 上次是 10/29 · 70.5 kg</div>
+    </div>
+
+    <div style="margin: 20px 20px 0; border:0.5px solid #E9E4DA; border-radius:16px; background:#fff; padding:18px 16px 14px; text-align:center;">
+      <div style="font-size:15px; font-weight:600;">这个月还没有称过</div>
+      <div style="font-size:13px; margin-top:6px;" class="t-secondary">上次记录 10/29 · 70.5 kg</div>
+      <div style="display:inline-block; margin-top:12px; font-size:14px; font-weight:600; color:#fff; background:#EA580C; border-radius:14px; padding:0 18px; height:38px; line-height:38px;">去记今天的体重</div>
+    </div>
+    <div style="height:24px"></div>
+  </div></div>
+  <div class="cap" style="max-width:420px;">
+    <b>屏3 · 测量型「本月」空态（东林实报的场景）</b><br><br>
+    ① 对比卡照说事实：本月 0 天、上次是 10/29 · 70.5 kg——记录没丢，只是不在本月。<br>
+    ② 空图改成<b>「这个月还没有称过」卡 + 上次记录 + 去记录按钮</b>，替代现状的「这个范围还没有数值记录。无记录不会被填成 0。」和「—」。
+  </div>
+</div>
+
+<!-- ======================================================= -->
+<!-- 屏 4：测量型（体重）最近记录 —— 轴即范围 -->
+<!-- ======================================================= -->
+<div class="row" id="row3" style="margin-top:28px;">
+  <div class="phone"><div class="screen">
+    <div class="notch"><span>9:41</span><span>●●●●</span></div>
+
+    <div style="display:flex; align-items:center; gap:12px; padding:14px 20px 0;">
+      <div class="iconbox" style="background:rgba(91,201,138,.12); color:#4EA772;">⚖️</div>
+      <div>
+        <div style="font-size:20px; font-weight:600;">体重</div>
+        <div style="font-size:13px;" class="t-secondary">🩺 控制在 70kg 以内，健康查体指标</div>
+      </div>
+    </div>
+
+    <div class="chiprow">
+      <div class="chip">本月</div>
+      <div class="chip" style="background:#FFFFFF; box-shadow:0 1px 4px rgba(0,0,0,.12); color:#333; font-weight:600;">最近记录</div>
+      <div class="chip">全部</div>
+      <div class="chip more">···</div>
+    </div>
+    <div style="padding:8px 20px 0; font-size:13px;" class="t-secondary">最近 30 次记录 · 7/6–10/29</div>
+
+    <div class="card-outer" style="margin-top:14px;">
+      <div style="font-size:13px;" class="t-secondary">7/6–10/29 · 平均 71.8 kg</div>
+      <div style="display:flex; align-items:baseline; gap:10px; margin-top:4px;">
+        <div><span style="font-size:21px; font-weight:600;">70.5</span><span style="font-size:13px;"> kg</span></div>
+        <span style="font-size:13px; background:rgba(91,201,138,.14); color:#3F9E6E; border-radius:9px; padding:2px 9px; font-weight:600;">↓ 1.3</span>
+        <span style="font-size:13px;" class="t-secondary">前一次 8/6 · 71.8</span>
+      </div>
+      <div style="font-size:12px; margin-top:4px;" class="t-secondary">↓ = 比前一次记录轻了（测量型只标方向）</div>
+    </div>
+
+    <div style="font-size:15px; font-weight:600; padding:18px 20px 0;">趋势</div>
+    <div class="readout">
+      <span class="when">10/29</span>
+      <span class="what">70.5 kg</span>
+    </div>
+    <div class="linechart">
+      <div class="grid" style="top:20%"></div><div class="grid" style="top:50%"></div><div class="grid" style="top:80%"></div>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polyline points="0,32 6,36 12,42 20,40 28,46 38,50 46,48 56,56 66,58 76,66 88,72 100,76"
+                  fill="none" stroke="#4EA772" stroke-width="1.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+      </svg>
+      <div class="dot" style="left:0%; top:32%"></div>
+      <div class="dot" style="left:6%; top:36%"></div>
+      <div class="dot" style="left:12%; top:42%"></div>
+      <div class="dot" style="left:20%; top:40%"></div>
+      <div class="dot" style="left:28%; top:46%"></div>
+      <div class="dot" style="left:38%; top:50%"></div>
+      <div class="dot" style="left:46%; top:48%"></div>
+      <div class="dot" style="left:56%; top:56%"></div>
+      <div class="dot" style="left:66%; top:58%"></div>
+      <div class="dot" style="left:76%; top:66%"></div>
+      <div class="dot sel" style="left:88%; top:72%"></div>
+      <div class="dot" style="left:100%; top:76%"></div>
+    </div>
+    <div class="axis">
+      <span>7/6</span><span></span><span>8/2</span><span></span><span>8/30</span><span></span><span>10/29</span>
+    </div>
+    <div style="height:24px"></div>
+  </div></div>
+  <div class="cap" style="max-width:420px;">
+    <b>屏4 · 测量型「最近记录」—— 轴即范围</b><br><br>
+    ① 范围行写死窗口：<b>「最近 30 次记录 · 7/6–10/29」</b>——「最近记录」不再是一句黑话。<br>
+    ② 测量型主数字 = <b>最近一次值 70.5 kg</b>（现状 71.7 是均值却没说），变化 = 与上次记录比。<br>
+    ③ 横轴首末刻度 = 范围首末日（7/6 / 10/29），中间点按真实时间分布；末点贴右缘。<br>
+    ④ 高亮圈 = 当前选中的记录点（本图为示意，未画满 30 点）。⑤ 计数型（阅读）同屏式样，主数字 = 合计 + 日均。
+  </div>
+</div>
+
+<!-- ======================================================= -->
+<!-- 屏 5：选范围弹层 -->
+<!-- ======================================================= -->
+<div class="row" id="row4" style="margin-top:28px;">
+  <div class="phone" style="background:#111; height:824px; position:relative; border-radius:28px;">
+    <div class="notch" style="color:#fff;"><span>9:41</span><span>●●●●</span></div>
+    <div style="margin-top:6px; height:170px;"></div>
+    <div style="background:#FDFCF8; border-radius:24px 24px 0 0; height:610px; padding: 8px 20px 0; position:relative;">
+      <div style="width:40px; height:5px; border-radius:3px; background:#D9D3C8; margin: 0 auto 12px;"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div style="width:32px; height:32px; border-radius:16px; background:#F0EAE2; display:flex; align-items:center; justify-content:center; font-size:14px; color:#6E6E6E;">✕</div>
+        <div style="font-size:17px; font-weight:600;">选范围</div>
+        <div style="width:32px;"></div>
+      </div>
+      <div style="font-size:13px; color:#6E6E6E; margin-top:10px;">摘要、图表和明细使用同一个时间范围。</div>
+
+      <div style="font-size:13px; font-weight:600; margin:18px 0 8px;">快速选</div>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px;">
+        <div class="chip" style="justify-content:center; padding:0;">本月</div>
+        <div class="chip" style="justify-content:center; padding:0;">上月</div>
+        <div class="chip" style="justify-content:center; padding:0;">近30天</div>
+        <div class="chip" style="justify-content:center; padding:0; background:#F46D38; color:#fff;">近90天</div>
+      </div>
+
+      <div style="font-size:13px; font-weight:600; margin:20px 0 4px;">自定义</div>
+      <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+        <div style="flex:1; border:1px solid #E9E4DA; border-radius:12px; padding:10px 12px; background:#fff;">
+          <div style="font-size:12px; color:#9B9B9B;">开始</div>
+          <div style="font-size:15px; font-weight:500; margin-top:2px; color:#B9B2A6;">选择日期</div>
+        </div>
+        <div style="color:#9B9B9B; font-size:14px;">→</div>
+        <div style="flex:1; border:1px solid #E9E4DA; border-radius:12px; padding:10px 12px; background:#fff;">
+          <div style="font-size:12px; color:#9B9B9B;">结束</div>
+          <div style="font-size:15px; font-weight:500; margin-top:2px; color:#B9B2A6;">选择日期</div>
+        </div>
+      </div>
+      <div style="font-size:12px; color:#9B9B9B; margin-top:6px;">选好开始和结束，这里显示共几天</div>
+
+      <div style="position:absolute; left:20px; right:20px; bottom:24px;">
+        <div style="font-size:15px; font-weight:600; color:#fff; background:#EA580C; border-radius:14px; height:48px; line-height:48px; text-align:center;">用这个范围</div>
+      </div>
+    </div>
+  </div>
+  <div class="cap" style="max-width:420px;">
+    <b>屏5 · 「更多范围」重做 → 「选范围」</b><br><br>
+    ① 用项目标准弹层壳：拖拽条、左上 ✕、说明左对齐、主按钮橙色实心贴底（现状全是描边按钮）。<br>
+    ② 「上月」升为一键快捷（现状只有一个「2026/10」孤按钮）。<br>
+    ③ 自定义两个日期框各带<b>「开始/结束」小标签</b>，选中范围实时显示「共 N 天」（现状两个光秃秃的框）。<br>
+    ④ 主按钮文案「用这个范围」。<br>
+    ⑤ 弹层外底色压暗（示意）。
+  </div>
+</div>
+
+<!-- ======================================================= -->
+<!-- 屏 6：习惯描述 · 表单 + 今天页两种展示 -->
+<!-- ======================================================= -->
+<div class="row" id="row5" style="margin-top:28px;">
+  <!-- 6a 表单 -->
+  <div class="phone"><div class="screen">
+    <div class="notch"><span>9:41</span><span>●●●●</span></div>
+    <div style="background:#FDFCF8; border-radius:24px 24px 0 0; margin-top:10px; padding: 8px 20px 0;">
+      <div style="width:40px; height:5px; border-radius:3px; background:#D9D3C8; margin: 0 auto 12px;"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div style="width:32px; height:32px; border-radius:16px; background:#F0EAE2; display:flex; align-items:center; justify-content:center; font-size:14px; color:#6E6E6E;">✕</div>
+        <div style="font-size:17px; font-weight:600;">新建习惯</div>
+        <div style="font-size:15px; font-weight:600; color:#EA580C;">保存</div>
+      </div>
+
+      <div style="margin-top:16px; background:#F7F1EA; border-radius:12px; padding:10px 14px; font-size:16px;">晨跑</div>
+      <div style="margin-top:10px; background:#F7F1EA; border-radius:12px; padding:10px 14px; min-height:64px;">
+        <div style="font-size:15px; line-height:1.5;">🏃 为了年底的半马，每天 3 公里</div>
+        <div style="text-align:right; font-size:12px; color:#9B9B9B; margin-top:4px;">18 / 50</div>
+      </div>
+
+      <div style="font-size:12px; color:#9B9B9B; margin-top:6px;">为什么开始？这句话会陪着你打卡（可选）</div>
+
+      <div style="margin-top:18px; border:0.5px solid #E9E4DA; border-radius:16px; background:#fff; padding:14px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="iconbox" style="background:rgba(244,109,56,.12); color:#F46D38;">🏃</div>
+          <div>
+            <div style="font-weight:600;">11 天</div>
+            <div style="font-size:12px; color:#6E6E6E;">晨跑 · 🏃 为了年底的半马，每天 3 公里</div>
+          </div>
+        </div>
+      </div>
+      <div style="height:24px"></div>
+    </div>
+  </div></div>
+
+  <!-- 6b 今天页 A 版：描述替换激励语 -->
+  <div class="phone"><div class="screen">
+    <div class="notch"><span>9:41</span><span>●●●●</span></div>
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 20px;">
+      <div style="font-size:22px; font-weight:700;">习惯</div>
+      <div style="font-size:20px; color:#6E6E6E;">＋ ···</div>
+    </div>
+    <div style="padding:0 20px;">
+      <div style="border:1px solid rgba(244,109,56,.25); background:linear-gradient(135deg, rgba(244,109,56,.10), rgba(244,109,56,.045)); border-radius:18px; padding:14px; display:flex; align-items:center;">
+        <div style="flex:1;">
+          <div style="font-size:27px; font-weight:800; color:#F46D38;">11 天</div>
+          <div style="font-size:12px; color:#6E6E6E; margin-top:2px;">🏃 为了年底的半马，每天 3 公里</div>
+        </div>
+        <div style="font-size:15px; font-weight:600; color:#F46D38; background:rgba(244,109,56,.14); border-radius:16px; padding:0 20px; height:44px; line-height:44px;">打卡</div>
+      </div>
+      <div style="margin-top:10px; font-size:13px; color:#6E6E6E; margin-left:4px;">今天的打卡 · 2 个</div>
+
+      <div style="margin-top:10px; border:0.5px solid #E9E4DA; border-radius:14px; background:#fff; padding:12px 14px; display:flex; align-items:center;">
+        <div class="iconbox" style="background:rgba(129,112,141,.12); color:#81708D; width:36px; height:36px; font-size:16px;">📖</div>
+        <div style="flex:1; margin-left:12px;">
+          <div style="font-size:15px; font-weight:500;">阅读</div>
+          <div style="font-size:12px; color:#6E6E6E; margin-top:1px;">今晚 30 分钟 · 睡前读几页</div>
+        </div>
+        <div style="font-size:13px; color:#F46D38;">30 分钟</div>
+      </div>
+      <div style="font-size:12px; color:#9B9B9B; padding: 8px 4px 0;">普通行同规则：有描述时替换「连续 5 天」副行（阅读行示例）。</div>
+    </div>
+    <div style="height:24px"></div>
+  </div></div>
+
+  <!-- 6c 今天页 B 版：描述另起一行 -->
+  <div class="phone"><div class="screen">
+    <div class="notch"><span>9:41</span><span>●●●●</span></div>
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 20px;">
+      <div style="font-size:22px; font-weight:700;">习惯</div>
+      <div style="font-size:20px; color:#6E6E6E;">＋ ···</div>
+    </div>
+    <div style="padding:0 20px;">
+      <div style="border:1px solid rgba(244,109,56,.25); background:linear-gradient(135deg, rgba(244,109,56,.10), rgba(244,109,56,.045)); border-radius:18px; padding:14px; display:flex; align-items:center;">
+        <div style="flex:1;">
+          <div style="font-size:27px; font-weight:800; color:#F46D38;">11 天</div>
+          <div style="font-size:11.5px; color:#6E6E6E; margin-top:2px;">晨跑 · 别断了今天</div>
+          <div style="font-size:11.5px; color:#8A8A8A; margin-top:1px;">🏃 为了年底的半马，每天 3 公里</div>
+        </div>
+        <div style="font-size:15px; font-weight:600; color:#F46D38; background:rgba(244,109,56,.14); border-radius:16px; padding:0 20px; height:44px; line-height:44px;">打卡</div>
+      </div>
+      <div style="margin-top:10px; border:0.5px solid #E9E4DA; border-radius:14px; background:#fff; padding:12px 14px; display:flex; align-items:center;">
+        <div class="iconbox" style="background:rgba(129,112,141,.12); color:#81708D; width:36px; height:36px; font-size:16px;">📖</div>
+        <div style="flex:1; margin-left:12px;">
+          <div style="font-size:15px; font-weight:500;">阅读</div>
+          <div style="font-size:12px; color:#6E6E6E; margin-top:1px;">🔥 连续 5 天</div>
+          <div style="font-size:12px; color:#8A8A8A; margin-top:1px;">今晚 30 分钟 · 睡前读几页</div>
+        </div>
+        <div style="font-size:13px; color:#F46D38;">30 分钟</div>
+      </div>
+      <div style="font-size:12px; color:#9B9B9B; padding: 8px 4px 0;">普通行示例：连续天数一行 + 描述一行。</div>
+    </div>
+    <div style="height:24px"></div>
+  </div></div>
+
+  <div class="cap" style="max-width:380px;">
+    <b>屏6 · 习惯描述（Emoji 原生支持，不用特殊处理）</b><br><br>
+    <b>左</b>：表单。名称下方多行输入框，占位「为什么开始？…」，右下字数 18/50；预览卡同步显示描述。<br>
+    <b>中（A 版）</b>：大卡副行直接换成描述——「别断了今天」这类口号让位（有描述时才替换）。<br>
+    <b>右（B 版）</b>：保留原副行，描述另起一行。<br>
+    <b>A/B 二选一</b>：A 版大卡更干净、描述曝光强；B 版信息全但行数多。
+  </div>
+</div>
+
+<!-- ======================================================= -->
+<!-- 现状对照 -->
+<!-- ======================================================= -->
+<h1 style="margin-top:32px;">现状对照（判读用）</h1>
+<div class="row" id="row6">
+  <div class="phone" style="border:2px solid #555;"><div class="screen" style="height:auto;">
+    <img src="现状截图/L15-single-run-month-top.jpg" style="width:100%; display:block;">
+    <div class="cap">现状：打卡型「本月」——轴上出现上周的 10/26，残周画成 100%。</div>
+  </div></div>
+  <div class="phone" style="border:2px solid #555;"><div class="screen" style="height:auto;">
+    <img src="现状截图/L25-single-bp-sparse-recent.jpg" style="width:100%; display:block;">
+    <div class="cap">现状：血压只有 1 条记录——点悬在图中间，轴上只有左上角一个 11/1。</div>
+  </div></div>
+  <div class="phone" style="border:2px solid #555;"><div class="screen" style="height:auto;">
+    <img src="现状截图/L31-more-range-sheet.jpg" style="width:100%; display:block;">
+    <div class="cap">现状：更多范围卡片——无壳无标签、描边按钮、孤零零的「2026/10」。</div>
+  </div></div>
+</div>
+
+</body>
+</html>

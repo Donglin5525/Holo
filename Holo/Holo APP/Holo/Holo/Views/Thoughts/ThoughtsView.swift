@@ -79,6 +79,7 @@ struct ThoughtsView: View {
         // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容。
         // 必须显式写 onSave: —— 编辑器有多个可选闭包参数，trailing closure 会绑错
         // （实测绑到 onRequestClose，导致纸飞机退出失效、边缘手势被禁）。
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showAddThought) {
             ThoughtEditorView(onSave: {
                 // 保存后刷新列表
@@ -86,6 +87,15 @@ struct ThoughtsView: View {
             })
             .holoContentColumn()
         }
+        #else
+                .sheet(isPresented: $showAddThought) {
+            ThoughtEditorView(onSave: {
+                // 保存后刷新列表
+                NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+            })
+            .holoContentColumn()
+        }
+        #endif
         .sheet(isPresented: $showConvergence) {
             ConvergenceConfirmView(
                 job: convergenceJob,
@@ -108,7 +118,7 @@ struct ThoughtsView: View {
 
     /// 展开宽度：约容器 80%，上限 340（§5.8 首轮参数，真机校准）
     private var sidebarWidth: CGFloat {
-        min(UIScreen.main.bounds.width * 0.8, 340)
+        min(holoScreenWidth() * 0.8, 340)
     }
 
     /// 当前进度 0...1（拖拽中跟手，停靠后为 0 或 1）

@@ -48,8 +48,12 @@ enum HoloContextChatPlanner {
     ) -> HoloContextPlanningCoordinator {
         let loadContextRecords: @Sendable () async throws -> [HoloMemoryRecord] = {
             // 候选记录来自本机情境库（personalContext 载荷）。
-            let records = (try? await repository.query(.all)) ?? []
-            let contexts = records.filter { $0.personalContext != nil }
+            // v2.2 统一决策：规划候选走 query(.active)（经 ResolvedKnowledge 门闸）。
+            let records = (try? await repository.query(.active)) ?? []
+            // M06：直连读者套统一资格判据，停用/删除不进规划候选。
+            let contexts = records
+                .filter(HoloMemoryAnswerEligibility.isEligible)
+                .filter { $0.personalContext != nil }
             contextCountOut.value = contexts.count
             logger.error("PLAN-DIAG records=\(records.count) contexts=\(contexts.count)")
             return contexts
@@ -346,11 +350,17 @@ enum HoloContextChatPlanner {
             goalSummary: utterance,
             referenceTime: Date()
         )
-        return try await coordinator.preparePrompt(
+        // 分段计时（2026-11-02）：补领 74 秒无法归因，此后每段可直接对号。
+        let clock = ContinuousClock()
+        let started = clock.now
+        let prepared = try await coordinator.preparePrompt(
             frame: frame,
             parentMessageID: parentMessageID,
             onStage: nil
         )
+        let elapsed = clock.now - started
+        logger.error("PLAN-DIAG 补领准备耗时 \((Int(elapsed.components.seconds) * 1000 + Int(elapsed.components.attoseconds / 1_000_000_000_000_000)))ms records=\(prepared.records.count)")
+        return prepared
     }
 
     /// 云端异步路径第二步：领取云端产物 → 本机解析+校验+落库（真相源不外移）。
@@ -380,7 +390,11 @@ enum HoloContextChatPlanner {
             persistence: HoloPlanningMemoryRunPersistence(),
             contextCountOut: ContextCountBox()
         )
+        let deliverClock = ContinuousClock()
+        let deliverStarted = deliverClock.now
         let outcome = try await coordinator.deliverCloudOutput(start.preparation, output: output)
+        let deliverElapsed = deliverClock.now - deliverStarted
+        logger.error("PLAN-DIAG 补领交付耗时 \((Int(deliverElapsed.components.seconds) * 1000 + Int(deliverElapsed.components.attoseconds / 1_000_000_000_000_000)))ms")
         HoloPersonalContextDiagnostics.recordPlanning(
             contextCount: 0,
             candidates: outcome.retrievalResult.entries.count,

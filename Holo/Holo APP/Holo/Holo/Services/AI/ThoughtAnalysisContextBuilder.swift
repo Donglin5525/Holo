@@ -76,7 +76,7 @@ struct ThoughtAnalysisContextBuilder {
         end: Date,
         calendar: Calendar
     ) -> [DailyCountPoint] {
-        let countsByDay = repo.getThoughtCountByDay(from: start, to: end)
+        let countsByDay = repo.getThoughtCountByDay(from: start, to: end, aiVisibleOnly: true)
 
         var result: [DailyCountPoint] = []
         var current = start

@@ -167,6 +167,57 @@ struct HoloLegacyMemoryStoreRegressionTests {
         try testEpisodicFirstWriteAndInterruptedTempFile()
         try testEpisodicConcurrentMutations()
         try testLongTermFirstWriteAndConcurrentMutations()
+        try testLongTermDeleteMemoriesReferencingThoughts()
         print("HoloLegacyMemoryStoreRegressionTests passed: \(assertionCount) assertions")
+    }
+
+    /// 标签级 AI 排除（2026-10-21 方案）：按证据源想法删除长期记忆——
+    /// 「含即删」口径（宁可少记一条，不可漏一条）。放 Standalone：FileStore 在
+    /// XCTest 宿主内同步测试会触发 malloc 析构崩溃（前人实证，见 welcomenote 1015 坑）。
+    private static func testLongTermDeleteMemoriesReferencingThoughts() throws {
+        let directory = try makeTemporaryDirectory("long-term-ai-exclusion")
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let defaultsName = "holo.legacy-memory-tests.ai-exclusion.\(UUID().uuidString)"
+        guard let defaults = UserDefaults(suiteName: defaultsName) else {
+            fatalError("无法创建隔离 UserDefaults")
+        }
+        defer { defaults.removePersistentDomain(forName: defaultsName) }
+
+        let store = HoloLongTermMemoryFileStore(
+            directoryURL: directory,
+            defaults: defaults,
+            migrationKey: "migration-complete"
+        )
+
+        let excludedThoughtID = UUID().uuidString.lowercased()
+        let normalThoughtID = UUID().uuidString.lowercased()
+
+        // 依据排除想法 / 依据正常想法 / 非想法域（habits）三条记忆
+        var excludedBased = makeLongTermMemory("m-excluded")
+        excludedBased.evidence = [
+            HoloLongTermMemoryEvidence(
+                id: "m-excluded-e", source: .thoughts, sourceID: excludedThoughtID,
+                excerpt: "依据", observedAt: Date(timeIntervalSince1970: 1_720_000_000))
+        ]
+        var normalBased = makeLongTermMemory("m-normal")
+        normalBased.evidence = [
+            HoloLongTermMemoryEvidence(
+                id: "m-normal-e", source: .thoughts, sourceID: normalThoughtID,
+                excerpt: "依据", observedAt: Date(timeIntervalSince1970: 1_720_000_000))
+        ]
+        try store.save([excludedBased, normalBased, makeLongTermMemory("m-habit")])
+
+        let removed = store.deleteMemoriesReferencing(thoughtIDs: [excludedThoughtID])
+
+        expect(removed == 1, "只删证据命中排除想法的记忆")
+        expect(Set(store.load().map(\.id)) == ["m-normal", "m-habit"],
+               "正常想法记忆与非想法域记忆保留")
+
+        // 幂等：重复删除无匹配、不误删
+        expect(store.deleteMemoriesReferencing(thoughtIDs: [excludedThoughtID]) == 0,
+               "重复删除不再有条目可删")
+        expect(store.deleteMemoriesReferencing(thoughtIDs: [normalThoughtID]) == 1,
+               "正常想法的 id 同样可按口径删除（口径通用）")
     }
 }

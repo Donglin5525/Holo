@@ -533,8 +533,12 @@ test("一致性：代码默认 provider/model 与生产 DeepSeek 对齐，qwen �
     "vision_extraction 默认 provider 必须是 deepseek-vision",
   );
   assert.ok(
-    source.includes('HOLO_VISION_EXTRACTION_MODEL ?? "deepseek-v4-flash-vision-exp"'),
-    "vision_extraction 默认 model 必须是 deepseek-v4-flash-vision-exp",
+    source.includes('HOLO_VISION_EXTRACTION_MODEL ?? "deepseek-flash"'),
+    "vision_extraction 默认 model 必须是 deepseek-flash（2026-10-09 正名，V4 系旧名已下线仅暂时路由）",
+  );
+  assert.ok(
+    !source.includes('?? "deepseek-v4-flash-vision-exp"'),
+    "已下线的 deepseek-v4-flash-vision-exp 不得再作为默认值（注释引用旧名说明历史除外）",
   );
   assert.ok(
     !source.includes('?? "qwen3-vl-plus"'),

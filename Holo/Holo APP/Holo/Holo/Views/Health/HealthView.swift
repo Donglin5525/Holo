@@ -6,6 +6,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 
 // MARK: - HealthView
 
@@ -21,7 +25,7 @@ struct HealthView: View {
     @Environment(\.holoDismiss) private var holoDismiss
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
-    @StateObject private var repository = HealthRepository.shared
+    @ObservedObject private var repository = HealthRepository.shared
     @State private var selectedMetric: HealthMetricType?
     @State private var showVitals = false
     @State private var weeklySleepData: [DailyHealthData] = []
@@ -96,7 +100,9 @@ struct HealthView: View {
             .navigationDestination(isPresented: $showVitals) {
                 VitalsView()
             }
+            #if canImport(UIKit)
             .toolbar(.hidden, for: .navigationBar)
+            #endif
         }
         // 手势挂在 NavigationStack 外面时让位判断恒失效（见 SwipeBackModifier 文档），
         // 必须按 push 状态显式门控：详情页/身体状态页在前台时整层失效，
@@ -201,26 +207,17 @@ struct HealthView: View {
 
     private var healthFootnote: some View {
         Text("健康数据由 AI 分析，仅供参考")
-            .font(.system(size: 11))
-            .foregroundColor(.holoToolTextSecondary.opacity(0.7))
+            .holoText(.metadata)
+            .foregroundColor(.holoToolTextSecondary)
             .frame(maxWidth: .infinity, alignment: .center)
             .fixedSize(horizontal: false, vertical: true)
     }
 
     /// 返回首页按钮（对齐全局 fullScreenCover 模块约定，复用于各分支）
     private var backButton: some View {
-        Button {
+        HoloIconButton(systemName: "chevron.left", title: "返回", showsSurface: true) {
             close()
-        } label: {
-            Image(systemName: "chevron.left")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.holoToolText)
-                .frame(width: 40, height: 40)
-                .background(Color.holoToolSurface)
-                .clipShape(Circle())
-                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         }
-        .buttonStyle(.plain)
     }
 
     /// 权限引导 / 不可用兜底分支的固定返回栏
@@ -432,16 +429,7 @@ struct HealthView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
 
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.holoDivider)
-                    Capsule()
-                        .fill(metric.type.color)
-                        .frame(width: proxy.size.width * metric.progress)
-                }
-            }
-            .frame(height: 5)
+            HoloProgress(value: metric.availability == .available ? metric.progress : nil, color: metric.type.color, lineWidth: 5)
 
             Text(metric.targetText)
                 .font(.holoTinyLabel)
@@ -509,26 +497,33 @@ struct HealthView: View {
         .onTapGesture {
             // 部分连接时点按跳转系统设置，引导用户补全健康权限
             guard !daySwipeState.isSwiping, repository.dataSourceState == .partiallyConnected else { return }
+            #if canImport(UIKit)
             if let url = URL(string: UIApplication.openSettingsURLString) {
                 UIApplication.shared.open(url)
             }
+            #else
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Health") {
+                NSWorkspace.shared.open(url)
+            }
+            #endif
         }
     }
 
     private var coreInsightCard: some View {
         let core = displayedCoreInsight
+        let generated = insightViewModel.snapshot?.coreInsight
         return insightCard(
             iconText: "✦",
             title: core.title,
             detail: core.detail,
-            color: .holoPrimary
+            color: .holoAI
         )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard !daySwipeState.isSwiping else { return }
-            if let generated = insightViewModel.snapshot?.coreInsight {
-                selectedEvidenceInsight = generated
-            }
+        // 无 AI 洞察（规则兜底文案）时整组不挂手势：挂了又在 action 里判空
+        // = 吞点击死区（ConditionalGestureModifiers）；生活闭环区同款口径
+        .contentShapeIf(generated != nil, shape: Rectangle())
+        .onTapGestureIf(generated != nil) {
+            guard !daySwipeState.isSwiping, let generated else { return }
+            selectedEvidenceInsight = generated
         }
     }
 
@@ -573,12 +568,10 @@ struct HealthView: View {
 
                             Spacer(minLength: 0)
                         }
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            guard !daySwipeState.isSwiping else { return }
-                            if let generated = row.generated {
-                                selectedEvidenceInsight = generated
-                            }
+                        .contentShapeIf(row.generated != nil, shape: Rectangle())
+                        .onTapGestureIf(row.generated != nil) {
+                            guard !daySwipeState.isSwiping, let generated = row.generated else { return }
+                            selectedEvidenceInsight = generated
                         }
                     }
                 }
@@ -660,7 +653,7 @@ struct HealthView: View {
                 .buttonStyle(.plain)
             }
 
-            HealthTrendChart(data: trendData, type: trendMetric)
+            HealthTrendChart(data: trendData, type: trendMetric, endingOn: selectedDate)
         }
         .padding(HoloSpacing.md)
         .holoSurface()
@@ -678,8 +671,12 @@ struct HealthView: View {
                         .foregroundColor(trendMetric == metric ? metric.color : .holoToolTextSecondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(trendMetric == metric ? metric.color.opacity(0.12) : Color.clear)
+                        .background(trendMetric == metric ? Color.holoToolInset : Color.clear)
                         .clipShape(Capsule())
+                        .overlay(
+                            // 深色下彩色淡底与卡底难分：选中 chip 嵌套底 + 细描边兜边界
+                            Capsule().strokeBorder(trendMetric == metric ? Color.holoToolBorder : Color.clear, lineWidth: 0.5)
+                        )
                 }
                 .buttonStyle(.plain)
             }
@@ -719,11 +716,11 @@ struct HealthView: View {
             Spacer(minLength: 0)
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoPrimary.opacity(0.08))
+        .background(Color.holoToolAI.opacity(0.08))
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoPrimary.opacity(0.18), lineWidth: 1)
+                .stroke(Color.holoToolAI.opacity(0.18), lineWidth: 1)
         )
     }
 
@@ -746,9 +743,15 @@ struct HealthView: View {
 
             if repository.dataSourceState == .denied {
                 Button("打开系统设置") {
+                    #if canImport(UIKit)
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
+                    #else
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.Health") {
+                        NSWorkspace.shared.open(url)
+                    }
+                    #endif
                 }
                 .holoText(.body)
                 .foregroundColor(.holoPrimary)
@@ -793,9 +796,9 @@ struct HealthView: View {
         dateLoadGeneration += 1
         let generation = dateLoadGeneration
         let day = await repository.fetchDayData(for: date)
-        let sleep = await repository.fetchWeeklyData(for: .sleep, endingOn: date)
-        let steps = await repository.fetchWeeklyData(for: .steps, endingOn: date)
-        let workout = await repository.fetchWeeklyData(for: .workout, endingOn: date)
+        let sleep = await repository.fetchChartWeeklyData(for: .sleep, endingOn: date)
+        let steps = await repository.fetchChartWeeklyData(for: .steps, endingOn: date)
+        let workout = await repository.fetchChartWeeklyData(for: .workout, endingOn: date)
         guard generation == dateLoadGeneration else { return }
         dayData = day
         weeklySleepData = sleep

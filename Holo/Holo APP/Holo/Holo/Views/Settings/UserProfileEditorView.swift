@@ -8,7 +8,9 @@
 import AVFoundation
 import PhotosUI
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 struct UserProfileEditorView: View {
 
@@ -43,7 +45,9 @@ struct UserProfileEditorView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("个人资料")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") { dismiss() }
@@ -84,6 +88,7 @@ struct UserProfileEditorView: View {
             )
             .ignoresSafeArea()
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showCropEditor) {
             if let preparedCropData {
                 UserAvatarCropView(
@@ -99,6 +104,19 @@ struct UserProfileEditorView: View {
                 )
             }
         }
+        #else
+        .sheet(isPresented: $showCropEditor) {
+            // macOS：UIImage 裁剪器为 iOS 专属，头像裁剪走后续阶段；直接收起并清理
+            Text("Mac 版暂不支持头像裁剪")
+                .font(.title3)
+                .foregroundStyle(.secondary)
+                .padding()
+                .onAppear {
+                    showCropEditor = false
+                    preparedCropData = nil
+                }
+        }
+        #endif
         .alert("移除头像？", isPresented: $showRemoveConfirmation) {
             Button("取消", role: .cancel) {}
             Button("移除", role: .destructive) { removeAvatar() }
@@ -162,8 +180,10 @@ struct UserProfileEditorView: View {
 
             HStack(spacing: HoloSpacing.sm) {
                 TextField("怎么称呼你", text: $nicknameDraft)
+                    #if canImport(UIKit)
                     .textInputAutocapitalization(.words)
                     .submitLabel(.done)
+                    #endif
                     .onSubmit(saveNickname)
 
                 Button("保存", action: saveNickname)
@@ -262,10 +282,16 @@ struct UserProfileEditorView: View {
     }
 
     private func requestCamera() {
+        #if canImport(UIKit)
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
             errorMessage = "当前设备没有可用的相机。"
             return
         }
+        #else
+        // macOS：Mac 相机拍照头像走后续阶段（Phase A 直接提示）
+        errorMessage = "Mac 版暂不支持拍照头像，请从图片文件选择。"
+        return
+        #endif
 
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:

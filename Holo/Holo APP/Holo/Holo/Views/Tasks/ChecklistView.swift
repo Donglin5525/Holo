@@ -61,9 +61,11 @@ struct ChecklistView: View {
                 }
             }
             .navigationTitle("子任务")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button {
                         dismiss()
                     } label: {
@@ -73,7 +75,7 @@ struct ChecklistView: View {
                     }
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("完成") {
                         dismiss()
                     }
@@ -309,6 +311,12 @@ struct ChecklistView: View {
     }
 
     private func startEditing(item: CheckItem) {
+        // 切换目标前先提交在途草稿：共享草稿串即将被覆盖，旧条目的失焦提交
+        // 又被 id 守卫拦下，两条路都会丢字——先落盘再切换（对齐添加行的失焦保护）
+        if let editingID = editingItemId, editingID != item.id,
+           let editingItem = checkItems.first(where: { $0.id == editingID }) {
+            commitEdit(item: editingItem)
+        }
         editingItemId = item.id
         editingTitle = item.title
         isEditingFocused = true

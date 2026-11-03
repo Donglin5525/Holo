@@ -66,7 +66,9 @@ struct TopicManagementView: View {
             }
         }
         .navigationTitle("主题管理")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .holoSheetShell()
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
@@ -77,6 +79,7 @@ struct TopicManagementView: View {
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
             loadTopics()
         }
+        #if canImport(UIKit)
         .fullScreenCover(item: $selectedTopicId, onDismiss: { loadTopics() }) { topicId in
             TopicDetailView(
                 topicId: topicId,
@@ -86,6 +89,17 @@ struct TopicManagementView: View {
             )
             .holoContentColumn()
         }
+        #else
+                .sheet(item: $selectedTopicId, onDismiss: { loadTopics() }) { topicId in
+            TopicDetailView(
+                topicId: topicId,
+                topicRepository: topicRepository,
+                thoughtRepository: thoughtRepository,
+                onTopicDeleted: { selectedTopicId = nil }
+            )
+            .holoContentColumn()
+        }
+        #endif
         .alert("新建主题", isPresented: $addPresented) {
             TextField("主题名称", text: $newTitle)
             Button("取消", role: .cancel) {}

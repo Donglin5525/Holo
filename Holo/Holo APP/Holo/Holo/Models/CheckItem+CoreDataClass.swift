@@ -21,6 +21,11 @@ class CheckItem: NSManagedObject {
     @NSManaged var isChecked: Bool
     @NSManaged var order: Int16
     @NSManaged var createdAt: Date
+    // 等待态（2026-10-11 拆开瘦身）
+    @NSManaged var isWaiting: Bool
+    @NSManaged var waitNote: String?
+    @NSManaged var reviewRemindAt: Date?
+    @NSManaged var waitHintsJSON: String?
 
     // MARK: - Relationships
 

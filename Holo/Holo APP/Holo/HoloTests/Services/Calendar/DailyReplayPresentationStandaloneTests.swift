@@ -71,6 +71,7 @@ struct DailyReplayPresentationStandaloneTests {
 
     static func main() {
         testSameMinuteAndModuleBecomeOneMoment()
+        testHabitMomentTitleDeduplicatesByHabit()
         testFinanceMomentUsesSemanticTitleAndSignedTotal()
         testPeriodDoesNotInventMidnightTime()
         testLongEmptyRunCollapsesButKeepsBoundaries()
@@ -81,7 +82,7 @@ struct DailyReplayPresentationStandaloneTests {
         testEmptyDayDownwardSwipeGoesLater()
         testEarlierPageExtendsBackwardWithoutLowerBound()
         testDayReadsNewestFirstWithUntimedAtBottom()
-        print("DailyReplayPresentationStandaloneTests passed (11 cases)")
+        print("DailyReplayPresentationStandaloneTests passed (12 cases)")
     }
 
     private static func testSameMinuteAndModuleBecomeOneMoment() {
@@ -96,6 +97,27 @@ struct DailyReplayPresentationStandaloneTests {
         expectDailyReplay(moments.count == 3, "只有同一分钟且同模块的记录才应合成一个时刻")
         expectDailyReplay(moments.first(where: { $0.module == .habit && $0.events.count == 2 })?.title == "完成了 2 个习惯",
                           "同一分钟的习惯应形成可理解的组合标题：\(moments.map { ($0.module.rawValue, $0.events.count, $0.title) })")
+    }
+
+    private static func testHabitMomentTitleDeduplicatesByHabit() {
+        let sameHabit = [
+            event(.habit, hour: 14, minute: 13, title: "戒烟", idSuffix: 21),
+            event(.habit, hour: 14, minute: 13, title: "戒烟", idSuffix: 22),
+            event(.habit, hour: 14, minute: 13, title: "戒烟", idSuffix: 23)
+        ]
+        let single = DailyReplayPresentation.moments(from: sameHabit)
+        expectDailyReplay(single.count == 1, "同一分钟同习惯的三条记录应合成一个时刻")
+        expectDailyReplay(single[0].title == "戒烟 · 3 次记录",
+                          "同一习惯多条记录应表述为次数而非「N 个习惯」：\(single[0].title)")
+
+        let mixed = [
+            event(.habit, hour: 9, minute: 30, title: "戒烟", idSuffix: 24),
+            event(.habit, hour: 9, minute: 30, title: "戒烟", idSuffix: 25),
+            event(.habit, hour: 9, minute: 30, title: "喝水", idSuffix: 26)
+        ]
+        let deduped = DailyReplayPresentation.moments(from: mixed)
+        expectDailyReplay(deduped[0].title == "完成了 2 个习惯",
+                          "多习惯混合时刻的习惯数应按去重计，不按记录条数计：\(deduped[0].title)")
     }
 
     private static func testFinanceMomentUsesSemanticTitleAndSignedTotal() {

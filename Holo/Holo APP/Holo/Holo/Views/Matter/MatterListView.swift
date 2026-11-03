@@ -37,9 +37,11 @@ struct MatterListView: View {
             }, scope: .single(selectedScope))
             .background(Color.holoToolBackground.ignoresSafeArea())
             .navigationTitle(Text(verbatim: "正在推进"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.large)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Menu {
                         Picker(selection: $selectedScope) {
                             Text(verbatim: "正在推进").tag(HoloMatterLifecycleStatus.active)
@@ -53,7 +55,7 @@ struct MatterListView: View {
                     }
                     .accessibilityLabel(Text(verbatim: "筛选"))
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button {
                         onAddTapped?()
                     } label: {
@@ -61,7 +63,7 @@ struct MatterListView: View {
                     }
                     .accessibilityLabel(Text(verbatim: "添加正在推进的事"))
                 }
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button(String(localized: "完成")) { dismiss() }
                 }
             }
@@ -164,7 +166,7 @@ struct MatterListContent: View {
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color(.secondarySystemGroupedBackground)))
+                    .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color.holoSecondaryGroupedBackground))
             } else {
                 ForEach(archived, id: \.id) { matter in
                     row(matter)
@@ -179,22 +181,23 @@ struct MatterListContent: View {
         } label: {
             VStack(alignment: .leading, spacing: 5) {
                 HStack {
+                    // 2026-10-23 超长治理（原型 matter-taskname-wrap-prototype）：
+                    // 标题 1 行→2 行；副标题分行——标签行（下一步·待确认）+ 任务名独占整行，
+                    // 任务名不再与「下一步：」前缀挤同一行小字。
                     Text(matter.title)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.primary)
-                        .lineLimit(1)
+                        .lineLimit(2)
                     Spacer()
                     lifecycleBadge(matter, hidden: hidePhaseBadge)
                 }
-                subtitleLine(matter)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                subtitleBlock(matter)
             }
             .padding(13)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(Color(.systemBackground))
+                    .fill(Color.holoSystemBackground)
                     .shadow(color: Color.black.opacity(0.04), radius: 6, y: 2)
             )
         }
@@ -202,25 +205,38 @@ struct MatterListContent: View {
         .opacity(matter.lifecycle == .completed || matter.lifecycle == .archived ? 0.65 : 1)
     }
 
+    /// 行副标题（分行式）：标签行只放「下一步 · N 个待确认」，任务名独占整行、两行封顶。
+    /// 两行封顶是防误粘超长文本撑乱列表的保护闸，现实步骤名几乎不会触顶。
     @ViewBuilder
-    private func subtitleLine(_ matter: HoloMatter) -> some View {
+    private func subtitleBlock(_ matter: HoloMatter) -> some View {
         let loops = repository.openLoops(matterID: matter.id)
         let activeCount = loops.filter { $0.state == .open || $0.state == .waiting }.count
-        HStack(spacing: 6) {
-            if matter.lifecycle == .active {
-                // 实时确定性计算（V2 §5.6）：不读可能 stale 的 projection。
-                if let next = MatterPlanQuery.nextActionTask(matterID: matter.id, repository: repository) {
-                    Text(verbatim: "下一步：\(next.title)")
-                        .lineLimit(1)
+        if matter.lifecycle == .active {
+            if let next = MatterPlanQuery.nextActionTask(matterID: matter.id, repository: repository) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 0) {
+                        Text(verbatim: "下一步")
+                        if activeCount > 0 {
+                            Text(verbatim: " · \(activeCount) 个待确认")
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    Text(next.title)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
+                        .lineLimit(2)
                 }
-            } else if matter.lifecycle == .completed, let completedAt = matter.completedAt {
-                Text(String(localized: "已完成 · \(Self.dateText(completedAt))"))
+            } else if activeCount > 0 {
+                Text(verbatim: "\(activeCount) 个待确认")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            if matter.lifecycle == .active, activeCount > 0 {
-                Text(verbatim: "· \(activeCount) 个待确认")
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
+        } else if matter.lifecycle == .completed, let completedAt = matter.completedAt {
+            Text(String(localized: "已完成 · \(Self.dateText(completedAt))"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

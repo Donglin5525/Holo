@@ -85,7 +85,7 @@ struct TodayMatterSection: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .fill(Color(.systemBackground))
+                    .fill(Color.holoSystemBackground)
             )
         }
         .buttonStyle(.plain)
@@ -229,7 +229,7 @@ struct TodayMatterSection: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.holoSecondaryGroupedBackground)
             )
             .contentShape(Rectangle())
         }
@@ -267,7 +267,7 @@ struct TodayMatterSection: View {
             .padding(.vertical, 11)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.holoSecondaryGroupedBackground)
             )
             .contentShape(Rectangle())
         }
@@ -308,7 +308,7 @@ struct TodayMatterSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .fill(Color(.secondarySystemGroupedBackground))
+                .fill(Color.holoSecondaryGroupedBackground)
         )
     }
 

@@ -21,6 +21,9 @@ struct HoloWidgetDataStore {
     static let shared = HoloWidgetDataStore()
 
     /// 普通 NSPersistentContainer：扩展进程不做 CloudKit 镜像（entitlements 也未含 iCloud）
+    /// 2026-10-26 共享库迁移乒乓数据事故收口：装载前先走与主 App 相同的只读指纹预检，
+    /// 库与当前模型指纹不一致时拒绝打开（扩展进程绝不成为「静默迁移共享库」的入口），
+    /// 指纹一致才装载；被拒绝时意图动作会失败并留日志，库文件原样保留。
     let container: NSPersistentContainer = {
         let container = NSPersistentContainer(
             name: "HoloDataModel",
@@ -32,9 +35,16 @@ struct HoloWidgetDataStore {
         description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
         description.shouldAddStoreAsynchronously = false
         container.persistentStoreDescriptions = [description]
-        container.loadPersistentStores { _, error in
-            if let error {
-                widgetIntentLogger.error("小组件共享库加载失败: \(error.localizedDescription)")
+        if let rejection = CoreDataStack.storeFingerprintRejection(
+            at: CoreDataStack.sharedStoreURL,
+            model: CoreDataStack.shared.createDataModel()
+        ) {
+            widgetIntentLogger.fault("小组件共享库指纹预检拒绝打开（原库原地保留，绝不自动迁移）：\(rejection.localizedDescription)")
+        } else {
+            container.loadPersistentStores { _, error in
+                if let error {
+                    widgetIntentLogger.error("小组件共享库加载失败: \(error.localizedDescription)")
+                }
             }
         }
         return container
@@ -94,7 +104,8 @@ struct HoloTodoToggleIntent: AppIntent {
         try await MainActor.run {
             let context = HoloWidgetDataStore.shared.viewContext
             let request = TodoTask.fetchRequest()
-            request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            // 桌面快照可能仍显示已进回收站的任务；软删任务不得被小组件翻转完成态（2026-10-31 审计 A2）
+            request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
             request.fetchLimit = 1
             guard let task = try context.fetch(request).first else { return }
 

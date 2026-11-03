@@ -72,7 +72,9 @@ struct TaskContentEditSheet: View {
                 }
             }
             .navigationTitle("调整内容")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {

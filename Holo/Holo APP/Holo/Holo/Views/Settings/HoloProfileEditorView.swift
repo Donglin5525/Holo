@@ -15,6 +15,8 @@ struct HoloProfileEditorView: View {
     @State private var editedContent: String = ""
     @State private var showResetConfirmation = false
     @State private var errorMessage: String?
+    /// 关闭确认（sheet 无系统返回键，左上关闭钮/下拉拦截共用此弹窗）
+    @State private var showCloseConfirmation = false
 
     private var hasUnsavedChanges: Bool {
         editedContent != profileService.profileContent
@@ -72,7 +74,7 @@ struct HoloProfileEditorView: View {
                         .background(
                             hasUnsavedChanges
                             ? Color.holoPrimary
-                            : Color.holoPrimary.opacity(0.3)
+                            : Color.holoTextSecondary.opacity(0.3)
                         )
                         .clipShape(Capsule())
                 }
@@ -83,9 +85,21 @@ struct HoloProfileEditorView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("个人档案")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
+                Button {
+                    requestClose()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+            }
+
+            ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                 Menu {
                     Button(role: .destructive) {
                         showResetConfirmation = true
@@ -97,6 +111,19 @@ struct HoloProfileEditorView: View {
                         .foregroundColor(.holoTextSecondary)
                 }
             }
+        }
+        // 有改动时关闭需确认（保存并关闭 / 放弃修改 / 取消）。
+        // 用 .alert 而非 confirmationDialog：聚焦 TextEditor 时弹 actionSheet 有失焦竞态。
+        .alert("未保存的修改", isPresented: $showCloseConfirmation) {
+            Button(String(localized: "保存并关闭")) {
+                saveProfile()
+            }
+            Button(String(localized: "放弃修改"), role: .destructive) {
+                dismiss()
+            }
+            Button(String(localized: "取消"), role: .cancel) {}
+        } message: {
+            Text(String(localized: "个人档案的修改尚未保存，要保存后关闭吗？"))
         }
         .alert("恢复默认模板", isPresented: $showResetConfirmation) {
             Button("取消", role: .cancel) {}
@@ -111,12 +138,24 @@ struct HoloProfileEditorView: View {
         }, message: {
             Text(errorMessage ?? "")
         })
+        // 无改动时保留系统下拉关闭；有改动时拦下并转入关闭确认
+        .interactiveDismissDisabled(hasUnsavedChanges)
+        .sheetDismissGuard { requestClose() }
         .onAppear {
             editedContent = profileService.loadProfile()
         }
     }
 
     // MARK: - Actions
+
+    /// 关闭入口（左上关闭钮 / 下拉拦截共用）：有未保存改动先确认，无改动直接关
+    private func requestClose() {
+        if hasUnsavedChanges {
+            showCloseConfirmation = true
+        } else {
+            dismiss()
+        }
+    }
 
     private func saveProfile() {
         do {

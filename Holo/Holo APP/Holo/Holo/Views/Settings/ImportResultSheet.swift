@@ -109,7 +109,7 @@ struct ImportResultSheet: View {
 
                         if result.newAccountsCount > 0 {
                             resultRow(
-                                icon: "creditcard.badge.plus",
+                                icon: "creditcard",
                                 color: .orange,
                                 label: "新建账户",
                                 value: "\(result.newAccountsCount) 个"
@@ -120,10 +120,10 @@ struct ImportResultSheet: View {
                         if !result.saveSucceeded {
                             HStack(spacing: 8) {
                                 Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.red)
+                                    .foregroundColor(.holoToolError)
                                 Text("部分数据可能未保存成功，建议重新导入")
                                     .font(.system(size: 13))
-                                    .foregroundColor(.red)
+                                    .foregroundColor(.holoToolError)
                             }
                             .padding(12)
                             .background(Color.red.opacity(0.08))
@@ -173,7 +173,7 @@ struct ImportResultSheet: View {
                                 Text("撤回此次导入")
                             }
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.red)
+                            .foregroundColor(.holoToolError)
                             .frame(maxWidth: .infinity)
                             .frame(height: 44)
                             .background(Color.red.opacity(0.08))
@@ -198,7 +198,9 @@ struct ImportResultSheet: View {
                 .padding(.bottom, HoloSpacing.lg)
             }
             .background(Color.holoBackground)
+            #if canImport(UIKit)
             .navigationBarHidden(true)
+            #endif
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.hidden)
@@ -291,19 +293,30 @@ struct ImportResultSheet: View {
                 }
 
                 if let row = check.firstDiscontinuityRow {
-                    Text("第 \(row) 行起余额列不连续，账单可能缺行（如同秒交易只导出一笔）")
-                        .font(.system(size: 11))
-                        .foregroundColor(.orange)
+                    // 行号到百位时单行必折出「笔）」孤字，主句与括号解释分层
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("第 \(row) 行起余额列不连续，账单可能缺行")
+                            .font(.system(size: 11))
+                            .foregroundColor(.orange)
+                        Text("如同秒交易只导出一笔")
+                            .font(.system(size: 11))
+                            .foregroundColor(.orange.opacity(0.75))
+                    }
                 }
             } else if check.isNewAccount {
-                // 无余额列的账单：只对新建账户提示从 0 起算的问题
-                HStack {
+                // 无余额列的账单：只对新建账户提示从 0 起算的问题（长账户名单行会折，拆两层）
+                HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "info.circle")
                         .font(.system(size: 13))
                         .foregroundColor(.orange)
-                    Text("\(check.account.name) 为本次新建，从 ¥0 起算（账单不含余额列，无法自动核对）")
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(check.account.name) 为本次新建，从 ¥0 起算")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                        Text("账单不含余额列，无法自动核对")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextPlaceholder)
+                    }
                 }
             }
         }

@@ -184,6 +184,9 @@ final class HoloReplayDigestService {
     /// - Note: 失败仅 log，不阻塞启动。重复调用安全（已有有效摘要则跳过）。
     func backfillIfNeeded(historyRepo: MemoryInsightRepository) async {
         guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else { return }
+        // 谷时段门控（2026-10-09 降本）：历史回填是纯后台归纳，不挑时刻，
+        // 高峰期跳过，谷窗的下一次启动/回前台触发再扫。
+        guard HoloAIWindowPolicy.isValleyWindow() else { return }
         // 冷却短路：上次撞 429 后，冷却期内不再扫描，避免每次启动冗余请求。
         if let cooldownUntil = model.backfillRateLimitCooldownUntil,
            Date() < cooldownUntil {
@@ -336,6 +339,17 @@ final class HoloReplayDigestService {
                 return try parseConsolidateOutput(raw: raw, previous: oldDigest)
             } catch is CancellationError {
                 throw CancellationError()
+            } catch let error as APIError {
+                // 预算端到端修复（报告理解方案 B03）：预算拒绝(429)/版本闸门(426)不得
+                // 回落直调——直调同受预算约束，回落=换轨道绕过；摘要延后由下次回放补。
+                switch error {
+                case .rateLimited:
+                    throw error
+                case .backendError(let statusCode, _, _, _) where statusCode == 429 || statusCode == 426:
+                    throw error
+                default:
+                    Self.logger.error("云端摘要归纳失败，回落直调：\(String(describing: error), privacy: .public)")
+                }
             } catch {
                 Self.logger.error("云端摘要归纳失败，回落直调：\(String(describing: error), privacy: .public)")
             }
@@ -391,6 +405,11 @@ final class HoloReplayDigestService {
                 Self.logger.info("云端摘要已领取并回执销毁 taskId=\(started.taskId, privacy: .public)")
                 return output
             case "failed", "cancelled", "expired":
+                // 预算拒绝经失败原因携带错误码回传：不回落直调（B03），由下次回放补
+                if let reason = status.failureReason,
+                   reason.contains("BACKGROUND_BUDGET_EXCEEDED") || reason.contains("BACKGROUND_CLIENT_UPDATE_REQUIRED") {
+                    throw APIError.rateLimited(reason)
+                }
                 throw APIError.serverError("云端摘要任务终态=\(status.status)")
             default:
                 try? await Task.sleep(for: .seconds(Self.cloudDigestPollInterval))
@@ -501,6 +520,8 @@ final class HoloReplayDigestService {
 
     private func drainConsolidationQueue() async {
         guard !isConsolidating, activeUserReplayIDs.isEmpty else { return }
+        // 谷时段门控（2026-10-09 降本）：高峰期只入队不消费，队列天然支持等窗口。
+        guard HoloAIWindowPolicy.isValleyWindow() else { return }
         isConsolidating = true
         defer { isConsolidating = false }
 

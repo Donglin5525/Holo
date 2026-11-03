@@ -14,7 +14,9 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 import Combine
 
 // MARK: - HoloToastCenter
@@ -105,6 +107,7 @@ enum ToastType: Equatable {
 
 /// 用一个独立的、不接收触摸的透明 window 承载 Toast，
 /// 保证它永远在最上层，不受 sheet / fullScreenCover / NavigationStack 层级影响。
+#if canImport(UIKit)
 private final class OverlayWindowController {
 
     static let shared = OverlayWindowController()
@@ -146,6 +149,16 @@ private final class ToastPassthroughWindow: UIWindow {
 }
 
 /// Toast 展示视图（观察单例，顶层居中靠上）
+#else
+/// macOS：Toast 独立 overlay window 体系不适用（Phase A 骨架不做全局浮层）
+private final class OverlayWindowController {
+    static let shared = OverlayWindowController()
+    private init() {}
+    func ensureInstalled() {}
+}
+#endif
+
+#if canImport(UIKit)
 private struct ToastOverlayView: View {
 
     @ObservedObject private var center = HoloToastCenter.shared
@@ -190,3 +203,4 @@ private struct ToastOverlayView: View {
         .shadow(color: .black.opacity(0.15), radius: 8, y: 4)
     }
 }
+#endif

@@ -52,61 +52,6 @@ enum TaskFilterType: Equatable {
     }
 }
 
-// MARK: - 时间分组
-
-/// 任务按到期时间的展示分组（过期置顶，远期组默认折叠降噪）
-enum TaskTimeGroup: String, CaseIterable, Hashable {
-    case overdue
-    case today
-    case tomorrow
-    case thisWeek
-    case later
-    case unscheduled
-
-    var title: String {
-        switch self {
-        case .overdue: return String(localized: "已过期")
-        case .today: return String(localized: "今天")
-        case .tomorrow: return String(localized: "明天")
-        case .thisWeek: return String(localized: "本周")
-        case .later: return String(localized: "稍后")
-        case .unscheduled: return String(localized: "未安排")
-        }
-    }
-
-    var dotColor: Color {
-        switch self {
-        case .overdue: return .holoError
-        case .today: return .holoPrimary
-        case .tomorrow: return Color(red: 0.23, green: 0.51, blue: 0.96)
-        case .thisWeek: return Color(red: 0.77, green: 0.77, blue: 0.77)
-        case .later: return Color(red: 0.89, green: 0.89, blue: 0.89)
-        case .unscheduled: return Color(red: 0.89, green: 0.89, blue: 0.89)
-        }
-    }
-
-    /// 远期组默认折叠：首屏聚焦「现在的事」
-    var foldsByDefault: Bool {
-        switch self {
-        case .thisWeek, .later, .unscheduled: return true
-        default: return false
-        }
-    }
-
-    /// 纯按时间归类（不看成败——今日视图里已完成任务也要留在组内展示）
-    static func group(for task: TodoTask) -> TaskTimeGroup {
-        if task.isOverdue { return .overdue }
-        if task.isDueToday { return .today }
-        if task.isDueTomorrow { return .tomorrow }
-        if let due = task.dueDate,
-           Calendar.current.isDate(due, equalTo: Date(), toGranularity: .weekOfYear) {
-            return .thisWeek
-        }
-        if task.dueDate != nil { return .later }
-        return .unscheduled
-    }
-}
-
 // MARK: - TaskListView
 
 /// 任务首页
@@ -147,11 +92,6 @@ struct TaskListView: View {
     @State private var cachedFilteredTasks: [TodoTask] = []
     /// 手动折叠的分组（默认折叠集在 onAppear 初始化，之后完全由用户掌控；key 兼容时间组与优先级组）
     @State private var collapsedGroups: Set<String> = []
-
-    /// 所有清单（包括没有文件夹的）
-    private var allLists: [TodoList] {
-        repository.allActiveLists()
-    }
 
     /// 选中的任务（用于 sheet 展示）
     private struct TaskSelection: Identifiable, Equatable {
@@ -203,6 +143,11 @@ struct TaskListView: View {
     /// 正在完成中的任务 ID（来自完成协调层的全局撤回状态）
     private var pendingCompletionTaskId: UUID? { completionCoordinator.pending?.taskID }
 
+    /// 撤回横条只在完成由本页发起时展示；跨页来源的完成由发起页自己出横条
+    private var showsUndoBanner: Bool {
+        pendingCompletionTaskId != nil && completionCoordinator.pending?.source == .taskList
+    }
+
     /// 未完成的过期任务数（Hero 副行警示）
     private var overdueCount: Int {
         tasks.filter { $0.isOverdue }.count
@@ -232,9 +177,22 @@ struct TaskListView: View {
 
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        heroSection
+                        TaskListHeroSection(
+                            tasks: tasks,
+                            todayProgress: todayProgress,
+                            overdueCount: overdueCount,
+                            heroAppeared: $heroAppeared
+                        )
 
-                        filterPickerView
+                        TaskListFilterBar(
+                            repository: repository,
+                            overdueCount: overdueCount,
+                            selectedFilter: $selectedFilter,
+                            sortOption: $sortOption,
+                            sortAscending: $sortAscending,
+                            showSortSheet: $showSortSheet,
+                            showArchiveManagement: $showArchiveManagement
+                        )
 
                         if selectedFilter == .completed {
                             // 已完成 tab：按周分组展示
@@ -254,27 +212,16 @@ struct TaskListView: View {
                     }
                     .padding(.horizontal, HoloSpacing.lg)
                     .padding(.top, HoloSpacing.xs)
-                    .padding(.bottom, pendingCompletionTaskId != nil ? 80 : 100)
+                    .padding(.bottom, showsUndoBanner ? 80 : 100)
                     // 完成状态只改变卡片内容，不更换卡片结构，避免列表跳变。
-                    .animation(HoloAnimation.paperSettle, value: pendingCompletionTaskId)
+                    .animation(HoloAnimation.paperSettle, value: showsUndoBanner)
                 }
 
-                // 完成回执（B 一次性收页反馈）：印章纸页随完成升起、播完自隐，
-                // 不参与命中；连续完成时换实例重播，前一项已被显式确认（G1 契约）
-                if let pending = completionCoordinator.pending,
-                   HoloTaskMotionRolloutPolicy.isEnabled,
-                   let pendingTask = tasks.first(where: { $0.id == pending.taskID })
-                        ?? repository.findTask(by: pending.taskID) {
-                    TaskPaperCompletionReceipt(title: pendingTask.title)
-                        .id(pending.taskID)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                        .padding(.top, 96)
-                        .allowsHitTesting(false)
-                }
-
-                // 撤回 banner（完成 / 延期可能短时并存，纵向堆叠防重叠）
+                // 撤回 banner（完成 / 延期可能短时并存，纵向堆叠防重叠）。
+                // 只展示本页发起的完成：pending 是跨页共享的单一状态，
+                // 不按 source 过滤会同一次完成在详情/列表各弹一条。
                 VStack(spacing: 8) {
-                    if pendingCompletionTaskId != nil {
+                    if showsUndoBanner {
                         undoBanner
                     }
 
@@ -282,6 +229,7 @@ struct TaskListView: View {
                         postponeUndoBanner
                     }
                 }
+                .animation(HoloAnimation.snappy, value: showsUndoBanner)
             }
         }
     }
@@ -431,10 +379,22 @@ struct TaskListView: View {
         .sheet(isPresented: $showNotificationSettings) {
             NotificationSettingsView()
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showSearchView) {
             TaskSearchView(repository: repository)
                 .holoContentColumn()
+                // 键盘弹出时点结果弹详情 sheet：默认键盘避让会在 cover 的独立
+                // hosting 层建视图级 UIKeyboardLayoutGuide，与窗口级 guide 在
+                // sheet 层级重组时无共同祖先直接崩溃（NSGenericException）。
+                // 搜索页=顶部输入框布局，禁用系统避让（KeyboardAvoidanceDisabler 沉淀方案）
+                .disableKeyboardAvoidance()
         }
+        #else
+                .sheet(isPresented: $showSearchView) {
+            TaskSearchView(repository: repository)
+                .holoContentColumn()
+        }
+        #endif
         .onChange(of: searchTrigger) { _, _ in
             showSearchView = true
         }
@@ -488,479 +448,6 @@ struct TaskListView: View {
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
         .background(Color.holoBackground)
-    }
-
-    // MARK: - Hero 今日仪表
-
-    /// 撤回窗口期间乐观计数：正在完成中的今日任务直接计入完成数
-    private var heroProgress: (completed: Int, total: Int) {
-        var progress = todayProgress
-        if let pendingId = pendingCompletionTaskId,
-           let task = tasks.first(where: { $0.id == pendingId }),
-           !task.completed, task.isDueToday {
-            progress.completed += 1
-        }
-        return progress
-    }
-
-    private var isHeroAllDone: Bool {
-        heroProgress.total > 0 && heroProgress.completed >= heroProgress.total
-            && pendingCompletionTaskId == nil
-    }
-
-    @ViewBuilder
-    private var heroSection: some View {
-        let ratio: CGFloat = heroProgress.total > 0
-            ? CGFloat(heroProgress.completed) / CGFloat(heroProgress.total)
-            : 0
-
-        Group {
-            if HoloTaskMotionRolloutPolicy.isEnabled {
-                // Holo 文字状态头：不使用百分比、圆环和进度条。
-                paperHeroCard
-            } else if isHeroAllDone {
-                heroCelebrateCard(total: heroProgress.total)
-            } else {
-                heroRegularCard(ratio: ratio)
-            }
-        }
-        .opacity(heroAppeared ? 1 : 0)
-        .offset(y: heroAppeared ? 0 : 14)
-        .padding(.top, HoloSpacing.md)
-        .animation(HoloAnimation.grounded, value: isHeroAllDone)
-    }
-
-    /// Holo 状态头：保留不依赖进度条的文字反馈。
-    @ViewBuilder
-    private var paperHeroCard: some View {
-        if isHeroAllDone {
-            TaskPaperHeaderCard(
-                title: String(localized: "今天的计划已完成"),
-                subtitle: celebrateSubtitle(total: heroProgress.total),
-                countBadge: String(localized: "已清零")
-            )
-        } else {
-            let remaining = max(0, heroProgress.total - heroProgress.completed)
-            TaskPaperHeaderCard(
-                title: String(localized: "今天，先推进重要的事"),
-                subtitle: paperHeroSubtitle,
-                countBadge: remaining > 0 ? String(localized: "\(remaining) 项待办") : nil
-            )
-        }
-    }
-
-    /// 纸页头副行：日期 + 待办/过期状态文字化（保留信息，去掉比例表达）
-    private var paperHeroSubtitle: String {
-        var parts: [String] = []
-        let remaining = heroProgress.total - heroProgress.completed
-        if heroProgress.total > 0 {
-            parts.append(remaining > 0
-                         ? String(localized: "还有 \(remaining) 项可以推进")
-                         : String(localized: "今日任务已清零"))
-        }
-        if overdueCount > 0 {
-            parts.append(String(localized: "\(overdueCount) 项已过期"))
-        }
-        let status = parts.isEmpty ? String(localized: "还没有安排今天的任务") : parts.joined(separator: " · ")
-        return "\(heroDateString) · \(status)"
-    }
-
-    /// 常规态：日期行 + 大数字进度 + 环形进度 + 渐变条 + 过期警示
-    private func heroRegularCard(ratio: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(heroDateString)
-                .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary)
-
-            HStack(spacing: HoloSpacing.lg) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("今日进度")
-                        .font(.system(size: 12.5))
-                        .foregroundColor(.holoTextSecondary)
-
-                    HStack(alignment: .firstTextBaseline, spacing: 3) {
-                        Text("\(heroProgress.completed)")
-                            .font(.system(size: 40, weight: .heavy, design: .rounded))
-                            .foregroundColor(.holoPrimary)
-                        Text("/")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.holoTextSecondary)
-                        Text("\(heroProgress.total)")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-
-                    HStack(spacing: 10) {
-                        if heroProgress.total > 0 {
-                            Text("还剩 ") + Text("\(heroProgress.total - heroProgress.completed)")
-                                .foregroundColor(.holoPrimary)
-                                .fontWeight(.bold)
-                                + Text(" 项")
-                        } else {
-                            Text("今天暂无到期任务")
-                        }
-
-                        if overdueCount > 0 {
-                            Text("\(overdueCount) 项已过期")
-                                .foregroundColor(.holoError)
-                                .fontWeight(.semibold)
-                        }
-                    }
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary)
-                }
-
-                Spacer(minLength: 0)
-
-                heroRing(ratio: ratio)
-            }
-
-            heroProgressBar(ratio: ratio)
-        }
-        .padding(EdgeInsets(top: 16, leading: 18, bottom: 16, trailing: 18))
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color.holoCardBackground)
-                // 左上暖色光晕（与习惯页进度头同源的暖调）
-                LinearGradient(
-                    colors: [Color.holoPrimary.opacity(0.07), .clear],
-                    startPoint: .topLeading,
-                    endPoint: .center
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.holoPrimary.opacity(0.14), lineWidth: 1)
-        )
-    }
-
-    /// 环形进度（品牌橙渐变描边）
-    private func heroRing(ratio: CGFloat) -> some View {
-        ZStack {
-            Circle()
-                .stroke(Color.holoPrimary.opacity(0.10), lineWidth: 7)
-
-            Circle()
-                .trim(from: 0, to: ratio)
-                .stroke(
-                    AngularGradient(
-                        colors: [.holoPrimary, .holoPrimaryDark],
-                        center: .center
-                    ),
-                    style: StrokeStyle(lineWidth: 7, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-
-            Text("\(Int((ratio * 100).rounded()))%")
-                .font(.system(size: 14, weight: .heavy, design: .rounded))
-                .foregroundColor(.holoPrimary)
-        }
-        .frame(width: 72, height: 72)
-        .animation(.easeOut(duration: 0.5), value: ratio)
-    }
-
-    private func heroProgressBar(ratio: CGFloat) -> some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.holoBorder)
-
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [.holoPrimary, .holoPrimaryDark],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: geo.size.width * ratio)
-            }
-        }
-        .frame(height: 6)
-        .padding(.top, 14)
-        .animation(.easeOut(duration: 0.5), value: ratio)
-    }
-
-    private var heroDateString: String {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("MMMdEEEE")
-        return formatter.string(from: Date()) + " · " + String(localized: "今天")
-    }
-
-    /// 庆祝态：今日清零，整块变品牌橙渐变（与习惯页「今天全部点亮」同一语言）
-    private func heroCelebrateCard(total: Int) -> some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.35), lineWidth: 5)
-                Circle()
-                    .trim(from: 0, to: 1)
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                Image(systemName: "checkmark")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            .frame(width: 56, height: 56)
-
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 5) {
-                    Text("今天全部完成")
-                        .font(.system(size: 19, weight: .heavy))
-                        .foregroundColor(.white)
-                    Text("✨")
-                        .font(.system(size: 16))
-                }
-
-                Text(celebrateSubtitle(total: total))
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.88))
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [.holoPrimary, .holoPrimaryDark],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        )
-        .shadow(color: Color.holoPrimary.opacity(0.32), radius: 14, x: 0, y: 6)
-    }
-
-    /// 庆祝卡副行：有次日任务时预告明天；其余时段用不绑定时间的普适句（深夜除外，改致意休息）
-    private func celebrateSubtitle(total: Int) -> String {
-        let tomorrowCount = tasks.filter { $0.isDueTomorrow && !$0.completed }.count
-        if tomorrowCount > 0 {
-            return String(localized: "共 \(total) 项全部清零 · 明天还有 \(tomorrowCount) 项等着你")
-        }
-        if DayPeriod.current() == .lateNight {
-            return String(localized: "共 \(total) 项任务全部清零 · 夜深了，早点休息")
-        }
-        return String(localized: "共 \(total) 项任务全部清零 · 今天剩下的时间都是你的")
-    }
-
-    // MARK: - 筛选器
-
-    private var filterPickerView: some View {
-        HStack(spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    // 「今日」为第一视图（任务模块最高频视角）
-                    filterChip(.today)
-                    filterChip(.inbox)
-                    filterChip(.all)
-                    filterChip(.completed)
-
-                    // 过期：带红色计数角标
-                    filterChip(.overdue)
-                        .overlay(alignment: .topTrailing) {
-                            if overdueCount > 0 {
-                                Text("\(overdueCount)")
-                                    .font(.system(size: 9.5, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 1.5)
-                                    .background(Capsule().fill(Color.holoError))
-                                    .offset(x: 5, y: -5)
-                                    .allowsHitTesting(false)
-                            }
-                        }
-
-                    // 清单筛选收纳为单入口
-                    listMenuChip
-
-                    // 归档入口
-                    Button {
-                        showArchiveManagement = true
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "archivebox")
-                                .font(.system(size: 12, weight: .medium))
-                            Text("归档")
-                                .font(.holoCaption)
-                        }
-                        .foregroundColor(.holoTextSecondary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(
-                            Capsule()
-                                .fill(Color.holoCardBackground)
-                                .overlay(
-                                    Capsule()
-                                        .strokeBorder(
-                                            style: StrokeStyle(lineWidth: 1, dash: [4])
-                                        )
-                                        .foregroundColor(.holoDivider)
-                                )
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.leading, HoloSpacing.xs)
-                // 右侧留白到胶囊间距一档：滚到最右时最后一枚胶囊不硬贴排序按钮
-                .padding(.trailing, HoloSpacing.md)
-            }
-            // 右缘渐隐：横向滚动容器无系统指示条，给出「还有更多」的暗示，
-            // 避免最后一枚胶囊在视口边缘被直线硬切（iPad 双栏窄列下尤其明显）
-            .overlay(alignment: .trailing) {
-                LinearGradient(
-                    colors: [.holoBackground.opacity(0), .holoBackground],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .frame(width: 14)
-                .allowsHitTesting(false)
-            }
-
-            // 排序入口固定筛选条右端：不随过滤胶囊滚动、始终可见
-            // （非默认排序时高亮显示当前排法，让排序状态可见、可改）
-            sortChip
-        }
-        .padding(.vertical, HoloSpacing.md)
-        .background(Color.holoBackground)
-    }
-
-    /// 排序胶囊：默认与过滤胶囊同族样式；用户改过排序后浅橙底 + 橙字显示当前排法
-    private var sortChip: some View {
-        let isDefault = sortOption == contextDefaultSort
-            && sortAscending == contextDefaultSort.defaultAscending
-
-        return Button {
-            showSortSheet = true
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.up.arrow.down")
-                    .font(.system(size: 12, weight: .semibold))
-                Text(isDefault
-                     ? String(localized: "排序")
-                     : "\(sortOption.title) · \(sortOption.directionLabel(ascending: sortAscending))")
-                    .font(.holoCaption)
-                    .lineLimit(1)
-            }
-            .foregroundColor(isDefault ? .holoTextSecondary : .holoPrimaryDark)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(
-                Capsule().fill(
-                    isDefault ? Color.holoCardBackground : Color.holoPrimary.opacity(0.10)
-                )
-            )
-            .overlay(
-                Capsule().strokeBorder(
-                    isDefault ? Color.holoDivider : Color.holoPrimary.opacity(0.35),
-                    lineWidth: 1
-                )
-            )
-            // 排序文案随选择变宽，fixedSize 防止胶囊被压成省略号（同清单胶囊）
-            .fixedSize()
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// 筛选胶囊：选中态为品牌橙渐变实底 + 轻投影（与 Hero 同源语言）
-    private func filterChip(_ filter: TaskFilterType) -> some View {
-        let isSelected = selectedFilter == filter
-
-        return Button {
-            withAnimation(HoloAnimation.quick) {
-                selectedFilter = filter
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: filter.icon)
-                    .font(.system(size: 12, weight: .medium))
-                Text(filter.title)
-                    .font(.holoCaption)
-            }
-            .foregroundColor(isSelected ? .white : .holoTextSecondary)
-            .padding(.horizontal, 13)
-            .padding(.vertical, 7)
-            .background(
-                Capsule().fill(
-                    isSelected
-                        ? AnyShapeStyle(LinearGradient(colors: [.holoPrimary, .holoPrimaryDark], startPoint: .leading, endPoint: .trailing))
-                        : AnyShapeStyle(Color.holoCardBackground)
-                )
-            )
-            .overlay(
-                Capsule().strokeBorder(isSelected ? Color.clear : Color.holoDivider, lineWidth: 1)
-            )
-            .shadow(color: isSelected ? Color.holoPrimary.opacity(0.26) : .clear, radius: 6, x: 0, y: 3)
-            // 横向滚动条中的胶囊按内容取宽，避免父级宽度提案裁掉首字符或图标
-            .fixedSize(horizontal: true, vertical: false)
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// 清单筛选：Menu 收纳，选中后胶囊显示清单色点与名称
-    private var listMenuChip: some View {
-        let selectedList: TodoList? = {
-            if case .list(let id) = selectedFilter {
-                return allLists.first(where: { $0.id == id })
-            }
-            return nil
-        }()
-
-        return Menu {
-            ForEach(allLists, id: \.id) { list in
-                Button {
-                    withAnimation(HoloAnimation.quick) {
-                        selectedFilter = .list(list.id)
-                    }
-                } label: {
-                    HStack {
-                        Text(list.name)
-                        if selectedFilter == .list(list.id) {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 5) {
-                if let list = selectedList {
-                    Circle()
-                        .fill(Color(hex: list.color ?? "#007AFF"))
-                        .frame(width: 8, height: 8)
-                    Text(list.name)
-                        .font(.holoCaption)
-                        .lineLimit(1)
-                } else {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 12, weight: .medium))
-                    Text("清单")
-                        .font(.holoCaption)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .semibold))
-                }
-            }
-            .foregroundColor(selectedList != nil ? .white : .holoTextSecondary)
-            .padding(.horizontal, 13)
-            .padding(.vertical, 7)
-            .background(
-                Capsule().fill(
-                    selectedList != nil
-                        ? AnyShapeStyle(LinearGradient(colors: [.holoPrimary, .holoPrimaryDark], startPoint: .leading, endPoint: .trailing))
-                        : AnyShapeStyle(Color.holoCardBackground)
-                )
-            )
-            .overlay(
-                Capsule().strokeBorder(selectedList != nil ? Color.clear : Color.holoDivider, lineWidth: 1)
-            )
-            // Menu 换 label 内容时可能沿用旧的宽度提案；按内容取宽，且在清单切换时重建
-            // Menu，避免旧的短文案布局缓存把新名称的首字符或色点裁掉。
-            .fixedSize(horizontal: true, vertical: false)
-        }
-        .id(selectedList?.id)
     }
 
     // MARK: - 时间分组任务流（非完成 tab）
@@ -1156,7 +643,9 @@ struct TaskListView: View {
     @ViewBuilder
     private var completedTabContent: some View {
         let weekGroups = completedTasksGroupedByWeek
-        ForEach(weekGroups, id: \.title) { group in
+        // id 用周起始日而非标题：标题只含月日不含年份，跨年同名周（如 2020 与 2026
+        // 同为 10月7日 周一起始）会在已完成长历史里撞 ID 致分组错乱
+        ForEach(weekGroups, id: \.weekStart) { group in
             SectionHeaderView(title: group.title, count: group.tasks.count)
             ForEach(sortedMembers(group.tasks), id: \.id) { task in
                 taskRow(task)
@@ -1208,6 +697,9 @@ struct TaskListView: View {
                             // 未完成 → 走撤回流程（子任务链触发时带触发子任务快照）
                             handleTaskCompletion(task, trigger: trigger)
                         }
+                    },
+                    onNavigateToAnniversary: { anniversaryId in
+                        DeepLinkState.shared.navigate(to: .anniversaryDetail(anniversaryId: anniversaryId))
                     },
                     onPostpone: canPostpone ? { postponeSelection = TaskSelection(id: task.id) } : nil
                 )
@@ -1444,11 +936,6 @@ struct TaskListView: View {
 
     // MARK: - 排序偏好
 
-    /// 当前上下文的默认排序（主列表=截止时间早→晚，已完成页=完成时间最近在前）
-    private var contextDefaultSort: TaskSortOption {
-        selectedFilter == .completed ? .completed : .due
-    }
-
     /// 当前筛选下可选的排序方式（完成时间只在已完成页出现并置顶）
     private var availableSortOptions: [TaskSortOption] {
         if selectedFilter == .completed {
@@ -1544,7 +1031,7 @@ struct TaskListView: View {
     // MARK: - 已完成任务按周分组
 
     /// 已完成任务按周分组（用于「已完成」tab）；组内排序统一交给 sortedMembers
-    private var completedTasksGroupedByWeek: [(title: String, tasks: [TodoTask])] {
+    private var completedTasksGroupedByWeek: [(weekStart: Date, title: String, tasks: [TodoTask])] {
         let completedTasks = cachedFilteredTasks.filter { $0.completed }
 
         let calendar = Calendar.current
@@ -1563,7 +1050,7 @@ struct TaskListView: View {
 
         let sortedWeeks = groups.keys.sorted(by: >)
         return sortedWeeks.map { weekStart in
-            (title: weekTitle(for: weekStart), tasks: groups[weekStart]!)
+            (weekStart: weekStart, title: weekTitle(for: weekStart), tasks: groups[weekStart]!)
         }
     }
 
@@ -1764,7 +1251,7 @@ private struct TaskSortSheet: View {
         } label: {
             Text("恢复默认排序")
                 .font(.holoBody)
-                .foregroundColor(.holoError)
+                .foregroundColor(.holoToolError)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
         }

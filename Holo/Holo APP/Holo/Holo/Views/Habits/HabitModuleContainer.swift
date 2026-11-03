@@ -40,6 +40,10 @@ struct HabitModuleContainer: View {
     @State private var retroactiveTarget: HabitRetroactiveSheetContext? = nil
     /// 「去今天记录」定位（回今天后滚动到该习惯）
     @State private var focusHabitId: UUID? = nil
+    /// 弹层发起的测量输入：弹层收起（onDismiss 必回调）后确定性地接住开键盘。
+    /// 不用 asyncAfter 赌收起时长——固定延迟与收起动画竞态，偶发被吞（两轮实锤）
+    @State private var measureSheetTarget: HabitRowSnapshot? = nil
+    @State private var pendingMeasureHabitId: UUID? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -52,6 +56,8 @@ struct HabitModuleContainer: View {
                         model: model,
                         onOpenAddHabit: { addHabitDraft = HabitPrefillDraft() },
                         onOpenTodayRecords: { todayRecordTarget = $0 },
+                        // 长按菜单「编辑习惯」（§9 同款节拍：菜单收起后再开编辑表单）
+                        onOpenHabitSettings: { openSettingsAfterSheetDismiss($0) },
                         onOpenLifecycleList: {
                             optionsInitialPage = .lifecycle
                             showOptionsSheet = true
@@ -65,7 +71,10 @@ struct HabitModuleContainer: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
+        // 单习惯回顾页是 ZStack 覆盖层（无 NavigationStack 可让位），容器手势必须在
+        // 该页期间整层失效穿透，由单习惯页自己的右滑手势接管「返回回顾整体」——
+        // 否则让位判断找不到导航栈恒失效，子页右滑会把整个模块滑出去直达首页
+        .swipeBackToDismiss(isEnabled: !isSingleReviewShown, isResidentScreenRoot: true) { close() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !isExpandedWidth, !isSingleReviewShown {
                 tabBar
@@ -83,7 +92,11 @@ struct HabitModuleContainer: View {
         .sheet(item: $editTarget) { habit in
             AddHabitSheet(editingHabit: habit)
         }
-        .sheet(item: todayRecordItemBinding) { item in
+        .sheet(item: todayRecordItemBinding, onDismiss: {
+            guard let id = pendingMeasureHabitId else { return }
+            pendingMeasureHabitId = nil
+            measureSheetTarget = model.todayRows.first { $0.id == id }
+        }) { item in
             HabitTodayRecordSheet(
                 habitId: item.id,
                 model: model,
@@ -91,8 +104,27 @@ struct HabitModuleContainer: View {
                     // 明确路由交接：先收弹层，再开编辑（§9）
                     todayRecordTarget = nil
                     openSettingsAfterSheetDismiss(id)
+                },
+                onOpenReview: { id in
+                    // 「查看长期回顾」：先收弹层，转场落定后再切回顾（与 ··· 菜单同款节拍，
+                    // 避免dismissal中途叠转场把展示状态卡死——模拟器连击实锤过一次）
+                    todayRecordTarget = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        model.singleReviewEntryRange = .lastDays(30)
+                        model.selectedTab = .review
+                        model.reviewRoute = .single(id)
+                    }
+                },
+                onRequestMeasureInput: { id in
+                    // 只登记待接目标；sheet onDismiss（收起动画完成后必回调）统一交接开键盘
+                    pendingMeasureHabitId = id
                 }
             )
+        }
+        .sheet(item: $measureSheetTarget) { snapshot in
+            HabitMeasureInputSheet(snapshot: snapshot) { value, note in
+                await model.record(kind: .addNumeric(value: value), habitId: snapshot.id, note: note)
+            }
         }
         .sheet(isPresented: $showOptionsSheet, onDismiss: { optionsInitialPage = nil }) {
             HabitModuleOptionsSheet(
@@ -147,6 +179,9 @@ struct HabitModuleContainer: View {
     private var reviewStack: some View {
         ZStack {
             HabitReviewView(model: model) { id in
+                // 数值型默认「最近记录」窗口（固定月份对低频记录只剩孤点），打卡型本月
+                let isCheckIn = HabitRepository.shared.findHabit(by: id)?.isCheckInType ?? false
+                model.singleReviewEntryRange = model.defaultSingleReviewRange(isCheckIn: isCheckIn)
                 model.reviewRoute = .single(id)
             }
             .allowsHitTesting(!isSingleReviewShown)
@@ -219,7 +254,7 @@ struct HabitModuleContainer: View {
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.holoToolOnAction)
                             .frame(width: 38, height: 38)
                             .background(Circle().fill(Color.holoToolAction))
                     }

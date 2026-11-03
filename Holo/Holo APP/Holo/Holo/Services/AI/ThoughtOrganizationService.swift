@@ -67,6 +67,12 @@ final class ThoughtOrganizationService {
                 try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
                 return
             }
+            // 「不参与 AI」标签命中：同样拦在上传前（隐私口径），状态走专用 excluded
+            if ThoughtAIAudience.isExcluded(thought) {
+                logger.info("想法带不参与 AI 的标签，跳过整理：\(thoughtId)")
+                try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: ThoughtAIClassificationPolicy.excludedStatus)
+                return
+            }
             content = thought.content
         } catch {
             logger.error("读取想法数据失败：\(error.localizedDescription)")

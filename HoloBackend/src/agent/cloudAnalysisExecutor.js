@@ -12,9 +12,17 @@
 
 import { injectServerPrompt } from "../prompts/serverPromptPolicy.js";
 import { insightMaxTokensFor } from "../config.js";
+import { backgroundSubject } from "../usage/backgroundCostGuard.js";
 import { validateAgentLoopContent } from "../agentResponseValidator.js";
 import { createCloudAnalysisQueryEngine, buildCloudToolCatalog } from "./cloudAnalysisQueryEngine.js";
 import { createQuestionTimeResolver } from "./questionTimeResolver.js";
+import {
+  normalizeGoalScope,
+  acceptGoalReview,
+  buildGoalScopeBlock,
+  seedGoalReviewEvidence,
+  sanitizeGoalAdjustmentDraft,
+} from "./goalScopeContract.js";
 
 const MAX_LLM_ROUNDS = 12;
 const MAX_PROVIDER_RETRIES = 3;
@@ -161,6 +169,73 @@ function containsAnyToken(text, tokens) {
   return tokens.some((token) => text.includes(token));
 }
 
+// —— 全景体检（2026-11-01 复查意见必修 2/3）：代码闸门，不靠提示词自觉 ——
+
+// 必修 3：动机/情绪类解读词表。interpretation 含这些词且该 claim 未引用
+// 想法/记忆类证据时，解读没有任何主观记录支撑 → 剥离该字段并记 warning
+//（claim 本身保留）。「高压环境下的补偿性消费」那次事故的直接防线。
+const MOTIVE_INTERPRETATION_TOKENS = [
+  "高压", "压力", "解压", "补偿", "宣泄", "放纵", "焦虑", "空虚", "孤独",
+  "逃避", "报复性", "犒劳", "奖励自己", "情绪化", "自我安慰", "排解",
+];
+
+// 必修 2：全景领域映射——快照数据集 → 报告必须覆盖的六域。
+// memory/insight/profile/conversation/anniversary 不计入覆盖义务。
+function panoramaDomainOfDataset(datasetName) {
+  if (typeof datasetName !== "string") return null;
+  if (datasetName.startsWith("finance.")) return "finance";
+  if (datasetName.startsWith("health.")) return "health";
+  if (datasetName.startsWith("habit.")) return "habit";
+  if (datasetName.startsWith("task.")) return "task";
+  if (datasetName.startsWith("thought.")) return "thought";
+  if (datasetName.startsWith("goal.")) return "goal";
+  return null;
+}
+
+// 活跃领域：冻结主时间窗内有行的领域（结构化推导，不解析台账文本）；
+// 无冻结窗时退化为「数据集在场即活跃」。
+function activePanoramaDomains(snapshot, answerTask) {
+  const win = answerTask?.primaryTimeRange ?? null;
+  const domains = new Set();
+  for (const [name, dataset] of Object.entries(snapshot?.datasets ?? {})) {
+    const domain = panoramaDomainOfDataset(name);
+    if (!domain) continue;
+    if (!win) { domains.add(domain); continue; }
+    const hasRow = (dataset?.rows ?? []).some((row) => {
+      const t = Date.parse(row?.occurredAt ?? "");
+      return Number.isFinite(t) && t >= win.startMs && t <= win.endMs;
+    });
+    if (hasRow) domains.add(domain);
+  }
+  return domains;
+}
+
+// 已覆盖领域：claim 显式 domain 字段（合法值）+ 断言/引用证据所属数据集推导。
+function coveredPanoramaDomains(claims, metricEvidence, evidenceDatasets) {
+  const domains = new Set();
+  const metricByKey = new Map();
+  for (const metric of metricEvidence.values()) {
+    if (!metricByKey.has(metric.metricKey)) metricByKey.set(metric.metricKey, []);
+    metricByKey.get(metric.metricKey).push(metric);
+  }
+  for (const claim of claims) {
+    if (typeof claim.domain === "string" && ["finance", "health", "habit", "task", "thought", "goal"].includes(claim.domain)) {
+      domains.add(claim.domain);
+    }
+    for (const assertion of claim.metricAssertions ?? []) {
+      for (const metric of metricByKey.get(assertion.metricKey) ?? []) {
+        const domain = panoramaDomainOfDataset(metric.dataset);
+        if (domain) domains.add(domain);
+      }
+    }
+    for (const id of claim.evidenceIDs ?? []) {
+      const domain = panoramaDomainOfDataset(evidenceDatasets.get(id) ?? "");
+      if (domain) domains.add(domain);
+    }
+  }
+  return domains;
+}
+
 /**
  * 交付核验（2026-09-19 方案任务1 §3.4）：final_claims 落库/提交额度/推送「完成」
  * 之前的云端专用闸门。「JSON 合法」不等于「可交付」：
@@ -181,7 +256,11 @@ function containsAnyToken(text, tokens) {
  * 修复轮后仍被撤回的 claim 不交付。
  * 返回 { claims, droppedClaims, warnings, title, narrativeSummary, keyInsight, emptyClaims }。
  */
-function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts }) {
+function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts, financeLedgerNumbers = [], evidenceDatasets = new Map() }) {
+  // S2 融合版（2026-10-18）：iOS 快照注入的确定性台账数字是合法白名单来源——
+  // 模型直接引用台账数字时，工具 Ledger 可能没有同值指标，不并白名单会误撤正确结论。
+  const SELF_TALK_TOKENS = ["等等", "让我重新", "此处需修正", "重新核对", "不对，", "抱歉，我", "嗯，", "算了，"];
+  const containsSelfTalk = (text) => SELF_TALK_TOKENS.some((t) => text.includes(t));
   const warnings = [];
   const dropped = [];
   const ledgerHasMetrics = metricLedger.size > 0;
@@ -194,13 +273,21 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts 
   const claims = [];
   // claimTitle（v23 点破式标题）数字核验的白名单底座：Ledger 已核验值 +
   // 本条 claim 正文/断言的数字。claimTitle 自身不进白名单（自证无核验意义）。
-  const ledgerNumbers = [];
+  const ledgerNumbers = [...financeLedgerNumbers];
   for (const metric of metricLedger.values()) {
     ledgerNumbers.push(metric.value);
     if (metric.baselineValue != null) ledgerNumbers.push(metric.baselineValue);
   }
   for (const claim of output.claims ?? []) {
     const sanitized = { ...claim };
+    // 输出污染（S2）：自我对话/修正过程混进交付文本=整条撤回（实验实锤 flash 级
+    // 模型会把「等等，让我重新核对」写进 displayText）
+    const claimFullText = `${sanitized.displayText ?? ""}${sanitized.summary ?? ""}${sanitized.claimTitle ?? ""}`;
+    if (containsSelfTalk(claimFullText)) {
+      warnings.push(`SELF_TALK_CLAIM:${sanitized.id ?? "claim"}`);
+      dropped.push({ id: sanitized.id ?? null, reason: "输出混入自我核对/修正过程", excerpt: claimFullText.slice(0, 60) });
+      continue;
+    }
     // 数字断言逐条对账
     const keptAssertions = [];
     for (const assertion of sanitized.metricAssertions ?? []) {
@@ -237,7 +324,11 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts 
     // 合成复现实锤空数据 + 编造「本月支出 99999 元」可穿透防线交付 completed。
     // 现在无论台账是否有数，数字结论必须挂得上断言/引用，挂不上就剥离；
     // 全部剥空走既有诚实失败路径（修复轮 → 仍空 → failed）。
-    if (!hasAssertion && !hasEvidence && extractCheckableNumbers(text).length > 0) {
+    const claimNums = extractCheckableNumbers(text);
+    const ledgerSupported = claimNums.length > 0
+      && financeLedgerNumbers.length > 0
+      && claimNums.every((n) => numberMatchesAllowed(n, financeLedgerNumbers));
+    if (!hasAssertion && !hasEvidence && claimNums.length > 0 && !ledgerSupported) {
       warnings.push(`NUMERIC_CLAIM_UNVERIFIED:${sanitized.id ?? "claim"}`);
       dropped.push({ id: sanitized.id ?? null, reason: "数字既无断言也无引用支撑", excerpt: text.slice(0, 60) });
       continue;
@@ -285,10 +376,82 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts 
         sanitized.claimTitle = null;
       }
     }
+    // 必修 3：无依据的动机/情绪解读闸门——interpretation 含动机词且该 claim
+    // 未引用想法/记忆类证据（唯一合法的主观记录来源）时剥离字段并记 warning。
+    if (typeof sanitized.interpretation === "string" && sanitized.interpretation.trim()) {
+      const grounded = (sanitized.evidenceIDs ?? []).some((id) => {
+        const dataset = evidenceDatasets.get(id) ?? "";
+        return dataset.startsWith("thought") || dataset.startsWith("memory");
+      });
+      if (!grounded && containsAnyToken(sanitized.interpretation, MOTIVE_INTERPRETATION_TOKENS)) {
+        warnings.push(`INTERPRETATION_UNGROUNDED:${sanitized.id ?? "claim"}`);
+        sanitized.interpretation = null;
+      }
+    }
     claims.push(sanitized);
   }
   if (ledgerHasMetrics === false && claims.length > 0) {
     warnings.push("NO_TOOL_EVIDENCE");
+  }
+
+  // v27 报告结构核验：引用必须落在幸存 claims；kicker/caption/sub/notes 的数字
+  // 必须有白名单支持（坏数字→置空该字段；段落引用全灭→丢段；全灭→整体降级 null）
+  const survivingIDs = new Set(claims.map((c) => c.id).filter(Boolean));
+  let verifiedReport = null;
+  if (output.reportStructure && typeof output.reportStructure === "object") {
+    const rs = output.reportStructure;
+    const narrativeAllowed = () => {
+      const pool = [];
+      for (const metric of metricLedger.values()) {
+        pool.push(metric.value);
+        if (metric.baselineValue != null) pool.push(metric.baselineValue);
+      }
+      for (const claim of claims) {
+        pool.push(...extractCheckableNumbers(claim.displayText), ...extractCheckableNumbers(claim.summary));
+        for (const a of claim.metricAssertions ?? []) {
+          if (a.value != null) pool.push(a.value);
+          if (a.baselineValue != null) pool.push(a.baselineValue);
+        }
+      }
+      pool.push(...financeLedgerNumbers);
+      return pool;
+    };
+    const rsPool = narrativeAllowed();
+    const badNarrative = (text) => typeof text === "string"
+      && extractCheckableNumbers(text).some((n) => !numberMatchesAllowed(n, rsPool));
+    const sections = [];
+    for (const sec of Array.isArray(rs.sections) ? rs.sections : []) {
+      if (!sec || typeof sec !== "object") continue;
+      const paragraphIDs = (Array.isArray(sec.paragraphClaimIDs) ? sec.paragraphClaimIDs : [])
+        .filter((id) => survivingIDs.has(id));
+      if (paragraphIDs.length === 0) continue; // 段落证据全灭：整节丢弃
+      let chartHint = null;
+      if (sec.chartHint && typeof sec.chartHint === "object"
+        && ["trend", "delta"].includes(sec.chartHint.kind)
+        && typeof sec.chartHint.dataset === "string" && sec.chartHint.dataset
+        && !badNarrative(sec.chartHint.caption)) {
+        chartHint = { kind: sec.chartHint.kind, dataset: sec.chartHint.dataset, caption: sec.chartHint.caption ?? "" };
+      } else if (sec.chartHint) {
+        warnings.push("CHART_HINT_DROPPED");
+      }
+      let notice = null;
+      if (sec.notice && typeof sec.notice === "object" && survivingIDs.has(sec.notice.bodyClaimID)
+        && !badNarrative(sec.notice.window)) {
+        notice = { bodyClaimID: sec.notice.bodyClaimID, window: sec.notice.window ?? "" };
+      }
+      const kicker = typeof sec.kicker === "string" && !badNarrative(sec.kicker) ? sec.kicker : null;
+      sections.push({ no: sec.no ?? "", title: sec.title ?? "", kicker, paragraphClaimIDs: paragraphIDs, chartHint, notice });
+    }
+    const conclusionItems = (Array.isArray(rs.conclusionItems) ? rs.conclusionItems : [])
+      .filter((it) => it && survivingIDs.has(it.claimID) && !badNarrative(it.sub))
+      .map((it) => ({ claimID: it.claimID, sub: it.sub ?? "" }));
+    const disclosureNotes = (Array.isArray(rs.disclosureNotes) ? rs.disclosureNotes : [])
+      .filter((n) => typeof n === "string" && !badNarrative(n));
+    if (sections.length > 0) {
+      verifiedReport = { sections, conclusionItems, disclosureNotes };
+    } else {
+      warnings.push("REPORT_STRUCTURE_DROPPED");
+    }
   }
 
   // 叙事字段数字一致性：只允许出现 claims 文本/断言/Ledger 支持的数字
@@ -304,10 +467,16 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts 
       if (assertion.baselineValue != null) allowedNumbers.push(assertion.baselineValue);
     }
   }
+  allowedNumbers.push(...financeLedgerNumbers);
   const narrativeFields = ["title", "narrativeSummary", "keyInsight"];
   for (const field of narrativeFields) {
     const text = output[field];
     if (typeof text !== "string" || !text.trim()) continue;
+    if (containsSelfTalk(text)) {
+      warnings.push(`SELF_TALK_NARRATIVE:${field}`);
+      output[field] = null;
+      continue;
+    }
     const badNumbers = extractCheckableNumbers(text).filter((n) => !numberMatchesAllowed(n, allowedNumbers));
     if (badNumbers.length > 0) {
       warnings.push(`NARRATIVE_INCONSISTENT:${field}`);
@@ -322,6 +491,7 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts 
     title: output.title ?? null,
     narrativeSummary: output.narrativeSummary ?? null,
     keyInsight: output.keyInsight ?? null,
+    verifiedReportStructure: verifiedReport,
     emptyClaims: claims.length === 0,
   };
 }
@@ -349,8 +519,17 @@ export function createCloudAnalysisExecutor({
   // token 用量记账（adminLogStore 同接口）：云端任务的 AI 调用此前完全不入
   // ai_call_logs，成本核算存在盲区。purpose 用 cloud_* 前缀与端点侧调用区分。
   aiCallLogger = null,
+  // 预算端到端修复（报告理解方案 B02）：{ guard, entitlementStore }。
+  // replay_digest 的 provider 请求固定 purpose=agent_loop，入口守卫与包装层
+  // 都命不中；worker 在每次真实上游尝试前从任务归属（device_id→权益）恢复
+  // 预算主体并显式预留，不依赖已结束的 HTTP 上下文，也不信客户端传参。
+  backgroundBudget = null,
   // 问句时间解析员注入点（测试用）：null = 用真解析员；传 stub 可跳过/替换
   injectedQuestionTimeResolver = null,
+  // 个人档案通道（2026-11-01）：任务流不经过 /v1/ai/chat/completions 网关，
+  // 档案随加密快照上行（snapshot.profileBrief），执行器自行注入同一套边界文案
+  profileChannelEnabled = true,
+  profileBriefMaxBytes = 12 * 1024,
   log = (...args) => console.log("[cloud-analysis]", ...args),
 } = {}) {
   const engine = createCloudAnalysisQueryEngine();
@@ -362,6 +541,24 @@ export function createCloudAnalysisExecutor({
     ?? createQuestionTimeResolver({ provider, route });
   if (!provider) {
     throw new Error(`CLOUD_ANALYSIS_PROVIDER_MISSING: ${route.provider}`);
+  }
+
+  // 个人档案通道：各任务流手工组装 provider 消息，不能只取
+  // injectServerPrompt 产物的 messages[0]——那会静默丢掉档案消息。
+  // 统一在此拆出「主 system + 档案 system」，由各任务流按自己的消息形状拼接。
+  function splitSystemMessages(systemPrompted) {
+    const main = systemPrompted.messages[0]?.content ?? "";
+    const profile = systemPrompted.messages[1]?.role === "system"
+      ? systemPrompted.messages[1].content
+      : null;
+    return { main, profile };
+  }
+  function profileChannelOptions(profileBrief) {
+    return {
+      profileBrief,
+      profileChannelEnabled,
+      profileBriefMaxBytes,
+    };
   }
 
   // 工具结果统一为 iOS HoloDataToolResult 同构信封（错误也走 error 字段），
@@ -588,9 +785,17 @@ export function createCloudAnalysisExecutor({
         log(`回放任务已取消（行已删除），停止执行 taskId=${taskId}`);
         return "cancelled";
       }
+      // 个人档案通道：回放快照（context JSON）根字段 profileBrief 随密文上行
+      let replayProfileBrief;
+      try {
+        replayProfileBrief = JSON.parse(contextJSON)?.profileBrief ?? null;
+      } catch {
+        replayProfileBrief = null;
+      }
       const systemPrompted = injectServerPrompt("insight", [
         { role: "user", content: contextJSON },
-      ]);
+      ], profileChannelOptions(replayProfileBrief));
+      const replayMessages = splitSystemMessages(systemPrompted);
       // 输出预算按周期档位分档（口径见 config.insightMaxTokensFor）：
       // 素材里的 periodType 是分档依据（快照由 iOS 组装，字段可信）。
       let periodType = null;
@@ -606,7 +811,8 @@ export function createCloudAnalysisExecutor({
       };
       const response = await callProvider(
         [
-          { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
+          { role: "system", content: replayMessages.main },
+          ...(replayMessages.profile ? [{ role: "system", content: replayMessages.profile }] : []),
           { role: "user", content: contextJSON },
         ],
         replayCallRoute,
@@ -655,11 +861,15 @@ export function createCloudAnalysisExecutor({
    * - 阶段推进写 stage 列（cloudPlanning→draftReady/failed），revision 服务端单调
    */
   async function runContextPlan(taskId, task) {
-    // 快照列是 JSON 对象（上传路由强制），prompt 在 .prompt 字段
+    // 快照列是 JSON 对象（上传路由强制），prompt 在 .prompt 字段；
+    // profileBrief（个人档案通道）与 prompt 平级上行
     let prompt = "";
+    let contextPlanProfileBrief = null;
     if (typeof task.snapshot === "string") {
       try {
-        prompt = String(JSON.parse(task.snapshot)?.prompt ?? "").trim();
+        const parsedSnapshot = JSON.parse(task.snapshot);
+        prompt = String(parsedSnapshot?.prompt ?? "").trim();
+        contextPlanProfileBrief = parsedSnapshot?.profileBrief ?? null;
       } catch {
         prompt = task.snapshot.trim();
       }
@@ -705,10 +915,12 @@ export function createCloudAnalysisExecutor({
       }
       const systemPrompted = injectServerPrompt("personal_context_planning", [
         { role: "user", content: prompt },
-      ]);
+      ], profileChannelOptions(contextPlanProfileBrief));
+      const planMessages = splitSystemMessages(systemPrompted);
       const response = await callProvider(
         [
-          { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
+          { role: "system", content: planMessages.main },
+          ...(planMessages.profile ? [{ role: "system", content: planMessages.profile }] : []),
           { role: "user", content: prompt },
         ],
         contextPlanRoute ?? route,
@@ -750,6 +962,19 @@ export function createCloudAnalysisExecutor({
     }
   }
 
+  // 预算预留辅助（报告理解方案 B02）：主体只从任务归属解析
+  // （device_id → 服务端权益表），不依赖 HTTP 上下文、不信客户端传参。
+  function reserveReplayDigestBudget(task, messages, upstreamRoute) {
+    if (!backgroundBudget) return null;
+    const entitlement = backgroundBudget.entitlementStore?.get(task.device_id);
+    const subject = backgroundSubject(task.device_id, entitlement);
+    return backgroundBudget.guard.reserveDirect(subject, {
+      purpose: "cloud_replay_digest",
+      messages,
+      maxTokens: upstreamRoute.maxTokens,
+    });
+  }
+
   /**
    * 回放摘要归纳（replay_digest）：单轮生成（2026-09-05 摘要云端化）。
    * - 素材 = iOS 组装的 ConsolidateRequest JSON（旧累计摘要+本期回放要点），
@@ -775,14 +1000,23 @@ export function createCloudAnalysisExecutor({
         { role: "user", content: material },
       ]);
       const upstreamRoute = digestRoute ?? insightRoute ?? route;
-      const response = await callProvider(
-        [
-          { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
-          { role: "user", content: material },
-        ],
-        upstreamRoute,
-        { taskId, deviceId: task.device_id, purpose: "cloud_replay_digest", round: 1 },
-      );
+      const messages = [
+        { role: "system", content: systemPrompted.messages[0]?.content ?? "" },
+        { role: "user", content: material },
+      ];
+      // 预算预留：主体=服务端已验证的任务归属；预算耗尽在此抛 429，
+      // 任务置 failed（reason 携带错误码），客户端据此不回落直调（B03）。
+      const reservationId = reserveReplayDigestBudget(task, messages, upstreamRoute);
+      let response;
+      try {
+        response = await callProvider(
+          messages,
+          upstreamRoute,
+          { taskId, deviceId: task.device_id, purpose: "cloud_replay_digest", round: 1 },
+        );
+      } finally {
+        if (reservationId) backgroundBudget.guard.settleDirect(reservationId, response?.usage);
+      }
       const content = response?.choices?.[0]?.message?.content ?? "";
       if (!content.trim()) {
         throw new Error("摘要生成为空输出");
@@ -800,7 +1034,8 @@ export function createCloudAnalysisExecutor({
       log(`摘要任务完成 taskId=${taskId} chars=${content.length}`);
       return "completed";
     } catch (error) {
-      const reason = `云端摘要归纳失败：${error?.message ?? error}`;
+      const code = error?.code ? `[${error.code}] ` : "";
+      const reason = `云端摘要归纳失败：${code}${error?.message ?? error}`;
       try {
         taskStore.fail({ id: taskId, reason });
       } catch (failError) {
@@ -849,6 +1084,14 @@ export function createCloudAnalysisExecutor({
         taskStore.fail({ id: taskId, reason: "快照缺失或格式非法" });
         return "failed";
       }
+      // 目标闭环（§6.4）：goalScope 防御性二次校验（app.js 上传时已拒绝非法值）；
+      // 非法即降级为普通深度分析并留痕，不中断任务
+      const goalScopeCheck = normalizeGoalScope(snapshot.goalScope);
+      const goalScope = goalScopeCheck.ok ? goalScopeCheck.scope : null;
+      if (snapshot.goalScope != null && !goalScope) {
+        log(`goalScope 校验失败 taskId=${taskId} reason=${goalScopeCheck.reason}`);
+      }
+      const goalReview = goalScope ? acceptGoalReview(snapshot.goalReview, goalScope) : null;
       if (!taskStore.transition(taskId, "running")) {
         return taskStore.get(taskId)?.status ?? "conflict";
       }
@@ -908,11 +1151,29 @@ export function createCloudAnalysisExecutor({
       const messages = [];
       const systemPrompted = injectServerPrompt("agent_loop", [
         { role: "user", content: task.question },
-      ]);
+      ], profileChannelOptions(snapshot.profileBrief));
+      const agentMessages = splitSystemMessages(systemPrompted);
       const datasetNames = Object.keys(snapshot.datasets ?? {});
+      // S2 融合版：iOS 预计算确定性台账（对比指标+分期承诺+已确认事实与已知风险）
+      // 注入 system 数据段——深度来自程序先算好的判断原料，模型负责判断与表达（v26）。
+      const financeLedgerBlock = typeof snapshot.financeEvidenceLedger === "string" && snapshot.financeEvidenceLedger.trim()
+        ? `\n<finance_evidence_ledger>\n${snapshot.financeEvidenceLedger}\n</finance_evidence_ledger>\n`
+        : "";
+      // 全景体检台账（2026-11-01 全景版跨域洞察）：各领域本期/上期体检指标 +
+      // 按天对齐同变候选，程序算好——全景覆盖与跨域候选不再依赖模型自觉选题。
+      const checkupBlock = typeof snapshot.crossDomainCheckup === "string" && snapshot.crossDomainCheckup.trim()
+        ? `\n<cross_domain_checkup>\n${snapshot.crossDomainCheckup}\n</cross_domain_checkup>\n`
+        : "";
+      // 目标闭环（§6.4）：冻结块 + 统一事实快照；模型不得改写范围，数字以快照为准
+      const goalBlock = goalScope ? buildGoalScopeBlock(goalScope, goalReview) : "";
       messages.push({
         role: "system",
-        content: `${systemPrompted.messages[0]?.content ?? ""}\n\n${buildCloudToolCatalog(snapshot)}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}`,
+        content: [
+          agentMessages.main,
+          // 个人档案通道：紧跟主 system（任务指令），先于工具目录与冻结任务块
+          agentMessages.profile,
+          `${buildCloudToolCatalog(snapshot)}${financeLedgerBlock}${checkupBlock}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}${goalBlock ? `\n\n${goalBlock}` : ""}`,
+        ].filter(Boolean).join("\n\n"),
       });
       messages.push({ role: "user", content: task.question });
 
@@ -927,7 +1188,12 @@ export function createCloudAnalysisExecutor({
       // 证据 ID → 原文摘要（AI02-A 正文数字白名单用）：claim 引用某条证据时，
       // 证据原文里出现的数字（行样本的单笔金额、派生指标值）视为可支持数字。
       const evidenceTexts = new Map();
+      // 目标闭环（§6.3）：goalReview 的确定性数字先进证据池——模型引用 goal.* 指标
+      // 或 goal-review:* 证据即可过交付核验，空台账定性拦截不会误杀目标回顾结论
+      seedGoalReviewEvidence(goalReview, { metricEvidence, validEvidenceIDs, evidenceTexts });
 
+      // 证据 ID → 所属数据集（必修 2/3：覆盖推导与解读闸门的证据归属）
+      const evidenceDatasets = new Map();
       function collectEvidence(toolRequests, toolResults) {
         toolResults.forEach((result, index) => {
           if (result.status !== "success") return;
@@ -963,6 +1229,11 @@ export function createCloudAnalysisExecutor({
           if (request?.tool === "snapshot_rows" && Array.isArray(result.events)) {
             const dataset = request.parameters?.source ?? null;
             const excerpts = result.events.map((event) => event.excerpt).filter(Boolean);
+            for (const event of result.events) {
+              if (typeof event?.id === "string" && event.id && dataset) {
+                evidenceDatasets.set(event.id, dataset);
+              }
+            }
             if (excerpts.length > 0) {
               rowsEvidence.set(dataset ?? "_", { kind: "rows", dataset, count: excerpts.length, excerpts });
             }
@@ -1024,20 +1295,39 @@ export function createCloudAnalysisExecutor({
         if (output.status === "final_claims") {
           // 交付核验（§3.4）：空 claims 不允许完成；数字断言/引用对不上 Ledger 的
           // 降级剥离并记 warning；叙事字段编数清空。「JSON 合法」不等于「可交付」。
+          const financeLedgerNumbers = financeLedgerBlock
+            ? extractCheckableNumbers(financeLedgerBlock).filter((n) => n >= 100)
+            : [];
+          // 全景体检台账数字进白名单（不过滤量级：117 支/147% 这类小数字结论
+          // 全靠它过核验；日期噪声 10-31 一并放行，属可接受放宽）
+          const checkupNumbers = checkupBlock ? extractCheckableNumbers(checkupBlock) : [];
+          // 目标闭环：goalReview 冻结块里的确定性数字并入白名单（4800/3300 等直接可引用）
+          const goalNumbers = goalBlock ? extractCheckableNumbers(goalBlock) : [];
           const verified = verifyDelivery(output, {
             metricLedger: metricEvidence,
             validEvidenceIDs,
             evidenceTexts,
+            financeLedgerNumbers: [...financeLedgerNumbers, ...checkupNumbers, ...goalNumbers],
+            evidenceDatasets,
           });
+          // 必修 2：全景覆盖闸门——活跃领域（冻结窗内有行）必须被 claims 覆盖。
+          // 缺覆盖进修复轮点名补齐；修复后仍缺则如实带 warning 交付（客户端标注）。
+          const missingDomains = checkupBlock
+            ? [...activePanoramaDomains(snapshot, answerTask)]
+              .filter((domain) => !coveredPanoramaDomains(verified.claims, metricEvidence, evidenceDatasets).has(domain))
+            : [];
           // 修复轮触发（2026-10-04 体检 AI02 扩展）：空 claims 或有 claim 被核验
-          // 撤回（数字不一致/空台账定性规律）都给一次重发机会，撤回原因喂回模型；
+          // 撤回（数字不一致/空台账定性规律）或全景缺域，都给一次重发机会，原因喂回模型；
           // 第二次仍不过则只交付幸存 claims（全撤光走下方诚实失败）。
-          if ((verified.emptyClaims || verified.droppedClaims.length > 0) && !deliveryRepairUsed) {
+          if ((verified.emptyClaims || verified.droppedClaims.length > 0 || missingDomains.length > 0) && !deliveryRepairUsed) {
             deliveryRepairUsed = true;
-            const repairDetail = verified.droppedClaims.length > 0
+            const baseDetail = verified.droppedClaims.length > 0
               ? `final_claims 未通过交付核验，以下结论被撤回：\n${verified.droppedClaims.map((d) => `· ${d.excerpt ? `${d.excerpt} ` : ""}（${d.reason}）`).join("\n")}\n请重新输出完整 final_claims：金额/数量等数字必须与工具查得结果一致，对不上就去掉具体数字；没有任何数据支持时不得输出「主要/最多/持续上升」这类定性规律，改为说明缺少什么数据、哪部分不能判断。`
               : "final_claims 不允许为空：请基于已查到的证据输出至少一条 claim 直接回答用户问题；关键证据不存在时，输出一条说明「缺什么数据、因此哪部分不能判断」的 observation claim，而不是空数组。";
-            log(`轮次 ${round}/${maxRounds} taskId=${taskId} 交付核验不过（empty=${verified.emptyClaims} dropped=${verified.droppedClaims.length}），请求重发`);
+            const repairDetail = missingDomains.length > 0
+              ? `${baseDetail}\n全景体检必须逐域覆盖：以下领域在时间窗内有数据但报告未覆盖——${missingDomains.join("、")}。请为每个缺失领域补一条 claim，并在 claim 上带 "domain" 字段（finance/health/habit/task/thought/goal 之一）。`
+              : baseDetail;
+            log(`轮次 ${round}/${maxRounds} taskId=${taskId} 交付核验不过（empty=${verified.emptyClaims} dropped=${verified.droppedClaims.length} missingDomains=${missingDomains.join(",") || "-"}），请求重发`);
             messages.push({ role: "assistant", content: validation.content });
             messages.push({
               role: "user",
@@ -1050,6 +1340,10 @@ export function createCloudAnalysisExecutor({
             taskStore.fail({ id: taskId, reason: "模型未能产出可核验的结论（无 claim），请换个问法或稍后重试" });
             return "failed";
           }
+          // 目标闭环（§6.5）：修正草案白名单消毒；身份字段由服务端生成，引用必须落在快照集合内
+          const sanitizedDraft = goalScope
+            ? sanitizeGoalAdjustmentDraft(output.goalAdjustmentDraft, goalScope, goalReview)
+            : { draft: null, warnings: [] };
           const result = {
             title: verified.title,
             // v17/v21 叙事字段（温暖陪伴 P0 契约止损）：Validator 已规范化门控，
@@ -1057,10 +1351,20 @@ export function createCloudAnalysisExecutor({
             // 交付核验只清空与 Ledger 冲突的编数字段，不另造叙事。
             narrativeSummary: verified.narrativeSummary,
             keyInsight: verified.keyInsight,
+            reportStructure: verified.verifiedReportStructure ?? null,
             claims: verified.claims,
             reasoning: output.reasoning ?? "",
             evidence: evidenceSnapshot(),
-            warnings: verified.warnings,
+            warnings: [
+              ...verified.warnings,
+              ...sanitizedDraft.warnings,
+              // 必修 2：修复后仍缺域 → 如实标注（客户端范围行提示），不静默
+              ...(missingDomains.length > 0 ? [`DOMAIN_COVERAGE_MISSING:${missingDomains.join(",")}`] : []),
+            ],
+            // 目标闭环（§6.4）：范围原样回显，客户端据此归类「目标」并双入口同报告；
+            // 修正草案经消毒后随结果下发（无合法操作时为 null，报告仍可读）
+            goalScope: goalScope ?? null,
+            goalAdjustmentDraft: sanitizedDraft.draft,
             // S03（2026-10-04 体检）：快照覆盖完整性回显——截断发生时客户端
             // 在报告范围行如实标注，截断明细不再冒充全量
             snapshotCoverage: snapshotCoverage(snapshot),

@@ -27,14 +27,13 @@ struct ThoughtCardView: View {
         /// 顶部/正文/底部三区块间距
         static let sectionSpacing: CGFloat = 12
         /// 主题弱徽章字色强度（绿=主题语义，降强度不当强调色用）
-        static let topicBadgeTintOpacity: Double = 0.75
         /// 标签 chip 底色透明度（统一值，前景仍用用户自选色）
         static let tagChipBackgroundOpacity: Double = 0.08
     }
 
     // MARK: - Properties
 
-    let thought: Thought
+    @ObservedObject var thought: Thought
     /// 点卡片进入编辑器（阅读与编辑合流后的唯一打开路径）
     var onNavigate: (() -> Void)?
     /// 待确认徽章点按：直达编辑器 AI 确认位（列表注入滚动意图；不传时回落 onNavigate）
@@ -64,6 +63,10 @@ struct ThoughtCardView: View {
     @State private var showActionSheet = false
     /// V3 主题徽章的纠错菜单
     @State private var topicMenuTopic: Topic? = nil
+    /// 「为什么归这里」理由面板（2026-10-12 主题双通道 B1：信任界面——
+    /// AI 归属给逐字依据，手动/历史归属给来源说明，零猜测）
+    @State private var reasonSheetTopic: Topic? = nil
+    @State private var reasonEvidence: (relation: String, verifierQuote: String?, engineVersion: String?)? = nil
     /// 「…」菜单删除的二次确认（软删进回收站，提示可恢复）
     @State private var showDeleteConfirm = false
     /// 分享卡面板
@@ -75,6 +78,9 @@ struct ThoughtCardView: View {
         case deleteConfirm
     }
     @State private var pendingMenuAction: PendingMenuAction?
+    /// 附件大图浏览（与编辑器明细页同一交互：点缩略图进全屏大图，单击屏幕任意处关闭）
+    @State private var showAttachmentGallery = false
+    @State private var galleryStartIndex = 0
 
     // MARK: - Body
 
@@ -96,14 +102,15 @@ struct ThoughtCardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .fill(Color.holoToolSurface)
+                .fill(thought.appearanceStyle.listPaper)
                 // 2026-09-25 flomo 改版：去阴影改细描边——阴影是卡片厚重感的主要来源，
                 // 连续浏览时让注意力回到正文（容器安静原则）
                 .overlay(
                     RoundedRectangle(cornerRadius: HoloRadius.lg)
-                        .stroke(Color.holoToolBorder, lineWidth: 0.5)
+                        .stroke(thought.appearanceStyle.listBorder, lineWidth: 0.5)
                 )
         )
+        .overlay { ThoughtStyleCardDecoration(style: thought.appearanceStyle).allowsHitTesting(false) }
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .holoHover()
         .holoRecordArrival(thought.id, domain: .thought)
@@ -126,6 +133,38 @@ struct ThoughtCardView: View {
         // 分享面板同样挂卡片根：与「…」菜单锚点解耦后，菜单收起完成再请求才可靠弹出
         .sheet(isPresented: $showShareCard) {
             ThoughtShareSheet(thought: thought)
+        }
+        // 附件大图（挂卡片根与编辑器明细页同款）：点缩略图进全屏，单击屏幕任意处关闭
+        #if canImport(UIKit)
+        .fullScreenCover(isPresented: $showAttachmentGallery) {
+            ThoughtGalleryView(
+                attachments: thought.sortedAttachments,
+                startIndex: galleryStartIndex
+            )
+        }
+        #else
+                .sheet(isPresented: $showAttachmentGallery) {
+            ThoughtGalleryView(
+                attachments: thought.sortedAttachments,
+                startIndex: galleryStartIndex
+            )
+        }
+        #endif
+        // 「为什么归这里」理由面板（长按菜单入口；confirmationDialog 收起后再弹，
+        // 与 pendingMenuAction 同理走一小段延迟避免连环弹层被系统丢弃）
+        .sheet(item: $reasonSheetTopic) { topic in
+            TopicMembershipReasonSheet(
+                thought: thought,
+                topic: topic,
+                evidence: reasonEvidence,
+                onOpenTopic: { target in
+                    reasonSheetTopic = nil
+                    onOpenTopic?(target)
+                })
+                .task(id: topic.id) {
+                    guard let store = await ThoughtSemanticPipeline.shared.store else { return }
+                    reasonEvidence = try? await store.loadRelationEvidence(thoughtID: thought.id, topicID: topic.id) ?? nil
+                }
         }
         // 菜单收起动画（约 0.4s）走完后再弹目标层；提前请求会被弹层系统丢弃
         .onChange(of: showActionSheet) { _, isPresented in
@@ -151,6 +190,16 @@ struct ThoughtCardView: View {
                 .foregroundColor(.holoToolTextSecondary)
 
             Spacer()
+
+            ThoughtStyleSignature(style: thought.appearanceStyle)
+
+            // 标签级 AI 排除：淡金盾牌角标（提示而不喧宾，2026-10-21 方案画板⑤）
+            if ThoughtAIAudience.isExcluded(thought) {
+                Image(systemName: "checkmark.shield.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.holoAIShieldTint)
+                    .accessibilityLabel(String(localized: "不参与 AI"))
+            }
 
             // V3 新 UI：AI 整理状态（整理中/待确认/失败）不进主路径
             if !ThoughtSemanticFeatureFlags.uiEnabled {
@@ -183,8 +232,13 @@ struct ThoughtCardView: View {
                     .confirmationDialog("操作", isPresented: $showActionSheet, titleVisibility: .visible) {
                         // 编辑兜底入口：正文触摸链路（Button 命中）万一再失效，
                         // 历史想法仍有保底的编辑路径（2026-09-17 双击编辑丢失事故）
+                        #if canImport(UIKit)
                         if let onNavigate {
                             Button(String(localized: "编辑")) { onNavigate() }
+                        }
+                        #endif
+                        Button(String(localized: "复制文字")) {
+                            copyThoughtToPasteboard(thought)
                         }
                         Button(String(localized: "生成分享卡")) {
                             pendingMenuAction = .shareCard
@@ -209,6 +263,9 @@ struct ThoughtCardView: View {
                     }
             }
         }
+        .overlay(alignment: .bottom) {
+            ThoughtStyleHeaderRule(style: thought.appearanceStyle).allowsHitTesting(false)
+        }
     }
 
     /// 是否存在至少一个可用的更多操作（含「编辑」兜底入口）
@@ -220,6 +277,9 @@ struct ThoughtCardView: View {
 
     private var contentView: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            if thought.appearanceStyle.photosLead, !thought.sortedAttachments.isEmpty { inlineAttachmentsView }
+            HStack(alignment: .top, spacing: HoloSpacing.md) {
+                if thought.appearanceStyle == .calendar { ThoughtCardDateMark(date: thought.createdAt) }
             // 内容渲染整体下沉到 ThoughtContentBody：它只依赖内容字符串本身，
             // 点「…」弹菜单、整理队列状态变化等状态型重算不会触碰解码与排版。
             // 正文入口用 Button 承载（2026-09-17 真机「无法编辑历史想法」事故修法）：
@@ -234,7 +294,8 @@ struct ThoughtCardView: View {
             } label: {
                 ThoughtContentBody(
                     richJSON: thought.richContentJSON,
-                    fallbackPlainText: thought.content
+                    fallbackPlainText: thought.content,
+                    style: thought.appearanceStyle
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
@@ -246,18 +307,21 @@ struct ThoughtCardView: View {
                 fallbackPlainText: thought.content
             ))
             .accessibilityHint(String(localized: "轻点编辑这条想法"))
+            }
 
-            if !thought.sortedAttachments.isEmpty {
+            if !thought.appearanceStyle.photosLead, !thought.sortedAttachments.isEmpty {
                 inlineAttachmentsView
             }
         }
+        .padding(.leading, thought.appearanceStyle == .fold ? HoloSpacing.md : 0)
+        .padding(.trailing, thought.appearanceStyle == .post ? HoloSpacing.lg : 0)
     }
 
     // MARK: - 底部区域
 
     private func footerView(aiTagNames: [String]) -> some View {
         // P1（2026-09-27）双行分离：第一行 = 用户 #标签 + 引用数；第二行 = 主题行
-        // （来源字样区分「Holo 已归入 / 已加入」，轻点进主题、长按纠错）。
+        // （只展示主题名称，轻点进主题、长按纠错）。
         // spacing 0 + 主题行自带 top padding：两行全空（新用户常见）时卡片底部不多占位
         VStack(alignment: .leading, spacing: 0) {
             tagAndReferenceRow(aiTagNames: aiTagNames)
@@ -337,19 +401,28 @@ struct ThoughtCardView: View {
     // MARK: - V3 主题行（P1 双行制）
 
     /// 卡片底部的主题行（V3 §4.3 + P1 §3.2）：来自 ThoughtTopicLink 投影，最多 2 个。
-    /// 来源字样区分 AI/手动（AI 不冒充用户决定）；轻点进主题详情、长按出纠错菜单。
+    /// 只展示主题名称；来源保留在无障碍说明，轻点进详情、长按出纠错菜单。
     private var topicBadgeRow: some View {
         let topics = ThoughtTopicLinkProjection.effectiveTopics(for: thought)
             .filter { $0.statusEnum == .active || $0.statusEnum == .classification }
             .prefix(2)
         return Group {
             if !topics.isEmpty {
-                HStack(spacing: 6) {
-                    ForEach(Array(topics), id: \.id) { topic in
-                        topicBadge(topic)
+                // 放得下时并排，放不下时上下排列；不能用徽章的理想宽度撑大整张卡片。
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(Array(topics), id: \.id) { topic in
+                            topicBadge(topic)
+                        }
                     }
-                    Spacer(minLength: 0)
+                    .fixedSize(horizontal: true, vertical: false)
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(Array(topics), id: \.id) { topic in
+                            topicBadge(topic)
+                        }
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 // padding 在有内容的分支内：无主题行时不占位（校验实锤 2026-09-27）
                 .padding(.top, 6)
             }
@@ -357,20 +430,15 @@ struct ThoughtCardView: View {
     }
 
     private func topicBadge(_ topic: Topic) -> some View {
-        // 来源字样（P1 §3.2）：AI 高可信写「Holo 已归入」，用户手动/接受建议写「已加入」，
-        // 历史归集中性写「已归入」——AI 来源不冒充用户决定，VoiceOver 同步读出
+        // 可见徽章只保留名称；VoiceOver 继续说明来源，避免 AI 归类冒充用户决定。
         let source = ThoughtTopicLinkProjection.membershipSource(of: thought, in: topic)
-        let sourceText: String
         let sourceAX: String
         switch source {
         case .ai:
-            sourceText = String(localized: "Holo 已归入")
             sourceAX = String(localized: "Holo 自动归入")
         case .user:
-            sourceText = String(localized: "已加入")
             sourceAX = String(localized: "你加入的")
         default:
-            sourceText = String(localized: "已归入")
             sourceAX = String(localized: "已归入")
         }
         return Button {
@@ -380,21 +448,22 @@ struct ThoughtCardView: View {
             HStack(spacing: 4) {
                 Image(systemName: "leaf.fill")
                     .font(.system(size: 9, weight: .semibold))
-                Text(sourceText)
-                    .holoText(.metadata)
                 Text(topic.title)
                     .holoText(.metadata)
                     .fontWeight(.semibold)
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
-            .foregroundColor(Color.holoSuccess.opacity(Metrics.topicBadgeTintOpacity))
+            .foregroundColor(Color.holoSuccessText)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
+            .frame(minHeight: 28)
             .background(Color.holoSuccess.opacity(0.09))
             .cornerRadius(HoloRadius.sm)
-            .fixedSize(horizontal: true, vertical: false)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("thought.topic.\(thought.id.uuidString).\(topic.id.uuidString)")
         // 轻点=进主题详情（脉络可逛）；纠错菜单收进长按（P1 行为变化，原轻点弹菜单）
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.45).onEnded { _ in
@@ -414,6 +483,16 @@ struct ThoughtCardView: View {
             ),
             titleVisibility: .visible
         ) {
+            Button(String(localized: "为什么归这里？")) {
+                let target = topic
+                topicMenuTopic = nil
+                reasonEvidence = nil
+                // 对话框收起动画未走完就请求弹层会被系统丢弃（与 pendingMenuAction 同坑），延迟弹出
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    reasonSheetTopic = target
+                }
+            }
             Button(String(localized: "更改主题…")) {
                 topicMenuTopic = nil
                 onChangeTopic?()
@@ -427,17 +506,14 @@ struct ThoughtCardView: View {
     }
 
     private var inlineAttachmentsView: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: HoloSpacing.sm) {
-                ForEach(Array(thought.sortedAttachments.enumerated()), id: \.element.id) { _, attachment in
-                    ThoughtAttachmentThumbnailView(
-                        thumbnailData: attachment.thumbnailData,
-                        fileName: attachment.thumbnailFileName,
-                        thoughtId: thought.id
-                    )
-                    .frame(width: 80, height: 80)
-                }
-            }
+        let sources = thought.sortedAttachments.map {
+            ThoughtPaperPhotoSource(id: $0.id, thumbnailData: $0.thumbnailData, fileName: $0.thumbnailFileName, thoughtId: thought.id)
+        }
+        return ThoughtCardPaperPhotos(sources: sources, style: thought.appearanceStyle) { id in
+            guard let index = thought.sortedAttachments.firstIndex(where: { $0.id == id }) else { return }
+            HapticManager.light()
+            galleryStartIndex = index
+            showAttachmentGallery = true
         }
     }
 
@@ -450,6 +526,8 @@ struct ThoughtCardView: View {
             // 展示叶段名（路径是存储结构，不进 UI 文案）；筛选仍用完整路径。
             // 有 emoji 图标时以图标代替 # 前缀，无 emoji 恢复 # 前缀（2026-09-26 R0 冒烟修复）
             let emoji = ThoughtTagEmojiStore.emoji(forKey: tag.name)
+            // 排除标签转淡金盾系配色（2026-10-21 标签级 AI 排除）
+            let chipColor = tag.excludeFromAI ? Color.holoAIShieldTint : tag.tagColor
             HStack(spacing: 3) {
                 if let emoji {
                     Text(emoji)
@@ -458,12 +536,16 @@ struct ThoughtCardView: View {
                 } else {
                     Text("#\(ThoughtTagNormalizer.lastSegment(tag.name))")
                 }
+                if tag.excludeFromAI {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                }
             }
                 .holoText(.metadata)
-                .foregroundColor(tag.tagColor)
+                .foregroundColor(chipColor)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(tag.tagColor.opacity(Metrics.tagChipBackgroundOpacity))
+                .background(chipColor.opacity(Metrics.tagChipBackgroundOpacity))
                 .cornerRadius(HoloRadius.sm)
                 .fixedSize(horizontal: true, vertical: false)
         }
@@ -484,8 +566,9 @@ struct ThoughtCardView: View {
                     .foregroundColor(.holoToolTextSecondary)
 
                 Text("AI")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundColor(.holoToolTextSecondary.opacity(0.6))
+                    .font(.system(size: 10, weight: .semibold))
+                    // 微标不做半透明降档：深色下会跌破可读线
+                    .foregroundColor(.holoToolTextSecondary)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -495,6 +578,94 @@ struct ThoughtCardView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "按 AI 标签 \(tagName) 筛选"))
+    }
+}
+
+// MARK: - 主题归属理由面板（2026-10-12 主题双通道 B1）
+
+/// 长按主题徽章「为什么归这里？」：AI 归属给判定值 + 逐字依据（可回源不硬造），
+/// 手动/历史归属给来源说明。只读不改判定；「查看主题」直达主题详情（定义卡所在）。
+private struct TopicMembershipReasonSheet: View {
+    let thought: Thought
+    let topic: Topic
+    let evidence: (relation: String, verifierQuote: String?, engineVersion: String?)?
+    var onOpenTopic: ((Topic) -> Void)?
+
+    @Environment(\.dismiss) private var dismiss
+
+    private var sourceText: String {
+        switch ThoughtTopicLinkProjection.membershipSource(of: thought, in: topic) {
+        case .user: return String(localized: "你加入的")
+        case .ai: return String(localized: "Holo 自动归入")
+        case .legacy: return String(localized: "早期整理归入")
+        case nil: return String(localized: "已归入")
+        }
+    }
+
+    private var relationText: String? {
+        switch evidence?.relation {
+        case "fits_category": return String(localized: "符合「\(topic.title)」这个类别的定义")
+        case "same_thread": return String(localized: "和「\(topic.title)」谈论同一件事")
+        default: return nil
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                HStack(spacing: 6) {
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.holoSuccess)
+                    Text(sourceText)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                if let relationText {
+                    Text(relationText)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                }
+                if let quote = evidence?.verifierQuote, !quote.isEmpty {
+                    Text("「\(quote)」")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .background(RoundedRectangle(cornerRadius: HoloRadius.md)
+                            .fill(Color.holoSuccess.opacity(0.07)))
+                }
+                if let engine = evidence?.engineVersion, !engine.isEmpty {
+                    Text(String(localized: "判定引擎 \(engine)"))
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextPlaceholder)
+                }
+                Text(String(localized: "不想要这个归属：长按徽章「从这条移除」，移出会成为 AI 的反例，同类内容以后不会再收进来。"))
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextPlaceholder)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.top, HoloSpacing.md)
+            .navigationTitle(String(localized: "为什么归这里"))
+            #if canImport(UIKit)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
+                    Button("关闭") { dismiss() }
+                        .foregroundColor(.holoPrimary)
+                }
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
+                    Button(String(localized: "查看主题")) {
+                        onOpenTopic?(topic)
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 
@@ -562,8 +733,9 @@ private struct ThoughtCardStatusBadge: View {
                 .font(.holoTinyLabel)
         }
         .foregroundColor(status.color)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .frame(minHeight: 28)
         .background(status.color.opacity(0.1))
         .clipShape(Capsule())
         // iOS 26 plain 按钮会把命中区收缩到文字内容：显式声明热区=可视胶囊
@@ -623,6 +795,7 @@ private struct ThoughtContentBody: View {
 
     let richJSON: String?
     let fallbackPlainText: String
+    var style: ThoughtStyle = .plain
 
     var body: some View {
         let nodes = RichContentSerializer.nodes(
@@ -636,7 +809,8 @@ private struct ThoughtContentBody: View {
         ReadOnlyRichTextPreview(
             nodes: nodes,
             lineLimit: 7,
-            compressesBlankLines: true
+            compressesBlankLines: true,
+            presentationStyle: style
         )
     }
 }

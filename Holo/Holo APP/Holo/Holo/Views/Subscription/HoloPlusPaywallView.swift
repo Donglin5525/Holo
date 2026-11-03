@@ -42,14 +42,20 @@ struct HoloPlusPaywallView: View {
             }
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("Holo Plus")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("关闭") {
                         HoloPlusActionCoordinator.shared.dismissPaywall()
                         dismiss()
                     }
                 }
+            }
+            .onAppear {
+                // 产品埋点：付费墙曝光（context = 触发场景，付费漏斗上段）
+                HoloProductAnalytics.shared.track(.paywallViewed, ["context": String(describing: context)])
             }
             .task {
                 await subscriptionService.loadProducts()
@@ -81,7 +87,7 @@ struct HoloPlusPaywallView: View {
 
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
                 HStack(spacing: HoloSpacing.md) {
-                    HoloPlusEmblem(size: 54, showsShine: true)
+                    HoloPlusEmblem(size: 72, showsShine: true)
 
                     Text("Holo Plus")
                         .font(.system(size: 27, weight: .bold))
@@ -392,7 +398,7 @@ struct HoloPlusPaywallView: View {
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(subscriptionService.isPurchasing)
+        .disabled(subscriptionService.isPurchasing || subscriptionService.isRestoring)
         .accessibilityLabel("\(plan.name) \(plan.priceText)\(plan.periodText)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -409,7 +415,14 @@ struct HoloPlusPaywallView: View {
                     : String(localized: "订阅自动续订，可随时在系统设置中关闭"),
                 showsProgress: subscriptionService.isPurchasing
             ) {
-                Task { await subscriptionService.purchase(product) }
+                Task {
+                    // 产品埋点：购买按钮点击（付费漏斗下段；成功转化由订阅状态侧佐证）
+                    HoloProductAnalytics.shared.track(
+                        .paywallPurchaseTapped,
+                        ["context": String(describing: context), "plan": product.id]
+                    )
+                    await subscriptionService.purchase(product)
+                }
             }
 
             // 购买流程的状态反馈（等待家长审批/已扣款同步中/同步失败）在此透出：
@@ -453,7 +466,7 @@ struct HoloPlusPaywallView: View {
                 .shadow(color: Color.holoPrimary.opacity(0.32), radius: 14, x: 0, y: 8)
             }
             .buttonStyle(.plain)
-            .disabled(subscriptionService.isPurchasing)
+            .disabled(subscriptionService.isPurchasing || subscriptionService.isRestoring)
 
             Text(subline)
                 .font(.system(size: 12))
@@ -512,12 +525,18 @@ struct HoloPlusPaywallView: View {
     }
 
     private var restoreButton: some View {
-        Button("恢复购买") {
+        Button {
             Task { await subscriptionService.restorePurchases() }
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                if subscriptionService.isRestoring { ProgressView() }
+                Text("恢复购买")
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
         }
         .font(.holoCaption)
-        .foregroundColor(.holoTextSecondary)
-        .frame(maxWidth: .infinity)
+        .foregroundColor(.holoToolTextSecondary)
+        .disabled(subscriptionService.isPurchasing || subscriptionService.isRestoring)
     }
 
     private var legalLinks: some View {

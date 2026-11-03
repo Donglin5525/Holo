@@ -9,7 +9,7 @@ import SwiftUI
 
 struct DayDetailCard: View {
     let day: Date
-    let events: [CalendarEvent]
+    let presentation: CalendarDayPresentation
     let onSelect: (CalendarEvent) -> Void
     let onSelectGroup: ([CalendarEvent]) -> Void
     /// 切到日档连续回放该日；无记录时不显示。
@@ -17,11 +17,11 @@ struct DayDetailCard: View {
 
     private var moments: [DailyReplayMoment] {
         // 与日回放同一河流阅读序：自新到旧，无时间的记录沉底。
-        DailyReplayPresentation.readingOrderBlocks(from: events).flatMap(\.moments)
+        presentation.moments
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+        LazyVStack(alignment: .leading, spacing: HoloSpacing.md) {
             header
 
             if moments.isEmpty {
@@ -102,9 +102,10 @@ struct DayDetailCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
             .background(Color.holoCardBackground.opacity(0.32))
+            // 深色下虚线描边隐身：改完整 ToolBorder（深色档比 Border 亮一档）
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .stroke(Color.holoBorder.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .stroke(Color.holoToolBorder, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
             )
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }

@@ -1,9 +1,13 @@
+#if canImport(UIKit)
 import UIKit
 import AudioToolbox
+#endif
 
 /// 触觉反馈管理器 - 统一管理 App 内所有震动反馈
+/// macOS 无触觉硬件：全部为空实现，保持调用方代码零分支
 enum HapticManager {
 
+    #if canImport(UIKit)
     // MARK: - Notification Feedback（通知反馈）
 
     /// 成功 - 用于保存/创建/提交成功
@@ -55,4 +59,15 @@ enum HapticManager {
     static func selection() {
         UISelectionFeedbackGenerator().selectionChanged()
     }
+    #else
+    // macOS：无触觉硬件，静默空实现
+    static func success() {}
+    static func warning() {}
+    static func error() {}
+    static func light() {}
+    static func medium() {}
+    static func heavy() {}
+    static func taskCompletion() {}
+    static func selection() {}
+    #endif
 }

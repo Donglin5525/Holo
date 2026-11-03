@@ -33,6 +33,15 @@ enum GoalWorkshopValidationError: Error, Equatable {
     /// 模型不得代答用户事实/授权记录（§2.1 客户端维护）
     case forbiddenFactProvenance(GoalWorkshopFactProvenance)
     case optionsCountOutOfBounds(Int)
+    // 目标闭环 v2
+    /// 引用了授权候选之外的对象（"habit:<uuid>" / "account:<uuid>"）
+    case unauthorizedCandidateReference(String)
+    /// 引用了本草案内不存在/类型不符的习惯草案 id
+    case danglingHabitDraftReference(String)
+    /// 枚举字段取值不在契约内
+    case unknownEnumValue(field: String, value: String)
+    /// 金额/数量/天数越界
+    case valueOutOfBounds(field: String)
 }
 
 enum GoalWorkshopValidator {
@@ -150,11 +159,22 @@ enum GoalWorkshopValidator {
                 throw GoalWorkshopValidationError.danglingFirstAction(firstActionID)
             }
         }
-        // 模型不得关联既有习惯/目标实体（P0 授权范围外）
-        if plan.draft.sourceHabitId != nil {
+        // 既有习惯引用只放行会话开始时授权的候选（§6.1 / R06）；未授权一律拒绝
+        let candidates = session.candidates
+        if let sourceHabitId = plan.draft.sourceHabitId, !candidates.habitIDs.contains(sourceHabitId) {
             throw GoalWorkshopValidationError.unauthorizedHabitReference
         }
-        // 日期一律严格解析：deadline / 任务 dueDate / 里程碑 / 复盘日
+        for habit in plan.draft.habits {
+            if let ref = habit.reuseHabitRef {
+                guard candidates.habit(ref: ref) != nil else {
+                    throw GoalWorkshopValidationError.unauthorizedCandidateReference(ref)
+                }
+            }
+            if let aggregation = habit.aggregation, !["sum", "latest"].contains(aggregation) {
+                throw GoalWorkshopValidationError.unknownEnumValue(field: "habits.aggregation", value: aggregation)
+            }
+        }
+        // 日期一律严格解析：deadline / 任务 dueDate / 里程碑 / 复盘日 / 资金期次
         var dateTexts: [String] = []
         if let deadline = plan.draft.deadlineText { dateTexts.append(deadline) }
         for task in plan.draft.tasks {
@@ -164,9 +184,101 @@ enum GoalWorkshopValidator {
             if let date = milestone.dateText { dateTexts.append(date) }
         }
         if let reviewDate = plan.reviewDateText { dateTexts.append(reviewDate) }
+        for installment in plan.fundSchedule ?? [] {
+            dateTexts.append(installment.dueDateText)
+            guard installment.amount > 0 else {
+                throw GoalWorkshopValidationError.valueOutOfBounds(field: "fundSchedule.amount")
+            }
+        }
         for text in dateTexts where !isValidStrictDay(text) {
             throw GoalWorkshopValidationError.invalidDateText(text)
         }
+        try validatePlanExtensions(plan, candidates: candidates)
+    }
+
+    // MARK: - 目标闭环 v2 扩展校验（角色与规则由代码校验，不接受模型任意 invent 的实体类型）
+
+    private static func validatePlanExtensions(_ plan: GoalWorkshopPlan,
+                                               candidates: GoalWorkshopAuthorizedCandidates) throws {
+        let numericHabitDraftIDs = Set(plan.draft.habits.filter { $0.type == "numeric" }.map(\.id))
+        let habitDraftIDs = Set(plan.draft.habits.map(\.id))
+
+        if let source = plan.resultSource {
+            guard let kind = GoalResultSourceKind(rawValue: source.sourceType) else {
+                throw GoalWorkshopValidationError.unknownEnumValue(field: "resultSource.sourceType", value: source.sourceType)
+            }
+            if let scope = source.ledgerScope, GoalLedgerScopeKind(rawValue: scope) == nil {
+                throw GoalWorkshopValidationError.unknownEnumValue(field: "resultSource.ledgerScope", value: scope)
+            }
+            if let aggregation = source.aggregation, GoalHabitAggregationKind(rawValue: aggregation) == nil {
+                throw GoalWorkshopValidationError.unknownEnumValue(field: "resultSource.aggregation", value: aggregation)
+            }
+            if let comparison = source.comparison, GoalResultComparison(rawValue: comparison) == nil {
+                throw GoalWorkshopValidationError.unknownEnumValue(field: "resultSource.comparison", value: comparison)
+            }
+            if let ref = source.candidateRef {
+                switch kind {
+                case .habit:
+                    guard candidates.habit(ref: ref) != nil else {
+                        throw GoalWorkshopValidationError.unauthorizedCandidateReference(ref)
+                    }
+                case .ledger:
+                    guard candidates.account(ref: ref) != nil else {
+                        throw GoalWorkshopValidationError.unauthorizedCandidateReference(ref)
+                    }
+                case .manual:
+                    throw GoalWorkshopValidationError.unauthorizedCandidateReference(ref)
+                }
+            }
+            if let draftID = source.habitDraftID {
+                guard kind == .habit, numericHabitDraftIDs.contains(draftID) else {
+                    throw GoalWorkshopValidationError.danglingHabitDraftReference(draftID)
+                }
+            }
+            if let target = source.targetValue, !(target.isFinite && target >= 0) {
+                throw GoalWorkshopValidationError.valueOutOfBounds(field: "resultSource.targetValue")
+            }
+        }
+
+        if let cadence = plan.reviewCadenceDays, !(1...90).contains(cadence) {
+            throw GoalWorkshopValidationError.valueOutOfBounds(field: "reviewCadenceDays")
+        }
+
+        if let budget = plan.budget {
+            guard budget.amount > 0, budget.amount.isFinite else {
+                throw GoalWorkshopValidationError.valueOutOfBounds(field: "budget.amount")
+            }
+            guard BudgetPeriod(rawValue: budget.period) != nil else {
+                throw GoalWorkshopValidationError.unknownEnumValue(field: "budget.period", value: budget.period)
+            }
+            if let ref = budget.accountCandidateRef, candidates.account(ref: ref) == nil {
+                throw GoalWorkshopValidationError.unauthorizedCandidateReference(ref)
+            }
+        }
+
+        var constraintIDs: [String] = []
+        for constraint in plan.constraints ?? [] {
+            constraintIDs.append(constraint.id)
+            guard (1...90).contains(constraint.windowDays) else {
+                throw GoalWorkshopValidationError.valueOutOfBounds(field: "constraints.windowDays")
+            }
+            guard constraint.limitValue.isFinite, constraint.limitValue >= 0 else {
+                throw GoalWorkshopValidationError.valueOutOfBounds(field: "constraints.limitValue")
+            }
+            switch (constraint.habitDraftID, constraint.habitCandidateRef) {
+            case (let draftID?, nil):
+                guard habitDraftIDs.contains(draftID) else {
+                    throw GoalWorkshopValidationError.danglingHabitDraftReference(draftID)
+                }
+            case (nil, let ref?):
+                guard candidates.habit(ref: ref) != nil else {
+                    throw GoalWorkshopValidationError.unauthorizedCandidateReference(ref)
+                }
+            default:
+                throw GoalWorkshopValidationError.kindPayloadMismatch("constraint \(constraint.id) 须二选一引用习惯草案或授权候选")
+            }
+        }
+        try ensureUniqueIDs(constraintIDs, duplicate: { .duplicateActionIDs($0) })
     }
 
     private static func ensureUniqueIDs(_ ids: [String],

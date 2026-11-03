@@ -32,7 +32,9 @@ struct KanbanHabitSection: View {
         let visibleIds = displaySettings.dashboardVisibleHabitIds
         if visibleIds.isEmpty { return habitRepo.activeHabits }
         let visibleSet = Set(visibleIds)
-        return habitRepo.activeHabits.filter { visibleSet.contains($0.id) }
+        let filtered = habitRepo.activeHabits.filter { visibleSet.contains($0.id) }
+        // 过期白名单（重装恢复/迁移会重建习惯 UUID）一个都匹配不上时回退全部，防止看板莫名清空
+        return filtered.isEmpty ? habitRepo.activeHabits : filtered
     }
 
     var body: some View {

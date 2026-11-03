@@ -112,6 +112,21 @@ final class MemoryInsightRepository {
         return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
     }
 
+    /// 全部可展示洞察（ready / stale，未删除），不限周期类型——报告档案回填用：
+    /// 从未被点开过的洞察没有对应聊天消息，报告页签看不到它
+    func fetchViewableInsights() -> [MemoryInsight] {
+        let request = MemoryInsight.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "status IN %@",
+                [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
+            ),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: true)]
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
+    }
+
     // MARK: - Save Generating
 
     /// 生成前保存 generating 状态，同时清理同周期旧的 failed 记录

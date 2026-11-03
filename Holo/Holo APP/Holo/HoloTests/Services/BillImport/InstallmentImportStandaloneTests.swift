@@ -222,10 +222,17 @@ struct InstallmentImportStandaloneTests {
         }
         check(InstallmentImportRecognizer.resolve(candidates: totalOne).groups.isEmpty, "total=1 不应成组", fail)
 
-        let totalHuge = (1...3).map {
+        // 导入识别上限 2026-10-17 放宽到 60（车贷 60 期形态，见 InstallmentImportRecognizer.maxPeriods 注释）；
+        // 原生创建/AI 意图仍 2-36，两口径合并待后端提示词一起决策。
+        let total48 = (1...3).map {
             candidate(row: $0, 2026, $0, 5, signal: .init(index: $0, total: 48))
         }
-        check(InstallmentImportRecognizer.resolve(candidates: totalHuge).groups.isEmpty, "total=48 超上限不应成组", fail)
+        check(InstallmentImportRecognizer.resolve(candidates: total48).groups.count == 1, "total=48 ≤ 导入上限60 应成组", fail)
+
+        let totalHuge = (1...3).map {
+            candidate(row: $0, 2026, $0, 5, signal: .init(index: $0, total: 72))
+        }
+        check(InstallmentImportRecognizer.resolve(candidates: totalHuge).groups.isEmpty, "total=72 超上限不应成组", fail)
     }
 
     // MARK: - 弱信号序列检测

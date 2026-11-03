@@ -46,9 +46,11 @@ struct PromptEditorView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle(promptType.displayName)
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                 Menu {
                     Button {
                         showResetConfirmation = true

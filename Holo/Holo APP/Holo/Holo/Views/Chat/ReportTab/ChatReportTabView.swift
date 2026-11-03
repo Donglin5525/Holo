@@ -52,6 +52,7 @@ struct ChatReportTabView: View {
         .holoContentColumn(maxWidth: 720, paintsBackground: false)
         .frame(maxWidth: .infinity)
         .background(Color.holoBackground.ignoresSafeArea())
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showFavorites) {
             ReportFavoritesView(
                 chatViewModel: viewModel.boundChatViewModel,
@@ -61,6 +62,17 @@ struct ChatReportTabView: View {
             )
             .holoContentColumn()
         }
+        #else
+                .sheet(isPresented: $showFavorites) {
+            ReportFavoritesView(
+                chatViewModel: viewModel.boundChatViewModel,
+                onFavoritesChanged: {
+                    Task { await viewModel.refreshFavoritesCount() }
+                }
+            )
+            .holoContentColumn()
+        }
+        #endif
         .confirmationDialog(
             "删除这份报告？",
             isPresented: Binding(

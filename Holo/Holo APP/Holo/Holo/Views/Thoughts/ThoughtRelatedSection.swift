@@ -97,7 +97,7 @@ struct ThoughtRelatedSection: View {
                     Label("你之前也写过", systemImage: "sparkle.magnifyingglass")
                         .font(.holoLabel)
                         .fontWeight(.semibold)
-                        .foregroundColor(.holoAI)
+                        .foregroundColor(.holoToolAI)
 
                     ForEach(items) { item in
                         relatedRow(item)
@@ -227,7 +227,7 @@ struct ThoughtInsightButton: View {
             Label("帮我想想", systemImage: "lightbulb.max")
                 .font(.holoCaption)
                 .fontWeight(.semibold)
-                .foregroundColor(.holoAI)
+                .foregroundColor(.holoToolAI)
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, 9)
                 .background(Capsule().fill(Color.holoAI.opacity(0.08)))
@@ -271,7 +271,7 @@ struct ThoughtInsightSheet: View {
 
                     case .failed(let reason):
                         VStack(spacing: HoloSpacing.sm) {
-                            Image(systemName: "cloud.slash")
+                            Image(systemName: "icloud.slash")
                                 .font(.system(size: 26))
                                 .foregroundColor(.holoTextPlaceholder)
                             Text(reason)
@@ -341,9 +341,11 @@ struct ThoughtInsightSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(String(localized: "帮我想想"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("完成") { dismiss() }
                 }
             }

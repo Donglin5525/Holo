@@ -81,43 +81,35 @@ struct FinanceProjectListView: View {
                 Text("进行中 · \(summary.activeCount) 个项目")
                     .font(.system(size: 11, weight: .medium))
                     .tracking(1.1)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                 Spacer()
                 if summary.totalBudget > 0 {
                     Text("预算 \(formatAmount(summary.totalBudget))")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
             }
 
             Text(formatAmount(summary.totalExpense))
                 .font(.system(size: 28, weight: .heavy, design: .rounded))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             if summary.totalIncome > 0 {
                 Text("收入 \(formatAmount(summary.totalIncome)) · 净投入 \(formatAmount(summary.totalExpense - summary.totalIncome))")
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if summary.totalBudget > 0 {
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color.holoDivider.opacity(0.5))
-                        Capsule()
-                            .fill(overallProgressColor)
-                            .frame(width: proxy.size.width * overallProgress)
-                    }
-                }
-                .frame(height: 4)
+                HoloProgress(value: Double(overallProgress), color: overallProgressColor, lineWidth: 4)
             }
         }
         .padding(16)
-        .background(Color.holoCardBackground)
+        .background(Color.holoToolSurface)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
@@ -157,7 +149,7 @@ struct FinanceProjectListView: View {
                     }
                 }
             }
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
@@ -180,7 +172,7 @@ struct FinanceProjectListView: View {
                     }
                 }
             }
-            .background(Color.holoCardBackground.opacity(0.72))
+            .background(Color.holoToolSurface.opacity(0.72))
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
@@ -199,11 +191,11 @@ struct FinanceProjectListView: View {
                     HStack {
                         Text("已归档 · \(archivedItems.count) 个")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                         Spacer()
                         Image(systemName: showArchived ? "chevron.down" : "chevron.right")
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
@@ -217,7 +209,7 @@ struct FinanceProjectListView: View {
                     }
                 }
             }
-            .background(Color.holoCardBackground.opacity(0.5))
+            .background(Color.holoToolSurface.opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
@@ -229,7 +221,7 @@ struct FinanceProjectListView: View {
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(.holoTextSecondary)
+            .foregroundColor(.holoToolTextSecondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 16)
             .padding(.top, 12)
@@ -246,8 +238,7 @@ struct FinanceProjectListView: View {
             showDetail = true
         } label: {
             HStack(spacing: 12) {
-                Text(item.project.icon)
-                    .font(.system(size: 20))
+                entityIconGlyph(item.project.icon, size: 20, color: tint)
                     .frame(width: 40, height: 40)
                     .background(tint.opacity(0.14))
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -260,7 +251,7 @@ struct FinanceProjectListView: View {
                     HStack(spacing: 6) {
                         Text(item.project.name)
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                             .lineLimit(1)
                         if status == .completed {
                             statusCapsule("已完结")
@@ -270,19 +261,11 @@ struct FinanceProjectListView: View {
                     }
                     if let range = Self.dateRangeLabel(for: item.project) {
                         Text(range)
-                            .font(.system(size: 11))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                     if let progress = item.budgetProgress {
-                        GeometryReader { proxy in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Color.holoDivider.opacity(0.5))
-                                Capsule()
-                                    .fill(progressColor(ratio: progress))
-                                    .frame(width: proxy.size.width * CGFloat(progress))
-                            }
-                        }
-                        .frame(height: 3)
+                        HoloProgress(value: Double(progress), color: progressColor(ratio: progress), lineWidth: 3)
                     }
                 }
 
@@ -291,17 +274,17 @@ struct FinanceProjectListView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("¥\(AccountCardFormat.amount(item.totalExpense))")
                         .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundColor(item.isOverBudget ? .holoError : .holoTextPrimary)
+                        .foregroundColor(item.isOverBudget ? .holoError : .holoToolText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     if let budget = item.project.budgetDecimal, budget > 0 {
                         Text("预算 \(AccountCardFormat.amount(budget))")
                             .font(.system(size: 9.5))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     } else {
                         Text("已花")
                             .font(.system(size: 9.5))
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
                 }
             }
@@ -321,7 +304,7 @@ struct FinanceProjectListView: View {
     private func statusCapsule(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 9.5, weight: .semibold))
-            .foregroundColor(.holoTextSecondary)
+            .foregroundColor(.holoToolTextSecondary)
             .padding(.horizontal, 7)
             .padding(.vertical, 1.5)
             .background(Capsule().fill(Color.holoGlassBackground))
@@ -333,15 +316,15 @@ struct FinanceProjectListView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "square.stack.3d.up")
                 .font(.system(size: 56, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             Text("还没有项目")
                 .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             Text("把多笔支出归到一件事上，比如旅行、装修")
-                .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary.opacity(0.8))
+                .holoText(.metadata)
+                .foregroundColor(.holoToolTextSecondary)
 
             Button {
                 showAddProject = true

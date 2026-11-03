@@ -120,6 +120,8 @@ struct HabitTrailDay: Equatable, Identifiable {
 struct HabitRowSnapshot: Identifiable, Equatable {
     let id: UUID
     let name: String
+    /// 习惯描述（已清洗；nil = 没写，界面不占位）
+    let habitDescription: String?
     let icon: String
     let isCustomIcon: Bool
     let colorHex: String
@@ -180,19 +182,17 @@ enum HabitActionKind: Equatable {
     case deleteRecord(recordId: UUID)
 }
 
-/// 动作回执：scoped undo 的事实底账（方案 §11.3）
+/// 动作回执：记录动作的事实底账（原 scoped undo 底账，撤销通道 2026-10-17 退役后仍承载触觉/里程碑判定）
 struct HabitActionReceipt: Equatable {
     let operationID: UUID
     let habitId: UUID
     let kind: HabitActionKind
     /// 本次实际写入/修改的记录 ID（打卡可能复用既有行）
     let recordId: UUID?
-    /// 打卡翻转前状态（撤销恢复用）
+    /// 打卡翻转前状态
     let previousCheckInState: Bool?
     /// 打卡翻转后状态
     let newCheckInState: Bool?
-    /// 数值记录内容指纹（撤销前校验记录未被后续修改）
-    let recordFingerprint: String?
     /// 好习惯当天首次有效记录（决定暖光；Motion 中心另有当天去重）
     let isTodayFirstCompletion: Bool
 }
@@ -252,16 +252,21 @@ struct HabitEditPayload {
     var targetCount: HabitFieldUpdate<Int> = .keep
     var targetValue: HabitFieldUpdate<Double> = .keep
     var unit: HabitFieldUpdate<String> = .keep
+    /// 习惯描述三态（keep = 没碰；set = 改成新文案；clear = 删掉描述）
+    var habitDescription: HabitFieldUpdate<String> = .keep
     var isBadHabit: Bool
     var reminderMode: HabitReminderMode
     var reminderTime: (hour: Int, minute: Int)
+    /// 每日结算时间（0:00 = 自然日）
+    var dayEndTime: (hour: Int, minute: Int)
     /// 目标关系三态（nil 原始 = 未关联；keep = 不修改；set = 关联该目标；clear = 解除）
     var goalId: HabitFieldUpdate<UUID?> = .keep
 
     init(name: String, icon: String, color: String, type: HabitType,
          aggregationType: HabitAggregationType = .sum, frequency: HabitFrequency = .daily,
          isBadHabit: Bool = false, reminderMode: HabitReminderMode = .follow,
-         reminderTime: (hour: Int, minute: Int) = (9, 0)) {
+         reminderTime: (hour: Int, minute: Int) = (9, 0),
+         dayEndTime: (hour: Int, minute: Int) = (0, 0)) {
         self.name = name
         self.icon = icon
         self.color = color
@@ -271,6 +276,7 @@ struct HabitEditPayload {
         self.isBadHabit = isBadHabit
         self.reminderMode = reminderMode
         self.reminderTime = reminderTime
+        self.dayEndTime = dayEndTime
     }
 }
 

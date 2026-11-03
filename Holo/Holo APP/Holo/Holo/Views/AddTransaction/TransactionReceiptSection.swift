@@ -78,7 +78,9 @@ extension AddTransactionSheet {
                         showReceiptSourcePicker = false
                     }
                     Task { @MainActor in
+                        #if canImport(UIKit)
                         await PhotoLibraryImageLoader.requestLibraryAccessIfNeeded()
+                        #endif
                         showReceiptPhotoPicker = true
                     }
                 } label: {
@@ -173,7 +175,11 @@ extension AddTransactionSheet {
         guard let data = attachment.thumbnailData else { return }
         let id = attachment.id
         Task.detached(priority: .userInitiated) {
+            #if canImport(UIKit)
             let image = UIImage(data: data)?.preparingForDisplay() ?? UIImage(data: data)
+            #else
+            let image = UIImage(data: data)
+            #endif
             await MainActor.run {
                 if let index = receiptItems.firstIndex(where: { $0.id == id }) {
                     receiptItems[index].thumb = image

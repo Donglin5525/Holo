@@ -29,7 +29,10 @@ struct HoloDefaultThoughtReferenceDataSource: HoloThoughtReferenceDataSource {
                           source.deletedAt == nil,
                           target.deletedAt == nil,
                           source.isArchived == false,
-                          target.isArchived == false else {
+                          target.isArchived == false,
+                          // 引用任一端带「不参与 AI」标签即整条不进 AI 快照（隐私方向从严）
+                          !ThoughtAIAudience.isExcluded(source),
+                          !ThoughtAIAudience.isExcluded(target) else {
                         return nil
                     }
                     return HoloThoughtLinkRecord(

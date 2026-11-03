@@ -2,9 +2,10 @@
 //  HabitTodayView.swift
 //  Holo
 //
-//  今天页（V2 §5）：日期与已记录数量 → 全部/未记录筛选与补录 →
-//  全部习惯连续列表（不按频率分组，东林 2026-10-07 拍板：分组切断拖拽排序）→
-//  底部轻量暂停入口。名称打开「今天的记录」；缝线只读；无顶部七天统计条。
+//  今天页（V2 §5）：日期与已记录数量 → 分节习惯列表（打卡主角/记数字/周月/坏习惯）
+//  → 底部轻量暂停入口。名称打开「今天的记录」；缝线只读；无顶部七天统计条。
+//  长按行卡 = 编辑/暂停/归档/删除直达（2026-10-18 东林拍板，长按换序退役，
+//  排序统一走更多 → 今天列表排序弹层）。
 //
 
 import SwiftUI
@@ -16,6 +17,8 @@ struct HabitTodayView: View {
     let onOpenAddHabit: () -> Void
     /// 打开「今天的记录」弹层
     var onOpenTodayRecords: (UUID) -> Void
+    /// 打开习惯编辑表单（长按菜单「编辑习惯」，容器接 AddHabitSheet 编辑态）
+    var onOpenHabitSettings: (UUID) -> Void
     /// 打开低频名单（更多 → 已暂停与已归档）
     var onOpenLifecycleList: () -> Void
     /// 「去今天记录」定位目标（消费后回调清零）
@@ -29,14 +32,37 @@ struct HabitTodayView: View {
     /// 补录的习惯选择
     @State private var showRetroactiveHabitPicker = false
 
-    // MARK: 拖拽排序（单一连续列表，跨频率自由拖动，落库全局生效）
+    // MARK: 排序（列表内长按换序已退役；顺序由更多 → 今天列表排序弹层落库）
 
-    @StateObject private var reorder = HabitListReorderModel()
+    /// 主角区（每日打卡）显示上限，超出折叠（2026-10-15 东林拍板：放 4 个）
+    private static let heroCardLimit = 4
+    @State private var heroExpanded = false
 
     private var orderedRows: [HabitRowSnapshot] {
-        let base = model.filteredTodayRows
-        let byId = Dictionary(uniqueKeysWithValues: base.map { ($0.id, $0) })
-        return reorder.effectiveIds(.today, baseline: base.map(\.id)).compactMap { byId[$0] }
+        model.todayRows
+    }
+
+    // MARK: 分节（三节分制 + 坏习惯独立节；节内顺序由排序弹层统一落库）
+
+    private enum TodaySection: Int {
+        case checkInHero  // 每日打卡好习惯（主角大卡）
+        case numeric      // 计数/测量好习惯
+        case weekly       // 每周/每月频率
+        case bad          // 坏习惯（想减少的事）
+    }
+
+    private func section(of row: HabitRowSnapshot) -> TodaySection {
+        if row.isBadHabit { return .bad }
+        switch row.frequency {
+        case .daily:
+            return row.kind == .checkIn ? .checkInHero : .numeric
+        case .weekly, .monthly:
+            return .weekly
+        }
+    }
+
+    private var groupedRows: [TodaySection: [HabitRowSnapshot]] {
+        Dictionary(grouping: orderedRows, by: section(of:))
     }
 
     // MARK: Body
@@ -46,16 +72,11 @@ struct HabitTodayView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: HoloSpacing.sm) {
                     headerSection
-                    filterBar
 
-                    if model.filteredTodayRows.isEmpty {
+                    if model.todayRows.isEmpty {
                         emptyState
                     } else {
-                        ForEach(orderedRows) { row in
-                            habitRow(row)
-                            .id(row.id)
-                        }
-
+                        sectionList
                         pausedEntry
                     }
                 }
@@ -64,29 +85,13 @@ struct HabitTodayView: View {
                 .padding(.bottom, 40)
             }
             .onAppear {
-                reorder.scrollProxy = proxy
-                reorder.onCommit = { _, order, draggedId in
-                    model.persistTodayOrder(order, draggedId: draggedId)
-                }
                 consumeFocus(proxy)
             }
             .onChange(of: focusHabitId) { _, _ in consumeFocus(proxy) }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            // 页面内撤销提示（底部导航之上；导航由容器层提供 inset）
-            if let hint = model.undoHint {
-                HabitRecordFeedbackView(hint: hint) {
-                    Task { await model.undoLast() }
-                } onExpire: {
-                    model.expireUndoHint()
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.easeOut(duration: 0.2), value: model.undoHint)
         .sheet(item: $measureInputTarget) { snapshot in
             HabitMeasureInputSheet(snapshot: snapshot) { value, note in
-                Task { await model.record(kind: .addNumeric(value: value), habitId: snapshot.id, note: note) }
+                await model.record(kind: .addNumeric(value: value), habitId: snapshot.id, note: note)
             }
         }
         .sheet(isPresented: $showRetroactiveHabitPicker) {
@@ -110,40 +115,28 @@ struct HabitTodayView: View {
             snapshot: row,
             isSaving: model.coordinator.savingHabitIds.contains(row.id),
             inlineErrorMessage: model.inlineError?.habitId == row.id ? model.inlineError?.message : nil,
-            // 拖拽会话中/刚落定的行不放行按钮（长按后直接抬手不该触发打卡/开详情）
             onOpenTodayRecords: {
-                guard !reorder.isInteracting else { return }
                 onOpenTodayRecords(row.id)
             },
             onToggleCheckIn: {
-                guard !reorder.isInteracting else { return }
                 Task { await model.record(kind: .toggleCheckIn, habitId: row.id) }
             },
             onIncrement: {
-                guard !reorder.isInteracting else { return }
                 Task { await model.record(kind: .increment(amount: 1), habitId: row.id) }
             },
             onDecrement: {
-                guard !reorder.isInteracting else { return }
                 Task { await model.record(kind: .removeLatestNumeric, habitId: row.id) }
             },
             onMeasureRecord: {
-                guard !reorder.isInteracting else { return }
                 measureInputTarget = row
             }
         )
-        .habitReorderable(
-            id: row.id,
-            section: .today,
-            spacing: HoloSpacing.sm,
-            model: reorder
-        )
+        .habitRowLifecycleMenu(row, onEdit: onOpenHabitSettings)
     }
 
-    // MARK: 头部（日期 + 已记录数量）
+    // MARK: 头部（日期 + 已记录数量 + 补录入口；P2 撤筛选，2026-10-15 东林拍板）
 
     private var headerSection: some View {
-        // 固定「今天已记录 X 项」：周/月习惯与减少的习惯不能被当成每日必做清单（V2 §5.1）
         HStack(spacing: 6) {
             Text(dateLineText)
                 .font(.system(size: 13))
@@ -154,31 +147,6 @@ struct HabitTodayView: View {
             Text(String(localized: "今天已记录 \(model.recordedTodayCount) 项"))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(model.recordedTodayCount > 0 ? .holoPrimary : .holoToolTextSecondary)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var dateLineText: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale.current
-        formatter.setLocalizedDateFormatFromTemplate("MMMMd EEEE")
-        return formatter.string(from: model.projectionNow)
-    }
-
-    // MARK: 筛选与补录
-
-    private var filterBar: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 3) {
-                filterChip(String(localized: "全部"), selected: model.todayFilter == .all) {
-                    model.todayFilter = .all
-                }
-                filterChip(String(localized: "未记录"), selected: model.todayFilter == .unrecorded) {
-                    model.todayFilter = .unrecorded
-                }
-            }
-            .padding(2)
-            .background(Capsule().fill(Color.holoToolInset))
 
             Spacer(minLength: 0)
 
@@ -195,21 +163,187 @@ struct HabitTodayView: View {
                 }
                 .padding(.horizontal, 10)
                 .frame(minHeight: 30)
+                .background(Capsule().fill(Color.holoToolInset))
             }
             .buttonStyle(HoloPressStyle())
             .accessibilityIdentifier("habit.today.retroactive")
         }
+        .accessibilityElement(children: .combine)
     }
 
-    private func filterChip(_ text: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(text)
-                .font(.system(size: 12, weight: selected ? .semibold : .regular))
-                .foregroundColor(selected ? .holoPrimary : .holoToolTextSecondary)
-                .padding(.horizontal, 10)
-                .frame(minHeight: 30)
+    private var dateLineText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.setLocalizedDateFormatFromTemplate("MMMMd EEEE")
+        return formatter.string(from: model.projectionNow)
+    }
+
+    // MARK: 分节列表（今天的打卡主角 → 记数字 → 每周每月 → 想减少的事）
+
+    @ViewBuilder
+    private var sectionList: some View {
+        let grouped = groupedRows
+
+        if let heroes = grouped[.checkInHero], !heroes.isEmpty {
+            sectionLabel(String(localized: "今天的打卡 · \(heroes.count) 个"))
+            ForEach(heroExpanded ? heroes : Array(heroes.prefix(Self.heroCardLimit))) { row in
+                heroCard(row)
+                    .id(row.id)
+            }
+            if heroes.count > Self.heroCardLimit, !heroExpanded {
+                expandHeroButton(count: heroes.count)
+            }
+        }
+
+        if let rows = grouped[.numeric], !rows.isEmpty {
+            sectionLabel(String(localized: "记数字 · \(rows.count) 个"))
+            ForEach(rows) { row in
+                habitRow(row)
+                    .id(row.id)
+            }
+        }
+
+        if let rows = grouped[.weekly], !rows.isEmpty {
+            sectionLabel(String(localized: "每周与每月 · \(rows.count) 个"))
+            ForEach(rows) { row in
+                habitRow(row)
+                    .id(row.id)
+            }
+        }
+
+        if let rows = grouped[.bad], !rows.isEmpty {
+            sectionLabel(String(localized: "想减少的事 · \(rows.count) 个"))
+            ForEach(rows) { row in
+                habitRow(row)
+                    .id(row.id)
+            }
+        }
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold))
+            .kerning(0.5)
+            .foregroundColor(.holoToolTextSecondary)
+            .padding(.top, 8)
+    }
+
+    private func expandHeroButton(count: Int) -> some View {
+        Button {
+            withAnimation(HoloAnimation.quick) { heroExpanded = true }
+        } label: {
+            Text(String(localized: "查看全部 \(count) 个"))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.holoPrimary)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: 40)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.holoPrimary.opacity(0.06))
+                )
         }
         .buttonStyle(HoloPressStyle())
+        .accessibilityIdentifier("habit.today.expandHeroes")
+    }
+
+    // MARK: 主角大卡（每日打卡好习惯：连续大数字 + 大打卡钮 + 近一周条）
+
+    private func heroCard(_ row: HabitRowSnapshot) -> some View {
+        let done = row.today.isRecorded
+        let accent = Color(hex: row.colorHex)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: HoloSpacing.md) {
+                // 左侧信息区=行主体（AX 单元素，identifier 与普通行同款；点开概览弹层）
+                Button {
+                    onOpenTodayRecords(row.id)
+                } label: {
+                    HStack(spacing: HoloSpacing.md) {
+                        row.iconImage(size: 20)
+                            .foregroundColor(accent)
+                            .frame(width: 42, height: 42)
+                            .background(RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                .fill(accent.opacity(0.12)))
+                            .accessibilityHidden(true)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            if let streak = row.streak, streak.value > 0 {
+                                Text("\(streak.value) \(streak.unitName)")
+                                    .font(.system(size: 27, weight: .bold, design: .rounded).monospacedDigit())
+                                    .foregroundColor(accent)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.6)
+                            }
+                            Text(heroSubtitle(row))
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoToolTextSecondary.opacity(0.9))
+                                .lineLimit(1)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("habit.rowbody.\(row.id)")
+                .accessibilityLabel(Text(String(localized: "查看\(row.name)今天的记录")))
+                .accessibilityHint(Text(String(localized: "连续打卡中")))
+
+                Button {
+                    Task { await model.record(kind: .toggleCheckIn, habitId: row.id) }
+                } label: {
+                    Group {
+                        if done {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 56, height: 56)
+                                .background(Circle().fill(accent))
+                        } else {
+                            Text(String(localized: "打卡"))
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(accent)
+                                .frame(width: 66, height: 52)
+                                .background(Capsule().fill(accent.opacity(0.14)))
+                        }
+                    }
+                }
+                .buttonStyle(HoloPressStyle())
+                .disabled(model.coordinator.savingHabitIds.contains(row.id))
+                .accessibilityIdentifier("habit.row.\(row.id).record")
+                .accessibilityLabel(Text(done ? String(localized: "取消打卡") : String(localized: "打卡")))
+            }
+            if let description = row.habitDescription {
+                // 描述：伸到打卡钮下方取满宽（375pt 屏 241pt，16 字一行放下）；不截断，字号调大时换行
+                Text(description)
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoToolTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, 42 + HoloSpacing.md)
+                    .allowsHitTesting(false)
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [accent.opacity(0.1), accent.opacity(0.045)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(accent.opacity(0.25), lineWidth: 1)
+        )
+        .habitRowLifecycleMenu(row, onEdit: onOpenHabitSettings)
+    }
+
+    /// 大卡副行：没打卡给习惯名+激励，已打卡给习惯名；周条贴卡底
+    private func heroSubtitle(_ row: HabitRowSnapshot) -> String {
+        if row.today.isRecorded { return row.name }
+        return row.streak?.value ?? 0 > 0
+            ? "\(row.name) · \(String(localized: "别断了今天"))"
+            : row.name
     }
 
     // MARK: 底部暂停轻量入口（有活跃列表且有暂停时）
@@ -238,19 +372,11 @@ struct HabitTodayView: View {
         }
     }
 
-    // MARK: 空状态（分形态，不伪装；筛选空/全暂停/全归档/首次空）
+    // MARK: 空状态（分形态，不伪装；全暂停/全归档/首次空；筛选已撤）
 
     @ViewBuilder
     private var emptyState: some View {
-        if model.todayFilter == .unrecorded {
-            emptyCard(
-                title: String(localized: "当前筛选下没有习惯"),
-                message: String(localized: "未记录是记录筛选，不代表任务未完成。"),
-                buttonTitle: String(localized: "查看全部")
-            ) {
-                model.todayFilter = .all
-            }
-        } else if !model.pausedRows.isEmpty {
+        if !model.pausedRows.isEmpty {
             emptyCard(
                 title: String(localized: "给日常留一点空隙"),
                 message: String(localized: "暂停中的习惯和以前的记录都还在。"),
@@ -300,7 +426,7 @@ struct HabitTodayView: View {
                 Button(action: action) {
                     Text(buttonTitle)
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(.holoToolOnAction)
                         .padding(.horizontal, 18)
                         .frame(minHeight: 44)
                         .background(Capsule().fill(Color.holoToolAction))
@@ -319,12 +445,14 @@ struct HabitTodayView: View {
 struct HabitMeasureInputSheet: View {
 
     let snapshot: HabitRowSnapshot
-    var onSave: (Double, String?) -> Void
+    var onSave: (Double, String?) async -> Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var valueText = ""
     @State private var note = ""
     @State private var errorMessage: String?
+    @State private var isSaving = false
+    @State private var showDismissAlert = false
     @FocusState private var valueFocused: Bool
 
     var body: some View {
@@ -336,7 +464,9 @@ struct HabitMeasureInputSheet: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     TextField(unitPlaceholder, text: $valueText)
+                        #if canImport(UIKit)
                         .keyboardType(.decimalPad)
+                        #endif
                         .font(.system(size: 26, weight: .semibold).monospacedDigit())
                         .foregroundColor(.holoToolText)
                         .focused($valueFocused)
@@ -350,7 +480,7 @@ struct HabitMeasureInputSheet: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.system(size: 12))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
             }
             .padding()
@@ -364,7 +494,7 @@ struct HabitMeasureInputSheet: View {
 
             HStack(spacing: HoloSpacing.md) {
                 Button {
-                    dismiss()
+                    if valueText.isEmpty && note.isEmpty { dismiss() } else { showDismissAlert = true }
                 } label: {
                     Text(String(localized: "取消"))
                         .font(.system(size: 15, weight: .medium))
@@ -375,9 +505,9 @@ struct HabitMeasureInputSheet: View {
                 .buttonStyle(HoloPressStyle())
 
                 Button {
-                    save()
+                    Task { await save() }
                 } label: {
-                    Text(String(localized: "保存"))
+                    Text(isSaving ? String(localized: "保存中…") : String(localized: "保存"))
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.holoToolOnAction)
                         .frame(maxWidth: .infinity, minHeight: 46)
@@ -398,6 +528,9 @@ struct HabitMeasureInputSheet: View {
             }
         }
         .onAppear { valueFocused = true }
+        .disabled(isSaving)
+        .interactiveDismissDisabled(isSaving || !valueText.isEmpty || !note.isEmpty)
+        .unsavedChangesAlert(isPresented: $showDismissAlert) { dismiss() }
     }
 
     private var unitText: String { snapshot.target?.unit ?? "" }
@@ -406,19 +539,22 @@ struct HabitMeasureInputSheet: View {
         snapshot.kind == .measure ? String(localized: "输入今天的数值") : String(localized: "输入数量")
     }
 
-    private func save() {
+    private func save() async {
+        guard !isSaving else { return }
         // Locale 合法小数 + 有限值（方案 §11.4）；测量允许 0
         let formatter = NumberFormatter()
         formatter.locale = Locale.current
         formatter.numberStyle = .decimal
         guard let number = formatter.number(from: valueText.trimmingCharacters(in: .whitespaces)),
-              let value = number as? Double, value.isFinite, value >= 0 else {
+              let value = number as? Double, value.isFinite, snapshot.kind == .count ? value > 0 : value >= 0 else {
             errorMessage = String(localized: "请输入有效的数值（不能为空或负数）")
             valueFocused = true
             return
         }
-        onSave(value, note.isEmpty ? nil : note)
-        dismiss()
+        isSaving = true
+        defer { isSaving = false }
+        if await onSave(value, note.isEmpty ? nil : note) { dismiss() }
+        else { errorMessage = String(localized: "这次没有保存成功，内容还在，请重试") }
     }
 }
 
@@ -461,10 +597,13 @@ private struct RetroactiveHabitPicker: View {
                 .buttonStyle(.plain)
             }
             .navigationTitle(String(localized: "选择要补录的习惯"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
             }
         }
@@ -473,12 +612,7 @@ private struct RetroactiveHabitPicker: View {
 
     /// 实际动作按既有资格区分（V2 §5.2：入口统一叫补录，动作再分补签/补记）
     private func actionText(_ row: HabitRowSnapshot) -> String {
-        if row.kind == .checkIn {
-            return row.frequency == .daily
-                ? String(localized: "补签")
-                : String(localized: "周/月习惯按周期记录，不补每日漏签")
-        }
-        return String(localized: "补记")
+        String(localized: "补录")
     }
 }
 

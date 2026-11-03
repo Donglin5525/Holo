@@ -53,6 +53,15 @@ struct MonthCell: View {
         .aspectRatio(1, contentMode: .fit)
         .background(backgroundColor)
         .overlay(borderOverlay)
+        .overlay(alignment: .topTrailing) {
+            if isToday {
+                Circle().fill(Color.holoPrimary)
+                    .frame(width: 4, height: 4)
+                    .overlay(Circle().strokeBorder(Color.holoCardBackground, lineWidth: 0.5))
+                    .padding(5)
+                    .allowsHitTesting(false)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
         .shadow(color: isSelected ? Color.holoPrimary.opacity(0.13) : Color.clear, radius: 7, x: 0, y: 2)
     }
@@ -69,7 +78,7 @@ struct MonthCell: View {
             } else {
                 Text("\(events.count)")
                     .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(CalendarHeatmap.foreground(forCount: events.count, colorScheme: colorScheme))
                     .frame(width: 18, height: 18)
                     .background(badgeColor)
                     .clipShape(Circle())
@@ -105,6 +114,9 @@ struct MonthCell: View {
     private var dayNumberColor: Color {
         if !isThisMonth { return .holoTextPlaceholder }
         if isFuture { return .holoTextPlaceholder }
+        if cellStyle == .heatmap && !events.isEmpty {
+            return CalendarHeatmap.foreground(forCount: events.count, colorScheme: colorScheme)
+        }
         if isToday { return .holoPrimary }
         return .holoTextPrimary
     }

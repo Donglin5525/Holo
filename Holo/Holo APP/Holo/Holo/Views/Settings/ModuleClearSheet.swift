@@ -41,7 +41,7 @@ struct ModuleClearSheet: View {
 
         var icon: String {
             switch self {
-            case .finance: return "yen.circle"
+            case .finance: return "yensign.circle"
             case .thought: return "lightbulb"
             case .task: return "checklist"
             case .habit: return "flame"
@@ -82,7 +82,7 @@ struct ModuleClearSheet: View {
                     if let errorMessage {
                         Text(errorMessage)
                             .font(.system(size: 13))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
 
                     clearButton
@@ -91,10 +91,13 @@ struct ModuleClearSheet: View {
             }
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("清空\(module.displayName)数据")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭"))
                 }
             }
         }
@@ -118,7 +121,7 @@ struct ModuleClearSheet: View {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: module.icon)
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                 Text("将清空\(module.displayName)模块的全部记录")
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)

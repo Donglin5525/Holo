@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>任务「日期与时间」弹窗重设计原型</title>
+<style>
+  :root {
+    --holo-primary: #F46D38;
+    --holo-primary-14: rgba(244, 109, 56, 0.14);
+    --holo-primary-08: rgba(244, 109, 56, 0.08);
+    --bg: #0E0E10;
+    --card: #1C1C1E;
+    --text-1: #F2F2F7;
+    --text-2: #98989E;
+    --sep: #2C2C2E;
+    --danger: #FF453A;
+    --radius: 14px;
+    --chip-off: rgba(152, 152, 158, 0.16);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #1A1A1C;
+    padding: 36px 28px 56px;
+    color: var(--text-1);
+  }
+
+  /* ===== 页头 ===== */
+  .page-head { max-width: 1480px; margin: 0 auto 30px; }
+  .page-head h1 { font-size: 22px; font-weight: 700; margin-bottom: 10px; }
+  .page-head p { font-size: 13px; color: var(--text-2); line-height: 1.8; max-width: 980px; }
+  .page-head .headline { color: var(--text-1); font-weight: 600; }
+
+  /* ===== 画板排布（inline-block 上古布局，不依赖 flex） ===== */
+  .boards { font-size: 0; max-width: 1480px; margin: 0 auto; padding-bottom: 12px; }
+  .board-wrap {
+    display: inline-block; vertical-align: top;
+    width: 400px; margin: 0 26px 34px 0;
+  }
+  .board-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .board-sub { font-size: 12.5px; color: #ABABB2; line-height: 1.7; margin-bottom: 12px; }
+
+  /* ===== iPhone 弹窗壳 ===== */
+  .sheet {
+    background: var(--bg);
+    border: 1px solid var(--sep);
+    border-radius: 22px 22px 0 0;
+    overflow: hidden;
+    box-shadow: 0 18px 50px rgba(0,0,0,0.5);
+  }
+  .grabber { width: 38px; height: 5px; border-radius: 3px; background: #48484C; margin: 8px auto 2px; }
+  .nav { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px 10px; position: relative; }
+  .nav .cancel { font-size: 15px; color: var(--text-2); }
+  .nav .confirm { font-size: 15px; color: var(--holo-primary); font-weight: 600; }
+  .nav .confirm.dim { color: #5A3A2A; }
+  .nav .title { position: absolute; left: 50%; transform: translateX(-50%); font-size: 15px; font-weight: 600; color: var(--text-1); }
+  .sheet-body { padding: 4px 14px 18px; }
+
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 12px 12px;
+    margin-bottom: 12px;
+  }
+  .card-head { display: flex; align-items: center; gap: 8px; }
+  .card-head .ico { font-size: 15px; width: 20px; text-align: center; }
+  .card-head .name { font-size: 15px; font-weight: 500; }
+  .card-head .value { font-size: 12px; color: var(--text-2); margin-left: 2px; }
+  .badge {
+    min-width: 17px; height: 17px; padding: 0 5px; border-radius: 9px;
+    background: var(--holo-primary); color: #fff;
+    font-size: 11px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .hint { font-size: 11px; color: var(--text-2); line-height: 1.6; margin: 6px 0 0 30px; }
+
+  /* 开关 */
+  .switch { margin-left: auto; width: 46px; height: 27px; border-radius: 14px; background: var(--holo-primary); position: relative; }
+  .switch::after { content: ""; position: absolute; top: 2.5px; right: 2.5px; width: 22px; height: 22px; border-radius: 50%; background: #fff; }
+  .switch.off { background: #39393D; }
+  .switch.off::after { right: auto; left: 2.5px; }
+
+  /* 快速日期 chips */
+  .chips { margin: 10px 0 0 30px; }
+  .chips.no-indent { margin-left: 0; }
+  .chip {
+    display: inline-block; font-size: 12px; padding: 6px 13px; border-radius: 999px;
+    background: var(--holo-primary-14); color: var(--holo-primary); margin: 0 6px 6px 0;
+  }
+  .chip.on { background: var(--holo-primary); color: #fff; font-weight: 600; }
+  .chip.grey { background: var(--chip-off); color: var(--text-1); }
+  .chip.grey.on { background: var(--holo-primary); color: #fff; }
+  .chip.dim { opacity: 0.35; }
+
+  /* 紧凑滚轮 */
+  .wheel {
+    display: flex; margin-top: 10px; border-radius: 10px; overflow: hidden;
+    background: rgba(255,255,255,0.03);
+  }
+  .wheel .col { flex: 1; padding: 7px 0; text-align: center; }
+  .wheel .opt { font-size: 13px; color: var(--text-2); line-height: 1.85; }
+  .wheel .opt.sel { font-size: 16px; font-weight: 600; color: var(--text-1); }
+  .wheel .band {
+    position: relative;
+  }
+  .wheel .band::before, .wheel .band::after {
+    content: ""; position: absolute; left: 10px; right: 10px; height: 1px; background: var(--sep);
+  }
+  .wheel .band::before { top: 24px; }
+  .wheel .band::after { bottom: 24px; }
+
+  /* 提醒条目行 */
+  .rem-row {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--holo-primary-08);
+    border-radius: 10px; padding: 9px 12px; margin-top: 8px;
+  }
+  .rem-row .alarm { font-size: 13px; }
+  .rem-row .time { font-size: 14px; }
+  .rem-row .tag { font-size: 10px; color: var(--text-2); }
+  .rem-row .del { margin-left: auto; color: var(--text-2); font-size: 15px; }
+
+  /* 草稿行（添加/编辑中） */
+  .draft-row {
+    border: 2px solid var(--holo-primary);
+    border-radius: 12px; padding: 8px 12px 10px; margin-top: 8px;
+    background: rgba(244, 109, 56, 0.10);
+  }
+  .draft-head { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  .draft-head .lbl { font-size: 13px; font-weight: 600; color: var(--holo-primary); }
+  .draft-head .cur { font-size: 12px; color: var(--text-2); }
+  .draft-actions { margin-left: auto; display: flex; gap: 14px; }
+  .draft-actions .btn { font-size: 13px; }
+  .draft-actions .btn.no { color: var(--text-2); }
+  .draft-actions .btn.ok { color: var(--holo-primary); font-weight: 700; }
+  .draft-actions .btn.ok.blocked { color: #5A3A2A; }
+  .draft-wheel { display: flex; margin-top: 4px; }
+
+  .add-entry { margin-top: 10px; }
+  .add-entry .btn { font-size: 14px; color: var(--holo-primary); }
+
+  /* 去重提示条 */
+  .dupe-tip {
+    margin-top: 8px; font-size: 11px; color: #FFB340;
+    background: rgba(255,179,64,0.10); border-radius: 8px; padding: 6px 10px;
+  }
+
+  /* 重复卡收起态 */
+  .repeat-row { display: flex; align-items: center; gap: 8px; }
+
+  /* ===== 标注 ===== */
+  .ann {
+    border-left: 3px solid var(--holo-primary);
+    background: rgba(244,109,56,0.07);
+    padding: 10px 12px; border-radius: 0 10px 10px 0;
+    font-size: 12.5px; color: #ABABB2; line-height: 1.8;
+    margin-top: 14px;
+  }
+  .ann b { color: var(--text-1); }
+  .ann .n {
+    display: inline-flex; width: 17px; height: 17px; border-radius: 50%;
+    background: var(--holo-primary); color: #fff; font-size: 11px; font-weight: 600;
+    align-items: center; justify-content: center; margin-right: 6px;
+  }
+
+  /* ===== 画板3 对照表 ===== */
+  .board-wrap.wide { width: 880px; }
+  .vs { width: 100%; border-collapse: collapse; background: var(--card); border-radius: var(--radius); overflow: hidden; }
+  .vs caption { font-size: 13px; color: var(--text-2); padding: 12px 14px 10px; text-align: left; line-height: 1.7; }
+  .vs th { font-size: 13px; text-align: left; padding: 10px 14px; background: #232325; }
+  .vs th.old { color: #FF7A70; }
+  .vs th.new { color: #7DDB8A; }
+  .vs td { font-size: 12px; line-height: 1.7; padding: 10px 14px; border-top: 1px solid var(--sep); vertical-align: top; }
+  .vs td.old { color: #B9B9BE; width: 44%; }
+  .vs td.new { color: var(--text-1); }
+  .vs td .k { font-weight: 700; color: var(--text-1); display: block; margin-bottom: 2px; }
+  .vs td.old .k { color: #FF9C94; }
+  .vs td.new .k { color: #7DDB8A; }
+
+  .flow-note {
+    margin-top: 14px; background: var(--card); border-radius: var(--radius);
+    padding: 12px 14px; font-size: 12px; color: var(--text-2); line-height: 1.9;
+  }
+  .flow-note b { color: var(--text-1); }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>任务「日期与时间」弹窗 · 重设计方案（原型）</h1>
+  <p>
+    <span class="headline">核心思路：把「实时写穿」改成「草稿确认制」，把「点一下就成一条」改成「行级确认制」。</span><br>
+    现状的根本问题：弹窗里所有改动（日期、提醒、重复）都是即时生效的，顶部的「取消」按钮只是关窗、回滚不了任何东西；
+    「添加提醒时刻」点一下就立刻生成一条，展开的滚轮拖到哪写到哪，没有「算了不加了」的出口。
+    新方案统一为：<b>打开弹窗 = 拿一份草稿，改什么都只改草稿；「确定」才整体生效，「取消」整体丢弃；
+    弹窗内部的「添加自定义时刻」同理——不点「添加」就永远不算一条。</b>
+  </p>
+</div>
+
+<div class="boards">
+
+  <!-- ============ 画板1：弹窗全貌（默认态） ============ -->
+  <div class="board-wrap">
+    <div class="board-title">画板一 · 弹窗全貌（静息态）</div>
+    <div class="board-sub">全天任务场景。紧凑滚轮日历替代 320pt 大月历，弹窗一屏放得下，不用再满屏滚动。</div>
+    <div class="sheet">
+      <div class="grabber"></div>
+      <div class="nav">
+        <span class="cancel">取消</span>
+        <span class="title">日期与时间</span>
+        <span class="confirm">确定</span>
+      </div>
+      <div class="sheet-body">
+
+        <div class="card">
+          <div class="card-head">
+            <span class="ico">📅</span><span class="name">日期</span>
+            <span class="switch"></span>
+          </div>
+          <div class="chips">
+            <span class="chip on">今天</span><span class="chip">明天</span><span class="chip">本周末</span><span class="chip">下周</span>
+          </div>
+          <div class="wheel">
+            <div class="col band">
+              <div class="opt">10月22日 周四</div>
+              <div class="opt">10月23日 周五</div>
+              <div class="opt sel">10月24日 周六</div>
+              <div class="opt">10月25日 周日</div>
+              <div class="opt">10月26日 周一</div>
+            </div>
+          </div>
+          <div class="hint">日期列即「全天」；开「具体时间」后滚轮加 时:分 两列，同一张卡不再换区。</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <span class="ico">⏰</span><span class="name">全天</span>
+            <span class="switch"></span>
+          </div>
+          <div class="hint">关掉「全天」→ 滚轮右侧展开 时:分 两列，并把默认时刻垫到「下一个整 15 分钟」。</div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <span class="ico">🔔</span><span class="name">提醒</span>
+            <span class="badge">2</span>
+          </div>
+          <div class="chips">
+            <span class="chip grey on">当天 09:00</span><span class="chip grey">当天 18:00</span><span class="chip grey">前一天 20:00</span>
+          </div>
+          <div class="rem-row">
+            <span class="alarm">⏰</span>
+            <span class="time">10月25日 08:30</span>
+            <span class="tag">自定义</span>
+            <span class="del">✕</span>
+          </div>
+          <div class="add-entry"><span class="btn">⊕ 添加自定义时刻</span></div>
+          <div class="hint">档位 chips = 开关：橙色实心 = 已设，灰 = 未设，一眼分清。已设的档位不再重复出现在下方列表，列表只放自定义时刻。</div>
+        </div>
+
+        <div class="card">
+          <div class="repeat-row">
+            <span class="ico" style="font-size:15px;width:20px;text-align:center;">🔁</span>
+            <span class="name" style="font-size:15px;font-weight:500;">重复</span>
+            <span class="switch off" style="margin-left:auto;"></span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <div class="ann">
+      <span class="n">1</span><b>「确定 / 取消」变成真的。</b>打开弹窗时拷贝一份草稿，改什么都先落草稿；「确定」一次性写回，「取消」= 什么都不发生。误改任何东西都有整层退路。<br>
+      <span class="n">2</span><b>提醒角标数字 = 草稿里的条数</b>，所见即所得，不再出现「角标 4 但有两条一模一样」。
+    </div>
+  </div>
+
+  <!-- ============ 画板2：提醒区三态 ============ -->
+  <div class="board-wrap">
+    <div class="board-title">画板二 · 提醒区三态特写（交互核心）</div>
+    <div class="board-sub">从上到下：静息态 → 添加自定义时刻（草稿行）→ 编辑已有条目。</div>
+    <div class="card" style="padding:14px;">
+
+      <div class="board-sub" style="margin-bottom:6px;">① 静息态：点「添加自定义时刻」之前</div>
+      <div class="chips no-indent">
+        <span class="chip grey on">当天 09:00</span><span class="chip grey">当天 18:00</span><span class="chip grey">前一天 20:00</span>
+      </div>
+      <div class="rem-row"><span class="alarm">⏰</span><span class="time">10月25日 08:30</span><span class="tag">自定义</span><span class="del">✕</span></div>
+      <div class="add-entry"><span class="btn">⊕ 添加自定义时刻</span></div>
+
+      <div style="height:1px;background:var(--sep);margin:16px 0 10px;"></div>
+      <div class="board-sub" style="margin-bottom:6px;">② 添加中：草稿行带「取消 / 添加」，滚轮调好才算数</div>
+      <div class="chips no-indent" style="margin-bottom:2px;">
+        <span class="chip grey on">当天 09:00</span><span class="chip grey">当天 18:00</span><span class="chip grey">前一天 20:00</span>
+      </div>
+      <div class="draft-row">
+        <div class="draft-head">
+          <span class="lbl">新提醒</span><span class="cur">10月25日 08:30</span>
+          <div class="draft-actions"><span class="btn no">取消</span><span class="btn ok">添加</span></div>
+        </div>
+        <div class="wheel draft-wheel">
+          <div class="col band">
+            <div class="opt">10月24日 周六</div>
+            <div class="opt sel">10月25日 周日</div>
+            <div class="opt">10月26日 周一</div>
+          </div>
+          <div class="col band">
+            <div class="opt">07</div><div class="opt sel">08</div><div class="opt">09</div>
+          </div>
+          <div class="col band">
+            <div class="opt">15</div><div class="opt sel">30</div><div class="opt">45</div>
+          </div>
+        </div>
+      </div>
+      <div class="add-entry" style="opacity:0.35;"><span class="btn">⊕ 添加自定义时刻</span></div>
+      <div class="dupe-tip">若滚到已存在的时刻（如 10月24日 09:00）：「添加」置灰并提示「该时刻已有提醒」——同一时刻永远只有一条。</div>
+
+      <div style="height:1px;background:var(--sep);margin:16px 0 10px;"></div>
+      <div class="board-sub" style="margin-bottom:6px;">③ 编辑中：点已有条目进入，取消可原样恢复</div>
+      <div class="draft-row">
+        <div class="draft-head">
+          <span class="lbl">修改提醒</span><span class="cur">原 10月25日 08:30</span>
+          <div class="draft-actions"><span class="btn no">取消</span><span class="btn ok">完成</span></div>
+        </div>
+        <div class="wheel draft-wheel">
+          <div class="col band">
+            <div class="opt">10月24日 周六</div>
+            <div class="opt sel">10月25日 周日</div>
+            <div class="opt">10月26日 周一</div>
+          </div>
+          <div class="col band">
+            <div class="opt">07</div><div class="opt sel">08</div><div class="opt">09</div>
+          </div>
+          <div class="col band">
+            <div class="opt">15</div><div class="opt sel">30</div><div class="opt">45</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <div class="ann">
+      <span class="n">3</span><b>草稿行不是条目。</b>不点「添加」，它永远不进列表、不占角标数；点「取消」或直接关弹窗，什么都不留下。<br>
+      <span class="n">4</span><b>滚轮不再实时写穿。</b>现状是拖到哪、已存提醒就被改成哪（改错了没有退路）；新方案确认前一切可逆。<br>
+      <span class="n">5</span><b>滚轮行不压缩、不叠字。</b>展开时独立成行、原尺寸三列，滚轮手势与页面滚动不再打架。
+    </div>
+  </div>
+
+  <!-- ============ 画板3：新旧对照 ============ -->
+  <div class="board-wrap wide">
+    <div class="board-title">画板三 · 现状问题 → 新方案根治对照</div>
+    <div class="board-sub">截图实锤的五件事，逐条对应。</div>
+    <table class="vs">
+      <caption>带具体时间的任务（非全天）：提醒档位自动换成「截止时间 / 5 / 15 / 30 / 60 分钟前 / 1 天前」，多选即开关，同一套草稿与去重规则，交互不再另学一套。</caption>
+      <tr><th class="old">现状（截图里的实锤）</th><th class="new">新方案</th></tr>
+      <tr>
+        <td class="old"><span class="k">① 取消按钮是假的</span>所有改动实时写穿到任务，「取消」只关窗不回滚；「添加自定义时间没有取消」的根源。</td>
+        <td class="new"><span class="k">草稿确认制</span>打开弹窗拷草稿，「确定」整体生效、「取消」整体丢弃；任何误操作都有退路。</td>
+      </tr>
+      <tr>
+        <td class="old"><span class="k">② 添加即成条</span>点「添加提醒时刻」立刻生成一条并展开滚轮，滚轮实时改、无完成/取消，反悔只能找到那条再点 ✕。</td>
+        <td class="new"><span class="k">行级确认制</span>「⊕ 添加自定义时刻」展开草稿行（滚轮 + 取消/添加），点「添加」才成条；编辑已有条目同样带取消/完成。</td>
+      </tr>
+      <tr>
+        <td class="old"><span class="k">③ 同一时刻两条并存</span>截图「10月24日 09:00」出现两次：档位加过一条、滚轮又造出一条（系统按「身份证」判重，不按时刻）。</td>
+        <td class="new"><span class="k">按时刻统一去重</span>档位、自定义、滚轮改动走同一入口：时刻已存在则不重复建；推送到点只响一次。</td>
+      </tr>
+      <tr>
+        <td class="old"><span class="k">④ 滚轮压扁叠行</span>内嵌滚轮被压到 120 高度、夹在列表行之间，截图里滚轮与条目两层叠印。</td>
+        <td class="new"><span class="k">滚轮独立成行</span>草稿行内三列滚轮用原生高度，不压缩不重叠；确认/取消按钮就在滚轮右上。</td>
+      </tr>
+      <tr>
+        <td class="old"><span class="k">⑤ 一个弹窗装四层概念</span>大月历(半屏高) + 全天 + 提醒(两套模式) + 重复(五类型×月模式×结束条件)，560 高度装不下只能满屏滚动，顶部日历还被标题栏盖住。</td>
+        <td class="new"><span class="k">紧凑单屏</span>大月历换紧凑滚轮列，弹窗一屏放下；重复保持收起态（点开再展开，本方案不动它的内部逻辑）。</td>
+      </tr>
+    </table>
+    <div class="flow-note">
+      <b>改动范围说明：</b>任务详情页与新建任务页共用同一个「日期与时间」弹窗，改一处两端同时受益；AI 建任务确认卡的提醒弹层共用同一提醒编辑组件，同样受益。<b>不动的：</b>提醒的数据结构、推送调度、重复规则内部逻辑、AI 确认卡的布局。<b>需要拍板的取舍：</b>大月历换成紧凑滚轮是本方案唯一「减法」——如果你习惯大月历点选，可以保留大月历（弹窗维持满屏滚动），其余四条根治项不受影响。
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -7,7 +7,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
+import Foundation
 
 // MARK: - Layout Constants
 
@@ -150,7 +153,11 @@ struct SwipeActionView<Content: View>: View {
                 }
                 .frame(width: SwipeConstants.actionWidth)
                 .frame(maxHeight: .infinity)
+                #if canImport(UIKit)
                 .background(Color(.systemGray6))
+                #else
+                .background(Color(nsColor: .controlBackgroundColor))
+                #endif
             }
             // 露出态标识随视觉露出翻转：闭合态幽灵按钮（opacity 0）在 iOS 26 的
             // XCUITest automation 树里仍存在且 isHittable 不可靠，手势门禁以
@@ -195,6 +202,7 @@ struct SwipeActionView<Content: View>: View {
 /// 透明 UIView overlay，仅用于定位触摸区域
 /// hitTest 返回 nil → 所有触摸穿透到 SwiftUI 内容
 /// Pan 手势挂在 window 上，通过 shouldReceiveTouch 限定在 overlay 区域
+#if canImport(UIKit)
 private struct SwipeGestureOverlay: UIViewRepresentable {
 
     @Binding var offset: CGFloat
@@ -429,3 +437,42 @@ private class SwipeOverlayView: UIView {
         return nil
     }
 }
+#else
+/// macOS 等价实现：无 window 手势体系，直接用 SwiftUI DragGesture（鼠标拖拽场景无 ScrollView 抢手势问题）
+private struct SwipeGestureOverlay: View {
+    @Binding var offset: CGFloat
+    let isRevealed: Binding<Bool>
+    let isEnabled: Bool
+    let snapOffset: CGFloat
+
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .gesture(isEnabled ? dragGesture : nil)
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 8)
+            .onChanged { value in
+                let h = value.translation.width
+                if h < 0 {
+                    let maxOffset = snapOffset + 20
+                    let raw = max(-maxOffset, h)
+                    offset = isRevealed.wrappedValue ? raw - snapOffset : raw
+                } else if isRevealed.wrappedValue {
+                    offset = -snapOffset + min(h, snapOffset)
+                }
+            }
+            .onEnded { value in
+                let predicted = value.predictedEndTranslation.width
+                let shouldOpen = predicted < -snapOffset / 2
+                withAnimation(snapAnimation) {
+                    if shouldOpen != isRevealed.wrappedValue {
+                        isRevealed.wrappedValue = shouldOpen
+                    }
+                    offset = shouldOpen ? -snapOffset : 0
+                }
+            }
+    }
+}
+#endif

@@ -7,7 +7,7 @@ import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
   system_prompt: 5,                 // v5: 放开竖线表格（对比场景、≤4 列、单元格短语），其余 Markdown 符号仍禁止
-  intent_recognition: 32,           // v32: 新增 today_relief 只读意图（今天减负：当日安排的重新选择/减负）；v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图（个人情境规划）
+  intent_recognition: 35,           // v35: accountCandidate 遵从强化（东林真机实报「停车费20，微信支付」两测一中——qwen 对新槽位遵从弱，规则句升硬性列举「微信支付/支付宝/花呗/刷卡/现金付」全部算点名账户+补「XX支付」结尾式示例句）；v34: 记账账户识别——record_expense/record_income 增 accountCandidate 槽位（用户原话点名支付/收款账户时照抄原词，未点名不填，禁止凭商户猜账户），客户端按账户名匹配落账；v33: 长段陈述"提醒我…"一律 create_task（title 提炼+description 备注，举例话术不算嵌套任务）+ 时段词未来下限（无钟点时 dueDate/reminderDate 不早于当前+1h）
   memory_insight_generation: 11,    // v11: 健康域入回顾（health 卡片类型+健康语义口径：分期缺失不当 0 解读/就寝时刻分钟编码/环比差额表达/上期对比字段）；v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
   replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
   analysis_prompt: 6,               // v6: 阅读契约放开竖线表格（≤4 列）；v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
@@ -24,16 +24,19 @@ const PROMPT_VERSIONS = {
   thought_topic_name_v1: 2,       // v1: 候选簇≤8片段→一个主题名（不复制代表片段）
   thought_topic_summary_v1: 1,    // v1: 主题≤12片段→摘要+≤4逐字反复观点
   thought_semantic_relate_v1: 2,   // v1: 目标想法×候选主题离散判断（same_thread/related/none/insufficient + 逐字证据，无置信度）
+  thought_semantic_relate_v2: 1,   // v1: schema 3 双通道（2026-10-12 主题双通道方案）：category/thread 分别独立判定，新增 fits_category（类别定义符合，不要求共同对象）
+  thought_category_brief_v1: 1,    // v1: 归档类别理解器（2026-10-12 主题双通道·零打扰）：成员证据→类别定义/排除边界；排除边界只随用户移出新增
   thought_insight_v1: 1,           // v1: 单条笔记→观察(逐字)/推测/下一步（2026-09-24 方案 §5.1 帮我想想）
   thought_organize_a: 1,
   thought_organize_r: 1,
   thought_organize_b: 1,
-  agent_loop: 25,                  // v25: 目录驱动字段原则（能力标记{可筛·可组}随快照目录上云，问句概念先对字段圈定再聚合、取值以行数据为准不猜原词、报错按字段清单自愈——此后新字段只改 iOS 目录声明即可被模型自动使用，零提示词教学）；v24: 报告可读性数字纪律（对比必须写差额/幅度不许并排原始值、单句≤1数字/段≤3、字段间数字分工不重复、量纲生活化、禁引用不存在的图表）；v23: 财务深析五层深挖法（备注/付款时刻/结构/生活状态交叉/串联点破）+管家记忆+claimTitle 点破式标题+深析展开豁免，财务维度菜单自 v21 迁入并修正 linearTrend 空头支票；v22: 任务优先与环境中性（先回答问题/工具目录为能力真相/数字与时间纪律/交付核验对齐）+ 条件化 v21 无条件命令；v21: 分析方法论（维度菜单+个人基线+推算口径）+ keyInsight/interpretation 输出字段
-  memory_domain_extraction: 2,
+  agent_loop: 28,                  // v28: 全景体检模式（cross_domain_checkup 台账注入时逐域覆盖+同变候选核验+心理解读禁令+环比同比口径）与 percentageChange 百分数语义；v27: 报告结构化（reportStructure章节/节导语/图表表态chartHint/结论条目/口径注——章节由模型写、段落复用claim、图只表态数据系统算，图文分工版式v3配套）；v26: 融合版判断法（S1消融定稿：答案先行/最大的一件事/候选解释+改判条件/已确认风险必处理/台账优先+禁假设合同条款/输出禁自我对话；替换v21维度菜单与v23五层深挖——点破式标题与时段情绪侧写退役）；v25: 目录驱动字段原则（能力标记{可筛·可组}随快照目录上云，问句概念先对字段圈定再聚合、取值以行数据为准不猜原词、报错按字段清单自愈——此后新字段只改 iOS 目录声明即可被模型自动使用，零提示词教学）；v24: 报告可读性数字纪律（对比必须写差额/幅度不许并排原始值、单句≤1数字/段≤3、字段间数字分工不重复、量纲生活化、禁引用不存在的图表）；v23: 财务深析五层深挖法（备注/付款时刻/结构/生活状态交叉/串联点破）+管家记忆+claimTitle 点破式标题+深析展开豁免，财务维度菜单自 v21 迁入并修正 linearTrend 空头支票；v22: 任务优先与环境中性（先回答问题/工具目录为能力真相/数字与时间纪律/交付核验对齐）+ 条件化 v21 无条件命令；v21: 分析方法论（维度菜单+个人基线+推算口径）+ keyInsight/interpretation 输出字段
+  memory_domain_extraction: 3,      // v3: displaySummary 人话纪律（禁 JSON 字段名/英文键名/考据式括号注进用户摘要；2026-10-09 东林反馈记忆正文出现 isCompleted 等技术记号）
   memory_cross_domain_fusion: 2,
   weekly_plan_generation: 1,       // v1: 优先结果+行动卡结构化生成（Life Agent 第一刀）
   // 通用个人情境（2026-09-06 完整实施方案 §11）：四 purpose 首版
-  personal_context_extraction: 2,
+  // v3: statement 人话纪律（禁 JSON 字段名/英文键名/考据式括号注；businessState 键名原值不得进 statement；2026-10-09 东林反馈记忆正文出现 isCompleted 为 false 等调试文本）
+  personal_context_extraction: 3,
   personal_context_verification: 1,
   personal_context_request: 1,
   // v2（2026-09-21 Matter 战略收敛 §6.1）：生成收缩——资格线（跨天/多步/影响下一步，否则纯建议不拆步）、
@@ -58,11 +61,23 @@ const PROMPT_VERSIONS = {
   // 即使执行时间靠后也输出 addTask 提案（title 带时间限定），决定权交用户确认卡。
   matter_reconciliation: 3,
   // 目标共创（2026-09-17 完整开发计划 §2.2）：分阶段会话契约首版
-  goal_workshop: 1,
+  goal_workshop: 2, // v2: 目标闭环扩展（resultSource/fundSchedule/budget/constraints/reviewCadenceDays + 授权候选引用）；v1: 分阶段会话契约首版
   // 任务分步推进提案（2026-09-25 实施规格 §6.4）：proposal/clarification/cannotHelp 契约首版
   matter_execution_plan: 2,
   // 「今天减负」当日安排整理（2026-10-03 实施方案 §11）：proposal/clarification/cannotHelp 契约首版
   today_relief_plan: 1,
+  // HoloAI「一个发现」两阶段（2026-10-23 实施包 05）。
+  // 改 prompt 前先读 05 规格 §2/§3 的正反例——结构性禁令（不许推断因果/把他人话当本人）是验收项。
+  // v2（2026-10-23 真实模型试评修复）：输出纪律补字段形状约定——counterSearch 必含
+  // domains/anchorRefs/keywords（v1 漏 anchorRefs）、subjectKey 仅 ASCII（v1 模型惯用中文被
+  // schema 拒）、ID 数组为字符串数组（v1 出现对象数组）；核验侧加「思考从简保 JSON 完整」
+  // 配合路由 maxTokens 4096/effort=none 修 reasoning 吃满预算截断。试评证据：
+  // docs/_common/plans/2026-10-23-holo-ai-discovery-implementation/试评记录/。
+  // v3（2026-10-30 qwen 切换适配）：qwen3.7-flash 对括号内数量备注遵从弱——observation
+  // 主题句 citations 给空数组被 schema 拒（真机 10:55 65s 502 + 试评 round-8 citations_count
+  // 实锤；deepseek 无此问题、verify 侧 qwen 合格不动）。升为独立硬性规则句+空数组拒绝警告。
+  discovery_candidate_v1: 6,
+  discovery_verify_v1: 3,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],
@@ -73,11 +88,10 @@ const PROMPT_CONTRACT_APPENDICES = {
     defaultPrompts._agent_loop_v14_contract,
     defaultPrompts._agent_loop_v15_contract,
     defaultPrompts._agent_loop_v16_contract,
-    defaultPrompts._agent_loop_v21_contract,
     defaultPrompts._agent_loop_v22_contract,
-    defaultPrompts._agent_loop_v23_contract,
     defaultPrompts._agent_loop_v24_contract,
     defaultPrompts._agent_loop_v25_contract,
+    defaultPrompts._agent_loop_v27_contract,
   ],
   memory_insight_generation: [defaultPrompts._memory_semantic_v2_contract],
   memory_domain_extraction: [defaultPrompts._memory_domain_quality_v2_contract],

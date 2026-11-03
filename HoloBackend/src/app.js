@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { createErrorResponse, GatewayError, publicMessage } from "./errors.js";
 import { createInMemoryUsageStore } from "./usage/inMemoryUsageStore.js";
 import { createSqliteUsageStore } from "./usage/sqliteUsageStore.js";
+import { createBackgroundCostGuard, backgroundSubject, BACKGROUND_PURPOSES, backgroundPathPurpose } from "./usage/backgroundCostGuard.js";
 import { createMockChatProvider } from "./providers/mockChatProvider.js";
 import { createOpenAICompatibleProvider } from "./providers/openAICompatibleProvider.js";
 import { createMockAsrProvider } from "./providers/mockAsrProvider.js";
@@ -39,18 +40,25 @@ import { getQuotaRule, QUOTA_TYPES } from "./usage/quotaPolicy.js";
 import { createContentReportStore } from "./reports/contentReportStore.js";
 import { createFeedbackStore } from "./feedback/feedbackStore.js";
 import { createAgentTelemetryStore } from "./agent/agentTelemetryStore.js";
+import { createProductEventStore } from "./product/productEventStore.js";
 import { createCloudAnalysisTaskStore } from "./agent/cloudAnalysisTaskStore.js";
 import { createCloudAnalysisExecutor } from "./agent/cloudAnalysisExecutor.js";
+import { normalizeGoalScope, MAX_GOAL_REVIEW_BYTES } from "./agent/goalScopeContract.js";
 import { createDeviceTokenStore } from "./push/deviceTokenStore.js";
 import { createApnsSender } from "./push/apnsSender.js";
 import { createContentModerationService } from "./moderation/contentModerationService.js";
 import { createThoughtOrganizeBudgetStore } from "./thoughts/thoughtOrganizeBudgetStore.js";
+import { createDiscoveryControlStore } from "./discovery/discoveryControlStore.js";
+import { createDiscoveryRunStore } from "./discovery/discoveryRunStore.js";
+import { registerDiscoveryRoutes, DISCOVERY_PURPOSES } from "./discovery/discoveryController.js";
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
 import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateService.js";
+import { createThoughtCategoryBriefService } from "./thoughts/categoryBriefService.js";
 import { createThoughtTopicInsightService } from "./thoughts/topicInsightService.js";
 import { createThoughtInsightService } from "./thoughts/thoughtInsightService.js";
 import { TOPIC_NAME_LIMITS, TOPIC_SUMMARY_LIMITS } from "./thoughts/topicInsightSchema.js";
 import { RELATE_LIMITS } from "./thoughts/semanticRelateSchema.js";
+import { BRIEF_LIMITS } from "./thoughts/categoryBriefSchema.js";
 import { ORGANIZE_LIMITS } from "./thoughts/organizeSchema.js";
 import { extractJsonContent, normalizeUnderstanding } from "./vision/understandingContract.js";
 
@@ -185,6 +193,8 @@ export function createApp(overrides = {}) {
     config.feedbackStore ?? createFeedbackStore(database.db, { imagesDir: config.feedbackImagesDir });
   const agentTelemetryStore =
     config.agentTelemetryStore ?? createAgentTelemetryStore(database.db);
+  const productEventStore =
+    config.productEventStore ?? createProductEventStore(database.db);
   // 云端异步分析（二期 M1）：密钥未配置时优雅禁用（端点统一 503），配置后自动启用——
   // M1 部署不强制先配 ECS 环境变量，零风险上线；生产密钥纪律与 step 缓存一致。
   let cloudAnalysisTaskStore = config.cloudAnalysisTaskStore ?? null;
@@ -204,7 +214,8 @@ export function createApp(overrides = {}) {
       config.agentStepIdempotencyCleanupIntervalMs,
     );
   }
-  const providers = createProviders(config);
+  const backgroundCostGuard = createBackgroundCostGuard(database.db, config.backgroundCost);
+  const providers = backgroundCostGuard.wrapProviders(createProviders(config));
   const asrProvider = createAsrProvider(config);
   // 云端执行器（M2a）：store 启用且 agent_loop route 可用时创建；
   // 执行采用进程内 fire-and-forget + 启动扫描 queued 孤儿（单实例，无队列基建）。
@@ -270,6 +281,11 @@ export function createApp(overrides = {}) {
         entitlementResolver,
         // 云端任务 AI 调用补记账：usage 落 ai_call_logs 独立列，成本核算不再有云端盲区
         aiCallLogger: config.aiCallLogs?.enabled ? adminLogStore : null,
+        // 预算端到端修复（报告理解方案）：replay_digest worker 显式预算主体
+        backgroundBudget: { guard: backgroundCostGuard, entitlementStore },
+        // 个人档案通道总闸与体积上限（snapshot.profileBrief 注入深度分析/回放/规划）
+        profileChannelEnabled: config.profileChannel?.enabled,
+        profileBriefMaxBytes: config.limits?.profileBriefMaxBytes,
       });
     } catch (error) {
       console.error("[holo-backend] 云端分析执行器创建失败（任务将停留在 queued）:", error?.message ?? error);
@@ -308,6 +324,13 @@ export function createApp(overrides = {}) {
         challengeTtlSeconds: config.auth.deviceSessionChallengeTtlSeconds,
       })
       : null);
+  // 回写注册（2026-10-30 审计 D1）：getDeviceId 等设备路由按 config 单点取用。
+  // 此前服务实例只存在于局部变量、config 侧永远读不到——强制开关
+  // （enforceDeviceSession）一旦打开，所有设备路由都会误报 503 AUTH_UNAVAILABLE，
+  // 而签发端点用的是局部变量照常工作。loadConfig 每次 createApp 新建对象，无串扰。
+  if (config.deviceSessionService == null && deviceSessionService != null) {
+    config.deviceSessionService = deviceSessionService;
+  }
   const contentModeration =
     config.contentModeration ?? createContentModerationService(config.moderation);
 
@@ -333,6 +356,17 @@ export function createApp(overrides = {}) {
     contentModeration,
   });
 
+  // 归档类别理解器（2026-10-12 主题双通道·零打扰）：同预算记账类；
+  // 开关/隐私/限流复用 thoughtSemanticRelate 配置（同一隐私家族同一套闸门）
+  const thoughtCategoryBriefService = createThoughtCategoryBriefService({
+    config,
+    providers,
+    adminLogStore,
+    budgetStore: thoughtOrganizeBudgetStore,
+    contentModeration,
+    backgroundCostGuard,
+  });
+
   // 主题命名/摘要 V3（方案 §4.4/§4.5）：同预算记账类，两端点共享独立预算池
   // 想法按需洞察（2026-09-24 方案 §5.1）：同预算记账类，独立预算池
   const thoughtInsightService = createThoughtInsightService({
@@ -351,11 +385,57 @@ export function createApp(overrides = {}) {
     contentModeration,
   });
 
+  // HoloAI「一个发现」（2026-10-23 实施包 G3/D06+D07）：控制/运行存储。
+  // 总开关 config.discovery.enabled（HOLO_DISCOVERY_ENABLED，默认 false）——
+  // 未启用时 capabilities 仍返回 enabled=false 供客户端解释，其余端点统一 503。
+  // 路由注册在下方后台成本中间件之后（Hono 只对先注册的中间件生效——
+  // 与 thought 路由同模式：阶段请求先经 checkIngress 建域，再进控制器）。
+  const discoveryControlStore = config.discoveryControlStore
+    ?? createDiscoveryControlStore(database.db);
+  const discoveryRunStore = config.discoveryRunStore ?? createDiscoveryRunStore(database.db);
+
   // 请求耗时日志中间件
   const requestLogger = createRequestLogger(database.db);
   app.use('*', requestLogger.middleware);
   requestLogger.startFlushTimer();
   requestLogger.cleanupOld();
+
+  // 后台调用统一建立可信预算主体，入口先挡旧版/超长内容，再在模型调用处原子预留。
+  app.use("/v1/*", async (context, next) => {
+    if (context.req.method !== "POST") return next();
+    // backgroundPathPurpose（2026-10-23）：在静态 BACKGROUND_PATHS 之外前缀匹配
+    // 「一个发现」两阶段路径（/v1/discovery/runs/:id/candidates|verify，含动态 runID 段）
+    const pathPurpose = backgroundPathPurpose(context.req.path);
+    if (!pathPurpose && context.req.path !== "/v1/ai/chat/completions") return next();
+    try {
+      const body = await readJson(context);
+      const purpose = pathPurpose ?? body?.purpose;
+      if (!BACKGROUND_PURPOSES.has(purpose)) return next();
+      const deviceId = await getDeviceId(context, config);
+      const subject = backgroundSubject(deviceId, entitlementStore.get(deviceId));
+      backgroundCostGuard.checkIngress({ subject, userAgent: context.req.header("user-agent"), body });
+      return await backgroundCostGuard.run(subject, next);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // 「一个发现」路由组：注册在后台成本中间件之后（Hono 中间件只作用于先注册的
+  // 中间件之后匹配的路由），阶段请求先经 checkIngress（字节数/最低版本/预算试探）
+  // 并建立 AsyncLocalStorage 预算主体域，再进入控制器。
+  registerDiscoveryRoutes(app, {
+    config,
+    providers,
+    getDeviceId,
+    entitlementStore,
+    usageStore,
+    adminLogStore,
+    getSessionId,
+    controlStore: discoveryControlStore,
+    runStore: discoveryRunStore,
+    backgroundCostGuard,
+    captureAiCallLogs,
+  });
 
   const runAdminTestChat = createAdminTestChatRunner({
     config,
@@ -671,6 +751,26 @@ export function createApp(overrides = {}) {
       const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
       const verified = await appleReceiptVerifier.verify(request);
+      // 归属防复用（2026-10-31 审计 D2）：同一笔购买绑定设备数有上限。
+      // 本机已绑同一笔购买的重放（换设备/续期 re-sync）不受影响。
+      if (verified.tier === "plus" && verified.originalTransactionId) {
+        const current = entitlementStore.get(deviceId);
+        const samePurchase = current.originalTransactionId === verified.originalTransactionId;
+        if (!samePurchase) {
+          const others = entitlementStore.countOtherActiveDevicesByOriginalTransaction(
+            verified.originalTransactionId,
+            deviceId,
+          );
+          if (others >= config.subscription.deviceLimit) {
+            throw new GatewayError(
+              "SUBSCRIPTION_DEVICE_LIMIT",
+              "This subscription is already linked to the maximum number of devices",
+              409,
+              { deviceLimit: config.subscription.deviceLimit },
+            );
+          }
+        }
+      }
       entitlementStore.upsertVerified(deviceId, verified);
       context.header("Cache-Control", "no-store");
       return context.json(subscriptionStatusFor(deviceId));
@@ -722,10 +822,16 @@ export function createApp(overrides = {}) {
     let quotaReservation = null;
     try {
       const request = await readJson(context);
-      validateChatRequest(request);
+      validateChatRequest(request, { profileBriefMaxBytes: config.limits?.profileBriefMaxBytes });
       rejectClientRouting(request);
 
       const purpose = request.purpose ?? "chat";
+      // 防旁路（2026-10-23 实施包 03 §3.1）：「一个发现」两个 purpose 只能由专用
+      // 控制器调用（run/授权/预算/租约全链路检查），通用 chat 即使注册了路由也直接拒绝，
+      // 避免发现变成无控制的低成本通道。
+      if (purpose === DISCOVERY_PURPOSES.candidates || purpose === DISCOVERY_PURPOSES.verify) {
+        throw new GatewayError("DISCOVERY_PURPOSE_BYPASS_BLOCKED", "Discovery purposes require the dedicated endpoints", 400);
+      }
       const route = config.routes[purpose];
       if (!route) {
         throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
@@ -765,6 +871,7 @@ export function createApp(overrides = {}) {
             const quotaLogId = adminLogStore.startAiCall({
               deviceId,
               purpose,
+              sessionId: getSessionId(context),
               provider: route.provider,
               model: route.model,
               stream: request.stream === true,
@@ -787,6 +894,10 @@ export function createApp(overrides = {}) {
 
       const serverPrompt = injectServerPrompt(purpose, request.messages, {
         language: context.req.header("x-holo-language"),
+        // 个人档案通道：用户亲写档案原文随请求上行，服务端统一注入（详见 serverPromptPolicy）
+        profileBrief: request.profileBrief,
+        profileChannelEnabled: config.profileChannel?.enabled,
+        profileBriefMaxBytes: config.limits?.profileBriefMaxBytes,
       });
       const isAgentLoop = purpose === "agent_loop";
       const upstreamRequest = {
@@ -829,6 +940,7 @@ export function createApp(overrides = {}) {
         ? adminLogStore.startAiCall({
             deviceId,
             purpose,
+            sessionId: getSessionId(context),
             provider: route.provider,
             model: route.model,
             promptType: serverPrompt.promptType,
@@ -1025,7 +1137,7 @@ export function createApp(overrides = {}) {
   });
 
   // P2（方案 §5.2）：想法语义候选召回的 embedding 批量端点。
-  // 鉴权/限流与 chat 端点同范式；独立 purpose 限流桶（默认 20/分、120/天，.env 可调）。
+  // 鉴权/限流与 chat 端点同范式；独立 purpose 限流桶（默认 20/分，不设日次数上限，.env 可调）。
   // 不做 moderation：正文在 thought_organization 分类时已审核，同一内容不重复消耗审核调用。
   // 响应不含正文，服务端日志不记录文本与向量内容。
   app.post("/v1/ai/embeddings", async (context) => {
@@ -1073,7 +1185,7 @@ export function createApp(overrides = {}) {
         dailyLimit: requestLimits.perDay,
       });
       if (!usage.allowed) {
-        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429, { reason: usage.reason });
       }
 
       const provider = providers.get(route.provider);
@@ -1187,11 +1299,62 @@ export function createApp(overrides = {}) {
         dailyLimit: config.thoughtSemanticRelate.requestLimits.perDay,
       });
       if (!usage.allowed) {
-        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429, { reason: usage.reason });
       }
 
       const body = await readJson(context);
       const result = await thoughtSemanticRelateService.relate({
+        deviceId,
+        subjectId: entitlement.usageSubjectId,
+        body,
+        clientSignal: context.req.raw.signal,
+      });
+      context.header("Cache-Control", "no-store");
+      return context.json(result);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // 归档类别理解器（2026-10-12 主题双通道·零打扰）：成员证据→类别定义/排除边界。
+  // 与 relate 同口径的闸门（开关/隐私/限流复用 thoughtSemanticRelate 配置）。
+  app.post("/v1/thoughts/category-brief", async (context) => {
+    try {
+      if (!config.thoughtSemanticRelate?.enabled) {
+        throw new GatewayError("THOUGHT_SEMANTIC_DISABLED", "Thought semantic relate is disabled", 503);
+      }
+      const briefRoute = config.routes.thought_category_brief_v1;
+      const usesMockProvider = briefRoute?.provider === "mock";
+      if (!usesMockProvider && !config.thoughtSemanticRelate.privacyVerified) {
+        throw new GatewayError("PRIVACY_ROUTE_UNVERIFIED", "Privacy route is not verified", 503);
+      }
+      if (!briefRoute) {
+        throw new GatewayError("MODEL_UNAVAILABLE", "Category brief route is not configured", 503);
+      }
+
+      const contentLength = Number(context.req.header("content-length") ?? 0);
+      if (contentLength > BRIEF_LIMITS.requestBodyMaxBytes) {
+        throw new GatewayError(
+          "INPUT_TOO_LARGE",
+          `Request body exceeds ${BRIEF_LIMITS.requestBodyMaxBytes} bytes`,
+          413,
+        );
+      }
+
+      const deviceId = await getDeviceId(context, config);
+      const entitlement = entitlementResolver.resolve(deviceId);
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "thought_semantic_relate",
+        minuteLimit: config.thoughtSemanticRelate.requestLimits.perMinute,
+        dailyLimit: config.thoughtSemanticRelate.requestLimits.perDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429, { reason: usage.reason });
+      }
+
+      const body = await readJson(context);
+      const result = await thoughtCategoryBriefService.brief({
         deviceId,
         subjectId: entitlement.usageSubjectId,
         body,
@@ -1255,7 +1418,7 @@ export function createApp(overrides = {}) {
           dailyLimit: config.thoughtTopicInsight.requestLimits.perDay,
         });
         if (!usage.allowed) {
-          throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+          throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429, { reason: usage.reason });
         }
 
         const body = await readJson(context);
@@ -1371,6 +1534,7 @@ export function createApp(overrides = {}) {
         ? adminLogStore.startAiCall({
             deviceId,
             purpose: "asr_transcription",
+            sessionId: getSessionId(context),
             provider: "dashscope",
             model: config.asr.model,
             stream: false,
@@ -1552,6 +1716,7 @@ export function createApp(overrides = {}) {
         ? adminLogStore.startAiCall({
             deviceId,
             purpose: "vision_extraction",
+            sessionId: getSessionId(context),
             provider: route.provider,
             model: route.model,
             promptType: serverPrompt.promptType,
@@ -1788,6 +1953,20 @@ export function createApp(overrides = {}) {
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         throw new GatewayError("INVALID_REQUEST", "Snapshot must be a JSON object", 400);
       }
+      // 目标闭环（2026-10-20 最终规格 §6.4 / §9.6）：goalScope 必须过服务端白名单
+      // （schema/UUID/ISO 窗口/长度），goalReview 体积封顶；不合法不接受上传
+      if (parsed.goalScope != null) {
+        const check = normalizeGoalScope(parsed.goalScope);
+        if (!check.ok) {
+          throw new GatewayError("INVALID_GOAL_SCOPE", check.reason, 400);
+        }
+        if (parsed.goalReview != null) {
+          const reviewSize = JSON.stringify(parsed.goalReview).length;
+          if (reviewSize > MAX_GOAL_REVIEW_BYTES) {
+            throw new GatewayError("GOAL_REVIEW_TOO_LARGE", "goalReview exceeds size limit", 413);
+          }
+        }
+      }
       const attached = store.attachSnapshot({ id: task.id, snapshot: raw });
       if (!attached) {
         throw new GatewayError("INVALID_STATE", "Snapshot already received", 409);
@@ -1918,6 +2097,45 @@ export function createApp(overrides = {}) {
 
       const events = rawEvents.map(normalizeAgentTelemetryEvent);
       const inserted = agentTelemetryStore.insertBatch(deviceId, events);
+      return context.json({ ok: true, accepted: inserted });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // 产品埋点批量上报（2026-10-19 自建方案）：匿名使用事件（模块曝光/记账/打卡/
+  // 建任务/付费墙漏斗）。与 Agent 遥测同款管线（设备鉴权+限流+白名单+幂等）。
+  // HOLO_PRODUCT_ANALYTICS_ENABLED=false 时收下即弃（2xx accepted:0），客户端收到
+  // 成功响应即清队列——env 不发版即可全量关停收集。
+  app.post("/v1/product/events", async (context) => {
+    try {
+      const deviceId = await getDeviceId(context, config);
+      context.header("Cache-Control", "no-store");
+      if (!config.productAnalytics.enabled) {
+        return context.json({ ok: true, accepted: 0, disabled: true });
+      }
+      const request = await readJson(context);
+
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "product_events",
+        minuteLimit: config.limits.productEventUploadsPerMinute,
+        dailyLimit: config.limits.productEventUploadsPerDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
+      }
+
+      const rawEvents = Array.isArray(request.events) ? request.events : null;
+      if (!rawEvents || rawEvents.length === 0) {
+        throw new GatewayError("INVALID_REQUEST", "events must be a non-empty array", 400);
+      }
+      if (rawEvents.length > 100) {
+        throw new GatewayError("INVALID_REQUEST", "at most 100 events per batch", 400);
+      }
+
+      const events = rawEvents.map(normalizeProductEvent);
+      const inserted = productEventStore.insertBatch(deviceId, events);
       return context.json({ ok: true, accepted: inserted });
     } catch (error) {
       return createErrorResponse(context, error);
@@ -2063,6 +2281,8 @@ function createAdminTestChatRunner({ config, providers, logStore }) {
       model: route.model,
       temperature: route.temperature,
       maxTokens: route.maxTokens,
+      // 与主链路（/v1/ai/chat/completions）同构：透传 route 的思考档，测试台行为=生产行为。
+      reasoningEffort: route.reasoningEffort,
       responseFormat: null,
     };
     const logId = logStore.startAiCall({
@@ -2104,7 +2324,7 @@ async function readJson(context) {
   }
 }
 
-function validateChatRequest(request) {
+function validateChatRequest(request, options = {}) {
   if (!Array.isArray(request.messages) || request.messages.length === 0) {
     throw new GatewayError("INVALID_REQUEST", "messages must be a non-empty array", 400);
   }
@@ -2121,6 +2341,18 @@ function validateChatRequest(request) {
 
   if (request.usageActionId !== undefined && !normalizedActionId(request.usageActionId)) {
     throw new GatewayError("INVALID_REQUEST", "usageActionId is invalid", 400);
+  }
+
+  // 个人档案通道：可缺省；给了就必须是非空字符串且不超体积上限（超限 400 拒绝，
+  // 不静默截断——截断会让用户误以为档案全量生效）。
+  const profileBriefMaxBytes = options.profileBriefMaxBytes ?? 12 * 1024;
+  if (request.profileBrief !== undefined) {
+    if (typeof request.profileBrief !== "string" || !request.profileBrief.trim()) {
+      throw new GatewayError("INVALID_REQUEST", "profileBrief must be a non-empty string", 400);
+    }
+    if (Buffer.byteLength(request.profileBrief, "utf8") > profileBriefMaxBytes) {
+      throw new GatewayError("PROFILE_BRIEF_TOO_LARGE", "profileBrief exceeds size limit", 400);
+    }
   }
 }
 
@@ -2172,6 +2404,18 @@ async function getDeviceId(context, config) {
   }
 
   return "debug-device";
+}
+
+/**
+ * 会话关联键（2026-10-19 前后端链路打通）：读客户端 x-holo-session-id 头
+ * （前台激活会话 UUID，8-64 字符）。与 requestLogger / product_events 同列对齐；
+ * 后台唤醒进程不带此头 → null。
+ */
+function getSessionId(context) {
+  const sessionId = context.req.header("x-holo-session-id");
+  return typeof sessionId === "string" && sessionId.length >= 8 && sessionId.length <= 64
+    ? sessionId
+    : null;
 }
 
 // 内容安全审核命中后的拦截文案（友好、不生硬）。
@@ -2297,15 +2541,22 @@ function streamChat(context, provider, request, options = {}) {
         controller.close();
       } catch (error) {
         const code = error instanceof GatewayError ? error.code : "UPSTREAM_ERROR";
-        controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ code, message: publicMessage(code) })}\n\n`));
+        // 清理先行（2026-10-30 审计 D3）：客户端断连时流已关闭，向流里 enqueue
+        // 错误事件自身会再抛——旧顺序里这次再抛会把 onFailure（释放额度预留）与
+        // finishAiCall 整个跳过，预留悬挂到 15 分钟 TTL 才被兜底清掉。
+        options.onFailure?.();
         options.logStore?.finishAiCall(options.logId, {
           status: "error",
           response: capturedText ? { text: capturedText } : null,
           error: serializeError(error),
           usage: capturedUsage,
         });
-        options.onFailure?.();
-        controller.close();
+        try {
+          controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ code, message: publicMessage(code) })}\n\n`));
+          controller.close();
+        } catch {
+          // 流已关闭（客户端断连）：错误事件写不进去是预期，清理已完成
+        }
       }
     },
   });
@@ -2365,8 +2616,10 @@ function quotaTypeForPurpose(purpose) {
   if (purpose === "personal_context_request" || purpose === "personal_context_planning") return QUOTA_TYPES.chat;
   // Matter 对账：用户交互路径，归 chat 池（route 另有独立限流桶与 maxTokens，成本独立统计）。
   if (purpose === "matter_reconciliation") return QUOTA_TYPES.chat;
-  // 任务分步推进提案（2026-09-25 实施规格 §12.5）：用户主动触发，归 chat 额度池
-  if (purpose === "matter_execution_plan") return QUOTA_TYPES.chat;
+  // 任务分步推进提案（2026-09-25 实施规格 §12.5）：用户主动触发。
+  // 2026-10-18 起独立成 taskSplit 月池（免费 5/月、Plus 100/月），
+  // 客户端以会话稳定 usageActionId 计量——一次拆解（含澄清追问/修复重试）只扣一次。
+  if (purpose === "matter_execution_plan") return QUOTA_TYPES.taskSplit;
   // 「今天减负」当日安排整理（2026-10-03 方案 §11.4）：用户主动触发，归 chat 额度池；
   // 采用/手动操作/继续步骤调用 AI 为 0（客户端只有整理生成走本 purpose）。
   if (purpose === "today_relief_plan") return QUOTA_TYPES.chat;
@@ -2377,6 +2630,9 @@ function quotaTypeForPurpose(purpose) {
   // 截图识别（2026-09-09 拍板 3）：视觉抽取先不占会员池，独立限流桶 20/天兜量；
   // 上线后测算真实成本再定额度策略（遗留提醒已立项）。
   if (purpose === "vision_extraction") return null;
+  // 「一个发现」两阶段（2026-10-23 实施包 §4.2）：后台自动批次，不占 chat/deepAnalysis
+  // 等会员次数池（T21）；批次预算由 discovery_runs 的上海日键 UNIQUE 约束 + 后台金额预算控制。
+  if (purpose === "discovery_candidate_v1" || purpose === "discovery_verify_v1") return null;
   return null;
 }
 
@@ -2398,6 +2654,77 @@ const AGENT_TELEMETRY_EVENT_NAMES = new Set([
   "agent_job_cancelled",
   "agent_lease_changed",
 ]);
+
+/** 与 iOS HoloProductEventName 一一对应（2026-10-19 埋点字典 v1 + 2026-10-25 v2）；新增事件先加这里再发 iOS。 */
+const PRODUCT_EVENT_NAMES = new Set([
+  // v1（2026-10-19）
+  "app_first_launch",
+  "app_session_start",
+  "module_view",
+  "bill_created",
+  "habit_checkin",
+  "task_created",
+  "paywall_viewed",
+  "paywall_purchase_tapped",
+  // v2（2026-10-25）：AI 交互 + 记录动作补齐 + 漏斗/数据安全
+  "ai_conversation_started",
+  "ai_message_sent",
+  "ai_deep_report_requested",
+  "ai_deep_report_viewed",
+  "thought_created",
+  "habit_created",
+  "account_created",
+  "receipt_booking_started",
+  "export_performed",
+]);
+
+/** 产品埋点事件归一：白名单事件名 + 扁平短字符串参数；隐私契约 = 不收用户内容。 */
+function normalizeProductEvent(raw) {
+  if (!raw || typeof raw !== "object") {
+    throw new GatewayError("INVALID_REQUEST", "event must be an object", 400);
+  }
+  const id = typeof raw.id === "string" ? raw.id.trim() : "";
+  if (!id || id.length > 64) {
+    throw new GatewayError("INVALID_REQUEST", "event.id must be 1-64 chars", 400);
+  }
+  if (!PRODUCT_EVENT_NAMES.has(raw.name)) {
+    throw new GatewayError("INVALID_REQUEST", `unknown event name: ${String(raw.name).slice(0, 40)}`, 400);
+  }
+  const timestampMs = Number(raw.timestampMs);
+  if (!Number.isFinite(timestampMs)) {
+    throw new GatewayError("INVALID_REQUEST", "event.timestampMs must be a finite number", 400);
+  }
+  const shortString = (value) => (
+    typeof value === "string" && value.length > 0 ? value.slice(0, 32) : null
+  );
+  let params = null;
+  if (raw.params != null) {
+    if (typeof raw.params !== "object" || Array.isArray(raw.params)) {
+      throw new GatewayError("INVALID_REQUEST", "event.params must be a flat object", 400);
+    }
+    params = Object.fromEntries(
+      Object.entries(raw.params)
+        .slice(0, 16)
+        .map(([key, value]) => [
+          key.slice(0, 32),
+          String(value).slice(0, 128),
+        ]),
+    );
+  }
+  return {
+    id,
+    name: raw.name,
+    timestampMs: Math.trunc(timestampMs),
+    params,
+    appVersion: shortString(raw.appVersion),
+    buildChannel: raw.buildChannel === "debug" || raw.buildChannel === "release"
+      ? raw.buildChannel
+      : null,
+    sessionId: typeof raw.sessionId === "string" && raw.sessionId.length >= 8 && raw.sessionId.length <= 64
+      ? raw.sessionId
+      : null,
+  };
+}
 
 /** 遥测事件字段白名单与归一：非法 name/缺 id 拒绝，超长字符串截断，数字非法置空。 */
 function normalizeAgentTelemetryEvent(raw) {

@@ -89,10 +89,59 @@ final class HabitListReorderModel: ObservableObject {
     private var autoScrollTask: Task<Void, Never>?
     private var autoScrollDirection: Int = 0
 
+    /// 手势会话最近一次活动时刻（激活/拖动/换位/自动滚动步进）。
+    /// isInteracting 的清除不能只押「drag.onEnded 必然回调」——系统打断
+    /// （来电/通知横幅/控制中心/切换 App）不保证回调，2026-10-11 东林真机
+    /// 「习惯记录点击不动」即会话状态永久卡死后被全页 guard 静默吞点击。
+    private var lastGestureActivity: Date?
+
+    /// 会话陈旧窗口：超过即视为手势已死。它同时是「onEnded 丢失后点击被吞的
+    /// 最大时长」——2026-10-15 东林真机复报「拖完换序后点打卡间歇性不动」，
+    /// iOS 26 长按序列手势正常完成也可能丢 onEnded（速查表实锤不可全信），
+    /// 8s 吞点击窗口太长。正常拖拽中 dragMoved 手指动 1pt 就刷新、边缘按住
+    /// 时自动滚动 0.09s 步进刷新，都远在窗口内续命；只有「按住完全不动」
+    /// 超窗，而超窗不清会话（手指可能仍在屏上），仅由 admitInteraction
+    /// 在点击时刻校验放行。
+    private static let sessionStaleWindow: TimeInterval = 2
+
+    /// isLifting 延迟解锁的代数令牌：新会话开始时递增，作废上一会话挂起的
+    /// 解锁闭包（陈旧清场后立即重开新会话时防误清）
+    private var liftClearGeneration = 0
+
+    /// 会话是否已陈旧（手势回调彻底丢失后的自愈判据）
+    private var isSessionStale: Bool {
+        guard let lastActivity = lastGestureActivity else { return true }
+        return Date().timeIntervalSince(lastActivity) >= Self.sessionStaleWindow
+    }
+
     /// 松手且顺序有变化时同步回调（视图层负责落库；draggedId 供失败提示定位）
     var onCommit: ((HabitReorderSection, [UUID], UUID) -> Void)?
 
-    var isInteracting: Bool { isLifting || draggingId != nil }
+    /// 相邻换位前置校验（视图注入）。今天页 P2 分节渲染后，全局顺序数组里
+    /// 相邻两行可能分属不同节——跨节换位会打乱节内顺序且视觉无反馈，
+    /// 视图注入「同节才可换」的谓词；nil = 不限制（排序弹层等平面列表）。
+    var canSwapAdjacent: ((UUID, UUID) -> Bool)?
+
+    var isInteracting: Bool {
+        guard isLifting || draggingId != nil else { return false }
+        return !isSessionStale
+    }
+
+    /// 行内按钮点击时刻的放行校验（视图层 guard 一律走它，不直接读 isInteracting）：
+    /// 会话陈旧 = 手势回调已丢失、手指早已离屏 —— 就地清场残留会话并放行本次
+    /// 点击，不等陈旧窗口被动走完（吞点击窗口从「等满窗口」缩到「点一下即愈」）；
+    /// 会话活跃 = 手指大概率仍在屏上 —— 拒绝，防拖拽误触行内按钮。
+    func admitInteraction() -> Bool {
+        guard isLifting || draggingId != nil else { return true }
+        guard isSessionStale else { return false }
+        cancelDrag()
+        return true
+    }
+
+    /// 测试专用：把会话活动时刻回拨（模拟手势回调彻底丢失后的时间流逝）
+    func test_backdateGestureActivity(by interval: TimeInterval) {
+        lastGestureActivity = lastGestureActivity?.addingTimeInterval(-interval)
+    }
 
     // MARK: 渲染查询
 
@@ -109,12 +158,19 @@ final class HabitListReorderModel: ObservableObject {
     // MARK: 手势回调（HabitReorderableRow 驱动）
 
     func beginDrag(id: UUID, section: HabitReorderSection, spacing: CGFloat) {
-        guard session == nil else { return }
+        if session != nil {
+            // 陈旧死会话（手势回调已彻底丢失）就地清场，拖拽功能可用；
+            // 活会话内拒绝重入
+            guard isSessionStale else { return }
+            cancelDrag()
+        }
         let baseline = lastSeen[section] ?? []
         guard baseline.contains(id) else { return }
         HabitReorderFeel.liftHaptic()
+        liftClearGeneration += 1 // 作废上一会话挂起的 isLifting 解锁
         isLifting = true
         draggingId = id
+        lastGestureActivity = Date()
         orders[section] = baseline
         session = Session(
             section: section,
@@ -130,16 +186,19 @@ final class HabitListReorderModel: ObservableObject {
     func dragMoved(translationY: CGFloat, locationY: CGFloat) {
         guard var s = session, let draggingId else { return }
         s.liveTranslation = translationY
+        lastGestureActivity = Date()
 
-        // 跨行换位：位移越过相邻行（实测高度 + 间距）的一半
+        // 跨行换位：位移越过相邻行（实测高度 + 间距）的一半；跨节不换（分节渲染）
         if var order = orders[s.section] {
             let d = translationY - s.anchorShift
             let rowHeight = { [weak self] (id: UUID) -> CGFloat in
                 self?.rowHeights[id] ?? HabitReorderFeel.fallbackRowHeight
             }
             if d > 0, s.currentIndex < order.count - 1 {
-                let step = rowHeight(order[s.currentIndex + 1]) + s.spacing
-                if d > step / 2 {
+                let nextId = order[s.currentIndex + 1]
+                let canSwap = canSwapAdjacent?(order[s.currentIndex], nextId) ?? true
+                let step = rowHeight(nextId) + s.spacing
+                if canSwap, d > step / 2 {
                     order.swapAt(s.currentIndex, s.currentIndex + 1)
                     orders[s.section] = order
                     s.anchorShift += step
@@ -147,8 +206,10 @@ final class HabitListReorderModel: ObservableObject {
                     HabitReorderFeel.swapHaptic()
                 }
             } else if d < 0, s.currentIndex > 0 {
-                let step = rowHeight(order[s.currentIndex - 1]) + s.spacing
-                if -d > step / 2 {
+                let prevId = order[s.currentIndex - 1]
+                let canSwap = canSwapAdjacent?(order[s.currentIndex], prevId) ?? true
+                let step = rowHeight(prevId) + s.spacing
+                if canSwap, -d > step / 2 {
                     order.swapAt(s.currentIndex - 1, s.currentIndex)
                     orders[s.section] = order
                     s.anchorShift -= step
@@ -167,6 +228,7 @@ final class HabitListReorderModel: ObservableObject {
         guard let s = session else { return }
         session = nil
         stopAutoScroll()
+        lastGestureActivity = Date()
 
         let section = s.section
         let draggedId = draggingId
@@ -180,26 +242,33 @@ final class HabitListReorderModel: ObservableObject {
             orders[section] = nil
         }
         // 防误触锁定延迟解除（同 runloop 清会让行内按钮 tap 放行，真机复现过）
+        liftClearGeneration += 1
+        let generation = liftClearGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + HabitReorderFeel.interactionLockWindow) { [weak self] in
-            self?.isLifting = false
+            guard let self, self.liftClearGeneration == generation else { return }
+            self.isLifting = false
         }
         if changed, let finalOrder, let draggedId {
             onCommit?(section, finalOrder, draggedId)
         }
     }
 
-    /// 取消会话不落库（弹层打断等场景由宿主调用；当前无触发点，留作语义完备）
+    /// 取消会话不落库（弹层打断等场景由宿主调用）
     func cancelDrag() {
         guard let s = session else { return }
         session = nil
         stopAutoScroll()
+        lastGestureActivity = Date()
         withAnimation(HabitReorderFeel.settleSpring) {
             draggingId = nil
             dragOffsetY = 0
             orders[s.section] = nil
         }
+        liftClearGeneration += 1
+        let generation = liftClearGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + HabitReorderFeel.interactionLockWindow) { [weak self] in
-            self?.isLifting = false
+            guard let self, self.liftClearGeneration == generation else { return }
+            self.isLifting = false
         }
     }
 
@@ -228,7 +297,7 @@ final class HabitListReorderModel: ObservableObject {
     private func updateAutoScroll(locationY: CGFloat) {
         if locationY < HabitReorderFeel.autoScrollEdge {
             startAutoScroll(direction: -1)
-        } else if locationY > UIScreen.main.bounds.height - HabitReorderFeel.autoScrollEdge {
+        } else if locationY > holoScreenHeight() - HabitReorderFeel.autoScrollEdge {
             startAutoScroll(direction: 1)
         } else {
             stopAutoScroll()
@@ -264,6 +333,8 @@ final class HabitListReorderModel: ObservableObject {
         withAnimation(nil) {
             proxy.scrollTo(order[target], anchor: direction > 0 ? .top : .bottom)
         }
+        // 实际滚动发生 = 会话活着（手指停边缘不动时没有 dragMoved，靠这里保活）
+        lastGestureActivity = Date()
     }
 }
 
@@ -304,6 +375,11 @@ private struct HabitReorderableRow: ViewModifier {
                 proxy.size.height
             } action: { newHeight in
                 model.noteHeight(newHeight, for: id)
+            }
+            // 行销毁（习惯被删/列表变更）时手势随之消失、onEnded 不会再回调，
+            // 正被拖拽的行就地取消会话——不等陈旧自愈兜底
+            .onDisappear {
+                if model.draggingId == id { model.cancelDrag() }
             }
             .simultaneousGesture(reorderGesture)
             .animation(HoloAnimation.snappy, value: model.orders[section])

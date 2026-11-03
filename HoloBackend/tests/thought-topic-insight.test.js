@@ -135,7 +135,7 @@ test("validateTopicSummaryRequest 接受合法请求；拒绝 >12 片段与坏�
   assert.throws(() => validateTopicSummaryRequest(summaryBody({ topic: { title: "" } })));
 });
 
-test("validateTopicSummaryOutput 接受摘要+逐字观点；拒绝自造 ref/伪造证据/range 错位/缺 summary", () => {
+test("validateTopicSummaryOutput 从原文计算引用位置；拒绝自造 ref/伪造证据/缺 summary", () => {
   const parsed = validateTopicSummaryRequest(summaryBody());
   const good = validateTopicSummaryOutput({
     summary: "在备战半马，因左膝不适主动减量。",
@@ -152,10 +152,14 @@ test("validateTopicSummaryOutput 接受摘要+逐字观点；拒绝自造 ref/�
     summary: "s",
     viewpoints: [{ ref: "R0", quote: "不是原文内容", rangeUTF16: [0, 6] }],
   }, parsed).malformed, true);
-  assert.equal(validateTopicSummaryOutput({
+  assert.deepEqual(validateTopicSummaryOutput({
     summary: "s",
     viewpoints: [{ ref: "R0", quote: "备战半马", rangeUTF16: [1, 5] }],
-  }, parsed).malformed, true);
+  }, parsed).viewpoints[0].rangeUTF16, [0, 4]);
+  const unicode = { representatives: [{ ref: "R0", text: "🏃 今天跑步，明天休息。" }] };
+  assert.deepEqual(validateTopicSummaryOutput({ summary: "跑步安排", viewpoints: [
+    { ref: "R0", quote: "明天休息", rangeUTF16: [7, 11] },
+  ] }, unicode).viewpoints[0].rangeUTF16, [8, 12]);
   assert.equal(validateTopicSummaryOutput({}, parsed).malformed, true);
   // viewpoints 缺失合法（主题太新没有反复观点）
   assert.deepEqual(validateTopicSummaryOutput({ summary: "ok" }, parsed).viewpoints, []);
@@ -241,7 +245,7 @@ test("注入抵抗：片段携带注入指令、模型照做输出自造内容�
   const { app } = makeApp({
     providerOverrides: stubProvider(() => stubCompletion(JSON.stringify({
       summary: "ok",
-      viewpoints: [{ ref: "R0", quote: "HACKED-QUOTE", rangeUTF16: [0, 12] }],
+      viewpoints: [{ ref: "R0", quote: "HACKED-NOT-IN-SOURCE", rangeUTF16: [0, 20] }],
     }))),
     routes: stubRoutes(),
   });

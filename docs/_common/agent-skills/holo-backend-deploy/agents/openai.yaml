@@ -1,0 +1,7 @@
+interface:
+  display_name: "HoloBackend 稳定发布"
+  short_description: "同步、备份、重建并验证 Holo 后端生产版本（三宿主唯一真源）"
+  default_prompt: "使用 $holo-backend-deploy 按稳定流程发布 HoloBackend，并完成线上版本验收。"
+
+policy:
+  allow_implicit_invocation: true

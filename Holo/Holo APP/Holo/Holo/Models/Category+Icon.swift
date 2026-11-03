@@ -6,6 +6,12 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#else
+import AppKit
+#endif
+import Foundation
 
 // MARK: - Category Icon View Builder
 
@@ -30,11 +36,19 @@ func transactionCategoryIcon(_ category: Category, size: CGFloat) -> some View {
 
 @ViewBuilder
 func categoryIconGlyph(_ iconName: String, size: CGFloat, color: Color) -> some View {
-    if EmojiCatalog.isEmojiIcon(iconName) {
-        // 用户手选的 emoji 图标：彩色文本渲染，不跟随科目色
+    entityIconGlyph(iconName, size: size, color: color)
+}
+
+/// 用户自建实体（习惯/财务项目/记账分类）图标统一渲染：
+/// emoji 原样彩色文本（东林 2026-10-22 拍板保留用户自选）→ 资产 template 染色 →
+/// holo.category.* 自绘兜底 → SF Symbol 染色 → 脏数据回退通用图标
+@ViewBuilder
+func entityIconGlyph(_ iconName: String, size: CGFloat, color: Color) -> some View {
+    if isEmojiIconName(iconName) {
+        // 用户手选的 emoji 图标：彩色文本渲染，不跟随实体色
         Text(iconName)
             .font(.system(size: size))
-    } else if iconName.hasPrefix("finance_") || iconName.hasPrefix("income_") || iconName.hasPrefix("cat_") {
+    } else if UnifiedIconCatalog.isAssetIcon(iconName) {
         Image(iconName)
             .renderingMode(.template)
             .resizable()
@@ -44,11 +58,35 @@ func categoryIconGlyph(_ iconName: String, size: CGFloat, color: Color) -> some 
     } else if CategoryIconCatalog.isCustomIcon(iconName) {
         HoloFallbackCategoryIcon(kind: iconName, size: size)
             .foregroundColor(color)
-    } else {
+    } else if isSystemSymbolName(iconName) {
         Image(systemName: iconName)
             .font(.system(size: size, weight: .medium))
             .foregroundColor(color)
+    } else {
+        // icon 字段是既非 SF Symbol/资产名/emoji 的脏数据（如「¥4」）：回退通用图标，不渲染成文字
+        Image(systemName: "tag.fill")
+            .font(.system(size: size, weight: .medium))
+            .foregroundColor(color)
     }
+}
+
+/// icon 字段是否为可作图标渲染的 emoji 文本。
+/// EmojiCatalog.isEmojiIcon 只要求「含任一非 ASCII 标量」，会把混入全角/货币符号的
+/// 脏数据（如「¥4」）也判成 emoji 而被渲染成文字；这里收紧为「含 emoji 呈现标量或
+/// emoji 变体选择符」——图标库里的 emoji 必满足其一（彩面 emoji 自带呈现标量，☺️/1️⃣ 带 FE0F）。
+private func isEmojiIconName(_ name: String) -> Bool {
+    name.unicodeScalars.contains {
+        $0.properties.isEmojiPresentation || $0.value == 0xFE0F
+    }
+}
+
+/// 名称是否为系统 SF Symbol（iOS 走 UIImage 探测，macOS 走 NSImage 等价探测）
+private func isSystemSymbolName(_ name: String) -> Bool {
+    #if canImport(UIKit)
+    UIImage(systemName: name) != nil
+    #else
+    NSImage(systemSymbolName: name, accessibilityDescription: nil) != nil
+    #endif
 }
 
 private struct HoloFallbackCategoryIcon: View {

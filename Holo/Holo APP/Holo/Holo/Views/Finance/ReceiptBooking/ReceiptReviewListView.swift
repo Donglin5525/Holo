@@ -57,8 +57,9 @@ struct ReceiptReviewListView: View {
                                             .font(.caption)
                                             .padding(.horizontal, 6)
                                             .padding(.vertical, 1)
-                                            .background(Capsule().fill(Color.holoPrimary.opacity(0.12)))
-                                            .foregroundStyle(Color.holoPrimary)
+                                            // 深色下橙字压橙底对比不足：改嵌套底 + 次级字（两模式达标）
+                                            .background(Capsule().fill(Color.holoToolInset))
+                                            .foregroundStyle(Color.holoToolTextSecondary)
                                     }
                                 }
                                 if let merchant = draft.merchant, !merchant.isEmpty {
@@ -94,7 +95,7 @@ struct ReceiptReviewListView: View {
         }
         .navigationTitle(Text("待复核"))
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                 Button {
                     dismiss()
                 } label: {

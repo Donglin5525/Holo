@@ -615,4 +615,89 @@ final class CategoryDeletionIntegrationTests: XCTestCase {
             XCTAssertNotNil(row.deletedBatchId)
         }
     }
+
+    // MARK: - 交易删除软删化（2026-11-01 删记账闪退第四次复发根治）
+    // 病根：物理销毁后行视图（退场动画/他屏渲染）读已死对象必崩；
+    // 根治：deleteTransaction/deleteInstallmentGroup 全走软删（回收站批次），
+    // 对象永不失效，持有它的视图随便重画。
+
+    /// 删除后对象必须仍然可读（不失效）——这是崩溃类灭绝的判定式
+    @MainActor
+    func testDeleteTransactionSoftDeletesInsteadOfInvalidating() async throws {
+        let repo = FinanceRepository(context: context)
+        let parent = makeCategory(name: "餐饮父")
+        let child = makeCategory(name: "午餐", parentId: parent.id)
+        let account = makeAccount()
+        let tx = makeTransaction(category: child, amount: 20)
+        tx.account = account
+        try context.save()
+
+        try await repo.deleteTransaction(tx)
+
+        // 对象活着：崩溃类的判定式（物理销毁时 managedObjectContext == nil）
+        XCTAssertFalse(tx.isInvalidated, "删除后对象不得失效——失效即死对象闪退回归")
+        XCTAssertFalse(tx.isDeleted)
+        XCTAssertNotNil(tx.deletedAt)
+        XCTAssertNotNil(tx.deletedBatchId, "删除应进回收站批次（30 天可恢复）")
+
+        // 当天账本不含它
+        let dayRows = try await repo.getTransactionsForDay(Date())
+        XCTAssertFalse(dayRows.contains { $0.id == tx.id })
+
+        // 账户计数归零（删空后账户立即可删，不被软删行卡 30 天）
+        XCTAssertEqual(repo.getTransactionCount(for: account), 0)
+
+        // 快捷金额建议不数已删交易
+        let suggestions = repo.getHistoricalAmounts(for: child)
+        XCTAssertFalse(suggestions.contains { $0.amount == 20 }, "已删交易不应再进金额建议")
+
+        // 回收站批次落库（scope=single）
+        let batchRequest = NSFetchRequest<RecycleBinBatch>(entityName: "RecycleBinBatch")
+        batchRequest.predicate = NSPredicate(format: "id == %@", tx.deletedBatchId! as CVarArg)
+        let batch = try context.fetch(batchRequest).first
+        XCTAssertNotNil(batch)
+        XCTAssertEqual(batch?.scope, "single")
+    }
+
+    /// 恢复（回收站语义）后行重新可见
+    @MainActor
+    func testDeletedTransactionRestoreMakesRowVisibleAgain() async throws {
+        let repo = FinanceRepository(context: context)
+        let parent = makeCategory(name: "餐饮父2")
+        let child = makeCategory(name: "晚餐", parentId: parent.id)
+        let tx = makeTransaction(category: child, amount: 35)
+        try context.save()
+
+        try await repo.deleteTransaction(tx)
+        tx.clearDeletedMark()
+        try context.save()
+
+        let dayRows = try await repo.getTransactionsForDay(Date())
+        XCTAssertTrue(dayRows.contains { $0.id == tx.id }, "恢复后应重新出现在当天账本")
+    }
+
+    /// 整组分期删除同样软删，成员全部可读
+    @MainActor
+    func testDeleteInstallmentGroupSoftDeletesAllMembers() async throws {
+        let repo = FinanceRepository(context: context)
+        let parent = makeCategory(name: "数码父")
+        let child = makeCategory(name: "手机", parentId: parent.id)
+        let account = makeAccount()
+        let rows = try await repo.addInstallmentTransactions(
+            totalAmount: 1200, feePerPeriod: 0, periods: 3,
+            type: .expense, category: child, account: account,
+            startDate: Date(), note: "手机分期"
+        )
+        XCTAssertEqual(rows.count, 3)
+        let groupId = try XCTUnwrap(rows.first?.installmentGroupId)
+
+        try await repo.deleteInstallmentGroup(groupId: groupId)
+
+        for row in rows {
+            XCTAssertFalse(row.isInvalidated, "分期成员删除后不得失效")
+            XCTAssertNotNil(row.deletedAt)
+        }
+        let remaining = try await repo.getInstallmentGroup(groupId: groupId)
+        XCTAssertTrue(remaining.isEmpty, "删除后分组查询应为空")
+    }
 }

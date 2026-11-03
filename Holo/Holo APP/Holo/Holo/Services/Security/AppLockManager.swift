@@ -12,10 +12,15 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 import Combine
+#if canImport(UIKit)
 import LocalAuthentication
+#endif
 
+#if canImport(UIKit)
 @MainActor
 final class AppLockManager: ObservableObject {
 
@@ -254,3 +259,30 @@ final class AppLockManager: ObservableObject {
         lockWindow = window
     }
 }
+
+#else
+/// macOS（Phase A 骨架）：应用锁的 UIKit 锁窗/LocalAuthentication 管线不接入，
+/// 恒为「未启用未上锁」状态；设置页与遮罩视图照常编译展示
+final class AppLockManager: ObservableObject {
+    static let shared = AppLockManager()
+
+    enum DeviceLockReadiness: Equatable {
+        case ready
+        case unavailable(message: String)
+    }
+
+    @Published private(set) var isLocked = false
+    @Published private(set) var isShowingPrivacyShield = false
+    @Published private(set) var isEvaluating = false
+    private(set) var unlockHint = String(localized: "使用面容 ID 或手机密码解锁")
+
+    private init() {}
+
+    func lockScreenDidAppear() {}
+    func attemptUnlock() {}
+    func validateForEnabling() async -> Bool { false }
+    func deviceLockReadiness() -> DeviceLockReadiness {
+        .unavailable(message: "Mac 版暂不支持应用锁")
+    }
+}
+#endif

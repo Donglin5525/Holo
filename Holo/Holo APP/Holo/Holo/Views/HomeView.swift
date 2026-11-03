@@ -44,6 +44,10 @@ struct HomeView: View {
     /// 是否播放首页三步导览（V1 引导结束后自动一次，或设置页「重看新手引导」手动触发）
     @State private var showHomeCoachTour: Bool = false
 
+    /// 欢迎笔记推迟的三步导览：完成引导先跳笔记，笔记送达（pending 清除）后
+    /// 回到首页再接导览；未送达（没打开编辑器就退出想法模块）则继续等送达
+    @State private var welcomeNoteDeferredTour: Bool = false
+
     /// 首页推送通道服务
     @ObservedObject private var scheduleService = HomeScheduleService.shared
 
@@ -188,6 +192,11 @@ struct HomeView: View {
                 .opacity(activeScreen == nil ? 1 : 0)
                 .allowsHitTesting(activeScreen == nil)
                 .accessibilityHidden(activeScreen != nil)
+                // C3b（2026-10-09）：首页被模块/覆盖层遮挡时，信号灯服务只记脏
+                // 不重算候选；恢复可见补一次刷新。幂等入口，initial 对齐首帧。
+                .onChange(of: homeMotionIsVisible, initial: true) { _, visible in
+                    scheduleService.setPresentationVisible(visible)
+                }
                 .zIndex(0)
 
             // 每个模块首次进入时挂载，之后仅隐藏、不销毁：侧边栏往返切换只翻转
@@ -292,6 +301,10 @@ struct HomeView: View {
             swipeDismissalActive = true
         }
         .onChange(of: activeScreen) { _, newValue in
+            // 产品埋点：模块打开（常驻栈是所有模块进出的唯一闸口，iPhone/iPad 通吃；关闭不打）
+            if let screen = newValue {
+                HoloProductAnalytics.shared.track(.moduleView, ["module": screen.rawValue])
+            }
             // 回到首页：复位底部导航选中态。
             // 走常驻栈的模块（如记忆长廊）退回时 activeScreen 变 nil，
             // 在此统一清理高亮，避免选中态残留。
@@ -303,6 +316,13 @@ struct HomeView: View {
                    !showSettingsPage, !showPersonalPage,
                    HoloSidebarDestination(rawValue: sidebarSelection.rawValue)?.activeScreen != nil {
                     sidebarSelection = .today
+                }
+                // 欢迎笔记读完回首页：接续被推迟的三步导览。pending 已清 =
+                // 编辑器真正打开过（送达）；没打开就退出想法模块的不播，
+                // 下次启动 onAppear 继续把笔记送达。
+                if welcomeNoteDeferredTour, !WelcomeNoteSeed.isPendingPresentation {
+                    welcomeNoteDeferredTour = false
+                    startHomeCoachTourIfNeeded()
                 }
             }
             // 进入任一模块时复位右滑标记，保证下次退出用默认的下滑转场
@@ -332,6 +352,7 @@ struct HomeView: View {
             HabitRepository.shared.setup()
             // 用户偏好（昵称等）云同步仓库：注册 iCloud 变更监听 + 采纳云端恢复的名字
             UserPreferenceRepository.shared.setup()
+            HoloGrowthService.shared.start()
             // 用户头像：本地即时展示，并监听私有 iCloud 恢复/跨设备变更
             UserAvatarRepository.shared.setup()
             loadFeatureItemsFromRepository()
@@ -349,17 +370,48 @@ struct HomeView: View {
             wasEmptyAtLaunch = !NewUserActivationState.hasAnyRecord()
             refreshFirstStepCard()
         }
-        // 轻量新人引导（结束后紧接着播放一次首页三步导览）
+        // 轻量新人引导（欢迎笔记优先：完成引导先深链读笔记，读完回首页再接三步导览）
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
-            startHomeCoachTourIfNeeded()
+            if WelcomeNoteSeed.isPendingPresentation {
+                welcomeNoteDeferredTour = true
+                presentWelcomeNoteIfNeeded()
+            } else {
+                startHomeCoachTourIfNeeded()
+            }
             // 引导完成（或跳过）后行动卡才具备出现条件
             refreshFirstStepCard()
         }) {
-            HoloLightweightOnboardingView { _ in
+            HoloLightweightOnboardingView { choice in
+                // 整体跳过引导的用户不强制跳欢迎笔记（尊重跳过），笔记仍在想法列表顶部
+                if choice != .skippedOnboarding {
+                    WelcomeNoteSeed.markPendingPresentation()
+                }
                 showOnboarding = false
             }
             .holoContentColumn()
         }
+        #else
+                .sheet(isPresented: $showOnboarding, onDismiss: {
+            if WelcomeNoteSeed.isPendingPresentation {
+                welcomeNoteDeferredTour = true
+                presentWelcomeNoteIfNeeded()
+            } else {
+                startHomeCoachTourIfNeeded()
+            }
+            // 引导完成（或跳过）后行动卡才具备出现条件
+            refreshFirstStepCard()
+        }) {
+            HoloLightweightOnboardingView { choice in
+                // 整体跳过引导的用户不强制跳欢迎笔记（尊重跳过），笔记仍在想法列表顶部
+                if choice != .skippedOnboarding {
+                    WelcomeNoteSeed.markPendingPresentation()
+                }
+                showOnboarding = false
+            }
+            .holoContentColumn()
+        }
+        #endif
         // 设置页面（Sheet 形式）
         .sheet(isPresented: $showSettingsView) {
             LazyView {
@@ -367,6 +419,7 @@ struct HomeView: View {
             }
         }
         // 今日看板（Full Screen Cover：临时展开层，不参与跨模块跳转，保留 cover）
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showDailyKanban, onDismiss: {
             // 晨报信号只在本次打开期间有效，手动进看板不残留小结卡
             showWeeklyBriefCard = false
@@ -407,6 +460,48 @@ struct HomeView: View {
                 .holoContentColumn()
             }
         }
+        #else
+                .sheet(isPresented: $showDailyKanban, onDismiss: {
+            // 晨报信号只在本次打开期间有效，手动进看板不残留小结卡
+            showWeeklyBriefCard = false
+        }) {
+            LazyView {
+                DailyKanbanView(
+                    showWeeklyBrief: showWeeklyBriefCard,
+                    todayViewModel: todayViewModel,
+                    onOpenChatWithMatter: { matterID in
+                        // Today 详情页讨论：上下文已由调用方保存，这里只负责关闭后进 Chat。
+                        openRootScreen(.ai)
+                    },
+                    onOpenAI: {
+                        // 「＋开始一件事」：关看板 → 预填引导语 → 进 AI（只预填不发送，
+                        // 方案 §5.2；用户补后半句发送即走情境规划 → 方案卡 → 加入进行中的事）
+                        showDailyKanban = false
+                        chatPrefillText = String(localized: "我想开始一件事：")
+                        openRootScreen(.ai)
+                    },
+                    onOpenFinance: {
+                        showDailyKanban = false
+                        navigateToScreen(.finance)
+                    },
+                    onAddTask: {
+                        showDailyKanban = false
+                        showAddTaskSheet = true
+                    },
+                    onQuickRecord: {
+                        // 「对 Holo 说」/看板 calm 态出口：关看板 → 进 AI → 落焦输入框。
+                        // 不预填示例句（「午饭花了 35 元」曾让用户误以为已记假账），
+                        // 输入框 placeholder 承担「说什么」的提示职责
+                        showDailyKanban = false
+                        chatFocusTrigger += 1
+                        openRootScreen(.ai)
+                    }
+                )
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+                .holoContentColumn()
+            }
+        }
+        #endif
         // 个人页面（Sheet 形式，与 SettingsView 一致，支持内部弹出子页面）
         .sheet(isPresented: $showPersonalView, onDismiss: {
             selectedTab = .ai
@@ -477,6 +572,7 @@ struct HomeView: View {
         // Deep Link / 小组件 - 记录想法
         // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容。
         // 显式 onSave: 防止 trailing closure 绑到编辑器的其他可选闭包参数。
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showThoughtEditor) {
             LazyView {
                 ThoughtEditorView(onSave: {
@@ -485,6 +581,16 @@ struct HomeView: View {
                 .holoContentColumn()
             }
         }
+        #else
+                .sheet(isPresented: $showThoughtEditor) {
+            LazyView {
+                ThoughtEditorView(onSave: {
+                    NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                })
+                .holoContentColumn()
+            }
+        }
+        #endif
         // 监听 Deep Link：冷启动时 onAppear 读取已有值
         // 方案 11：先记录是否携带 Deep Link → 处理 Deep Link → 再判断轻量 onboarding
         .onAppear {
@@ -500,6 +606,13 @@ struct HomeView: View {
             #endif
             if LightweightOnboardingSettings.shouldPresent(deepLinkPending: false) {
                 showOnboarding = true
+            } else if WelcomeNoteSeed.isPendingPresentation {
+                // 中断续跳：上次完成引导但欢迎笔记未送达（杀 App/来电中断），必达
+                welcomeNoteDeferredTour = true
+                presentWelcomeNoteIfNeeded()
+            } else {
+                // 中断兜底：三步导览未看过的在回首页时补播（hasSeen 幂等）
+                startHomeCoachTourIfNeeded()
             }
         }
         // 监听 Deep Link：热启动/后台时 onChange 检测变化
@@ -544,6 +657,24 @@ struct HomeView: View {
     }
 
     // MARK: - 首页导览触发
+
+    /// 直达预置欢迎笔记（完成引导/中断续跳）。必达语义：pending 直到编辑器真正
+    /// 打开才清（ThoughtEditorView onAppear ack），中途杀 App 下次启动继续跳。
+    /// 延迟等 onboarding cover 的 dismissal 动画落定——SwiftUI 同窗同时刻只呈现
+    /// 一个 cover，被挡的呈现会静默丢弃（识图复核页同款时序）。
+    private func presentWelcomeNoteIfNeeded() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            guard WelcomeNoteSeed.isPendingPresentation else { return }
+            guard WelcomeNoteSeed.isNoteAlive() else {
+                // 笔记不存在（被删/种子异常）：清标记防残留，导览照常接续
+                WelcomeNoteSeed.acknowledgePresentation()
+                welcomeNoteDeferredTour = false
+                startHomeCoachTourIfNeeded()
+                return
+            }
+            deepLinkState.navigate(to: .thoughtDetail(thoughtId: WelcomeNoteSeed.noteId))
+        }
+    }
 
     /// V1 引导结束（完成或跳过）后触发一次首页导览。
     /// 开始即落盘：中途杀 App 也不会下次重放（首启导览体验只来一次）。
@@ -638,6 +769,10 @@ struct HomeView: View {
         case .goToSidebar:
             // 由 ContentView 统一处理（iPad 改侧边栏选中态；iPhone 映射主 tab）
             break
+
+        case .switchToThoughts, .switchToTasks:
+            // Mac 工作台模块切换专用（⌘1/⌘2），iOS 端无对应语义
+            break
         }
     }
 
@@ -701,7 +836,7 @@ struct HomeView: View {
             .preferredColorScheme(DarkModeManager.shared.colorScheme)
 
         case .habits:
-            HabitsView()
+            HabitModuleContainer()
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
 
         case .tasks:
@@ -788,7 +923,7 @@ struct HomeView: View {
 
     /// 小屏机型（高度不足）自动降档为紧凑条，不挤占中央大按钮（方案 §13.2）。
     private var shouldCompactMatterCard: Bool {
-        UIScreen.main.bounds.height < 700
+        holoScreenHeight() < 700
     }
 
     private var matterFocusItem: MatterFocusCard.Item? {
@@ -1259,6 +1394,19 @@ struct HomeView: View {
     
     // MARK: - Deep Link 处理
 
+    /// 识图记账深链专用清场：收掉会挡住财务模块 sheet 的输入/浏览弹层。
+    /// onboarding/付费墙/导入这类系统级流程不在此列（不该被记账结果打断）。
+    /// - Returns: 是否收掉了任何弹层
+    private func dismissReceiptBlockingPresentations() -> Bool {
+        var dismissedAny = false
+        if showThoughtEditor { showThoughtEditor = false; dismissedAny = true }
+        if showAddTaskSheet { showAddTaskSheet = false; dismissedAny = true }
+        if showAddTransactionSheet { showAddTransactionSheet = false; dismissedAny = true }
+        if showMatterList { showMatterList = false; dismissedAny = true }
+        if matterDetailTarget != nil { matterDetailTarget = nil; dismissedAny = true }
+        return dismissedAny
+    }
+
     /// 处理 Deep Link 跳转
     /// 由 .onAppear（冷启动）和 .onChange（热启动/后台）触发
     ///
@@ -1272,6 +1420,8 @@ struct HomeView: View {
         // 下方 navigateToScreen 只切常驻栈，导航发生在覆盖层下面时用户看到的
         // 还是原界面（点小组件拉起后停在个人页不动的根因）。目标自身要开的层
         // （看板、各编辑器 sheet、goalDetail 的个人页）在各 case 里再开。
+        let hadCoverPresentation = showPersonalView || showSettingsView
+            || showPersonalPage || showSettingsPage || showDailyKanban
         showPersonalView = false
         showSettingsView = false
         showPersonalPage = false
@@ -1339,8 +1489,23 @@ struct HomeView: View {
             pendingFinanceEvidenceReviewDeepLink = link
             navigateToScreen(.finance)
         case .receiptReview, .receiptBookingResult:
-            // 图片自动记账：先开财务模块，pendingTarget 由 FinanceView 消费弹复核/结果
+            // 图片自动记账：先开财务模块，pendingTarget 由 FinanceView 消费弹复核/结果。
+            // 2026-10-14 清场：财务模块的复核/结果 sheet 会被任何还开着的弹层静默
+            // 挡住（SwiftUI 同窗同时刻只呈现一个 sheet，被挡的呈现直接丢弃且无回执）
+            // ——东林实锤「Holo 打开了其他页面就不会立马跳到记账确认页」。这里把
+            // HomeView 层的输入/浏览弹层一并收掉；有弹层在收时延迟重派一次深链，
+            // 等 dismissal 落定后 FinanceView 再消费，确认页必达。
+            let hadBlockingPresentation = hadCoverPresentation
+                || dismissReceiptBlockingPresentations()
             navigateToScreen(.finance)
+            if hadBlockingPresentation {
+                // navigate 对相同目标先清空再异步设置，onChange 必再触发；
+                // 弹层 dismissal 动画约 0.4s，0.6s 后重派时已落定
+                let current = target
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    deepLinkState.navigate(to: current)
+                }
+            }
         case .addTransaction:
             showAddTransactionSheet = true
             deepLinkState.pendingTarget = nil

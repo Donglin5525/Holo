@@ -2,8 +2,9 @@
 //  ChatInputView.swift
 //  Holo
 //
-//  对话输入栏
-//  TextField + 图片/语音/发送按钮
+//  对话输入栏「一体舱」（2026-11-01 东林拍板方案 A，原型即契约）
+//  承接条 / 输入框 / 工具行（图片·语音·发送）收进同一个浮起容器，
+//  多行时工具行始终锚在舱底；发送键空态置灰��有字亮橙、生成中变停止键。
 //  图片入口：截图识别记账（docs/plans/2026-09-09-screenshot-receipt-billing-plan.md §4）
 //
 
@@ -53,13 +54,14 @@ struct ChatInputView: View {
     }
 
     var body: some View {
-        VStack(spacing: 7) {
+        VStack(alignment: .leading, spacing: 0) {
+            // 承接条：收进舱体顶部，与输入框同容器，下方细分隔线
             if let draft = viewModel.continuationDraft {
-                HStack(spacing: 10) {
+                HStack(spacing: 9) {
                     Image(systemName: "arrowshape.turn.up.left.fill")
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(.holoPrimary)
-                        .frame(width: 27, height: 27)
+                        .frame(width: 26, height: 26)
                         .background(Color.holoPrimary.opacity(0.10))
                         .clipShape(Circle())
 
@@ -80,61 +82,57 @@ struct ChatInputView: View {
                         Image(systemName: "xmark")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundColor(.holoToolTextSecondary)
-                            .frame(width: 26, height: 26)
+                            .frame(width: 24, height: 24)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(String(localized: "取消承接上一份分析"))
                 }
-                .padding(.leading, 10)
-                .padding(.trailing, 5)
-                .padding(.vertical, 6)
-                .background(Color.holoToolSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .stroke(Color.holoPrimary.opacity(0.16), lineWidth: 1)
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .padding(.top, 7)
+                .padding(.bottom, 8)
+                .padding(.trailing, 2)
+                .transition(.move(edge: .top).combined(with: .opacity))
+
+                Rectangle()
+                    .fill(Color.holoToolBorder.opacity(0.6))
+                    .frame(height: 0.5)
+                    .padding(.trailing, 2)
+                    .padding(.bottom, 2)
             }
 
-            HStack(alignment: .bottom, spacing: HoloSpacing.xs) {
-                // 输入框
-                TextField(String(localized: "告诉 Holo 发生了什么…"), text: $viewModel.inputText, axis: .vertical)
-                    .focused($isInputFocused)
-                    .lineLimit(1...5)
-                    .textFieldStyle(.plain)
-                    .holoText(.body)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.holoToolSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
-                            .strokeBorder(Color.holoToolBorder, lineWidth: 0.5)
+            TextField(String(localized: "告诉 Holo 发生了什么…"), text: $viewModel.inputText, axis: .vertical)
+                .focused($isInputFocused)
+                .lineLimit(1...5)
+                .textFieldStyle(.plain)
+                .holoText(.body)
+                .tint(Color.holoPrimary)
+                .padding(.top, 9)
+                .padding(.bottom, 7)
+                .padding(.trailing, 6)
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        onInputActivated()
                     }
-                    .simultaneousGesture(
-                        TapGesture().onEnded {
-                            onInputActivated()
-                        }
-                    )
-                    .onSubmit {
-                        // 流式中发送按钮已切换为停止键；回车不允许并发发送第二条消息
-                        guard !viewModel.isStreaming else { return }
-                        Task { await viewModel.sendMessage() }
-                    }
+                )
+                .onSubmit {
+                    // 流式中发送按钮已切换为停止键；回车不允许并发发送第二条消息
+                    guard !viewModel.isStreaming else { return }
+                    Task { await viewModel.sendMessage() }
+                }
 
+            // 工具行：左图片/语音，右发送（生成中切停止键），始终锚在舱底
+            HStack(spacing: 4) {
                 // 截图识别入口：拍照或选相册图（小票/支付截图）
                 Button {
                     showImageSourceDialog = true
                 } label: {
                     if isLoadingPick {
                         ProgressView()
-                            .frame(width: 44, height: 44)
+                            .frame(width: 36, height: 36)
                     } else {
-                        Image(systemName: "photo.circle.fill")
-                            .font(.system(size: 28))
+                        Image(systemName: "photo")
+                            .font(.system(size: 19, weight: .medium))
                             .foregroundColor(imageButtonColor)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 36, height: 36)
                     }
                 }
                 .disabled(viewModel.isStreaming || isLoadingPick)
@@ -143,13 +141,15 @@ struct ChatInputView: View {
                 Button {
                     onVoiceInputTap()
                 } label: {
-                    Image(systemName: "mic.circle.fill")
-                        .font(.system(size: 28))
+                    Image(systemName: "mic")
+                        .font(.system(size: 19, weight: .medium))
                         .foregroundColor(voiceButtonColor)
-                            .frame(width: 44, height: 44)
+                        .frame(width: 36, height: 36)
                 }
                 .disabled(viewModel.isStreaming)
                 .accessibilityLabel(String(localized: "语音输入"))
+
+                Spacer(minLength: 0)
 
                 // 发送/停止按钮：停止键在「普通流式进行中」或「存在等待/恢复中的 Agent 消息」
                 // 时都要可见——Agent 等待网络/系统资源期间输入框已解锁可发新消息，但用户
@@ -158,10 +158,15 @@ struct ChatInputView: View {
                     Button {
                         viewModel.cancelStreaming()
                     } label: {
-                        Image(systemName: "stop.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.holoError)
-                            .frame(width: 44, height: 44)
+                        Image(systemName: "square.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.holoToolAction)
+                            .frame(width: 36, height: 36)
+                            .background(Color.holoPrimary.opacity(0.09))
+                            .clipShape(Circle())
+                            .overlay {
+                                Circle().strokeBorder(Color.holoToolAction.opacity(0.28), lineWidth: 1)
+                            }
                     }
                     .keyboardShortcut(".", modifiers: .command)
                     .accessibilityLabel(String(localized: "停止生成"))
@@ -169,12 +174,16 @@ struct ChatInputView: View {
                     Button {
                         Task { await viewModel.sendMessage() }
                     } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(sendButtonColor)
-                            .frame(width: 44, height: 44)
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 17, weight: .bold))
+                            .foregroundColor(canSend ? .holoToolOnAction : .holoToolTextSecondary.opacity(0.4))
+                            .frame(width: 36, height: 36)
+                            .background(canSend ? Color.holoPrimary : Color.holoToolInset)
+                            .clipShape(Circle())
+                            .shadow(color: canSend ? Color.holoPrimary.opacity(0.38) : .clear, radius: 7, y: 3)
                     }
-                    .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(!canSend)
+                    .animation(HoloAnimation.quick, value: canSend)
                     // 外接键盘 Cmd+回车发送。纯回车保留换行（TextField 竖轴默认行为），
                     // 不改 iPhone 软件键盘体验；停止键同样给 Cmd+.（系统标准取消）
                     .keyboardShortcut(.return, modifiers: .command)
@@ -182,6 +191,17 @@ struct ChatInputView: View {
                 }
             }
         }
+        .padding(.top, 4)
+        .padding(.leading, 14)
+        .padding(.trailing, 8)
+        .padding(.bottom, 8)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // 舱体空白处（如输入框右侧留白）也能唤起输入，避免点击死区
+            onInputActivated()
+            isInputFocused = true
+        }
+        .holoSurface(.floating)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color.holoToolBackground)
@@ -209,6 +229,7 @@ struct ChatInputView: View {
             matching: .images,
             photoLibrary: .shared()
         )
+        #if canImport(UIKit)
         .fullScreenCover(
             isPresented: $showCamera,
             onDismiss: {
@@ -227,6 +248,26 @@ struct ChatInputView: View {
             )
             .ignoresSafeArea()
         }
+        #else
+                .sheet(
+            isPresented: $showCamera,
+            onDismiss: {
+                // 捕获数据在 dismiss 后处理（任务/想法附件同范式，规避 sheet 竞态）
+                guard let data = pendingCameraData else { return }
+                pendingCameraData = nil
+                onImagePicked?(data)
+            }
+        ) {
+            CameraView(
+                onCapture: { data in
+                    pendingCameraData = data
+                    showCamera = false
+                },
+                onDismiss: { showCamera = false }
+            )
+            .ignoresSafeArea()
+        }
+        #endif
         .onChange(of: pickedItems) { _, newItems in
             guard let newItem = newItems.last else { return }
             pickedItems = []
@@ -256,10 +297,9 @@ struct ChatInputView: View {
         viewModel.isStreaming ? .holoToolTextSecondary.opacity(0.3) : .holoToolTextSecondary
     }
 
-    private var sendButtonColor: Color {
-        return viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? .holoToolTextSecondary.opacity(0.3)
-            : .holoToolAction
+    /// 有非空白文字才允许发送；驱动发送键「置灰 ↔ 亮橙」两态
+    private var canSend: Bool {
+        !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func loadAndForward(item: PhotosPickerItem) {

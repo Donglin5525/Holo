@@ -85,7 +85,7 @@ class CategoryMatcherService {
         let normalizedPrimary = primaryCategory.trimmingCharacters(in: .whitespaces)
         let normalizedSub = subCategory.trimmingCharacters(in: .whitespaces)
 
-        // 只匹配二级分类（有 parentId 的）
+        let categories = FinanceCategoryIntegrity.selectableCategories(in: categories, type: type.rawValue)
         let subCategories = categories.filter { $0.isSubCategory }
 
         if normalizedSub == normalizedPrimary,
@@ -106,9 +106,10 @@ class CategoryMatcherService {
         }
 
         // ━━━━━━━━━━ 精确复用：二级名称相同且一级分类相同 ━━━━━━━━━━
-        if let exact = findExactMatch(subCategory: normalizedSub, categories: subCategories) {
-            let parentMatched = primaryMatches(originalPrimary: normalizedPrimary, category: exact, allCategories: categories)
-            if parentMatched {
+        if let exact = subCategories.first(where: {
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedSub.lowercased()
+                && primaryMatches(originalPrimary: normalizedPrimary, category: $0, allCategories: categories)
+        }) {
                 return CategoryMatchResult(
                     originalPrimary: normalizedPrimary,
                     originalSub: normalizedSub,
@@ -120,7 +121,6 @@ class CategoryMatcherService {
                     isManuallyModified: false,
                     primaryCategoryMatched: true
                 )
-            }
         }
 
         // ━━━━━━━━━━ 无精确匹配：导入时按原始一级/二级创建 ━━━━━━━━━━
@@ -179,6 +179,7 @@ class CategoryMatcherService {
         let normalizedCandidate = candidate.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let normalizedPrimary = primaryCategory.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !normalizedCandidate.isEmpty else { return nil }
+        let categories = FinanceCategoryIntegrity.selectableCategories(in: categories, type: type.rawValue)
 
         if !normalizedPrimary.isEmpty {
             let result = matchSingle(
@@ -187,18 +188,17 @@ class CategoryMatcherService {
                 type: type,
                 categories: categories
             )
-            return result.matchedCategory
+            guard let matched = result.matchedCategory, matched.isSubCategory else { return nil }
+            return matched
         }
 
         let subMatches = categories.filter {
             $0.isSubCategory &&
             $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedCandidate
         }
-        if let first = subMatches.first {
-            return first
-        }
-
-        return nil
+        // 未给一级时，同名二级跨不同父级不能替用户猜；同一完整路径按用户顺序选择。
+        guard Set(subMatches.compactMap(\.parentId)).count == 1 else { return nil }
+        return subMatches.sorted(by: Category.precedesInUserOrder).first
     }
 
     // MARK: - 私有方法
@@ -210,12 +210,7 @@ class CategoryMatcherService {
         allCategories: [Category]
     ) -> Bool {
         guard let parentName = parentName(of: category, in: allCategories) else {
-            // parentId 解析不到父实体：一级分类与原始一级直接比较；
-            // 孤儿子类（CloudKit 同步/历史恢复可致 parentId 悬空）信名字放行——
-            // 名字唯一性已由 findExactMatch 保证，此处拦截只会让「实体在、名字对」的分类全链失配
-            return category.isTopLevel
-                ? originalPrimary.lowercased() == category.name.lowercased()
-                : true
+            return false
         }
         // 先尝试直接匹配
         if originalPrimary.lowercased() == parentName.lowercased() { return true }
@@ -230,12 +225,6 @@ class CategoryMatcherService {
     private func parentName(of category: Category, in categories: [Category]) -> String? {
         guard let parentId = category.parentId else { return nil }
         return categories.first(where: { $0.id == parentId })?.name
-    }
-
-    /// 精确匹配（忽略大小写和首尾空白）
-    private func findExactMatch(subCategory: String, categories: [Category]) -> Category? {
-        let normalized = subCategory.lowercased().trimmingCharacters(in: .whitespaces)
-        return categories.first { $0.name.lowercased().trimmingCharacters(in: .whitespaces) == normalized }
     }
 
     /// 模糊匹配（Levenshtein 编辑距离 + 公共前缀加成）

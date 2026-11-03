@@ -58,9 +58,13 @@ final class GoalWorkshopCoordinator {
     // MARK: - 对外操作
 
     /// 开始新会话并发起首轮 understand（不占对话额度，见文件头产品决策）
+    /// - Parameter candidates: 本会话授权给模型引用的既有习惯/账户候选（只传摘要，不传记录）；
+    ///   随会话落库，校验器只放行其中 ID，提交时据此解析复用对象
     func start(seedText: String, goalID: UUID? = nil,
-               contextRefs: [GoalWorkshopContextRef] = []) async throws -> GoalWorkshopSessionV1 {
-        var session = GoalWorkshopSessionV1(goalID: goalID, originalText: seedText)
+               contextRefs: [GoalWorkshopContextRef] = [],
+               candidates: GoalWorkshopAuthorizedCandidates? = nil) async throws -> GoalWorkshopSessionV1 {
+        var session = GoalWorkshopSessionV1(goalID: goalID, originalText: seedText,
+                                            authorizedCandidates: candidates)
         try store.saveIfRevisionMatches(session)
         return try await advance(session: session, operation: .understand, input: seedText,
                                  skippedQuestion: false, contextRefs: contextRefs)
@@ -149,12 +153,19 @@ final class GoalWorkshopCoordinator {
         }
         try store.saveIfRevisionMatches(budgeted)
 
+        // 授权候选摘要只在会产出/修订计划的轮次随请求携带（首轮理解、产草案、重规划）
+        var mergedRefs = contextRefs
+        if (operation == .understand && session.revision <= 1) || operation == .buildPlan || operation == .replan {
+            let existing = Set(mergedRefs.map(\.sourceID))
+            mergedRefs += budgeted.candidates.contextRefs().filter { !existing.contains($0.sourceID) }
+        }
+
         let body = GoalWorkshopPromptBuilder.requestBody(
             session: budgeted,
             operation: operation,
             input: input,
             skippedQuestion: skippedQuestion,
-            contextRefs: contextRefs
+            contextRefs: mergedRefs
         )
 
         do {

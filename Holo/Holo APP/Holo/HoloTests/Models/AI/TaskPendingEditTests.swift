@@ -282,4 +282,130 @@ final class TaskPendingEditTests: XCTestCase {
         }
         XCTAssertEqual(card.reminderDates, [TaskReminder(offsetMinutes: 15).displayTitle])
     }
+
+    // MARK: - 时段词未来下限（2026-10-19）
+
+    private func makeTaskBatch(data: [String: String]) -> AIParseBatch {
+        AIParseBatch(
+            mode: .singleAction,
+            items: [AIParseItem(
+                id: "1", intent: .createTask, confidence: 1.0,
+                extractedData: data, responseText: nil, routeSource: nil, routeReasonCode: nil
+            )]
+        )
+    }
+
+    func testFutureFloorLiftsVagueEveningTimeToNowPlusOneHour() {
+        // 21:59 说「提醒我今晚买猫砂」→ AI 固定映射 20:00（已过去近 2 小时）→ 抬到 22:59
+        let now = date(2026, 10, 19, 21, 59)
+        let batch = makeTaskBatch(data: [
+            "title": "买猫砂",
+            "dueDate": "2026-10-19 20:00",
+            "reminderDate": "2026-10-19 20:00"
+        ])
+        let floored = TaskPendingDefaults.applyingFutureFloor(
+            to: batch, originalInput: "提醒我今晚买猫砂。", now: now
+        )
+        XCTAssertEqual(floored.items[0].extractedData?["dueDate"], "2026-10-19 22:59")
+        XCTAssertEqual(floored.items[0].extractedData?["reminderDate"], "2026-10-19 22:59")
+    }
+
+    func testFutureFloorRespectsExplicitClockInOriginalInput() {
+        // 用户报了钟点（哪怕解析出的时刻距当前不足 1 小时）尊重原值，不钳
+        let now = date(2026, 10, 19, 21, 59)
+        let batch = makeTaskBatch(data: [
+            "title": "买猫砂",
+            "dueDate": "2026-10-19 22:00",
+            "reminderDate": "2026-10-19 22:00"
+        ])
+        let floored = TaskPendingDefaults.applyingFutureFloor(
+            to: batch, originalInput: "提醒我今晚10点买猫砂", now: now
+        )
+        XCTAssertEqual(floored.items[0].extractedData?["dueDate"], "2026-10-19 22:00")
+        XCTAssertEqual(floored.items[0].extractedData?["reminderDate"], "2026-10-19 22:00")
+    }
+
+    func testFutureFloorKeepsFutureTimesAndAllDayDates() {
+        // 未来时刻（明晚）与全天日期不动
+        let now = date(2026, 10, 19, 21, 59)
+        let batch = makeTaskBatch(data: [
+            "title": "买猫砂",
+            "dueDate": "2026-10-20 20:00",
+            "reminderDates": "2026-10-20 08:00,2026-10-20 19:45"
+        ])
+        let floored = TaskPendingDefaults.applyingFutureFloor(
+            to: batch, originalInput: "提醒我明晚买猫砂", now: now
+        )
+        XCTAssertEqual(floored.items[0].extractedData?["dueDate"], "2026-10-20 20:00")
+        XCTAssertEqual(floored.items[0].extractedData?["reminderDates"], "2026-10-20 08:00,2026-10-20 19:45")
+
+        let allDay = makeTaskBatch(data: ["title": "买猫砂", "dueDate": "2026-10-19"])
+        let allDayFloored = TaskPendingDefaults.applyingFutureFloor(
+            to: allDay, originalInput: "提醒我今晚买猫砂", now: now
+        )
+        XCTAssertEqual(allDayFloored.items[0].extractedData?["dueDate"], "2026-10-19")
+    }
+
+    func testFutureFloorLiftsOnlyPastSlotsInReminderDates() {
+        // 多提醒槽位：只抬已过去的那个，其余原样保留
+        let now = date(2026, 10, 19, 21, 59)
+        let batch = makeTaskBatch(data: [
+            "title": "换日币",
+            "dueDate": "2026-10-20 09:00",
+            "reminderDates": "2026-10-19 20:00,2026-10-20 08:00"
+        ])
+        let floored = TaskPendingDefaults.applyingFutureFloor(
+            to: batch, originalInput: "提醒我今晚和明早去换日币", now: now
+        )
+        XCTAssertEqual(floored.items[0].extractedData?["reminderDates"], "2026-10-19 22:59,2026-10-20 08:00")
+        XCTAssertEqual(floored.items[0].extractedData?["dueDate"], "2026-10-20 09:00")
+    }
+
+    func testFutureFloorInjectsDueDateWhenModelOmittedButUtteranceHasVagueTime() {
+        // 模型漏填时间（只回标题+子条目）、原话带「今晚」→ 解析并冻结顺延值，
+        // 否则路由时从原话兜底解析出 20:00 的过期时刻且冻结不住
+        let now = date(2026, 10, 19, 21, 59)
+        let batch = makeTaskBatch(data: [
+            "title": "买猫砂和雨刮器",
+            "subtasks": "买猫砂,买雨刮器"
+        ])
+        let floored = TaskPendingDefaults.applyingFutureFloor(
+            to: batch, originalInput: "提醒我今晚买猫砂，买雨刮器。", now: now
+        )
+        XCTAssertEqual(floored.items[0].extractedData?["dueDate"], "2026-10-19 22:59")
+
+        // 原话的时段落在未来（明晚）→ 按解析值注入，不抬
+        let tomorrow = makeTaskBatch(data: ["title": "买猫粮"])
+        let tomorrowFloored = TaskPendingDefaults.applyingFutureFloor(
+            to: tomorrow, originalInput: "提醒我明天晚上买猫粮", now: now
+        )
+        XCTAssertEqual(tomorrowFloored.items[0].extractedData?["dueDate"], "2026-10-20 20:00")
+
+        // 原话没有时间词 → 不注入，保持「未设置」
+        let noTime = makeTaskBatch(data: ["title": "买猫砂"])
+        let noTimeFloored = TaskPendingDefaults.applyingFutureFloor(
+            to: noTime, originalInput: "提醒我买猫砂", now: now
+        )
+        XCTAssertNil(noTimeFloored.items[0].extractedData?["dueDate"])
+    }
+
+    func testFutureFloorIgnoresExpenseDates() {
+        // 记账的过去日期合法（补记场景），时段词下限只管任务类意图
+        let now = date(2026, 10, 19, 21, 59)
+        let batch = AIParseBatch(
+            mode: .singleAction,
+            items: [AIParseItem(
+                id: "1", intent: .recordExpense, confidence: 1.0,
+                extractedData: ["amount": "29", "transactionDate": "2026-10-19 20:00"],
+                responseText: nil, routeSource: nil, routeReasonCode: nil
+            )]
+        )
+        let floored = TaskPendingDefaults.applyingFutureFloor(
+            to: batch, originalInput: "晚上吃饭花了29", now: now
+        )
+        XCTAssertEqual(
+            floored.items[0].extractedData?["transactionDate"],
+            "2026-10-19 20:00"
+        )
+    }
 }

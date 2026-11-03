@@ -86,7 +86,15 @@ final class GoalWorkshopSessionMO: NSManagedObject, Identifiable {
             throw GoalWorkshopStoreError.incompatiblePayload(version: version)
         }
         let payload = try JSONDecoder().decode(GoalWorkshopSessionPayload.self, from: data)
-        return payload.session
+        var session = payload.session
+        // 保存回执与目标在同一事务中写入提级字段。读取时以回执为准，
+        // 避免关闭确认页后再补写 payload 的第二次保存失败，把已保存目标读成待确认。
+        if phase == .saved, let appliedGoalID {
+            session.phase = .saved
+            session.appliedGoalID = appliedGoalID
+            session.updatedAt = max(session.updatedAt, updatedAt)
+        }
+        return session
     }
 
     func apply(payload: GoalWorkshopSessionPayload) {

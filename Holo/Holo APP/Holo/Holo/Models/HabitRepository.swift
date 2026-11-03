@@ -16,6 +16,13 @@ import os.log
 extension Notification.Name {
     /// 习惯数据变更通知（新增/编辑/删除习惯或记录时发送）
     static let habitDataDidChange = Notification.Name("habitDataDidChange")
+
+    /// 打卡埋点事件总线（2026-10-19 产品埋点）：本文件同时被主 App 与 HoloWidgets
+    /// 两个 target 编译，仓库层不能直接引用 App 侧的 HoloProductAnalytics（小组件
+    /// target 编不过）；打卡事件经通知解耦，由主 App 侧埋点服务监听记录。
+    static let holoHabitCheckinDidRecord = Notification.Name("holo.habit.checkinDidRecord")
+    /// 新建习惯埋点事件总线（2026-10-25 字典 v2），同上解耦口径；userInfo["type"]=checkIn/numeric
+    static let holoHabitDidCreate = Notification.Name("holo.habit.didCreate")
 }
 
 // MARK: - HabitRepository
@@ -209,7 +216,7 @@ class HabitRepository: ObservableObject {
         let paused = (try? context.fetch(request)) ?? []
         for habit in paused {
             guard let until = habit.pausedUntil else { continue }
-            if calendar.startOfDay(for: until) <= today {
+            if calendar.startOfDay(for: until) <= habit.currentDay(calendar: calendar) {
                 do {
                     // 恢复日当天也冻结：自动恢复是静默的，用户可能不知道习惯已回来
                     // （出境深夜到点恢复实锤），恢复日漏卡不该断。手动恢复不冻结。
@@ -285,6 +292,7 @@ class HabitRepository: ObservableObject {
     ///   - aggregationType: 聚合类型（数值型）
     ///   - reminderMode: 打卡提醒模式（仅打卡型参与提醒，默认跟随兜底）
     ///   - reminderTime: 单独提醒时间（solo 模式使用，默认 09:00）
+    ///   - dayEndTime: 每日结算时间（默认 0:00 = 自然日）
     /// - Returns: 新建的习惯
     @discardableResult
     func createHabit(
@@ -296,10 +304,12 @@ class HabitRepository: ObservableObject {
         targetCount: Int? = nil,
         targetValue: Double? = nil,
         unit: String? = nil,
+        habitDescription: String? = nil,
         aggregationType: HabitAggregationType = .sum,
         isBadHabit: Bool = false,
         reminderMode: HabitReminderMode = .follow,
-        reminderTime: (hour: Int, minute: Int) = (hour: 9, minute: 0)
+        reminderTime: (hour: Int, minute: Int) = (hour: 9, minute: 0),
+        dayEndTime: (hour: Int, minute: Int) = (hour: 0, minute: 0)
     ) throws -> Habit {
         if !isReady { setup() }
         // 计算新的排序顺序
@@ -315,11 +325,13 @@ class HabitRepository: ObservableObject {
             targetCount: targetCount,
             targetValue: targetValue,
             unit: unit,
+            habitDescription: habitDescription,
             aggregationType: aggregationType,
             isBadHabit: isBadHabit,
             sortOrder: maxSortOrder + 1,
             reminderMode: reminderMode,
-            reminderTime: reminderTime
+            reminderTime: reminderTime,
+            dayEndTime: dayEndTime
         )
         
         try context.save()
@@ -327,6 +339,12 @@ class HabitRepository: ObservableObject {
         // 新建习惯需出现在今日看板；看板白名单非空时自动纳入（不限频率），避免新建后看不到
         HabitStatsDisplaySettings.shared.addDashboardHabitIfNeeded(habit.id)
         notifyDataChange(habitId: habit.id)
+        // 产品埋点：新建习惯经通知总线送达主 App 侧（同打卡事件，双 target 共享文件不能直调）
+        NotificationCenter.default.post(
+            name: .holoHabitDidCreate,
+            object: nil,
+            userInfo: ["type": type == .checkIn ? "checkIn" : "numeric"]
+        )
 
         return habit
     }
@@ -349,6 +367,7 @@ class HabitRepository: ObservableObject {
         if let isBadHabit = updates.isBadHabit { habit.isBadHabit = isBadHabit }
         if let reminderMode = updates.reminderMode { habit.habitReminderMode = reminderMode }
         if let reminderTime = updates.reminderTime { habit.reminderTime = reminderTime }
+        if let dayEndTime = updates.dayEndTime { habit.dayEndTime = dayEndTime }
         
         habit.updatedAt = Date()
         
@@ -413,7 +432,7 @@ class HabitRepository: ObservableObject {
         habit.pausedUntil = until.map { calendar.startOfDay(for: $0) }
         var windows = habit.pauseWindows
         windows.append(HabitPauseWindow(
-            startDate: calendar.startOfDay(for: Date()),
+            startDate: habit.currentDay(calendar: calendar),
             endDate: nil
         ))
         habit.pauseWindows = windows
@@ -432,7 +451,7 @@ class HabitRepository: ObservableObject {
         guard habit.isPaused else { return }
 
         let calendar = HabitDayClock.calendar
-        let today = calendar.startOfDay(for: Date())
+        let today = habit.currentDay(calendar: calendar)
 
         habit.isPaused = false
         habit.pausedUntil = nil
@@ -561,18 +580,34 @@ class HabitRepository: ObservableObject {
         // 查找今日记录
         if let existingRecord = findTodayCheckInRecord(for: habit) {
             // 切换完成状态（取消打卡保留原备注）
+            let oldCompleted = existingRecord.isCompleted, oldNote = existingRecord.note
             existingRecord.isCompleted.toggle()
             if existingRecord.isCompleted, let note, !note.isEmpty {
                 existingRecord.note = note
             }
-            try context.save()
+            do { try context.save() }
+            catch { existingRecord.isCompleted = oldCompleted; existingRecord.note = oldNote; throw error }
             notifyDataChange(habitId: habit.id)
+            // 产品埋点：仅成功打卡记事件（撤销打卡不打），经通知总线送达主 App 侧
+            if existingRecord.isCompleted {
+                NotificationCenter.default.post(
+                    name: .holoHabitCheckinDidRecord,
+                    object: nil,
+                    userInfo: ["kind": "check"]
+                )
+            }
             return existingRecord.isCompleted
         } else {
             // 创建新记录（默认已完成）
-            _ = HabitRecord.createCheckIn(in: context, habit: habit, isCompleted: true, note: note)
-            try context.save()
+            let inserted = HabitRecord.createCheckIn(in: context, habit: habit, isCompleted: true, note: note)
+            do { try context.save() }
+            catch { context.delete(inserted); throw error }
             notifyDataChange(habitId: habit.id)
+            NotificationCenter.default.post(
+                name: .holoHabitCheckinDidRecord,
+                object: nil,
+                userInfo: ["kind": "check"]
+            )
             return true
         }
     }
@@ -588,10 +623,17 @@ class HabitRepository: ObservableObject {
         // 暂停期不记数，与打卡型同一道闸
         guard !habit.isPaused else { throw HabitError.habitIsPaused }
         let record = HabitRecord.createNumeric(in: context, habit: habit, value: value, note: note)
-        
-        try context.save()
+
+        do { try context.save() }
+        catch { context.delete(record); throw error }
         notifyDataChange(habitId: habit.id)
-        
+        // 产品埋点：数值型记录一笔（incrementCount 快捷 +1 复用此函数，天然覆盖）
+        NotificationCenter.default.post(
+            name: .holoHabitCheckinDidRecord,
+            object: nil,
+            userInfo: ["kind": "numeric"]
+        )
+
         return record
     }
     
@@ -603,10 +645,7 @@ class HabitRepository: ObservableObject {
     
     /// 删除记录
     func deleteRecord(_ record: HabitRecord) throws {
-        let habitId = record.habitId
-        context.delete(record)
-        try context.save()
-        notifyDataChange(habitId: habitId)
+        try changePersistedRecord(record, delete: true)
     }
 
     /// 撤销今日最近一笔记录（数值型习惯误记 / 多 +1 时回退用）
@@ -619,21 +658,13 @@ class HabitRepository: ObservableObject {
         guard let latest = getTodayRecords(for: habit).first(where: { $0.valueDouble?.isFinite == true }) else {
             return false
         }
-        context.delete(latest)
-        try context.save()
-        notifyDataChange(habitId: habit.id)
+        try deleteRecord(latest)
         return true
     }
     
     /// 更新记录
     func updateRecord(_ record: HabitRecord, value: Double?, note: String?) throws {
-        if let value = value {
-            record.value = NSNumber(value: value)
-        }
-        record.note = note
-
-        try context.save()
-        notifyDataChange(habitId: record.habitId)
+        try changePersistedRecord(record, delete: false, value: value, note: note)
     }
 
     // MARK: - 补签（Retroactive Check-in）
@@ -651,36 +682,28 @@ class HabitRepository: ObservableObject {
     }
 
     /// 最近 7 天内可补签的日期（升序，元素为 startOfDay）
-    /// - 打卡型：仅每日好习惯返回漏卡日；weekly/monthly 有周期弹性，无「漏卡」概念
+    /// - 打卡型：好习惯返回未打卡日（含周/月频率——真实做了忘记录同样可补）
     /// - 数值型：当天无任何记录的日子
     /// - 坏习惯不参与补签（「补做坏事」无意义）
     /// - 早于习惯创建日的日子不算漏卡
     func retroactiveEligibleDays(for habit: Habit) -> [Date] {
         guard retroactiveSupported(habit) else { return [] }
-        // 打卡型仅每日习惯有「漏卡」概念；weekly/monthly 周期内有弹性，少一天不算漏
-        if habit.isCheckInType && habit.habitFrequency != .daily { return [] }
 
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let createdDay = calendar.startOfDay(for: habit.createdAt)
+        let today = habit.currentDay(calendar: calendar)
+        let createdDay = habit.creationDay(calendar: calendar)
 
         // 一次取回窗口内该习惯的全部记录，内存判定逐日是否可补
-        guard let windowStart = calendar.date(byAdding: .day, value: -(HabitRetroactivePolicy.lookbackDays - 1), to: today) else {
+        guard let windowStart = calendar.date(byAdding: .day, value: -(HabitRetroactivePolicy.lookbackDays - 1), to: today),
+              let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else {
             return []
         }
-        let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "habitId == %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
-            habit.id as CVarArg,
-            windowStart as NSDate,
-            today as NSDate
-        )
-        let records = (try? context.fetch(request)) ?? []
+        let records = records(for: habit, from: windowStart, through: yesterday)
 
         var daysWithCompletion: Set<Date> = []   // 打卡型：该日有完成记录
         var daysWithAnyRecord: Set<Date> = []    // 数值型：该日有任何记录
         for record in records {
-            let day = calendar.startOfDay(for: record.date)
+            let day = record.attributedDay(dayEndMinutes: habit.dayEndMinutes, calendar: calendar)
             if record.isCompleted { daysWithCompletion.insert(day) }
             daysWithAnyRecord.insert(day)
         }
@@ -700,11 +723,11 @@ class HabitRepository: ObservableObject {
         return eligible
     }
 
-    /// 补签目标日是否落在可补窗口内（最近 7 天的过去日期）
-    func isRetroactiveWindowValid(_ day: Date) -> Bool {
+    /// 补签目标日是否落在可补窗口内（最近 7 天的过去日期；「今天」按习惯结算时间判定）
+    func isRetroactiveWindowValid(_ day: Date, for habit: Habit) -> Bool {
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: day)
-        let today = calendar.startOfDay(for: Date())
+        let today = habit.currentDay(calendar: calendar)
         guard dayStart < today else { return false }
         guard let earliest = calendar.date(byAdding: .day, value: -(HabitRetroactivePolicy.lookbackDays - 1), to: today) else {
             return false
@@ -741,34 +764,23 @@ class HabitRepository: ObservableObject {
         allowsFullHistory: Bool = false
     ) throws -> RetroactiveCheckInResult {
         guard retroactiveSupported(habit) else { return .invalidDate }
-        // 早于习惯创建日的日期不可补（那时习惯还不存在）
-        guard day >= Calendar.current.startOfDay(for: habit.createdAt) else { return .invalidDate }
-        if allowsFullHistory {
-            // 补记：只要早于今天即可（今天请直接打卡）
-            let calendar = Calendar.current
-            guard calendar.startOfDay(for: day) < calendar.startOfDay(for: Date()) else { return .invalidDate }
-        } else {
-            guard isRetroactiveWindowValid(day) else { return .invalidDate }
-        }
-
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: day)
-        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return .invalidDate }
+        // 早于习惯创建日的日期不可补（那时习惯还不存在）
+        guard dayStart >= habit.creationDay(calendar: calendar) else { return .invalidDate }
+        if allowsFullHistory {
+            // 补记：只要早于今天即可（今天请直接打卡）
+            guard dayStart < habit.currentDay(calendar: calendar) else { return .invalidDate }
+        } else {
+            guard isRetroactiveWindowValid(day, for: habit) else { return .invalidDate }
+        }
+
+        let dayRecords = records(for: habit, on: dayStart)
 
         // 幂等识别前移（2026-10 重构）：已完成日在配额门禁之前识别，
         // 给「这一天已经记录过了」，不展示无意义付费墙、不扣额度
-        if habit.isCheckInType {
-            let doneRequest = HabitRecord.fetchRequest()
-            doneRequest.predicate = NSPredicate(
-                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
-                habit.id as CVarArg,
-                dayStart as NSDate,
-                dayEnd as NSDate
-            )
-            doneRequest.fetchLimit = 1
-            if ((try? context.fetch(doneRequest))?.count ?? 0) > 0 {
-                return .alreadyCompleted
-            }
+        if habit.isCheckInType, dayRecords.contains(where: { $0.isCompleted }) {
+            return .alreadyCompleted
         }
 
         // 额度：Plus 无限；免费用尽返回 requiresPlus，由 UI 层弹付费墙
@@ -780,18 +792,13 @@ class HabitRepository: ObservableObject {
         let streakBefore = calculateStreakInfo(for: habit).value
 
         if habit.isCheckInType {
-            // 当天存在「取消态」记录（曾打卡又取消）时复用它，保持一天一条的数据形态
-            let existing = HabitRecord.fetchRequest()
-            existing.predicate = NSPredicate(
-                format: "habitId == %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
-                habit.id as CVarArg,
-                dayStart as NSDate,
-                dayEnd as NSDate
-            )
-            existing.fetchLimit = 1
-            if let canceled = try context.fetch(existing).first {
+            // 当天存在「取消态」记录（曾打卡又取消）时复用它，保持一天一条的数据形态。
+            // 转为补签后 date 归到目标日零点：补签记录的归属不随结算时间平移，
+            // 保留实时时刻会让它在下次读取时被平移到别的日子
+            if let canceled = dayRecords.first {
                 canceled.isCompleted = true
                 canceled.isRetroactive = true
+                canceled.date = dayStart
                 if let note, !note.isEmpty { canceled.note = note }
             } else {
                 _ = HabitRecord.createRetroactiveCheckIn(in: context, habit: habit, on: dayStart, note: note)
@@ -824,56 +831,84 @@ class HabitRepository: ObservableObject {
     }
     
     // MARK: - Query Methods
-    
-    /// 查找今日打卡记录
-    func findTodayCheckInRecord(for habit: Habit) -> HabitRecord? {
-        let today = Calendar.current.startOfDay(for: Date())
-        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
-            return nil
-        }
-        
+
+    // MARK: 归属日查询（按习惯的每日结算时间，见 HabitDayAttribution）
+
+    /// 归属到 [firstDay, lastDay] 这些日子的全部有效记录（按 date 倒序）。
+    /// SQL 只能按真实 `date` 过滤：先按真实时间轴取超集，再按归属日精确过滤；
+    /// 默认结算（0:00）时超集即精确集，不再二次过滤。
+    func records(for habit: Habit, from firstDay: Date, through lastDay: Date) -> [HabitRecord] {
+        (try? fetchRecords(for: habit, from: firstDay, through: lastDay)) ?? []
+    }
+
+    /// 需要明确区分读取失败与零记录的目标、来源明细共用此入口。
+    func fetchRecords(for habit: Habit, from firstDay: Date, through lastDay: Date) throws -> [HabitRecord] {
+        let calendar = Calendar.current
+        let dayEnd = habit.dayEndMinutes
+        let window = HabitDayAttribution.rawFetchWindow(
+            firstDay: firstDay, lastDay: lastDay, dayEndMinutes: dayEnd, calendar: calendar
+        )
         let request = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
             format: "habitId == %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
             habit.id as CVarArg,
-            today as NSDate,
-            tomorrow as NSDate
+            window.start as NSDate,
+            window.end as NSDate
         )
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-        request.fetchLimit = 1
+        let rows = Self.deduplicatingRows(try context.fetch(request))
+        guard dayEnd != 0 else { return rows }
 
-        return try? context.fetch(request).first
+        let first = calendar.startOfDay(for: firstDay)
+        let last = calendar.startOfDay(for: lastDay)
+        return rows.filter { row in
+            let day = row.attributedDay(dayEndMinutes: dayEnd, calendar: calendar)
+            return day >= first && day <= last
+        }
+    }
+
+    /// 归属到 day 的全部有效记录（按 date 倒序）
+    func records(for habit: Habit, on day: Date) -> [HabitRecord] {
+        records(for: habit, from: day, through: day)
+    }
+
+    /// day 是否有完成打卡（连续天数逐日倒查、补签幂等共用）
+    func hasCompletedRecord(for habit: Habit, on day: Date) -> Bool {
+        records(for: habit, on: day).contains { $0.isCompleted }
+    }
+
+    /// 「一个发现」依据跳转用：打卡记录 id → 所属习惯 id（只读；记录不存在/已删返回 nil）。
+    func habitId(ofRecord recordID: UUID) -> UUID? {
+        let request = NSFetchRequest<HabitRecord>(entityName: "HabitRecord")
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", recordID as CVarArg)
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first?.habitId
+    }
+
+    /// 查找今日打卡记录（「今日」按习惯结算时间：结算前仍是前一天）
+    func findTodayCheckInRecord(for habit: Habit) -> HabitRecord? {
+        records(for: habit, on: habit.currentDay()).first
     }
     
     /// 获取今日所有记录（数值型习惯）
     func getTodayRecords(for habit: Habit) -> [HabitRecord] {
-        let today = Calendar.current.startOfDay(for: Date())
-        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
-            return []
-        }
-        
-        let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "habitId == %@ AND date >= %@ AND date < %@ AND deletedAt == nil",
-            habit.id as CVarArg,
-            today as NSDate,
-            tomorrow as NSDate
-        )
-        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-
-        return Self.deduplicatingRows((try? context.fetch(request)) ?? [])
+        records(for: habit, on: habit.currentDay())
     }
 
-    /// 获取指定日期范围的记录
+    /// 获取指定日期范围的记录。范围按习惯的日界坐标理解：实时记录以归属时刻
+    /// （真实时刻减去结算时长）判定是否落在范围内，补签记录以目标日判定。
     func getRecords(for habit: Habit, in range: ClosedRange<Date>?) -> [HabitRecord] {
         let request = HabitRecord.fetchRequest()
+        let dayEnd = habit.dayEndMinutes
 
         if let range = range {
+            // 实时记录归属时刻 = 真实时刻 − 结算时长，真实 date 上界要相应外扩
+            let rawUpper = range.upperBound.addingTimeInterval(TimeInterval(dayEnd) * 60)
             request.predicate = NSPredicate(
                 format: "habitId == %@ AND date >= %@ AND date <= %@ AND deletedAt == nil",
                 habit.id as CVarArg,
                 range.lowerBound as NSDate,
-                range.upperBound as NSDate
+                rawUpper as NSDate
             )
         } else {
             request.predicate = NSPredicate(format: "habitId == %@ AND deletedAt == nil", habit.id as CVarArg)
@@ -881,7 +916,10 @@ class HabitRepository: ObservableObject {
 
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
 
-        return Self.deduplicatingRows((try? context.fetch(request)) ?? [])
+        let rows = Self.deduplicatingRows((try? context.fetch(request)) ?? [])
+        guard let range, dayEnd != 0 else { return rows }
+        let calendar = Calendar.current
+        return rows.filter { range.contains($0.attributedMoment(dayEndMinutes: dayEnd, calendar: calendar)) }
     }
     
     /// 获取所有记录（按时间倒序）
@@ -1063,13 +1101,13 @@ class HabitRepository: ObservableObject {
         return try? context.fetch(request).first?.valueDouble
     }
     
-    /// 计算连续天数（打卡型）
+    /// 计算连续天数（打卡型）。「今天」与逐日判定均按习惯结算时间归属
     func calculateStreak(for habit: Habit) -> Int {
         guard habit.isCheckInType else { return 0 }
 
         let calendar = Calendar.current
         var streak = 0
-        var checkDate = calendar.startOfDay(for: Date())
+        var checkDate = habit.currentDay(calendar: calendar)
 
         if habit.isBadHabit {
             // 坏习惯：连续未打卡天数（连续控制住的天数）
@@ -1083,24 +1121,13 @@ class HabitRepository: ObservableObject {
             }
 
             // 创建日之前不存在「克制」：0 记录的新坏习惯只累计创建以来的天数，不顶满回溯上限
-            let creationDay = calendar.startOfDay(for: habit.createdAt)
+            let creationDay = habit.creationDay(calendar: calendar)
             let maxLookback = 3650
             for _ in 0..<maxLookback {
                 let dayStart = checkDate
                 guard dayStart >= creationDay else { break }
-                guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
 
-                let request = HabitRecord.fetchRequest()
-                request.predicate = NSPredicate(
-                    format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
-                    habit.id as CVarArg,
-                    dayStart as NSDate,
-                    dayEnd as NSDate
-                )
-                request.fetchLimit = 1
-
-                let hasBadRecord = ((try? context.fetch(request))?.count ?? 0) > 0
-                if hasBadRecord {
+                if hasCompletedRecord(for: habit, on: dayStart) {
                     // 有打卡记录（做了坏事）→ 中断连续控制
                     break
                 } else if habit.isDayPaused(dayStart) {
@@ -1130,19 +1157,8 @@ class HabitRepository: ObservableObject {
         let maxLookback = 3650
         for _ in 0..<maxLookback {
             let dayStart = checkDate
-            guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
 
-            let request = HabitRecord.fetchRequest()
-            request.predicate = NSPredicate(
-                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
-                habit.id as CVarArg,
-                dayStart as NSDate,
-                dayEnd as NSDate
-            )
-            request.fetchLimit = 1
-
-            let hasRecord = ((try? context.fetch(request))?.count ?? 0) > 0
-            if hasRecord {
+            if hasCompletedRecord(for: habit, on: dayStart) {
                 streak += 1
             } else if habit.isDayPaused(dayStart) {
                 // 冻结日：不算断、不计数，继续向前（暂停当天已打卡的场景在上方 hasRecord 分支正常计数）
@@ -1194,19 +1210,15 @@ class HabitRepository: ObservableObject {
 
     // MARK: - 周期连续性私有方法
 
-    /// 统计时间范围内的不同打卡天数
+    /// 统计 [start, end) 范围内的不同打卡天数（按归属日）
     private func countDistinctCompletionDays(for habit: Habit, from start: Date, to end: Date) -> Int {
-        let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
-            habit.id as CVarArg,
-            start as NSDate,
-            end as NSDate
-        )
-
-        let records = (try? context.fetch(request)) ?? []
         let calendar = Calendar.current
-        let distinctDays = Set(records.map { calendar.startOfDay(for: $0.date) })
+        guard let lastDay = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: end)) else { return 0 }
+        let distinctDays = Set(
+            records(for: habit, from: start, through: lastDay)
+                .filter(\.isCompleted)
+                .map { $0.attributedDay(dayEndMinutes: habit.dayEndMinutes, calendar: calendar) }
+        )
         return distinctDays.count
     }
 
@@ -1223,7 +1235,7 @@ class HabitRepository: ObservableObject {
         periodCount: (Habit, Date, Date) -> Int
     ) -> Int {
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
+        let today = habit.currentDay(calendar: calendar)
 
         // 计算当前周期的起始日
         let currentPeriodStart: Date
@@ -1253,7 +1265,7 @@ class HabitRepository: ObservableObject {
         var streak = 0
         let maxLookback = periodComponent == .weekOfYear ? 520 : 120
         // 创建日之前的周期不可能有记录：坏习惯不得凭空累计（好习惯在首个空周期自然中断，此下限对其无影响）
-        let creationDay = calendar.startOfDay(for: habit.createdAt)
+        let creationDay = habit.creationDay(calendar: calendar)
 
         for _ in 0..<maxLookback {
             guard let periodEnd = calendar.date(byAdding: periodComponent, value: 1, to: checkPeriodStart) else { break }
@@ -1367,11 +1379,16 @@ class HabitRepository: ObservableObject {
         return aggregateDailyNumericValues(for: habit, records: records)
     }
 
-    /// 详情统计、趋势图和统计总览共享同一套数值口径。
+    /// 详情统计、趋势图和统计总览共享同一套数值口径（样本时刻为归属时刻，按习惯结算时间切天）。
     func aggregateDailyNumericValues(for habit: Habit, records: [HabitRecord]) -> [DailyHabitData] {
-        HabitNumericAggregator.aggregateDaily(
-            samples: records.map { HabitNumericSample(date: $0.date, value: $0.valueDouble) },
-            isCountType: habit.isCountType
+        let calendar = Calendar.current
+        let dayEnd = habit.dayEndMinutes
+        return HabitNumericAggregator.aggregateDaily(
+            samples: records.map {
+                HabitNumericSample(date: $0.attributedMoment(dayEndMinutes: dayEnd, calendar: calendar), value: $0.valueDouble)
+            },
+            isCountType: habit.isCountType,
+            calendar: calendar
         )
         .map { DailyHabitData(date: $0.date, value: $0.value) }
     }
@@ -1392,15 +1409,8 @@ class HabitRepository: ObservableObject {
         let total = checkInHabits.count + numericHabits.count
         guard total > 0 else { return (0, 0) }
 
-        let today = Calendar.current.startOfDay(for: Date())
-        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
-            return (0, total)
-        }
-
-        // 打卡型完成数：单次 distinct fetch
-        let checkInCompleted = countCheckedHabits(
-            ids: checkInHabits.map(\.id), from: today, to: tomorrow
-        )
+        // 打卡型完成数：单次 fetch，各习惯按自己的结算时间判「今天」
+        let checkInCompleted = countCheckedHabits(checkInHabits)
         // 数值型完成数：今日有记录即算（功能鼓励「保持记录」，与数值大小/是否达标无关）
         let numericCompleted = numericHabits.filter { hasTodayNumericRecord($0) }.count
 
@@ -1408,21 +1418,25 @@ class HabitRepository: ObservableObject {
     }
 
     /// 本周（含今日）各习惯逐日完成情况，供磁贴点阵一次取用
-    /// 返回 habitId -> [当天是否有记录]，下标 0 = 本周第一天（跟随系统 firstWeekday），末位 = 今天
+    /// 返回 habitId -> [当天是否有记录]，下标 0 = 本周第一天（跟随系统 firstWeekday），末位 = 今天。
+    /// 周格按自然日排布；记录按各习惯的结算时间归属到格子
     func getWeekCompletionPatterns() -> [UUID: [Bool]] {
         guard isReady, !activeHabits.isEmpty else { return [:] }
 
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         guard let week = calendar.dateInterval(of: .weekOfYear, for: today) else { return [:] }
+        let dayEndById = Dictionary(activeHabits.map { ($0.id, $0.dayEndMinutes) }, uniquingKeysWith: { first, _ in first })
+        let maxDayEnd = dayEndById.values.max() ?? 0
 
         let request = HabitRecord.fetchRequest()
         // 打卡型周点阵口径：只认完成记录。取消打卡保留记录行（isCompleted 翻回
         // NO 以便恢复备注），漏掉这个过滤会让取消后点阵仍把当天画成已打。
+        // 真实 date 上界按最大结算时长外扩，结算前的凌晨打卡才能归回前一天的格子
         request.predicate = NSPredicate(
             format: "date >= %@ AND date < %@ AND deletedAt == nil AND isCompleted == YES",
             week.start as NSDate,
-            week.end as NSDate
+            week.end.addingTimeInterval(TimeInterval(maxDayEnd) * 60) as NSDate
         )
         let records = (try? context.fetch(request)) ?? []
         guard !records.isEmpty else { return [:] }
@@ -1431,7 +1445,9 @@ class HabitRepository: ObservableObject {
         let totalDays = dayCount + 1
         var hitDaysByHabit: [UUID: Set<Int>] = [:]
         for record in records {
-            let day = calendar.dateComponents([.day], from: week.start, to: record.date).day ?? 0
+            guard let dayEnd = dayEndById[record.habitId] else { continue }
+            let recordDay = record.attributedDay(dayEndMinutes: dayEnd, calendar: calendar)
+            let day = calendar.dateComponents([.day], from: week.start, to: recordDay).day ?? 0
             guard day >= 0, day < totalDays else { continue }
             hitDaysByHabit[record.habitId, default: []].insert(day)
         }
@@ -1469,41 +1485,56 @@ class HabitRepository: ObservableObject {
         let positiveHabits = activeHabits.filter { $0.isCheckInType && !$0.isBadHabit }
         let negativeHabits = activeHabits.filter { $0.isCheckInType && $0.isBadHabit }
 
-        let today = Calendar.current.startOfDay(for: Date())
-        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
-            return ((0, positiveHabits.count), (0, negativeHabits.count))
-        }
-
-        let positiveCompleted = countCheckedHabits(
-            ids: positiveHabits.map(\.id), from: today, to: tomorrow
-        )
-        let negativeChecked = countCheckedHabits(
-            ids: negativeHabits.map(\.id), from: today, to: tomorrow
-        )
-
         return (
-            (positiveCompleted, positiveHabits.count),
-            (negativeChecked, negativeHabits.count)
+            (countCheckedHabits(positiveHabits), positiveHabits.count),
+            (countCheckedHabits(negativeHabits), negativeHabits.count)
         )
     }
 
-    /// 统计指定习惯 ID 列表中今日有打卡记录的习惯数量
-    private func countCheckedHabits(ids: [UUID], from: Date, to: Date) -> Int {
-        guard !ids.isEmpty else { return 0 }
+    /// 统计给定习惯中「今天」有完成打卡的习惯数。各习惯按自己的结算时间判今天：
+    /// 真实 date 上取全部今日窗口的并集作单次 fetch 超集，再逐行按归属日判定
+    private func countCheckedHabits(_ habits: [Habit]) -> Int {
+        guard !habits.isEmpty else { return 0 }
+
+        let calendar = Calendar.current
+        let now = Date()
+        var windowByHabit: [UUID: (day: Date, dayEnd: Int)] = [:]
+        var fetchStart = Date.distantFuture
+        var fetchEnd = Date.distantPast
+        for habit in habits {
+            let day = habit.currentDay(now: now, calendar: calendar)
+            windowByHabit[habit.id] = (day, habit.dayEndMinutes)
+            let window = HabitDayAttribution.rawFetchWindow(
+                firstDay: day, lastDay: day, dayEndMinutes: habit.dayEndMinutes, calendar: calendar
+            )
+            fetchStart = min(fetchStart, window.start)
+            fetchEnd = max(fetchEnd, window.end)
+        }
 
         let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
         request.resultType = .dictionaryResultType
-        request.propertiesToFetch = ["habitId"]
-        request.returnsDistinctResults = true
+        request.propertiesToFetch = ["habitId", "date", "isRetroactive"]
         request.predicate = NSPredicate(
             format: "habitId IN %@ AND date >= %@ AND date < %@ AND isCompleted == YES AND deletedAt == nil",
-            ids as NSArray,
-            from as NSDate,
-            to as NSDate
+            Array(windowByHabit.keys) as NSArray,
+            fetchStart as NSDate,
+            fetchEnd as NSDate
         )
 
         do {
-            return try context.fetch(request).count
+            var checked: Set<UUID> = []
+            for row in try context.fetch(request) {
+                guard let habitId = row["habitId"] as? UUID,
+                      let date = row["date"] as? Date,
+                      let window = windowByHabit[habitId] else { continue }
+                let isRetroactive = (row["isRetroactive"] as? NSNumber)?.boolValue ?? false
+                let day = calendar.startOfDay(for: HabitDayAttribution.attributedMoment(
+                    recordDate: date, isRetroactive: isRetroactive,
+                    dayEndMinutes: window.dayEnd, calendar: calendar
+                ))
+                if day == window.day { checked.insert(habitId) }
+            }
+            return checked.count
         } catch {
             logger.error("统计习惯打卡失败: \(error)")
             return 0
@@ -1541,6 +1572,8 @@ struct HabitUpdates {
     var reminderMode: HabitReminderMode?
     /// 单独提醒时间（nil = 不更新）
     var reminderTime: (hour: Int, minute: Int)?
+    /// 每日结算时间（nil = 不更新；0:00 = 自然日）
+    var dayEndTime: (hour: Int, minute: Int)?
 }
 
 // MARK: - Statistics Models
@@ -1662,5 +1695,34 @@ enum HabitError: LocalizedError {
         case .saveFailed: return String(localized: "保存失败")
         case .habitIsPaused: return String(localized: "习惯已暂停，恢复后即可继续记录")
         }
+    }
+}
+
+
+@MainActor
+extension HabitRepository {
+    /// 编辑/删除只在隔离 context 暂存，保存失败不让主界面读到未落库的修改。
+    func changePersistedRecord(_ record: HabitRecord, delete: Bool, value: Double? = nil, note: String? = nil) throws {
+        guard record.managedObjectContext != nil, !record.isDeleted, record.deletedAt == nil else { throw HabitError.notFound }
+        let recordID = record.objectID, habitID = record.habitId
+        let isolated = NSManagedObjectContext(concurrencyType: .mainQueueConcurrencyType)
+        isolated.persistentStoreCoordinator = context.persistentStoreCoordinator
+        guard let target = try isolated.existingObject(with: recordID) as? HabitRecord,
+              target.deletedAt == nil, let parent = target.habit, parent.deletedAt == nil else { throw HabitError.notFound }
+        if delete { isolated.delete(target) }
+        else {
+            if !parent.isCheckInType, let value {
+                guard value.isFinite, parent.isCountType ? value > 0 : value >= 0 else { throw HabitError.invalidData }
+                target.valueDouble = value
+            }
+            target.note = note
+        }
+        let parentID = parent.objectID
+        try isolated.save()
+        let changes: [String: Any] = delete
+            ? [NSDeletedObjectsKey: [recordID], NSUpdatedObjectsKey: [parentID]]
+            : [NSUpdatedObjectsKey: [recordID]]
+        NSManagedObjectContext.mergeChanges(fromRemoteContextSave: changes, into: [context])
+        notifyDataChange(habitId: habitID)
     }
 }

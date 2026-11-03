@@ -29,9 +29,11 @@ struct CategoryDetailSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(category.name)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button("完成") { dismiss() }
                         .foregroundColor(.holoTextSecondary)
                 }
@@ -150,7 +152,7 @@ struct CategoryDetailSheet: View {
             if expense > 0 {
                 Text("-\(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "")")
                     .font(.system(size: 12))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
             if income > 0 {
                 Text("+\(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "")")

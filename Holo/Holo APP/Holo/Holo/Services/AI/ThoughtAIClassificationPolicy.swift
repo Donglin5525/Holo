@@ -26,7 +26,11 @@ enum ThoughtAIClassificationPolicy {
 
     /// 手动“批量 AI 整理”只排除已经结束或正在执行的状态。
     /// disabled 仍可手动整理，避免关闭自动分类后失去补整理入口。
+    /// excluded = 带「不参与 AI」标签而退出的想法，恢复只能走标签开关，不进批量整理。
     static let manualBatchTerminalStatuses = [
-        "organized", "pending", "processing", "skipped", "failed"
+        "organized", "pending", "processing", "skipped", "failed", excludedStatus
     ]
+
+    /// 想法因用户标签声明而退出全部 AI 通道时的整理状态值（ThoughtAIExclusionService 维护）。
+    static let excludedStatus = "excluded"
 }

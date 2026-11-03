@@ -117,12 +117,39 @@ final class ReceiptAttachmentTests: XCTestCase {
 
     // MARK: - 生命周期
 
+    /// 删除闪退守卫的语义根基：异步刷新通道靠 isInvalidated 挡已死对象
+    /// （delete+save 后任何持久属性访问都抛 "could not fulfill a fault"）。
+    func testIsInvalidatedSemantics() async throws {
+        let alive = try await makeTransaction()
+        XCTAssertFalse(alive.isInvalidated, "正常对象不死")
+
+        let deletedUnsaved = try await makeTransaction()
+        context.delete(deletedUnsaved)
+        XCTAssertTrue(deletedUnsaved.isInvalidated, "delete 未 save 即已死（属性访问已不安全）")
+
+        let deletedSaved = try await makeTransaction()
+        context.delete(deletedSaved)
+        try context.save()
+        XCTAssertTrue(deletedSaved.isInvalidated, "delete+save 后上下文注销（删除完成广播到达时行视图看到的状态）")
+        XCTAssertTrue(deletedSaved.managedObjectContext == nil || deletedSaved.isDeleted)
+    }
+
+    /// 删除契约（2026-11-01 软删化）：deleteTransaction 只进回收站（附件随交易保留，
+    /// 恢复时票根一起回来）；附件级联物理删除发生在回收站 30 天过期清理的
+    /// context.delete 上——此用例锁两段语义。
     func testCascadeDeleteWithTransaction() async throws {
         let tx = try await makeTransaction()
         let attachment = try await repo.attachReceipt(to: tx, imageData: try makeImageData(), source: .camera)
         try await repo.deleteTransaction(tx)
 
-        XCTAssertNil(attachment.managedObjectContext, "交易删除附件级联即净")
+        // 软删段：交易不死、附件保留（可恢复）
+        XCTAssertNotNil(attachment.managedObjectContext, "软删阶段附件随交易保留")
+        XCTAssertNotNil(tx.deletedAt)
+
+        // 物理清理段（回收站过期路径）：级联即净
+        context.delete(tx)
+        try context.save()
+        XCTAssertNil(attachment.managedObjectContext, "物理清理时附件级联即净")
         let request = TransactionAttachment.fetchRequest()
         XCTAssertEqual(try context.count(for: request), 0)
     }

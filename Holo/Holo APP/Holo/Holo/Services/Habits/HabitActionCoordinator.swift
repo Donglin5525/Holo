@@ -51,7 +51,16 @@ final class HabitActionCoordinator: ObservableObject {
         case .deleteRecord(let recordId):
             result = performDeleteRecord(habitId: habitId, recordId: recordId)
         }
+        playHabitHaptic(HabitHapticPolicy.haptic(for: kind, result: result))
         return result
+    }
+
+    private func playHabitHaptic(_ haptic: HabitHapticPolicy.Haptic?) {
+        switch haptic {
+        case .success: HapticManager.success()
+        case .light: HapticManager.light()
+        case nil: break
+        }
     }
 
     // MARK: - 打卡
@@ -79,7 +88,6 @@ final class HabitActionCoordinator: ObservableObject {
                 recordId: data.recordId,
                 previousCheckInState: data.previousState,
                 newCheckInState: data.newState,
-                recordFingerprint: nil,
                 isTodayFirstCompletion: isFirstCompletion
             ))
         } catch let error as HabitError {
@@ -114,7 +122,7 @@ final class HabitActionCoordinator: ObservableObject {
         }
 
         do {
-            let data = try repository.performAddNumericReceipt(habitId: habitId, value: value, note: note)
+            let recordId = try repository.performAddNumericReceipt(habitId: habitId, value: value, note: note)
             // 好习惯当天首次有效记录 → 完成暖光（Motion 中心当天去重；真实 0 也算记录）
             if !wasRecorded, let habit = repository.findHabit(by: habitId), !habit.isBadHabit {
                 HoloMotionFeedbackCenter.shared.completedHabit(habitId)
@@ -123,10 +131,9 @@ final class HabitActionCoordinator: ObservableObject {
                 operationID: UUID(),
                 habitId: habitId,
                 kind: .addNumeric(value: value),
-                recordId: data.recordId,
+                recordId: recordId,
                 previousCheckInState: nil,
                 newCheckInState: nil,
-                recordFingerprint: data.fingerprint,
                 isTodayFirstCompletion: !wasRecorded
             ))
         } catch let error as HabitError {
@@ -151,7 +158,6 @@ final class HabitActionCoordinator: ObservableObject {
                 recordId: nil,
                 previousCheckInState: nil,
                 newCheckInState: nil,
-                recordFingerprint: nil,
                 isTodayFirstCompletion: false
             ))
         } catch let error as HabitError {
@@ -178,12 +184,13 @@ final class HabitActionCoordinator: ObservableObject {
         }
         if habit.isArchived { return .invalidated(.archivedNeedsUnarchive) }
 
-        // 提交时再校验一次日期与资格（弹层打开期间可能跨日/数据变化，方案 §10.1）
+        // 提交时再校验一次日期与资格（弹层打开期间可能跨日/数据变化，方案 §10.1）；
+        // 「今天」与创建日按习惯结算时间归属
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: day)
-        let today = calendar.startOfDay(for: Date())
+        let today = habit.currentDay(calendar: calendar)
         guard dayStart < today else { return .invalidated(.futureDate) }
-        guard dayStart >= calendar.startOfDay(for: habit.createdAt) else { return .invalidated(.beforeCreation) }
+        guard dayStart >= habit.creationDay(calendar: calendar) else { return .invalidated(.beforeCreation) }
 
         do {
             let result = try repository.retroactiveCheckIn(
@@ -202,7 +209,6 @@ final class HabitActionCoordinator: ObservableObject {
                     recordId: nil,
                     previousCheckInState: nil,
                     newCheckInState: nil,
-                    recordFingerprint: nil,
                     isTodayFirstCompletion: false
                 ))
             case .alreadyCompleted:
@@ -231,7 +237,6 @@ final class HabitActionCoordinator: ObservableObject {
                 recordId: recordId,
                 previousCheckInState: nil,
                 newCheckInState: nil,
-                recordFingerprint: nil,
                 isTodayFirstCompletion: false
             ))
         } catch {
@@ -250,7 +255,6 @@ final class HabitActionCoordinator: ObservableObject {
                 recordId: recordId,
                 previousCheckInState: nil,
                 newCheckInState: nil,
-                recordFingerprint: nil,
                 isTodayFirstCompletion: false
             ))
         } catch {
@@ -265,67 +269,6 @@ final class HabitActionCoordinator: ObservableObject {
         return try? repository.context.fetch(request).first
     }
 
-    // MARK: - Scoped Undo（方案 §11.3）
-
-    /// 撤销一次已确认操作。只撤销本次新增/本次状态修改；
-    /// 操作对象已被修改时不强行覆盖，返回 invalidated(.recordChanged)。
-    func undo(_ receipt: HabitActionReceipt) -> HabitActionResult {
-        switch receipt.kind {
-        case .toggleCheckIn:
-            // 校验当前记录状态与回执一致（未被用户或同步改动）
-            guard let recordId = receipt.recordId,
-                  let record = findRecord(recordId),
-                  record.isCompleted == receipt.newCheckInState else {
-                return .invalidated(.recordChanged)
-            }
-            do {
-                _ = try repository.performCheckInReceipt(habitId: receipt.habitId)
-                HoloMotionFeedbackCenter.shared.cancelHabitResponse(receipt.habitId)
-                return .confirmed(HabitActionReceipt(
-                    operationID: UUID(),
-                    habitId: receipt.habitId,
-                    kind: .toggleCheckIn,
-                    recordId: recordId,
-                    previousCheckInState: receipt.newCheckInState,
-                    newCheckInState: receipt.previousCheckInState,
-                    recordFingerprint: nil,
-                    isTodayFirstCompletion: false
-                ))
-            } catch {
-                return .failed(String(localized: "这次没有保存成功，内容还在"))
-            }
-
-        case .addNumeric:
-            guard let recordId = receipt.recordId,
-                  let fingerprint = receipt.recordFingerprint else {
-                return .invalidated(.recordChanged)
-            }
-            do {
-                let removed = try repository.performDeleteRecordReceipt(recordId: recordId, fingerprint: fingerprint)
-                if removed {
-                    HoloMotionFeedbackCenter.shared.cancelHabitResponse(receipt.habitId)
-                    return .confirmed(HabitActionReceipt(
-                        operationID: UUID(),
-                        habitId: receipt.habitId,
-                        kind: .deleteRecord(recordId: recordId),
-                        recordId: recordId,
-                        previousCheckInState: nil,
-                        newCheckInState: nil,
-                        recordFingerprint: nil,
-                        isTodayFirstCompletion: false
-                    ))
-                }
-                return .invalidated(.recordChanged)
-            } catch {
-                return .failed(String(localized: "这次没有保存成功，内容还在"))
-            }
-
-        case .increment, .removeLatestNumeric, .retroactive, .updateRecord, .deleteRecord:
-            // 这几类不开放短提示撤销（补录跨日、明细编辑有自己的入口）
-            return .invalidated(.recordChanged)
-        }
-    }
-
     // MARK: - 错误映射
 
     private func mapRepositoryError(_ error: HabitError) -> HabitActionResult {
@@ -334,6 +277,26 @@ final class HabitActionCoordinator: ObservableObject {
         case .habitIsPaused: return .invalidated(.habitPaused)
         case .invalidData: return .invalidated(.invalidValue)
         default: return .failed(error.localizedDescription)
+        }
+    }
+}
+
+/// 记录动作 → 触觉档位映射。语义沿旧磁贴版：勾上打卡/当日首笔数值 = success，
+/// 取消、追加、撤销与补录 = light；失败/无变化不震（各走行内错误文案）。
+/// 坏习惯超限的 warning 震由超限警告 toast（HoloToastCenter .warning）自带。
+enum HabitHapticPolicy {
+    enum Haptic: Equatable { case success, light }
+
+    static func haptic(for kind: HabitActionKind, result: HabitActionResult) -> Haptic? {
+        guard case .confirmed(let receipt) = result else { return nil }
+        switch kind {
+        case .toggleCheckIn:
+            // 勾上恒 success（暖光才看当天首次）；取消 = light
+            return receipt.newCheckInState == true ? .success : .light
+        case .addNumeric, .increment:
+            return receipt.isTodayFirstCompletion ? .success : .light
+        case .removeLatestNumeric, .retroactive, .updateRecord, .deleteRecord:
+            return .light
         }
     }
 }

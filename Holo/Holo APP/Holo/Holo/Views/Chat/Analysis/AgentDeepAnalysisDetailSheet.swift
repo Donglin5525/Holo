@@ -435,6 +435,24 @@ struct AgentDeepAnalysisDetailSheet: View {
                 header
                 if model.isEmptyState {
                     emptyState
+                } else if let report = result.reportStructure {
+                    // v27 研报式版式（图文分工：图管数据、文字管解读）；
+                    // reportStructure 存在即启用，依据区与追问记录沿用原轨道。
+                    AgentDeepReportView(
+                        result: result,
+                        report: report,
+                        scopeLabel: model.scopeLabel
+                    )
+                    evidenceSection(model.evidence)
+                    if let controller = followUpController {
+                        ReportFollowUpRecordsSection(
+                            controller: controller,
+                            onOpen: { entry in
+                                onOpenFollowUpReport?(entry)
+                            }
+                        )
+                        .padding(.top, 2)
+                    }
                 } else {
                     opening(model)
                     recommendationsSection(model.recommendations)
@@ -462,6 +480,8 @@ struct AgentDeepAnalysisDetailSheet: View {
         }
         .background(sheetBackground)
         .presentationDetents([.medium, .large])
+        // 产品埋点：报告详情被打开查看（生成≠查看，打开率是旗舰功能留存信号）
+        .onAppear { HoloProductAnalytics.shared.track(.aiDeepReportViewed) }
         .task {
             await followUpController?.loadFollowUps()
         }
@@ -865,13 +885,12 @@ struct AgentDeepAnalysisDetailSheet: View {
     @ViewBuilder
     private var trendSection: some View {
         if !trendCharts.isEmpty {
-            let isWeekly = trendWindowSpansWeeks
             VStack(alignment: .leading, spacing: 12) {
                 Text("趋势速览")
                     .font(.system(size: 17, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
                 ForEach(Array(trendCharts.enumerated()), id: \.offset) { _, series in
-                    ReportTrendChart(series: series, weeklyAggregated: isWeekly)
+                    ReportTrendChart(series: series)
                 }
             }
         }
@@ -1334,6 +1353,10 @@ private struct ReportQuestionCard: View {
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             context: nil
         )
+        #if canImport(UIKit)
         needsExpansion = bounds.height > font.lineHeight * 3 + 1
+        #else
+        needsExpansion = bounds.height > font.boundingRectForFont.height * 3 + 1
+        #endif
     }
 }

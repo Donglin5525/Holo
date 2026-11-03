@@ -100,28 +100,41 @@ actor ThoughtSemanticPipeline {
         if heartbeatTask == nil {
             startQueueHeartbeat()
         }
+        try? await store.restampStalePendingJobs(to: await MainActor.run { ThoughtSemanticFeatureFlags.consentGeneration })
         await ThoughtSemanticEmbeddingExecutor.shared.processBatch(store: store, index: index)
         await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
         await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
+        await ThoughtCategoryBriefMaintainer.shared.process(store: store)
     }
 
     private func startQueueHeartbeat() {
         guard let store, let index, heartbeatTask == nil else { return }
         heartbeatTask = Task {
             while !Task.isCancelled {
-                let flag = await MainActor.run { ThoughtSemanticFeatureFlags.index }
-                if flag != .off {
-                    await ThoughtSemanticEmbeddingExecutor.shared.processBatch(store: store, index: index)
+                // 代数自愈（2026-10-19）：改设置开关产生的旧代数 pending 任务恢复可领
+                //（详见 restampStalePendingJobs 注释），历史僵尸随节拍自动复活。
+                try? await store.restampStalePendingJobs(to: await MainActor.run { ThoughtSemanticFeatureFlags.consentGeneration })
+                // 谷时段门控（2026-10-09 降本）：高峰期只保持节拍不消费队列，谷窗自动续跑；
+                // 设置页 kickQueue（用户手动加速）不经此门。
+                if HoloAIWindowPolicy.isValleyWindow() {
+                    let flag = await MainActor.run { ThoughtSemanticFeatureFlags.index }
+                    if flag != .off {
+                        await ThoughtSemanticEmbeddingExecutor.shared.processBatch(store: store, index: index)
+                    }
+                    // relate 队列（P0-C）：独立 flag，与 embed 并列消费
+                    let relationFlag = await MainActor.run { ThoughtSemanticFeatureFlags.relation }
+                    if relationFlag != .off {
+                        await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
+                    }
+                    await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
+                    // 类别理解维护（2026-10-12 主题双通道·零打扰）：每拍最多一个主题，谷时段慢速精化
+                    await ThoughtCategoryBriefMaintainer.shared.process(store: store)
+                    let anyActive = flag != .off || relationFlag != .off
+                    let interval: UInt64 = anyActive ? 30 : 300
+                    try? await Task.sleep(nanoseconds: interval * 1_000_000_000)
+                } else {
+                    try? await Task.sleep(nanoseconds: 60 * 1_000_000_000)
                 }
-                // relate 队列（P0-C）：独立 flag，与 embed 并列消费
-                let relationFlag = await MainActor.run { ThoughtSemanticFeatureFlags.relation }
-                if relationFlag != .off {
-                    await ThoughtSemanticRelateExecutor.shared.processBatch(store: store, index: index)
-                }
-                await ThoughtAutomaticTopicDiscovery.shared.process(store: store, index: index)
-                let anyActive = flag != .off || relationFlag != .off
-                let interval: UInt64 = anyActive ? 30 : 300
-                try? await Task.sleep(nanoseconds: interval * 1_000_000_000)
             }
         }
     }

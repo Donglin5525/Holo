@@ -1,0 +1,3285 @@
+{
+  "schema_version": 1,
+  "status": "planning_only",
+  "source_rect_policy": "measure_after_capture",
+  "captures": [
+    {
+      "id": "R01",
+      "slug": "mixed-input",
+      "title": "一句话与跨模块实际结果",
+      "capability": "mixed_input",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R01-mixed-input.png",
+      "entry": "首页 → HoloAI 对话 → 新会话",
+      "actions": [
+        "输入 MIX-01 并发送",
+        "等待真实处理结束，核对消费与待办数量",
+        "分别打开账目和任务核实后回到原会话",
+        "小幅滚动到原话与结果可同屏，收起键盘"
+      ],
+      "must_show": [
+        "用户完整原话",
+        "买书 ¥38 与学习分类",
+        "两项任务及明确日期时间",
+        "无重复账目/重复日期行"
+      ],
+      "focus": "原话 + 实际结果卡组",
+      "content_origin": "live_pipeline",
+      "fallback": "改拍 R02+R03 的实际保存结果，标题去掉已验证一次成功的暗示",
+      "owning_source": "Views/Chat/ChatView.swift; Views/Chat/ChatViewModel.swift",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R02",
+      "slug": "mixed-expense-saved",
+      "title": "从一句话保存的账目",
+      "capability": "mixed_input",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R02-mixed-expense-saved.png",
+      "entry": "财务 → 找到 MIX-01 产生的买书记录 → 明细",
+      "actions": [
+        "按 record-ids.json 找到实际记录",
+        "核对金额、方向、分类、名称与日期",
+        "进入明细，必要时展开备注",
+        "保留原生导航和必要状态"
+      ],
+      "must_show": [
+        "支出 ¥38.00",
+        "买书",
+        "目标候选分类购物→书籍；若AI落库为其他→待分类，必须标记为分类未通过，不能沿用卡片里的书籍候选",
+        "与 R01 相同的记录身份"
+      ],
+      "focus": "名称/金额/日期",
+      "content_origin": "live_pipeline",
+      "fallback": "若 MIX 未成功，用真实手动记录并标注来源；不可再承诺由一句话保存",
+      "owning_source": "Views/Finance/FinanceTransactionDetailPane.swift; Models/FinanceRepository.swift",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R03",
+      "slug": "upcoming-task-time",
+      "title": "首页近期任务时间",
+      "capability": "tasks",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R03-task-time-overview.png",
+      "entry": "Holo首页 → 近期安排胶囊",
+      "actions": [
+        "打开隔离模拟器Holo首页，不新增任务、不调用AI",
+        "确认素材内已有任务“项目周会”，并分别读取两个设备的原生截图与AX树",
+        "只按屏幕像素可读事实制定宣传文案；iPad裁掉右下系统灰弧",
+        "保留“明天”相对capture date 2026-10-30的边界；换日期后需重拍"
+      ],
+      "must_show": [
+        "屏幕像素中可读“明天 10:00 · 项目周会”",
+        "iPhone使用相对时间“明天”；iPad同时保留左侧10月30日日期",
+        "近期安排胶囊和圆形“今天有3项安排”区域相互区分",
+        "演示数据披露由成片外层提供",
+        "不声称AI来源、提醒已触发或设备同步"
+      ],
+      "focus": "近期任务名称与明确时间；iPad保留今天日期和侧栏以解释“明天”",
+      "content_origin": "previously_authorized_synthetic_local_task",
+      "fallback": "若时间胶囊在其他系统/语言下不可读，保持not-rendered；不得将详情页AX字段当成可见证据。",
+      "owning_source": "Views/HomeView.swift; Views/DailyKanban/TodayAgendaSection.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed_release_mapping_unverified",
+      "implemented_route": true,
+      "captured_variants": [
+        {
+          "device": "iphone-large",
+          "file": "raw/iphone-large/R03-task-time-overview.png",
+          "sha256": "03bbbcc984dfeb446d5e126a401315cb2b9c9b6d6f648b9f1918a1fe3d9a1e5b",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_status": "passed_read_only_visual_review",
+          "role": "home_overview_and_same_source_task_capsule_focus"
+        },
+        {
+          "device": "ipad-13",
+          "file": "raw/ipad-13/R03-task-time-overview.png",
+          "sha256": "33b3fae0d8f46f41543376b863097395732db1eb966d7f778af18fc62726c5ce",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_status": "passed_read_only_visual_review",
+          "role": "home_overview_and_same_source_task_capsule_focus"
+        }
+      ],
+      "visual_review_note": "2026-10-30授权只读审阅确认两设备原生首页及FOCUS成片通过。主张仅限当前首页可见的“明天 10:00 · 项目周会”；iPad裁底上下文保留日期并避开灰弧。旧详情实验只显示标题、日期时间不可见，留在superseded_experiments与raw-index reference-only，不用于当前文案。",
+      "source_rect_by_device": {
+        "iphone-large": [
+          390,
+          520,
+          540,
+          130
+        ],
+        "ipad-13": [
+          1070,
+          255,
+          390,
+          110
+        ]
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_mapping_unverified",
+        "ipad-13": "captured_visual_reviewed_release_mapping_unverified"
+      },
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R03-task-time-overview.png",
+          "sha256": "03bbbcc984dfeb446d5e126a401315cb2b9c9b6d6f648b9f1918a1fe3d9a1e5b",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "reviewer": "authorized_read_only_visual_audit",
+          "release_build_match": "unverified",
+          "source_rect": [
+            390,
+            520,
+            540,
+            130
+          ],
+          "presentation_source_rect": [
+            0,
+            0,
+            1320,
+            2868
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 20:18:29 CST",
+          "fixture_instance_id": "R01-20261030-approved-synthetic-task",
+          "ax_evidence_file": "evidence/iphone-large-R03-task-time-overview-ax.json",
+          "findings": "完整首页保留为上下文；FOCUS原图为同一任务胶囊局部放大，安全框[390,520,540,130]包含圆角背景和左右留白。",
+          "context_source_rect": [
+            0,
+            0,
+            1320,
+            2868
+          ]
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R03-task-time-overview.png",
+          "sha256": "33b3fae0d8f46f41543376b863097395732db1eb966d7f778af18fc62726c5ce",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "reviewer": "authorized_read_only_visual_audit",
+          "release_build_match": "unverified",
+          "source_rect": [
+            1070,
+            255,
+            390,
+            110
+          ],
+          "presentation_source_rect": [
+            0,
+            0,
+            2064,
+            2040
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 20:18:30 CST",
+          "fixture_instance_id": "R01-20261030-approved-synthetic-task",
+          "ax_evidence_file": "evidence/ipad-13-R03-task-time-overview-ax.json",
+          "findings": "iPad使用全宽裁底[0,0,2064,2040]保留状态栏与侧栏，FOCUS原图安全框[1070,255,390,110]包含完整胶囊与边距。",
+          "context_source_rect": [
+            0,
+            0,
+            2064,
+            2040
+          ]
+        }
+      },
+      "evidence_note": "任务来自先前获准的R01合成输入，并已分别出现在两台设备的本地首页；本次没有再次发送AI请求。两设备独立，不代表同步。当前AI数据处理授权关闭；正式发布版本映射仍未核实。",
+      "capture_facts": {
+        "simulator_local_date": "2026-10-30",
+        "visible_task": "项目周会",
+        "visible_due_label": "明天 10:00",
+        "source": "previously authorized R01 synthetic input; existing local record",
+        "new_ai_requests_in_this_capture": 0,
+        "ai_data_processing_consent": "off",
+        "device_sync_claim": false
+      },
+      "context_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2040
+        ]
+      },
+      "superseded_experiments": [
+        {
+          "device": "ipad-13",
+          "file": "raw/ipad-13/R03-project-meeting-detail.png",
+          "sha256": "967ddf67619896851a2d12c0c26f3967ba62ff25e7e76a0f8bac14c52b7e78be",
+          "visual_status": "blocked_title_only_date_time_not_visible"
+        },
+        {
+          "device": "ipad-13",
+          "file": "raw/ipad-13/R03-trip-materials-detail.png",
+          "sha256": "9e854b16dad752b545ee943b1979678faf179228c116894d36f9068185f3cec6",
+          "visual_status": "blocked_title_only_date_time_not_visible"
+        }
+      ]
+    },
+    {
+      "id": "R04",
+      "slug": "today-overview",
+      "title": "今天概览",
+      "capability": "today_overview",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R04-today-overview.png",
+      "entry": "首页中央「今天」入口 → 今日只读概览",
+      "actions": [
+        "打开首页中央「今天」入口，进入今日只读概览",
+        "确认页面日期为2026-10-30（周五），标题为3件待办",
+        "核对三项任务：整理书桌收纳清单、预约快递取件、整理季度目标复盘",
+        "核对当天近况中的阅读习惯为尚未记录；不要改成已完成或已记录",
+        "确认页面未出现同日支出，不从其他日期补入金额"
+      ],
+      "must_show": [
+        "当天日期2026年10月30日（周五）",
+        "标题3件待办与三项实际投影的任务",
+        "阅读习惯及尚未记录状态",
+        "不显示或声称同日支出"
+      ],
+      "focus": "日期、三件待办、阅读习惯尚未记录",
+      "content_origin": "isolated_local_synthetic_fixture",
+      "fallback": "若今日概览无法完整清晰呈现，使用 R15-T 今日任务列表；只写今天待办，不提习惯、财务或跨模块自动录入。",
+      "owning_source": "Views/DailyKanban/TodayReadOnlySection.swift; TodayAgendaSection.swift; TodayRoutineStrip.swift; HomeView.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "evidence_note": "iPhone 与 iPad 由同一隔离fixture分别独立显示；记录是本地合成演示数据。不可据此声称CloudKit、跨设备同步或真实用户数据。当前App为1.1.3(35) Debug，公开商店包映射unverified。 只读视觉审阅通过；iPhone和iPad均须按各自审阅框裁切。存储框采用[x,y,width,height]，审阅坐标端点转换后写入。 画面原生副文案“当天安排与原模块保持同步”仅指App内模块投影；宣传外文案不扩展为CloudKit/跨设备同步。",
+      "source_rect_by_device": {
+        "iphone-large": null,
+        "ipad-13": null
+      },
+      "presentation_source_rect_by_device": {
+        "iphone-large": [
+          24,
+          0,
+          1272,
+          1780
+        ],
+        "ipad-13": [
+          330,
+          0,
+          1410,
+          1160
+        ]
+      }
+    },
+    {
+      "id": "R05",
+      "slug": "receipt-single-review",
+      "title": "单笔图片识别确认",
+      "capability": "receipt_single",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/ipad-13/R05-rec01-chat-pending.png",
+      "entry": "财务识图入口或对话图片输入 → 真实识别 → 确认这笔账",
+      "actions": [
+        "导入 REC-01 通用演示凭证",
+        "等待真实识别，不启用 stub",
+        "选择始终先确认的真实支持路径",
+        "核对并保持确认前状态，先不保存"
+      ],
+      "must_show": [
+        "¥42.50 支出",
+        "北街小馆或实际识别商户",
+        "餐饮类目与日期",
+        "可核对/修改入口"
+      ],
+      "focus": "金额、名称与确认入口",
+      "content_origin": "live_pipeline",
+      "fallback": "真实手动录入只能说明手动记账；K01 识图承诺无合法替代时整套标 blocked",
+      "owning_source": "Views/Finance/ReceiptBooking/ReceiptReviewDetailView.swift; Services/Finance/ReceiptBooking",
+      "source_rect": [
+        540,
+        1460,
+        1450,
+        1050
+      ],
+      "status": "captured_visual_reviewed_ipad_only_iphone_category_not_passed",
+      "implemented_route": true,
+      "input_assets": [
+        {
+          "id": "REC-01",
+          "path": "evidence/assets/receipt-demos/REC-01-synthetic-single-receipt.png",
+          "sha256": "c977831330f297b7f06c90579630f7a4bfcea6686d7c12cdafa2161b9acb2078",
+          "dimensions": [
+            900,
+            1280
+          ],
+          "mode": "RGB",
+          "synthetic": true
+        }
+      ],
+      "preflight_gate": "Completed within Donglin’s explicit authorization: REC-01 image-only flow with limited date/finance/account context; no prior chat history. Do not send another request.",
+      "source_rect_by_device": {
+        "ipad-13": [
+          540,
+          1460,
+          1450,
+          1050
+        ]
+      },
+      "device_outcomes": {
+        "ipad-13": {
+          "status": "passed_pending_confirmation",
+          "merchant": "北街小馆",
+          "amount_cny": 42.5,
+          "date": "2026-10-30",
+          "category": "餐饮 · 午餐",
+          "saved": false,
+          "screenshot": "evidence/diagnostic/ipad-rec01-chat-card.png"
+        },
+        "iphone-large": {
+          "status": "category_not_passed",
+          "merchant": "北街小馆",
+          "amount_cny": 42.5,
+          "date": "2026-10-30",
+          "category": "待分类 · 晚餐",
+          "saved": false,
+          "screenshot": "evidence/diagnostic/iphone-rec01-chat-card.png"
+        }
+      },
+      "source_path_by_device": {
+        "ipad-13": "raw/ipad-13/R05-rec01-chat-pending.png",
+        "iphone-large": "evidence/diagnostic/iphone-rec01-chat-card.png"
+      }
+    },
+    {
+      "id": "R06",
+      "slug": "receipt-single-saved",
+      "title": "图片识别后已入账",
+      "capability": "receipt_single",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/ipad-13/R06-rec01-confirmed.png",
+      "entry": "从 R05 确认保存 → 财务明细",
+      "actions": [
+        "只确认一次",
+        "核对新增数量恰好一笔",
+        "打开实际保存明细",
+        "记录新 ID 与原始凭证关联"
+      ],
+      "must_show": [
+        "¥42.50 支出",
+        "同一商户和日期",
+        "真实保存状态",
+        "原始凭证若支持则保留入口"
+      ],
+      "focus": "入账结果与金额",
+      "content_origin": "live_pipeline",
+      "fallback": "若保存失败，R05 可保留为待核对候选，所有已入账文案必须撤销",
+      "owning_source": "Views/Finance/ReceiptBooking; Views/AddTransaction",
+      "source_rect": [
+        540,
+        2100,
+        1450,
+        410
+      ],
+      "status": "captured_visual_reviewed_ipad_only",
+      "implemented_route": true,
+      "source_rect_by_device": {
+        "ipad-13": [
+          540,
+          2100,
+          1450,
+          410
+        ]
+      },
+      "device_outcomes": {
+        "ipad-13": {
+          "status": "confirmed_once",
+          "merchant": "北街小馆",
+          "amount_cny": 42.5,
+          "date": "2026-10-30",
+          "category": "餐饮 · 午餐",
+          "saved_local_count": 1,
+          "screenshot": "evidence/diagnostic/ipad-rec01-confirmed.png"
+        },
+        "iphone-large": {
+          "status": "not_saved_category_not_passed",
+          "merchant": "北街小馆",
+          "amount_cny": 42.5,
+          "date": "2026-10-30",
+          "category": "待分类 · 晚餐",
+          "saved_local_count": 0,
+          "screenshot": "evidence/diagnostic/iphone-rec01-chat-card.png"
+        }
+      },
+      "preflight_gate": "Confirmation was used once only on iPad after all REC-01 fields matched. No iPhone confirmation; no CloudKit sync.",
+      "source_path_by_device": {
+        "ipad-13": "raw/ipad-13/R06-rec01-confirmed.png",
+        "iphone-large": "not-captured-category-not-passed"
+      }
+    },
+    {
+      "id": "R07",
+      "slug": "receipt-multi-review",
+      "title": "一图多笔逐笔核对",
+      "capability": "receipt_multi_review",
+      "source_kind": "simulator_screenshot",
+      "source_path": null,
+      "entry": "发送 REC-02 → 确认这几笔账",
+      "actions": [
+        "导入含三笔的通用清单图",
+        "等待真实返回",
+        "展开三笔，核对金额方向与商户",
+        "保留待确认状态，不拍成已自动保存"
+      ],
+      "must_show": [
+        "三笔：¥24、¥9.50、¥16",
+        "合计 ¥49.50",
+        "逐笔可核对的状态",
+        "先确认的操作语义"
+      ],
+      "focus": "三笔清单及合计",
+      "content_origin": "live_pipeline",
+      "fallback": "使用 R05 单笔确认，标题改为先核对，再记下；不得保留一图多笔文案",
+      "owning_source": "Views/Finance/ReceiptBooking/ReceiptReviewDetailView.swift; ReceiptBookingPolicy.swift",
+      "source_rect": null,
+      "status": "tested_capability_unavailable_no_candidate",
+      "implemented_route": false,
+      "input_assets": [
+        {
+          "id": "REC-02",
+          "path": "evidence/assets/receipt-demos/REC-02-synthetic-expense-list.png",
+          "sha256": "decb276aa11134bf4f0e664598770726e8702474841c26f0894bd75526cf7aff",
+          "dimensions": [
+            900,
+            1280
+          ],
+          "mode": "RGB",
+          "synthetic": true
+        }
+      ],
+      "preflight_gate": "Tested once per device under explicit authorization; no candidate was produced and no finance/task entry was saved. No retries are planned.",
+      "device_outcomes": {
+        "ipad-13": {
+          "status": "list_to_task_not_available",
+          "message": "这是一份清单。清单转任务功能还在路上，辛苦先手动建任务。",
+          "saved_finance_count": 0,
+          "saved_task_count": 0,
+          "screenshot": "evidence/diagnostic/ipad-rec02-result.png"
+        },
+        "iphone-large": {
+          "status": "list_to_task_not_available",
+          "message": "这是一份清单。清单转任务功能还在路上，辛苦先手动建任务。",
+          "saved_finance_count": 0,
+          "saved_task_count": 0,
+          "screenshot": "evidence/diagnostic/iphone-rec02-result.png"
+        }
+      },
+      "source_path_by_device": {
+        "ipad-13": "evidence/diagnostic/ipad-rec02-result.png",
+        "iphone-large": "evidence/diagnostic/iphone-rec02-result.png"
+      },
+      "diagnostic_sources_by_device": {
+        "ipad-13": "evidence/diagnostic/ipad-rec02-result.png",
+        "iphone-large": "evidence/diagnostic/iphone-rec02-result.png"
+      }
+    },
+    {
+      "id": "R08",
+      "slug": "receipt-evidence",
+      "title": "账目与凭证对应",
+      "capability": "receipt_single",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R08-receipt-evidence.png",
+      "entry": "R06 明细 → 原始凭证/收据附件",
+      "actions": [
+        "打开同一笔 42.50 元记录",
+        "进入真实附件查看路径",
+        "核对凭证金额和账目相同",
+        "若双图无法同屏，分别截图后用 PAIR 组合"
+      ],
+      "must_show": [
+        "真实账目或其上下文",
+        "原始通用凭证",
+        "金额一致",
+        "不含真实账户或第三方支付仿冒界面"
+      ],
+      "focus": "账目金额与凭证",
+      "content_origin": "live_pipeline",
+      "fallback": "R06 单独账目明细，副标题改为金额与分类，随时回来核对",
+      "owning_source": "Views/AddTransaction/TransactionReceiptSection.swift; TransactionReceiptViews.swift",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R09",
+      "slug": "finance-focus-month",
+      "title": "重点月收支统计",
+      "capability": "finance_stats",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R09-finance-focus-month.png",
+      "entry": "财务 → 统计分析 → focus_month 的自然月",
+      "actions": [
+        "切到数据蓝图解析出的重点月份",
+        "核对收支范围是完整自然月",
+        "确认收入12000、支出5880及类别合计",
+        "截图保留月份、金额和图例"
+      ],
+      "must_show": [
+        "focus_year/focus_month",
+        "支出 ¥5,880",
+        "收入 ¥12,000",
+        "实际图表与图例"
+      ],
+      "focus": "月份、支出与分类主要区域",
+      "content_origin": "static_history",
+      "fallback": "若发布版字段不同，保留实际月支出与分类，删去不支持字段的外部文案",
+      "owning_source": "Views/Finance/FinanceAnalysisView.swift; Views/Finance/Analysis/OverviewTabView.swift",
+      "source_rect": null,
+      "status": "captured",
+      "implemented_route": false,
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R09-finance-focus-month.png",
+          "sha256": "f2d2a429d7d3ce70b2a952c5ebbdcc9c4915767384463c66b497c0ffdcdc74d1",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": null,
+          "findings": "只读视觉复核通过：月份、收支汇总、主要图表、状态栏均清晰；底部固定导航遮挡下方余额图表的部分续展，因此素材只支持该统计页原生视口，不代表完整滚动页。"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R09-finance-focus-month.png",
+          "sha256": "851f83373715f068631d0ab738e3827728e3b08807c550651df4cde05671217e",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": null,
+          "context_source_rect": null,
+          "presentation_source_rect": [
+            0,
+            0,
+            2064,
+            2692
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "findings": "只读复核通过：9月范围、收支金额、状态栏与图表可读；裁去界面内容外右下弧线，保留全部有用内容。"
+        }
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_match_unverified",
+        "ipad-13": "captured_visual_reviewed_release_match_unverified"
+      },
+      "ipad_visual_note": "四张原图右下捕获弧线 bbox [2008,2696,2055,2743]，仅裁掉底部60px至 [0,0,2064,2692]；右侧保留状态栏电池图标。"
+    },
+    {
+      "id": "R10",
+      "slug": "finance-base-month",
+      "title": "对照月收支统计",
+      "capability": "finance_stats",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R10-finance-base-month.png",
+      "entry": "统计分析 → base_month 的自然月",
+      "actions": [
+        "从 R09 切前一个月",
+        "核对支出5410、收入12000",
+        "保持与 R09 相同口径/筛选",
+        "截图记录日期范围"
+      ],
+      "must_show": [
+        "base_year/base_month",
+        "支出 ¥5,410",
+        "收入 ¥12,000",
+        "同口径图表"
+      ],
+      "focus": "月份与总额",
+      "content_origin": "static_history",
+      "fallback": "只显示各月真实支出；不能在筛选不一致时写增长差异",
+      "owning_source": "Views/Finance/FinanceAnalysisView.swift; Views/Finance/Analysis/OverviewTabView.swift",
+      "source_rect": null,
+      "status": "captured",
+      "implemented_route": false,
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R10-finance-base-month.png",
+          "sha256": "a5faf1c94df51322ed0c2dd82053befd0530171ca66c41a4b25da954a386b31b",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": null,
+          "findings": "只读视觉复核通过：月份、收支汇总、主要图表、状态栏均清晰；底部固定导航遮挡下方余额图表的部分续展，因此素材只支持该统计页原生视口，不代表完整滚动页。"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R10-finance-base-month.png",
+          "sha256": "c62f7591837d1a9e2fbfc46d50205bd8aa4e8f05ec544616c23e42757fe814a9",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": null,
+          "context_source_rect": null,
+          "presentation_source_rect": [
+            0,
+            0,
+            2064,
+            2692
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "findings": "只读复核通过：8月范围、收支金额、状态栏与图表可读；裁去界面内容外右下弧线，保留全部有用内容。"
+        }
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_match_unverified",
+        "ipad-13": "captured_visual_reviewed_release_match_unverified"
+      },
+      "ipad_visual_note": "四张原图右下捕获弧线 bbox [2008,2696,2055,2743]，仅裁掉底部60px至 [0,0,2064,2692]；右侧保留状态栏电池图标。"
+    },
+    {
+      "id": "R11",
+      "slug": "dining-category",
+      "title": "餐饮分类明细",
+      "capability": "finance_stats",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R11-dining-category.png",
+      "entry": "财务统计 → 餐饮分类 → focus_month 明细",
+      "actions": [
+        "按月份与餐饮分类筛选",
+        "核对28笔合计1400元",
+        "找到四笔聚餐128/118/96/108",
+        "让金额和几条明细清晰可读"
+      ],
+      "must_show": [
+        "餐饮合计 ¥1,400",
+        "正确月份",
+        "聚餐记录可查",
+        "明细不凭空添加"
+      ],
+      "focus": "餐饮合计及聚餐明细",
+      "content_origin": "static_history",
+      "fallback": "用真实流水筛选；无法单独展示分类合计时不用外部假卡补作 App 内统计",
+      "owning_source": "Views/Finance/Analysis/CategoryTabView.swift; Views/Finance/Analysis/Components/CategoryDetailSheet.swift; Views/FinanceSearchView.swift",
+      "source_rect": null,
+      "status": "captured",
+      "implemented_route": false,
+      "captures_by_device": {
+        "ipad-13": {
+          "file": "raw/ipad-13/R11-dining-category.png",
+          "sha256": "2e212cc2eb5b86a395a910d8a2216a57141165a6c40373faa50bb466897bcb53",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            316,
+            1325,
+            1296,
+            540
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            2064,
+            850
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "findings": "9月餐饮分类28笔¥1,400；焦点弹层为日常支出28笔¥1,400并显示9月27日-¥108支出。第三轮成片复核通过，focus [316,1325,1296,540] 无裁边残影；原始数据为隔离合成演示流水。"
+        },
+        "iphone-large": {
+          "file": "raw/iphone-large/R11-dining-category.png",
+          "sha256": "713007a3157e3ac565253a4d00e9a7e3be9564c79c49cb405ccf4acbfbc6cca7",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            30,
+            1380,
+            1260,
+            850
+          ],
+          "context_source_rect": [
+            24,
+            150,
+            1272,
+            950
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 11:45:53 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/iphone-large-R11-dining-category-ax.json",
+          "findings": "授权只读审阅通过：context [24,150,1272,950]保留9月范围与统计分类筛选；focus [30,1380,1260,850]无残边，完整显示日常支出¥1,400、28笔、9月27日-¥108及朋友聚餐4交易行和餐饮→日常支出路径。figure.walk仅在屏幕外较晚日期，不进入候选裁片。"
+        }
+      },
+      "device_capture_status": {
+        "ipad-13": "captured_visual_reviewed_release_match_unverified",
+        "iphone-large": "captured_visual_reviewed_release_match_unverified"
+      },
+      "evidence_note": "iPad与iPhone large均已原生捕获并通过只读审阅；两设备数据为同一隔离合成演示fixture，原生裁片分别记录在各设备capture记录中。release build match保持unverified。"
+    },
+    {
+      "id": "R12",
+      "slug": "expense-question-answer",
+      "title": "消费问题的真实回答",
+      "capability": "expense_query_sources",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R12-expense-question-answer.png",
+      "entry": "HoloAI → 对历史两月账目提问 Q-FIN-01",
+      "actions": [
+        "发送准确月份和限定范围的问题",
+        "等待真实回答并核对每个数字",
+        "打开真实支持的证据/来源区",
+        "取景包含问题、核心回答及可核对来源"
+      ],
+      "must_show": [
+        "具体月份问题",
+        "餐饮1080→1400、差320",
+        "聚餐184→450、差266，如模型提及",
+        "真实来源或真实可打开的记录入口"
+      ],
+      "focus": "问题、结论与来源",
+      "content_origin": "live_pipeline",
+      "fallback": "R39+R40 同设备原生类别/支出统计：8月餐饮24笔¥1,080→9月28笔¥1,400，多¥320。当前仅使用此静态证据；不得保留AI回答、原因归因或“真实来源”主张。",
+      "owning_source": "Views/Chat; Services/AI/PersonalContext",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false,
+      "not_run_reason": "本轮未授权向HoloAI发送独立的Q-FIN-01。R01的一次授权不覆盖新的AI查询；D00-02使用已审阅通过的R39/R40静态类别页完成同类别月度对比。"
+    },
+    {
+      "id": "R13",
+      "slug": "answer-source-record",
+      "title": "回答所引的实际记录",
+      "capability": "expense_query_sources",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R13-answer-source-record.png",
+      "entry": "R12 的实际来源入口 → 对应记录",
+      "actions": [
+        "从回答中点击真实来源，不用测试深链替代该验证",
+        "核对落到正确交易或汇总",
+        "拍下金额日期和返回上下文",
+        "记下回答来源与对象 ID 的关联"
+      ],
+      "must_show": [
+        "正确来源对象",
+        "金额与日期",
+        "与回答相关",
+        "可返回原问题"
+      ],
+      "focus": "来源记录内容",
+      "content_origin": "live_pipeline",
+      "fallback": "R11 的实际明细可作为手工核对；外文案改为回到账目核对，不宣称自动归因",
+      "owning_source": "Services/AI/ReportUnderstanding/HoloReportEvidenceResolver.swift; Views/Chat/Analysis/AgentDeepReportView.swift",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R14",
+      "slug": "project-budget",
+      "title": "项目预算",
+      "capability": "project_budget",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R14-project-budget.png",
+      "entry": "财务 → 项目 → 城市漫游",
+      "actions": [
+        "打开蓝图实际建立的项目",
+        "核对预算800、已用246、余554",
+        "核对关联两笔128与118",
+        "保留项目范围/状态，不称通用月预算"
+      ],
+      "must_show": [
+        "城市漫游",
+        "预算 ¥800",
+        "支出 ¥246",
+        "相符的剩余与项目日期"
+      ],
+      "focus": "项目预算与已用",
+      "content_origin": "static_history",
+      "fallback": "R08 或 R11，标题改每笔花销，都能再核对；移除预算相关词与承诺",
+      "owning_source": "Views/Finance/FinanceProjectDetailView.swift; FinanceProjectRepository.swift",
+      "source_rect": null,
+      "status": "captured",
+      "implemented_route": false,
+      "captures_by_device": {
+        "ipad-13": {
+          "file": "raw/ipad-13/R14-project-budget.png",
+          "sha256": "bf63e06b787b48b30e74ad0f1dfddf953d1e257ab40eceeaa1c2edf03dada434",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review_source_quality_blocked",
+          "release_build_match": "unverified",
+          "source_rect": null,
+          "context_source_rect": null,
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "findings": "AX核对城市漫游、9月1–30日、预算¥800、支出¥246、收入¥0、剩余¥554及两笔餐饮记录¥118+¥128。截图内figure.walk泄露内部标识，且“剩余¥554 ·31%”百分比语义含混；100%换行。原图保留作证据，不晋级成片。"
+        }
+      },
+      "device_capture_status": {
+        "ipad-13": "captured_visual_reviewed_source_quality_blocked_release_match_unverified"
+      },
+      "source_quality_blockers": [
+        "项目关联流水显示内部图标标识figure.walk，不能通过后期涂抹隐藏",
+        "界面写“剩余¥554 ·31%”，31%实际对应已支出占预算比例，语义容易误读",
+        "分类构成100%在原图中折行"
+      ],
+      "evidence_note": "真实项目详情路径和演示数据金额已核对；原始界面存在文字/版式问题，暂不可用于宣传成片。数据为隔离合成fixture，release_build_match保持unverified。"
+    },
+    {
+      "id": "R15",
+      "slug": "tasks-today",
+      "title": "今日任务清单",
+      "capability": "tasks",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R15-tasks-today.png",
+      "entry": "首页 → 任务 → 今日",
+      "actions": [
+        "切到应用原生“今天到期”范围，核对两项未完成任务与今天标记。",
+        "另切到“已完成”历史范围，核对任务完成状态和完成时间。",
+        "保存R15-T今日待办原图、R15-C1单条完成试拍和R15-C三条完成记录版本。",
+        "所有任务均在2026-10-30完成；不写成多日或周回顾。"
+      ],
+      "must_show": [
+        "应用原生的今天到期或已完成筛选",
+        "具体任务名称与真实完成状态",
+        "已完成变体含每条任务的实际完成时间",
+        "清单名称或任务列表上下文",
+        "成片画布外清楚披露演示数据"
+      ],
+      "focus": "具体待办与可回看的完成事实；按today/completed分别使用",
+      "content_origin": "isolated_synthetic_fixture_via_native_ui",
+      "fallback": "实际全部任务清单，标题改要做的事，先放进清单",
+      "owning_source": "Views/Tasks/TaskListView.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed_with_blocked_single_row_variant",
+      "implemented_route": true,
+      "captures_by_device": {
+        "iphone-large": {
+          "today": {
+            "capture_id": "R15-T",
+            "file": "raw/iphone-large/R15-tasks-today.png",
+            "sha256": "d18c3ffa7cea42d5346ff17af9bb5d47441f820b48567e43168ca2563faf97aa",
+            "pixel_size": [
+              1320,
+              2868
+            ],
+            "capture_time_local": "2026-10-30 12:05:28 CST",
+            "ax_evidence_file": "evidence/iphone-large-R15-tasks-today-ax.json",
+            "visual_review": "completed_read_only_review",
+            "release_build_match": "unverified",
+            "source_rect": null,
+            "finding": "两条今天到期未完成任务；仅支持今日待办语义。"
+          },
+          "completed_single": {
+            "capture_id": "R15-C1",
+            "file": "raw/iphone-large/R15-tasks-completed.png",
+            "sha256": "712168870f03dfa78aea2ac2cf6a4f18042aa282abb1de150e0d358b7ba0ddef",
+            "pixel_size": [
+              1320,
+              2868
+            ],
+            "capture_time_local": "2026-10-30 12:08:06 CST",
+            "visual_review": "completed_read_only_review_source_quality_blocked",
+            "release_build_match": "unverified",
+            "finding": "唯一完成记录，页面过空，保留作审查证据，不生成候选。"
+          },
+          "completed_three": {
+            "capture_id": "R15-C",
+            "file": "raw/iphone-large/R15-tasks-completed-three.png",
+            "sha256": "ce1c5d40567cd208a2e6eb8a01aca1795e70da12897308f9f9b4f6746132bd60",
+            "pixel_size": [
+              1320,
+              2868
+            ],
+            "capture_time_local": "2026-10-30 12:10:36 CST",
+            "ax_evidence_file": "evidence/iphone-large-R15-tasks-completed-three-ax.json",
+            "visual_review": "completed_read_only_review",
+            "release_build_match": "unverified",
+            "source_rect": [
+              60,
+              640,
+              1200,
+              680
+            ],
+            "context_source_rect": [
+              0,
+              0,
+              1320,
+              2868
+            ],
+            "finding": "三条已完成任务及同日实际完成时间；支持完成记录回看，不支持多日/周叙事。"
+          }
+        },
+        "ipad-13": {
+          "today": {
+            "capture_id": "R15-IPAD-T",
+            "source_variant": "today",
+            "file": "raw/ipad-13/R15-tasks-today.png",
+            "sha256": "c9bd49d7470bda72b503d3f2d891c7b08067741d95df8775b68471bb17225164",
+            "pixel_size": [
+              2064,
+              2752
+            ],
+            "capture_time_local": "2026-10-30 12:26:15 CST",
+            "ax_evidence_file": "evidence/ipad-R15-tasks-today-ax.json",
+            "visual_review": "completed_read_only_review",
+            "release_build_match": "unverified",
+            "source_rect": [
+              570,
+              430,
+              1400,
+              370
+            ],
+            "context_source_rect": [
+              0,
+              0,
+              2064,
+              960
+            ],
+            "finding": "今天到期筛选的两项未完成任务；支持今日待办，不支持完成回顾。"
+          },
+          "completed": {
+            "capture_id": "R15-IPAD-C",
+            "source_variant": "completed",
+            "file": "raw/ipad-13/R15-tasks-completed.png",
+            "sha256": "8b42e9c9f47bc0d76d528c33d6219f2f6bcf645f0011b174056cfd949da0f948",
+            "pixel_size": [
+              2064,
+              2752
+            ],
+            "capture_time_local": "2026-10-30 12:27:09 CST",
+            "ax_evidence_file": "evidence/ipad-R15-tasks-completed-ax.json",
+            "visual_review": "completed_read_only_review",
+            "release_build_match": "unverified",
+            "source_rect": [
+              570,
+              360,
+              1400,
+              470
+            ],
+            "context_source_rect": [
+              0,
+              0,
+              2064,
+              960
+            ],
+            "finding": "已完成列表3项，均为10/30同日实际完成时间；支持完成记录回看，不支持周/多日结论。"
+          }
+        }
+      },
+      "device_capture_status": {
+        "iphone-large": "today_and_completed_three_visual_reviewed; completed_single_source_quality_blocked; release_mapping_unverified",
+        "ipad-13": "today_and_completed_three_visual_reviewed; release_mapping_unverified"
+      },
+      "evidence_note": "R15-T是在任务仍有两项未完成时捕获；R15-C1为初始单条历史并因留白阻塞；R15-C通过Holo实际完成控件将另外两项演示任务标记完成后采集。实际完成时间集中在2026-10-30 12:05–12:10。只能用同日完成回看语义，不得声称一周或多日回顾。 iPad R15-T也显示两项今天到期未完成；R15-C显示三项同日完成记录，独立使用iPad原生截图，不能外推为一周或多日。"
+    },
+    {
+      "id": "R16",
+      "slug": "tasks-quadrants",
+      "title": "四象限重点",
+      "capability": "quadrants",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R16-tasks-quadrants.png",
+      "entry": "任务 → 四象限 → 各象限“＋”原生新增入口；任务详情核对轻重缓急",
+      "actions": [
+        "在四象限各创建一条有具体名称的未完成任务",
+        "逐条打开详情核对P档、紧急分和象限",
+        "核对四个象限各1项、待整理0项",
+        "保留完整任务名与空心未完成勾选框"
+      ],
+      "must_show": [
+        "重要/紧急含义",
+        "对应任务",
+        "少量自然内容",
+        "不是自动算出的最优优先级"
+      ],
+      "focus": "象限标题及任务",
+      "content_origin": "static_history",
+      "fallback": "R15，标题改把今天的重点，放在眼前；不保留四象限关键词",
+      "owning_source": "Views/Tasks/TaskQuadrantBoardView.swift; TaskQuadrantOverview.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "source_rect_by_device": {
+        "iphone-large": [
+          24,
+          800,
+          1272,
+          860
+        ],
+        "ipad-13": [
+          560,
+          440,
+          1430,
+          570
+        ]
+      },
+      "context_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2080
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          1320
+        ]
+      },
+      "evidence_by_device": {
+        "iphone-large": "../../evidence/iphone-large-R16-tasks-quadrants-ax.json",
+        "ipad-13": "../../evidence/ipad-R16-tasks-quadrants-ax.json"
+      },
+      "capture_facts": {
+        "task_count": 4,
+        "per_quadrant": 1,
+        "task_titles": [
+          "确认差旅审批材料",
+          "整理季度目标复盘",
+          "预约快递取件",
+          "整理书桌收纳清单"
+        ],
+        "all_incomplete": true,
+        "unclassified_count": 0,
+        "due_dates": "none",
+        "priority_detail_evidence": [
+          "iphone-large-R16-property-1-ax.json",
+          "iphone-large-R16-property-2-ax.json",
+          "iphone-large-R16-property-3-ax.json",
+          "iphone-large-R16-property-4-ax.json",
+          "ipad-R16-property-1-ax.json",
+          "ipad-R16-property-2-ax.json",
+          "ipad-R16-property-3-ax.json",
+          "ipad-R16-property-4-ax.json"
+        ]
+      }
+    },
+    {
+      "id": "R17",
+      "slug": "task-reminder",
+      "title": "任务日期和提醒",
+      "capability": "task_reminder",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R17-task-reminder.png",
+      "entry": "任务 → 项目周会实际详情",
+      "actions": [
+        "通过Holo原生任务界面手动创建并保存虚构“项目周会”任务（非AI生成）",
+        "使用Holo日期控件设为2026-10-31 10:00并保存",
+        "将提醒间隔设为提前15分钟后保存",
+        "重启后分别回读任务详情与提醒编辑器，核对保存状态",
+        "iPhone与iPad分开创建，仅作为本地候选；不声称同步或通知送达"
+      ],
+      "must_show": [
+        "已保存的具体任务日期/时间",
+        "Holo原生可选提醒提前时长",
+        "提醒配置已保存",
+        "将演示数据标签置于App截图外",
+        "不宣称系统通知已送达"
+      ],
+      "focus": "日期时间与提醒",
+      "content_origin": "manual_synthetic_task_saved_in_app",
+      "fallback": "R03或R15；标题改日期写清，回来就找得到，不宣称通知已送达",
+      "owning_source": "Views/Tasks/TaskDetailView.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "source_rect_by_device": {
+        "iphone-large": [
+          24,
+          660,
+          1272,
+          2160
+        ],
+        "ipad-13": [
+          451,
+          370,
+          1165,
+          1665
+        ]
+      },
+      "context_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2752
+        ]
+      },
+      "detail_variant_path": "raw/{device}/R17-task-reminder-detail.png",
+      "detail_source_rect_by_device": {
+        "iphone-large": [
+          24,
+          350,
+          1272,
+          2000
+        ],
+        "ipad-13": [
+          445,
+          710,
+          1175,
+          1315
+        ]
+      },
+      "detail_context_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2032,
+          2690
+        ]
+      },
+      "evidence_by_device": {
+        "iphone-large": "../../evidence/iphone-large-R17-task-detail-ax.json",
+        "ipad-13": "../../evidence/ipad-13-R17-task-detail-ax.json"
+      },
+      "reminder_readback_evidence_by_device": {
+        "iphone-large": "../../evidence/iphone-large-R17-task-reminder-readback-ax.json",
+        "ipad-13": "../../evidence/ipad-13-R17-task-reminder-readback-ax.json"
+      },
+      "capture_facts": {
+        "date_time": "2026-10-31 10:00 local simulator time",
+        "reminder": "15 minutes before",
+        "all_day": false,
+        "saved_reminder_count": 1,
+        "task_title": "项目周会",
+        "task_incomplete": true,
+        "task_origin": "manually created synthetic data; not AI-generated",
+        "device_sync_claim": false,
+        "notification_delivery_verified": false,
+        "simulator_notification_permission": "denied",
+        "date_time_editor_opened_from_saved_task": true,
+        "date_time_editor_value_changed": false,
+        "date_time_editor_saved": false,
+        "date_time_editor_visible": "10月31日 10:00",
+        "datetime_editor_task_title_visible_by_device": {
+          "iphone-large": true,
+          "ipad-13": false
+        },
+        "datetime_editor_task_state_visible_by_device": {
+          "iphone-large": "partially_occluded",
+          "ipad-13": false
+        }
+      },
+      "date_time_editor_variant_path": "raw/{device}/R17-task-datetime-editor.png",
+      "date_time_editor_source_rect_by_device": {
+        "iphone-large": [
+          24,
+          600,
+          1272,
+          2268
+        ],
+        "ipad-13": [
+          451,
+          370,
+          1165,
+          1665
+        ]
+      },
+      "date_time_editor_context_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2752
+        ]
+      },
+      "date_time_editor_evidence_by_device": {
+        "iphone-large": "../../evidence/iphone-large-R17-datetime-editor-ax.json",
+        "ipad-13": "../../evidence/ipad-13-R17-datetime-editor-ax.json"
+      },
+      "source_variants": [
+        "default",
+        "detail",
+        "datetime-editor"
+      ]
+    },
+    {
+      "id": "R18",
+      "slug": "plan-draft",
+      "title": "可确认的行动草案",
+      "capability": "contextual_plan_draft",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R18-plan-draft-three-day-two-night.png",
+      "entry": "HoloAI → 对话输入 → contextual_planning 真实路由 → MatterPlanLaunchCard",
+      "actions": [
+        "发送PLAN-01",
+        "等待真实草案",
+        "逐项核对动作与日期",
+        "保持确认前状态，不能预先播种假草案"
+      ],
+      "must_show": [
+        "实际草案身份",
+        "三项明确行动或经核实的实际结果",
+        "确认/编辑控制",
+        "未把草案标记已执行"
+      ],
+      "focus": "动作清单与确认入口",
+      "content_origin": "live_pipeline",
+      "fallback": "R15手动清单；标题改把要做的事，逐项写清；不归因AI拆解",
+      "owning_source": "Views/Chat/Cards/ContextPlanChatCard.swift; Services/AI/PersonalContext",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "source_rect_by_device": {
+        "iphone-large": [
+          24,
+          1410,
+          1272,
+          1080
+        ],
+        "ipad-13": [
+          560,
+          1800,
+          1440,
+          700
+        ]
+      },
+      "context_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2752
+        ]
+      },
+      "evidence_by_device": {
+        "iphone-large": "evidence/iphone-large-R18-plan-draft-three-day-two-night-ax.json",
+        "ipad-13": "evidence/ipad-13-R18-plan-draft-three-day-two-night-ax.json"
+      },
+      "visual_review_by_device": {
+        "iphone-large": "completed_read_only_review",
+        "ipad-13": "completed_read_only_review"
+      },
+      "diagnostic_artifacts": {
+        "iphone_generic_chat_image": "../../evidence/iphone-large-R18-generic-fallback-diagnostic.png",
+        "iphone_generic_chat_ax": "../../evidence/iphone-large-R18-generic-fallback-ax.json",
+        "finding": "memory-assisted answering off produced ordinary chat text rather than a plan card; repeated “1.” numbering; do not use as ASO source"
+      },
+      "capture_facts": {
+        "simulator_local_date": "2026-10-30",
+        "request": "我计划2026年11月13日入住周边城市、11月15日退房，共三天两晚。请只根据本条消息提供的信息整理出行准备，不要引用或暗示使用过往记忆。请生成可确认的草案，标题写“11月中旬周边三天两晚出行”，不要写“两日游”。按时间设置三项：11月9日20:00查询往返交通；11月11日20:00预订住宿；11月12日20:00整理行李。每条计划行都直接显示对应日期和时间。先展示，不要创建或保存。",
+        "trip": {
+          "arrival_date": "2026-11-13",
+          "departure_date": "2026-11-15",
+          "calendar_days": 3,
+          "nights": 2
+        },
+        "plan_title_by_device": {
+          "iphone-large": "11月中旬周边三天两晚出行",
+          "ipad-13": "11月中旬周边三天两晚出行"
+        },
+        "actions_by_device": {
+          "iphone-large": [
+            "2026-11-09 20:00 查询往返交通",
+            "2026-11-11 20:00 预订住宿",
+            "2026-11-12 20:00 整理行李"
+          ],
+          "ipad-13": [
+            "2026-11-09 20:00 查询往返交通",
+            "2026-11-11 20:00 预订住宿",
+            "2026-11-12 20:00 整理行李"
+          ]
+        },
+        "action_count": 3,
+        "cta_by_device": {
+          "iphone-large": "开始推进",
+          "ipad-13": "开始推进"
+        },
+        "cta_tapped": false,
+        "plan_started": false,
+        "tasks_created": false,
+        "save_action_tested": false,
+        "personal_context_records_read": 0,
+        "personal_context_contexts_selected": 0,
+        "memory_assisted_answering": "temporarily enabled for synthetic prompt, then restored off on both devices",
+        "ai_data_processing_consent": "temporarily enabled for synthetic prompt, then restored off on both devices",
+        "automatic_memory": "remained off on both devices",
+        "settings_restore_evidence": {
+          "iphone-large": "evidence/iphone-large-R18-settings-restored-memory-ax.json; evidence/iphone-large-R18-settings-restored-root-ax.json",
+          "ipad-13": "evidence/ipad-13-R18-settings-restored-memory-ax.json; evidence/ipad-13-R18-settings-restored-root-ax.json"
+        },
+        "device_sync_claim": false,
+        "release_build_match": "unverified",
+        "save_verification": "not_performed"
+      },
+      "visual_findings_by_device": {
+        "iphone-large": "授权只读审阅通过卡片单独裁片 [24,1410,1272,1080]；排除本轮测试请求，完整保留 Holo AI 标识、准确标题、草案说明、三条明确日期时间及行动、未触发的“开始推进”CTA和卡片边界。",
+        "ipad-13": "授权只读审阅通过卡片单独裁片 [560,1800,1440,700]；箭头移除后的截图完整保留 Holo AI 标识、准确标题、草案说明、三条明确日期时间及行动、未触发CTA和卡片边界；系统弧线位于裁片外。"
+      },
+      "capability_scope": "真实结构化规划草案已验证；草案保存、任务创建闭环及正式发布包映射未验证。",
+      "previous_capture": {
+        "source_path": "raw/{device}/R18-plan-draft.png",
+        "request": "帮我想想两周后去附近城市住两晚怎么安排。请结合我的情况，把出行准备整理成可确认的待办草案：10月31日20点查询交通，11月2日20点预订住宿，11月6日20点整理行李。请先给草案，我确认后再保存，不要先创建。",
+        "sha256_by_device": {
+          "iphone-large": "d815d0213c5279478f22bd824ecb8567a81282589f742d87374c46a5569105ac",
+          "ipad-13": "1e928b9e0ace562141a142d06928c5f792847b6eec6bb7dfbc3beda107c9117c"
+        },
+        "plan_titles": {
+          "iphone-large": "周边城市两晚出行准备",
+          "ipad-13": "周边城市两晚出行"
+        },
+        "actions_by_device": {
+          "iphone-large": [
+            "2026-10-31 20:00 查询往返交通方案",
+            "2026-11-02 20:00 筛选并预订住宿",
+            "2026-11-06 20:00 核对行程并整理行李"
+          ],
+          "ipad-13": [
+            "2026-10-31 20:00 查询往返交通方案",
+            "2026-11-02 20:00 筛选并预订住宿",
+            "2026-11-06 20:00 清点并打包行李"
+          ]
+        },
+        "disposition": "superseded as K03-A-01/K03-B-01 source; retained in raw index for provenance"
+      },
+      "preferred_source_variant": "three-day-two-night",
+      "privacy_restore": "both simulators verified: data-processing consent off; memory-assisted answering off; automatic memory off"
+    },
+    {
+      "id": "R19",
+      "slug": "plan-saved",
+      "title": "规划确认后的任务",
+      "capability": "plan_draft_save",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R19-plan-saved.png",
+      "entry": "R18 确认 → 实际生成的清单/任务",
+      "actions": [
+        "只确认一次",
+        "核对实际生成ID和任务数量",
+        "打开三项任务清单",
+        "保存来源/草案到任务的关联证据"
+      ],
+      "must_show": [
+        "查询交通/预订住宿/整理行李等实际动作",
+        "明确日期",
+        "真实保存状态",
+        "没有重复任务"
+      ],
+      "focus": "保存清单与时间",
+      "content_origin": "live_pipeline",
+      "fallback": "R15真实手动清单；删除确认草案生成任务的描述",
+      "owning_source": "Services/AI/PersonalContext/HoloContextPlanExecutionAdapter.swift; Views/Tasks",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R20",
+      "slug": "habit-monthly-summary-2026-10",
+      "title": "习惯月度回顾（2026年10月）",
+      "capability": "habit_monthly_review",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R20-habit-month-summary-2026-10.png",
+      "entry": "习惯 → 回顾 → 2026年10月",
+      "actions": [
+        "确认月份2026/10与统计截止10/30",
+        "核对全部习惯21个有记录日、2项留下记录的习惯",
+        "核对散步记录12天",
+        "只使用各设备通过只读审阅的月度安全裁片"
+      ],
+      "must_show": [
+        "2026/10",
+        "截至10/30",
+        "全部习惯21个有记录日",
+        "散步记录12天"
+      ],
+      "focus": "当月统计范围、散步名称与记录天数",
+      "content_origin": "static_history",
+      "fallback": "若月度摘要不能完整显示12天与统计月份，阻塞该页；不能退回全历史37天主张。R23只可替代成单次今日打卡主张。",
+      "owning_source": "Views/Habits/HabitTileView.swift; HabitReviewView.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "quality_blocker": "只支持2026年10月截至10/30的月度数据；不得宣稱散步全歷史37天、連續12天或把月數當終身累計。",
+      "evidence_note": "原生截图和AX已在交付raw-index登记。iPhone/iPad安全裁片均经授权只读审阅通过；候选包1.1.3(35) Debug，发布包映射unverified。",
+      "source_rect_by_device": {
+        "iphone-large": [
+          0,
+          160,
+          1320,
+          1090
+        ],
+        "ipad-13": [
+          540,
+          0,
+          1524,
+          990
+        ]
+      }
+    },
+    {
+      "id": "R21",
+      "slug": "habit-month-calendar-2026-10",
+      "title": "习惯月历日期状态（2026年10月）",
+      "capability": "habit_monthly_review",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R21-habit-gap-calendar.png",
+      "entry": "习惯 → 散步 → 回顾/日历 → 2026年10月",
+      "actions": [
+        "核对日历月份2026年10月",
+        "核对2026年10月26–28日无记录",
+        "核对2026年10月29–30日有记录",
+        "保留图例；只使用安全裁片，不展示统计图区域"
+      ],
+      "must_show": [
+        "2026年10月日历标题",
+        "26–28日无记录",
+        "29–30日有记录",
+        "有记录/补录/未记录/暂停图例"
+      ],
+      "focus": "10月26–30日日期状态及图例",
+      "content_origin": "static_history",
+      "fallback": "若日历不能清楚显示日期和状态，则阻塞；不得借R20月度摘要补画日期。",
+      "owning_source": "Views/Habits/HabitSingleReviewView.swift; HabitReviewProjection.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "evidence_note": "10/26–28无记录、10/29–30有记录由日历AX与像素核对。此安全裁片不显示月份/习惯名称，须与R20配对。",
+      "quality_blocker": "R21整屏出现193.6%完成率与图表0–100刻度矛盾，并有顶部截断/横轴挤压。只能使用经审阅的日历安全裁片；禁止整屏宣传、完成率主张、连续天数或全历史主张。",
+      "source_rect_by_device": {
+        "iphone-large": [
+          0,
+          1480,
+          1320,
+          950
+        ],
+        "ipad-13": [
+          560,
+          1300,
+          1420,
+          640
+        ]
+      }
+    },
+    {
+      "id": "R22",
+      "slug": "habit-numeric",
+      "title": "数值习惯累计",
+      "capability": "habit_numeric",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R22-habit-numeric.png",
+      "entry": "习惯 → 阅读 → 累计/回顾",
+      "actions": [
+        "核对18条分钟记录和600分钟总计",
+        "确认习惯是计数类而非测量类",
+        "打开对应实际统计",
+        "同时显示数值、单位与范围"
+      ],
+      "must_show": [
+        "阅读",
+        "累计600分钟",
+        "真实计数类型",
+        "范围/记录数不混淆"
+      ],
+      "focus": "数值、单位与习惯名",
+      "content_origin": "static_history",
+      "fallback": "R20打卡累计；文案改每一次完成，都看得见，不保留分钟数",
+      "owning_source": "Views/Habits/HabitSingleReviewView.swift; HabitReviewProjection.swift",
+      "source_rect": null,
+      "status": "captured",
+      "implemented_route": false,
+      "evidence_note": "AX实际文案为“最近记录 vs 前37天、600分钟、日均16.2”；宣传范围应保留最近记录/前37天口径，不扩写为全历史累计。",
+      "source_rect_review_note": "只读审阅提供两个清晰真实区域：context保留App导航、阅读名称、最近记录筛选及vs前37天范围；focus保留趋势、600分钟、单位和9/24–10/30日期轴；两者均排除重复日均字段。其他设备必须重新测量。",
+      "measured_existing_source_regions_by_device": {
+        "iphone-medium": {
+          "context": [
+            40,
+            160,
+            1126,
+            850
+          ],
+          "focus": [
+            40,
+            1180,
+            1126,
+            920
+          ]
+        },
+        "iphone-large": {
+          "context": [
+            40,
+            160,
+            1240,
+            850
+          ],
+          "focus": [
+            40,
+            1180,
+            1240,
+            920
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded"
+        },
+        "ipad-13": {
+          "context": [
+            0,
+            0,
+            2064,
+            615
+          ],
+          "focus": [
+            560,
+            680,
+            1400,
+            730
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded"
+        }
+      },
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R22-habit-numeric.png",
+          "sha256": "dda2103fbb766fed91527137bf0c7c94f59a2f830bee3d3d146913044f5f1828",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            40,
+            1180,
+            1240,
+            920
+          ],
+          "context_source_rect": [
+            40,
+            160,
+            1240,
+            850
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "findings": "只读视觉复核通过：阅读名称、最近记录筛选、最近记录 vs 前37天、600分钟与完整日期轴可辨；完整原图另含日均↑16.2和日均16.2，成片只可使用避开该行的双裁片。"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R22-habit-numeric.png",
+          "sha256": "630496b0f4803ab0a4dc13c36f073f04ba9ec584e6a5bd6f2cab856bb5146f5c",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            560,
+            680,
+            1400,
+            730
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            2064,
+            615
+          ],
+          "presentation_source_rect": null,
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "findings": "只读复核通过：context保留Holo与阅读、范围；focus完整包含600分钟、单位、趋势、完整日期轴及“选择一个日期，查看那一天的真实记录。”说明行；避开两个日均字段。"
+        }
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_match_unverified",
+        "ipad-13": "captured_visual_reviewed_release_match_unverified"
+      }
+    },
+    {
+      "id": "R23",
+      "slug": "habit-today-record",
+      "title": "当天一次实际记录",
+      "capability": "habit_record",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R23-habit-today-record.png",
+      "entry": "习惯 → 今天 → 散步记录弹层",
+      "actions": [
+        "蓝图中今日散步保留为未完成，先实际记录一次",
+        "核对完成后累计从36变37",
+        "打开今天记录弹层",
+        "保存后再拍最终态"
+      ],
+      "must_show": [
+        "今日日期",
+        "已完成",
+        "累计已更新",
+        "再次打开仍保留"
+      ],
+      "focus": "2026年10月30日日期行、今日记录1项、散步已完成卡片",
+      "content_origin": "real_ui_action",
+      "fallback": "用R20展示既有累计；不能再说点击后即时+1已验证",
+      "owning_source": "Views/Habits/HabitTodayRecordSheet.swift",
+      "source_rect": [
+        40,
+        160,
+        1126,
+        730
+      ],
+      "status": "captured",
+      "implemented_route": false,
+      "evidence_note": "实际打卡操作后无障碍树显示当天已记录1项并提供取消打卡；只可据此表达今天完成记录，不扩写成跨重启留存验证。",
+      "source_rect_measurement_note": "只读视觉审阅给出的边界为左上含、右下不含像素坐标(40,160)-(1166,890)，换成[x,y,w,h]为[40,160,1126,730]。",
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R23-habit-today-record.png",
+          "sha256": "f6ee8efb6edfeae48363bb7bf329c0f83a61bc69d7368c5d65c76a339a6af44e",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            40,
+            190,
+            1240,
+            1310
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "findings": "只读视觉复核通过：状态栏、散步名称、2026年10月30日、连续达标2天、今日10:35打卡记录均完整；下方留白和取消打卡按钮不放入焦点裁片。"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R23-habit-today-record.png",
+          "sha256": "4a116824e998d910842754ebbfb711e79ffb800e54a2812a7cef9b69356e3ba9",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            430,
+            690,
+            1220,
+            1370
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            2064,
+            2100
+          ],
+          "presentation_source_rect": null,
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "findings": "只读复核通过：context保留今日日期、已记录1项背景和完整散步详情弹层；focus完整显示10月30日、连续达标2天、近7天、11:02打卡记录和取消打卡按钮。建议只展示裁掉底部60px，排除右下捕获弧线，不裁右侧状态栏。"
+        }
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_match_unverified",
+        "ipad-13": "captured_visual_reviewed_release_match_unverified"
+      },
+      "source_rect_by_device": {
+        "iphone-large": [
+          40,
+          190,
+          1240,
+          1310
+        ],
+        "ipad-13": [
+          430,
+          690,
+          1220,
+          1370
+        ]
+      },
+      "source_rect_measurements_by_device": {
+        "ipad-13": {
+          "context": [
+            0,
+            0,
+            2064,
+            2100
+          ],
+          "focus": [
+            430,
+            690,
+            1220,
+            1370
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded"
+        }
+      },
+      "ipad_evidence_note": "完成打卡后打开散步当天记录详情；AX读取日期2026-10-30、连续达标2天、近7天、11:02打卡记录及取消打卡按钮。仅证明当前模拟器中的当日操作状态。"
+    },
+    {
+      "id": "R24",
+      "slug": "notes-fragments",
+      "title": "零散想法列表",
+      "capability": "notes",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R24-notes-fragments.png",
+      "entry": "首页 → 想法/观点 → 列表",
+      "actions": [
+        "通过Holo原生编辑器逐条新增并保存四条合成想法",
+        "确认四条都显示在同一天的列表中",
+        "按设备裁去开发者欢迎卡与加号附近内容",
+        "不把同日四条说成跨日历史"
+      ],
+      "must_show": [
+        "四条实际保存的短想法",
+        "日期为2026-10-30同一天",
+        "开发者欢迎卡不作为用户记录",
+        "没有图片、没有AI整理结果"
+      ],
+      "focus": "同一天四条会议准备与复盘想法",
+      "content_origin": "real_ui_action",
+      "fallback": "若目标包列表不清楚，退回单条实际想法页；文案改为“想到什么，先记下来”，不宣称主题或跨日回顾",
+      "owning_source": "Views/Thoughts/ThoughtListView.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2495
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          1420
+        ]
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_match_unverified",
+        "ipad-13": "captured_visual_reviewed_release_match_unverified"
+      },
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R24-notes-fragments.png",
+          "sha256": "f64265ff7bc36d8ea94549fa0c4d2ec93b1c670a165ca7ba8a39515cabf2f00e",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            0,
+            0,
+            1320,
+            2495
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 15:21:22 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": null,
+          "findings": "只读视觉审阅确认前四条卡片完整可读；裁片[0,0,1320,2495]保留状态栏、标题、搜索框与四条记录，排除第五条开发者欢迎卡及右下加号附近内容。"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R24-notes-fragments.png",
+          "sha256": "247a8e8a1b72d146df19364e00bdc8ff94335159454b13a0483c4716d15ad1d1",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            0,
+            0,
+            2064,
+            1420
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 15:25:27 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": null,
+          "findings": "只读视觉审阅确认前四条卡片完整可读；裁片[0,0,2064,1420]保留侧栏、标题、搜索框与四条记录，并在开发者欢迎卡出现前结束。"
+        }
+      },
+      "evidence_note": "四条虚构短想法，2026-10-30同日保存；会前问题、材料拆分、专注安排、复盘下一步。 两设备独立本地合成数据；App Store发布版本映射仍unverified。",
+      "capture_facts": {
+        "simulator_local_date": "2026-10-30",
+        "note_count": 4,
+        "all_notes_same_day": true,
+        "ai_data_processing_consent": "off on both simulators",
+        "topic_assignment_at_capture": "not yet performed; R24 screenshot predates R25 manual assignment",
+        "synthetic_notes": [
+          {
+            "id": "R24-01",
+            "body": "会议前先列三个要回答的问题，比临场找材料轻松得多。"
+          },
+          {
+            "id": "R24-02",
+            "body": "把会议材料拆成几小步准备，比最后一天一起赶更稳。"
+          },
+          {
+            "id": "R24-03",
+            "body": "需要专注的工作留给上午，零碎回复集中在下午处理。"
+          },
+          {
+            "id": "R24-04",
+            "body": "每次复盘都写下一步行动，下一次会议就不用从头找思路。"
+          }
+        ],
+        "device_sync_claim": false,
+        "ax_export_retained": false
+      }
+    },
+    {
+      "id": "R25",
+      "slug": "notes-topic",
+      "title": "手动主题归拢",
+      "capability": "manual_topic_assignment",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R25-notes-topic.png",
+      "entry": "想法列表 → 更多操作 → 移入主题 → 工作节奏",
+      "actions": [
+        "保持AI数据处理授权关闭",
+        "通过原生选择器新建工作节奏主题并将四条合成想法手动移入",
+        "回读主题详情中的4条想法、持续1天、你加入4条、自动归入0条",
+        "分别在iPhone和iPad原生主题详情采集"
+      ],
+      "must_show": [
+        "工作节奏主题",
+        "4条手动加入的想法",
+        "Holo自动归入0条",
+        "四条同日记录；不得声称AI归类或跨日规律"
+      ],
+      "focus": "主题名、4条计数与手动来源状态；iPad另完整显示四条记录",
+      "content_origin": "real_ui_action",
+      "fallback": "若目标包无手动主题路径，退回R24并移除主题归拢主张；任何AI自动整理表述保持未验证",
+      "owning_source": "Views/Thoughts/TopicDetailView.swift; Services/Thoughts/TopicService.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          1690
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2110
+        ]
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_match_unverified",
+        "ipad-13": "captured_visual_reviewed_release_match_unverified"
+      },
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R25-notes-topic.png",
+          "sha256": "2ffa8b629e9fa4fe502dcee0e2584ef2c0760da25b7af83012b4458ae7697ac7",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            0,
+            0,
+            1320,
+            1690
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 15:39:09 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/iphone-large-R25-notes-topic-ax.json",
+          "findings": "只读视觉审阅确认主题、四条总数、手动来源4条、自动归入0条与一天范围清楚。裁片[0,0,1320,1690]避开只显示一部分的记录卡；足以支持四条归入“工作节奏”主题，不支持跨日规律或AI自动归类。"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R25-notes-topic.png",
+          "sha256": "671533ddeb2d8d565f2d9eec0419847e681bd648bab6c5c9622478d5069da691",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            0,
+            0,
+            2064,
+            2110
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 15:34:17 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/ipad-13-R25-notes-topic-ax.json",
+          "findings": "只读视觉审阅确认主题、手动来源4条、自动归入0条和四条卡片完整可见。裁片[0,0,2064,2110]保留主题信息与四条记录，排除下方空白和底部灰弧。"
+        }
+      },
+      "evidence_note": "工作节奏主题详情：4条想法、持续1天、手动加入4条、Holo自动归入0条。 两设备独立本地合成数据；App Store发布版本映射仍unverified。",
+      "capability_scope": "manual assignment only; AI automatic topic organization remains unverified",
+      "ai_data_processing_consent": "off on both simulators throughout capture",
+      "device_sync_claim": false
+    },
+    {
+      "id": "R26",
+      "slug": "note-reference",
+      "title": "笔记引用与脉络",
+      "capability": "note_quote",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R26-note-reference.png",
+      "entry": "N04 → 引用记录/查看引用",
+      "actions": [
+        "核对N04已有引用，未建立时用实际编辑路径添加一次",
+        "保存并重新打开",
+        "点击引用核对能到正确原文",
+        "回到有上下文的引用画面"
+      ],
+      "must_show": [
+        "当前想法",
+        "被引用的真实片段",
+        "引用上下文",
+        "可回到原文"
+      ],
+      "focus": "新旧想法对应",
+      "content_origin": "real_ui_action",
+      "fallback": "R25主题页；标题改相关想法，放在一起回看，删除引用/直达宣称",
+      "owning_source": "Views/Thoughts/ThoughtEditorView.swift",
+      "source_rect": null,
+      "status": "captured_visual_review_passed_iphone_roundtrip_verified_ipad_navigation_unverified",
+      "implemented_route": true,
+      "device_verification": {
+        "iphone-large": "Holo native reference action opened R24-04; AX body matched fixture exactly.",
+        "ipad-13": "Holo native reference action sheet visible; opening R24-04 was not verified."
+      },
+      "evidence_files": {
+        "iphone-large": [
+          "raw/iphone-large/R26-note-reference.png",
+          "evidence/iphone-large-R26-note-reference-ax.json",
+          "evidence/iphone-large-R26-opened-source-note.png",
+          "evidence/iphone-large-R26-opened-source-note-ax.json"
+        ],
+        "ipad-13": [
+          "raw/ipad-13/R26-note-reference.png",
+          "evidence/ipad-13-R26-note-reference-ax.json"
+        ]
+      },
+      "evidence_limit": "Same-day synthetic notes only; device-local; AI consent off; release build mapping unverified.",
+      "source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2140
+        ]
+      }
+    },
+    {
+      "id": "R27",
+      "slug": "journal-styled",
+      "title": "照片日记与主题纸",
+      "capability": "stationery",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R27-journal-styled.png",
+      "entry": "新增想法 → 输入N07正文 → 选两张合成照片 → 保存 → 编辑器选项 → 记录样式 → field/晴日观察",
+      "actions": [
+        "在iPhone与iPad隔离模拟器中分别通过Holo原生新建想法流程创建同一条合成记录；不表示同步",
+        "输入N07正文，选择PHOTO-01与PHOTO-02两张AI生成的合成演示图片并保存",
+        "通过记录样式选择器将field/晴日观察应用到本条记录",
+        "保存后重新打开记录并确认正文、日期、图片和样式状态"
+      ],
+      "must_show": [
+        "完整正文与日期",
+        "两张合成演示照片",
+        "field/晴日观察纸张样式",
+        "保存后的Holo原生记录"
+      ],
+      "focus": "照片、短文与纸张",
+      "content_origin": "synthetic_native_ui_created_separately_per_device",
+      "fallback": "支持的其他主题纸或plain；不声称不存在的模板",
+      "owning_source": "Models/ThoughtStyle.swift; Views/Thoughts/ThoughtStationeryDocument.swift",
+      "source_rect": null,
+      "status": "captured_visual_passed_iphone_ipad_rejected_for_content_clipping",
+      "implemented_route": true,
+      "source_rect_by_device": {
+        "iphone-large": [
+          48,
+          180,
+          1224,
+          1500
+        ],
+        "ipad-13": null
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_match_unverified",
+        "ipad-13": "captured_visual_reviewed_retake_limited_to_editor_text_photo_claim_release_match_unverified"
+      },
+      "evidence_note": "N07正文与两张AI合成演示照片在两台隔离模拟器中分别经Holo原生UI创建和保存；AI数据处理授权关闭、CloudKit不可用、未登录Apple ID。两端不是同步数据。iPhone完整展示正文、日期、两张照片和field纸张；iPad正文起始被画面裁切且日期像素不可读，不能作为完整照片日记候选。 最终只读复核已同时拒绝iPad窄photo-focus与更宽裁片：两者均无法补回原图缺失的正文句首；窄/宽候选均不保留为发布候选，iPad K06-A/B-04需重新采集自然正文起点。 新增 iPad short-text 重拍，仅支持编辑页文字与照片同屏；原 styled 原图和两个旧裁片仍拒绝用于完整正文/日期/样式主张。",
+      "capability_scope": "native note creation with selected photos and field stationery; no claim about cross-device sync or release-build availability",
+      "ai_data_processing_consent": "off on both simulators throughout capture",
+      "device_sync_claim": false,
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R27-journal-styled.png",
+          "sha256": "5dc9fef51a875536ca3730579eaa75797ffc9598ba305dae0a5f7d66baeb5339",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            48,
+            180,
+            1224,
+            1500
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 16:32:39 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/iphone-large-R27-journal-styled-ax.json",
+          "findings": "只读视觉复核确认正文、2026.10.30日期、两张照片与浅绿色field纸张均完整清楚；裁片[48,180,1224,1500]保留编辑页上下文及正文/照片，排除外围留白。",
+          "disposition": "usable_for_complete_photo_diary_claim"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R27-journal-styled.png",
+          "sha256": "7837f381032307994a2c790b7f35ea8f6e694ed40af20965a98310783fc4b3e1",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "rejected_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": null,
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 16:41:48 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/ipad-13-R27-journal-styled-ax.json",
+          "findings": "只读视觉复核拒绝该图用于完整内容成片：虽然AX记录含完整正文和日期，两张照片也可见，但像素裁掉正文开头且纸面日期不可读；裁切无法恢复被遮挡内容。",
+          "disposition": "not_usable_for_candidate_due_to_pixel_clipping"
+        }
+      },
+      "scoped_variants_by_device": {
+        "ipad-13": {
+          "photo-focus": {
+            "visual_review": "rejected_read_only_visual_review",
+            "source_file": "raw/ipad-13/R27-journal-styled.png",
+            "sha256": "7837f381032307994a2c790b7f35ea8f6e694ed40af20965a98310783fc4b3e1",
+            "source_rect_xywh": [
+              300,
+              132,
+              1464,
+              1243
+            ],
+            "review_endpoint_rect_ltrb": [
+              300,
+              132,
+              1764,
+              1375
+            ],
+            "allowed_claim": "",
+            "excluded_claims": [
+              "完整正文",
+              "记录日期",
+              "已保存结果",
+              "完整日记页"
+            ],
+            "reviewer": "authorized_read_only_visual_audit",
+            "review_date": "2026-10-30",
+            "candidate_eligibility": "rejected",
+            "attempted_alternative_source_rect_xywh": [
+              0,
+              132,
+              2064,
+              1243
+            ],
+            "disposition": "diagnostic_only_not_candidate",
+            "review_findings": "拒绝进入候选。photo-focus窄裁片[300,132,1464,1243]与更宽替代裁片[0,132,2064,1243]均无法修复原始像素中的正文句首缺失；更宽框只增加左侧留白，仍让正文像从句中开始。保留为诊断证据，不作候选成片。需要重拍自然起始完整的正文画面。"
+          }
+        }
+      },
+      "retake_variants_by_device": {
+        "ipad-13": {
+          "short-text": {
+            "file": "raw/ipad-13/R27-journal-short-text.png",
+            "sha256": "3751be82fc5dd338458eb01250cf91480b701238adf8952223c86f58b18a6f73",
+            "pixel_size": [
+              2064,
+              2752
+            ],
+            "captured_at_local": "2026-10-30 23:36:44 CST",
+            "app_bundle_id": "com.holo.Holo",
+            "app_version": "1.1.3",
+            "app_build": "35",
+            "app_configuration": "Debug",
+            "source_branch": "1.1.4",
+            "source_commit": "unverified",
+            "visual_review": "completed_read_only_review",
+            "reviewer": "authorized_read_only_visual_audit",
+            "review_date": "2026-10-30",
+            "release_build_match": "unverified",
+            "source_rect_xywh": [
+              330,
+              60,
+              1400,
+              1195
+            ],
+            "bounds_convention": "left/top included; right/bottom excluded",
+            "ax_evidence_file": "evidence/ipad-13-R27-journal-short-text-ax.json",
+            "claim_scope": "编辑页中正文与两张合成照片同屏",
+            "excluded_claims": [
+              "该截图独立证明已保存",
+              "可辨记录日期",
+              "field/晴日观察样式",
+              "AI整理",
+              "跨设备同步"
+            ],
+            "findings": "只读视觉复核 PASS。原始 R27-journal-styled.png 仍保持 rejected；此短文本重拍只解锁编辑器文字+照片主张。"
+          }
+        }
+      }
+    },
+    {
+      "id": "R28",
+      "slug": "journal-style-picker",
+      "title": "记录样式选择",
+      "capability": "stationery",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R28-journal-style-picker.png",
+      "entry": "R27想法编辑器 → 选项 → 记录样式",
+      "actions": [
+        "从已保存的R27合成记录进入Holo原生记录样式选择器",
+        "只读核对当前样式“晴日观察”及“正在使用”状态",
+        "确认样式预览中的日期与正文没有被遮挡",
+        "把候选文案限定为画面可证的样式名；iPad不声称照片完整可见"
+      ],
+      "must_show": [
+        "真实样式选择器",
+        "晴日观察与正在使用状态",
+        "完整日期与正文预览",
+        "可见的其他样式选项；不补全像素未完整显示的名字"
+      ],
+      "focus": "真实样式选择器、当前选中状态与正文预览",
+      "content_origin": "real_ui_action_on_synthetic_native_ui_created_note",
+      "fallback": "R27成品页；标题改给今天，留一张合适的纸",
+      "owning_source": "Models/ThoughtStyle.swift; Views/Thoughts/ThoughtEditorView.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed_style_picker_only",
+      "implemented_route": true,
+      "source_rect_by_device": {
+        "iphone-large": [
+          0,
+          240,
+          1320,
+          1960
+        ],
+        "ipad-13": [
+          96,
+          900,
+          1872,
+          727
+        ]
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_match_unverified",
+        "ipad-13": "captured_visual_reviewed_style_picker_only_release_match_unverified"
+      },
+      "evidence_note": "两台设备均在Holo原生记录样式选择器显示2026.10.30日期、完整正文、“晴日观察”与“正在使用”状态。iPhone完整显示两张照片；iPad照片下部被样式面板遮挡。截图只支持样式选择/预览，不证明生活票根已应用、照片完整显示或正式发布包映射。",
+      "capability_scope": "real style picker and currently selected field style on a synthetic note; no claim about ticket style being applied",
+      "ai_data_processing_consent": "off on both simulators throughout capture",
+      "device_sync_claim": false,
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R28-journal-style-picker.png",
+          "sha256": "06f043bd265c48599aa61e7a3d41ed5609651f85cbcd0703706630e978560edd",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            0,
+            240,
+            1320,
+            1960
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            1320,
+            2780
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 16:52:57 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/iphone-large-R28-journal-style-picker-ax.json",
+          "findings": "只读审阅确认预览日期与完整正文、两张完整照片、“晴日观察”及“正在使用”状态清楚可读；当前截图适合证明样式选择与预览。展示裁片[0,0,1320,2780]避开底部灰弧。",
+          "disposition": "usable_for_style_picker_and_preview_claim_only"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R28-journal-style-picker.png",
+          "sha256": "9db7d3cd7e24fbfa7d52281d1a337ab88ee2d938575387cfded912fcd5c66ac5",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            96,
+            900,
+            1872,
+            727
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            2064,
+            2080
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 16:52:41 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/ipad-13-R28-journal-style-picker-ax.json",
+          "findings": "只读审阅确认预览日期与完整正文、“晴日观察”及“正在使用”状态可读；照片下部被原生样式选择面板遮挡。裁框可用于样式选择证据，不支持照片完整展示。",
+          "disposition": "usable_for_style_picker_and_preview_claim_only"
+        }
+      }
+    },
+    {
+      "id": "R29",
+      "slug": "journal-share-export",
+      "title": "实际分享导出",
+      "capability": "share_export",
+      "source_kind": "app_export",
+      "source_path": "evidence/exports/{device}/R29-share-card-export.jpg",
+      "entry": "N07 → … → 生成分享卡 → 实际导出PNG",
+      "actions": [
+        "通过Holo原生分享入口生成分享卡",
+        "在隔离模拟器中实际保存导出JPEG",
+        "保留原生分享面板截图作为操作上下文",
+        "按同一记录内容核对面板预览与实际导出",
+        "检查导出日期、正文、两张照片、Holo尾注均完整"
+      ],
+      "must_show": [
+        "Holo原生分享操作界面",
+        "同一合成记录的实际导出JPEG",
+        "完整正文和两张照片",
+        "日期与品牌尾注完整"
+      ],
+      "focus": "实际分享导出JPEG；操作界面只作流程上下文",
+      "content_origin": "actual_app_export",
+      "fallback": "R27真实编辑/阅读界面；文案改留下日常，不再宣称已验证分享导出",
+      "owning_source": "Views/Thoughts/ThoughtEditorView.swift → 生成分享卡",
+      "source_rect": null,
+      "status": "captured_read_only_reviewed",
+      "implemented_route": true,
+      "context_source_path": "raw/{device}/R29-journal-share-export.png",
+      "device_capture_count": 2,
+      "format": "JPEG 1020×932",
+      "evidence_note": "iPhone/iPad分别由Holo生成并保存；每台设备的导出卡与本机分享面板截图对应。两端记录独立创建，不证明同步。iPad面板预览被截断，仅操作上下文，不作完整内容证据。"
+    },
+    {
+      "id": "R30",
+      "slug": "life-timeline",
+      "title": "照片、想法、待办与习惯的当天时间线",
+      "capability": "timeline",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R30-life-timeline.png",
+      "entry": "记忆长廊 → 轴/日 → 拍摄当日",
+      "actions": [
+        "在两台隔离模拟器中打开记忆长廊 → 日/轴，定位到 2026-10-30。",
+        "保存原生全屏截图与AX树；确认当天概览为9个记忆时刻。",
+        "逐项核对截图可见的照片想法、普通想法、待办、习惯及其时间标签。",
+        "只按Holo原生顺序展示；不移动记录、不补造时间线卡片。",
+        "检查当天财务类别：当前没有财务记录，任何文案均不得出现消费或金额。"
+      ],
+      "must_show": [
+        "2026-10-30日期/今天标记",
+        "原生时间线中真实可见的照片或想法记录",
+        "至少两种真实记录类别（以该设备视觉审阅确认的可见内容为准）",
+        "时间标签和原生先后顺序",
+        "如展示“9个记忆时刻”，必须明确是当天概览数；不可把AX树中的离屏条目当成画面可见内容"
+      ],
+      "focus": "原生时间线日期 + 可见照片/想法 + 其他可辨认类别；保持原生画面，不追加消费、金额或新记录",
+      "content_origin": "isolated_local_synthetic_fixture",
+      "fallback": "如任一设备的画面不足以支持同日照片与生活记录上下文，该设备不渲染R30候选；可转用R31并重写为按日期回看，不能扩张为跨模块消费回顾。",
+      "owning_source": "Views/MemoryGallery/Calendar/CalendarRootView.swift; Services/DeepLinkState.swift",
+      "source_rect": null,
+      "status": "default_passed_lower_reviewed_reference_only",
+      "implemented_route": false,
+      "variants": {
+        "default": {
+          "files": {
+            "iphone-large": "raw/iphone-large/R30-life-timeline.png",
+            "ipad-13": "raw/ipad-13/R30-life-timeline.png"
+          },
+          "visual_review": "completed_read_only_review"
+        },
+        "lower": {
+          "files": {
+            "iphone-large": "raw/iphone-large/R30-life-timeline-lower.png",
+            "ipad-13": "raw/ipad-13/R30-life-timeline-lower.png"
+          },
+          "visual_review": "completed_read_only_review_reference_only",
+          "reason": "iPhone focus crop can be used only as a separate same-day lower-view panel; iPad lower screenshot has card residue and gray arc with no clean single presentation frame. Current K06-A/B-06 uses default upper view only.",
+          "source_rect_by_device": {
+            "iphone-large": [
+              24,
+              820,
+              1272,
+              1270
+            ],
+            "ipad-13": null
+          },
+          "presentation_source_rect_by_device": {
+            "iphone-large": null,
+            "ipad-13": null
+          }
+        }
+      },
+      "source_rect_by_device": {
+        "iphone-large": [
+          24,
+          900,
+          1272,
+          1445
+        ],
+        "ipad-13": [
+          520,
+          450,
+          1480,
+          2210
+        ]
+      },
+      "presentation_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2000,
+          2660
+        ]
+      }
+    },
+    {
+      "id": "R31",
+      "slug": "life-month-calendar",
+      "title": "日历回看",
+      "capability": "monthly_calendar",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R31-life-month-calendar.png",
+      "entry": "Holo首页 → 记忆长廊 → 月 → 2026年10月；点选10月29日核对日列表变化后，再选回10月30日",
+      "actions": [
+        "通过Holo首页进入原生记忆长廊月视图；本次模拟器参考日为2026-10-30，选用当前月2026年10月",
+        "核对月视图显示21天有记录、29个记忆时刻；这些数量截至10月30日",
+        "点选10月29日，AX从当天9个记忆时刻变为1个；再点选10月30日，回到9个记忆时刻",
+        "保留月历、选中日及当天记录预览；不把视口未显示的正文补画到画面中"
+      ],
+      "must_show": [
+        "2026年10月的月历标题",
+        "21天有记录、29个记忆时刻（截至2026-10-30）",
+        "选中10月30日与当天9个记忆时刻",
+        "同一日期下的Holo原生记录预览"
+      ],
+      "focus": "月份、记录日分布、选中日期与当天记录数量",
+      "content_origin": "static_history",
+      "fallback": "R30时间线；文案改按时间，回看发生的事",
+      "owning_source": "Views/MemoryGallery/Calendar/CalendarRootView.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "source_rect_by_device": {
+        "iphone-large": [
+          28,
+          800,
+          1264,
+          1640
+        ],
+        "ipad-13": [
+          520,
+          460,
+          1480,
+          2270
+        ]
+      },
+      "context_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2000,
+          2752
+        ]
+      },
+      "presentation_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2000,
+          2752
+        ]
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_mapping_unverified",
+        "ipad-13": "captured_visual_reviewed_release_mapping_unverified"
+      },
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R31-life-month-calendar.png",
+          "sha256": "5de7469d497cbeae7e749e172c4cf32112ef782b982512c2b08b19aa434cd7a3",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            28,
+            800,
+            1264,
+            1640
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            1320,
+            2868
+          ],
+          "presentation_source_rect": [
+            0,
+            0,
+            1320,
+            2868
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 17:36:49 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/iphone-large-R31-life-month-calendar-ax.json",
+          "selection_interaction_evidence_file": "evidence/iphone-large-R31-life-month-calendar-selection-ax.json",
+          "findings": "月历概览清楚显示2026年10月、21天有记录、29个记忆时刻；选中10月30日后显示今天及9个记忆时刻。完整屏无系统遮挡；当日卡片正文只露出部分，不能声称完整日记详情。推荐焦点框[28,800,1264,1640]。",
+          "disposition": "isolated simulator synthetic demo candidate; month-to-date only; release mapping unverified; not approved for upload"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R31-life-month-calendar.png",
+          "sha256": "36cd2e82738656045c898a9a412531f9e189322054a374588aa6ea8f371a8a8c",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            520,
+            460,
+            1480,
+            2270
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            2000,
+            2752
+          ],
+          "presentation_source_rect": [
+            0,
+            0,
+            2000,
+            2752
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 17:38:31 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/ipad-13-R31-life-month-calendar-ax.json",
+          "selection_interaction_evidence_file": "evidence/ipad-13-R31-life-month-calendar-selection-ax.json",
+          "findings": "月历概览清楚显示2026年10月、21天有记录、29个记忆时刻；选中10月30日后显示今天及9个记忆时刻。左侧为原生导航栏、不遮挡主内容；完整屏右下有灰弧，展示裁框[0,0,2000,2752]排除灰弧。焦点框[520,460,1480,2270]；当日卡片受原屏视口限制，只能作为部分预览。",
+          "disposition": "isolated simulator synthetic demo candidate; month-to-date only; release mapping unverified; not approved for upload"
+        }
+      },
+      "device_capture_count": 2,
+      "capability_scope": "Holo原生月历与日期选择页；只证明合成演示数据截至2026-10-30的月份统计和当天记录预览，不证明连续记录、完整自然月回顾、AI总结或线上发布版本支持。",
+      "evidence_note": "两台隔离模拟器分别运行Holo 1.1.3(35) Debug，本地合成演示数据，CloudKit不可用、无Apple ID。两设备分别核验同一日历结构，数据对象独立创建，不表示跨设备同步。原始月截图与选日AX证据分开保存；发布包映射unverified。"
+    },
+    {
+      "id": "R32",
+      "slug": "weekly-report",
+      "title": "真实周回顾",
+      "capability": "weekly_report",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R32-weekly-report.png",
+      "entry": "HoloAI → 周期回放/支持入口 → WEEK-01",
+      "actions": [
+        "选择最近完整周的准确范围",
+        "走实际生成路径",
+        "核对5项已完成与2项未完成等事实",
+        "取景显示范围和具体回顾，不预写理想标题"
+      ],
+      "must_show": [
+        "真实日期范围",
+        "具体做过的事",
+        "未完成事项边界",
+        "与源记录一致"
+      ],
+      "focus": "范围、事实与回顾",
+      "content_origin": "live_pipeline",
+      "fallback": "R15已完成/未完成清单+R21历史；标题改这一周，做过的事有迹可查，撤掉AI总结归因",
+      "owning_source": "Services/AI/Insight/HoloPeriodReplayCoordinator.swift; Views/Chat/ReportTab/ReportReplayReaderView.swift",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R33",
+      "slug": "weekly-report-sources",
+      "title": "周回顾所据记录",
+      "capability": "weekly_report_sources",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R33-weekly-report-sources.png",
+      "entry": "R32 实际证据/明细入口",
+      "actions": [
+        "点实际可用的证据入口",
+        "核对条目时间在周范围内",
+        "拍日期、来源类型与对应内容",
+        "记录跳转关系，不能用无关任务顶替"
+      ],
+      "must_show": [
+        "来源内容",
+        "正确范围",
+        "与回顾相关",
+        "实际可打开"
+      ],
+      "focus": "对应记录与日期",
+      "content_origin": "live_pipeline",
+      "fallback": "R15实际完成记录；标题改完成过的事，随时回来核对，不写每句都有自动引用",
+      "owning_source": "Views/Chat; Views/MemoryGallery",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R34",
+      "slug": "memory-list",
+      "title": "当前记忆管理",
+      "capability": "memory_management",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R34-memory-list.png",
+      "entry": "我的/设置 → AI与记忆 → Holo记忆；路径按当前版核对",
+      "actions": [
+        "通过实际入口进入",
+        "确认MEM-01真实形成",
+        "展示已记住/值得确认等实际状态",
+        "不使用旧长廊确认卡替代新管理页"
+      ],
+      "must_show": [
+        "Holo记忆标题",
+        "会议前预留30分钟的实际偏好",
+        "真实状态",
+        "实际控制入口"
+      ],
+      "focus": "一条有用记忆与状态",
+      "content_origin": "live_pipeline_for_remember_claim",
+      "fallback": "仅拍实际管理入口时改为AI记忆，有处查看；MEM-01未形成不能硬贴进去",
+      "owning_source": "Views/MemoryCenter/HoloMemoryCenterView.swift; HoloMemoryCenterRollout.swift",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R35",
+      "slug": "memory-source-detail",
+      "title": "记忆来源详情",
+      "capability": "memory_sources",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R35-memory-source-detail.png",
+      "entry": "R34 → MEM-01 详情 → 来源",
+      "actions": [
+        "打开实际偏好详情",
+        "展开可核对来源",
+        "点击回到真实输入或实际来源",
+        "截图保留日期与来源语义"
+      ],
+      "must_show": [
+        "偏好正文",
+        "真实来源/原话",
+        "状态与日期",
+        "来源可核对"
+      ],
+      "focus": "正文与来源",
+      "content_origin": "live_pipeline",
+      "fallback": "R34列表，标题改记住的内容，随时查看；删去有来源/可追溯宣称",
+      "owning_source": "Views/MemoryCenter/HoloMemoryCenterDetailView.swift",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R36",
+      "slug": "memory-edit",
+      "title": "记忆修正",
+      "capability": "memory_edit",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R36-memory-edit.png",
+      "entry": "MEM-01 详情 → 实际编辑入口",
+      "actions": [
+        "打开编辑界面",
+        "将30分钟改为20分钟的明确偏好",
+        "拍保存前编辑态",
+        "保存后重新读取核对，再将后续素材统一到实际新值"
+      ],
+      "must_show": [
+        "可编辑的真实字段",
+        "保存控制",
+        "输入内容",
+        "与实际后续状态相符"
+      ],
+      "focus": "正文编辑与保存",
+      "content_origin": "real_ui_action",
+      "fallback": "R34或R35；标题改记住了什么，你看得见，移除可改写宣传",
+      "owning_source": "Views/MemoryCenter/HoloMemoryEditView.swift",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R37",
+      "slug": "memory-controls",
+      "title": "过时与遗忘控制",
+      "capability": "memory_forget",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R37-memory-controls.png",
+      "entry": "MEM-01 详情 → 更多/控制入口",
+      "actions": [
+        "在明确隔离演示库中打开实际控制",
+        "拍过时/忘记等真实动作",
+        "如测试遗忘，用专门副本MEM-02，不删所有素材依赖的MEM-01",
+        "重新查询核对实际效果"
+      ],
+      "must_show": [
+        "真实控制名称",
+        "针对的记忆上下文",
+        "无虚假全局删除承诺",
+        "与发布版本一致"
+      ],
+      "focus": "控制动作与对象上下文",
+      "content_origin": "real_ui_action",
+      "fallback": "R35实际来源详情；标题改理解从哪来，你能核对，移除未验证的遗忘效果",
+      "owning_source": "Views/MemoryCenter/HoloMemoryCenterDetailView.swift",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R38",
+      "slug": "voice-to-record",
+      "title": "真实语音转写与记录（条件素材）",
+      "capability": "voice_input",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R38-voice-to-record.png",
+      "entry": "HoloAI → 真实麦克风入口",
+      "actions": [
+        "确认宿主有可授权的真实音频输入路径",
+        "录入MIX-VOICE-01，不用直接填文本冒充转写",
+        "核对转写和保存结果",
+        "保留音频输入→文本→结果链路证据"
+      ],
+      "must_show": [
+        "实际转写结果",
+        "实际记录",
+        "不靠静态语音波形作证",
+        "授权与权益已核对"
+      ],
+      "focus": "转写与实际结果",
+      "content_origin": "live_audio_pipeline",
+      "fallback": "R01文字表达；删除所有语音/说话输入限定词，保留自然表达能力",
+      "owning_source": "Views/Chat/Voice/VoiceInputSheet.swift; Services/Speech/HoloBackendSpeechRecognitionProvider.swift",
+      "source_rect": null,
+      "status": "not_captured",
+      "implemented_route": false
+    },
+    {
+      "id": "R39",
+      "slug": "dining-category-2026-08",
+      "title": "餐饮8月分类统计",
+      "capability": "finance_stats",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R39-dining-category-2026-08.png",
+      "entry": "Holo → 财务 → 统计分析 → 类别 → 支出 → 对应自然月",
+      "actions": [
+        "在隔离模拟器的既有合成演示账本中打开财务统计分析",
+        "选择对应完整自然月，切换到类别与支出视图",
+        "通过 AX 和本地页面核对月份、餐饮类别金额及笔数",
+        "只读保存原生屏幕与同屏 AX 树，不写入财务数据、不调用 AI"
+      ],
+      "must_show": [
+        "2026年8月完整自然月范围",
+        "类别/支出视图",
+        "餐饮类别金额和笔数，与AX核对一致"
+      ],
+      "focus": "同口径完整自然月的餐饮分类金额与笔数",
+      "content_origin": "static_history",
+      "fallback": "保留具体月份与类别事实；若屏幕上的金额/类别不可读，不渲染为宣传候选。",
+      "owning_source": "Views/Finance/Analysis/OverviewTabView.swift; Views/Finance/Analysis/CategoryTabView.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "context_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2752
+        ]
+      },
+      "presentation_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2180
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2100
+        ]
+      },
+      "source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2180
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2100
+        ]
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_mapping_unverified",
+        "ipad-13": "captured_visual_reviewed_release_mapping_unverified"
+      },
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R39-dining-category-2026-08.png",
+          "sha256": "f6e4a339e329505d18da8c3a16d0cc7675b0e4add4ac5d2200dee98ee7415801",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            0,
+            0,
+            1320,
+            2180
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            1320,
+            2868
+          ],
+          "presentation_source_rect": [
+            0,
+            0,
+            1320,
+            2180
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 21:15:26 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/iphone-large-R39-dining-category-2026-08-ax.json",
+          "findings": "授权只读审阅通过。屏幕直接显示类别/支出视图、8月1日–8月31日、餐饮¥1,080.00和24笔；推荐presentation crop [0,0,1320,2180]，保留状态栏和完整分类证据，裁掉底部导航。像素未显示年份，宣传标签使用“8月”。",
+          "reviewer": "authorized_read_only_visual_audit",
+          "review_date": "2026-10-30",
+          "disposition": "isolated simulator synthetic demo finance data; presentation crop reviewed and approved for development candidate; release mapping unverified; not approved for upload"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R39-dining-category-2026-08.png",
+          "sha256": "a4776d881b5ce18119fdc196203c246cbd9cd521b90f19250dc32eb9e4b7b540",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            0,
+            0,
+            2064,
+            2100
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            2064,
+            2752
+          ],
+          "presentation_source_rect": [
+            0,
+            0,
+            2064,
+            2100
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 21:15:42 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/ipad-13-R39-dining-category-2026-08-ax.json",
+          "findings": "授权只读审阅通过。屏幕直接显示类别/支出视图、8月1日–8月31日、餐饮¥1,080.00和24笔；推荐presentation crop [0,0,2064,2100]，保留状态栏和完整分类证据，裁掉底部导航及右下灰弧。像素未显示年份，宣传标签使用“8月”。",
+          "reviewer": "authorized_read_only_visual_audit",
+          "review_date": "2026-10-30",
+          "disposition": "isolated simulator synthetic demo finance data; presentation crop reviewed and approved for development candidate; release mapping unverified; not approved for upload"
+        }
+      },
+      "device_capture_count": 2,
+      "capability_scope": "Holo财务统计的类别/支出视图；只证明隔离合成账本对应自然月的餐饮汇总，不证明AI归因、用户真实账目或线上发布包映射。",
+      "evidence_note": "2026-10-30在两台既有隔离模拟器上按月份只读导航并捕获，不新增或修改账目、不调用AI；截图和AX旁证独立留存，视觉裁片仍待审。",
+      "visual_review_note": "四张原生截图逐图通过授权只读审阅；月份范围、类别、金额和笔数直接可见。画面月份标签不含年份，成片只标8月/9月。年归属由隔离fixture与设备参考日期旁证；发布映射unverified。iPhone裁掉底部导航；iPad裁掉底部导航和右下系统灰弧。"
+    },
+    {
+      "id": "R40",
+      "slug": "dining-category-2026-09",
+      "title": "餐饮9月分类统计",
+      "capability": "finance_stats",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R40-dining-category-2026-09.png",
+      "entry": "Holo → 财务 → 统计分析 → 类别 → 支出 → 对应自然月",
+      "actions": [
+        "在隔离模拟器的既有合成演示账本中打开财务统计分析",
+        "选择对应完整自然月，切换到类别与支出视图",
+        "通过 AX 和本地页面核对月份、餐饮类别金额及笔数",
+        "只读保存原生屏幕与同屏 AX 树，不写入财务数据、不调用 AI"
+      ],
+      "must_show": [
+        "2026年9月完整自然月范围",
+        "类别/支出视图",
+        "餐饮类别金额和笔数，与AX核对一致"
+      ],
+      "focus": "同口径完整自然月的餐饮分类金额与笔数",
+      "content_origin": "static_history",
+      "fallback": "保留具体月份与类别事实；若屏幕上的金额/类别不可读，不渲染为宣传候选。",
+      "owning_source": "Views/Finance/Analysis/OverviewTabView.swift; Views/Finance/Analysis/CategoryTabView.swift",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "context_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2752
+        ]
+      },
+      "presentation_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2180
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2100
+        ]
+      },
+      "source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2180
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2100
+        ]
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_mapping_unverified",
+        "ipad-13": "captured_visual_reviewed_release_mapping_unverified"
+      },
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R40-dining-category-2026-09.png",
+          "sha256": "cea3df442446ac9686340682cf59c50a81b6a6556bd0a7ca607c43486453ce94",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            0,
+            0,
+            1320,
+            2180
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            1320,
+            2868
+          ],
+          "presentation_source_rect": [
+            0,
+            0,
+            1320,
+            2180
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 21:16:07 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/iphone-large-R40-dining-category-2026-09-ax.json",
+          "findings": "授权只读审阅通过。屏幕直接显示类别/支出视图、9月1日–9月30日、餐饮¥1,400.00和28笔；推荐presentation crop [0,0,1320,2180]，保留状态栏和完整分类证据，裁掉底部导航。像素未显示年份，宣传标签使用“9月”。",
+          "reviewer": "authorized_read_only_visual_audit",
+          "review_date": "2026-10-30",
+          "disposition": "isolated simulator synthetic demo finance data; presentation crop reviewed and approved for development candidate; release mapping unverified; not approved for upload"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R40-dining-category-2026-09.png",
+          "sha256": "3f314f86d087818017ef1ef107df27ecbe1e2780e67493f77826aa14ee953e86",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            0,
+            0,
+            2064,
+            2100
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            2064,
+            2752
+          ],
+          "presentation_source_rect": [
+            0,
+            0,
+            2064,
+            2100
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 21:16:15 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/ipad-13-R40-dining-category-2026-09-ax.json",
+          "findings": "授权只读审阅通过。屏幕直接显示类别/支出视图、9月1日–9月30日、餐饮¥1,400.00和28笔；推荐presentation crop [0,0,2064,2100]，保留状态栏和完整分类证据，裁掉底部导航及右下灰弧。像素未显示年份，宣传标签使用“9月”。",
+          "reviewer": "authorized_read_only_visual_audit",
+          "review_date": "2026-10-30",
+          "disposition": "isolated simulator synthetic demo finance data; presentation crop reviewed and approved for development candidate; release mapping unverified; not approved for upload"
+        }
+      },
+      "device_capture_count": 2,
+      "capability_scope": "Holo财务统计的类别/支出视图；只证明隔离合成账本对应自然月的餐饮汇总，不证明AI归因、用户真实账目或线上发布包映射。",
+      "evidence_note": "2026-10-30在两台既有隔离模拟器上按月份只读导航并捕获，不新增或修改账目、不调用AI；截图和AX旁证独立留存，视觉裁片仍待审。",
+      "visual_review_note": "四张原生截图逐图通过授权只读审阅；月份范围、类别、金额和笔数直接可见。画面月份标签不含年份，成片只标8月/9月。年归属由隔离fixture与设备参考日期旁证；发布映射unverified。iPhone裁掉底部导航；iPad裁掉底部导航和右下系统灰弧。"
+    },
+    {
+      "id": "R41",
+      "slug": "life-timeline-september-20",
+      "title": "同日消费与散步时间线回放",
+      "capability": "life_timeline",
+      "source_kind": "simulator_screenshot",
+      "source_path": "raw/{device}/R41-life-timeline-2026-09-20.png",
+      "entry": "Holo → 生活回放 → 选择9月20日 → 回放这一天",
+      "actions": [
+        "在iPhone 6.9英寸、iPhone 6.3英寸与iPad 13英寸隔离模拟器中分别打开Holo生活回放",
+        "只读选择9月20日并查看当天回放",
+        "通过同屏AX核验日期、记忆时刻、支出金额与散步状态",
+        "只读保存原生截图和AX树；不写数据、不调用AI"
+      ],
+      "must_show": [
+        "9月20日及当天记忆时刻范围",
+        "19:10朋友聚餐3 -¥96.00",
+        "12:10两笔支出 -¥56.81",
+        "12:00散步已完成"
+      ],
+      "focus": "同一天的消费记录和习惯打卡按时间回看；证明跨类别记录同屏出现，不证明AI总结、自动分类、同步或财务分析。",
+      "content_origin": "static_history",
+      "fallback": "如果记录、金额或散步状态不可辨认，禁止渲染为宣传候选；不得补写截图未显示的年份。",
+      "owning_source": "Holo生活回放视图与MemoryGalleryViewModel；由现有隔离合成数据提供记录",
+      "source_rect": null,
+      "status": "captured_visual_reviewed",
+      "implemented_route": true,
+      "context_source_rect_by_device": {
+        "iphone-large": [
+          0,
+          0,
+          1320,
+          2868
+        ],
+        "ipad-13": [
+          0,
+          0,
+          2064,
+          2752
+        ],
+        "iphone-medium": [
+          0,
+          0,
+          1206,
+          2622
+        ]
+      },
+      "presentation_source_rect_by_device": {
+        "iphone-large": [
+          48,
+          790,
+          1224,
+          1650
+        ],
+        "ipad-13": [
+          575,
+          475,
+          1380,
+          1100
+        ],
+        "iphone-medium": [
+          20,
+          800,
+          1142,
+          1645
+        ]
+      },
+      "source_rect_by_device": {
+        "iphone-large": [
+          48,
+          790,
+          1224,
+          1650
+        ],
+        "ipad-13": [
+          575,
+          475,
+          1380,
+          1100
+        ],
+        "iphone-medium": [
+          20,
+          800,
+          1142,
+          1645
+        ]
+      },
+      "device_capture_status": {
+        "iphone-large": "captured_visual_reviewed_release_mapping_unverified",
+        "ipad-13": "captured_visual_reviewed_release_mapping_unverified",
+        "iphone-medium": "captured_visual_reviewed_release_mapping_unverified"
+      },
+      "captures_by_device": {
+        "iphone-large": {
+          "file": "raw/iphone-large/R41-life-timeline-2026-09-20.png",
+          "sha256": "2a0ac574e1bdeb4123e183dc0ddf49a7df9c68fe32d71d7bd17912701488a51c",
+          "pixel_size": [
+            1320,
+            2868
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            48,
+            790,
+            1224,
+            1650
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            1320,
+            2868
+          ],
+          "presentation_source_rect": [
+            48,
+            790,
+            1224,
+            1650
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 22:42 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/iphone-large-R41-life-timeline-2026-09-20-ax.json",
+          "findings": "像素复核通过。9月20日、3个记忆时刻和19:10朋友聚餐3 -¥96.00、12:10两笔支出 -¥56.81、12:00散步/已完成均完整可读，无系统控件遮挡。截图没有年份。使用presentation crop [48,790,1224,1650]，排除9月19日相邻记录。",
+          "reviewer": "authorized_read_only_visual_audit",
+          "review_date": "2026-10-30",
+          "disposition": "isolated simulator synthetic demo data; approved presentation crop only; release build match unverified; not approved for upload"
+        },
+        "ipad-13": {
+          "file": "raw/ipad-13/R41-life-timeline-2026-09-20.png",
+          "sha256": "629f1320dd54b740b8404cc2057038d5cc62a6c5403fd337d4e4acc09b574f9c",
+          "pixel_size": [
+            2064,
+            2752
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            575,
+            475,
+            1380,
+            1100
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            2064,
+            2752
+          ],
+          "presentation_source_rect": [
+            575,
+            475,
+            1380,
+            1100
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 22:42 CST",
+          "fixture_instance_id": "aso-v10-20261030-1-2026-10-30-48f0bd35",
+          "ax_evidence_file": "evidence/ipad-13-R41-life-timeline-2026-09-20-ax.json",
+          "findings": "像素复核通过。9月20日、3个记忆时刻和19:10朋友聚餐3 -¥96.00、12:10两笔支出 -¥56.81、12:00散步/已完成均完整可读，无系统控件遮挡。截图没有年份。使用presentation crop [575,475,1380,1100]，排除侧栏与9月19/18日相邻记录。",
+          "reviewer": "authorized_read_only_visual_audit",
+          "review_date": "2026-10-30",
+          "disposition": "isolated simulator synthetic demo data; approved presentation crop only; release build match unverified; not approved for upload"
+        },
+        "iphone-medium": {
+          "file": "raw/iphone-medium/R41-life-timeline-2026-09-20.png",
+          "sha256": "ee9db0ad940f1f425a3ee04faf0af3ba81e617e4682c1a415c45da999361f5e4",
+          "pixel_size": [
+            1206,
+            2622
+          ],
+          "visual_review": "completed_read_only_review",
+          "release_build_match": "unverified",
+          "source_rect": [
+            20,
+            800,
+            1142,
+            1645
+          ],
+          "context_source_rect": [
+            0,
+            0,
+            1206,
+            2622
+          ],
+          "presentation_source_rect": [
+            20,
+            800,
+            1142,
+            1645
+          ],
+          "bounds_convention": "left/top included; right/bottom excluded",
+          "captured_at_local": "2026-10-30 23:14 CST",
+          "ax_evidence_file": "evidence/iphone-medium-R41-life-timeline-2026-09-20-ax.json",
+          "findings": "首轮原图裁片[44,800,1118,1645]的三条日内内容与金额完整可读：19:10朋友聚餐3 -¥96.00；12:10两笔支出 -¥56.81（-¥21.36、-¥35.45）；12:00散步/已完成。无系统遮挡或截断。截图不显示年份。候选成片最终裁片扩大左边界24px为[20,800,1142,1645]，增加日期“20”留白。",
+          "reviewer": "authorized_read_only_visual_audit",
+          "review_date": "2026-10-30",
+          "disposition": "isolated simulator synthetic demo data; approved presentation crop only; release build match unverified; not approved for upload"
+        }
+      },
+      "device_capture_count": 3,
+      "capability_scope": "隔离模拟器中的9月20日生活回放；两笔支出和一个散步习惯条目同日显示。不证明AI、同步、真实个人数据或线上发布包映射。",
+      "evidence_note": "只读回看既有合成演示数据；未新增或修改任何记录，没有发送AI请求。iPhone large、iPhone medium与iPad使用独立本地数据，不能据此宣称同步。年份在fixture/AX旁证可追溯，但截图像素没有年份，成片不标年份。",
+      "visual_review_note": "三台设备原生截图均经授权只读像素审阅：9月20日、3个记忆时刻和朋友聚餐/两笔支出/散步状态完整可读。iPhone large裁片[48,790,1224,1650]；iPhone medium[44,800,1118,1645]；iPad [575,475,1380,1100]。只批准裁片，不批准整屏。"
+    }
+  ],
+  "required_devices": [
+    "iphone-large",
+    "ipad-13"
+  ],
+  "optional_devices": [
+    "iphone-medium"
+  ],
+  "device_scope_note": "iPhone 6.9英寸与iPad 13英寸是当前必需截图设备；iPhone 6.3英寸为可选原生校验设备，只有布局、可读性或Connect缩放验证需要时才补独立成片。"
+}

@@ -736,6 +736,9 @@ class ThoughtRepository {
         let displayName = ThoughtTagNormalizer.displayName(name)
         let key = ThoughtTagNormalizer.key(displayName)
         let request = ThoughtTag.fetchRequest()
+        // 不复用回收站里的已删标签行：清空想法批次后同名标签要新建活行，
+        // 否则活想法挂死标签（侧栏按 deletedAt 过滤看不见）且恢复批次时新旧数据互搅（2026-10-31 审计 A8）
+        request.predicate = NSPredicate(format: "deletedAt == nil")
         let tags = try context.fetch(request)
 
         if let tag = tags.first(where: { ThoughtTagNormalizer.key($0.name) == key }) {
@@ -1077,7 +1080,8 @@ class ThoughtRepository {
 
     /// 取参与跨观点收敛的候选观点：带未拒绝的可见标签、未 softDeleted/archived
     /// - Parameter maxCount: 最多取多少条（控制 prompt 体积）
-    /// - Note: 走 ThoughtTagAssignment（SUBQUERY 保证 source+rejectedAt 同一 assignment），不走 Thought.tags
+    /// - Note: 走 ThoughtTagAssignment（SUBQUERY 保证 source+rejectedAt 同一 assignment），不走 Thought.tags；
+    ///   「不参与 AI」标签的想法整体不进收敛（2026-10-21 标签级 AI 排除）
     func fetchConvergenceCandidates(maxCount: Int = 200) throws -> [ConvergenceCandidate] {
         let request = Thought.fetchRequest()
         let assignmentPredicate = NSPredicate(
@@ -1089,9 +1093,9 @@ class ThoughtRepository {
             format: "SUBQUERY(topics, $topic, $topic.status == %@).@count == 0",
             Topic.TopicStatus.classification.rawValue
         )
-        request.predicate = NSCompoundPredicate(
+        request.predicate = ThoughtAIAudience.aiVisible(NSCompoundPredicate(
             andPredicateWithSubpredicates: [assignmentPredicate, deletePredicate, classificationPredicate]
-        )
+        ))
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         request.fetchLimit = max(0, maxCount)
 
@@ -1314,10 +1318,14 @@ class ThoughtRepository {
         let request = Thought.fetchRequest()
         // 不按 createdDeviceId 过滤：批量整理是本地补标签操作，
         // 老想法（createdDeviceId 为 nil 或旧 deviceId）都应纳入；已 organized 的无论哪台设备都会被排除，不会重复
-        request.predicate = NSPredicate(
-            format: "NOT (organizedStatus IN %@) AND deletedAt == nil AND isArchived == NO",
-            Self.terminalOrganizedStatuses as CVarArg
-        )
+        // 预置欢迎笔记不算待整理内容（disabled 本就在批量范围内，这里显式排除防误捞）
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "NOT (organizedStatus IN %@) AND deletedAt == nil AND isArchived == NO",
+                Self.terminalOrganizedStatuses as CVarArg
+            ),
+            WelcomeNoteSeed.exclusionPredicate
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
 
         return try context.fetch(request).map { $0.id }
@@ -1327,10 +1335,13 @@ class ThoughtRepository {
     /// - Returns: 未整理数量
     func countUnprocessed() throws -> Int {
         let request = Thought.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "NOT (organizedStatus IN %@) AND deletedAt == nil AND isArchived == NO",
-            Self.terminalOrganizedStatuses as CVarArg
-        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "NOT (organizedStatus IN %@) AND deletedAt == nil AND isArchived == NO",
+                Self.terminalOrganizedStatuses as CVarArg
+            ),
+            WelcomeNoteSeed.exclusionPredicate
+        ])
 
         return try context.count(for: request)
     }
@@ -1356,17 +1367,20 @@ class ThoughtRepository {
 
     // MARK: - Aggregation
 
-    /// 指定时间范围内的想法总数
+    /// 指定时间范围内的想法总数（AI 专用聚合：排除「不参与 AI」标签的想法——连条数都不给 AI）
     func getThoughtCount(from start: Date, to end: Date) -> Int {
         let request = Thought.fetchRequest()
-        request.predicate = basePredicate(from: start, to: end)
+        request.predicate = ThoughtAIAudience.aiVisible(basePredicate(from: start, to: end))
         return (try? context.count(for: request)) ?? 0
     }
 
     /// 按天统计想法数量，返回 [yyyy-MM-dd: count]
-    func getThoughtCountByDay(from start: Date, to end: Date) -> [String: Int] {
+    /// - Parameter aiVisibleOnly: AI 通道调用方传 true（排除「不参与 AI」标签的想法）；
+    ///   周观察等用户界面保持默认 false——用户自己看的计数照常包含全部想法
+    func getThoughtCountByDay(from start: Date, to end: Date, aiVisibleOnly: Bool = false) -> [String: Int] {
         let request = Thought.fetchRequest()
-        request.predicate = basePredicate(from: start, to: end)
+        let base = basePredicate(from: start, to: end)
+        request.predicate = aiVisibleOnly ? ThoughtAIAudience.aiVisible(base) : base
 
         guard let thoughts = try? Self.deduplicatingCopies(context.fetch(request)) else { return [:] }
 
@@ -1382,10 +1396,10 @@ class ThoughtRepository {
         return counts
     }
 
-    /// 指定时间范围内的心情分布（跳过 mood 为 nil 的记录）
+    /// 指定时间范围内的心情分布（跳过 mood 为 nil 的记录；AI 专用聚合，排除不参与 AI 的想法）
     func getMoodDistribution(from start: Date, to end: Date) -> [String: Int] {
         let request = Thought.fetchRequest()
-        request.predicate = basePredicate(from: start, to: end)
+        request.predicate = ThoughtAIAudience.aiVisible(basePredicate(from: start, to: end))
 
         guard let thoughts = try? Self.deduplicatingCopies(context.fetch(request)) else {
             logger.error("获取心情分布失败")
@@ -1400,11 +1414,11 @@ class ThoughtRepository {
         return distribution
     }
 
-    /// 指定时间范围内的热门标签（按关联想法数排序）
+    /// 指定时间范围内的热门标签（按关联想法数排序；AI 专用聚合，排除不参与 AI 的想法）
     /// v1a 继续读 thought.tags（双写保证数据一致）
     func getTopTags(from start: Date, to end: Date, limit: Int) -> [ThoughtTag] {
         let request = Thought.fetchRequest()
-        request.predicate = basePredicate(from: start, to: end)
+        request.predicate = ThoughtAIAudience.aiVisible(basePredicate(from: start, to: end))
 
         guard let thoughts = try? Self.deduplicatingCopies(context.fetch(request)), !thoughts.isEmpty else { return [] }
 
@@ -1422,10 +1436,10 @@ class ThoughtRepository {
             .map { $0.key }
     }
 
-    /// 指定时间范围内的想法原文截取（每篇 ≤200 字，按创建时间倒序）
+    /// 指定时间范围内的想法原文截取（每篇 ≤200 字，按创建时间倒序；AI 专用，排除不参与 AI 的想法）
     func getThoughtTexts(from start: Date, to end: Date, limit: Int) -> [String] {
         let request = Thought.fetchRequest()
-        let datePredicate = basePredicate(from: start, to: end)
+        let datePredicate = ThoughtAIAudience.aiVisible(basePredicate(from: start, to: end))
         let contentPredicate = NSPredicate(format: "content != ''")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [datePredicate, contentPredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
@@ -1437,6 +1451,59 @@ class ThoughtRepository {
             if thought.content.isEmpty { return nil }
             return String(thought.content.prefix(200))
         }
+    }
+
+    // MARK: - AI 分析范围（标签级 AI 排除，2026-10-21 方案）
+
+    /// 「AI 分析范围」子页的标签行数据
+    struct AIScopeTagInfo: Identifiable {
+        let tag: ThoughtTag
+        /// 用户关联（manual/inline/confirmedAI）想法数，与排除判定同口径
+        let userThoughtCount: Int
+        var id: UUID { tag.id }
+    }
+
+    /// 「AI 分析范围」子页数据源：用户标签 + 用户关联想法数，按关联数降序。
+    /// 纯 AI 标签（无任何用户关联）不提供——排除判定只认用户关联，给了开关也永不生效。
+    func fetchUserTagsForAIScope() -> [AIScopeTagInfo] {
+        let request = ThoughtTag.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
+        let tags = DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
+        let userSources = ThoughtAIAudience.userAssociationSources
+        return tags.compactMap { tag -> AIScopeTagInfo? in
+            let assignments = (tag.assignments as? Set<ThoughtTagAssignment>) ?? []
+            var thoughtIDs = Set<UUID>()
+            for assignment in assignments
+            where assignment.rejectedAt == nil && userSources.contains(assignment.source) {
+                if let id = assignment.thought?.id { thoughtIDs.insert(id) }
+            }
+            let isUserTag = tag.indexKind == "user"
+            guard !thoughtIDs.isEmpty || isUserTag else { return nil }
+            return AIScopeTagInfo(tag: tag, userThoughtCount: thoughtIDs.count)
+        }
+        .sorted { lhs, rhs in
+            lhs.userThoughtCount == rhs.userThoughtCount
+                ? lhs.tag.name < rhs.tag.name
+                : lhs.userThoughtCount > rhs.userThoughtCount
+        }
+    }
+
+    /// 当前命中「不参与 AI」标签的想法数（按想法去重；「AI 分析范围」摘要卡用）。
+    /// 这是给用户看的反馈数字，不属于 AI 通道数据。
+    func countExcludedThoughts() -> Int {
+        let request = Thought.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "deletedAt == nil AND isArchived == NO"),
+            NSCompoundPredicate(notPredicateWithSubpredicate: ThoughtAIAudience.aiVisiblePredicate()),
+        ])
+        return (try? context.count(for: request)) ?? 0
+    }
+
+    /// 已开启排除的标签数（想法设置页入口行右侧值，轻量 count）
+    func countExcludedTags() -> Int {
+        let request = ThoughtTag.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil AND excludeFromAI == YES")
+        return (try? context.count(for: request)) ?? 0
     }
 
     /// 获取最近的标签样例（用于 AI prompt 的 existingTagExamples 变量）
@@ -1461,7 +1528,9 @@ class ThoughtRepository {
     /// 构建 base predicate（排除已删除/归档，可选日期范围）
     private func basePredicate(from startDate: Date?, to endDate: Date?) -> NSPredicate {
         var predicates: [NSPredicate] = [
-            NSPredicate(format: "deletedAt == nil AND isArchived == NO")
+            NSPredicate(format: "deletedAt == nil AND isArchived == NO"),
+            // 预置欢迎笔记不进任何统计聚合（计数/心情分布/热门标签/原文截取）
+            WelcomeNoteSeed.exclusionPredicate
         ]
         if let start = startDate {
             predicates.append(NSPredicate(format: "createdAt >= %@", start as CVarArg))

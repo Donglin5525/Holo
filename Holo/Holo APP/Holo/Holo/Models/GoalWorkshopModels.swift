@@ -162,7 +162,134 @@ struct GoalWorkshopPlan: Codable, Equatable, Sendable {
     /// 下次复盘日期，严格 yyyy-MM-dd
     var reviewDateText: String?
 
+    // MARK: 目标闭环 v2 扩展（2026-10-20；全部可选，v1 响应解码为 nil，由确认页补齐）
+
+    /// 主要结果从哪里读（manual / habit / ledger）；只能引用授权候选或本草案内的新建数值习惯
+    var resultSource: GoalWorkshopResultSourceDraft? = nil
+    /// 定期回顾周期（天）；nil = 用默认每周
+    var reviewCadenceDays: Int? = nil
+    /// 可选预算（财务模块全局约定，确认后在财务创建/复用）
+    var budget: GoalWorkshopBudgetDraft? = nil
+    /// 资金期次（存钱类）：明确的应存日期与金额
+    var fundSchedule: [GoalWorkshopFundInstallmentDraft]? = nil
+    /// 行为限制（如每周奶茶 ≤ 2 杯）：从原始数量另算，不改习惯通用完成规则
+    var constraints: [GoalWorkshopConstraintDraft]? = nil
+
     var allActionIDs: [String] { draft.tasks.map(\.id) + draft.habits.map(\.id) }
+}
+
+// MARK: - 授权候选（客户端维护；模型只能引用其中 ID，未授权来源不进模型）
+
+struct GoalWorkshopHabitCandidate: Codable, Equatable, Identifiable, Sendable {
+    let id: UUID
+    let name: String
+    /// "checkIn" / "numeric"
+    let type: String
+    let unit: String?
+    /// "sum" / "latest"
+    let aggregation: String
+    let isBadHabit: Bool
+
+    var ref: String { "habit:\(id.uuidString)" }
+}
+
+struct GoalWorkshopAccountCandidate: Codable, Equatable, Identifiable, Sendable {
+    let id: UUID
+    let name: String
+    /// AccountType.rawValue
+    let type: String
+    /// 信用负债账户：不能被默认为专款来源
+    let isCreditLiability: Bool
+
+    var ref: String { "account:\(id.uuidString)" }
+}
+
+struct GoalWorkshopAuthorizedCandidates: Codable, Equatable, Sendable {
+    var habits: [GoalWorkshopHabitCandidate] = []
+    var accounts: [GoalWorkshopAccountCandidate] = []
+
+    static let empty = GoalWorkshopAuthorizedCandidates()
+
+    var habitIDs: Set<UUID> { Set(habits.map(\.id)) }
+    var accountIDs: Set<UUID> { Set(accounts.map(\.id)) }
+
+    func habit(ref: String) -> GoalWorkshopHabitCandidate? {
+        guard let id = Self.parse(ref, prefix: "habit:") else { return nil }
+        return habits.first { $0.id == id }
+    }
+
+    func account(ref: String) -> GoalWorkshopAccountCandidate? {
+        guard let id = Self.parse(ref, prefix: "account:") else { return nil }
+        return accounts.first { $0.id == id }
+    }
+
+    /// 给模型的上下文引用：只含名称/单位/类型摘要，不含任何记录
+    func contextRefs() -> [GoalWorkshopContextRef] {
+        habits.map {
+            GoalWorkshopContextRef(sourceID: $0.ref, sourceRevision: 1,
+                                   summary: "既有习惯「\($0.name)」\($0.type == "numeric" ? "数值型" : "打卡型")\($0.unit.map { "，单位\($0)" } ?? "")\($0.isBadHabit ? "，坏习惯" : "")")
+        } + accounts.map {
+            GoalWorkshopContextRef(sourceID: $0.ref, sourceRevision: 1,
+                                   summary: "财务账户「\($0.name)」\($0.isCreditLiability ? "（信用负债，不可作专款）" : "")")
+        }
+    }
+
+    private static func parse(_ ref: String, prefix: String) -> UUID? {
+        guard ref.hasPrefix(prefix) else { return nil }
+        return UUID(uuidString: String(ref.dropFirst(prefix.count)))
+    }
+}
+
+// MARK: - 计划 v2 扩展载荷
+
+struct GoalWorkshopResultSourceDraft: Codable, Equatable, Sendable {
+    /// GoalResultSourceKind.rawValue：manual / habit / ledger
+    var sourceType: String
+    /// GoalLedgerScopeKind.rawValue：whole_ledger_delta / account_balance（仅 ledger）
+    var ledgerScope: String?
+    /// 授权候选引用："habit:<uuid>" / "account:<uuid>"
+    var candidateRef: String?
+    /// 引用本草案内新建数值习惯作为结果来源
+    var habitDraftID: String?
+    var unit: String?
+    /// GoalHabitAggregationKind.rawValue：sum / latest / window_trend
+    var aggregation: String?
+    /// GoalResultComparison.rawValue：reach / stayBelow / trendDown / trendUp
+    var comparison: String?
+    var targetValue: Double?
+    var baselineValue: Double?
+    /// 没有可靠来源：结果待补齐，计划照常建立
+    var isPending: Bool?
+}
+
+struct GoalWorkshopFundInstallmentDraft: Codable, Equatable, Sendable {
+    /// 严格 yyyy-MM-dd
+    var dueDateText: String
+    var amount: Double
+}
+
+struct GoalWorkshopBudgetDraft: Codable, Equatable, Sendable {
+    var isSelected: Bool
+    var amount: Double
+    /// BudgetPeriod.rawValue：week / month / year
+    var period: String
+    var accountCandidateRef: String?
+    /// 分类名（确认页映射到真实分类；nil = 账户总预算）
+    var categoryName: String?
+    var note: String?
+}
+
+struct GoalWorkshopConstraintDraft: Codable, Equatable, Identifiable, Sendable {
+    let id: String
+    var isSelected: Bool
+    var title: String
+    /// 二选一：本草案新建习惯 id，或授权候选引用
+    var habitDraftID: String?
+    var habitCandidateRef: String?
+    var limitValue: Double
+    var unit: String?
+    /// 窗口天数（7 = 每周）
+    var windowDays: Int
 }
 
 // MARK: - 响应契约（§2.2）
@@ -359,6 +486,9 @@ struct GoalWorkshopSessionV1: Codable, Equatable, Identifiable, Sendable {
     var lastAssistantText: String?
     /// 用户最近一次回答原话（问答卡回显，让「我说过什么」可见）
     var lastUserReply: String?
+    /// 本会话开始时授权给模型引用的既有习惯/账户候选（客户端维护；nil = 旧会话/无候选）。
+    /// 校验器只放行其中的 ID；提交时据此解析复用对象。
+    var authorizedCandidates: GoalWorkshopAuthorizedCandidates?
 
     init(id: UUID = UUID(),
          goalID: UUID? = nil,
@@ -380,7 +510,8 @@ struct GoalWorkshopSessionV1: Codable, Equatable, Identifiable, Sendable {
          appliedGoalID: UUID? = nil,
          lastModelFailureText: String? = nil,
          lastAssistantText: String? = nil,
-         lastUserReply: String? = nil) {
+         lastUserReply: String? = nil,
+         authorizedCandidates: GoalWorkshopAuthorizedCandidates? = nil) {
         self.id = id
         self.goalID = goalID
         self.phase = phase
@@ -402,7 +533,10 @@ struct GoalWorkshopSessionV1: Codable, Equatable, Identifiable, Sendable {
         self.lastModelFailureText = lastModelFailureText
         self.lastAssistantText = lastAssistantText
         self.lastUserReply = lastUserReply
+        self.authorizedCandidates = authorizedCandidates
     }
+
+    var candidates: GoalWorkshopAuthorizedCandidates { authorizedCandidates ?? .empty }
 
     var activeFacts: [GoalWorkshopFact] { facts.filter(\.isActive) }
 

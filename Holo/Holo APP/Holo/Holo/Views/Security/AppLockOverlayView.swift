@@ -17,7 +17,7 @@ struct AppLockOverlayView: View {
     var body: some View {
         ZStack {
             // 不透明底色：遮罩/锁屏都必须完全盖住下层内容
-            Color.holoBackground.ignoresSafeArea()
+            Color.holoToolBackground.ignoresSafeArea()
 
             if manager.isLocked {
                 lockedContent
@@ -51,11 +51,11 @@ struct AppLockOverlayView: View {
 
             Text("Holo 已锁定")
                 .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
 
             Text(manager.unlockHint)
                 .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
 
             Spacer()
 
@@ -65,7 +65,7 @@ struct AppLockOverlayView: View {
                 Group {
                     if manager.isEvaluating {
                         ProgressView()
-                            .tint(.white)
+                            .tint(.holoToolOnAction)
                     } else {
                         HStack(spacing: HoloSpacing.sm) {
                             Image(systemName: "faceid")
@@ -73,14 +73,10 @@ struct AppLockOverlayView: View {
                         }
                     }
                 }
-                .font(.holoBody.weight(.semibold))
-                .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(Color.holoPrimary)
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+                .frame(minHeight: 50)
             }
-            .buttonStyle(PlainButtonStyle())
+            .buttonStyle(HoloActionStyle(role: .primary))
             .disabled(manager.isEvaluating)
             .padding(.horizontal, HoloSpacing.xl)
             .accessibilityLabel(String(localized: "解锁 Holo"))
@@ -94,10 +90,10 @@ struct AppLockOverlayView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "lock.shield")
                 .font(.system(size: 44, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
             Text("Holo")
                 .font(.holoHeading)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
     }
 }

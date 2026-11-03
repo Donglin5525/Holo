@@ -54,6 +54,9 @@ final class HoloCloudAnalysisService {
         /// 显式场景 rawValue（P1 冻结任务；恢复轮询期仅用于展示，
         /// 范围已随快照在服务端冻结，恢复不需要重传）
         var scenarioID: String? = nil
+        /// 目标回顾范围（§6.4）：随任务登记持久化，冷启动恢复后 finalize 仍能把
+        /// 报告归到正确目标（服务端回显缺失时的本地兜底）
+        var goalScope: HoloAgentGoalScope? = nil
     }
 
     /// 进行中的云端任务。回前台恢复轮询用；同步持久化（杀 App 后冷启动恢复领取
@@ -121,6 +124,11 @@ final class HoloCloudAnalysisService {
             if let scenarioID = context.scenarioID {
                 dict["scenarioID"] = scenarioID
             }
+            if let goalScope = context.goalScope,
+               let data = try? JSONEncoder().encode(goalScope),
+               let json = String(data: data, encoding: .utf8) {
+                dict["goalScope"] = json
+            }
             return dict
         }
         UserDefaults.standard.set(payload, forKey: Self.activeTasksDefaultsKey)
@@ -138,12 +146,16 @@ final class HoloCloudAnalysisService {
             else { continue }
             // 旧持久化无 taskType：按深度分析处理（v1 存量任务只有这一类）
             let taskType = dict["taskType"] ?? "deep_analysis"
+            let goalScope = dict["goalScope"]
+                .flatMap { $0.data(using: .utf8) }
+                .flatMap { try? JSONDecoder().decode(HoloAgentGoalScope.self, from: $0) }
             restored[taskId] = TaskContext(
                 messageID: messageID,
                 question: question,
                 taskType: taskType,
                 snapshotHash: dict["snapshotHash"],
-                scenarioID: dict["scenarioID"]
+                scenarioID: dict["scenarioID"],
+                goalScope: goalScope
             )
         }
         activeTasks = restored
@@ -157,12 +169,16 @@ final class HoloCloudAnalysisService {
 
     /// 云端轨道入口（ChatViewModel 在本地 runAnalysis 之前调用）。
     /// scenario：显式场景（随快照冻结为 AnswerTaskV1 上云）；nil = 常规深度分析。
+    /// goalScope/goalReview：目标回顾（GoalReviewCoordinator 发起）——范围与事实由代码冻结随快照上云，
+    /// 完成后报告带 goalScope 落同一条消息；快照只装载与该目标相关的数据集。
     /// - Returns: handled = 云端轨道已终局（成功落卡或失败落诚实失败卡，不再回落本地）；
     ///   userCancelled = 用户点停止；unavailable = 云端不可用，调用方落不可用说明。
     func attempt(
         question: String,
         sourceMessageID: UUID,
-        scenario: AnalysisScenario? = nil
+        scenario: AnalysisScenario? = nil,
+        goalScope: HoloAgentGoalScope? = nil,
+        goalReview: GoalEvaluationSnapshot? = nil
     ) async -> HoloCloudAttemptOutcome {
         guard HoloAIFeatureFlags.cloudDeepAnalysisEnabled else { return .unavailable(.featureDisabled) }
         guard Self.privacyConsented else { return .unavailable(.needsConsent) }
@@ -179,9 +195,20 @@ final class HoloCloudAnalysisService {
         ))
 
         do {
+            // 目标回顾：快照窗口 = 观察窗的两倍（含必要比较窗），不默认装载 180 天全量
+            let historyDays: Int
+            if let goalScope {
+                let windowDays = max(Int(goalScope.snapshotCutoffAt.timeIntervalSince(goalScope.windowStart) / 86_400), 7)
+                historyDays = min(max(windowDays * 2, 30), HoloCloudAnalysisSnapshotBuilder.defaultHistoryDays)
+            } else {
+                historyDays = HoloCloudAnalysisSnapshotBuilder.defaultHistoryDays
+            }
             let snapshot = try await HoloCloudAnalysisSnapshotBuilder.buildJSON(
+                historyDays: historyDays,
                 scenario: scenario,
-                userQuestion: question
+                userQuestion: question,
+                goalScope: goalScope,
+                goalReview: goalReview
             )
             let started = try await client.start(question: question)
             try Task.checkCancellation()
@@ -189,7 +216,8 @@ final class HoloCloudAnalysisService {
                 messageID: sourceMessageID,
                 question: question,
                 taskType: "deep_analysis",
-                scenarioID: scenario?.rawValue
+                scenarioID: scenario?.rawValue,
+                goalScope: goalScope
             )
             // start 成功即登记（提前于快照上传）：上传中途被杀，冷启动也能恢复轮询
             // 领取，对账兜底也能据此识别「云端在途」、不按「无 job 超 90s」误判中断
@@ -293,7 +321,7 @@ final class HoloCloudAnalysisService {
                         if context.taskType == "period_replay" {
                             periodReplayFinalizer?(context.messageID, result, context.snapshotHash)
                         } else {
-                            finalizeCloudResult(result, question: context.question, taskId: taskId, sourceMessageID: context.messageID)
+                            finalizeCloudResult(result, question: context.question, taskId: taskId, sourceMessageID: context.messageID, goalScope: context.goalScope)
                         }
                         // R1 确认制（D02 收紧，2026-10-04 体检）：ack 即焚不可逆，
                         // 必须确认结果已编码并持久化（agentResultJSON 可回读）才回执
@@ -440,7 +468,8 @@ final class HoloCloudAnalysisService {
         _ result: HoloCloudAnalysisClient.StatusResponse.CloudResult,
         question: String,
         taskId: String,
-        sourceMessageID: UUID
+        sourceMessageID: UUID,
+        goalScope: HoloAgentGoalScope? = nil
     ) {
         let composed = Self.composedCloudNarrative(from: result)
         // 证据收敛：云端证据池是「查过什么就有什么」，按结论引用（claims.evidenceIDs）
@@ -459,12 +488,29 @@ final class HoloCloudAnalysisService {
             keyInsight: composed.keyInsight,
             dataSamplePreview: HoloCloudEvidencePresenter.dataSamplePreview(from: citedEvidence)
         )
+        // v27 研报式结构：章节由云端核验过的 reportStructure 提供，claimID 在此
+        // 解析成文本（段落正文=对应 claim 的 displayText）；解析不出段落则不启用报告版式
+        rendered.reportStructure = Self.renderedReportStructure(
+            from: result.reportStructure,
+            claims: result.claims ?? []
+        )
         // 追问血统身份（方案B）：云端结果不落本地 Job/Result 档案，用「cloud-任务ID」作本地等价编号——
         // 报告页据此显示追问入口，追问记录据此挂载血统；cloud- 前缀与本地 UUID 空间天然不冲突
         let cloudIdentity = "cloud-\(taskId)"
         rendered.agentJobID = cloudIdentity
         rendered.agentResultID = cloudIdentity
         rendered.rootUserQuestion = question
+        // 目标闭环（§6.4 / §6.5）：服务端回显的 goalScope 为权威归类；缺失时用登记时的本地范围兜底。
+        // 修正草案只接受与本范围同目标、同计划版本的草案，操作形状再过一次本地白名单。
+        let resolvedGoalScope = result.goalScope ?? goalScope
+        rendered.goalScope = resolvedGoalScope
+        if let resolvedGoalScope {
+            rendered.goalAdjustmentDraft = GoalAdjustmentDraftWireMapper.map(
+                result.goalAdjustmentDraft,
+                scope: resolvedGoalScope,
+                reportMessageID: sourceMessageID
+            )
+        }
         // 空态诚实化（2026-09-24 17:24 实锤：云端交付 7 条结论、手机渲染「没有
         // 可信结论」）：claims 非空但 usableClaims 全被显示防线滤掉时标记
         // unverifiable（副标题如实说「已查到数据但未过核验」）并打日志留取证线索，
@@ -487,6 +533,17 @@ final class HoloCloudAnalysisService {
         if let note = Self.verificationNote(for: result.warnings ?? []), rendered.scope != nil {
             rendered.scope?.verificationNote = note
         }
+        // 报告理解信封（2026-10-18 方案）：随消息持久化结构化 claims+证据池投影，
+        // 报告理解链路据此提取（不依赖渲染文字；旧消息无此字段解码为 nil）
+        rendered.reportUnderstanding = HoloReportSourceAdapter.envelope(
+            claims: result.claims ?? [],
+            evidence: evidencePool,
+            taskRangeStart: result.taskRange.map(\.start),
+            taskRangeEnd: result.taskRange.map(\.end),
+            truncated: truncatedCount > 0,
+            coverageNote: rendered.scope?.truncatedNote,
+            usedMemoryIDs: []
+        )
         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
         logger.info("云端结果已落地 claims=\(composed.sections.count, privacy: .public) narrative=\(composed.narrativeSummary != nil, privacy: .public) keyInsight=\(composed.keyInsight != nil, privacy: .public) evidence=\(citedEvidence.count, privacy: .public)/池\(evidencePool.count, privacy: .public)")
     }
@@ -503,8 +560,16 @@ final class HoloCloudAnalysisService {
         if warnings.contains(where: { warning in withdrawnPrefixes.contains { warning.hasPrefix($0) } }) {
             return "部分结论未通过核验，已撤回处理"
         }
+        if warnings.contains(where: { $0.hasPrefix("DOMAIN_COVERAGE_MISSING") }) {
+            return "部分领域未在报告中覆盖，已如实标注"
+        }
         if warnings.contains(where: { $0.hasPrefix("NO_TOOL_EVIDENCE") }) {
             return "本轮未查到量化数据，结论为定性观察"
+        }
+        // 无依据的动机类解读已被服务端剥离——与撤回类同级提示，用户应知道
+        // 那类「心理归因」不会无凭据出现（2026-11-01 复查意见必修 3）
+        if warnings.contains(where: { $0.hasPrefix("INTERPRETATION_UNGROUNDED") }) {
+            return "部分解读缺少记录支撑，已隐去"
         }
         return nil
     }
@@ -597,6 +662,12 @@ final class HoloCloudAnalysisService {
         )
     }
 
+    /// 目标回顾发起方（GoalReviewCoordinator）在云端不可用时落诚实失败卡的出口：
+    /// 原计划继续有效，显示真实原因并允许重试（§2.2「失败、离线或额度不足」）
+    func markAnalysisUnavailable(sourceMessageID: UUID, summary: String) {
+        markDeepAnalysisFailed(sourceMessageID: sourceMessageID, summary: summary)
+    }
+
     /// 云端独占语义的诚实终局：把深度分析消息落为可辨识的失败卡（与本地
     /// analysisFailed 卡同构），不再回落本地轨道（2026-09-11 拍板）。
     private func markDeepAnalysisFailed(sourceMessageID: UUID, summary: String) {
@@ -620,6 +691,63 @@ final class HoloCloudAnalysisService {
             analysisContextJSON: nil,
             rawLogJSON: nil,
             agentResultJSON: agentResultJSON
+        )
+    }
+}
+
+
+extension HoloCloudAnalysisService {
+    /// v27：云端 reportStructure（claimID 引用式）→ 渲染层报告结构（文本式）。
+    /// 任一章节解析不出段落文本即整节丢弃；全部失败返回 nil（详情页回退原版式）。
+    static func renderedReportStructure(
+        from structure: HoloCloudAnalysisClient.StatusResponse.CloudResult.CloudReportStructure?,
+        claims: [HoloCloudAnalysisClient.StatusResponse.CloudResult.CloudClaim]
+    ) -> HoloRenderedReportStructure? {
+        guard let structure, let rawSections = structure.sections, !rawSections.isEmpty else { return nil }
+        let textByID: [String: String] = claims.reduce(into: [:]) { map, claim in
+            if let id = claim.id?.trimmingCharacters(in: .whitespaces),
+               let text = claim.displayText?.trimmingCharacters(in: .whitespaces), !text.isEmpty {
+                map[id] = text
+            }
+        }
+        var figureNo = 0
+        let sections: [HoloRenderedReportStructure.Section] = rawSections.compactMap { sec in
+            let paragraphs = (sec.paragraphClaimIDs ?? []).compactMap { textByID[$0] }
+            guard !paragraphs.isEmpty else { return nil }
+            var chart: HoloRenderedReportStructure.Section.ChartHint?
+            if let hint = sec.chartHint,
+               let kind = hint.kind?.trimmingCharacters(in: .whitespaces),
+               let dataset = hint.dataset?.trimmingCharacters(in: .whitespaces), !dataset.isEmpty,
+               ["trend", "delta"].contains(kind) {
+                figureNo += 1
+                let rawCaption = hint.caption?.trimmingCharacters(in: .whitespaces) ?? ""
+                let caption = rawCaption.isEmpty ? "图 \(figureNo)" : rawCaption
+                chart = .init(kind: kind, dataset: dataset, caption: caption)
+            }
+            let noticeBody = sec.notice.flatMap { notice -> String? in
+                guard let id = notice.bodyClaimID else { return nil }
+                return textByID[id]
+            }
+            let noticeWindow = sec.notice?.window?.trimmingCharacters(in: .whitespaces)
+            return .init(
+                no: sec.no?.trimmingCharacters(in: .whitespaces) ?? "",
+                title: sec.title?.trimmingCharacters(in: .whitespaces) ?? "",
+                kicker: sec.kicker?.trimmingCharacters(in: .whitespaces),
+                paragraphs: paragraphs,
+                chartHint: chart,
+                noticeBody: noticeBody,
+                noticeWindow: noticeWindow.flatMap { $0.isEmpty ? nil : $0 }
+            )
+        }
+        guard !sections.isEmpty else { return nil }
+        let conclusionItems = (structure.conclusionItems ?? []).compactMap { item -> HoloRenderedReportStructure.ConclusionItem? in
+            guard let id = item.claimID, let text = textByID[id] else { return nil }
+            return .init(text: text, sub: item.sub?.trimmingCharacters(in: .whitespaces) ?? "")
+        }
+        return .init(
+            sections: sections,
+            conclusionItems: conclusionItems,
+            disclosureNotes: (structure.disclosureNotes ?? []).filter { !$0.isEmpty }
         )
     }
 }

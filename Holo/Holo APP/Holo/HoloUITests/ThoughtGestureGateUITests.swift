@@ -397,6 +397,43 @@ final class ThoughtGestureGateUITests: XCTestCase {
             sidebarOpenButton().frame.minX, 100,
             "卡片展开态右滑只收按钮，不应同时拉出侧栏（防双动让位）")
     }
+
+    // MARK: - C 复制入口门禁（2026-10-12「想法模块没有复制功能」补齐后锁定；
+    // 口径本体（markdown 标记渲染掉/token 前缀保留/任务标记不输出）由
+    // MarkdownTextViewNodePipelineTests 的 visiblePlainText 系单测锁定，此处锁 UI 入口）
+
+    /// C1 卡片长按菜单含「复制」，点按后有「已复制」反馈
+    func test_c1_longPressMenuCopyEntry() throws {
+        _ = openThoughtModule()
+        XCTAssertTrue(ensureThoughtCardExists(), "前置：应有想法卡片（含现场种子）")
+
+        let card = anyElement(labelContains: ["想法内容"])
+        card.press(forDuration: 1.2)
+
+        let copyItem = app.buttons.matching(NSPredicate(format: "label == '复制'")).firstMatch
+        XCTAssertTrue(copyItem.waitForExistence(timeout: 5), "长按卡片应弹出含「复制」的菜单")
+        copyItem.tap()
+
+        XCTAssertTrue(
+            anyElement(labelContains: ["已复制"]).waitForExistence(timeout: 5),
+            "点「复制」后应有「已复制」反馈")
+    }
+
+    /// C2 卡片「…」更多操作菜单含「复制文字」。
+    /// confirmationDialog 的动作无法被合成事件触发（在档坑），只断言出现，不点按。
+    func test_c2_moreActionsMenuCopyTextEntry() throws {
+        _ = openThoughtModule()
+        XCTAssertTrue(ensureThoughtCardExists(), "前置：应有想法卡片（含现场种子）")
+
+        let more = button(labelContains: ["更多操作"])
+        XCTAssertTrue(more.waitForExistence(timeout: 5), "前置：应有「更多操作」按钮")
+        XCTAssertTrue(more.isHittable, "「更多操作」按钮应可交互")
+        more.tap()
+
+        XCTAssertTrue(
+            anyElement(labelContains: ["复制文字"]).waitForExistence(timeout: 5),
+            "「…」菜单应含「复制文字」")
+    }
 }
 
 // MARK: - V2 视觉迁移的真实入口回归
@@ -496,6 +533,15 @@ final class HoloVisualV2SmokeUITests: XCTestCase {
         XCTAssertTrue(button("图片识别记账").exists)
         XCTAssertTrue(app.textFields.firstMatch.exists || app.textViews.firstMatch.exists)
         capture("V2-对话")
+        // 安装前入口闸门覆盖异步初始化和实际发送，不能只证明输入框存在。
+        sleep(3)
+        let input = app.textFields.firstMatch.exists ? app.textFields.firstMatch : app.textViews.firstMatch
+        input.tap()
+        input.typeText("你好")
+        let send = button("发送消息")
+        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        send.tap()
+        XCTAssertTrue(app.staticTexts["你好"].waitForExistence(timeout: 10))
     }
 }
 
@@ -515,10 +561,17 @@ final class HoloMotionInteractionUITests: XCTestCase {
         XCTAssertTrue(tasks.waitForExistence(timeout: 20))
         tasks.tap()
         // 生活故事夹具的任务不一定到期于今天，明确进入全部清单，避免依赖当天日期和上次筛选。
-        let allTasks = app.buttons.matching(NSPredicate(format: "label == '全部'")).firstMatch
-        XCTAssertTrue(allTasks.waitForExistence(timeout: 10))
+        let scope = app.buttons["tasks.scope"]
+        XCTAssertTrue(scope.waitForExistence(timeout: 10))
+        scope.tap()
+        let allTasks = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '全部未完成'")).firstMatch
+        XCTAssertTrue(allTasks.waitForExistence(timeout: 8))
         allTasks.tap()
-        let completion = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.completion.' AND label BEGINSWITH '完成：'")).firstMatch
+        let scopeClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
+                                                   object: app.navigationBars["查看范围"])
+        XCTAssertEqual(XCTWaiter.wait(for: [scopeClosed], timeout: 5), .completed,
+                       "点选整行后必须真正关闭范围弹层，不能继续点击背后的幽灵元素")
+        let completion = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.completion.' AND label BEGINSWITH '完成'")).firstMatch
         // 远期任务按产品规则默认折叠，测试通过分组按钮展开真实记录。
         for title in ["本周", "稍后", "未安排"] where !completion.exists {
             let group = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", title + "、")).firstMatch
@@ -527,14 +580,84 @@ final class HoloMotionInteractionUITests: XCTestCase {
         XCTAssertTrue(completion.waitForExistence(timeout: 15), "应能找到真实任务完成入口")
         let identifier = completion.identifier
         let originalLabel = completion.label
-        completion.tap()
-        let undo = app.buttons.matching(NSPredicate(format: "label == '撤回'")).firstMatch
+        // iOS 26 的局部元素查询可能给出错误 hittable；用完整快照坐标实际触摸，
+        // 最终仍必须看到撤回并验证真实状态恢复，不能以坐标发送成功代替业务成功。
+        guard let target = app.buttons.allElementsBoundByIndex.first(where: { $0.identifier == identifier }) else {
+            return XCTFail("完成入口应存在")
+        }
+        let rect = target.frame
+        XCTAssertGreaterThanOrEqual(rect.width, 44)
+        XCTAssertGreaterThanOrEqual(rect.height, 44)
+        XCTAssertTrue(app.frame.intersects(rect))
+        app.coordinate(withNormalizedOffset: CGVector(dx: rect.midX / app.frame.width,
+                                                      dy: rect.midY / app.frame.height)).tap()
+        let undo = app.buttons["holo.undo"]
         XCTAssertTrue(undo.waitForExistence(timeout: 2), "动画开启或关闭时都必须可撤回")
         undo.tap()
         let restored = app.buttons[identifier]
-        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@", originalLabel), object: restored)
+        let expectation = XCTNSPredicateExpectation(predicate: NSPredicate(format: "label == %@ AND value == '未完成'", originalLabel), object: restored)
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 5), .completed, "撤回后必须恢复未完成，不得残留完成状态")
         app.terminate()
+    }
+
+    func testExpandedStepControlsRemainIndependent() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "life-flow"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "home"
+        app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
+        app.launch()
+        let tasks = app.buttons["任务"].firstMatch
+        XCTAssertTrue(tasks.waitForExistence(timeout: 20))
+        tasks.tap()
+        let row = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.row.'")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10))
+        let rowID = row.identifier
+        row.tap()
+        let detailLink = app.buttons["详情 ›"].firstMatch
+        if detailLink.exists { detailLink.tap() }
+        let detailInput = app.textFields["task.detail.addStep"].exists ? app.textFields["task.detail.addStep"] : app.textViews["task.detail.addStep"]
+        XCTAssertTrue(detailInput.waitForExistence(timeout: 8))
+        for _ in 0..<4 where !detailInput.isHittable { app.swipeUp() }
+        let initialStepCount = app.buttons.matching(identifier: "checkItemMenuButton").count
+        detailInput.tap()
+        detailInput.typeText("polish step A\n")
+        let firstStepAdded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count >= %d", initialStepCount + 1),
+                                                      object: app.buttons.matching(identifier: "checkItemMenuButton"))
+        XCTAssertEqual(XCTWaiter.wait(for: [firstStepAdded], timeout: 5), .completed)
+        detailInput.typeText("polish step B\n")
+        let secondStepAdded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count >= %d", initialStepCount + 2),
+                                                       object: app.buttons.matching(identifier: "checkItemMenuButton"))
+        XCTAssertEqual(XCTWaiter.wait(for: [secondStepAdded], timeout: 5), .completed)
+        let detailShot = XCTAttachment(screenshot: app.screenshot())
+        detailShot.name = "精修-任务详情-连续添加步骤"
+        detailShot.lifetime = .keepAlways
+        add(detailShot)
+        app.navigationBars.buttons.firstMatch.tap()
+        let detailClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: detailInput)
+        XCTAssertEqual(XCTWaiter.wait(for: [detailClosed], timeout: 5), .completed)
+        XCTAssertTrue(app.buttons[rowID].waitForExistence(timeout: 8))
+        if !app.textFields["加一步，回车保存"].exists { app.buttons[rowID].tap() }
+        let step = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.step.' AND value == '未完成'")).firstMatch
+        XCTAssertTrue(step.waitForExistence(timeout: 5))
+        let stepID = step.identifier
+        step.tap()
+        let checked = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '已完成'"), object: app.buttons[stepID])
+        XCTAssertEqual(XCTWaiter.wait(for: [checked], timeout: 5), .completed)
+        let inlineInput = app.textFields["加一步，回车保存"]
+        XCTAssertTrue(inlineInput.exists, "勾子任务不得触发标题按钮收起整行")
+        let inlineStepCount = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.step.'")).count
+        inlineInput.tap()
+        inlineInput.typeText("polish step C\n")
+        let thirdStepAdded = XCTNSPredicateExpectation(predicate: NSPredicate(format: "count >= %d", inlineStepCount + 1),
+                                                      object: app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.step.'")))
+        XCTAssertEqual(XCTWaiter.wait(for: [thirdStepAdded], timeout: 5), .completed,
+                       "展开态输入必须独立接收并真实保存")
+        let expandedShot = XCTAttachment(screenshot: app.screenshot())
+        expandedShot.name = "精修-任务展开-独立操作"
+        expandedShot.lifetime = .keepAlways
+        add(expandedShot)
     }
 
     func testCompletionCanBeUndoneWithMotion() {
@@ -640,5 +763,173 @@ final class HoloMotionAccessibilityUITests: XCTestCase {
             XCTAssertEqual(app.state, .runningForeground)
             app.terminate()
         }
+    }
+}
+
+// MARK: - 主题徽章宽度与滚动顺序回归
+
+
+final class ThoughtTopicBadgeUITests: XCTestCase {
+    private func verifyBadges(largeType: Bool) throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_THOUGHT_TOPIC_BADGE_GATE"] = "1"
+        // 只测显示和滚动；不要让自动整理在测试中修改虚构关系。
+        app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN",
+                               "-thoughts.automaticOrganization.enabled", "NO",
+                               "-isThoughtAutoOrganizationEnabled", "NO"]
+        if largeType {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
+        app.launch()
+        let thoughts = app.buttons.matching(NSPredicate(format: "label == '想法'")).firstMatch
+        XCTAssertTrue(thoughts.waitForExistence(timeout: 20))
+        thoughts.tap()
+        // 按想法身份定位，不依赖界面中有多少其他截图剧本的卡片。
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format:
+            "identifier BEGINSWITH 'thought.topic.BAD6E100-0000-0000-0000-000000000000.'"))
+            .firstMatch.waitForExistence(timeout: 15))
+
+        func visibleBadges() -> [XCUIElement] {
+            // 完整快照避免 iOS 26 单元素优化查询返回无限坐标。
+            app.buttons.allElementsBoundByIndex.filter {
+                $0.identifier.hasPrefix("thought.topic.BAD6E100") && app.frame.intersects($0.frame)
+            }
+        }
+        var observedKinds = Set<Int>()
+        func verifyVisible() {
+            let badges = visibleBadges()
+            XCTAssertFalse(badges.isEmpty)
+            for badge in badges {
+                XCTAssertGreaterThanOrEqual(badge.frame.minX, app.frame.minX + 20)
+                XCTAssertLessThanOrEqual(badge.frame.maxX, app.frame.maxX - 20,
+                                         "主题徽章不能撑宽卡片或越出页面")
+            }
+            let groups = Dictionary(grouping: badges) { String($0.identifier.split(separator: ".")[2]) }
+            for (thought, group) in groups where group.count == 2 {
+                guard let index = Int(thought.suffix(12)) else { continue }
+                observedKinds.insert(index % 3)
+                let ordered = group.sorted {
+                    if abs($0.frame.minY - $1.frame.minY) > 1 { return $0.frame.minY < $1.frame.minY }
+                    return $0.frame.minX < $1.frame.minX
+                }
+                let firstTitles = ["Holo 产品开发与运营", "持续记录产品开发过程与用户反馈", String(repeating: "超长主题名称", count: 12)]
+                XCTAssertTrue(ordered[0].label.hasPrefix("主题 \(firstTitles[index % 3])"),
+                              "滚动和换行后，主题名称的显示顺序必须稳定")
+            }
+            XCTAssertFalse(app.staticTexts["Holo 已归入"].exists)
+            XCTAssertFalse(app.staticTexts["已加入"].exists)
+        }
+        let scroll = app.scrollViews.firstMatch
+        for _ in 0..<4 where visibleBadges().isEmpty { scroll.swipeUp() }
+        verifyVisible()
+        for _ in 0..<3 {
+            scroll.swipeUp()
+            verifyVisible()
+        }
+        for _ in 0..<3 { scroll.swipeDown(); if !visibleBadges().isEmpty { verifyVisible() } }
+        XCTAssertEqual(observedKinds, [0, 1, 2], "必须覆盖双主题、长名称与超长名称三类卡片")
+        app.terminate()
+    }
+
+    func testTwoTopicsRemainBoundedAndOrderedWhileScrolling() throws {
+        try verifyBadges(largeType: false)
+    }
+
+    func testLongTopicsRemainBoundedAtAccessibilitySize() throws {
+        try verifyBadges(largeType: true)
+    }
+}
+
+/// 真机只读取现有卡片并滚动，不播种、不编辑用户记录。
+final class ThoughtTopicBadgeDeviceUITests: XCTestCase {
+    func testExistingTopicsKeepTheirPositionsAndStayInsideScreen() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launch()
+        let thoughts = app.buttons.matching(NSPredicate(format: "label == '想法'")).firstMatch
+        XCTAssertTrue(thoughts.waitForExistence(timeout: 20))
+        thoughts.tap()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'thought.topic.'"))
+            .firstMatch.waitForExistence(timeout: 15))
+        var orderByThought: [String: [String]] = [:]
+        var repeatedPairCount = 0
+        func inspect() {
+            let badges = app.buttons.allElementsBoundByIndex.filter {
+                $0.identifier.hasPrefix("thought.topic.") && app.frame.intersects($0.frame)
+            }
+            for badge in badges {
+                XCTAssertGreaterThanOrEqual(badge.frame.minX, app.frame.minX + 20)
+                XCTAssertLessThanOrEqual(badge.frame.maxX, app.frame.maxX - 20)
+            }
+            let groups = Dictionary(grouping: badges) { String($0.identifier.split(separator: ".")[2]) }
+            for (thought, group) in groups where group.count == 2 {
+                let order = group.sorted {
+                    if abs($0.frame.minY - $1.frame.minY) > 1 { return $0.frame.minY < $1.frame.minY }
+                    return $0.frame.minX < $1.frame.minX
+                }.map(\.identifier)
+                if let previous = orderByThought[thought] {
+                    XCTAssertEqual(order, previous, "真实双主题卡片滚动重绘后不能交换位置")
+                    repeatedPairCount += 1
+                }
+                orderByThought[thought] = order
+            }
+        }
+        inspect()
+        let scroll = app.scrollViews.firstMatch
+        for _ in 0..<3 { scroll.swipeUp(); inspect() }
+        for _ in 0..<3 { scroll.swipeDown(); inspect() }
+        XCTAssertGreaterThan(repeatedPairCount, 0, "必须实际复查至少一张双主题卡片")
+        app.terminate()
+    }
+}
+
+
+/// 性能修复的交互回归：切档确实生效，照片上的纵向拖动仍带动日回放。
+final class MemoryGalleryPerformanceSmokeUITests: XCTestCase {
+    private func launch() -> XCUIApplication {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "memory-gallery-multi-photo"
+        app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN"]
+        app.launch()
+        XCTAssertTrue(app.buttons["calendar.scale.day"].waitForExistence(timeout: 30))
+        return app
+    }
+
+    private func scale(_ name: String, in app: XCUIApplication) throws -> XCUIElement {
+        try XCTUnwrap(app.buttons.allElementsBoundByIndex.first { $0.identifier == "calendar.scale.\(name)" })
+    }
+
+    func testRepeatedScaleSwitchAndScrollRemainAvailable() throws {
+        let app = launch()
+        for _ in 0..<3 {
+            for name in ["week", "month", "day"] {
+                let rect = try scale(name, in: app).frame
+                XCTAssertTrue(rect.midX.isFinite && rect.midY.isFinite && app.frame.intersects(rect))
+                app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: rect.midX, dy: rect.midY)).tap()
+                let selected = try scale(name, in: app)
+                let ready = XCTNSPredicateExpectation(predicate: NSPredicate(format: "selected == true"), object: selected)
+                XCTAssertEqual(XCTWaiter.wait(for: [ready], timeout: 5), .completed)
+                if name == "day" {
+                    app.swipeUp()
+                    app.swipeDown()
+                }
+            }
+        }
+    }
+
+    func testVerticalDragOnPhotoMovesReplay() throws {
+        let app = launch()
+        let photo = app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH 'daily.replay.photo.'")).firstMatch
+        XCTAssertTrue(photo.waitForExistence(timeout: 30))
+        let rect = photo.frame
+        XCTAssertTrue(rect.midX.isFinite && rect.midY.isFinite && app.frame.intersects(rect))
+        let start = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: rect.midX, dy: rect.midY))
+        let end = app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: rect.midX, dy: max(150, rect.midY - 240)))
+        start.press(forDuration: 0.05, thenDragTo: end)
+        XCTAssertTrue(!photo.isHittable || photo.frame.midY < rect.midY - 30, "照片上的上滑必须实际移动列表")
     }
 }

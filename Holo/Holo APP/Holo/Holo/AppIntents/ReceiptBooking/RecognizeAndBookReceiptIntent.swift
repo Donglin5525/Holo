@@ -122,12 +122,12 @@ struct RecognizeAndBookReceiptIntent: AppIntent {
 
         // 4-5. 协调器编排（含结果与复核草案落盘）+ 非阻塞通知（授权时）
         let outcome = await ReceiptBookingCoordinator.shared.book(request)
+        let appInForeground = UIApplication.shared.applicationState == .active
 
         if case .needsReview(let snapshot) = outcome {
             // 前台直弹（2026-09-22 确认页必达）：本 Intent 跑在主 App 进程，App 恰在
             // 前台（截完图直接回到 Holo 等）时当场弹出复核页。后台拉起通道
             // （opensIntent）受系统自动化运行策略限制不可依赖，确认页到达需多通道兜底。
-            let appInForeground = UIApplication.shared.applicationState == .active
             if appInForeground {
                 ReceiptBookingForegroundPresenter.present(draftID: snapshot.draftID)
             }
@@ -145,7 +145,17 @@ struct RecognizeAndBookReceiptIntent: AppIntent {
             }
             return Self.backgroundResult(Self.text(for: .needsReview(snapshot)))
         }
-        await ReceiptBookingNotificationService.shared.notifyIfNeeded(for: outcome)
+
+        // 2026-10-14 拒识反馈必达（App 内通道）：App 在前台时系统横幅不可依赖
+        // （东林实锤：快捷指令跑完 Holo 被拉到前台，通知被塞进通知中心、屏幕上
+        // 看不到），当场用悬浮 toast 交代「这笔没有入账」及原因；此时系统通知
+        // 一并省去，避免 toast+横幅双响。后台完成则通知仍是主通道，回前台的
+        // scenePhase 钩子再由 toast 兜底（拉起/手动打开 Holo 都命中）。
+        if appInForeground {
+            ReceiptBookingResultSurfacer.surfaceIfNeeded()
+        } else {
+            await ReceiptBookingNotificationService.shared.notifyIfNeeded(for: outcome)
+        }
 
         // 6. 结果文字（结构化状态在本地存储，快捷指令不解析文字）
         return Self.backgroundResult(Self.text(for: outcome))

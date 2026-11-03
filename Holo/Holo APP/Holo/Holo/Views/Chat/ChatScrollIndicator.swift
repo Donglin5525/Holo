@@ -11,8 +11,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
+#if canImport(UIKit)
 struct ChatScrollIndicator: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
         let host = UIView(frame: .zero)
@@ -178,3 +181,10 @@ private final class ChatScrollThumbView: UIView {
         super.removeFromSuperview()
     }
 }
+
+#else
+/// macOS：自定义 IM 滚动指示条依赖 UIScrollView KVO，桌面端系统滚动条即可用，空实现
+struct ChatScrollIndicator: View {
+    var body: some View { EmptyView() }
+}
+#endif

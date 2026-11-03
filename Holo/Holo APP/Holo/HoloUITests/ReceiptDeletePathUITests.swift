@@ -18,14 +18,14 @@ final class ReceiptDeletePathUITests: XCTestCase {
         continueAfterFailure = false
     }
 
-    /// 详情页：红字「删除这条草稿」按钮可见；点击 → 确认弹窗 → 删除后该草案消失、另一条仍在列表。
+    /// 详情页：红字「删除草稿」按钮可见（2026-10-13 改版收进底部次要行）；点击 → 确认弹窗 → 删除后该草案消失、另一条仍在列表。
     func testDetailDeleteButtonVisibleAndDeletes() throws {
         let app = XCUIApplication()
         app.launchArguments = ["UITEST_SEED_RECEIPT_DRAFTS"]
         app.launch()
 
-        let deleteButton = app.buttons["删除这条草稿"].firstMatch
-        XCTAssertTrue(deleteButton.waitForExistence(timeout: 20), "确认页应有红字「删除这条草稿」按钮（改版后不再藏进右上角菜单）")
+        let deleteButton = app.buttons["删除草稿"].firstMatch
+        XCTAssertTrue(deleteButton.waitForExistence(timeout: 20), "确认页底部次要行应有红字「删除草稿」按钮")
         deleteButton.tap()
 
         let confirmDelete = app.buttons["删除"].firstMatch

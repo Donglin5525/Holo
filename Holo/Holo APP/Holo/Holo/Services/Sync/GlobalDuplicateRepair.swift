@@ -193,3 +193,80 @@ nonisolated enum GlobalDuplicateRepair {
         }
     }
 }
+
+// MARK: - 修复结果 → 数据域通知（2026-10-09 C3a）
+
+extension GlobalDuplicateRepair {
+
+    /// 主容器六域刷新通知全集（域外实体兜底用）
+    static let allDomainNotifications: [Notification.Name] = [
+        .todoDataDidChange, .habitDataDidChange, .thoughtDataDidChange,
+        .financeDataDidChange, .anniversaryDataDidChange, .goalDataDidChange,
+    ]
+
+    /// 实体名 → 数据域通知。修复落库只让受影响域失效，不再无差别六连发——
+    /// 一轮修复的风暴会把常驻页与首页候选连刷六次。名单覆盖六域实体；
+    /// 域外实体（Matter/Chat/洞察/回收站等自有刷新机制的实体）不在表内，
+    /// 出现删除时退回全六域：宁可多刷不丢刷新（与旧行为等价）。
+    /// 改挂关系总是伴随所在实体的删除（同组内保一删一），removedByEntity
+    /// 已隐含改挂影响的域。
+    static let entityDomainNotifications: [String: Notification.Name] = [
+        // 任务域
+        "TodoTask": .todoDataDidChange,
+        "TodoFolder": .todoDataDidChange,
+        "TodoList": .todoDataDidChange,
+        "TodoTag": .todoDataDidChange,
+        "CheckItem": .todoDataDidChange,
+        "TaskAttachment": .todoDataDidChange,
+        "TaskScheduleMirror": .todoDataDidChange,
+        "HoloTaskExecutionReceipt": .todoDataDidChange,
+        "HoloTaskExecutionRevision": .todoDataDidChange,
+        "HoloTaskExecutionStep": .todoDataDidChange,
+        "HoloTodayPlanRevision": .todoDataDidChange,
+        // 习惯域
+        "Habit": .habitDataDidChange,
+        "HabitRecord": .habitDataDidChange,
+        // 想法域
+        "Thought": .thoughtDataDidChange,
+        "ThoughtAttachment": .thoughtDataDidChange,
+        "ThoughtReference": .thoughtDataDidChange,
+        "ThoughtTag": .thoughtDataDidChange,
+        "ThoughtTagAssignment": .thoughtDataDidChange,
+        "ThoughtTagConvergenceRejection": .thoughtDataDidChange,
+        "ThoughtTopicLink": .thoughtDataDidChange,
+        // 财务域
+        "Transaction": .financeDataDidChange,
+        "TransactionAttachment": .financeDataDidChange,
+        "Account": .financeDataDidChange,
+        "Budget": .financeDataDidChange,
+        "Category": .financeDataDidChange,
+        "SpendingProject": .financeDataDidChange,
+        "FinanceProject": .financeDataDidChange,
+        "RepeatRule": .financeDataDidChange,
+        // 纪念日域
+        "Anniversary": .anniversaryDataDidChange,
+        // 目标/规划共创域
+        "Goal": .goalDataDidChange,
+        "GoalMetricLog": .goalDataDidChange,
+        "GoalPlanRevisionMO": .goalDataDidChange,
+        "GoalWorkshopSessionMO": .goalDataDidChange,
+        "LifePlanMO": .goalDataDidChange,
+        "PlanActionMO": .goalDataDidChange,
+        "PlanFeedbackMO": .goalDataDidChange,
+        "PlanPriorityMO": .goalDataDidChange,
+        "PlanRunMO": .goalDataDidChange,
+        "PlanSignalMO": .goalDataDidChange,
+    ]
+
+    /// 按本轮删除的实体集合算应发的域通知（空数组 = 无需刷新）
+    static func domainNotifications(for removedByEntity: [String: Int]) -> [Notification.Name] {
+        var result = Set<Notification.Name>()
+        for entity in removedByEntity.keys {
+            guard let name = entityDomainNotifications[entity] else {
+                return allDomainNotifications
+            }
+            result.insert(name)
+        }
+        return Array(result)
+    }
+}

@@ -90,7 +90,9 @@ nonisolated struct HoloContextExtractionCursorState: Codable, Equatable, Sendabl
         sourceCursor: HoloContextSourceCursor? = nil,
         progress: HoloContextExtractionProgress = HoloContextExtractionProgress(),
         watermark: Date? = nil,
-        extractorVersion: Int = 1,
+        // v2（2026-10-09 存量重建迁移）：域判定与提示词修复后全量重萃取——
+        // 批次键含此版本号，提升即让全部历史批次回执失效。配套迁移清空既有游标。
+        extractorVersion: Int = 2,
         admissionPolicyVersion: Int = HoloContextReconciler.admissionPolicyVersion
     ) {
         self.sourceCursor = sourceCursor
@@ -453,7 +455,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
                             payload: payload,
                             claimKind: claimKind,
                             sensitivity: decision.sensitivity,
-                            packageSources: page,
+                            sourceDomain: domain,
                             now: now
                           ) else { continue }
                     batchRecords.append(record)
@@ -565,20 +567,22 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
     }
 
     /// 从决策构造新记录：candidate 默认、锚点用 contextID、稳定 ID 沿用既有算法。
+    /// 域直接取来源编排器的域：一页来源恒来自同一域（HoloLifeSourceObservation 按域
+    /// 轮转分页），编排器自己就是域的权威。旧实现用「包首来源 ID == 依据首来源 ID」
+    /// 相等判断、失配即回落 thought——多候选包里几乎必失配，是习惯/任务/账单等
+    /// 记忆被整体错标成「想法」的根因（2026-10-09 东林反馈）。
     static func newRecord(
         payload: HoloPersonalContextPayloadV1,
         claimKind: HoloMemoryClaimKind,
         sensitivity: HoloMemorySensitivity,
-        packageSources: [HoloContextSourceSnapshot],
+        sourceDomain: String,
         now: Date
     ) -> HoloMemoryRecord? {
         guard let anchor = try? HoloMemoryAnchorRef(
             type: .userTheme,
             value: payload.contextAnchorValue
         ) else { return nil }
-        let domain = packageSources.first.flatMap {
-            $0.sourceID == payload.basis.first?.sourceID ? Self.memoryDomain($0.sourceDomain) : nil
-        } ?? .thought
+        let domain = Self.memoryDomain(sourceDomain)
         guard let stableID = try? HoloMemoryIdentity.makeStableID(
             scope: .domain,
             primaryDomain: domain,
@@ -589,12 +593,22 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
         let evidence = payload.basis.map { basis in
             HoloMemoryEvidenceRef(
                 id: "ctx-\(HoloContextSuppressionKeys.stableDigest("\(payload.contextID)|\(basis.sourceID)|\(basis.quote ?? "")"))",
-                kind: .explicitUserStatement,
+                // 来源类型如实分类（09-R01）：只有 conversation 域的用户消息是
+                // explicitUserStatement；业务记录（账单/任务/打卡/想法/目标）是
+                // entityRef——不因走个人情境通道就变成「你在对话里说过」。
+                kind: HoloLifeSourceKeys.domain(of: basis.sourceID) == "conversation"
+                    ? .explicitUserStatement
+                    : .entityRef,
                 sourceDomain: domain,
                 lineageKey: basis.sourceID,
                 sourceID: basis.sourceID,
                 revisionDigest: basis.sourceRevision,
-                observedAt: now
+                observedAt: now,
+                // 摘要带依据原话（与 ThoughtMemorySignalBuilder 同式截断+净化），
+                // 出处页不再因「证据无摘要」误报原始内容已删除（2026-10-09 东林反馈）。
+                summary: basis.quote.map {
+                    HoloUserTextSanitizer.sanitize(String($0.prefix(200)))
+                }
             )
         }
         var record = HoloMemoryRecord(
@@ -690,5 +704,78 @@ extension HoloContextReconcileDecision {
             return recordID
         }
         return nil
+    }
+}
+
+// MARK: - 存量重建迁移（2026-10-09 修复批）
+
+/// 个人情境存量重建迁移：域归属缺陷与无人话纪律时代生成的旧记忆整体退役，
+/// 由修复后的管线在新提示词/新域判定下全量重萃取。
+///
+/// 一次性、版本门控、幂等。退役策略是归档而非删除：
+///  - 旧记录置 .archived 进「过去记忆」分组，正文与证据保留可回溯，AI 回答不再使用；
+///  - 剥离 personalContext 载荷是关键一步——归并池按「带载荷」圈定既有记录
+///    （HoloContextReconciler 签名匹配），不剥离的话重萃取出的干净新命题会被
+///    合并回旧记录，旧域/旧摘要复活，重建失效；
+///  - 用户已亲自表态（确认/纠正）的记录不动：那是用户核准过的版本，按 §A10
+///    纠正即权威口径继续生效；
+///  - promptVersion ≥ 2（重建启动后新管线写出）的记录不动——防迁移与前台
+///    萃取批次竞态时误伤刚生成的新记录；
+///  - 游标与调度指针由调用方传入键名清空（键名归运行时层所有，此处不感知），
+///    配合 HoloContextExtractionCursorState 默认 extractorVersion 提升，全部
+///    批次键自然失效，历史来源重新进入萃取。
+nonisolated enum HoloPersonalContextRebuildMigration {
+    static let currentVersion = 1
+    /// 重建后新管线的记录戳（HoloMemoryPipelineVersions.personalPromptVersion 同步提升）。
+    static let minimumFreshPromptVersion = 2
+    static let versionKey = "holo_personal_context_rebuild_migration_version"
+
+    struct Result: Equatable, Sendable {
+        var archivedRecordCount = 0
+        var preservedUserDecidedCount = 0
+        var cursorReset = false
+    }
+
+    static func rebuildIfNeeded(
+        repository: any HoloMemoryRepository,
+        defaults: UserDefaults,
+        cursorKeys: [String],
+        schedulingKeys: [String] = [],
+        now: Date = Date()
+    ) async throws -> Result? {
+        guard defaults.integer(forKey: versionKey) < currentVersion else { return nil }
+        var result = Result()
+
+        let allRecords = try await repository.query(.all)
+        for var record in allRecords {
+            let inRebuildScope = record.personalContext?.v1 != nil || record.scope == .crossDomain
+            guard inRebuildScope else { continue }
+            guard record.userDecision == .none else {
+                result.preservedUserDecidedCount += 1
+                continue
+            }
+            guard record.state != .archived,
+                  record.state != .suppressed,
+                  record.state != .tombstoned,
+                  record.state != .deleted else { continue }
+            guard record.promptVersion < minimumFreshPromptVersion else { continue }
+            record.state = .archived
+            record.personalContext = nil
+            record.recordVersion += 1
+            record.updatedAt = now
+            try await repository.replaceRecordForMigration(record)
+            result.archivedRecordCount += 1
+        }
+
+        for key in cursorKeys {
+            defaults.removeObject(forKey: key)
+        }
+        for key in schedulingKeys {
+            defaults.removeObject(forKey: key)
+        }
+        result.cursorReset = true
+
+        defaults.set(currentVersion, forKey: versionKey)
+        return result
     }
 }

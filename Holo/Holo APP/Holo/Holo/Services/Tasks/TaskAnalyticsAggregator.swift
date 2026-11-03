@@ -66,7 +66,7 @@ nonisolated enum TaskAnalyticsAggregator {
             excludedMissingTimeIDs: excludedX.map(\.id)
         )
 
-        // ---- 对比：同等已过窗口内的数量差（§7.6）----
+        // ---- 对比：同等已过窗口内的数量差（§7.6）+ 到期两率环比 ----
         let prevCreated = alive.filter {
             $0.createdAt >= compareWindow.previousStart && $0.createdAt < compareWindow.previousEnd
         }.count
@@ -74,10 +74,22 @@ nonisolated enum TaskAnalyticsAggregator {
             guard snapshot.completed, let completedAt = snapshot.completedAt else { return false }
             return completedAt >= compareWindow.previousStart && completedAt < compareWindow.previousEnd
         }.count
+        let prevDue = dueOutcomeCounts(
+            alive,
+            dueRange: compareWindow.previousStart..<compareWindow.previousEnd,
+            asOf: asOf,
+            calendar: calendar
+        )
+        let prevDueDenominator = prevDue.matured - prevDue.excluded
+        func prevRate(_ numerator: Int) -> Double? {
+            prevDueDenominator > 0 ? Double(numerator) / Double(prevDueDenominator) : nil
+        }
         let comparison = TaskAnalyticsComparison(
             createdDelta: created.count - prevCreated,
             completedDelta: completed.count - prevCompleted,
-            truncatedToPreviousEnd: compareWindow.truncatedToPreviousEnd
+            truncatedToPreviousEnd: compareWindow.truncatedToPreviousEnd,
+            previousDueCompletionRate: prevRate(prevDue.onTime + prevDue.late),
+            previousOnTimeRate: prevRate(prevDue.onTime)
         )
 
         // ---- 趋势桶（§7.7：桶合计 = 指标总数，未来桶只标不计）----
@@ -90,13 +102,23 @@ nonisolated enum TaskAnalyticsAggregator {
                     guard let at = snapshot.completedAt else { return false }
                     return at >= bucket.start && at < bucket.endExclusive
                 }.map(\.id)
+                let bucketDue = dueOutcomeCounts(
+                    alive,
+                    dueRange: bucket.start..<bucket.endExclusive,
+                    asOf: asOf,
+                    calendar: calendar
+                )
                 return TaskAnalyticsBucketStat(
                     start: bucket.start,
                     endExclusive: bucket.endExclusive,
                     createdIDs: bucketCreated,
                     completedIDs: bucketCompleted,
                     isFuture: bucket.isFuture,
-                    isPartialToday: bucket.isPartialToday
+                    isPartialToday: bucket.isPartialToday,
+                    maturedDueCount: bucketDue.matured,
+                    onTimeDueCount: bucketDue.onTime,
+                    lateDueCount: bucketDue.late,
+                    excludedDueMissingTimeCount: bucketDue.excluded
                 )
             }
 
@@ -153,6 +175,52 @@ nonisolated enum TaskAnalyticsAggregator {
                 .map(\.id)
         )
 
+        // ---- 完成节奏热力网格（P2：固定近 12 个自然周，不随档位，从全体存活任务取数）----
+        // （局部常量 bounds 与解析器方法同名，这里显式走 TaskAnalyticsPeriodResolver）
+        let currentWeekStart = TaskAnalyticsPeriodResolver.bounds(of: .week(anchorDay: asOf), asOf: asOf, calendar: calendar).start
+        let heatStart = calendar.date(byAdding: .weekOfYear, value: -11, to: currentWeekStart)!
+        var heatDays: [TaskDailyCompletionCount] = []
+        while heatDays.count < 84 {
+            let dayStart = calendar.date(byAdding: .day, value: heatDays.count, to: heatStart)!
+            let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart)!
+            let dayCount = alive.filter { snapshot in
+                guard let at = snapshot.completedAt else { return false }
+                return at >= dayStart && at < dayEnd && at <= asOf
+            }.count
+            heatDays.append(TaskDailyCompletionCount(start: dayStart, completedCount: dayCount))
+        }
+
+        // ---- 完成时刻分布（P2：本期完成集合按 0–23 时落桶）----
+        var hourly = Array(repeating: 0, count: 24)
+        for snapshot in completed {
+            guard let at = snapshot.completedAt else { continue }
+            hourly[calendar.component(.hour, from: at)] += 1
+        }
+
+        // ---- 按事项分组（P2：本期完成集合按已链接事项分桶；一任务多事项重复计入）----
+        var matterBuckets: [UUID: (title: String, ids: [UUID])] = [:]
+        for snapshot in completed {
+            let linkedMatterIDs = Set(snapshot.matterLinks.map(\.matterID)).sorted { $0.uuidString < $1.uuidString }
+            for matterID in linkedMatterIDs {
+                guard let fact = snapshot.matterLinks.first(where: { $0.matterID == matterID }) else { continue }
+                if var bucket = matterBuckets[matterID] {
+                    bucket.ids.append(snapshot.id)
+                    matterBuckets[matterID] = bucket
+                } else {
+                    matterBuckets[matterID] = (fact.title, [snapshot.id])
+                }
+            }
+        }
+        let matterBreakdown = matterBuckets
+            .map { matterID, value in
+                TaskMatterBreakdownStat(id: matterID, title: value.title, completedIDs: value.ids)
+            }
+            .sorted { lhs, rhs in
+                if lhs.count != rhs.count { return lhs.count > rhs.count }
+                if lhs.title != rhs.title { return lhs.title < rhs.title }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+
         return TaskAnalyticsSnapshot(
             asOf: asOf,
             period: period,
@@ -167,7 +235,35 @@ nonisolated enum TaskAnalyticsAggregator {
             futureCompletedAtIDs: futureCompletedAt.map(\.id),
             buckets: buckets,
             listBreakdown: listBreakdown,
-            attention: attention
+            attention: attention,
+            heatDays: heatDays,
+            hourlyCompletedCounts: hourly,
+            matterBreakdown: matterBreakdown
         )
+    }
+
+    /// 一批任务在给定到期窗口内的成熟结果计数（§7.5 同口径：窗口内成熟到期、
+    /// 排除「已完成但缺完成时间」；按时含跨期提前完成的命中）
+    private static func dueOutcomeCounts(
+        _ snapshots: [TaskRecordSnapshot],
+        dueRange: Range<Date>,
+        asOf: Date,
+        calendar: Calendar
+    ) -> (matured: Int, excluded: Int, onTime: Int, late: Int) {
+        let matured = snapshots.filter { snapshot in
+            guard let due = snapshot.effectiveDue(calendar: calendar) else { return false }
+            return dueRange.contains(due) && due <= asOf
+        }
+        let excluded = matured.filter { $0.completed && $0.completedAt == nil }
+        let denominator = matured.filter { !($0.completed && $0.completedAt == nil) }
+        let onTime = denominator.filter { snapshot in
+            guard let completedAt = snapshot.completedAt else { return false }
+            return completedAt <= snapshot.effectiveDue(calendar: calendar)! && completedAt <= asOf
+        }.count
+        let late = denominator.filter { snapshot in
+            guard snapshot.completed, let completedAt = snapshot.completedAt else { return false }
+            return completedAt > snapshot.effectiveDue(calendar: calendar)!
+        }.count
+        return (matured.count, excluded.count, onTime, late)
     }
 }

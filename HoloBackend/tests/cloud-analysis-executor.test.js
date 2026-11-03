@@ -902,7 +902,9 @@ test("引擎 P0：baseline 自动前移 + difference/percentageChange 确定性�
   // 对照窗=同长度前移（8月2日~9月1日，含 8-5 一笔 -10）
   assert.equal(total.baselineValue, -10);
   assert.equal(byKey["dynamic.finance_transactions.diff.all"].value, -40);
-  assert.equal(byKey["dynamic.finance_transactions.pct.all"].value, -4);
+  // percentageChange v28 起值即百分数（×100），unit 强制 %：(-50 - -10)/|-10| = -400%
+  assert.equal(byKey["dynamic.finance_transactions.pct.all"].value, -400);
+  assert.equal(byKey["dynamic.finance_transactions.pct.all"].unit, "%");
 });
 
 test("引擎 P0：perDay 按自然日数均摊（30 天窗口 2 笔 → 0.0667）", () => {
@@ -1770,4 +1772,303 @@ test("时间窗解析员：旧客户端(无 answerTask)同样触发解析", asyn
   assert.equal(await executor.run(task.id), "completed");
   const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
   assert.equal(result.taskRange.start, startSec, "旧客户端问句时间同样冻结");
+});
+
+// —— S2 融合版：确定性台账（financeEvidenceLedger）注入与核验（2026-10-18）——
+
+const LEDGER_SNAPSHOT = {
+  ...SNAPSHOT,
+  financeEvidenceLedger: "【窗口】本期 2026-04-21 ~ 2026-10-17；上期 2025-10-23 ~ 2026-04-20。\n总支出从上期的 170289.12 元变为本期的 185275.70 元（增加 14986.58 元，+8.8%）。\n【分期承诺全景】\n  60期×2533.33元/期：在库60行（合同本金与利率未提供，不得假设利息成本）。\n【已确认事实与已知风险】\n  1. 预算数据未进本台账：不得宣称超预算或达成预算。",
+};
+
+test("S2台账：快照带台账→首轮system注入<finance_evidence_ledger>；老快照不注入", async () => {
+  const provider = makeProvider([agentJson("final_claims", { claims: [] })]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-ledger", question: "分析我的支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(LEDGER_SNAPSHOT) });
+  await executor.run(task.id);
+
+  const system0 = provider.calls[0].messages.find((m) => m.role === "system");
+  assert.ok(system0.content.includes("<finance_evidence_ledger>\n【窗口】本期 2026-04-21"), "带台账快照必须注入台账段（内容级断言：v26提示词本身提及标签名，不能只查标签）");
+  assert.ok(system0.content.includes("185275.70"), "台账数字必须在 system 消息里");
+
+  // 老客户端回归：无字段不注入
+  const provider2 = makeProvider([agentJson("final_claims", { claims: [] })]);
+  const { store: store2, executor: executor2 } = makeExecutor(provider2);
+  const task2 = store2.create({ deviceId: "device-old", question: "分析我的支出" });
+  store2.attachSnapshot({ id: task2.id, snapshot: JSON.stringify(SNAPSHOT) });
+  await executor2.run(task2.id);
+  const systemOld = provider2.calls[0].messages.find((m) => m.role === "system");
+  assert.ok(!systemOld.content.includes("【窗口】本期 2026-04-21"), "老快照不得注入台账内容");
+});
+
+test("S2台账：claim直接引用台账数字（无工具断言）不被误撤——台账数字=已核验来源", async () => {
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      title: "支出微增但结余承压",
+      narrativeSummary: "总支出本期 185275.70 元，比上期多 14986.58 元。",
+      claims: [{
+        summary: "总支出对比",
+        displayText: "总支出从上期的 170289.12 元变为本期的 185275.70 元（增加 14986.58 元）",
+        metricAssertions: [],
+        evidenceIDs: [],
+        type: "change",
+        confidence: 0.8,
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-ledger2", question: "最近支出怎么样" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(LEDGER_SNAPSHOT) });
+  const status = await executor.run(task.id);
+  assert.equal(status, "completed");
+  const fetched = store.getDecrypted(task.id, ["result"]);
+  const result = JSON.parse(fetched.result);
+  assert.equal(result.claims.length, 1, "引用台账数字的 claim 不应被 NUMERIC_CLAIM_UNVERIFIED 撤回");
+  assert.ok(result.title.includes("结余"), "叙事字段数字来自台账不应被清空");
+});
+
+test("S2台账：输出混入自我对话→claim撤回+触发修复轮，修复后干净交付", async () => {
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "餐饮支出 102 元。等等，让我重新核对一下这个数字对不对",
+        metricAssertions: [],
+        evidenceIDs: [],
+        type: "observation",
+      }],
+    }),
+    agentJson("final_claims", {
+      title: "餐饮平稳",
+      claims: [{
+        displayText: "本期没有发现值得调整的异常",
+        metricAssertions: [],
+        evidenceIDs: [],
+        type: "observation",
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-selftalk", question: "分析支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+  const status = await executor.run(task.id);
+  assert.equal(status, "completed");
+  const fetched = store.getDecrypted(task.id, ["result"]);
+  const result = JSON.parse(fetched.result);
+  assert.equal(result.claims.length, 1);
+  assert.ok(!result.claims[0].displayText.includes("等等"), "污染 claim 不得交付");
+  // 修复轮被触发过（第二轮模型调用收到撤回原因）
+  assert.ok(provider.calls.length >= 2, "污染必须触发修复轮");
+});
+
+// —— 全景体检台账（2026-11-01 全景版跨域洞察）——
+
+const CHECKUP_SNAPSHOT = {
+  ...SNAPSHOT,
+  crossDomainCheckup: "【窗口】本期 2026-10-02 ~ 2026-10-31（30 天）；上期（环比基线）2026-09-02 ~ 2026-10-01（30 天）。\n【各领域体检·本期 vs 上期】\n  习惯：戒烟：达标 3 天→12 天（本期记录 30 天），累计 117 支，日均 3.9 支。\n【同变候选】\n  睡眠时长 与 每日支出：r=+0.52（同向变化，对齐 24 天，相关性中等）。",
+};
+
+test("全景台账：快照带 crossDomainCheckup→system 注入<cross_domain_checkup>；老快照不注入", async () => {
+  const provider = makeProvider([agentJson("final_claims", { claims: [] })]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-checkup", question: "整体过得怎么样" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(CHECKUP_SNAPSHOT) });
+  await executor.run(task.id);
+
+  const system0 = provider.calls[0].messages.find((m) => m.role === "system");
+  // 内容级断言（v28 提示词本身提及标签名，不能只查标签——S2台账测试同款坑）
+  assert.ok(system0.content.includes("<cross_domain_checkup>\n【窗口】本期 2026-10-02"), "带体检台账快照必须注入台账段");
+  assert.ok(system0.content.includes("累计 117 支"), "台账内容必须进 system 消息");
+
+  const provider2 = makeProvider([agentJson("final_claims", { claims: [] })]);
+  const { store: store2, executor: executor2 } = makeExecutor(provider2);
+  const task2 = store2.create({ deviceId: "device-checkup-old", question: "整体过得怎么样" });
+  store2.attachSnapshot({ id: task2.id, snapshot: JSON.stringify(SNAPSHOT) });
+  await executor2.run(task2.id);
+  const systemOld = provider2.calls[0].messages.find((m) => m.role === "system");
+  assert.ok(!systemOld.content.includes("累计 117 支"), "老快照不得注入体检台账内容");
+});
+
+test("全景台账：claim 引用台账小数字（117 支）不被误撤——体检数字进核验白名单", async () => {
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      title: "戒烟记录在回暖",
+      claims: [{
+        summary: "习惯体检",
+        domain: "finance", // 唯一在场数据集 = finance（CHECKUP_SNAPSHOT 只有财务数据）
+        displayText: "戒烟习惯本期记录 117 支（日均 3.9 支），达标天数从 3 天升到 12 天",
+        metricAssertions: [],
+        evidenceIDs: [],
+        type: "change",
+        confidence: 0.8,
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "device-checkup2", question: "最近30天整体怎么样" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(CHECKUP_SNAPSHOT) });
+  const status = await executor.run(task.id);
+  assert.equal(status, "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 1, "引用体检台账数字（117/3.9/12/3）的 claim 不应被 NUMERIC_CLAIM_UNVERIFIED 撤回");
+});
+
+// —— 全景体检（2026-11-01 复查意见必修 2/3）：覆盖闸门与解读闸门 ——
+
+const PANORAMA_SNAPSHOT = {
+  ...AUG_SEP_SNAPSHOT,
+  crossDomainCheckup: "【窗口】本期 2026-08-21 ~ 2026-09-19（30 天）。\n【各领域体检·本期 vs 上期】\n  财务：总支出从上期 0 元变为本期 20 元。\n  健康·睡眠：日均时长上期 7.0 小时→本期 5.9 小时。\n  习惯：戒烟：控制内 3/30 天，累计 117 支。",
+  answerTask: {
+    scenarioID: "crossDomain",
+    userQuestion: "整体过得怎么样",
+    questionKind: "correlation",
+    primaryTimeRange: { label: "最近30天", start: sec("2026-08-20"), end: sec("2026-09-19") },
+    answerChecklist: [],
+  },
+  datasets: {
+    ...AUG_SEP_SNAPSHOT.datasets,
+    "health.sleep": {
+      fields: [{ name: "date", type: "date" }, { name: "value", type: "number", unit: "小时" }],
+      rows: [
+        { id: "sl1", occurredAt: "2026-09-01", date: "2026-09-01", value: 5.5 },
+        { id: "sl2", occurredAt: "2026-09-10", date: "2026-09-10", value: 6.2 },
+      ],
+    },
+    "habit.daily": {
+      fields: [{ name: "date", type: "date" }, { name: "habit", type: "text" }, { name: "value", type: "number" }],
+      rows: [
+        { id: "hb1", occurredAt: "2026-09-02", date: "2026-09-02", habit: "戒烟", value: 1 },
+      ],
+    },
+  },
+};
+
+test("全景覆盖闸门：缺域触发修复轮点名补齐，补齐后正常交付", async () => {
+  const provider = makeProvider([
+    // 第一轮只交财务一条 → 覆盖闸门点名 health/habit
+    agentJson("final_claims", {
+      claims: [{ id: "c1", domain: "finance", displayText: "记录不足，暂时无法判断支出结构", metricAssertions: [], evidenceIDs: [] }],
+    }),
+    // 第二轮补齐全部领域
+    agentJson("final_claims", {
+      claims: [
+        { id: "c1", domain: "finance", displayText: "记录不足，暂时无法判断支出结构", metricAssertions: [], evidenceIDs: [] },
+        { id: "c2", domain: "health", displayText: "记录不足，睡眠样本太少", metricAssertions: [], evidenceIDs: [] },
+        { id: "c3", domain: "habit", displayText: "戒烟累计 117 支（台账）", metricAssertions: [], evidenceIDs: [] },
+      ],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-pano1", question: "整体过得怎么样" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(PANORAMA_SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+  assert.ok(provider.calls.length >= 2, "缺域必须触发修复轮");
+  const repairMsg = provider.calls[1].messages.find((m) => m.role === "user" && m.content.includes("逐域覆盖"));
+  assert.ok(repairMsg, "修复轮必须点名缺失领域");
+  assert.ok(repairMsg.content.includes("health") && repairMsg.content.includes("habit"));
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 3);
+  assert.ok(!result.warnings.some((w) => w.startsWith("DOMAIN_COVERAGE_MISSING")), "补齐后不再带缺域警告");
+});
+
+test("全景覆盖闸门：修复后仍缺域 → 如实带 DOMAIN_COVERAGE_MISSING 交付", async () => {
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{ id: "c1", domain: "finance", displayText: "记录不足，暂时无法判断支出结构", metricAssertions: [], evidenceIDs: [] }],
+    }),
+    agentJson("final_claims", {
+      claims: [{ id: "c1", domain: "finance", displayText: "记录不足，暂时无法判断支出结构", metricAssertions: [], evidenceIDs: [] }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-pano2", question: "整体过得怎么样" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(PANORAMA_SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  const missing = result.warnings.find((w) => w.startsWith("DOMAIN_COVERAGE_MISSING"));
+  assert.ok(missing, "修复后仍缺域必须带警告交付");
+  assert.match(missing, /health/);
+  assert.match(missing, /habit/);
+});
+
+test("解读闸门：无想法/记忆证据的动机类 interpretation 剥离，claim 保留", async () => {
+  // 只带财务数据集（覆盖闸门无额外欠账），聚焦解读剥离本身
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{
+        id: "c1",
+        domain: "finance",
+        displayText: "烟酒分类本期出现 3 笔支出（台账）",
+        interpretation: "这像是高压环境下的一种补偿性消费",
+        metricAssertions: [],
+        evidenceIDs: [],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-interp", question: "整体过得怎么样" });
+  const interpSnapshot = { ...PANORAMA_SNAPSHOT, datasets: AUG_SEP_SNAPSHOT.datasets };
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(interpSnapshot) });
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 1, "claim 本身保留");
+  assert.notEqual(result.claims[0].interpretation, "这像是高压环境下的一种补偿性消费", "无依据动机解读必须剥离");
+  assert.ok(result.warnings.some((w) => w.startsWith("INTERPRETATION_UNGROUNDED")), "剥离必须记 warning");
+});
+
+// —— v27 报告结构：章节引用核验与降级 ——
+
+function reportFinal(sections, claimsExtra = {}) {
+  return agentJson("final_claims", {
+    claims: [
+      { id: "c1", displayText: "总支出较上一可比期明显上升，结余空间收窄", metricAssertions: [], evidenceIDs: [], type: "change" },
+      { id: "c2", displayText: "7 月起支出跳上台阶", metricAssertions: [], evidenceIDs: [], type: "change" },
+      { id: "c3", displayText: "固定支出与车贷同源，不暂停会双记", metricAssertions: [], evidenceIDs: [], type: "risk" },
+      ...((claimsExtra.more ?? [])),
+    ],
+    reportStructure: { sections, conclusionItems: [{ claimID: "c2", sub: "回看下月账单是否只记一笔" }], disclosureNotes: ["· 口径：排除对账调整"] },
+    ...claimsExtra.top ?? {},
+  });
+}
+
+test("v27报告结构：合法引用保留+图表表态保留+落库回传", async () => {
+  const provider = makeProvider([
+    reportFinal([
+      { no: "一", title: "收支总览", kicker: "两头受挤的半年", paragraphClaimIDs: ["c1", "c2"],
+        chartHint: { kind: "trend", dataset: "finance.transactions", caption: "图 1｜月度支出·7月起跳上台阶" }, notice: null },
+      { no: "二", title: "风险", kicker: null, paragraphClaimIDs: ["c9"], chartHint: null,  // 死引用段
+        notice: { bodyClaimID: "c3", window: "截止 2026-10-20" } },
+    ]),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "dev-rs1", question: "分析支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.ok(result.reportStructure, "reportStructure 应回传");
+  const secs = result.reportStructure.sections;
+  assert.equal(secs.length, 1, "死引用段（c9 全灭）应整节丢弃");
+  assert.equal(secs[0].paragraphClaimIDs.length, 2);
+  assert.equal(secs[0].chartHint.kind, "trend", "合法图表表态应保留");
+  assert.equal(secs[0].kicker, "两头受挤的半年");
+  assert.equal(result.reportStructure.conclusionItems.length, 1);
+  assert.equal(result.reportStructure.disclosureNotes.length, 1);
+});
+
+test("v27报告结构：kicker 编数字→置空该字段但保留段落；无 chartHint 数据集→剥离", async () => {
+  const provider = makeProvider([
+    reportFinal([
+      { no: "一", title: "总览", kicker: "结余薄了 99999 元", paragraphClaimIDs: ["c1"],
+        chartHint: { kind: "pie", dataset: "", caption: "图 1" }, notice: null },
+    ]),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "dev-rs2", question: "分析支出" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  const sec = result.reportStructure.sections[0];
+  assert.equal(sec.kicker, null, "kicker 白名单外数字（99999）应置空");
+  assert.equal(sec.chartHint, null, "非法 kind/空 dataset 的 chartHint 应剥离");
+  assert.equal(sec.paragraphClaimIDs.length, 1, "段落本身保留");
 });

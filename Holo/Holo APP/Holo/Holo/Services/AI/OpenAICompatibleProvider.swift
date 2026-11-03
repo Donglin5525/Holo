@@ -130,6 +130,10 @@ final class OpenAICompatibleProvider: AIProvider {
             allMessages.append(preamble)
         }
         allMessages.append(.system(systemPrompt))
+        // 个人档案通道（直连 API 版）：builder 不再拼档案，直连链路由此自行注入
+        if let profileMessage = Self.profileChannelMessage() {
+            allMessages.append(profileMessage)
+        }
         allMessages.append(.system(contextMessage))
         allMessages.append(contentsOf: messages)
 
@@ -169,15 +173,9 @@ final class OpenAICompatibleProvider: AIProvider {
 
             // 分析模式：注入 context JSON 作为第二条 system message
             if let contextOverride = systemContextOverride {
-                // 分析模式：先注入 profile（如开启），再注入分析 context JSON
-                // Profile 放前面是因为稳定长期上下文权重应高于临时分析数据
-                if HoloAIFeatureFlags.profileAnalysisInjectionEnabled,
-                   let snapshot = userContext.profileSnapshot,
-                   !snapshot.isEmpty {
-                    let profilePrompt = HoloProfilePromptRenderer.render(snapshot, purpose: .analysis)
-                    if !profilePrompt.isEmpty {
-                        allMessages.append(.system(profilePrompt))
-                    }
+                // 个人档案通道（直连 API 版）：先注入档案（稳定长期上下文权重高于临时分析数据）
+                if let profileMessage = Self.profileChannelMessage() {
+                    allMessages.append(profileMessage)
                 }
                 allMessages.append(.system(contextOverride))
             } else {
@@ -229,6 +227,29 @@ final class OpenAICompatibleProvider: AIProvider {
             return nil
         }
         return .system(preamble)
+    }
+
+    /// 个人档案通道（直连 API 版，2026-11-01 东林拍板「档案=通用指令而非备注」）：
+    /// 与后端 serverPromptPolicy 的注入同一语义——档案是用户本人写的长期说明，
+    /// 指令级生效（称呼/身份/健康行动限制/沟通偏好）。边界文案与后端
+    /// defaultPrompts `_profile_channel_header/_profile_channel_rules` 保持同一口径，
+    /// 改动须双侧同步（后端路径不经过本 Provider，由 profileBrief 字段承载）。
+    private static func profileChannelMessage() -> ChatMessageDTO? {
+        let raw = HoloProfileService.shared.loadProfile()
+        guard !raw.isEmpty else { return nil }
+        return .system("""
+        --- 用户个人档案（用户本人编写） ---
+        以下是用户在 App 里亲手写的个人档案原文，效力等同于用户当面告诉你的话：其中关于称呼、身份、职业、生活节奏、健康与行动限制、沟通偏好、关注重点的描述，适用于本次任务——称呼与语气按它执行，举例与视角贴合身份，建议不得违背其中的健康与行动限制。
+
+        \(raw)
+
+        档案使用规则：
+        - 优先级：用户本轮明确输入 > 个人档案 > AI 自动推断的记忆。
+        - 档案写的称呼在行文中自然使用，不必每句都叫。
+        - 档案与本次任务无关的内容不强行使用，不复述档案原文。
+        - 底线不因档案改变：只说有数据依据的话，不编造金额、日期、事实；不做心理、医疗诊断；健康与行动限制只用于约束建议内容，不据此下诊断。
+        --- 档案结束 ---
+        """)
     }
 
 

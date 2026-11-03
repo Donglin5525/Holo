@@ -64,6 +64,12 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   // 想法语义关联 V3（2026-09-10 方案 §16.2）：请求含用户想法正文与主题代表片段，
   // 响应含逐字证据——一律 metadata_only，正文与证据不落任何日志/缓存/错误。
   'thought_semantic_relate_v1',
+  // v2 双通道（2026-10-12）：请求额外携带类别定义与代表笔记，口径同 v1 一律 metadata_only。
+  // 当前日志 purpose 仍记 v1（路由/预算挂靠未变），此处登记是把口径锁死为服务器级约束。
+  'thought_semantic_relate_v2',
+  // 归档类别理解器（2026-10-12 主题双通道·零打扰）：请求携带成员笔记片段与移出反证——
+  // 一律 metadata_only，正文与证据不落任何日志。
+  'thought_category_brief_v1',
   'thought_topic_name_v1',
   'thought_topic_summary_v1',
   // 想法按需洞察（2026-09-24 方案 §5.1）：请求含笔记原文，响应含观察/推测——
@@ -76,6 +82,10 @@ const DEFAULT_METADATA_ONLY_PURPOSES = [
   'cloud_period_replay',
   'cloud_context_plan',
   'cloud_replay_digest',
+  // HoloAI「一个发现」两阶段（2026-10-23 实施包 03 §3.3）：请求含用户记录匿名材料，
+  // 响应含候选/核验正文——一律 metadata_only，正文与 quote 不落任何日志/缓存/错误。
+  'discovery_candidate_v1',
+  'discovery_verify_v1',
 ];
 
 /** request 侧白名单：只有这些键允许进入 entry（metadata_only purpose）。 */
@@ -91,6 +101,8 @@ const METADATA_RESPONSE_KEYS = new Set([
   'labels', 'riskLevel',
   // 截图识别理解单的观测元数据（图型/置信度/交易笔数，无用户内容）
   'imageType', 'confidence', 'transactionCount',
+  // 「一个发现」阶段结果计数（候选条数/核验条数，纯数字无内容）
+  'resultCount',
 ]);
 
 function pickWhitelist(value, allowedKeys) {
@@ -135,8 +147,8 @@ export function createAdminLogStore(options = {}) {
       insertLog: db.prepare(`
         INSERT INTO ai_call_logs (device_id, call_type, purpose, provider, model, is_stream,
           prompt_type, prompt_version, request_summary, response_summary,
-          redaction_applied, content_capture_enabled, asr_file_type, asr_result_length)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          redaction_applied, content_capture_enabled, asr_file_type, asr_result_length, session_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `),
       updateLog: db.prepare(`
         UPDATE ai_call_logs SET
@@ -144,15 +156,15 @@ export function createAdminLogStore(options = {}) {
           error_message = ?,
           response_summary = ?,
           asr_result_length = ?,
-          prompt_tokens = ?,
-          completion_tokens = ?,
-          cached_tokens = ?,
-          reasoning_tokens = ?
+          prompt_tokens = COALESCE(?, prompt_tokens),
+          completion_tokens = COALESCE(?, completion_tokens),
+          cached_tokens = COALESCE(?, cached_tokens),
+          reasoning_tokens = COALESCE(?, reasoning_tokens)
         WHERE rowid = ?
       `),
       listLogs: db.prepare(`
         SELECT id, device_id, call_type, purpose, provider, model, is_stream,
-          duration_ms, error_message, asr_file_type, asr_result_length, created_at
+          duration_ms, error_message, asr_file_type, asr_result_length, session_id, created_at
         FROM ai_call_logs ORDER BY id DESC LIMIT ?
       `),
       getLog: db.prepare(`
@@ -224,7 +236,9 @@ export function createAdminLogStore(options = {}) {
           forceMeta ? 0 : (contentCaptureEnabled ? 1 : 0),
           forceMeta ? 0 : (contentCaptureEnabled ? 1 : 0),
           input.asrFileType ?? null,
-          null  // asr_result_length — 调用完成后填充
+          null, // asr_result_length — 调用完成后填充
+          // 会话关联键（2026-10-19 前后端链路打通）：与 product_events / request_logs 同列对齐
+          input.sessionId ?? null
         );
         entry._rowId = result.lastInsertRowid;
       } catch (err) {
@@ -259,7 +273,10 @@ export function createAdminLogStore(options = {}) {
     // { prompt_tokens, completion_tokens, prompt_tokens_details:{cached_tokens}, completion_tokens_details:{reasoning_tokens} }
     // 截断的响应摘要拿不到 usage，这里必须在流结束时从内存里传进来才不丢。
     const usage = normalizeUsage(result.usage);
-    if (usage) entry.usage = usage;
+    if (usage) entry.usage = {
+      ...usage, ...entry.usage,
+      ...Object.fromEntries(Object.entries(usage).filter(([, value]) => value != null)),
+    };
 
     // SQLite 更新
     const s = getStmts();
@@ -304,7 +321,7 @@ export function createAdminLogStore(options = {}) {
   }
 
   function positiveInt(value) {
-    return Number.isFinite(value) && value > 0 ? Math.round(value) : null;
+    return Number.isFinite(value) && value >= 0 ? Math.round(value) : null;
   }
 
   function list() {

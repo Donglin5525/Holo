@@ -38,6 +38,7 @@ final class HabitRetroactivePolicyTests: XCTestCase {
     private func makeHabit(in context: NSManagedObjectContext,
                            type: HabitType = .checkIn,
                            aggregation: HabitAggregationType = .sum,
+                           frequency: HabitFrequency = .daily,
                            createdAtDaysAgo: Int = 60) throws -> Habit {
         let habit = NSEntityDescription.insertNewObject(forEntityName: "Habit", into: context) as! Habit
         habit.id = UUID()
@@ -45,7 +46,7 @@ final class HabitRetroactivePolicyTests: XCTestCase {
         habit.icon = "sparkles"
         habit.color = "#3B76C9"
         habit.type = type.rawValue
-        habit.frequency = HabitFrequency.daily.rawValue
+        habit.frequency = frequency.rawValue
         habit.aggregationType = aggregation.rawValue
         habit.isBadHabit = false
         habit.isArchived = false
@@ -198,6 +199,41 @@ final class HabitRetroactivePolicyTests: XCTestCase {
         let day = Calendar.current.date(byAdding: .day, value: -5, to: Calendar.current.startOfDay(for: Date()))!
         let result = try repo.retroactiveCheckIn(for: habit, on: day)
         guard case .invalidDate = result else { return XCTFail("创建前无资格") }
+    }
+
+    // MARK: - 周/月频率（2026-10-17 东林实报：真实做了忘记录必须可补）
+
+    func test_周频率习惯漏做日在补签名单且可写入() throws {
+        let (repo, context) = try makeRepo()
+        let habit = try makeHabit(in: context, frequency: .weekly)
+        try context.save()
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+
+        let eligible = repo.retroactiveEligibleDays(for: habit)
+        XCTAssertTrue(eligible.contains(yesterday), "周频率漏做日应进补签名单（与每日习惯同一资格）")
+
+        setQuotaUsed(0)
+        let result = try repo.retroactiveCheckIn(for: habit, on: yesterday)
+        guard case .success = result else {
+            return XCTFail("周频率习惯补昨天应成功，实际 \(result)")
+        }
+        XCTAssertEqual(HabitRetroactiveQuota.usedCount(), 1, "周频率补签与每日习惯共用同一额度规则")
+    }
+
+    func test_月频率习惯同样可补() throws {
+        let (repo, context) = try makeRepo()
+        let habit = try makeHabit(in: context, frequency: .monthly)
+        try context.save()
+
+        let calendar = Calendar.current
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: Date()))!
+        let result = try repo.retroactiveCheckIn(for: habit, on: yesterday)
+        guard case .success = result else {
+            return XCTFail("月频率习惯补昨天应成功，实际 \(result)")
+        }
     }
 }
 

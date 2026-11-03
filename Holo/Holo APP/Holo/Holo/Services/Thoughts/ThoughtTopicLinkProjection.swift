@@ -195,11 +195,9 @@ enum ThoughtTopicLinkProjection {
     static func effectiveTopics(for thought: Thought) -> [Topic] {
         guard let links = thought.topicLinks as? Set<ThoughtTopicLink>, !links.isEmpty else { return [] }
         var bestByPair: [UUID: ThoughtTopicLink] = [:]
-        var pairKeyByLink: [ObjectIdentifier: UUID] = [:]
         for link in links {
             guard let topic = link.topic else { continue }
             let pair = ThoughtTopicLink.deterministicID(thoughtID: thought.id, topicID: topic.id)
-            pairKeyByLink[ObjectIdentifier(link)] = pair
             if let best = bestByPair[pair] {
                 if link.projectionRank < best.projectionRank { bestByPair[pair] = link }
             } else {
@@ -210,6 +208,13 @@ enum ThoughtTopicLinkProjection {
             .filter { isCurrentActive($0, thought: thought) }
             .compactMap { $0.topic }
             .filter { $0.isVisibleTopic && ($0.value(forKey: "deletedAt") as? Date) == nil }
+            // Set / Dictionary 不提供显示顺序。统一按创建时间和 UUID 排序，
+            // 避免列表重绘时徽章互换位置，也让 prefix(2) 始终选中同两个主题。
+            // 不用 updatedAt / 名称，整理刷新或改名不能改变已有主题的位置。
+            .sorted {
+                if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+                return $0.id.uuidString < $1.id.uuidString
+            }
     }
 
     /// 单 pair 有效成员判定（2026-09-27 P0-A 读源统一）：与 effectiveTopics 同一
@@ -241,6 +246,18 @@ enum ThoughtTopicLinkProjection {
             return .ai
         case .legacyAI, .legacyUnknown:
             return .legacy
+        }
+    }
+
+    /// 类别候选代表例的取样排序（2026-10-12 主题双通道）：用户决定 > AI 高可信 >
+    /// 历史归集 > 非成员。定义类别边界时用户动作是最强证据（doc §3：避免 AI
+    /// 自己的历史选择成为类别定义）。
+    static func categorySampleRank(of thought: Thought, in topic: Topic) -> Int {
+        switch membershipSource(of: thought, in: topic) {
+        case .user: return 0
+        case .ai: return 1
+        case .legacy: return 2
+        case nil: return 3
         }
     }
 
@@ -381,5 +398,35 @@ enum ManagedObjectContextCompat {
     static func fetch<T: NSManagedObject>(_ request: NSFetchRequest<T>, in context: NSManagedObjectContext?) throws -> [T] {
         guard let context else { return [] }
         return try context.fetch(request)
+    }
+}
+
+extension Topic: Identifiable {}
+
+// MARK: - 同 id 多行副本的有效行解析（读源统一，2026-10-12）
+
+/// 9-8 库迁事故后「同 id 多行副本」是长期库况。语义 V3 的候选召回、成员画像、
+/// 模型上下文与落库取主题必须共用同一解析入口，不得各自 fetch 后取 .first——
+/// 副本里抓到 merged/hidden 旧行时，候选会在 AI 调用前被静默丢弃
+/// （真机「碎碎念」漏归类的直接通道）。
+/// 放在本文件而非 Topic+CoreDataClass.swift：后者被小组件 target 共享，
+/// 不能引用仅主 App 编译的 DuplicateRowFilter。
+extension Topic {
+
+    /// 解析某 id 当前唯一的有效 Topic 行；无可见行返回 nil。
+    /// 规则：可见状态优先；多个可见副本取物理行号最小（与 DuplicateRowFilter 同规则）。
+    /// 须在 context 队列上调用（context.perform 内）。
+    static func resolveValid(id: UUID, in context: NSManagedObjectContext) -> Topic? {
+        let request = Topic.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", id as CVarArg)
+        let rows = (try? context.fetch(request)) ?? []
+        return resolveValidRows(rows).first
+    }
+
+    /// 列表读路径的统一口径：先过滤可见行，再去重同 id 副本。
+    /// 顺序不可反——先去重会把行号更小的 merged/hidden 副本钉成幸存行，
+    /// 随后被可见过滤丢掉，等于把整个主题判不存在。
+    static func resolveValidRows(_ rows: [Topic]) -> [Topic] {
+        DuplicateRowFilter.deduplicatingCopies(rows.filter(\.isVisibleTopic))
     }
 }

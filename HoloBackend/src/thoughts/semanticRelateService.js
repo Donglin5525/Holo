@@ -55,8 +55,11 @@ export function createThoughtSemanticRelateService({
   const moduleConfig = config.thoughtSemanticRelate;
   const captureLogs = config.aiCallLogs.enabled;
 
-  function routeFor() {
+  function routeFor(schemaVersion) {
+    // 路由/预算/隐私挂靠始终用 v1 purpose（metadata_only 强制集、独立预算不变）；
+    // schema 3（2026-10-12 主题双通道）只换 Prompt 模板：类别候选走双规则判定。
     const purpose = "thought_semantic_relate_v1";
+    const promptPurpose = schemaVersion === 3 ? "thought_semantic_relate_v2" : "thought_semantic_relate_v1";
     const route = config.routes[purpose];
     if (!route) {
       throw new GatewayError("MODEL_UNAVAILABLE", `Route missing for ${purpose}`, 503);
@@ -65,7 +68,7 @@ export function createThoughtSemanticRelateService({
     if (!provider || typeof provider.complete !== "function") {
       throw new GatewayError("MODEL_UNAVAILABLE", `Provider unavailable: ${route.provider}`, 503);
     }
-    return { purpose, route, provider };
+    return { purpose, promptPurpose, route, provider };
   }
 
   /**
@@ -84,10 +87,14 @@ export function createThoughtSemanticRelateService({
     const estimateInputChars =
       parsed.target.text.length
       + parsed.candidates.reduce((sum, c) => sum + c.title.length + (c.summary?.length ?? 0)
+        + (c.definition?.length ?? 0)
         + c.representatives.reduce((s, r) => s + r.text.length, 0), 0);
     const estimateMicro = costMicroForUsage(
       Math.ceil(estimateInputChars * 0.75) + 600,
-      moduleConfig.route?.maxTokens ?? 512,
+      // 预留上界须按实际路由取（2026-10-30 审计 D5）：moduleConfig（thoughtSemanticRelate）
+      // 从没有 route 键——旧写法永远落到 512，而实际路由上限 1400，「宁多预留
+      // 不超支」的保护静默偏松约 2.7 倍；路由真缺失时仍按保守 512
+      config.routes.thought_semantic_relate_v1?.maxTokens ?? 512,
       moduleConfig.pricing,
     );
 
@@ -108,7 +115,8 @@ export function createThoughtSemanticRelateService({
       });
     }
 
-    const { purpose, route, provider } = routeFor();
+    const { purpose, promptPurpose, route, provider } = routeFor(parsed.schemaVersion);
+    const promptVersion = parsed.schemaVersion === 3 ? "v2" : "v1";
     const finalize = (status, actualMicro) => {
       budgetStore.settleOperation({
         operationId: parsed.operationId,
@@ -171,8 +179,8 @@ export function createThoughtSemanticRelateService({
           purpose,
           provider: route.provider,
           model: route.model,
-          promptType: purpose,
-          promptVersion: "v1",
+          promptType: promptPurpose,
+          promptVersion,
           stream: false,
           request: { contentLength: userContent.length, responseFormat: "json_object" },
         })
@@ -181,7 +189,7 @@ export function createThoughtSemanticRelateService({
     let content;
     let usage;
     try {
-      const serverPrompt = injectServerPrompt(purpose, [{ role: "user", content: userContent }]);
+      const serverPrompt = injectServerPrompt(promptPurpose, [{ role: "user", content: userContent }]);
       const result = await provider.complete({
         purpose,
         messages: serverPrompt.messages,
@@ -227,6 +235,14 @@ export function createThoughtSemanticRelateService({
 
     const validated = validateRelateModelOutput(parseModelJSON(content), parsed);
     if (validated.malformed) {
+      // 只记录契约失败字段，不记录笔记、引用或模型正文；上游返回成功不等于整理成功。
+      if (captureLogs && logId) {
+        adminLogStore.finishAiCall(logId, {
+          status: "error",
+          error: { code: `MODEL_OUTPUT_INVALID/${validated.reason}`, status: 502 },
+          usage: { prompt_tokens: usage.inputTokens, completion_tokens: usage.outputTokens },
+        });
+      }
       finalize("failed", committedMicro + moderationFeeMicro());
       throw new GatewayError("MODEL_OUTPUT_INVALID", `Relate output malformed: ${validated.reason}`, 502);
     }

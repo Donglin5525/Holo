@@ -56,6 +56,10 @@ struct AccountListView: View {
     /// 返回上一级（与其他 Tab 一致的返回交互）
     let onBack: () -> Void
 
+    /// 外部（模块级 FAB）请求新增账户：置 true 时本视图自己弹「新建账户」，
+    /// 保存后走自身的 loadData 刷新；消费完立即复位
+    @Binding var externalAddRequest: Bool
+
     @State private var pageMode: AccountPageMode = .accounts
     @State private var items: [AccountRowItem] = []
     @State private var archivedItems: [AccountRowItem] = []
@@ -95,11 +99,21 @@ struct AccountListView: View {
                 Color.clear.frame(height: 88)
             }
             .navigationTitle(pageMode == .accounts ? "账户" : "项目")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(Color.holoBackground, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(.visible, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button {
                         onBack()
                     } label: {
@@ -108,7 +122,7 @@ struct AccountListView: View {
                             .foregroundColor(.holoTextPrimary)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button {
                         if pageMode == .accounts {
                             showAddAccount = true
@@ -158,6 +172,12 @@ struct AccountListView: View {
             // 从账户详情返回后刷新（详情内可能改了余额/归档/删除）
             .onChange(of: showDetail) { _, showing in
                 if !showing { loadData() }
+            }
+            // 模块级 FAB（账户页签）请求新增：交给本视图自己的表单，保存后自动刷新
+            .onChange(of: externalAddRequest) { _, requested in
+                guard requested else { return }
+                externalAddRequest = false
+                showAddAccount = true
             }
         }
     }
@@ -257,20 +277,10 @@ struct AccountListView: View {
             }
 
             // 资产/负债比例条：暖绿 vs 品牌橙
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.10))
-                    HStack(spacing: 0) {
-                        Capsule()
-                            .fill(LinearGradient(colors: [Color(hex: "#35A06D"), Color(hex: "#7EE2A8")], startPoint: .leading, endPoint: .trailing))
-                            .frame(width: proxy.size.width * assetRatio)
-                        LinearGradient(colors: [Color.holoPrimaryDark, Color(hex: "#F59E0B")], startPoint: .leading, endPoint: .trailing)
-                            .frame(width: proxy.size.width * (1 - assetRatio))
-                            .clipShape(Capsule())
-                    }
-                }
-            }
-            .frame(height: 3)
+            HoloProportionBar(segments: [
+                .init(id: "assets", label: "资产占比", weight: Double(assetRatio), color: .holoSuccess),
+                .init(id: "debt", label: "负债占比", weight: Double(1 - assetRatio), color: .holoPrimary)
+            ], height: 3)
         }
         .padding(20)
         .modifier(AccountCardMaterial(palette: netWorthPalette, isCurrent: false))
@@ -380,7 +390,7 @@ struct AccountListView: View {
                         if item.account.isDefault && !isArchived {
                             Text("默认")
                                 .font(.system(size: 9.5, weight: .semibold))
-                                .foregroundColor(.holoPrimaryDark)
+                                .foregroundColor(.holoToolWarning)
                                 .padding(.horizontal, 7)
                                 .padding(.vertical, 1.5)
                                 .background(Capsule().fill(Color.holoPrimary.opacity(0.10)))
@@ -409,7 +419,7 @@ struct AccountListView: View {
                         case .needsRecheck:
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.system(size: 9))
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
                                 .accessibilityHidden(true)
                         }
                     }

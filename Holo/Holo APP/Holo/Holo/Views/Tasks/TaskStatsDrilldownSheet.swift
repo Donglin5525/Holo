@@ -7,7 +7,6 @@
 //
 
 import SwiftUI
-import Charts
 
 extension TaskAnalyticsBucketStat: Identifiable {
     var id: Date { start }
@@ -52,7 +51,7 @@ struct TaskStatsDrilldownSheet: View {
         case .completed:
             return String(localized: "纳入依据：完成时间在本期间内")
         case .onTimeDenominator:
-            return String(localized: "纳入依据：截止日期在本期间内且已到期（排除缺少完成时间的记录）")
+            return String(localized: "纳入依据：本期已到期任务（排除缺完成时间）")
         case .missingTime:
             return String(localized: "全部未删除、已完成但缺少完成时间的记录；无法归属到具体期间")
         case .attentionOverdue:
@@ -103,10 +102,17 @@ struct TaskStatsDrilldownSheet: View {
         }
     }
 
-    private func onTimeDetail(_ record: TaskRecordSnapshot) -> String {
+    /// 行级格式化器缓存：DateFormatter 创建约 1ms/个，每行新建随行数线性放大
+    /// （2026-10-30 性能审计 C9；缓存范式同 TaskQuadrantBoardView）
+    private static let detailFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.setLocalizedDateFormatFromTemplate("M月d日 HH:mm")
+        return formatter
+    }()
+
+    private func onTimeDetail(_ record: TaskRecordSnapshot) -> String {
+        let formatter = Self.detailFormatter
         var parts: [String] = []
         if let due = record.effectiveDue(calendar: model.calendar) {
             parts.append(String(localized: "截止 ") + formatter.string(from: due))
@@ -189,7 +195,9 @@ struct TaskStatsDrilldownSheet: View {
                 }
             }
             .navigationTitle(title)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "完成")) { dismiss() }
@@ -203,6 +211,7 @@ struct TaskStatsDrilldownSheet: View {
                     Text("\(model.rangeTitle) · 共 \(rows.count) 项")
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoTextPlaceholder)
+                        .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, HoloSpacing.lg)
@@ -247,11 +256,16 @@ struct TaskStatsBucketDrilldownSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showsCreated = true
 
-    private var bucketTitle: String {
+    /// 计算属性每次渲染都求值，格式化器必须缓存（2026-10-30 性能审计 C9）
+    private static let titleFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.setLocalizedDateFormatFromTemplate("M月d日")
-        return formatter.string(from: bucket.start)
+        return formatter
+    }()
+
+    private var bucketTitle: String {
+        Self.titleFormatter.string(from: bucket.start)
     }
 
     private var ids: [UUID] {
@@ -321,7 +335,9 @@ struct TaskStatsBucketDrilldownSheet: View {
                 }
             }
             .navigationTitle(bucketTitle)
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "完成")) { dismiss() }
@@ -364,17 +380,42 @@ struct TaskStatsTrendDrilldownSheet: View {
         Calendar.current.isDate(bucket.start, equalTo: bucket.endExclusive.addingTimeInterval(-1), toGranularity: .day)
     }
 
-    private func bucketTitle(_ bucket: TaskAnalyticsBucketStat) -> String {
+    /// 单日/跨日两种模板各缓存一个（2026-10-30 性能审计 C9）
+    private static let singleDayTitleFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
-        formatter.setLocalizedDateFormatFromTemplate(bucketIsSingleDay(bucket) ? "M月d日 EEEE" : "yyyy年M月")
+        formatter.setLocalizedDateFormatFromTemplate("M月d日 EEEE")
+        return formatter
+    }()
+
+    private static let crossDayTitleFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("yyyy年M月")
+        return formatter
+    }()
+
+    private static let singleDayTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("HH:mm")
+        return formatter
+    }()
+
+    private static let crossDayTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("d日 HH:mm")
+        return formatter
+    }()
+
+    private func bucketTitle(_ bucket: TaskAnalyticsBucketStat) -> String {
+        let formatter = bucketIsSingleDay(bucket) ? Self.singleDayTitleFormatter : Self.crossDayTitleFormatter
         return formatter.string(from: bucket.start)
     }
 
     private func rows(in bucket: TaskAnalyticsBucketStat) -> [Row] {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.setLocalizedDateFormatFromTemplate(bucketIsSingleDay(bucket) ? "HH:mm" : "d日 HH:mm")
+        let formatter = bucketIsSingleDay(bucket) ? Self.singleDayTimeFormatter : Self.crossDayTimeFormatter
         return Array(Set(bucket.createdIDs).union(Set(bucket.completedIDs)))
             .compactMap { id -> Row? in
                 guard let record = model.record(for: id) else { return nil }
@@ -474,6 +515,7 @@ struct TaskStatsTrendDrilldownSheet: View {
                     Text("\(model.rangeTitle) · 共 \(analytics.createdCount) 新增 / \(analytics.completedCount) 完成")
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoTextPlaceholder)
+                        .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, HoloSpacing.lg)
@@ -481,7 +523,9 @@ struct TaskStatsTrendDrilldownSheet: View {
                 .background(Color.holoCardBackground)
             }
             .navigationTitle(String(localized: "趋势明细"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "完成")) { dismiss() }
@@ -530,7 +574,9 @@ struct TaskStatsListDrilldownSheet: View {
                 }
             }
             .navigationTitle(String(localized: "\(stat.name) · \(stat.count) 项完成"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "完成")) { dismiss() }
@@ -541,105 +587,109 @@ struct TaskStatsListDrilldownSheet: View {
     }
 }
 
-// MARK: - 双系列趋势柱状图（§7.7）
+// MARK: - 双系列趋势图（§7.7；2026-10-11 按图表规范重画）
+//
+// 图表规范 2026-10-07 硬规则逐条落实：
+// 1. X 轴刻度一律 chartOverlay 自绘，与柱子共用 position(forX:) 坐标系（禁 AxisValueLabel）
+// 2. 柱宽按 pt 封顶（ChartBarPairLayout.barWidth），绝不按槽宽比例撑满
+// 3. 索引域画法：未来桶不占槽，域铺满已发生范围
+// 4. position(forX/Y:) 补 plotFrame 偏移，高亮带/气泡不错位
+// 双模式：数量（新增/完成双柱）⇄ 完成率（到期完成率折线，0–100%）
 
 struct TaskStatsTrendChart: View {
+    enum Mode: Hashable { case counts, dueCompletionRate }
     let buckets: [TaskAnalyticsBucketStat]
+    var mode: Mode = .counts
     let onTapBucket: (TaskAnalyticsBucketStat) -> Void
-
-    private struct Point: Identifiable {
-        let id: Int
-        let label: String
-        let created: Int
-        let completed: Int
-        let isFuture: Bool
-        let isPartialToday: Bool
-        let bucket: TaskAnalyticsBucketStat
-    }
-
-    private var points: [Point] {
-        buckets.enumerated().map { index, bucket in
-            Point(
-                id: index,
-                label: bucketLabel(bucket),
-                created: bucket.createdIDs.count,
-                completed: bucket.completedIDs.count,
-                isFuture: bucket.isFuture,
-                isPartialToday: bucket.isPartialToday,
-                bucket: bucket
-            )
+    @State private var selection: String?
+    private var visible: [TaskAnalyticsBucketStat] { buckets.filter { !$0.isFuture } }
+    private var chartBuckets: [HoloChartBucket] {
+        visible.map { bucket in
+            HoloChartBucket(id: String(bucket.start.timeIntervalSince1970),
+                            label: HoloChartFormat.date(bucket.start),
+                            detail: HoloChartFormat.date(bucket.start, template: "yMMMd"),
+                            values: mode == .counts
+                                ? [Double(bucket.createdIDs.count), Double(bucket.completedIDs.count)]
+                                : [bucket.dueCompletionRate.map { $0 * 100 }])
         }
     }
-
-    private func bucketLabel(_ bucket: TaskAnalyticsBucketStat) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        // 日桶「d日」；月桶「M月」
-        if Calendar.current.isDate(bucket.start, equalTo: bucket.endExclusive.addingTimeInterval(-1), toGranularity: .day) {
-            formatter.setLocalizedDateFormatFromTemplate("d")
-        } else {
-            formatter.setLocalizedDateFormatFromTemplate("M月")
+    var body: some View {
+        Group {
+            if mode == .counts {
+                HoloBarChart(buckets: chartBuckets,
+                             series: [.init(id: "created", title: "新增", color: .holoPrimary),
+                                      .init(id: "completed", title: "完成", color: .holoSuccess)],
+                             selection: $selection, height: 160, valueText: { "\(Int($0)) 件" }, onOpenDetail: open)
+            } else {
+                HoloLineChart(buckets: chartBuckets,
+                              series: [.init(id: "rate", title: "到期完成率", color: .holoPrimary)],
+                              selection: $selection, height: 160, yDomain: 0...100,
+                              valueText: { "\(HoloChartFormat.number($0))%" }, onOpenDetail: open)
+            }
         }
-        return formatter.string(from: bucket.start)
+        .onChange(of: mode) { _, _ in selection = nil }
     }
+    private func open(_ bucket: HoloChartBucket) {
+        if let original = visible.first(where: { String($0.start.timeIntervalSince1970) == bucket.id }) { onTapBucket(original) }
+    }
+}
+
+// MARK: - 完成时刻分布柱状图（P2；同图表规范画法：索引域全槽 + X 刻度自绘 + 柱宽 pt 封顶 + 手势仲裁）
+
+struct TaskHourlyDistributionChart: View {
+    let counts: [Int]
+    @State private var selection: String?
+    var body: some View {
+        HoloBarChart(buckets: counts.enumerated().map { hour, count in
+            HoloChartBucket(id: String(hour), label: "\(hour)时", values: [Double(count)])
+        }, series: [.init(id: "count", title: "完成", color: .holoPrimary)],
+           selection: $selection, height: 120, valueText: { "\(Int($0)) 件" })
+    }
+}
+
+// MARK: - 事项完成明细（点事项行，P2）
+
+struct TaskStatsMatterDrilldownSheet: View {
+    @ObservedObject var model: TaskStatsViewModel
+    let stat: TaskMatterBreakdownStat
+
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Chart(points) { point in
-            // 新增：低饱和暖橙；完成：低饱和绿（§7.7）
-            BarMark(
-                x: .value("日期", point.label),
-                y: .value("数量", point.created)
-            )
-            .foregroundStyle(Color.holoPrimary.opacity(0.75))
-            .cornerRadius(3)
-            .position(by: .value("系列", "新增"))
-
-            BarMark(
-                x: .value("日期", point.label),
-                y: .value("数量", point.completed)
-            )
-            .foregroundStyle(Color.holoSuccess.opacity(0.75))
-            .cornerRadius(3)
-            .position(by: .value("系列", "完成"))
-        }
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { _ in
-                AxisGridLine()
-                AxisValueLabel()
+        NavigationStack {
+            List(stat.completedIDs) { id in
+                if let record = model.record(for: id) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(record.title)
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        if let completedAt = record.completedAt {
+                            Text(completedAt, format: .dateTime.month().day().hour().minute().locale(Locale(identifier: "zh_CN")))
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextSecondary)
+                        }
+                    }
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Text("一个任务链接多个事项会在多个事项下重复计入")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextPlaceholder)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.vertical, 6)
+                    .background(Color.holoCardBackground)
+            }
+            .navigationTitle(String(localized: "\(stat.title) · \(stat.count) 项完成"))
+            #if canImport(UIKit)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "完成")) { dismiss() }
+                }
             }
         }
-        .chartXAxis {
-            // 稀疏刻度用与数据同型的字符串标签（Int 值对不上字符串轴会丢刻度）
-            AxisMarks(values: sparseLabels) { _ in
-                AxisValueLabel()
-            }
-        }
-        .chartYScale(domain: 0...yDomainMax)
-        .frame(height: 180)
-        .accessibilityElement()
-        .accessibilityLabel(chartAccessibilitySummary)
-    }
-
-    private var sparseLabels: [String] {
-        guard points.count > 10 else { return points.map(\.label) }
-        let step = Int((Double(points.count) / 8).rounded(.up))
-        return stride(from: 0, to: points.count, by: step).map { points[$0].label }
-    }
-
-    /// Y 轴上限：小值保底 4（单根 1~2 的柱子不该顶满整格，10-7 反馈），
-    /// 其余按数据最大值向上取第一个严格更大的整齐步进（1.5/2/3/4/5/6/8/10 ×10ᵏ），柱头永不贴顶
-    private var yDomainMax: Double {
-        let maxValue = points.reduce(0.0) { max($0, Double(max($1.created, $1.completed))) }
-        let magnitude = pow(10, floor(log10(max(maxValue, 1))))
-        for step in [1.5, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0] where step * magnitude > maxValue {
-            return max(step * magnitude, 4)
-        }
-        return 10 * magnitude
-    }
-
-    private var chartAccessibilitySummary: String {
-        let created = buckets.reduce(0) { $0 + $1.createdIDs.count }
-        let completed = buckets.reduce(0) { $0 + $1.completedIDs.count }
-        return String(localized: "趋势图：新增 \(created) 项，完成 \(completed) 项，可通过「查看趋势明细」逐日核对")
+        .presentationDetents([.medium, .large])
     }
 }

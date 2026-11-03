@@ -176,8 +176,18 @@ final class GoalRepository: ObservableObject {
         metricTargetValue: Double?? = nil,
         metricBaselineValue: Double?? = nil,
         metricSource: GoalMetricSource? = nil,
-        sourceHabitId: UUID?? = nil
+        sourceHabitId: UUID?? = nil,
+        expectedPlanRevisionID: UUID? = nil
     ) throws {
+        let priorRow = GoalPlanRevisionStore.latestRevisionRow(goalID: goal.id, in: context)
+        if let expectedPlanRevisionID, priorRow?.id != expectedPlanRevisionID {
+            throw GoalAdjustmentCommitError.validation("计划已被更新，请重新打开后核对")
+        }
+        if case .unsupportedFuture = priorRow?.planPayloadDecodeResult {
+            throw GoalAdjustmentCommitError.validation("计划来自更新版本，当前不能覆盖")
+        }
+        let priorAttributes = goal.dictionaryWithValues(forKeys: Array(goal.entity.attributesByName.keys))
+        var insertedRevision: GoalPlanRevisionMO?
         if let title { goal.title = title }
         if let summary { goal.summary = summary }
         if let domain { goal.goalDomain = domain }
@@ -216,7 +226,33 @@ final class GoalRepository: ObservableObject {
             goal.metricSource = GoalMetricSource.manual.rawValue
         }
         goal.updatedAt = Date()
-        try context.save()
+        do {
+            if let priorRow, var next = priorRow.planPayloadV2 {
+                let old = next
+                next.intent.deadline = goal.deadline
+                next.intent.successCriteria = goal.desiredOutcome
+                if !goal.isQuantitative { next.resultSource = nil }
+                else if sourceChanged || next.resultSource == nil {
+                    next.resultSource = GoalPlanResolver.legacyBaselinePayload(goal: goal, legacySummary: nil, now: Date()).resultSource
+                } else {
+                    next.resultSource?.targetValue = goal.metricTargetValueDouble
+                    next.resultSource?.unit = goal.metricUnit
+                    next.resultSource?.baselineValue = goal.baselineValueDouble
+                }
+                if next.resultSource?.sourceType != .ledger { next.fundSchedule = [] }
+                if old != next {
+                    next.schemaVersion = 3
+                    next.basis = GoalPlanDecisionBasisV2(origin: .adjustment, confirmedAt: Date(), selectedChangeSummaries: ["用户编辑目标条件"])
+                    insertedRevision = try GoalPlanRevisionStore.makeRevisionRow(in: context, goalID: goal.id, sourceSessionID: nil,
+                        revisionNumber: Int(priorRow.revisionNumber) + 1, baseRevisionID: priorRow.id, operationID: UUID(), effectiveFrom: Date(), payload: next, legacySummary: nil)
+                }
+            }
+            try context.save()
+        } catch {
+            if let insertedRevision { context.delete(insertedRevision) }
+            goal.setValuesForKeys(priorAttributes)
+            throw error
+        }
         loadGoals()
     }
 
@@ -316,7 +352,8 @@ extension GoalRepository {
             targetCount: draft.targetCount,
             targetValue: draft.targetValue,
             unit: draft.unit,
-            aggregationType: .sum,
+            // 聚合语义跟随草案（体重 latest / 时长 sum），不再固定 sum（目标闭环 §6.2）
+            aggregationType: draft.resolvedAggregation,
             isBadHabit: draft.isBadHabit ?? (draft.successRule == HabitSuccessRule.stayBelowTarget.rawValue),
             sortOrder: maxSortOrder + 1,
             reminderMode: .follow,

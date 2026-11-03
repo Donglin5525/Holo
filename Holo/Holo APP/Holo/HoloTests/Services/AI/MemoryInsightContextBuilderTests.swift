@@ -104,3 +104,93 @@ final class MemoryInsightContextBuilderPeriodRangeTests: XCTestCase {
         return Calendar.current.startOfDay(for: date)
     }
 }
+
+// MARK: - 健康信号（就寝折算口径）
+
+/// lateBedtime 信号回归：均值曾做 %1440 还原后与 >1500 比较，值域压回 0-1439
+/// 恒假，信号自上线从未触发（10-14 东林实锤天天 1 点后睡仍无健康解读）。
+/// 本组锁死「折算口径均值（凌晨 1:00=1500）」与信号门槛的对应关系。
+final class MemoryInsightHealthSignalTests: XCTestCase {
+
+    private let cal = Calendar.current
+
+    private func bedTime(_ hour: Int, _ minute: Int) -> Date {
+        cal.date(from: DateComponents(year: 2026, month: 10, day: 8, hour: hour, minute: minute))
+            ?? Date(timeIntervalSince1970: 0)
+    }
+
+    private func detail(bedtime hour: Int, _ minute: Int) -> HealthSleepDetail {
+        HealthSleepDetail(
+            date: bedTime(12, 0),
+            totalHours: 7,
+            coreHours: nil, deepHours: nil, remHours: nil, awakeHours: nil,
+            inBedHours: 7.5,
+            bedtime: bedTime(hour, minute),
+            wakeTime: bedTime(8, 0),
+            interruptionCount: nil
+        )
+    }
+
+    func testFoldConvertsPostMidnightBedtimeTo1440Plus() {
+        let minutes = MemoryInsightContextBuilder.bedtimeFoldMinutes(
+            from: [detail(bedtime: 1, 30)], calendar: cal
+        )
+        XCTAssertEqual(minutes, [1530], "凌晨 1:30 应折算为 24 点 + 90 = 1530")
+    }
+
+    func testFoldKeepsEveningBedtimeAsIs() {
+        let minutes = MemoryInsightContextBuilder.bedtimeFoldMinutes(
+            from: [detail(bedtime: 23, 30)], calendar: cal
+        )
+        XCTAssertEqual(minutes, [1410], "23:30 保持 1410 不折算")
+    }
+
+    func testFoldExcludesDaytimeNapSamples() {
+        let minutes = MemoryInsightContextBuilder.bedtimeFoldMinutes(
+            from: [detail(bedtime: 14, 0), detail(bedtime: 0, 30)], calendar: cal
+        )
+        XCTAssertEqual(minutes, [1470], "白天小睡样本剔除，只留凌晨 0:30 → 1470")
+    }
+
+    func testFoldSkipsNightsWithoutBedtime() {
+        let noBedtime = HealthSleepDetail(
+            date: bedTime(12, 0), totalHours: 7,
+            coreHours: nil, deepHours: nil, remHours: nil, awakeHours: nil,
+            inBedHours: nil, bedtime: nil, wakeTime: nil, interruptionCount: nil
+        )
+        XCTAssertTrue(
+            MemoryInsightContextBuilder.bedtimeFoldMinutes(from: [noBedtime], calendar: cal).isEmpty,
+            "无就寝时刻数据（如无 Apple Watch）不产出样本"
+        )
+    }
+
+    func testLateBedtimeSignalFiresForAveragePastOneAM() {
+        // 天天凌晨 1:30 睡：均值 1530（修复前 %1440 还原为 90，90 > 1500 恒假）
+        let signal = MemoryInsightContextBuilder.lateBedtimeSignal(averageBedtimeMinutes: 1530)
+        XCTAssertEqual(signal?.type, "lateBedtime")
+        XCTAssertEqual(signal?.title, "就寝偏晚")
+        XCTAssertEqual(signal?.evidence, ["平均就寝约 1 点30 分"])
+    }
+
+    func testLateBedtimeSignalFiresJustPastThreshold() {
+        XCTAssertNotNil(MemoryInsightContextBuilder.lateBedtimeSignal(averageBedtimeMinutes: 1_501))
+    }
+
+    func testLateBedtimeSignalSilentAtOneAMOrEarlier() {
+        XCTAssertNil(MemoryInsightContextBuilder.lateBedtimeSignal(averageBedtimeMinutes: 1_500), "凌晨 1:00 整是门槛内")
+        XCTAssertNil(MemoryInsightContextBuilder.lateBedtimeSignal(averageBedtimeMinutes: 1_410), "23:30 就寝不触发")
+        XCTAssertNil(MemoryInsightContextBuilder.lateBedtimeSignal(averageBedtimeMinutes: 1_470), "平均凌晨 0:30 不触发")
+        XCTAssertNil(MemoryInsightContextBuilder.lateBedtimeSignal(averageBedtimeMinutes: nil))
+    }
+
+    func testMixedScheduleAveragesAcrossMidnight() {
+        // 23:30（1410）与 凌晨 3:00（180+1440=1620）平均 = 1515 → 触发；
+        // 若不做折算直接算术平均会得约 12:00 的假象（跨午夜平均失真的原始动机）
+        let minutes = MemoryInsightContextBuilder.bedtimeFoldMinutes(
+            from: [detail(bedtime: 23, 30), detail(bedtime: 3, 0)], calendar: cal
+        )
+        let avg = minutes.reduce(0, +) / minutes.count
+        XCTAssertEqual(avg, 1_515)
+        XCTAssertNotNil(MemoryInsightContextBuilder.lateBedtimeSignal(averageBedtimeMinutes: avg))
+    }
+}

@@ -77,7 +77,7 @@ struct ContextPlanRunStatusView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
+        .background(Color.holoSecondaryGroupedBackground)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onChange(of: motionEnabled) { _, _ in synchronizeBreathing() }
         .onChange(of: reduceMotion) { _, _ in synchronizeBreathing() }

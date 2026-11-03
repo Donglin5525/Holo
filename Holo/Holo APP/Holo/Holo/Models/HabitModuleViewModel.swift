@@ -10,22 +10,6 @@ import Foundation
 import Combine
 import SwiftUI
 
-// MARK: - 新 UI 开关
-
-/// 新交互整体开关（方案 §18.1）。G0–G5 默认关闭；
-/// Debug/模拟器通过启动参数或 launch environment 开启；发布默认开启由东林决定。
-enum HabitInteractionFeature {
-    static let enabledKey = "holo.habits.interactionV1.enabled"
-
-    /// 默认开启（东林 2026-10-06 拍板）。显式写 false 才回退旧 UI；
-    /// 回退只切换界面，不删新记录、不重置偏好（方案 §18.1）。
-    static var isV1Enabled: Bool {
-        UserDefaults.standard.object(forKey: enabledKey) == nil
-            ? true
-            : UserDefaults.standard.bool(forKey: enabledKey)
-    }
-}
-
 // MARK: - ViewModel
 
 @MainActor
@@ -66,29 +50,6 @@ final class HabitModuleViewModel: ObservableObject {
         case unrecorded
     }
 
-    // MARK: 撤销提示
-
-    /// 提示形态：普通记录回执 / 坏习惯超限警告（恢复旧磁贴版超限提示语义，方案拍板 2026-10-07）
-    enum UndoHintStyle: Equatable {
-        case recorded
-        case overLimit
-    }
-
-    struct UndoHint: Equatable {
-        let text: String
-        let style: UndoHintStyle
-        let receipt: HabitActionReceipt
-        /// 撤销窗口起点（进度条 TimelineView 的唯一时间锚点；连续记录时随新回执刷新）
-        let startedAt: Date
-
-        init(text: String, style: UndoHintStyle = .recorded, receipt: HabitActionReceipt) {
-            self.text = text
-            self.style = style
-            self.receipt = receipt
-            self.startedAt = Date()
-        }
-    }
-
     // MARK: 行内错误
 
     struct InlineError: Equatable {
@@ -107,6 +68,16 @@ final class HabitModuleViewModel: ObservableObject {
         from: Calendar.current.dateComponents([.year, .month], from: Date())) ?? Date()
     /// 回顾：整体 / 单习惯（返回整体恢复原月份与位置，V2 §9）
     @Published var reviewRoute: ReviewRoute = .overview
+    /// 单习惯回顾进入时的一次性默认范围（弹层「查看长期回顾」→ 近30天直接看走势，
+    /// 整体页点行 → 按类型取默认；消费即清空，返回再进不再复用）
+    var singleReviewEntryRange: HabitReviewRange? = nil
+
+    /// 单习惯回顾默认范围（统一入口）：打卡型看本月月历；数值型「最近记录」窗口——
+    /// 不按固定时间长短取，低频习惯半年一记也保证一屏看到最近一批记录（2026-10-26 拍板）
+    func defaultSingleReviewRange(isCheckIn: Bool) -> HabitReviewRange {
+        isCheckIn ? .month(overviewMonth)
+                  : .recentRecords(count: HabitReviewRange.defaultRecentCount)
+    }
     /// 回顾整体月度快照
     @Published private(set) var reviewOverview: HabitReviewOverviewSnapshot?
     /// 记录查询失败（不能用空数据冒充「从未记录」，V2 §10）
@@ -121,8 +92,6 @@ final class HabitModuleViewModel: ObservableObject {
     private var unrecordedFilterIds: Set<UUID>?
     @Published private(set) var filteredTodayRows: [HabitRowSnapshot] = []
 
-    /// 撤销短提示（页面内 safeAreaInset，约 7 秒）
-    @Published var undoHint: UndoHint?
     /// 行内错误
     @Published var inlineError: InlineError?
     /// 需要权益的动作（View 层接 HoloPlusActionCoordinator）
@@ -214,6 +183,7 @@ final class HabitModuleViewModel: ObservableObject {
         let data = HabitPresentationProjector.buildData(
             records: facts,
             pauseWindowsByHabit: windows,
+            dayEndMinutesByHabit: repository.dayEndMinutesByHabit(),
             now: projectionNow,
             calendar: calendar
         )
@@ -288,18 +258,20 @@ final class HabitModuleViewModel: ObservableObject {
     // MARK: 记录动作
 
     /// 今天页/详情页的记录动作入口。结果驱动快照刷新与反馈时序。
-    func record(kind: HabitActionKind, habitId: UUID, note: String? = nil) async {
+    @discardableResult
+    func record(kind: HabitActionKind, habitId: UUID, note: String? = nil) async -> Bool {
         inlineError = nil
         guard let result = await coordinator.perform(kind, habitId: habitId, note: note) else {
-            return // 同习惯保存中：忽略重复提交
+            return false // 同习惯保存中：忽略重复提交
         }
 
         switch result {
         case .confirmed(let receipt):
             // 先刷新真实快照，再呈现反馈（方案 §12.3）
             refresh()
-            showUndoHintIfNeeded(receipt: receipt)
+            warnIfOverLimit(receipt: receipt)
             announceMilestoneIfCrossed(habitId: habitId)
+            return true
 
         case .unchanged(let reason):
             refresh()
@@ -321,6 +293,7 @@ final class HabitModuleViewModel: ObservableObject {
         case .failed(let message):
             inlineError = InlineError(habitId: habitId, message: message)
         }
+        return false
     }
 
     /// 今天页拖拽排序落库（单一连续列表的感知顺序；
@@ -339,58 +312,18 @@ final class HabitModuleViewModel: ObservableObject {
         }
     }
 
-    /// 页内撤销（短提示上的撤销按钮）
-    func undoLast() async {
-        guard let hint = undoHint else { return }
-        undoHint = nil
-        let result = coordinator.undo(hint.receipt)
-        switch result {
-        case .confirmed:
-            refresh()
-        case .invalidated(.recordChanged):
-            inlineError = InlineError(habitId: hint.receipt.habitId,
-                                      message: String(localized: "这条记录已变化，请到详情确认"))
-        case .invalidated(let reason):
-            inlineError = InlineError(habitId: hint.receipt.habitId,
-                                      message: Self.invalidatedText(reason))
-        case .unchanged:
-            refresh()
-        case .requiresEntitlement:
-            inlineError = InlineError(habitId: hint.receipt.habitId,
-                                      message: String(localized: "需要完成订阅后重试"))
-        case .failed(let message):
-            inlineError = InlineError(habitId: hint.receipt.habitId, message: message)
-        }
-    }
-
-    /// 普通今日打卡、计数/测量新增成功后开启约 7 秒撤销窗口（方案 §11.3）。
-    /// 坏习惯本次记录后超上限 → 警告形态（旧磁贴版「已超当日限额」提示的 V1 接续）。
-    private func showUndoHintIfNeeded(receipt: HabitActionReceipt) {
+    /// 坏习惯本次记录后超上限 → 警告 toast（原撤销条警告态接续；撤销条 2026-10-17 东林拍板退役，
+    /// 打卡可再点一次取消、计数有行内 −，记录本身无需专门撤销通道）
+    private func warnIfOverLimit(receipt: HabitActionReceipt) {
         switch receipt.kind {
-        case .toggleCheckIn:
-            // 仅「勾上」才给撤销；取消打卡不需要（打卡型坏习惯无上限概念，不会超限）
-            guard receipt.newCheckInState == true else { return }
-            undoHint = UndoHint(text: String(localized: "已记录"), receipt: receipt)
         case .addNumeric, .increment:
-            if let row = todayRows.first(where: { $0.id == receipt.habitId }),
-               row.isBadHabit, row.today.isOverLimit {
-                undoHint = UndoHint(
-                    text: String(localized: "已超当日限额，请注意控制"),
-                    style: .overLimit,
-                    receipt: receipt
-                )
-            } else {
-                undoHint = UndoHint(text: String(localized: "已记录"), receipt: receipt)
-            }
-        case .removeLatestNumeric, .retroactive, .updateRecord, .deleteRecord:
-            // 补录/明细操作不走短提示撤销（各自有入口）
             break
+        default:
+            return
         }
-    }
-
-    /// 撤销窗口自然到期（UI 计时驱动；只关提示，不影响保存事实）
-    func expireUndoHint() {
-        undoHint = nil
+        guard let row = todayRows.first(where: { $0.id == receipt.habitId }),
+              row.isBadHabit, row.today.isOverLimit else { return }
+        HoloToastCenter.shared.show(String(localized: "已超当日限额，请注意控制"), type: .warning)
     }
 
     /// 真实本次记录跨过里程碑阈值 → 一次性公告并标记已展示（方案 §9.4：

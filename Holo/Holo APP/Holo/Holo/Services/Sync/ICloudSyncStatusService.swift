@@ -98,8 +98,10 @@ nonisolated enum CloudKitRuntimeAvailability {
     }
 
     private static func embeddedProvisionProfileText() -> String? {
-        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
-              let data = try? Data(contentsOf: url) else {
+        // 描述文件随平台命名不同：iOS 为 embedded.mobileprovision，macOS 为 embedded.provisionprofile
+        let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision")
+            ?? Bundle.main.url(forResource: "embedded", withExtension: "provisionprofile")
+        guard let url, let data = try? Data(contentsOf: url) else {
             return nil
         }
         return String(data: data, encoding: .ascii) ?? String(data: data, encoding: .utf8)

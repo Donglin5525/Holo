@@ -114,9 +114,18 @@ final class HoloTodayReliefViewModel: ObservableObject {
                 }
             }
         } else {
-            candidate = Self.buildManualCandidate(context: context)
-            phase = .review
+            submitManually(context: context)
         }
+    }
+
+    /// 手动模式：不经 AI 直接以冻结事实构建审阅底稿。
+    /// 「手动挑」入口与 AI 失败/追问跳过的兜底共用；同时作废在途 AI 请求，避免迟到结果覆盖手动审阅。
+    func submitManually(context: HoloTodayReliefSessionContext) {
+        generationToken += 1
+        coordinator?.cancel()
+        isCancellable = false
+        candidate = Self.buildManualCandidate(context: context)
+        phase = .review
     }
 
     /// 追问回答（每会话最多一次；第二次仍未知 → 保守手动）。

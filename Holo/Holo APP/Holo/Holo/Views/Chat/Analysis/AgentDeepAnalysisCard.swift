@@ -296,6 +296,19 @@ struct AgentDeepAnalysisCard: View {
         let isPaused = !status.showsActivityIndicator
         return ChatCardView {
             VStack(alignment: .leading, spacing: 6) {
+                // 血统行（2026-11-01 追问链路原型）：生成中就交代这是对哪份报告的追问，
+                // 不等结果返回后的 continuationMetadata 胶囊——一分钟盲盒的根治。
+                if let rootQuestion = message.continuationRootQuestion {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrowshape.turn.up.left.fill")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text(String(localized: "追问自报告「\(rootQuestion)」"))
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                    .foregroundColor(Color.holoFollowUpTint)
+                    .padding(.bottom, 2)
+                }
                 HStack(spacing: 8) {
                     if status.showsActivityIndicator {
                         ProgressView()

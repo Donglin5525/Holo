@@ -51,9 +51,11 @@ struct CustomDateSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("自定义起止日期")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消") {
                         dismiss()
                     }

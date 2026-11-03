@@ -129,10 +129,12 @@ struct MilestoneData {
     let description: String
     let icon: String
     let milestoneType: MilestoneType
+    var growthEvent: HoloGrowthMilestone? = nil
 }
 
 /// 里程碑类型
 enum MilestoneType: String {
+    case growth           // 共享累计里程碑
     case streakDays       // 连续打卡 N 天（30/365）
     case cumulativeCount  // 累计记录 N 笔（100/500）
     case habitMastery     // 习惯掌握（单习惯连续 30 天+）

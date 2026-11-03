@@ -114,7 +114,7 @@ struct ThoughtSidebarView: View {
             sectionButton("主题", section: .topics)
         }
         .padding(4)
-        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color.holoToolBackground))
+        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color.holoToolInset))
     }
 
     private func sectionButton(_ title: String, section: SidebarSection) -> some View {
@@ -125,11 +125,12 @@ struct ThoughtSidebarView: View {
                 .holoText(.supporting)
                 .fontWeight(activeSection == section ? .semibold : .regular)
                 .foregroundColor(activeSection == section ? .holoPrimary : .holoToolTextSecondary)
-                .frame(maxWidth: .infinity, minHeight: 40)
+                .frame(maxWidth: .infinity, minHeight: 44)
                 .background {
                     if activeSection == section {
                         RoundedRectangle(cornerRadius: HoloRadius.sm)
                             .fill(Color.holoToolSurface)
+                            .shadow(color: .black.opacity(0.08), radius: 2, x: 0, y: 1)
                     }
                 }
                 .contentShape(Rectangle())
@@ -204,11 +205,28 @@ struct ThoughtSidebarView: View {
 
     private var topSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.xs) {
-            Text("想法")
-                .holoText(.pageTitle)
-                .foregroundColor(.holoToolText)
-                .padding(.horizontal, HoloSpacing.sm)
-                .padding(.bottom, HoloSpacing.xs)
+            HStack {
+                Text("想法")
+                    .holoText(.pageTitle)
+                    .foregroundColor(.holoToolText)
+
+                Spacer()
+
+                // 侧栏此前无任何关闭口，只能点右侧暗区收起（§8.8 补关闭钮）
+                Button {
+                    onSelect()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoToolTextSecondary)
+                        .frame(width: 34, height: 34)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("关闭侧栏"))
+            }
+            .padding(.horizontal, HoloSpacing.sm)
+            .padding(.bottom, HoloSpacing.xs)
             sidebarRow(
                 title: String(localized: "全部想法"),
                 icon: "tray.full",
@@ -230,6 +248,7 @@ struct ThoughtSidebarView: View {
                         icon: pin.kind == .topic ? "leaf.fill" : "number",
                         isSelected: scope == pinScope,
                         showIndentLine: false,
+                        isPinned: true,
                         onRemovePin: { togglePin(pin) }) {
                         select(pinScope)
                     }
@@ -259,16 +278,19 @@ struct ThoughtSidebarView: View {
         sidebarGroup(
             title: String(localized: "主题"),
             subtitle: String(localized: "Holo 串起的长期方向"),
-            emptyText: String(localized: "同类想法记多了会自动聚成主题，也可在「想法设置」里手动新建")) {
+            emptyText: String(localized: "同类想法记多了会自动聚成主题，也可在「想法设置」里手动新建"),
+            isEmpty: topics.isEmpty && suggestedCluster == nil) {
             ForEach(topics, id: \.id) { topic in
+                let topicPin = ThoughtSidebarPin(kind: .topic, topicID: topic.id, tagPathKey: nil)
                 sidebarRow(
                     title: topic.title,
                     icon: "leaf.fill",
-                    tint: .holoSuccess,
+                    tint: .holoSuccessText,
                     isSelected: scope == .topic(topic.id),
                     showIndentLine: false,
                     subtitle: String(localized: "\(ThoughtTopicLinkProjection.effectiveActiveThoughtCount(of: topic)) 条想法"),
-                    onRemovePin: { togglePin(.init(kind: .topic, topicID: topic.id, tagPathKey: nil)) }) {
+                    isPinned: isPinned(topicPin),
+                    onRemovePin: { togglePin(topicPin) }) {
                     select(.topic(topic.id))
                 }
             }
@@ -364,17 +386,10 @@ struct ThoughtSidebarView: View {
         sidebarGroup(
             title: String(localized: "我的 #标签"),
             subtitle: String(localized: "自己标记的找回词"),
-            emptyText: String(localized: "在想法里输入 #标签 即可归集")) {
-            if tagTree.isEmpty {
-                Text("在想法里输入 #标签 即可归集")
-                    .holoText(.supporting)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .padding(.horizontal, HoloSpacing.sm)
-                    .padding(.vertical, 6)
-            } else {
-                ForEach(tagTree) { node in
-                    tagTreeNode(node, depth: 0)
-                }
+            emptyText: String(localized: "在想法里输入 #标签 即可归集"),
+            isEmpty: tagTree.isEmpty) {
+            ForEach(tagTree) { node in
+                tagTreeNode(node, depth: 0)
             }
         }
     }
@@ -566,6 +581,7 @@ struct ThoughtSidebarView: View {
     private func sidebarGroup<Content: View>(title: String,
                                               subtitle: String? = nil,
                                               emptyText: String = "",
+                                              isEmpty: Bool = false,
                                               @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: HoloSpacing.xs) {
             HStack(alignment: .firstTextBaseline) {
@@ -583,7 +599,15 @@ struct ThoughtSidebarView: View {
             }
             .padding(.horizontal, HoloSpacing.sm)
             .padding(.bottom, 2)
-            content()
+            if isEmpty, !emptyText.isEmpty {
+                Text(emptyText)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
+                    .padding(.horizontal, HoloSpacing.sm)
+                    .padding(.vertical, 6)
+            } else {
+                content()
+            }
         }
     }
 
@@ -593,6 +617,7 @@ struct ThoughtSidebarView: View {
                             isSelected: Bool,
                             showIndentLine: Bool = true,
                             subtitle: String? = nil,
+                            isPinned: Bool = false,
                             onRemovePin: (() -> Void)? = nil,
                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -630,22 +655,22 @@ struct ThoughtSidebarView: View {
         .buttonStyle(.plain)
         .contextMenu {
             if let onRemovePin {
-                pinMenuButton(for: nil, customAction: onRemovePin)
+                // togglePin 的增删语义天然正确，标签由 isPinned 决定：
+                // 已置顶行显示「取消置顶」，未置顶行显示「置顶」
+                pinMenuButton(isPinned: isPinned, customAction: onRemovePin)
             }
         }
     }
 
     /// 置顶/取消置顶菜单项（原节点 contextMenu 入口，§5.6：不由 AI 自动置顶）
     @ViewBuilder
-    private func pinMenuButton(for pin: ThoughtSidebarPin?, customAction: (() -> Void)? = nil) -> some View {
+    private func pinMenuButton(isPinned: Bool, customAction: (() -> Void)? = nil) -> some View {
         Button {
             if let customAction {
                 customAction()
-            } else if let pin {
-                togglePin(pin)
             }
         } label: {
-            if let pin, isPinned(pin) {
+            if isPinned {
                 Label("取消置顶", systemImage: "pin.slash")
             } else {
                 Label("置顶", systemImage: "pin")

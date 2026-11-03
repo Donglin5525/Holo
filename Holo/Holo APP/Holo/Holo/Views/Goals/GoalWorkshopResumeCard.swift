@@ -12,13 +12,14 @@ struct GoalWorkshopResumeCard: View {
     let onResume: (UUID) -> Void
     let onDiscard: (UUID) -> Void
     let onStartFresh: () -> Void
+    @State private var pendingDiscard: UUID?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
             Text("有一个想到一半的目标")
                 .font(.headline)
             ForEach(candidates, id: \.id) { session in
-                HStack {
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(session.originalText.isEmpty ? "（未命名的心愿）" : session.originalText)
                             .font(.subheadline)
@@ -30,30 +31,41 @@ struct GoalWorkshopResumeCard: View {
                             Image(systemName: phaseIcon(session.phase))
                                 .font(.caption)
                         }
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.holoToolTextSecondary)
                     }
-                    Spacer()
-                    Button("继续") { onResume(session.id) }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                    Button {
-                        onDiscard(session.id)
-                    } label: {
-                        Image(systemName: "trash")
+                    HStack(spacing: HoloSpacing.sm) {
+                        Button("继续") { onResume(session.id) }
+                            .buttonStyle(HoloActionStyle(role: .primary))
+                        HoloIconButton(systemName: "trash", title: "放弃规划") {
+                            pendingDiscard = session.id
+                        }
                     }
-                    .controlSize(.small)
                 }
                 .padding(10)
-                .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                .background(Color.holoToolInset, in: RoundedRectangle(cornerRadius: HoloRadius.md))
             }
             Button(action: onStartFresh) {
                 Text("换个新的想法")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(HoloActionStyle(role: .secondary))
         }
-        .padding()
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+        .padding(HoloSpacing.md)
+        .background(Color.holoToolSurface, in: RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .confirmationDialog("放弃这份规划？", isPresented: Binding(
+            get: { pendingDiscard != nil },
+            set: { if !$0 { pendingDiscard = nil } }
+        ), titleVisibility: .visible) {
+            if let id = pendingDiscard {
+                Button("放弃规划", role: .destructive) {
+                    pendingDiscard = nil
+                    onDiscard(id)
+                }
+            }
+            Button("取消", role: .cancel) { pendingDiscard = nil }
+        } message: {
+            Text("这份未完成的规划将被删除，已有目标不受影响。")
+        }
     }
 
     private func phaseLabel(_ phase: GoalWorkshopPhase) -> LocalizedStringKey {

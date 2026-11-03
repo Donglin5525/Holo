@@ -41,7 +41,7 @@ struct MonthlySummaryCard: View {
                 }
             }
 
-            // Row 2: 金额行 — 本月金额(左) | 今日金额(右)，基线对齐
+            // Row 2: 金额行 — 本月金额(左，主) | 今日金额(右，次级小字)
             HStack(alignment: .firstTextBaseline) {
                 Text(formatAmount(amount))
                     .holoText(.sectionTitle)
@@ -53,8 +53,9 @@ struct MonthlySummaryCard: View {
 
                 if let today = todayAmount {
                     Text(formatAmount(today))
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.holoToolText)
+                        .holoText(.supporting)
+                        .monospacedDigit()
+                        .foregroundColor(.holoToolTextSecondary)
                         .lineLimit(1)
                 }
             }

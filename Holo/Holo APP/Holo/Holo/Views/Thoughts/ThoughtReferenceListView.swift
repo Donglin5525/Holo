@@ -58,9 +58,11 @@ struct ThoughtReferenceListView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("引用关系")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button(String(localized: "完成")) {
                         dismiss()
                     }

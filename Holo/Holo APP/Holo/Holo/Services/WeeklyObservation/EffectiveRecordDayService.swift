@@ -9,7 +9,11 @@
 //  本 Service 只负责取数 + 缓存，保证首页 onAppear 不全表扫（命中 UserDefaults 缓存）。
 //
 
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 import Combine
 import CoreData
 import os.log
@@ -58,8 +62,13 @@ final class EffectiveRecordDayService: ObservableObject {
                 .store(in: &cancellables)
         }
 
-        // 回前台刷新
-        NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)
+        // 回前台刷新（macOS 用 AppKit 对应的生命周期通知）
+        #if canImport(UIKit)
+        let willEnterForeground = UIApplication.willEnterForegroundNotification
+        #else
+        let willEnterForeground = NSApplication.willBecomeActiveNotification
+        #endif
+        NotificationCenter.default.publisher(for: willEnterForeground)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.refresh()

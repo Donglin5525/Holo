@@ -69,7 +69,7 @@ struct TodayOverviewSection: View {
             .frame(minHeight: 44)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.holoSecondaryGroupedBackground)
             )
         }
     }

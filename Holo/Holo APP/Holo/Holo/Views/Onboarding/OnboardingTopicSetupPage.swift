@@ -55,7 +55,7 @@ struct OnboardingTopicSetupPage: View {
             if let errorMessage {
                 Text(errorMessage)
                     .font(.holoCaption)
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
 
             Spacer()

@@ -679,4 +679,103 @@ final class ReceiptBookingKernelTests: XCTestCase {
         }.jpegData(compressionQuality: 0.9)
         try XCTUnwrap(data).write(to: url, options: .atomic)
     }
+
+    // MARK: - 复核页分类学习写回（与聊天/手动记账同闭环，2026-10-13）
+
+    /// 守卫：用户未改选科目不学；无锚点（候选词与商户名皆空）不学
+    func testReviewCategoryLearningGuardsSkipLearning() {
+        // AI 建议被直接确认（未改选）→ 不学，防止模型猜测自我强化
+        XCTAssertFalse(ReceiptBookingCoordinator.recordCategoryLearningIfNeeded(
+            userSelectedCategoryID: nil,
+            categoryCandidate: "美团", merchant: "美团外卖",
+            typeIsIncome: false, targetPrimary: "餐饮", targetSub: "午餐"
+        ))
+        // 候选词与商户名都空 → 无锚点不学
+        XCTAssertFalse(ReceiptBookingCoordinator.recordCategoryLearningIfNeeded(
+            userSelectedCategoryID: UUID(),
+            categoryCandidate: nil, merchant: nil,
+            typeIsIncome: false, targetPrimary: "餐饮", targetSub: "午餐"
+        ))
+        // 空白串同样视为无锚点
+        XCTAssertFalse(ReceiptBookingCoordinator.recordCategoryLearningIfNeeded(
+            userSelectedCategoryID: UUID(),
+            categoryCandidate: "  ", merchant: "",
+            typeIsIncome: false, targetPrimary: "餐饮", targetSub: "午餐"
+        ))
+    }
+
+    /// 端到端：改选后写回精确映射，科目建议链第 1 步即可命中（缓存同步更新）
+    func testReviewCategoryLearningWritesMappingLookupHits() {
+        CategoryLearnedMapping.removeAll()
+        defer { CategoryLearnedMapping.removeAll() }
+
+        let candidate = "识图复核学习测试-\(UUID().uuidString.prefix(6))"
+        let learned = ReceiptBookingCoordinator.recordCategoryLearningIfNeeded(
+            userSelectedCategoryID: UUID(),
+            categoryCandidate: candidate, merchant: nil,
+            typeIsIncome: false, targetPrimary: "餐饮", targetSub: "午餐"
+        )
+        XCTAssertTrue(learned)
+        let hit = CategoryLearnedMapping.lookup(candidate: candidate, type: .expense)
+        XCTAssertEqual(hit?.primary, "餐饮")
+        XCTAssertEqual(hit?.sub, "午餐")
+    }
+
+    /// 锚点优先级：AI 候选词优先于商户名；候选词缺失时商户名作为锚点
+    func testReviewCategoryLearningAnchorPriority() {
+        CategoryLearnedMapping.removeAll()
+        defer { CategoryLearnedMapping.removeAll() }
+
+        let merchant = "锚点优先测试商户-\(UUID().uuidString.prefix(6))"
+
+        // 候选词在 → 学到候选词键上
+        XCTAssertTrue(ReceiptBookingCoordinator.recordCategoryLearningIfNeeded(
+            userSelectedCategoryID: UUID(),
+            categoryCandidate: "奶茶", merchant: merchant,
+            typeIsIncome: false, targetPrimary: "餐饮", targetSub: "饮品"
+        ))
+        // 候选词缺失 → 商户名兜底为锚点
+        XCTAssertTrue(ReceiptBookingCoordinator.recordCategoryLearningIfNeeded(
+            userSelectedCategoryID: UUID(),
+            categoryCandidate: nil, merchant: merchant,
+            typeIsIncome: false, targetPrimary: "餐饮", targetSub: "饮品"
+        ))
+        let hit = CategoryLearnedMapping.lookup(candidate: merchant, type: .expense)
+        XCTAssertEqual(hit?.primary, "餐饮")
+        XCTAssertEqual(hit?.sub, "饮品")
+    }
+
+    /// 失败分类（10-15 qwen 密钥失效事故）：后端故障必须归 failureServer 报
+    /// 「服务暂时不可用」，不得误报「网络不可用」误导用户排查自己的网络
+    func testFailureClassifierSeparatesConnectivityFromServerFault() {
+        // 连接层失败（设备没网/超时）→ 网络类
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: APIError.networkUnavailable), .failureNetwork)
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: APIError.timeout), .failureNetwork)
+        XCTAssertEqual(
+            ReceiptBookingFailureClassifier.reason(for: URLError(.notConnectedToInternet)),
+            .failureNetwork
+        )
+
+        // 后端/上游故障（上游密钥失效时后端返回 503）→ 服务类
+        XCTAssertEqual(
+            ReceiptBookingFailureClassifier.reason(for: APIError.httpError(statusCode: 503, message: "upstream")),
+            .failureServer
+        )
+        XCTAssertEqual(
+            ReceiptBookingFailureClassifier.reason(for: APIError.backendError(statusCode: 503, code: "UPSTREAM_AUTH_FAILED", message: "upstream", requestId: nil)),
+            .failureServer
+        )
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: APIError.serverError("upstream")), .failureServer)
+
+        // 限流/取消各归其类
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: APIError.rateLimited(nil)), .failureRateLimited)
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: APIError.cancelled), .failureCancelled)
+        XCTAssertEqual(ReceiptBookingFailureClassifier.reason(for: CancellationError()), .failureCancelled)
+
+        // 展示层口径：服务类失败不得出现「网络不可用」文案
+        let serverFailure = RecognizeAndBookReceiptIntent.text(for: .failed(ReceiptBookingFailure(
+            reason: .failureServer, retryable: true, userMessage: "")))
+        XCTAssertFalse(serverFailure.contains("网络不可用"), "服务端故障不得报网络不可用：\(serverFailure)")
+        XCTAssertTrue(serverFailure.contains("服务暂时不可用"), "服务端故障必须说明服务暂不可用：\(serverFailure)")
+    }
 }

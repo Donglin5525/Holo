@@ -52,7 +52,9 @@ struct CategoryLearnedMappingView: View {
             }
         }
         .navigationTitle("分类学习映射")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
         .searchable(text: $searchText, prompt: String(localized: "搜索分类映射"))

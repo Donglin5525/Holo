@@ -3,8 +3,9 @@
 //  HoloTests
 //
 //  2026-10 习惯交互重构动作层验证（方案 §15 G1）：
-//  保存失败 scoped 恢复、重复提交、精确撤销不误删、指纹校验、
-//  值校验（计数>0 / 测量含0）、三态字段清除、关系保存失败报错。
+//  保存失败 scoped 恢复、重复提交、值校验（计数>0 / 测量含0）、
+//  三态字段清除、关系保存失败报错。
+//  （scoped undo 通道 2026-10-17 东林拍板退役，原撤销三用例随通道移除）
 //
 
 import XCTest
@@ -113,27 +114,27 @@ final class HabitActionCoordinatorTests: XCTestCase {
         XCTAssertEqual(secondReceipt.newCheckInState, false, "false 是用户成功取消，不是保存失败（R04）")
     }
 
-    func test_打卡撤销恢复原状态() async throws {
-        let (actionCoordinator, _, context) = try makeStack()
+    // MARK: - 数值与撤销
+
+    func test_打卡记录编辑忽略数值只改备注() async throws {
+        let (actionCoordinator, repo, context) = try makeStack()
         let habit = try makeHabit(in: context)
         try context.save()
 
-        guard case .confirmed(let receipt) = await actionCoordinator.perform(.toggleCheckIn, habitId: habit.id) else {
-            return XCTFail("打卡应成功")
-        }
+        _ = try repo.toggleCheckIn(for: habit, note: nil)
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(format: "habitId == %@ AND deletedAt == nil", habit.id as CVarArg)
+        request.fetchLimit = 1
+        let record = try XCTUnwrap(try context.fetch(request).first)
 
-        let undoResult = actionCoordinator.undo(receipt)
-        guard case .confirmed = undoResult else {
-            return XCTFail("撤销应成功，实际 \(undoResult)")
-        }
-        let repo = try XCTUnwrap(repo)
-        let habitReloaded = try XCTUnwrap(repo.findHabit(by: habit.id))
-        XCTAssertFalse(repo.isTodayCompleted(for: habitReloaded), "撤销后恢复未记录状态")
-        // 记录行保留（取消态，同一条记录不重复插入）
-        XCTAssertEqual(todayRecordCount(habitId: habit.id, in: context), 1)
+        _ = await actionCoordinator.perform(
+            .updateRecord(recordId: record.id, value: 5, note: "补个备注"),
+            habitId: habit.id
+        )
+
+        XCTAssertNil(record.valueDouble, "打卡记录只有「做了/没做」语义，编辑不得写入 value")
+        XCTAssertEqual(record.note, "补个备注")
     }
-
-    // MARK: - 数值与撤销
 
     func test_测量保存0是有效记录() async throws {
         let (actionCoordinator, repo, context) = try makeStack()
@@ -162,51 +163,6 @@ final class HabitActionCoordinatorTests: XCTestCase {
             return XCTFail("计数 0 无意义（>0 才是新增）应拒绝")
         }
         XCTAssertEqual(todayRecordCount(habitId: habit.id, in: context), 0, "非法输入不写入")
-    }
-
-    func test_精确撤销不误删后续记录_R08() async throws {
-        let (actionCoordinator, _, context) = try makeStack()
-        let habit = try makeHabit(in: context, type: .numeric, aggregation: .sum)
-        try context.save()
-
-        // A：一条 3 杯；随后 B：一条 1 杯
-        guard case .confirmed(let receiptA) = await actionCoordinator.perform(.addNumeric(value: 3), habitId: habit.id) else {
-            return XCTFail("A 应成功")
-        }
-        _ = await actionCoordinator.perform(.addNumeric(value: 1), habitId: habit.id)
-        XCTAssertEqual(todayRecordCount(habitId: habit.id, in: context), 2)
-
-        // 撤销 A：只删 A 那条，B 保留
-        let undoResult = actionCoordinator.undo(receiptA)
-        guard case .confirmed = undoResult else {
-            return XCTFail("撤销 A 应成功")
-        }
-        XCTAssertEqual(todayRecordCount(habitId: habit.id, in: context), 1, "B 不被误删")
-    }
-
-    func test_记录被改后撤销拒绝() async throws {
-        let (actionCoordinator, repo, context) = try makeStack()
-        let habit = try makeHabit(in: context, type: .numeric, aggregation: .latest)
-        try context.save()
-
-        guard case .confirmed(let receipt) = await actionCoordinator.perform(.addNumeric(value: 64.2), habitId: habit.id) else {
-            return XCTFail("应成功")
-        }
-
-        // 用户（或同步）改了这条记录
-        let recordId = try XCTUnwrap(receipt.recordId)
-        let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", recordId as CVarArg)
-        let record = try XCTUnwrap(try context.fetch(request).first)
-        record.value = NSNumber(value: 70.0)
-        try context.save()
-        _ = repo
-
-        let undoResult = actionCoordinator.undo(receipt)
-        guard case .invalidated(.recordChanged) = undoResult else {
-            return XCTFail("指纹不符应拒绝撤销，实际 \(undoResult)")
-        }
-        XCTAssertEqual(todayRecordCount(habitId: habit.id, in: context), 1, "拒绝时不动数据")
     }
 
     // MARK: - 保存失败 scoped 恢复（R12/R13）
@@ -289,6 +245,54 @@ final class HabitActionCoordinatorTests: XCTestCase {
         let habitReloaded = try XCTUnwrap(repoRef.findHabit(by: habit.id))
         XCTAssertEqual(habitReloaded.targetValueDouble, 10)
         XCTAssertEqual(habitReloaded.unit, "杯", ".keep 不修改")
+    }
+
+    // MARK: - 习惯描述（2026-11-02）
+
+    func test_习惯描述_设置清洗保留与清除() async throws {
+        let (repo, repoRef, context) = try makeStack()
+        _ = repo
+        let habit = try makeHabit(in: context, type: .checkIn)
+        try context.save()
+        func stored() throws -> String? { try XCTUnwrap(repoRef.findHabit(by: habit.id)).habitDescription }
+
+        var payload = HabitEditPayload(name: "晨跑", icon: "figure.run", color: "#F46D38", type: .checkIn)
+        payload.habitDescription = .set("  🏃 为了半马，每天跑三公里 \n")
+        try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
+        XCTAssertEqual(try stored(), "🏃 为了半马，每天跑三公里", "设置时去首尾空白，Emoji 原样保留")
+
+        payload.habitDescription = .keep
+        try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
+        XCTAssertEqual(try stored(), "🏃 为了半马，每天跑三公里", ".keep 不修改")
+
+        payload.habitDescription = .set(" \n ")
+        try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
+        XCTAssertNil(try stored(), "只有空白等于没写")
+
+        payload.habitDescription = .set("睡前读几页")
+        try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
+        payload.habitDescription = .clear
+        try repoRef.applyHabitEdits(habitId: habit.id, payload: payload)
+        XCTAssertNil(try stored(), ".clear 真移除")
+    }
+
+    func test_习惯描述_按用户看到的字截断且组合Emoji算一个() {
+        let longEmoji = String(repeating: "🏃‍♂️", count: Habit.descriptionLimit + 3)
+        XCTAssertEqual(Habit.normalizedDescription(longEmoji)?.count, Habit.descriptionLimit, "组合 Emoji 按一个字计")
+        XCTAssertNil(Habit.normalizedDescription(nil))
+        XCTAssertNil(Habit.normalizedDescription("\n \t"))
+    }
+
+    func test_习惯描述_新建入库并进入列表快照() async throws {
+        let (_, repoRef, _) = try makeStack()
+        let habit = try repoRef.createHabit(name: "阅读", icon: "book.fill", color: "#81708D", type: .checkIn,
+                                            habitDescription: " 📚 睡前读 30 分钟 ")
+        XCTAssertEqual(habit.habitDescription, "📚 睡前读 30 分钟")
+        let snapshot = HabitPresentationProjector.rowSnapshot(
+            habit: habit, lifecycle: .active,
+            data: HabitPresentationProjector.buildData(records: [], pauseWindowsByHabit: [:],
+                                                       dayEndMinutesByHabit: [:], now: Date()))
+        XCTAssertEqual(snapshot.habitDescription, "📚 睡前读 30 分钟")
     }
 
     func test_空名字拒绝保存() async throws {

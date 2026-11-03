@@ -1,5 +1,8 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
+import Foundation
 import Combine
 
 extension Notification.Name {
@@ -24,19 +27,33 @@ final class HoloMotionFeedbackCenter: ObservableObject {
             habitPolicy = policy
         }
         // 包括尚未挂载的列表行：离开前台即取消待播事件，返回时不补播。
-        backgroundObserver = NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)
+        #if canImport(UIKit)
+        let willResignActive = UIApplication.willResignActiveNotification
+        #else
+        let willResignActive = NSApplication.willResignActiveNotification
+        #endif
+        backgroundObserver = NotificationCenter.default.publisher(for: willResignActive)
             .sink { [weak self] _ in
                 MainActor.assumeIsolated { self?.ledger.discardAll() }
             }
     }
 
+    /// App 是否处于前台活跃（macOS 单窗口 App 视为恒活跃）
+    private var isAppActive: Bool {
+        #if canImport(UIKit)
+        UIApplication.shared.applicationState == .active
+        #else
+        true
+        #endif
+    }
+
     func saved(_ id: UUID, domain: HoloMotionSubject.Domain, operationID: UUID = UUID()) {
-        if domain == .finance, UIApplication.shared.applicationState == .active {
+        if domain == .finance, isAppActive {
             NotificationCenter.default.post(name: .holoManualFinanceRecordSaved, object: id)
         }
         let key = domain == .habit ? HoloMotionRollout.completionKey : HoloMotionRollout.recordKey
         guard HoloMotionPreferencePolicy.isEnabled(key),
-              UIApplication.shared.applicationState == .active else { return }
+              isAppActive else { return }
         ledger.record(HoloMotionEvent(operationID: operationID,
                                      subject: HoloMotionSubject(domain: domain, id: id),
                                      phase: .confirmed, occurredAt: Date()))
@@ -116,16 +133,10 @@ private struct HoloLightResponse: View {
     }
 
     private func light(progress: CGFloat) -> some View {
+        // 2026-10-08：删去左缘 3×24pt 橙色竖条——观感与渲染残留无异（东林反馈
+        // 「创建笔记时闪一个橙色竖条，像交互 BUG」），保存反馈只保留描边光晕淡出。
         RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
             .strokeBorder(Color.holoPrimary.opacity(Double(1 - progress) * 0.38), lineWidth: 1.5)
-            .background(alignment: .leading) {
-                if !completion {
-                    Capsule()
-                        .fill(Color.holoPrimary.opacity(Double(1 - progress) * 0.75))
-                        .frame(width: 3, height: 24)
-                        .padding(.leading, 2)
-                }
-            }
             .scaleEffect(completion ? 1 + progress * HoloAnimation.completionGlowExpansion : 1)
             .allowsHitTesting(false)
             .accessibilityHidden(true)

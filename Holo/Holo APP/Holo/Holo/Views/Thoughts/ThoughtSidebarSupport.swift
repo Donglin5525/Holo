@@ -14,6 +14,7 @@ import SwiftUI
 #if canImport(UIKit)
 import UIKit
 #endif
+import Foundation
 
 // MARK: - 侧栏入口
 
@@ -185,12 +186,18 @@ struct SidebarClosePanModifier: ViewModifier {
     let onEnd: (CGFloat, CGFloat) -> Void
 
     func body(content: Content) -> some View {
+        #if canImport(UIKit)
         content.overlay {
             SidebarClosePanOverlay(isEnabled: isEnabled, onTranslate: onTranslate, onEnd: onEnd)
         }
+        #else
+        // macOS：无 window pan 手势体系，侧栏关闭改走遮罩/标题栏按钮，恒等透传
+        content
+        #endif
     }
 }
 
+#if canImport(UIKit)
 private struct SidebarClosePanOverlay: UIViewRepresentable {
     let isEnabled: Bool
     let onTranslate: (CGFloat) -> Void
@@ -305,6 +312,7 @@ private final class SidebarClosePanHostView: UIView {
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
 }
+#endif
 
 // MARK: - 侧栏拉出手势（2026-09-26 三段分区：左缘=返回首页 / 中部右滑=拉出标签树 / 侧栏内左滑=收起）
 
@@ -323,6 +331,7 @@ struct SidebarOpenPanModifier: ViewModifier {
     let onEnd: (CGFloat, CGFloat) -> Void
 
     func body(content: Content) -> some View {
+        #if canImport(UIKit)
         content.overlay {
             SidebarOpenPanOverlay(
                 isEnabled: isEnabled,
@@ -330,9 +339,14 @@ struct SidebarOpenPanModifier: ViewModifier {
                 onTranslate: onTranslate,
                 onEnd: onEnd)
         }
+        #else
+        // macOS：拉出侧栏改走工具栏按钮，恒等透传
+        content
+        #endif
     }
 }
 
+#if canImport(UIKit)
 private struct SidebarOpenPanOverlay: UIViewRepresentable {
     let isEnabled: Bool
     let edgeExclusionWidth: CGFloat
@@ -453,3 +467,4 @@ private final class SidebarOpenPanHostView: UIView {
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
 }
+#endif

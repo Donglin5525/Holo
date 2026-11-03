@@ -63,16 +63,18 @@ struct ReferenceSelectorView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("选择引用")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消") {
                         dismiss()
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("完成") {
                         dismiss()
                     }

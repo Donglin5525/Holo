@@ -41,8 +41,3 @@ extension HabitIconRenderable {
 
 extension Habit: HabitIconRenderable {}
 
-extension HabitDetailSnapshot: HabitIconRenderable {}
-
-extension HabitStatsDisplayItem: HabitIconRenderable {}
-
-extension HabitStatsItem: HabitIconRenderable {}

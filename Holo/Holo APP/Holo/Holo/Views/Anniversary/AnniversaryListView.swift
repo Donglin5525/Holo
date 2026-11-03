@@ -37,7 +37,7 @@ struct AnniversaryListView: View {
 
     var body: some View {
         ZStack {
-            Color.holoBackground.ignoresSafeArea()
+            Color.holoToolBackground.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 headerView
@@ -53,7 +53,9 @@ struct AnniversaryListView: View {
                 }
             }
         }
+        #if canImport(UIKit)
         .navigationBarHidden(true)
+        #endif
         .task {
             await CoreDataStack.shared.waitUntilReady()
             repository.setup()
@@ -78,12 +80,21 @@ struct AnniversaryListView: View {
                 AddAnniversarySheet(editingAnniversary: item)
             }
         }
+        #if canImport(UIKit)
         .fullScreenCover(item: $detailAnniversary) { item in
             AnniversaryDetailView(anniversary: item) {
                 detailAnniversary = nil
             }
             .holoContentColumn()
         }
+        #else
+                .sheet(item: $detailAnniversary) { item in
+            AnniversaryDetailView(anniversary: item) {
+                detailAnniversary = nil
+            }
+            .holoContentColumn()
+        }
+        #endif
         .confirmationDialog(
             "确认删除",
             isPresented: Binding(
@@ -108,28 +119,20 @@ struct AnniversaryListView: View {
 
     private var headerView: some View {
         HStack {
-            // 44×44 触控区域，与 TaskListView/TaskStatsView 一致
-            Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
-                    .frame(width: 44, height: 44)
-            }
-
-            Text("纪念日")
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
+            HoloIconButton(systemName: "chevron.left", title: "返回", showsSurface: true, action: onBack)
 
             Spacer()
 
-            Button(action: { sheetTarget = .add }) {
-                Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 44, height: 44)
-            }
+            Text("纪念日")
+                .font(.holoHeading)
+                .foregroundColor(.holoToolText)
+
+            Spacer()
+
+            // 右下 FAB 已承担新增（含纪念日语境）；头部不再放第二个创建入口
+            Color.clear.frame(width: 44, height: 44)
         }
-        .padding(.horizontal, HoloSpacing.md)
+        .padding(.horizontal, HoloSpacing.page)
         .padding(.top, 8)
         .padding(.bottom, HoloSpacing.sm)
     }
@@ -215,7 +218,7 @@ struct AnniversaryListView: View {
                 Text(title)
                     .font(.system(size: 11.5, weight: .heavy))
                     .kerning(1)
-                    .foregroundColor(Color.holoTextSecondary)
+                    .foregroundColor(Color.holoToolTextSecondary)
                 Rectangle()
                     .fill(Color.holoBorder)
                     .frame(height: 0.7)
@@ -295,7 +298,7 @@ struct AnniversaryListView: View {
                     .fill(Color.holoPrimary.opacity(0.12))
                     .frame(width: 88, height: 88)
 
-                Image(systemName: "calendar.badge.heart")
+                Image(systemName: "heart.circle")
                     .font(.system(size: 36, weight: .medium))
                     .foregroundColor(.holoPrimary)
             }
@@ -303,26 +306,26 @@ struct AnniversaryListView: View {
             VStack(spacing: HoloSpacing.sm) {
                 Text("点亮第一个重要的日子")
                     .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
 
                 Text("生日、纪念日、倒数日……\n每点亮一个日子，等待本身就开始发光")
                     .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
             }
 
+            // 右下 FAB 是本屏唯一橙主行动；空态引导退为灰描边次级（2026-10-12 橙纪律）
             Button(action: { sheetTarget = .add }) {
                 HStack(spacing: 6) {
                     Image(systemName: "sparkles")
                     Text("点亮一个日子")
                 }
                 .font(.holoLabel)
-                .foregroundColor(.white)
+                .foregroundColor(.holoToolTextSecondary)
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.sm + 4)
-                .background(Color.holoPrimary)
-                .clipShape(Capsule())
+                .background(Capsule().strokeBorder(Color.holoDivider, lineWidth: 1))
             }
 
             Spacer()

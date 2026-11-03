@@ -199,6 +199,31 @@ nonisolated enum HoloRenderedAgentFailure: Codable, Sendable, Equatable {
     case continuationUnavailable(userMessage: String)
 }
 
+/// v27 研报式报告结构（纯展示层：service 已把 claimID 解析成文本）
+nonisolated struct HoloRenderedReportStructure: Codable, Equatable, Sendable {
+    struct Section: Codable, Equatable, Sendable {
+        var no: String
+        var title: String
+        var kicker: String?
+        var paragraphs: [String]
+        struct ChartHint: Codable, Equatable, Sendable {
+            var kind: String
+            var dataset: String
+            var caption: String
+        }
+        var chartHint: ChartHint?
+        var noticeBody: String?
+        var noticeWindow: String?
+    }
+    struct ConclusionItem: Codable, Equatable, Sendable {
+        var text: String
+        var sub: String
+    }
+    var sections: [Section]
+    var conclusionItems: [ConclusionItem]
+    var disclosureNotes: [String]
+}
+
 nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var title: String
     var summary: String
@@ -227,10 +252,22 @@ nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var dataSamplePreview: HoloRenderedDataSamplePreview? = nil
     /// 连续追问展示与下一轮锚定所需的最小身份；旧消息缺失时不展示追问入口。
     var continuationMetadata: HoloRenderedContinuationMetadata? = nil
+    /// v27 研报式结构（存在时详情页走报告版式；旧消息 JSON 解码为 nil 走原版式）。
+    var reportStructure: HoloRenderedReportStructure? = nil
+    /// 报告融合理解信封（2026-10-18 方案）：结构化 claims+证据池的紧凑投影，
+    /// 供报告理解链路消费；云端轨道在 finalize 填充，本地轨道由 rendered 推导。
+    /// 旧消息 JSON 解码为 nil。
+    var reportUnderstanding: HoloReportUnderstandingEnvelope? = nil
     var agentJobID: String? = nil
     var agentResultID: String? = nil
     var lineage: HoloAgentLineage? = nil
     var rootUserQuestion: String? = nil
+    /// 目标闭环（2026-10-20 最终规格 §6.4）：目标分析范围，报告归类的权威依据（优先于关键词推断）；
+    /// 两入口（目标详情 / HoloAI）凭 ChatMessage.id 打开同一份报告。旧消息 JSON 解码为 nil。
+    var goalScope: HoloAgentGoalScope? = nil
+    /// 目标闭环 §6.5：模型提出、服务端白名单消毒后的修正草案；用户确认前不改任何对象。
+    /// 旧消息 JSON 解码为 nil。
+    var goalAdjustmentDraft: GoalAdjustmentDraftV2? = nil
 
     var contextSourceText: String? {
         let labels = (contextSources ?? []).compactMap(\.displayLabel)

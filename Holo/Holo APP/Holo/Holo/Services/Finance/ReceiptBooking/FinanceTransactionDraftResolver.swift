@@ -150,6 +150,30 @@ final class FinanceTransactionDraftResolver {
     // 链路：用户纠正学习 → AI 标准科目 → 本地自定义 + catalog 别名 → 语义兜底 → note/原始候选精确 → 待分类
     // 语义变更必须同时过聊天识图回归与本目录单测。
 
+    // MARK: 账户候选匹配（聊天记账，2026-11-01）
+
+    /// AI 从用户话中提取的账户候选（accountCandidate，如「招商银行」「微信」）→ 用户真实账户。
+    /// 精确同名（忽略大小写）> 唯一包含命中；歧义/零命中返回 nil，由调用方走默认账户。
+    /// 只匹配活账户（未归档未删除）。预览展示与确认落账共用本匹配，保证卡片所示即所记。
+    static func matchAccount(candidate: String?) -> Account? {
+        guard let candidate = candidate?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !candidate.isEmpty else { return nil }
+        let accounts = FinanceRepository.shared.getAccounts(includeArchived: false)
+        let lowered = candidate.lowercased()
+
+        if let exact = accounts.first(where: {
+            $0.name.trimmingCharacters(in: .whitespaces).lowercased() == lowered
+        }) {
+            return exact
+        }
+
+        let contains = accounts.filter {
+            let name = $0.name.trimmingCharacters(in: .whitespaces).lowercased()
+            return name.contains(lowered) || lowered.contains(name)
+        }
+        return contains.count == 1 ? contains[0] : nil
+    }
+
     func matchCategory(
         primaryCategory: String?,
         subCategory: String?,
@@ -172,9 +196,7 @@ final class FinanceTransactionDraftResolver {
         )
     }
 
-    /// 分类解析主体（categories 注入版）。独立出来供单测构造孤儿/一级重复等
-    /// 异常库形态（2026-09-25 酸汤肥牛落待分类治理：真实库的父子挂接断裂
-    /// 曾让全部按 parentId 的子类查找失配，静默掉进「待分类」）。
+    /// 分类解析主体。孤儿分类不参与新入账，一级同名副本只在完整父级范围内兼容。
     func matchCategory(
         primaryCategory: String?,
         subCategory: String?,
@@ -185,6 +207,7 @@ final class FinanceTransactionDraftResolver {
         type: TransactionType,
         categories: [Category]
     ) async -> Category? {
+        let categories = FinanceCategoryIntegrity.selectableCategories(in: categories, type: type.rawValue)
         let candidates = CategoryCandidateResolver.orderedCandidates(
             categoryCandidate: categoryCandidate,
             normalizedCategoryCandidate: normalizedCategoryCandidate,
@@ -322,25 +345,31 @@ final class FinanceTransactionDraftResolver {
         return nil
     }
 
-    /// 子类查找：优先按 parentId 挂接关系；挂接断裂（孤儿子类/一级分类重复导致
-    /// first 拿到的 parent 不是子类实际挂靠的那条）时退化为同名子类——
-    /// 「实体在、名字对」的库仍能落位，不静默掉进「待分类」
+    /// 一级同名时允许在同名、同类型的有效父级之间查找，不跨父级语义猜测归属。
     static func subCategory(named name: String, under parent: Category, in categories: [Category]) -> Category? {
+        let categories = FinanceCategoryIntegrity.selectableCategories(in: categories, type: parent.type)
+        let parentIDs = Set(categories.filter {
+            $0.isTopLevel && $0.name == parent.name
+        }.map(\.id))
         if let sub = categories.first(where: { $0.parentId == parent.id && $0.name == name }) {
             return sub
         }
-        return categories.first(where: { $0.isSubCategory && $0.name == name })
+        return categories.first(where: { $0.parentId.map { parentIDs.contains($0) } == true && $0.name == name })
     }
 
     /// 同上（忽略大小写变体，供 normalizedCategoryCandidate 路径）
     private static func subCategory(namedLower name: String, under parent: Category, in categories: [Category]) -> Category? {
+        let categories = FinanceCategoryIntegrity.selectableCategories(in: categories, type: parent.type)
+        let parentIDs = Set(categories.filter {
+            $0.isTopLevel && $0.name.lowercased() == parent.name.lowercased()
+        }.map(\.id))
         if let sub = categories.first(where: {
             $0.parentId == parent.id && $0.name.lowercased() == name.lowercased()
         }) {
             return sub
         }
         return categories.first(where: {
-            $0.isSubCategory && $0.name.lowercased() == name.lowercased()
+            $0.parentId.map { parentIDs.contains($0) } == true && $0.name.lowercased() == name.lowercased()
         })
     }
 }

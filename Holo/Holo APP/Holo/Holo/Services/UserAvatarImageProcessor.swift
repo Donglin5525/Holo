@@ -7,7 +7,9 @@
 
 import Foundation
 import ImageIO
+#if canImport(UIKit)
 import UIKit
+#endif
 
 enum UserAvatarImageProcessor {
 
@@ -46,10 +48,17 @@ enum UserAvatarImageProcessor {
             guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
                 throw ProcessingError.unreadableImage
             }
+            #if canImport(UIKit)
             guard let data = UIImage(cgImage: cgImage).jpegData(compressionQuality: 0.94) else {
                 throw ProcessingError.encodingFailed
             }
             return data
+            #else
+            guard let data = Self.encodeJPEG(cgImage, quality: 0.94) else {
+                throw ProcessingError.encodingFailed
+            }
+            return data
+            #endif
         }.value
     }
 
@@ -78,6 +87,7 @@ enum UserAvatarImageProcessor {
                 throw ProcessingError.invalidCrop
             }
 
+            #if canImport(UIKit)
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
             format.opaque = true
@@ -99,6 +109,51 @@ enum UserAvatarImageProcessor {
                 }
             }
             throw ProcessingError.outputTooLarge
+            #else
+            // macOS：无 UIGraphicsImageRenderer，用 CGContext 等价绘制（白底 + 512×512 缩放）
+            guard let scaled = Self.scaleToSquare(cropped, side: outputPixelSize) else {
+                throw ProcessingError.encodingFailed
+            }
+            for quality in stride(from: CGFloat(0.88), through: CGFloat(0.36), by: -0.08) {
+                if let data = Self.encodeJPEG(scaled, quality: quality), data.count <= maximumOutputBytes {
+                    return data
+                }
+            }
+            throw ProcessingError.outputTooLarge
+            #endif
         }.value
     }
+
+    #if !canImport(UIKit)
+    /// CGImage → 白底方形位图（与 iOS UIGraphicsImageRenderer 白底绘制语义一致）
+    private static func scaleToSquare(_ image: CGImage, side: Int) -> CGImage? {
+        guard let context = CGContext(
+            data: nil,
+            width: side,
+            height: side,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
+        ) else { return nil }
+        context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: side, height: side))
+        context.interpolationQuality = .high
+        context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
+        return context.makeImage()
+    }
+
+    private static func encodeJPEG(_ image: CGImage, quality: CGFloat) -> Data? {
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil) else {
+            return nil
+        }
+        CGImageDestinationAddImage(
+            destination, image,
+            [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary
+        )
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
+    }
+    #endif
 }

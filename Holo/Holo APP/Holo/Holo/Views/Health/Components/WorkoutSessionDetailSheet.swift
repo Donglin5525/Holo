@@ -8,7 +8,6 @@
 //
 
 import SwiftUI
-import Charts
 
 // MARK: - WorkoutSessionDetailSheet
 
@@ -190,63 +189,24 @@ struct WorkoutSessionDetailSheet: View {
         .holoCard()
     }
 
-    private func heartChart(_ detail: WorkoutHeartDetail) -> some View {
-        Chart(detail.points) { point in
-            LineMark(
-                x: .value("时间", point.date),
-                y: .value("心率", point.bpm)
-            )
-            .foregroundStyle(Color.holoChart4.gradient)
-            .interpolationMethod(.catmullRom)
-            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+    @State private var heartSelection: String?
 
-            if let average = session.averageHeartRate {
-                RuleMark(y: .value("平均心率", average))
-                    .foregroundStyle(Color.holoTextSecondary.opacity(0.4))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-            }
-        }
-        .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
-                AxisGridLine().foregroundStyle(Color.holoDivider.opacity(0.32))
-                AxisValueLabel {
-                    if let date = value.as(Date.self) {
-                        Text(date, format: .dateTime.hour().minute())
-                            .font(.system(size: 9))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
-            }
-        }
-        .chartYAxis {
-            AxisMarks(position: .trailing, values: .automatic(desiredCount: 3)) { value in
-                AxisGridLine().foregroundStyle(Color.holoDivider.opacity(0.32))
-                AxisValueLabel {
-                    if let bpm = value.as(Double.self) {
-                        Text("\(Int(bpm))")
-                            .font(.system(size: 9))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
-            }
-        }
-        .frame(height: 120)
+    private func heartChart(_ detail: WorkoutHeartDetail) -> some View {
+        HoloLineChart(buckets: detail.points.map { point in
+            HoloChartBucket(id: String(point.date.timeIntervalSince1970),
+                            label: HoloChartFormat.date(point.date, template: "HHmm"),
+                            values: [point.bpm], position: point.date.timeIntervalSince1970)
+        }, series: [.init(id: "heart", title: "心率", color: .holoChart4)],
+           selection: $heartSelection, height: 130, baseline: session.averageHeartRate,
+           valueText: { "\(Int($0)) 次/分" })
     }
 
     /// 五区间停留时长比例条（总量为运动时长）
     private func zoneBar(_ detail: WorkoutHeartDetail) -> some View {
-        let total = detail.zoneMinutes.reduce(0, +)
-        return GeometryReader { proxy in
-            HStack(spacing: 2) {
-                ForEach(Array(detail.zoneMinutes.enumerated()), id: \.offset) { index, minutes in
-                    let ratio = total > 0 ? minutes / total : 0
-                    Capsule()
-                        .fill(Self.zoneMeta[index].color)
-                        .frame(width: ratio > 0 ? max(proxy.size.width * ratio - 2, 4) : 0)
-                }
-            }
-        }
-        .frame(height: 10)
+        HoloProportionBar(segments: detail.zoneMinutes.enumerated().map { index, minutes in
+            HoloProportionSegment(id: String(index), label: Self.zoneMeta[index].label,
+                                  weight: minutes, color: Self.zoneMeta[index].color)
+        }, height: 10)
     }
 
     private func zoneLegend(_ detail: WorkoutHeartDetail) -> some View {

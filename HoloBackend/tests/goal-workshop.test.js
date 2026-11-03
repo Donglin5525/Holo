@@ -114,30 +114,42 @@ test("quotaTypeForPurpose：goal_workshop 已豁免额度（产品决策 2026-09
   assert.ok(config.routes.matter_reconciliation);
 });
 
-test("goal_workshop Prompt 已注册且版本为 1", () => {
+test("goal_workshop Prompt 已注册且版本为 2（目标闭环扩展）", () => {
   const meta = listPromptMetadata().find((item) => item.type === "goal_workshop");
   assert.ok(meta, "goal_workshop 应在注册表");
-  assert.equal(meta.version, 1);
+  assert.equal(meta.version, 2);
   const injected = injectServerPrompt("goal_workshop", [
     { role: "user", content: "{}" },
   ]);
   assert.equal(injected.promptType, "goal_workshop");
-  assert.equal(injected.promptVersion, 1);
+  assert.equal(injected.promptVersion, 2);
   const system = injected.messages[0].content;
   assert.match(system, /目标共创助手/);
   assert.match(system, /一次只问一个/);
   assert.match(system, /不得凭空补日历日/);
   assert.match(system, /禁止输出 userStated/);
+  // v2：结果来源 / 期次 / 预算 / 限制 / 回顾节奏 + 授权候选引用边界
+  assert.match(system, /目标闭环 v2 扩展/);
+  assert.match(system, /plan\.resultSource/);
+  assert.match(system, /whole_ledger_delta/);
+  assert.match(system, /account_balance/);
+  assert.match(system, /plan\.fundSchedule/);
+  assert.match(system, /plan\.constraints/);
+  assert.match(system, /reviewCadenceDays/);
+  assert.match(system, /habit:\/account: 开头的授权候选/);
+  assert.match(system, /信用负债/);
+  assert.match(system, /reviewDateText/);
+  assert.doesNotMatch(system, /\"reviewDate\":/, "输出示例键名须与客户端解码字段一致");
 });
 
-test("GET /v1/prompts/meta 包含 goal_workshop 版本 1", async () => {
+test("GET /v1/prompts/meta 包含 goal_workshop 版本 2", async () => {
   const app = createTestApp();
   const response = await app.request("/v1/prompts/meta");
   assert.equal(response.status, 200);
   const json = await response.json();
   const entry = json.prompts?.find((item) => item.type === "goal_workshop");
   assert.ok(entry, "meta 应包含 goal_workshop");
-  assert.equal(entry.version, 1);
+  assert.equal(entry.version, 2);
 });
 
 test("goal_workshop 属多语言 purpose（zh-Hant 注入语言指令）", () => {

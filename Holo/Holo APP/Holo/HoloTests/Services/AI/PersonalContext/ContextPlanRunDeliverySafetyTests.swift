@@ -7,6 +7,8 @@
 //  ① draftReady 终态不单独落盘（必须与方案 JSON 同笔原子写）；
 //  ② 仓库终态保护（排队旧写不得把终态改回进行中）；
 //  ③ 就绪孤儿进对账收治（此前终态永不收治，用户只见「已就绪」空白卡）。
+//  2026-11-02 增设第四道：④ 定稿通道（finalizeMessage）终态同进退——
+//  迟到的失败/旧写不得抹掉已交付方案；ack 门禁改读「已提交存储」。
 //
 
 import XCTest
@@ -248,6 +250,251 @@ final class ContextPlanRunDeliverySafetyTests: XCTestCase {
         wait(for: [exp], timeout: 10)
         XCTAssertNil(thrown, "字典取数抛错：\(thrown ?? "")")
         print("DISCRIMINATOR sampleDraftLen=\(sampleDraftLen)")
+    }
+
+    // MARK: - ④ 定稿通道终态保护（2026-11-02 真机事故回归）
+
+    /// 2026-11-02 事故形态：云端领取已成功落卡（draftReady+方案），随后一个
+    /// 迟到的失败收尾把方案整条抹空、只留下「已就绪」信封——用户对着
+    /// 「个性化规划已就绪」死卡无内容可看、无入口可点。此处锁定：
+    /// 已交付方案对任何迟到定稿写（nil/旧/改判失败）都不可抹除。
+    private func seedDeliveredPlanMessage() async throws -> (UUID, String, ChatMessageRepository) {
+        await CoreDataStack.shared.waitUntilReady()
+        let repo = ChatMessageRepository.shared
+        let messageID = repo.addStreamingMessage(role: "assistant", parentMessageId: nil, messageType: .contextPlan)
+        let draftJSON = "{\"schemaVersion\":1,\"runID\":\"r1\",\"answerText\":\"方案正文\"}"
+        let envelopeJSON = HoloContextPlanRunController.encode(
+            HoloContextPlanRunEnvelope(
+                runID: "r1",
+                assistantMessageID: messageID,
+                stage: .draftReady,
+                stageRevision: 2
+            )
+        )
+        repo.finalizeMessage(
+            messageID,
+            finalContent: "方案正文",
+            intent: AIIntent.contextualPlanning.rawValue,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            analysisContextJSON: nil,
+            rawLogJSON: nil,
+            contextPlanJSON: draftJSON,
+            contextPlanRunJSON: envelopeJSON,
+            messageType: .contextPlan
+        )
+        return (messageID, draftJSON, repo)
+    }
+
+    private func finalizedState(_ repo: ChatMessageRepository, _ messageID: UUID) throws -> (plan: String?, stage: HoloContextPlanStage?) {
+        let view = try XCTUnwrap(repo.messages.first(where: { $0.id == messageID }))
+        return (view.contextPlanJSON, view.contextPlanRunJSON.flatMap { HoloContextPlanRunController.decode($0)?.stage })
+    }
+
+    func testLateFailureWriteDoesNotEraseDeliveredPlan() async throws {
+        ChatMessageRepository.shared.clearAllMessages()
+        defer { ChatMessageRepository.shared.clearAllMessages() }
+        let (messageID, draftJSON, repo) = try await seedDeliveredPlanMessage()
+
+        // 迟到失败写形态①：控制器缺席（nil 信封 + nil 方案）
+        repo.finalizeMessage(
+            messageID,
+            finalContent: "这次的个性化规划没有完成",
+            intent: nil,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            rawLogJSON: nil,
+            contextPlanRunJSON: nil,
+            messageType: .contextPlan
+        )
+        var state = try finalizedState(repo, messageID)
+        XCTAssertEqual(state.plan, draftJSON, "nil 定稿写不得抹掉已交付方案")
+        XCTAssertEqual(state.stage, .draftReady)
+
+        // 迟到失败写形态②：带「就绪」信封（fail 被终态锁拒绝后的编码产物）+ nil 方案
+        let staleReadyJSON = HoloContextPlanRunController.encode(
+            HoloContextPlanRunEnvelope(
+                runID: "r1",
+                assistantMessageID: messageID,
+                stage: .draftReady,
+                stageRevision: 3
+            )
+        )
+        repo.finalizeMessage(
+            messageID,
+            finalContent: "这次的个性化规划没有完成",
+            intent: nil,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            rawLogJSON: nil,
+            contextPlanRunJSON: staleReadyJSON,
+            messageType: .contextPlan
+        )
+        state = try finalizedState(repo, messageID)
+        XCTAssertEqual(state.plan, draftJSON, "就绪信封迟写不得制造「已就绪无方案」")
+
+        // 迟到失败写形态③：显式 failed 信封 + nil 方案（改判失败要清方案）
+        let failedJSON = HoloContextPlanRunController.encode(
+            HoloContextPlanRunEnvelope(
+                runID: "r1",
+                assistantMessageID: messageID,
+                stage: .failed,
+                stageRevision: 4,
+                failureCode: "PLANNING_POLL_TIMEOUT"
+            )
+        )
+        repo.finalizeMessage(
+            messageID,
+            finalContent: "这次个性化规划等待超时",
+            intent: nil,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            rawLogJSON: nil,
+            contextPlanRunJSON: failedJSON,
+            messageType: .contextPlan
+        )
+        state = try finalizedState(repo, messageID)
+        XCTAssertEqual(state.plan, draftJSON, "领取已成功的运行，迟到改判失败不得抹掉已交付方案")
+        XCTAssertEqual(state.stage, .draftReady, "已交付消息的信封保持就绪终态")
+    }
+
+    /// 就绪孤儿（draftReady 但方案本就缺失）仍必须能被收治成诚实失败——
+    /// 终态保护只保「已交付」，不得把孤儿收治路一并堵死。
+    func testOrphanReadyStillConvertibleToHonestFailure() async throws {
+        ChatMessageRepository.shared.clearAllMessages()
+        defer { ChatMessageRepository.shared.clearAllMessages() }
+        await CoreDataStack.shared.waitUntilReady()
+        let repo = ChatMessageRepository.shared
+        let messageID = repo.addStreamingMessage(role: "assistant", parentMessageId: nil, messageType: .contextPlan)
+        let orphanEnvelope = HoloContextPlanRunController.encode(
+            HoloContextPlanRunEnvelope(
+                runID: messageID.uuidString,
+                assistantMessageID: messageID,
+                stage: .draftReady,
+                stageRevision: 2
+            )
+        )
+        repo.updateContextPlanRun(messageID, runJSON: orphanEnvelope, messageType: .contextPlan)
+
+        let honestFailJSON = HoloContextPlanRunController.encode(
+            HoloContextPlanRunController.interruptedEnvelope(
+                for: messageID,
+                previous: HoloContextPlanRunController.decode(orphanEnvelope),
+                failureCode: "PLANNING_DRAFT_LOST"
+            )
+        )
+        repo.finalizeMessage(
+            messageID,
+            finalContent: "这次的个性化规划已生成，但结果没能保存到手机上。",
+            intent: nil,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            rawLogJSON: nil,
+            contextPlanRunJSON: honestFailJSON,
+            messageType: .contextPlan
+        )
+        let state = try finalizedState(repo, messageID)
+        XCTAssertNil(state.plan, "孤儿本无方案")
+        XCTAssertEqual(state.stage, .failed, "孤儿必须仍能收治为诚实失败")
+    }
+
+    /// 非终态（进行中）消息不适用终态保护：把一条 pending 运行失败定稿
+    /// （nil 信封 + nil 方案）是既有合法语义，守卫不得改变它。
+    func testPendingRunFailureFinalizeKeepsLegacySemantics() async throws {
+        ChatMessageRepository.shared.clearAllMessages()
+        defer { ChatMessageRepository.shared.clearAllMessages() }
+        await CoreDataStack.shared.waitUntilReady()
+        let repo = ChatMessageRepository.shared
+        let messageID = repo.addStreamingMessage(role: "assistant", parentMessageId: nil, messageType: .contextPlan)
+        let runningEnvelope = HoloContextPlanRunController.encode(
+            HoloContextPlanRunEnvelope(
+                runID: messageID.uuidString,
+                assistantMessageID: messageID,
+                stage: .cloudPlanning,
+                stageRevision: 1
+            )
+        )
+        repo.updateContextPlanRun(messageID, runJSON: runningEnvelope, messageType: .contextPlan)
+
+        repo.finalizeMessage(
+            messageID,
+            finalContent: "这次个性化规划等待超时",
+            intent: nil,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            rawLogJSON: nil,
+            contextPlanRunJSON: nil,
+            messageType: .contextPlan
+        )
+        let state = try finalizedState(repo, messageID)
+        XCTAssertNil(state.plan)
+        XCTAssertNil(state.stage, "进行中运行允许被失败定稿整笔收尾（既有语义）")
+    }
+
+    /// ack 即焚门禁（2026-11-02）：回读必须读「已提交存储」而非可能未保存的
+    /// 主上下文对象——save 失败时内存值仍在，据此 ack 会销毁云端唯一副本。
+    func testCommittedContextPlanDraftJSONReflectsPersistedState() async throws {
+        ChatMessageRepository.shared.clearAllMessages()
+        defer { ChatMessageRepository.shared.clearAllMessages() }
+        let (messageID, draftJSON, repo) = try await seedDeliveredPlanMessage()
+
+        let committed = await repo.committedContextPlanDraftJSON(messageID)
+        XCTAssertEqual(committed, draftJSON, "已提交方案必须能从干净上下文读到")
+    }
+
+    /// 2026-11-02 性能根治回归：query(.active) 知识门闸从逐命题全表扫（O(P×R)）
+    /// 换成快照构建期预计算命题集合（O(P)）。锁两条：①新判定与旧判定同语义
+    /// （冲突/不可读命题必须仍然受限——丢了限制会让冲突数据悄悄进规划候选）；
+    /// ②干净命题不受限。
+    func testKnowledgeSnapshotRestrictedPredicatesStayEquivalent() {
+        func makeRevision(propositionID: String, semanticRevisionID: String) -> HoloKnowledgeRevision {
+            HoloKnowledgeRevision(
+                propositionID: propositionID,
+                semanticRevisionID: semanticRevisionID,
+                semanticDigest: "digest-\(semanticRevisionID)",
+                topicID: "topic",
+                topicLabel: "主题",
+                domains: [.conversation],
+                sensitivity: .normal,
+                partition: .normal,
+                semantic: HoloKnowledgeSemantic(
+                    subjectRef: "self",
+                    relation: "likes",
+                    dimension: "diet",
+                    formation: .directExpression,
+                    evidenceForm: .explicitSemanticFact,
+                    displayText: "喜欢吃辣",
+                    aiUseText: "喜欢吃辣"
+                ),
+                initialEvidenceSnapshot: HoloKnowledgeEvidenceSnapshot(capturedAt: Date()),
+                createdAt: Date()
+            )
+        }
+        let conflicted = makeRevision(propositionID: "p-conflict", semanticRevisionID: "rev-dup")
+        let clean = makeRevision(propositionID: "p-clean", semanticRevisionID: "rev-clean")
+        var snapshot = HoloKnowledgeStoreSnapshot(
+            revisions: [conflicted, clean],
+            operations: []
+        )
+        snapshot.conflictingRevisionIDs = ["rev-dup"]
+        // 与 knowledgeStoreSnapshot 构建期归并口径一致：冲突修订所属命题整体受限
+        snapshot.conflictedPropositionIDs = ["p-conflict"]
+        snapshot.unreadablePropositionIDs = ["p-unreadable"]
+
+        // 受限命题：新旧判定必须同时为真（语义等价）
+        XCTAssertTrue(snapshot.isUnreadableOrConflicted(propositionID: "p-conflict"), "旧判定：冲突命题受限")
+        XCTAssertTrue(snapshot.isRestrictedByDataIssues(propositionID: "p-conflict"), "新判定：冲突命题不得因预计算漏判")
+        XCTAssertTrue(snapshot.isUnreadableOrConflicted(propositionID: "p-unreadable"), "旧判定：不可读命题受限")
+        XCTAssertTrue(snapshot.isRestrictedByDataIssues(propositionID: "p-unreadable"), "新判定：不可读命题不得漏判")
+        // 干净命题：两者都必须放行
+        XCTAssertFalse(snapshot.isUnreadableOrConflicted(propositionID: "p-clean"))
+        XCTAssertFalse(snapshot.isRestrictedByDataIssues(propositionID: "p-clean"))
     }
 
     // MARK: - 探针（临时诊断）：对 PROBE_STORE 指定的外部库做轻量取数

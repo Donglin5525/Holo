@@ -21,6 +21,7 @@ class TodoList: NSManagedObject {
     @NSManaged var sortOrder: Int16
     @NSManaged var color: String?
     @NSManaged var archived: Bool
+    @NSManaged var isEphemeral: Bool
     @NSManaged var createdAt: Date
     @NSManaged var updatedAt: Date
 

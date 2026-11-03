@@ -105,7 +105,7 @@ struct FeedbackSheet: View {
             if let errorMessage {
                 Text(errorMessage)
                     .font(.system(size: 13))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
@@ -202,7 +202,7 @@ struct FeedbackSheet: View {
                 Text("截图")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
-                Text("选填 · 最多 \(maxShotCount) 张")
+                Text("可选 · 最多 \(maxShotCount) 张")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.holoTextPlaceholder)
                     .padding(.horizontal, 6)
@@ -231,6 +231,7 @@ struct FeedbackSheet: View {
 
     private func shotThumbnail(_ shot: FeedbackShot) -> some View {
         ZStack(alignment: .topTrailing) {
+            #if canImport(UIKit)
             Image(uiImage: shot.image)
                 .resizable()
                 .scaledToFill()
@@ -240,6 +241,17 @@ struct FeedbackSheet: View {
                     RoundedRectangle(cornerRadius: 10)
                         .stroke(Color.holoDivider, lineWidth: 1)
                 )
+            #else
+            Image(nsImage: shot.image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 66, height: 88)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.holoDivider, lineWidth: 1)
+                )
+            #endif
 
             Button {
                 shots.removeAll { $0.id == shot.id }
@@ -283,6 +295,7 @@ struct FeedbackSheet: View {
         }
     }
 
+    #if canImport(UIKit)
     private func loadShots(_ items: [PhotosPickerItem]) {
         guard !items.isEmpty else { return }
         isProcessingImages = true
@@ -312,6 +325,13 @@ struct FeedbackSheet: View {
             await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.prefix(remaining).count, permissionRequired: permissionRequired, limitedAccess: limitedAccess, cloudFailed: cloudFailed)
         }
     }
+    #else
+    /// macOS：无相册加载管线（PhotoLibraryImageLoader 为 iOS 专属），截图附件暂不可用
+    private func loadShots(_ items: [PhotosPickerItem]) {
+        isProcessingImages = false
+        pickerItems = []
+    }
+    #endif
 
     // MARK: 联系方式
 
@@ -321,7 +341,7 @@ struct FeedbackSheet: View {
                 Text("联系方式")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
-                Text("选填")
+                Text("可选")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.holoTextPlaceholder)
                     .padding(.horizontal, 6)
@@ -357,9 +377,13 @@ struct FeedbackSheet: View {
                 TextField(contactKind.placeholder, text: $contactValue)
                     .font(.system(size: 14))
                     .foregroundColor(.holoTextPrimary)
+                    #if canImport(UIKit)
                     .keyboardType(contactKind.isNumeric ? .numberPad : .default)
+                    #endif
                     .autocorrectionDisabled()
+                    #if canImport(UIKit)
                     .textInputAutocapitalization(.never)
+                    #endif
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)

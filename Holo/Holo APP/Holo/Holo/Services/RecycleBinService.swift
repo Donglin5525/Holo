@@ -76,7 +76,8 @@ enum RecycleBinModule: String, CaseIterable, Identifiable {
             return ["MemoryInsight", "MemoryInsightFeedback"]
         case .memory:
             return ["HoloMemoryRecordMO", "HoloMemoryEvidenceMO", "HoloMemoryAnchorAliasMO",
-                    "HoloMemoryObservationRunMO", "HoloMemoryTombstoneMO"]
+                    "HoloMemoryObservationRunMO", "HoloMemoryTombstoneMO",
+                    "HoloMemoryKnowledgeRevisionMO"]
         case .lifePlan:
             return ["LifePlanMO", "PlanPriorityMO", "PlanActionMO", "PlanSignalMO",
                     "PlanFeedbackMO", "PlanRunMO"]
@@ -221,6 +222,9 @@ final class RecycleBinService: ObservableObject {
 
         // 1. 主库打标记（含批次记录创建）
         let taskIdsNeedingNotificationCancel: [UUID] = try await CoreDataStack.shared.performBackgroundTask { context in
+            let resetsGrowth = modules == RecycleBinModule.globalClearModules
+            if resetsGrowth { HoloGrowthStore.transactionLock.lock() }
+            defer { if resetsGrowth { HoloGrowthStore.transactionLock.unlock() } }
             let batch = RecycleBinBatch(context: context)
             batch.id = batchId
             batch.createdAt = now
@@ -242,6 +246,7 @@ final class RecycleBinService: ObservableObject {
                     try Self.markAllDeleted(entityName: auxEntityName, batchId: batchId, at: now, context: context)
                 }
             }
+            if resetsGrowth { try HoloGrowthStore.clear(context: context) }
             try context.save()
             return cancelledTaskIds
         }
@@ -255,6 +260,10 @@ final class RecycleBinService: ObservableObject {
         // 3. 任务模块：批量取消待发提醒
         if !taskIdsNeedingNotificationCancel.isEmpty {
             Self.cancelTaskNotifications(taskIds: taskIdsNeedingNotificationCancel)
+        }
+
+        if modules == RecycleBinModule.globalClearModules {
+            NotificationCenter.default.post(name: .holoGrowthDidReset, object: nil)
         }
 
         // 4. 广播各模块刷新 + 记忆系统缓存失效
@@ -499,7 +508,7 @@ final class RecycleBinService: ObservableObject {
         "ChatMessage",
         "MemoryInsight", "MemoryInsightFeedback",
         "HoloMemoryRecordMO", "HoloMemoryEvidenceMO", "HoloMemoryAnchorAliasMO",
-        "HoloMemoryObservationRunMO", "HoloMemoryTombstoneMO",
+        "HoloMemoryObservationRunMO", "HoloMemoryTombstoneMO", "HoloMemoryKnowledgeRevisionMO",
         "LifePlanMO", "PlanPriorityMO", "PlanActionMO", "PlanSignalMO",
         "PlanFeedbackMO", "PlanRunMO",
         // 「今天减负」当日计划版本（辅助实体：跟随任务模块批次清理）
@@ -571,20 +580,11 @@ final class RecycleBinService: ObservableObject {
         return (try? context.count(for: request)) ?? 0
     }
 
-    /// 批量取消任务待发提醒（通知 id 前缀 = task.id.uuidString）
+    /// 批量取消任务待发提醒（通知 id 以「任务UUID-」开头，委托 TodoNotificationService 统一实现）
     static func cancelTaskNotifications(taskIds: [UUID]) {
         guard !taskIds.isEmpty else { return }
-        let prefixes = Set(taskIds.map(\.uuidString))
         Task {
-            let requests = await UNUserNotificationCenter.current().pendingNotificationRequests()
-            let identifiers = requests
-                .map(\.identifier)
-                .filter { identifier in
-                    guard let separator = identifier.firstIndex(of: "-") else { return false }
-                    return prefixes.contains(String(identifier[identifier.startIndex..<separator]))
-                }
-            guard !identifiers.isEmpty else { return }
-            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
+            await TodoNotificationService.shared.cancelReminders(taskIDs: taskIds)
         }
     }
 

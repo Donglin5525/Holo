@@ -121,7 +121,7 @@ struct AnniversaryChatCard: View {
             if let error = data.confirmationError, !error.isEmpty {
                 Text(error)
                     .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
 
             HStack {

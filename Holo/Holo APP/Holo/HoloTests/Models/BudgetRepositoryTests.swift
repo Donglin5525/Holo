@@ -256,6 +256,108 @@ final class BudgetRepositoryTests: XCTestCase {
         XCTAssertEqual(counter.count, 1, "幂等命中不产生新数据，不得重复广播")
     }
 
+    // MARK: - 科目预算明细与合并总览（预算详情页科目预算区，2026-10 预算中心改造）
+
+    func test_detailNetAmount_equalsSpentAmount() async throws {
+        // 支出 2 笔 + 退款 1 笔 + 分期（仅当月第 1 期计入）：明细净额必须与已花金额一笔不差
+        try budgetRepo.addCategoryBudget(
+            accountId: cashAccount.id, categoryId: parentCategory.id,
+            amount: 5_000, period: .month, startDate: monthStart()
+        )
+        let original = try await addExpense(1_000, account: cashAccount)
+        try await addExpense(300, account: cashAccount)
+        _ = try await repo.addRefundTransaction(original: original, amount: 400)
+        _ = try await repo.addInstallmentTransactions(
+            totalAmount: 2_000, feePerPeriod: 0, periods: 2, type: .expense,
+            category: lunchCategory, account: cashAccount,
+            startDate: monthStart(), note: "相机分期"
+        )
+
+        let budget = budgetRepo.getCategoryBudget(
+            forAccount: cashAccount.id, categoryId: parentCategory.id, period: .month
+        )!
+        let status = budgetRepo.computeBudgetStatus(budget: budget)!
+        let range = (start: status.periodStartDate, end: status.periodEndDate)
+        let expenses = budgetRepo.fetchBudgetExpenseTransactions(
+            range: range, accountId: cashAccount.id, categoryId: parentCategory.id
+        )
+        let refunds = budgetRepo.fetchBudgetRefundTransactions(
+            range: range, accountId: cashAccount.id, categoryId: parentCategory.id
+        )
+
+        XCTAssertEqual(expenses.count, 3, "2 笔普通支出 + 1 笔当月分期；未来分期与对账流水不入明细")
+        XCTAssertEqual(refunds.count, 1, "退款笔随明细展示，供日汇总按净额冲减")
+        let net = expenses.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            - refunds.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        XCTAssertEqual(net, status.spentAmount, "明细净额合计必须等于已花金额（同源同谓词，对账不差一笔）")
+        XCTAssertEqual(status.spentAmount, 1_900)
+    }
+
+    func test_overviews_mergeSameCategoryAcrossAccounts() async throws {
+        // 餐饮在现金、微信两账户各设月度预算：全部账户视角合并成一行，额度/已花相加
+        try budgetRepo.addCategoryBudget(
+            accountId: cashAccount.id, categoryId: parentCategory.id,
+            amount: 1_000, period: .month, startDate: monthStart()
+        )
+        try budgetRepo.addCategoryBudget(
+            accountId: wechatAccount.id, categoryId: parentCategory.id,
+            amount: 3_000, period: .month, startDate: monthStart()
+        )
+        try await addExpense(400, account: cashAccount)
+        try await addExpense(1_200, account: wechatAccount)
+
+        let overviews = budgetRepo.computeMonthlyCategoryBudgetOverviews(accountId: nil)
+        XCTAssertEqual(overviews.count, 1, "同科目跨账户合并成一行")
+        XCTAssertEqual(overviews[0].statuses.count, 2)
+        XCTAssertEqual(overviews[0].totalBudgetAmount, 4_000)
+        XCTAssertEqual(overviews[0].totalSpentAmount, 1_600)
+        XCTAssertEqual(overviews[0].progress, 0.4, accuracy: 0.001)
+
+        // 单账户视角只看该账户
+        let single = budgetRepo.computeMonthlyCategoryBudgetOverviews(accountId: cashAccount.id)
+        XCTAssertEqual(single.count, 1)
+        XCTAssertEqual(single[0].totalBudgetAmount, 1_000)
+        XCTAssertEqual(single[0].totalSpentAmount, 400)
+    }
+
+    func test_overviews_keepParentAndChildBudgetsSeparate() async throws {
+        // 父（餐饮）与子（午餐）各设预算 = 两条独立预算各自一行；子分类支出同时计入两者（既定重叠语义）
+        try budgetRepo.addCategoryBudget(
+            accountId: cashAccount.id, categoryId: parentCategory.id,
+            amount: 2_000, period: .month, startDate: monthStart()
+        )
+        try budgetRepo.addCategoryBudget(
+            accountId: cashAccount.id, categoryId: lunchCategory.id,
+            amount: 800, period: .month, startDate: monthStart()
+        )
+        try await addExpense(500, account: cashAccount) // 记在午餐（子分类）
+
+        let overviews = budgetRepo.computeMonthlyCategoryBudgetOverviews(accountId: cashAccount.id)
+        XCTAssertEqual(overviews.count, 2, "父子科目预算不合并，各自一行")
+        let parent = overviews.first { $0.categoryId == parentCategory.id }!
+        let child = overviews.first { $0.categoryId == lunchCategory.id }!
+        XCTAssertEqual(parent.totalSpentAmount, 500, "子分类支出计入父科目预算（含子分类口径）")
+        XCTAssertEqual(child.totalSpentAmount, 500, "子科目预算自身也统计该笔")
+    }
+
+    func test_overviews_excludeNonMonthlyBudgets() async throws {
+        try budgetRepo.addCategoryBudget(
+            accountId: cashAccount.id, categoryId: parentCategory.id,
+            amount: 500, period: .week, startDate: monthStart()
+        )
+        let overviews = budgetRepo.computeMonthlyCategoryBudgetOverviews(accountId: nil)
+        XCTAssertTrue(overviews.isEmpty, "周/年周期分类预算不上月度总览（详情页只管月度，周/年在账户详情页管理）")
+    }
+
+    func test_categoryBudgetSave_broadcastsChangeNotification() async throws {
+        let counter = ChangeNotificationCounter()
+        try budgetRepo.addCategoryBudget(
+            accountId: cashAccount.id, categoryId: parentCategory.id,
+            amount: 500, period: .month, startDate: monthStart()
+        )
+        XCTAssertEqual(counter.count, 1, "预算写落库后应广播一次（预算详情页科目区与明细弹层的自动刷新依赖此通知）")
+    }
+
     // MARK: - 工具
 
     private func monthStart() -> Date {

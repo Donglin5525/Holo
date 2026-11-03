@@ -117,33 +117,41 @@ struct TagChip: View {
 /// 流式布局容器
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
+    /// 长标签按可用宽度排版；默认保持既有标签选择器的固有尺寸规则。
+    var constrainsSubviewWidth = false
     
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing)
+        let result = FlowResult(in: proposal.width ?? 0, subviews: subviews, spacing: spacing,
+                                constrainsSubviewWidth: constrainsSubviewWidth)
         return result.size
     }
     
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing)
+        let result = FlowResult(in: bounds.width, subviews: subviews, spacing: spacing,
+                                constrainsSubviewWidth: constrainsSubviewWidth)
         
         for (index, subview) in subviews.enumerated() {
             subview.place(at: CGPoint(x: bounds.minX + result.positions[index].x,
                                        y: bounds.minY + result.positions[index].y),
-                         proposal: .unspecified)
+                         proposal: constrainsSubviewWidth ? ProposedViewSize(result.sizes[index]) : .unspecified)
         }
     }
     
     struct FlowResult {
         var size: CGSize = .zero
         var positions: [CGPoint] = []
+        var sizes: [CGSize] = []
         
-        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat) {
+        init(in maxWidth: CGFloat, subviews: Subviews, spacing: CGFloat, constrainsSubviewWidth: Bool = false) {
             var x: CGFloat = 0
             var y: CGFloat = 0
             var rowHeight: CGFloat = 0
             
             for subview in subviews {
-                let size = subview.sizeThatFits(.unspecified)
+                let proposal = constrainsSubviewWidth && maxWidth > 0
+                    ? ProposedViewSize(width: maxWidth, height: nil) : .unspecified
+                let size = subview.sizeThatFits(proposal)
+                sizes.append(size)
                 
                 if x + size.width > maxWidth && x > 0 {
                     // 换行

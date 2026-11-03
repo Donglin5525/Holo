@@ -7,7 +7,7 @@
 //
 //  性能口径：消费异常/习惯全勤/重要任务三类检测为窗口级批量查询
 //  （每类一次列查询 + 内存分组），不再逐日 N+1；streak 成就依赖
-//  HabitRepository（@MainActor），保留主线程调用语义，量级 = 活跃习惯数。
+//  批量习惯展示投影，同样可以在后台 context 执行。
 //
 
 import Foundation
@@ -33,11 +33,12 @@ struct HighlightDetector {
     /// - Returns: 按日期分组的高亮数据 [Date: [HighlightData]]
     static func detect(
         for dates: [Date],
-        context: NSManagedObjectContext
+        context: NSManagedObjectContext,
+        achievements: MemoryAchievementSnapshot? = nil
     ) -> [Date: [HighlightData]] {
         var results = detectBatch(for: dates, context: context)
 
-        for highlight in detectStreakAchievements(context: context) {
+        for highlight in detectStreakAchievements(context: context, achievements: achievements) {
             let dayStart = Calendar.current.startOfDay(for: highlight.date)
             results[dayStart, default: []].append(highlight.data)
         }
@@ -71,10 +72,12 @@ struct HighlightDetector {
 
     // MARK: - Streak Achievement Detection
 
-    /// 检测习惯连续打卡成就（依赖 @MainActor HabitRepository，主线程执行）
+    /// 检测习惯连续打卡成就（复用批量习惯展示投影，不逐日查库）
     static func detectStreakAchievements(
-        context: NSManagedObjectContext
+        context: NSManagedObjectContext,
+        achievements: MemoryAchievementSnapshot? = nil
     ) -> [(date: Date, data: HighlightData)] {
+        let achievements = achievements ?? MemoryAchievementSnapshot(context: context)
         var results: [(date: Date, data: HighlightData)] = []
         let calendar = Calendar.current
 
@@ -84,12 +87,12 @@ struct HighlightDetector {
         guard let habits = try? context.fetch(habitRequest) else { return results }
 
         for habit in habits {
-            let streakInfo = HabitRepository.shared.calculateStreakInfo(for: habit)
+            let streakInfo = achievements.streaks[habit.id] ?? .zero()
             guard streakThresholds.contains(streakInfo.value) else { continue }
 
             // 成就日期 = streak 中最新一天（今天或昨天）
             let achievementDate: Date
-            let todayCompleted = HabitRepository.shared.isTodayCompleted(for: habit)
+            let todayCompleted = achievements.completedToday.contains(habit.id)
             if todayCompleted {
                 achievementDate = calendar.startOfDay(for: Date())
             } else if let yesterday = calendar.date(byAdding: .day, value: -1, to: Date()) {

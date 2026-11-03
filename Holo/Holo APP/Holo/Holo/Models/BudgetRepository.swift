@@ -105,6 +105,7 @@ class BudgetRepository {
         )
 
         try context.save()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
         logger.info("预算已创建：账户=\(accountId.uuidString.prefix(8)), 金额=\(NSDecimalNumber(decimal: amount)), 周期=\(period.rawValue)")
 
         return budget
@@ -125,6 +126,7 @@ class BudgetRepository {
 
         budget.updatedAt = Date()
         try context.save()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
         logger.info("预算已更新")
     }
 
@@ -132,6 +134,7 @@ class BudgetRepository {
     func deleteBudget(_ budget: Budget) throws {
         budget.delete()
         try context.save()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
         logger.info("预算已删除")
     }
 
@@ -164,6 +167,7 @@ class BudgetRepository {
         )
 
         try context.save()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
         logger.info("分类预算已创建：分类=\(categoryId.uuidString.prefix(8)), 金额=\(NSDecimalNumber(decimal: amount))")
 
         return budget
@@ -236,6 +240,61 @@ class BudgetRepository {
         )
     }
 
+    /// 预算口径交易查询请求：已花金额（fetchSpentAmount）与明细列表共用同一谓词构造，
+    /// 保证明细净额合计 ≡ 预算展示的已花金额。口径：
+    /// 分类预算含子分类；未到期分期/计划流水不计（occurredPredicate）；
+    /// 对账调整流水排除；软删排除；CloudKit 副本去重由调用方处理。
+    private func budgetTransactionRequest(
+        range: (start: Date, end: Date),
+        accountId: UUID,
+        categoryId: UUID?,
+        refunds: Bool
+    ) -> NSFetchRequest<Transaction> {
+        let request = Transaction.fetchRequest()
+        var format = "account.id == %@ AND date >= %@ AND date < %@ AND type == %@"
+        var arguments: [Any] = [
+            accountId,
+            range.start as NSDate,
+            range.end as NSDate,
+            (refunds ? TransactionType.income : TransactionType.expense).rawValue
+        ]
+        if refunds {
+            format += " AND refundOfTransactionId != nil"
+        }
+        if let categoryId {
+            format += " AND (category.id == %@ OR category.parentId == %@)"
+            arguments.append(categoryId)
+            arguments.append(categoryId)
+        }
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: format, argumentArray: arguments),
+            NSPredicate(format: "deletedAt == nil"),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(),
+            FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
+        ])
+        return request
+    }
+
+    /// 预算口径的支出明细（与已花金额同源同口径）
+    func fetchBudgetExpenseTransactions(
+        range: (start: Date, end: Date),
+        accountId: UUID,
+        categoryId: UUID?
+    ) -> [Transaction] {
+        let request = budgetTransactionRequest(range: range, accountId: accountId, categoryId: categoryId, refunds: false)
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
+    }
+
+    /// 预算口径的退款笔：明细列表随支出一并展示，日汇总与合计按净额（支出 − 退款）冲减
+    func fetchBudgetRefundTransactions(
+        range: (start: Date, end: Date),
+        accountId: UUID,
+        categoryId: UUID?
+    ) -> [Transaction] {
+        let request = budgetTransactionRequest(range: range, accountId: accountId, categoryId: categoryId, refunds: true)
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
+    }
+
     /// 按预算口径统计指定周期内的支出（总预算 = 账户全部支出；分类预算 = 含子分类）
     /// 对账调整流水不属于真实消费，不计入预算已花。
     /// 退款笔（type=income + refundOfTransactionId）按负支出冲减已花，与收支统计口径一致。
@@ -245,74 +304,10 @@ class BudgetRepository {
         accountId: UUID,
         categoryId: UUID?
     ) -> Decimal {
-        let request = Transaction.fetchRequest()
-
-        if let categoryId {
-            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-                NSPredicate(
-                    format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@ AND (category.id == %@ OR category.parentId == %@)",
-                    accountId as CVarArg,
-                    range.start as NSDate,
-                    range.end as NSDate,
-                    TransactionType.expense.rawValue,
-                    categoryId as CVarArg,
-                    categoryId as CVarArg
-                ),
-                NSPredicate(format: "deletedAt == nil"),
-                FinanceTransactionOccurrencePolicy.occurredPredicate(),
-                FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
-            ])
-        } else {
-            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-                NSPredicate(
-                    format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@",
-                    accountId as CVarArg,
-                    range.start as NSDate,
-                    range.end as NSDate,
-                    TransactionType.expense.rawValue
-                ),
-                NSPredicate(format: "deletedAt == nil"),
-                FinanceTransactionOccurrencePolicy.occurredPredicate(),
-                FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
-            ])
-        }
-
-        let transactions = DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])
-        let spent = transactions.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
-
-        // 退款笔挂原交易同款分类，按退款笔自身分类冲减（含分类预算的父子分类匹配）
-        let refundRequest = Transaction.fetchRequest()
-        if let categoryId {
-            refundRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-                NSPredicate(
-                    format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@ AND refundOfTransactionId != nil AND (category.id == %@ OR category.parentId == %@)",
-                    accountId as CVarArg,
-                    range.start as NSDate,
-                    range.end as NSDate,
-                    TransactionType.income.rawValue,
-                    categoryId as CVarArg,
-                    categoryId as CVarArg
-                ),
-                NSPredicate(format: "deletedAt == nil"),
-                FinanceTransactionOccurrencePolicy.occurredPredicate(),
-                FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
-            ])
-        } else {
-            refundRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-                NSPredicate(
-                    format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@ AND refundOfTransactionId != nil",
-                    accountId as CVarArg,
-                    range.start as NSDate,
-                    range.end as NSDate,
-                    TransactionType.income.rawValue
-                ),
-                NSPredicate(format: "deletedAt == nil"),
-                FinanceTransactionOccurrencePolicy.occurredPredicate(),
-                FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate()
-            ])
-        }
-        let refunds = DuplicateRowFilter.deduplicatingCopies((try? context.fetch(refundRequest)) ?? [])
-        return spent - refunds.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        let expenses = fetchBudgetExpenseTransactions(range: range, accountId: accountId, categoryId: categoryId)
+        let refunds = fetchBudgetRefundTransactions(range: range, accountId: accountId, categoryId: categoryId)
+        return expenses.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            - refunds.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
     }
 
     /// 计算指定账户的当前总预算状态（便捷方法）
@@ -486,6 +481,49 @@ class BudgetRepository {
             }
         }
         return warnings.sorted { $0.progress > $1.progress }
+    }
+
+    // MARK: - Category Budget Overview（预算详情页科目预算区）
+
+    /// 月度分类预算总览列表：全部账户视角（accountId = nil）同科目跨账户合并成一行，
+    /// 单账户视角只取该账户；仅含月度周期（周/年预算仍在账户详情页管理，不上预算详情页）。
+    /// 排序按进度降序（超支在前）。
+    func computeMonthlyCategoryBudgetOverviews(accountId: UUID?) -> [CategoryBudgetOverview] {
+        let accounts = accountsProvider().filter { accountId == nil || $0.id == accountId }
+        var categoryCache: [UUID: Category] = [:]
+        var statusesByCategory: [UUID: [BudgetStatus]] = [:]
+
+        for account in accounts {
+            let monthlyBudgets = Budget.fetchCategoryBudgets(forAccount: account.id, in: context)
+                .filter { $0.budgetPeriod == .month }
+            for budget in monthlyBudgets {
+                guard let categoryId = budget.categoryId,
+                      let status = computeBudgetStatus(budget: budget) else { continue }
+                if categoryCache[categoryId] == nil {
+                    categoryCache[categoryId] = findCategory(by: categoryId)
+                }
+                statusesByCategory[categoryId, default: []].append(status)
+            }
+        }
+
+        return statusesByCategory.compactMap { categoryId, statuses in
+            let category = categoryCache[categoryId]
+            let overview = CategoryBudgetOverview(
+                categoryId: categoryId,
+                categoryName: category?.name ?? "未知分类",
+                categoryIcon: category?.icon ?? "questionmark.folder.fill",
+                categoryColor: category?.color ?? "#64748B",
+                statuses: statuses
+            )
+            return overview
+        }
+        .sorted { $0.progress > $1.progress }
+    }
+
+    /// 单科目月度预算总览（科目预算明细弹层编辑预算后重拉用；accountId = nil 跨账户合并）
+    func computeCategoryBudgetOverview(categoryId: UUID, accountId: UUID?) -> CategoryBudgetOverview? {
+        computeMonthlyCategoryBudgetOverviews(accountId: accountId)
+            .first { $0.categoryId == categoryId }
     }
 
     // MARK: - Helpers

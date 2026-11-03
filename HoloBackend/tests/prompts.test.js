@@ -129,8 +129,8 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  // 版本号（v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图；v29: 日期/时间后置——缓存前缀治理）
-  assert.equal(prompt.version, 32);
+  // 版本号（v35: accountCandidate 遵从强化（硬性列举+微信支付示例）；v34: 记账账户识别 accountCandidate 槽位；v33: 长段陈述建任务+时段词未来下限；v31: 任务多提醒槽位 reminderDates + 日期一律绝对格式；v30: 新增 contextual_planning 意图；v29: 日期/时间后置——缓存前缀治理）
+  assert.equal(prompt.version, 35);
 
   // 缓存前缀治理（v29）：时间语境必须落在提示词最末尾，不允许回到开头/中部
   const timeIdx = prompt.content.indexOf("当前时间：");
@@ -149,7 +149,13 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   // 科目表静态前置、前缀缓存友好，直选失败率（菜名类）远低于原「候选词+hint」两段式。
   // 红线 8100（2026-10-03 今天减负：新增 today_relief 只读意图后 ~8008，按先例随功能扩容重划）：
   // 条目已裁剪至 1 例；不再裁会伤路由质量。
-  assert.ok(prompt.content.length < 8100, `prompt 长度 ${prompt.content.length} 超过 8100`);
+  // 红线 8800（2026-10-19 v33 长段陈述建任务规则+时段词未来下限规则+长段例句后 ~8672，按先例重划）：
+  // 例句是小模型命中的关键（只加规则不示例实测仍 unknown），不再裁。
+  // 红线 9200（2026-11-01 v34 记账账户识别：accountCandidate 规则行+招商银行示例句后 ~9095，按先例重划）：
+  // 账户示例句直接取自用户实报原话，是小模型点名账户命中的关键，不裁。
+  // 红线 9500（2026-11-02 v35 遵从强化：硬性列举规则句+「微信支付」结尾式示例后 ~9368，真机两测一中实报驱动）：
+  // qwen 对新槽位遵从弱，规则句与示例句都是命中率关键，不裁。
+  assert.ok(prompt.content.length < 9500, `prompt 长度 ${prompt.content.length} 超过 9500`);
 
   // 注册表一致性（v25 起「防漏新」）：渲染产物必须包含 intents.json 全部意图与摘要，
   // 且不含任何未注册意图名——新增意图忘了登记 intents.json 会在这里红
@@ -719,10 +725,20 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  // v23: 财务深析五层深挖法 + claimTitle 点破式标题（2026-09-21 财务深析改造）
   // v25: 目录驱动字段原则（字段能力标记随目录上云，新字段零提示词教学）
-  assert.equal(prompt.version, 25);
+  // v26: 融合版判断法（S1 消融定稿：答案先行/候选解释+改判条件/已确认风险必处理/
+  //      台账优先+禁假设合同条款/输出禁自我对话；v21 维度菜单与v23五层深挖退役）
+  // v28: 全景体检模式（台账注入时逐域覆盖+同变候选核验+心理解读禁令+环比同比口径）
+  assert.equal(prompt.version, 28);
   assert.match(prompt.content, /HOLO_AGENT_CATALOG_DRIVEN_FIELDS_V25/);
+  assert.match(prompt.content, /HOLO_AGENT_INSIGHT_JUDGMENT_V26/);
+  assert.match(prompt.content, /全景体检模式/);
+  assert.match(prompt.content, /cross_domain_checkup/);
+  assert.match(prompt.content, /环比/);
+  assert.match(prompt.content, /reportStructure/);
+  assert.match(prompt.content, /chartHint/);
+  assert.doesNotMatch(prompt.content, /HOLO_AGENT_FINANCE_DEPTH_V23/);
+  assert.doesNotMatch(prompt.content, /HOLO_AGENT_ANALYSIS_MASTERY_V21/);
   assert.match(prompt.content, /need_tools/);
   assert.match(prompt.content, /need_more_analysis/);
   assert.match(prompt.content, /final_claims/);
@@ -732,12 +748,12 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   // v17: 新增 title/narrativeSummary 顶层字段，让 LLM 产出有人味儿的标题和摘要
   assert.match(prompt.content, /narrativeSummary/);
   assert.match(prompt.content, /点破式提炼/);
-  // v21: 分析方法论 + keyInsight/interpretation 输出字段
-  assert.match(prompt.content, /HOLO_AGENT_ANALYSIS_MASTERY_V21/);
+  // v21 输出字段与个人基线纪律由 v26 继承；维度菜单方法论退役
+  assert.match(prompt.content, /HOLO_AGENT_INSIGHT_JUDGMENT_V26/);
   assert.match(prompt.content, /keyInsight/);
   assert.match(prompt.content, /interpretation/);
   assert.match(prompt.content, /个人基线/);
-  assert.match(prompt.content, /维度菜单/);
+  assert.match(prompt.content, /连续 2 期同向才叫趋势/);
   assert.match(prompt.content, /社交时差/);
   assert.match(prompt.content, /按当前节奏推算/);
   assert.match(prompt.content, /health_overview/);
@@ -753,15 +769,15 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /workout_summary/);
   assert.match(prompt.content, /dynamic_query/);
   assert.match(prompt.content, /禁止生成 SQL/);
-  // v23: 财务深析五层深挖 + 管家记忆 + 展开豁免 + claimTitle
-  assert.match(prompt.content, /HOLO_AGENT_FINANCE_DEPTH_V23/);
-  assert.match(prompt.content, /五层深挖/);
-  assert.match(prompt.content, /私人资产管家/);
-  assert.match(prompt.content, /生活状态交叉/);
+  // v23 管家记忆/时刻纪律/展开豁免由 v26 继承；五层深挖与管家人设退役
   assert.match(prompt.content, /管家记忆/);
+  assert.match(prompt.content, /00:00 整点/);
+  assert.match(prompt.content, /展开豁免/);
   assert.match(prompt.content, /claimTitle/);
   assert.match(prompt.content, /禁止复述正文第一句/);
-  assert.match(prompt.content, /00:00 整点/);
+  assert.match(prompt.content, /台账优先/);
+  assert.match(prompt.content, /已确认事实与已知风险/);
+  assert.match(prompt.content, /不许把自我核对/);
   // v18: 新增 expression 派生操作（分档换算自由组合）
   assert.match(prompt.content, /expression/);
   assert.match(prompt.content, /分档换算/);

@@ -31,11 +31,21 @@ struct SpendingProjectsView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("固定支出")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(Color.holoBackground, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(.visible, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
                     Button {
                         onBack()
                     } label: {
@@ -44,7 +54,7 @@ struct SpendingProjectsView: View {
                             .foregroundColor(.holoTextPrimary)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button { showAdd = true } label: { Image(systemName: "plus") }
                 }
             }
@@ -188,15 +198,25 @@ struct SpendingProjectDetailView: View {
                 }
                 .listRowBackground(Color.holoCardBackground)
             }
-            if let errorMessage { Section { Text(errorMessage).foregroundColor(.red) }.listRowBackground(Color.holoCardBackground) }
+            if let errorMessage { Section { Text(errorMessage).foregroundColor(.holoToolError) }.listRowBackground(Color.holoCardBackground) }
         }
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
         .tint(Color.holoPrimary)
         .navigationTitle(project.name)
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
+        #if canImport(UIKit)
         .toolbarBackground(Color.holoBackground, for: .navigationBar)
+        #else
+        // macOS：导航栏背景恒等
+        #endif
+        #if canImport(UIKit)
         .toolbarBackground(.visible, for: .navigationBar)
+        #else
+        // macOS：导航栏背景恒等
+        #endif
         .toolbar {
             ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
             ToolbarItem(placement: .destructiveAction) { Button(role: .destructive) { showDeleteConfirmation = true } label: { Image(systemName: "trash") } }
@@ -273,17 +293,28 @@ struct SpendingProjectEndConditionSheet: View {
                 Picker("结束条件", selection: $mode) { ForEach(SpendingProjectEndMode.allCases, id: \.self) { Text($0.title).tag($0) } }
                 if mode == .endDate { DatePicker(String(localized: "结束日期"), selection: $endDate, in: project.startDate..., displayedComponents: .date) }
                 if mode == .occurrenceCount { TextField("总周期数", text: $totalOccurrences).keyboardType(.numberPad).focused($focusedField, equals: .occurrences) }
-                if let errorMessage { Text(errorMessage).foregroundColor(.red) }
+                if let errorMessage { Text(errorMessage).foregroundColor(.holoToolError) }
             }
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)
             .tint(Color.holoPrimary)
             .navigationTitle("编辑周期项目")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(Color.holoBackground, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(.visible, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭")) }
                 ToolbarItem(placement: .confirmationAction) { Button("保存") { save() } }
                 // 数字键盘没有「完成」按钮，这里在键盘正上方提供一个
                 ToolbarItemGroup(placement: .keyboard) {
@@ -354,17 +385,28 @@ struct SpendingProjectOneOffEditorSheet: View {
                         .foregroundColor(.holoTextSecondary)
                 }
                 .listRowBackground(Color.holoCardBackground)
-                if let errorMessage { Section { Text(errorMessage).foregroundColor(.holoError) }.listRowBackground(Color.holoCardBackground) }
+                if let errorMessage { Section { Text(errorMessage).foregroundColor(.holoToolError) }.listRowBackground(Color.holoCardBackground) }
             }
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)
             .tint(Color.holoPrimary)
             .navigationTitle("编辑一次性购买")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(Color.holoBackground, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
+            #if canImport(UIKit)
             .toolbarBackground(.visible, for: .navigationBar)
+            #else
+            // macOS：导航栏背景恒等
+            #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭")) }
                 ToolbarItem(placement: .confirmationAction) { Button("保存") { save() } }
                 // 数字键盘没有「完成」按钮，这里在键盘正上方提供一个
                 ToolbarItemGroup(placement: .keyboard) {
@@ -437,15 +479,18 @@ struct AddSpendingProjectSheet: View {
                     }
                 }
                 .listRowBackground(Color.holoCardBackground)
-                if let errorMessage { Text(errorMessage).foregroundColor(.holoError).listRowBackground(Color.holoCardBackground) }
+                if let errorMessage { Text(errorMessage).foregroundColor(.holoToolError).listRowBackground(Color.holoCardBackground) }
             }
             .scrollContentBackground(.hidden)
             .background(Color.holoBackground)
             .tint(Color.holoPrimary)
             .navigationTitle("添加固定支出")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭")) }
                 ToolbarItem(placement: .confirmationAction) { Button("保存") { save() }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || Decimal(string: amount) == nil) }
             }
             .presentationBackground(Color.holoBackground)

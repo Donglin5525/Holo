@@ -20,6 +20,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 
 struct PolaroidMomentCard: View {
     let moment: DailyReplayMoment
@@ -110,6 +114,7 @@ struct PolaroidMomentCard: View {
             headerLine
             photoStack
             caption
+            DailyReplayReferenceQuotes(quotes: moment.referenceQuotes, typeScale: typeScale)
             if needsFullTextHint {
                 Text("轻点查看全文")
                     .font(.system(size: 10 * typeScale, weight: .medium))
@@ -131,27 +136,53 @@ struct PolaroidMomentCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 6)
-        .contentShape(Rectangle())
+        // 卡片容器（2026-10-09 东林反馈：想法文字不能裸在册页纸上）：
+        // 骨架与无图时刻卡同构，但描边用虚线 + 淡粉衬线引号——想法是「贴在
+        // 册页上的剪报/便签」，与拍立得照片堆同一手账世界观，不与账务卡同款。
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .background(thoughtCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                .stroke(style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+                // 深色下剪报虚线隐身：模块色浓度提到 0.5
+                .foregroundColor(moment.module.color.opacity(0.5))
+        )
+        .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
         .onTapGesture(perform: onSelect)
         .sensoryFeedback(.selection, trigger: topIndex)
-        .task {
+        .task(id: moment.photoRevision) {
             await decodePhotos()
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
+        .accessibilityValue(String(localized: "第 \(topIndex + 1) 张，共 \(photos.count) 张"))
+        .accessibilityIdentifier("daily.replay.photo.\(moment.id)")
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(String(localized: "轻点打开想法详情，左右滑动切换照片"))
+    }
+
+    /// 卡底：白卡 + 想法模块色渍（比其他模块卡的 0.025 稍可感知，粉调但不吵）
+    private var thoughtCardBackground: some ShapeStyle {
+        LinearGradient(
+            colors: [Color.holoCardBackground, moment.module.color.opacity(0.05)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
     }
 
     /// 解码进共享缓存：先同步探测（滚动回位时当帧全部命中，不闪占位），
     /// 未命中的逐张后台强制解码、到一张显一张。
     private func decodePhotos() async {
-        guard decodedImages.isEmpty, !photos.isEmpty else { return }
+        guard !photos.isEmpty else { decodedImages = []; return }
+        topIndex = min(topIndex, photos.count - 1)
         var images = photos.map { AttachmentImageLoader.cachedThumbnail(for: $0) }
         decodedImages = images
         for (index, data) in photos.enumerated() where images[index] == nil {
+            guard !Task.isCancelled else { return }
             images[index] = await AttachmentImageLoader.decodedThumbnail(from: data)
+            guard !Task.isCancelled else { return }
             decodedImages = images
         }
     }
@@ -183,7 +214,20 @@ struct PolaroidMomentCard: View {
         }
         .frame(height: photoHeight + 46 * galleryScale)
         .frame(maxWidth: .infinity)
-        .gesture(
+        // 淡粉衬线引号：想法=引述自己的念头，挂照片堆左上角当装饰。
+        // 不放右上——那里是「N 张」印章的位（3 张以上盖章），两装饰会打架；
+        // 左上单/双图时全空，多图时淡粉压在照片白边上也属手账贴纸语言。
+        // 不参与命中。
+        .overlay(alignment: .topLeading) {
+            Text("\u{201C}")
+                .font(.system(size: 40 * typeScale, weight: .bold, design: .serif))
+                .foregroundColor(moment.module.color.opacity(0.20))
+                .rotationEffect(.degrees(-6))
+                .offset(x: -2, y: -6)
+                .allowsHitTesting(false)
+        }
+        // 翻片只消费横向位移，与列表的纵向滚动同时识别；不能先吞掉纵向拖动再在回调里忽略。
+        .simultaneousGesture(
             DragGesture(minimumDistance: 14)
                 .onChanged { value in
                     guard photos.count > 1, abs(value.translation.width) > abs(value.translation.height) else { return }
@@ -295,31 +339,26 @@ struct PolaroidMomentCard: View {
     }
 
     private var caption: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(moment.title)
-                .font(.system(size: 14.5, weight: .semibold, design: .serif))
-                .foregroundColor(.holoTextPrimary)
-                .lineSpacing(3)
-                // 与无图时刻卡同一行数口径；超长时下方给「轻点查看全文」提示。
-                .lineLimit(6)
-                .multilineTextAlignment(.leading)
-            Spacer(minLength: 6)
-            Text(moment.timeText)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundColor(.holoTextSecondary)
-                .monospacedDigit()
-        }
-        .padding(.horizontal, 4)
+        // 时间已在行头时间列（2026-10-10 对齐改造），卡内不再重复；
+        // 纯多行文本独占一行，不再与时间戳挤同一行。
+        Text(moment.title)
+            .font(.system(size: 14.5, weight: .semibold, design: .serif))
+            .foregroundColor(.holoTextPrimary)
+            .lineSpacing(3)
+            // 与无图时刻卡同一行数口径；超长时下方给「轻点查看全文」提示。
+            .lineLimit(6)
+            .multilineTextAlignment(.leading)
+            .padding(.horizontal, 4)
     }
 
-    /// 判定与无图卡同源（DailyReplayPresentation.thoughtExceedsLineLimit）。
-    /// 字号按 caption 实际渲染字号 14.5；宽度 = 屏宽 − 页边距 − caption 内边距。
+    /// 判定与无图卡同源（DailyReplayPresentation.thoughtNeedsFullTextHint）。
+    /// 字号按 caption 实际渲染字号 14.5；宽度 = 屏宽 − 页边距(32) − 时间列(56) − 卡片水平内边距(28) − caption 内边距(8)。
     private var needsFullTextHint: Bool {
-        DailyReplayPresentation.thoughtExceedsLineLimit(
+        DailyReplayPresentation.thoughtNeedsFullTextHint(
             moment.title,
             lines: 6,
             fontSize: 14.5,
-            availableWidth: UIScreen.main.bounds.width - 2 * HoloSpacing.md - 8
+            availableWidth: holoScreenWidth() - 124
         )
     }
 
@@ -399,9 +438,15 @@ private struct PolaroidLayer: View, Equatable {
     var body: some View {
         Group {
             if let image {
+                #if canImport(UIKit)
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
+                #else
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                #endif
             } else {
                 Rectangle()
                     .fill(Color.holoNestedCardBackground)

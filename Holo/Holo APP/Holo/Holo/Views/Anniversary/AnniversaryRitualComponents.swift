@@ -187,26 +187,35 @@ struct AnniversaryMilestoneTrack: View {
 
             GeometryReader { geo in
                 let marks = info.trackMarks
-                ZStack(alignment: .leading) {
+                // 首尾节点各内收 12pt，端点圆点与标签才不越出卡片；
+                // 节点整体高约 35（圆 20 + 间距 3 + 标签 ~12），圆心落在轨道线上
+                let inset: CGFloat = 12
+                let span = max(geo.size.width - inset * 2, 0)
+                let circleCenterY: CGFloat = 11
+                ZStack {
                     // 底轨
                     Capsule()
                         .fill(Color.white.opacity(0.13))
-                        .frame(height: 3)
-                    // 进度填充（到下一个里程碑的完成度）
+                        .frame(width: span, height: 3)
+                        .position(x: geo.size.width / 2, y: circleCenterY)
+                    // 进度填充：沿节点轨道插值到「今天」——
+                    // 最后一个已达成节点 → 下一节点之间按剩余天数比例推进，
+                    // 让填充位置与已点亮的节点对得上（而非固定从轨道起点画百分比）
                     Capsule()
                         .fill(LinearGradient(colors: [tint.opacity(0.55), tint], startPoint: .leading, endPoint: .trailing))
-                        .frame(width: max(geo.size.width * fillRatio, 4), height: 3)
+                        .frame(width: max(fillEndX(marks: marks, inset: inset, span: span) - inset, 4), height: 3)
+                        .position(x: (inset + fillEndX(marks: marks, inset: inset, span: span)) / 2, y: circleCenterY)
 
                     if marks.count >= 2 {
                         ForEach(Array(marks.enumerated()), id: \.element.id) { index, mark in
-                            let x = geo.size.width * CGFloat(index) / CGFloat(marks.count - 1)
                             node(mark)
-                                .position(x: x, y: 1.5)
+                                .position(x: inset + span * CGFloat(index) / CGFloat(marks.count - 1),
+                                          y: 18)
                         }
                     }
                 }
             }
-            .frame(height: 24)
+            .frame(height: 36)
         }
         .holoRepeatingPhase($pulse, from: false, to: true,
                             animation: .easeInOut(duration: 1.8).repeatForever(autoreverses: true),
@@ -219,6 +228,18 @@ struct AnniversaryMilestoneTrack: View {
         let lastReached = info.reached.last ?? 0
         guard next > lastReached else { return 1 }
         return CGFloat(info.totalDays - lastReached) / CGFloat(next - lastReached)
+    }
+
+    /// 填充条的终点 x：节点齐全时插值到「今天」所在的节点段；
+    /// 节点不足两个（新纪念日）退化为按首里程碑的比例；全部达成则铺满
+    private func fillEndX(marks: [AnniversaryMilestoneInfo.Mark], inset: CGFloat, span: CGFloat) -> CGFloat {
+        if marks.count >= 2 {
+            if marks.last?.state == .upcoming {
+                return inset + span * (CGFloat(marks.count - 2) + fillRatio) / CGFloat(marks.count - 1)
+            }
+            return inset + span
+        }
+        return inset + span * fillRatio
     }
 
     @ViewBuilder
@@ -249,7 +270,6 @@ struct AnniversaryMilestoneTrack: View {
                 .monospacedDigit()
                 .foregroundColor(mark.state == .now ? Color(red: 0.99, green: 0.90, blue: 0.54) : .white.opacity(0.6))
         }
-        .offset(y: -12)
     }
 
     private func markLabel(_ mark: AnniversaryMilestoneInfo.Mark) -> String {

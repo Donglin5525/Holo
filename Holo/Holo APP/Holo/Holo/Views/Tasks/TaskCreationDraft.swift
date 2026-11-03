@@ -9,7 +9,7 @@
 import Foundation
 import Combine
 
-/// 新增入口上下文（方案 §5.2 各入口预填表）
+/// 新增入口上下文（方案 §5.2 各入口预填表；多视图 §7.1 补计划时段）
 struct TaskCreationContext: Equatable {
     /// 重要性预填（象限新增时非 unknown）
     var importance: TaskImportance = .unknown
@@ -22,6 +22,9 @@ struct TaskCreationContext: Equatable {
     var listID: UUID? = nil
     /// 来源提示（象限新增显示「来自『…』，已预填分类，可调整」）
     var sourceQuadrant: TaskQuadrant? = nil
+    /// 计划时段预填（日历选中日/空白整点新增；§7.1 表——与任务本身一次提交）
+    var plannedStart: Date? = nil
+    var plannedEnd: Date? = nil
 }
 
 /// 新增草稿：标题 + 两轴 + 截止 + 清单 + 描述；一次保存建任务。
@@ -37,6 +40,11 @@ final class TaskCreationDraft: ObservableObject {
     @Published var dueIsAllDay: Bool
     @Published var listID: UUID?
     @Published var note: String = ""
+
+    // 计划时段草稿（多视图 §7.2）：与任务本身一次提交；初始默认值不算用户编辑
+    @Published var hasPlannedRange: Bool
+    @Published var plannedStart: Date
+    @Published var plannedEnd: Date
 
     /// 预填上下文（取消判定时排除的部分）
     let context: TaskCreationContext
@@ -55,6 +63,11 @@ final class TaskCreationDraft: ObservableObject {
         self.dueDate = context.dueDate ?? now
         self.dueIsAllDay = context.dueIsAllDay
         self.listID = context.listID
+        self.hasPlannedRange = context.plannedStart != nil && context.plannedEnd != nil
+        let calendar = TaskAnalyticsPeriod.makeCalendar()
+        let fallback = TaskPlannedTimeDefaults.defaultRange(on: now, from: now, calendar: calendar)
+        self.plannedStart = context.plannedStart ?? fallback.start
+        self.plannedEnd = context.plannedEnd ?? fallback.end
     }
 
     // MARK: - 用户编辑标记
@@ -74,7 +87,12 @@ final class TaskCreationDraft: ObservableObject {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    var canSave: Bool { submitTitle != nil }
+    /// 计划时段合法性（开启时段时须同日且开始早于结束，§7.2）
+    var isPlannedRangeValid: Bool {
+        !hasPlannedRange || TodoTask.isValidPlannedRange(plannedStart, plannedEnd)
+    }
+
+    var canSave: Bool { submitTitle != nil && isPlannedRangeValid }
 
     // MARK: - 实时归属预览（与首页同一解析器，方案 §5.3；紧急分 2026-10-07）
 

@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import CoreData
 
 enum HoloMemoryRecordDetailChange {
     case updated(HoloMemoryRecord)
@@ -23,7 +22,7 @@ struct HoloMemoryRecordDetailView: View {
     @State private var correctionText = ""
     @State private var showForgetConfirmation = false
     @State private var selectedEvidence: HoloMemoryEvidenceRef?
-    @State private var liveEvidenceExcerpt: String?
+    @State private var liveEvidenceText: String?
 
     let onChange: (HoloMemoryRecordDetailChange) -> Void
 
@@ -45,7 +44,7 @@ struct HoloMemoryRecordDetailView: View {
                 if let errorMessage {
                     Label(errorMessage, systemImage: "exclamationmark.circle")
                         .font(.holoCaption)
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                 }
             }
             .padding(HoloSpacing.lg)
@@ -54,9 +53,11 @@ struct HoloMemoryRecordDetailView: View {
         }
         .background(Color.holoBackground.ignoresSafeArea())
         .navigationTitle("这条记忆")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                 Button("完成") { dismiss() }
             }
         }
@@ -99,21 +100,24 @@ struct HoloMemoryRecordDetailView: View {
                 .foregroundColor(.holoTextPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Label(
-                HoloMemoryUserPresentation.durationTitle(for: record),
-                systemImage: HoloMemoryUserPresentation.durationIcon(for: record)
-            )
-            .font(.holoCaption)
-            .foregroundColor(.holoPrimary)
+            HStack(alignment: .firstTextBaseline) {
+                Label(
+                    HoloMemoryUserPresentation.durationTitle(for: record),
+                    systemImage: HoloMemoryUserPresentation.durationIcon(for: record)
+                )
+                .font(.holoCaption)
+                .foregroundColor(.holoPrimary)
+
+                Spacer()
+
+                Text(HoloMemoryUserPresentation.timeRange(for: record))
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextPlaceholder)
+            }
 
             Text(HoloMemoryUserPresentation.durationExplanation(for: record))
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextSecondary)
-
-            Text("观察时间：\(HoloMemoryUserPresentation.timeRange(for: record))")
-                .font(.holoTinyLabel)
-                .foregroundColor(.holoTextPlaceholder)
-
             if let status = HoloMemoryUserPresentation.degradedStatus(for: record) {
                 Label(status, systemImage: "exclamationmark.circle")
                     .font(.holoCaption)
@@ -204,8 +208,8 @@ struct HoloMemoryRecordDetailView: View {
     private func handleEvidenceTap(_ evidence: HoloMemoryEvidenceRef) {
         if let target = HoloMemoryEvidenceRouter.deepLinkTarget(for: evidence) {
             // 跳转前校验原始记录仍存活（不存在或已进回收站都视为已清除，让用户有感知）
-            guard isEvidenceSourceAlive(evidence) else {
-                HoloToastCenter.shared.show("该记录已被清除", type: .info)
+            guard HoloMemoryEvidenceRouter.isSourceAlive(for: evidence) else {
+                HoloToastCenter.shared.show("这条依据的原文已被删除", type: .info)
                 return
             }
             dismiss()
@@ -213,17 +217,6 @@ struct HoloMemoryRecordDetailView: View {
         } else {
             selectedEvidence = evidence
         }
-    }
-
-    /// 可路由证据的 sourceID 是否仍指向一条未删除的原始记录
-    private func isEvidenceSourceAlive(_ evidence: HoloMemoryEvidenceRef) -> Bool {
-        guard let entityName = HoloMemoryEvidenceRouter.sourceEntityName(for: evidence),
-              let sourceID = evidence.sourceID,
-              let uuid = UUID(uuidString: sourceID) else { return false }
-        let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
-        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", uuid as CVarArg)
-        request.fetchLimit = 1
-        return ((try? CoreDataStack.shared.viewContext.count(for: request)) ?? 0) > 0
     }
 
     private func evidencePreviewSheet(_ evidence: HoloMemoryEvidenceRef) -> some View {
@@ -257,30 +250,32 @@ struct HoloMemoryRecordDetailView: View {
             }
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("记忆出处")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("完成") { selectedEvidence = nil }
                 }
             }
             .task(id: evidence.id) {
-                liveEvidenceExcerpt = nil
-                liveEvidenceExcerpt = await HoloMemoryConversationExcerptLookup.excerpt(for: evidence)
+                liveEvidenceText = nil
+                liveEvidenceText = await HoloMemoryEvidenceSourceLookup.liveText(for: evidence)
             }
         }
         .presentationDetents([.medium, .large])
     }
 
-    /// 存量证据未保存摘要时按 sourceID 回查原文；查不到才落占位文案。
+    /// 存量证据未保存摘要时按 sourceID 回查原文；查不到（已删除/不存在）才落占位文案。
     private func previewBody(for evidence: HoloMemoryEvidenceRef) -> String {
         if let summary = evidence.summary?.trimmingCharacters(in: .whitespacesAndNewlines),
            !summary.isEmpty {
             return summary
         }
-        if let liveEvidenceExcerpt, !liveEvidenceExcerpt.isEmpty {
-            return liveEvidenceExcerpt
+        if let liveEvidenceText, !liveEvidenceText.isEmpty {
+            return liveEvidenceText
         }
-        return "这条证据没有留下文字摘要，原始内容可能已被删除。"
+        return "原始记录已删除，无法显示当时的原文。"
     }
 
     private var feedbackSection: some View {
@@ -298,14 +293,28 @@ struct HoloMemoryRecordDetailView: View {
                 }
             }
 
-            HStack(spacing: HoloSpacing.sm) {
-                feedbackButton("纠正", icon: "pencil", color: .holoPrimary) {
+            // 次级动作降权为轻量文字按钮：纠正/删除是低频操作，不该与主判断抢视觉权重。
+            HStack(spacing: HoloSpacing.lg) {
+                Button {
                     correctionText = record.displaySummary
                     showCorrection = true
+                } label: {
+                    Label("纠正", systemImage: "pencil")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
                 }
-                feedbackButton("不再使用", icon: "eye.slash", color: .red) {
+                .buttonStyle(.plain)
+
+                Button {
                     showForgetConfirmation = true
+                } label: {
+                    Label("不再使用", systemImage: "eye.slash")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
                 }
+                .buttonStyle(.plain)
+
+                Spacer()
             }
         }
         .disabled(isWorking)
@@ -354,7 +363,9 @@ struct HoloMemoryRecordDetailView: View {
             .padding(HoloSpacing.lg)
             .background(Color.holoBackground.ignoresSafeArea())
             .navigationTitle("纠正记忆")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") { showCorrection = false }

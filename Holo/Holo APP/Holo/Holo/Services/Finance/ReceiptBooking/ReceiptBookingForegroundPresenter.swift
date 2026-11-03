@@ -33,21 +33,30 @@ enum ReceiptBookingForegroundPresenter {
     /// 覆盖「识别完马上回 Holo」的正常路径；更早的草案交给复核列表与兜底通知。
     static let freshDraftPresentationWindow: TimeInterval = 10 * 60
 
-    /// 弹出指定草案的复核页并落去重标记。
-    /// 所有自动触达（回前台兜底 / opensIntent / 通知点击 / 前台直弹）统一走这里，
-    /// 保证「关掉后不再自动弹」的口径全链一致。
+    /// 弹出指定草案的复核页。
+    /// 所有自动触达（回前台兜底 / opensIntent / 通知点击 / 前台直弹）统一走这里。
+    /// 去重标记不再在这里落（2026-10-14）：被其他弹层挡住导致复核页没真正弹出来时，
+    /// 提前落标记会让这次触达被吞且永不重试——改由确认页真正到达（onAppear）时
+    /// acknowledge 落标记；关掉复核页仍等于「暂不处理」，不再自动弹的口径不变。
     static func present(draftID: UUID) {
-        UserDefaults.standard.set(draftID.uuidString, forKey: lastPresentedKey)
         DeepLinkState.shared.navigate(to: .receiptReview(draftID: draftID))
+    }
+
+    /// 复核页真正到达用户面前时落去重标记（sheet 内容 onAppear 调用）。
+    static func acknowledge(draftID: UUID) {
+        UserDefaults.standard.set(draftID.uuidString, forKey: lastPresentedKey)
     }
 
     /// 回前台兜底检查：最新草案是「刚识别完」且未自动弹过时才弹。
     /// 草案盘上即事实（每次读磁盘、无缓存），确认/放弃即删，7 天过期。
-    static func presentIfNeeded() {
-        guard let latest = ReceiptBookingResultStore.shared.loadDrafts().first else { return }
-        guard isFreshlyCreated(latest.createdAt, now: Date()) else { return }
-        guard latest.id.uuidString != UserDefaults.standard.string(forKey: lastPresentedKey) else { return }
+    /// - Returns: 是否派发了复核页导航（供结果播报避让：弹了确认页就不再叠 toast）
+    @discardableResult
+    static func presentIfNeeded() -> Bool {
+        guard let latest = ReceiptBookingResultStore.shared.loadDrafts().first else { return false }
+        guard isFreshlyCreated(latest.createdAt, now: Date()) else { return false }
+        guard latest.id.uuidString != UserDefaults.standard.string(forKey: lastPresentedKey) else { return false }
         present(draftID: latest.id)
+        return true
     }
 
     /// 纯判定供单测锁定：窗口内创建（且非未来时间）才算「刚识别完」。

@@ -1,0 +1,309 @@
+{
+  "schema_version": 1,
+  "coordinate_system": "top_left_pixels",
+  "base_size": [
+    1206,
+    2622
+  ],
+  "output_sizes": {
+    "iphone-medium": [
+      1206,
+      2622
+    ],
+    "iphone-large": [
+      1320,
+      2868
+    ],
+    "ipad-13": [
+      2064,
+      2752
+    ]
+  },
+  "colors": {
+    "background": "#FDFCF8",
+    "ink": "#333333",
+    "secondary": "#66605A",
+    "brand": "#F46D38",
+    "brand_text": "#EA580C",
+    "surface": "#FFFFFF",
+    "rule": "#E4DDD5",
+    "habit": "#66856D",
+    "notes": "#81708D"
+  },
+  "header": {
+    "safe_x": 72,
+    "brand_rect": [
+      72,
+      96,
+      1062,
+      48
+    ],
+    "title_rect": [
+      72,
+      204,
+      1062,
+      228
+    ],
+    "subtitle_rect": [
+      72,
+      458,
+      1062,
+      112
+    ],
+    "conditions_rect": [
+      72,
+      580,
+      1062,
+      44
+    ],
+    "conditions_size": 28,
+    "title_font": "PingFangSC-Semibold",
+    "title_size": 88,
+    "title_min_size": 76,
+    "title_max_lines": 2,
+    "title_line_height": 108,
+    "subtitle_size": 36,
+    "subtitle_line_height": 48
+  },
+  "layouts": {
+    "HERO": {
+      "description": "完整App界面为主体，外层只有标题、次文案与必要权益标记",
+      "slots": {
+        "primary": [
+          174,
+          660,
+          858,
+          1865
+        ]
+      },
+      "fit": "contain",
+      "max_callouts": 1
+    },
+    "FOCUS": {
+      "description": "保留完整上下文，再从同一来源放大一处关键证据",
+      "slots": {
+        "context": [
+          340,
+          660,
+          526,
+          1144
+        ],
+        "focus": [
+          72,
+          1850,
+          1062,
+          590
+        ]
+      },
+      "fit": "contain",
+      "max_callouts": 1
+    },
+    "FLOW": {
+      "description": "输入图与App原生待确认界面按顺序展示；保存结果另页呈现，箭头不压住素材或App控件。",
+      "slots": {
+        "input_caption": [
+          72,
+          630,
+          1062,
+          50
+        ],
+        "input": [
+          303,
+          690,
+          600,
+          840
+        ],
+        "primary_caption": [
+          72,
+          1560,
+          1062,
+          50
+        ],
+        "primary": [
+          72,
+          1620,
+          1062,
+          498
+        ]
+      },
+      "fit": "contain",
+      "max_callouts": 1
+    },
+    "PAIR": {
+      "description": "两张真实界面有序并排，标题外标清前后或不同范围",
+      "slots": {
+        "primary": [
+          66,
+          700,
+          510,
+          1109
+        ],
+        "secondary": [
+          630,
+          1050,
+          510,
+          1109
+        ],
+        "fact": [
+          72,
+          2260,
+          1062,
+          160
+        ]
+      },
+      "fit": "contain",
+      "max_callouts": 2
+    },
+    "JOURNAL": {
+      "description": "Holo原生分享操作或样式选择界面作为流程上下文，App实际导出JPEG作为完整结果证据；两张图均等比、不重绘",
+      "slots": {
+        "context_caption": [
+          72,
+          642,
+          1062,
+          44
+        ],
+        "context": [
+          338,
+          700,
+          530,
+          1160
+        ],
+        "export_caption": [
+          72,
+          1876,
+          1062,
+          44
+        ],
+        "export": [
+          278,
+          1936,
+          650,
+          594
+        ]
+      },
+      "fit": "contain",
+      "max_callouts": 2
+    }
+  },
+  "ipad": {
+    "header": {
+      "brand_rect": [
+        96,
+        104,
+        1872,
+        64
+      ],
+      "title_rect": [
+        96,
+        230,
+        1872,
+        232
+      ],
+      "subtitle_rect": [
+        96,
+        478,
+        1872,
+        116
+      ],
+      "title_size": 100,
+      "subtitle_size": 42
+    },
+    "slots": {
+      "HERO": {
+        "primary": [
+          280,
+          640,
+          1504,
+          2005
+        ]
+      },
+      "FOCUS": {
+        "context": [
+          632,
+          640,
+          800,
+          1067
+        ],
+        "focus": [
+          96,
+          1800,
+          1872,
+          780
+        ]
+      },
+      "FLOW": {
+        "input_caption": [
+          96,
+          650,
+          1872,
+          54
+        ],
+        "input": [
+          532,
+          710,
+          1000,
+          900
+        ],
+        "primary_caption": [
+          96,
+          1660,
+          1872,
+          54
+        ],
+        "primary": [
+          96,
+          1720,
+          1872,
+          880
+        ]
+      },
+      "PAIR": {
+        "primary": [
+          96,
+          700,
+          900,
+          1200
+        ],
+        "secondary": [
+          1068,
+          1080,
+          900,
+          1200
+        ],
+        "fact": [
+          96,
+          2380,
+          1872,
+          200
+        ]
+      },
+      "JOURNAL": {
+        "context_caption": [
+          96,
+          650,
+          1872,
+          72
+        ],
+        "context": [
+          592,
+          740,
+          880,
+          886
+        ],
+        "export_caption": [
+          96,
+          1660,
+          1872,
+          72
+        ],
+        "export": [
+          532,
+          1740,
+          1000,
+          914
+        ]
+      }
+    }
+  }
+}

@@ -44,6 +44,8 @@ struct ContextExtractorOrchestratorStandaloneTests {
         try await testMergeReusesStableIdentity()
         try await testMultiPackagePageProcessesAllSources()
         try await testMidPageFailureRetriesRemainingPackagesOnly()
+        try await testDomainFollowsOrchestratorAndEvidenceCarriesQuote()
+        try await testRebuildMigrationArchivesAndResets()
         print("ContextExtractorOrchestratorStandaloneTests: \(assertionCount) 断言全部通过")
     }
 
@@ -167,8 +169,11 @@ struct ContextExtractorOrchestratorStandaloneTests {
         quote: String = "低盐",
         sourceID: String = "thought-1"
     ) -> String {
+        // 主体恒为用户本人（scope=user）：2026-09 底第三方主体准入闸落地后，
+        // person 指向的候选被拦截持久化，旧夹具（父亲/person）让全套件在
+        // happy path 即 fatal 中止、后续用例被掩蔽（既有红归因见 74b94c141/5f314f4f1）。
         """
-        {"candidates":[{"candidateRef":"\(ref)","statement":"\(statement)","relationText":"\(statement)","subjects":[{"label":"父亲","scope":"person"}],"facets":[{"kind":"constraint"}],"epistemicStatus":"declared","basis":[{"sourceID":"\(sourceID)","quote":"\(quote)","revision":"rev-1","stance":"support"}],"openQuestions":[]}],"counterEvidence":[]}
+        {"candidates":[{"candidateRef":"\(ref)","statement":"\(statement)","relationText":"\(statement)","subjects":[{"label":"我","scope":"user"}],"facets":[{"kind":"constraint"}],"epistemicStatus":"declared","basis":[{"sourceID":"\(sourceID)","quote":"\(quote)","revision":"rev-1","stance":"support"}],"openQuestions":[]}],"counterEvidence":[]}
         """
     }
 
@@ -214,10 +219,12 @@ struct ContextExtractorOrchestratorStandaloneTests {
         expect(outcome.createdRecords == 1, "创建一条记录（实际 \(outcome.createdRecords)）")
         expect(writer.records.count == 1, "落库一条")
         let record = writer.records[0]
-        expect(record.state == .candidate, "新记录默认 candidate")
+        // v4 五路决策口径：declared 用户命题 + supported → factEligible 自动采信为 active
+        // （挂载时投影 admission 恒为 adviceEligible，见 HoloMemoryDecisionPolicy.attach）。
+        expect(record.state == .active, "declared+supported 自动采信为 active")
         expect(record.personalContext?.isReadable == true, "载荷可读")
         expect(record.personalContext?.v1?.admission.level == .adviceEligible, "supported → 建议背景")
-        expect(writer.cursor?.sourceCursor == nil, "全部处理完游标清空")
+        expect(writer.cursor?.sourceCursor != nil, "页非空时游标推进到页尾（G1：追平由下一轮空页判定，不再清空水位）")
         expect(writer.cursor?.progress.createdRecords == 1, "进度计数")
     }
 
@@ -377,11 +384,11 @@ struct ContextExtractorOrchestratorStandaloneTests {
         let sources = [source()]
         let (extractor, llm, writer) = makeExtractor(sources: sources)
 
-        // 既有记录（同一命题）。
+        // 既有记录（同一命题；主体与夹具同为用户本人，保证签名匹配——见 extractionRaw 注）。
         let existingPayload = HoloPersonalContextPayloadV1(
             contextID: "existing-ctx",
             statement: "父亲被要求低盐",
-            subjects: [HoloContextPartyRef(label: "父亲", scope: .person)],
+            subjects: [HoloContextPartyRef(label: "我", scope: .user)],
             relationText: "父亲被要求低盐",
             epistemicStatus: .declared,
             basis: [HoloContextBasisRef(sourceID: "thought-0", quote: "低盐", sourceRevision: "rev-0")],
@@ -466,7 +473,7 @@ struct ContextExtractorOrchestratorStandaloneTests {
         expect(outcome.createdRecords == 3, "每包各建一条（实际 \(outcome.createdRecords)）")
         expect(writer.records.count == 3, "落库 3 条")
         expect(writer.cursor?.progress.scannedSources == 30, "整页 30 条计入扫描（实际 \(writer.cursor?.progress.scannedSources ?? -1)）")
-        expect(writer.cursor?.sourceCursor == nil, "全部处理完游标清空")
+        expect(writer.cursor?.sourceCursor != nil, "页非空时游标推进到页尾（G1：追平由下一轮空页判定）")
     }
 
     /// 页内第 2 包失败：抛错、游标不推进；已成功包按 receipt 幂等，重试只补余下包。
@@ -494,10 +501,280 @@ struct ContextExtractorOrchestratorStandaloneTests {
         let outcome = try await extractor.runOneBatch(now: Date(timeIntervalSince1970: 1_790_000_200))
         expect(llm.extractCallCount == 4, "重试只补 2 包（3+4，实际 \(llm.extractCallCount)）")
         expect(writer.records.count == 1, "不重复落库")
-        expect(writer.cursor?.sourceCursor == nil, "重试成功后游标清空")
+        expect(writer.cursor?.sourceCursor != nil, "重试成功后游标推进到页尾（G1 语义）")
         expect(writer.cursor?.progress.scannedSources == 30, "整页 30 条计入扫描（实际 \(writer.cursor?.progress.scannedSources ?? -1)）")
         expect(outcome.createdRecords == 0, "重试零新建")
     }
+
+    /// 域归属根治锁定（2026-10-09 东林反馈）：记录域必须取来源编排器的域，
+    /// 不再依赖「包首来源 == 依据首来源」的相等判断——习惯域编排器里依据指向
+    /// 第二条来源的候选，旧实现会失配回落 thought（习惯记忆被错标成想法的根因）。
+    /// 同时锁定新证据必须携带依据原话摘要（出处页不再误报「原始内容已删除」）。
+    static func testDomainFollowsOrchestratorAndEvidenceCarriesQuote() async throws {
+        // sourceKey 前缀按 HoloLifeSourceKeys 契约字面书写（standalone 编译不拖仓储层）。
+        let checkinKey1 = "habit-checkin:77777777-7777-7777-7777-777777777771"
+        let checkinKey2 = "habit-checkin:77777777-7777-7777-7777-777777777772"
+        let sources = [
+            source(id: checkinKey1, text: "完成习惯打卡「戒烟」，数值 1", revision: "rev-h1"),
+            source(id: checkinKey2, text: "完成习惯打卡「戒烟」，数值 1（第二次）", revision: "rev-h2"),
+        ]
+        // 覆盖快照域为 habit（source() 默认 thought，这里按真实习惯域来源构造）。
+        let habitSources = sources.map { snapshot in
+            var habitSnapshot = snapshot
+            habitSnapshot.sourceDomain = "habit"
+            habitSnapshot.sourceKind = "habitCheckin"
+            return habitSnapshot
+        }
+        let llm = FakeLLM()
+        let writer = FakeWriter()
+        writer.seedRevisions(from: HoloContextSourceIndex(habitSources).sources)
+        let extractor = HoloPersonalContextExtractor(
+            paging: HoloContextInMemorySourcePaging(sources: habitSources),
+            llm: llm,
+            writer: writer,
+            domain: "habit"
+        )
+        // 依据指向第二条来源：旧实现下 page 首来源是 checkinKey1，相等判断必失配。
+        // 主体必须是用户本人（scope=user）：第三方主体被准入策略拦截持久化（既有红同因）。
+        llm.extractResponses = [
+            """
+            {"candidates":[{"candidateRef":"c1","statement":"用户在坚持戒烟打卡","relationText":"用户在坚持戒烟打卡","subjects":[{"label":"我","scope":"user"}],"facets":[{"kind":"state"}],"epistemicStatus":"observed","basis":[{"sourceID":"\(checkinKey2)","quote":"完成习惯打卡「戒烟」，数值 1（第二次）","revision":"rev-h2","stance":"support"}],"openQuestions":[]}],"counterEvidence":[]}
+            """
+        ]
+        llm.verifyResponses = ["{\"verdicts\":[{\"candidateRef\":\"c1\",\"verdict\":\"supported\"}]}"]
+
+        _ = try await extractor.runOneBatch(now: Date(timeIntervalSince1970: 1_790_000_000))
+
+        expect(writer.records.count == 1, "习惯域候选落库 1 条")
+        guard let record = writer.records.first else { return }
+        expect(record.primaryDomain == .habit, "记录域必须随编排器落习惯域（实际 \(record.primaryDomain?.rawValue ?? "nil")）")
+        expect(record.sourceDomains == [.habit], "来源域与主域一致")
+        guard let evidence = record.evidenceRefs.first else {
+            expect(false, "记录必须携带证据")
+            return
+        }
+        expect(evidence.sourceID == checkinKey2, "证据指向依据来源")
+        expect(evidence.summary == "完成习惯打卡「戒烟」，数值 1（第二次）", "证据必须携带依据原话摘要")
+    }
+
+    /// 存量重建迁移（2026-10-09 修复批）：归档+剥载荷、保留用户已表态、
+    /// 放行新管线记录（promptVersion ≥ 2）、清空游标与调度键、版本门控幂等。
+    static func testRebuildMigrationArchivesAndResets() async throws {
+        let suiteName = "test-rebuild-migration-orchestrator"
+        UserDefaults().removePersistentDomain(forName: suiteName)
+        let defaults = UserDefaults(suiteName: suiteName)!
+
+        func makePersonalContextRecord(
+            id: String,
+            promptVersion: Int,
+            decision: HoloMemoryUserDecision
+        ) throws -> HoloMemoryRecord {
+            let payload = HoloPersonalContextPayloadV1(
+                contextID: "ctx-\(id)",
+                statement: "旧命题",
+                subjects: [HoloContextPartyRef(label: "我", scope: .user)],
+                relationText: "旧命题",
+                epistemicStatus: .observed,
+                basis: [],
+                admission: HoloContextAdmissionV1(level: .unreviewed, policyVersion: 1, decidedAt: Date(timeIntervalSince1970: 0))
+            )
+            // 锚点值按记录区分：稳定 ID 由域/claimKind/锚点决定，同锚点会同 ID 撞键。
+            let anchor = try HoloMemoryAnchorRef(type: .userTheme, value: "旧命题-\(id)")
+            return try HoloMemoryRecord(
+                id: HoloMemoryIdentity.makeStableID(
+                    scope: .domain, primaryDomain: .thought, sourceDomains: [.thought],
+                    claimKind: .observedFact, anchors: [anchor]
+                ),
+                scope: .domain,
+                primaryDomain: .thought,
+                sourceDomains: [.thought],
+                subjectKey: "个人情境",
+                anchorRefs: [anchor],
+                claimKind: .observedFact,
+                persistenceClass: .durable,
+                displaySummary: "旧命题",
+                aiUseSummary: "旧命题",
+                prohibitedInferences: [],
+                evidenceRefs: [],
+                upstreamMemoryIDs: [],
+                counterEvidenceRefs: [],
+                confidenceScore: 0.5,
+                freshnessScore: 0.5,
+                scoringVersion: 1,
+                scoreComputedAt: Date(timeIntervalSince1970: 0),
+                extractorVersion: 1,
+                promptVersion: promptVersion,
+                state: .active,
+                sensitivity: .normal,
+                userDecision: decision,
+                createdAt: Date(timeIntervalSince1970: 0),
+                updatedAt: Date(timeIntervalSince1970: 0),
+                personalContext: HoloPersonalContextPayloadEnvelope(v1: payload)
+            )
+        }
+
+        let repository = MockRebuildMigrationRepository()
+        // 应归档：旧管线个人情境（promptVersion 1，未表态）。
+        let oldRecord = try makePersonalContextRecord(id: "old-1", promptVersion: 1, decision: .none)
+        // 应保留：用户已确认的旧记录。
+        let confirmedRecord = try makePersonalContextRecord(id: "confirmed-1", promptVersion: 1, decision: .confirmed)
+        // 应归档：跨域记录。
+        let crossAnchor = try HoloMemoryAnchorRef(type: .userTheme, value: "跨域命题")
+        let crossRecord = try HoloMemoryRecord(
+            id: "cross-1",
+            scope: .crossDomain,
+            primaryDomain: nil,
+            sourceDomains: [.thought, .habit],
+            subjectKey: "跨域",
+            anchorRefs: [crossAnchor],
+            claimKind: .association,
+            persistenceClass: .durable,
+            displaySummary: "跨域旧结论",
+            aiUseSummary: "跨域旧结论",
+            prohibitedInferences: [],
+            evidenceRefs: [],
+            upstreamMemoryIDs: ["up-1", "up-2"],
+            counterEvidenceRefs: [],
+            confidenceScore: 0.5,
+            freshnessScore: 0.5,
+            scoringVersion: 1,
+            scoreComputedAt: Date(timeIntervalSince1970: 0),
+            extractorVersion: 1,
+            promptVersion: 1,
+            state: .active,
+            sensitivity: .normal,
+            userDecision: .none,
+            createdAt: Date(timeIntervalSince1970: 0),
+            updatedAt: Date(timeIntervalSince1970: 0)
+        )
+        // 应放行：新管线记录（promptVersion 2）。
+        let freshRecord = try makePersonalContextRecord(id: "fresh-1", promptVersion: 2, decision: .none)
+        // 应放行：领域管线记录（无个人情境载荷）。
+        var domainPathRecord = try makePersonalContextRecord(id: "domain-path-1", promptVersion: 1, decision: .none)
+        domainPathRecord.personalContext = nil
+        repository.records = [
+            oldRecord.id: oldRecord,
+            confirmedRecord.id: confirmedRecord,
+            crossRecord.id: crossRecord,
+            freshRecord.id: freshRecord,
+            domainPathRecord.id: domainPathRecord,
+        ]
+
+        let cursorKeys = [
+            "test-cursor-thought", "test-cursor-finance", "test-cursor-task",
+            "test-cursor-habit", "test-cursor-conversation", "test-cursor-goal",
+        ]
+        defaults.set(Date().timeIntervalSince1970, forKey: "test-scheduling-pointer")
+
+        let result = try await HoloPersonalContextRebuildMigration.rebuildIfNeeded(
+            repository: repository,
+            defaults: defaults,
+            cursorKeys: cursorKeys,
+            schedulingKeys: ["test-scheduling-pointer"]
+        )
+
+        expect(result?.archivedRecordCount == 2, "归档旧个人情境+跨域各一条（实际 \(result?.archivedRecordCount ?? -1)）")
+        expect(result?.preservedUserDecidedCount == 1, "用户已确认记录计入保留（实际 \(result?.preservedUserDecidedCount ?? -1)）")
+        expect(result?.cursorReset == true, "游标重置已执行")
+
+        let archived = try await repository.fetch(id: oldRecord.id)
+        expect(archived?.state == .archived, "旧记录归档")
+        expect(archived?.personalContext?.v1 == nil, "旧记录载荷已剥离（防归并回染）")
+        expect(archived?.recordVersion == oldRecord.recordVersion + 1, "归档走版本链")
+
+        let confirmed = try await repository.fetch(id: confirmedRecord.id)
+        expect(confirmed?.state == .active, "用户已确认记录不归档")
+        expect(confirmed?.personalContext?.v1 != nil, "用户已确认记录载荷保留")
+
+        let fresh = try await repository.fetch(id: freshRecord.id)
+        expect(fresh?.state == .active, "新管线记录不归档")
+        expect(fresh?.personalContext?.v1 != nil, "新管线记录载荷保留")
+
+        let domainPath = try await repository.fetch(id: domainPathRecord.id)
+        expect(domainPath?.state == .active, "领域管线记录不归档")
+
+        expect(repository.migratedWrites.sorted() == [crossRecord.id, oldRecord.id].sorted(), "迁移写通道只触达两条退役记录")
+
+        for key in cursorKeys + ["test-scheduling-pointer"] {
+            expect(defaults.object(forKey: key) == nil, "调度键 \(key) 已清空")
+        }
+
+        // 版本门控：第二次执行不再动作。
+        let secondRun = try await HoloPersonalContextRebuildMigration.rebuildIfNeeded(
+            repository: repository,
+            defaults: defaults,
+            cursorKeys: cursorKeys
+        )
+        expect(secondRun == nil, "版本门控幂等：已执行过不再重跑")
+    }
+}
+
+/// 内存仓储假件（迁移测试用）：全协议空实现 + 记录字典。
+final class MockRebuildMigrationRepository: HoloMemoryRepository, @unchecked Sendable {
+    var records: [String: HoloMemoryRecord] = [:]
+    private(set) var migratedWrites: [String] = []
+
+    func upsert(
+        _ record: HoloMemoryRecord,
+        observationKey: String?
+    ) async throws -> HoloMemoryUpsertResult {
+        let existed = records[record.id] != nil
+        records[record.id] = record
+        return existed ? .updated : .inserted
+    }
+
+    func hasSuccessfulObservation(_ key: String) async throws -> Bool { false }
+
+    func applyObservationBatch(
+        _ records: [HoloMemoryRecord],
+        observationKey: String,
+        domain: HoloMemoryDomain,
+        extractorVersion: Int,
+        promptVersion: Int,
+        completedAt: Date
+    ) async throws -> [HoloMemoryUpsertResult] { [] }
+
+    func fetch(id: String) async throws -> HoloMemoryRecord? { records[id] }
+
+    func query(_ query: HoloMemoryRepositoryQuery) async throws -> [HoloMemoryRecord] {
+        switch query {
+        case .all: return Array(records.values)
+        case .active: return records.values.filter { $0.state == .active }
+        case .domain(let domain): return records.values.filter { $0.primaryDomain == domain }
+        }
+    }
+
+    func markUserDecision(
+        id: String,
+        decision: HoloMemoryUserDecision,
+        now: Date
+    ) async throws -> Bool { false }
+
+    func supersede(id: String, replacementVersionID: String, now: Date) async throws -> Bool { false }
+
+    func storageCounts() async throws -> HoloMemoryStorageCounts {
+        HoloMemoryStorageCounts(mainRecords: records.count, sensitiveRecords: 0)
+    }
+
+    func loadControlState() async throws -> HoloMemoryControlState { .initial() }
+    func saveControlState(_ state: HoloMemoryControlState) async throws {}
+    func saveTombstone(_ tombstone: HoloMemoryTombstone) async throws {}
+    func fetchTombstone(identityKey: String) async throws -> HoloMemoryTombstone? { nil }
+    func queryTombstones() async throws -> [HoloMemoryTombstone] { [] }
+
+    func replaceRecordForUserControl(_ record: HoloMemoryRecord) async throws {
+        records[record.id] = record
+    }
+
+    func recordUsage(ids: [String], now: Date) async throws {}
+
+    func replaceRecordForMigration(_ record: HoloMemoryRecord) async throws {
+        migratedWrites.append(record.id)
+        records[record.id] = record
+    }
+
+    func hardDeleteRecordForMigration(id: String) async throws { records[id] = nil }
+    func deleteTombstoneForMigration(identityKey: String) async throws {}
 }
 
 /// 代际竞态替身：第一次 currentGeneration 返回基线，之后返回新代际。

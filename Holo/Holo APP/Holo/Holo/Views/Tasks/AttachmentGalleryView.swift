@@ -54,7 +54,9 @@ struct AttachmentGalleryView: View {
                         .tag(index)
                     }
                 }
+                #if canImport(UIKit)
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                #endif
 
                 // 页码指示器
                 Text("\(currentIndex + 1)/\(attachments.count)")
@@ -77,7 +79,11 @@ struct AttachmentGalleryView: View {
             if let imageData = attachment.imageData {
                 DispatchQueue.global(qos: .userInitiated).async {
                     let base = UIImage(data: imageData)
+                    #if canImport(UIKit)
                     let image = base?.preparingForDisplay() ?? base
+                    #else
+                    let image = base
+                    #endif
                     DispatchQueue.main.async {
                         if index < images.count {
                             images[index] = image

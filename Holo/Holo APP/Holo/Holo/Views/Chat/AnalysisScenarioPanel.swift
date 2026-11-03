@@ -3,8 +3,10 @@
 //  Holo
 //
 //  「深度分析」胶囊的场景面板（甲方案，2026-08-22 东林拍板）。
-//  把 Holo 能做的深度分析在发起前显性摊开：8 个场景（跨域洞察置顶王牌 +
-//  6 单域 + 长期模式画像问答）。选中只做一件事——预填问句到输入框，
+//  把 Holo 能做的深度分析在发起前显性摊开：8 个场景（生活体检置顶王牌 +
+//  6 单域 + 长期模式画像问答；2026-11-01 跨域洞察升级为全景体检——程序先算
+//  各领域体检台账，报告逐域覆盖；名称用「生活体检」而非「全域」类术语，用户一眼看懂）。
+//  选中只做一件事——预填问句到输入框，
 //  发送确认权在用户（东林确立的原则，全 App 发起类交互统一遵守）。
 //
 
@@ -26,7 +28,7 @@ enum AnalysisScenario: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .crossDomain: return String(localized: "跨域洞察")
+        case .crossDomain: return String(localized: "生活体检")
         case .finance: return String(localized: "财务分析")
         case .habit: return String(localized: "习惯分析")
         case .health: return String(localized: "睡眠与健康")
@@ -39,7 +41,7 @@ enum AnalysisScenario: String, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .crossDomain: return String(localized: "找出同一段时间一起变化的节奏")
+        case .crossDomain: return String(localized: "最近30天整体过得怎么样，哪些变化是一起发生的")
         case .finance: return String(localized: "钱花在哪 / 大额还是小额 / 与上段相比")
         case .habit: return String(localized: "哪项在变 / 何时中断 / 怎么恢复")
         case .health: return String(localized: "睡眠与作息的变化和边界")
@@ -73,7 +75,7 @@ enum AnalysisScenario: String, CaseIterable, Identifiable {
     ///    缺数据的部分说不能判断，而不是装能答。
     var question: String {
         switch self {
-        case .crossDomain: return "最近有哪些生活节奏是在同一段时间一起变化的？请先找最值得核对的一组，告诉我各自发生了什么、时间是否对得上，以及还有什么不能确定。"
+        case .crossDomain: return "把我最近30天的账单、习惯、睡眠、任务、想法放在一起看看：整体过得怎么样？哪些变化是一起发生的？接下来最值得调整的是哪一件事？"
         case .finance: return "最近的钱主要花在了哪里？是少数大额支出，还是多笔小额慢慢累积？如果与上一段可比时间不同，变化主要来自哪些分类？"
         case .habit: return "最近哪项习惯的记录出现了明显变化？我更容易在哪些时候中断，又通常怎样重新开始？"
         case .health: return "最近我的睡眠时长和作息节奏有变化吗？哪些天与平时不同，现有记录能说明到什么程度？"
@@ -101,7 +103,7 @@ enum AnalysisScenario: String, CaseIterable, Identifiable {
     /// 回答清单：问句拆出的子问，逐项回答；缺证据的项由模型明确说不能判断。
     var answerChecklist: [String] {
         switch self {
-        case .crossDomain: return ["同一段时间一起变化的一组节奏", "各自发生了什么、时间是否对得上", "仍不能确定的部分"]
+        case .crossDomain: return ["整体判断：这30天过得怎么样", "账单、习惯、健康、任务、想法各自的变化（没记录的领域直说）", "哪些变化是一起发生的、时间对不对得上", "一个值得马上做的小调整"]
         case .finance: return ["钱主要花在了哪里（大额还是小额累积）", "与上一段可比时间的变化", "变化主要来自哪些分类"]
         case .habit: return ["哪项习惯记录明显变化", "更容易在哪些时候中断", "通常怎样重新开始"]
         case .health: return ["睡眠时长与作息节奏的变化", "哪些天与平时不同", "现有记录能说明到什么程度"]
@@ -122,7 +124,7 @@ enum AnalysisScenario: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 跨域洞察是 Holo 的差异化王牌，置顶 + 皇冠标识
+    /// 生活体检是 Holo 的差异化王牌，置顶 + 皇冠标识
     var isFeatured: Bool { self == .crossDomain }
 
     /// 长期模式走普通对话（画像问答），不占深度洞察额度

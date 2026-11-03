@@ -1,3 +1,4 @@
+#if canImport(UIKit)
 //
 //  ImageDownsampler.swift
 //  Holo
@@ -8,7 +9,9 @@
 
 import Foundation
 import ImageIO
+#if canImport(UIKit)
 import UIKit
+#endif
 
 enum ImageDownsampler {
 
@@ -28,3 +31,4 @@ enum ImageDownsampler {
         }.value
     }
 }
+#endif

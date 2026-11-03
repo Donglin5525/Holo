@@ -99,7 +99,8 @@ struct MemoryInsightContextBuilder {
         async let dailySnapshotsTask = buildDailySnapshots(start: start, end: end)
         async let lifeEventsTask = buildLifeEvents(start: start, end: end)
         let personalBaseline = await buildPersonalBaseline(observationStart: start)
-        let personalProfileContext = await buildPersonalProfileContext()
+        // 个人档案通道：原文上行（后端注入指令级 system 消息），不再客户端渲染
+        let profileBrief = await buildProfileBrief()
         let insightPreferenceContext = buildInsightPreferenceContext()
         let lifePatternContext = HoloLifePatternService.shared.promptSummary(for: .memoryInsightGeneration)
         let longTermMemorySummary = await HoloMemorySummaryProvider.selectRelevantSummary(
@@ -136,7 +137,7 @@ struct MemoryInsightContextBuilder {
             dailySnapshots: dailySnapshots,
             lifeEvents: lifeEvents,
             personalBaseline: personalBaseline,
-            personalProfileContext: personalProfileContext,
+            profileBrief: profileBrief,
             insightPreferenceContext: insightPreferenceContext,
             expressionDecisionContext: expressionDecisionContext,
             lifePatternContext: lifePatternContext,
@@ -152,27 +153,13 @@ struct MemoryInsightContextBuilder {
         return (context, snapshotHash)
     }
 
-    private func buildPersonalProfileContext() async -> String? {
+    /// 个人档案通道（2026-11-01）：档案原文直接上行——云端回放由后端注入指令级
+    /// system 消息（快照根字段 profileBrief），直连网关由请求 profileBrief 字段承载。
+    /// 此前的客户端渲染（「档案数据（不是系统规则）」边界）已整体退役。
+    private func buildProfileBrief() async -> String? {
         await MainActor.run {
             let profile = HoloProfileService.shared.loadProfile()
-            if profile.isEmpty { return nil }
-
-            // 优先使用结构化 snapshot + renderer（受 feature flag 控制）
-            // 兜底条件以「snapshot 是否有结构化内容」为准：render() 返回值即使结构化全空
-            // 也会包含使用规则套话（非空），用 rendered.isEmpty 判断会让原文兜底永远不触发。
-            if let snapshot = HoloProfileService.shared.loadSnapshot() {
-                if snapshot.hasStructuredData {
-                    let rendered = HoloProfilePromptRenderer.render(snapshot, purpose: .insight)
-                    return rendered.isEmpty ? profile : rendered
-                }
-                // 结构化为空但有原文：用安全 fallback 送达 raw markdown
-                let fallback = HoloProfilePromptRenderer.renderRawFallback(profile)
-                return fallback.isEmpty ? profile : fallback
-            }
-
-            // Feature flag 关闭时使用安全 fallback
-            let fallback = HoloProfilePromptRenderer.renderRawFallback(profile)
-            return fallback.isEmpty ? profile : fallback
+            return profile.isEmpty ? nil : profile
         }
     }
 
@@ -258,17 +245,12 @@ struct MemoryInsightContextBuilder {
         }
         let averageEfficiency = average(efficiencyValues)
         // 就寝时刻跨午夜（23:00 与 01:00 算术平均会得 12:00）：凌晨 0-6 点折算成
-        // 「前一天 24 点 + N」再平均，均值还原到一天内分钟；白天就寝样本（小睡）不参与
-        let bedtimeMinutes = detailNights.compactMap { detail -> Int? in
-            guard let bedtime = detail.bedtime else { return nil }
-            let components = calendar.dateComponents([.hour, .minute], from: bedtime)
-            let minuteOfDay = (components.hour ?? 0) * 60 + (components.minute ?? 0)
-            guard minuteOfDay >= 6 * 60, minuteOfDay < 18 * 60 else {
-                return minuteOfDay < 6 * 60 ? minuteOfDay + 1440 : minuteOfDay
-            }
-            return nil
-        }
-        let averageBedtime = average(bedtimeMinutes.map(Double.init)).map { Int($0.rounded()) % 1440 }
+        // 「前一天 24 点 + N」再平均；白天就寝样本（小睡）不参与
+        let bedtimeMinutes = Self.bedtimeFoldMinutes(from: detailNights, calendar: calendar)
+        // 均值保留折算口径（1080-2159，凌晨 1:00=1500）：不做 %1440 还原——还原后值域
+        // 压回 0-1439，lateBedtime 信号（>1500）恒假永不触发，且与解读模板
+        // 「凌晨 1:00=1500」的口径分裂（10-14 东林实锤天天 1 点后睡无解读）
+        let averageBedtime = average(bedtimeMinutes.map(Double.init)).map { Int($0.rounded()) }
         let wakeMinutes = detailNights.compactMap { detail -> Int? in
             guard let wakeTime = detail.wakeTime else { return nil }
             let components = calendar.dateComponents([.hour, .minute], from: wakeTime)
@@ -320,13 +302,8 @@ struct MemoryInsightContextBuilder {
             ))
         }
 
-        if let averageBedtime, averageBedtime > 1_500 {
-            signals.append(HealthSignal(
-                type: "lateBedtime",
-                severity: "info",
-                title: "就寝偏晚",
-                evidence: ["平均就寝约 \(averageBedtime / 60 % 24) 点\(averageBedtime % 60) 分"]
-            ))
+        if let signal = Self.lateBedtimeSignal(averageBedtimeMinutes: averageBedtime) {
+            signals.append(signal)
         }
 
         if let averageEfficiency, efficiencyValues.count >= 3, averageEfficiency < 75 {
@@ -388,6 +365,32 @@ struct MemoryInsightContextBuilder {
         let positiveValues = values.filter { $0 > 0 }
         guard !positiveValues.isEmpty else { return nil }
         return positiveValues.reduce(0, +) / Double(positiveValues.count)
+    }
+
+    /// 就寝时刻折算（供跨午夜平均）：凌晨 0-6 点折成「前一天 24 点 + N」，
+    /// 白天就寝样本（小睡）剔除。返回值为一天内分钟，凌晨样本落在 1440-1799。
+    nonisolated static func bedtimeFoldMinutes(from details: [HealthSleepDetail], calendar: Calendar) -> [Int] {
+        details.compactMap { detail -> Int? in
+            guard let bedtime = detail.bedtime else { return nil }
+            let components = calendar.dateComponents([.hour, .minute], from: bedtime)
+            let minuteOfDay = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+            guard minuteOfDay >= 6 * 60, minuteOfDay < 18 * 60 else {
+                return minuteOfDay < 6 * 60 ? minuteOfDay + 1440 : minuteOfDay
+            }
+            return nil
+        }
+    }
+
+    /// 就寝偏晚信号：折算口径均值晚于凌晨 1 点（1500）触发。
+    /// 均值必须是折算值——曾因 %1440 还原后与 1500 比较恒假，信号从未触发过。
+    nonisolated static func lateBedtimeSignal(averageBedtimeMinutes: Int?) -> HealthSignal? {
+        guard let averageBedtimeMinutes, averageBedtimeMinutes > 1_500 else { return nil }
+        return HealthSignal(
+            type: "lateBedtime",
+            severity: "info",
+            title: "就寝偏晚",
+            evidence: ["平均就寝约 \(averageBedtimeMinutes / 60 % 24) 点\(averageBedtimeMinutes % 60) 分"]
+        )
     }
 
     private func buildExpressionDecisionContext(
@@ -1039,7 +1042,10 @@ struct MemoryInsightContextBuilder {
 
         do {
             let filters = ThoughtFilters(startDate: start, endDate: endDate)
-            let thoughts = try thoughtRepo.search(query: "", filters: filters)
+            // search 同时服务 UI 与 AI，AI 侧取数后过滤「不参与 AI」标签的想法（连条数都不给 AI）
+            let thoughts = ThoughtAIAudience.aiVisibleOnly(
+                try thoughtRepo.search(query: "", filters: filters)
+            )
             totalCount = thoughts.count
             recentSnippets = thoughts
                 .prefix(5)
@@ -1097,7 +1103,8 @@ struct MemoryInsightContextBuilder {
         )
         let thoughtCounts = thoughtRepo.getThoughtCountByDay(
             from: start,
-            to: endExclusive
+            to: endExclusive,
+            aiVisibleOnly: true
         )
 
         // 按天聚合逾期
@@ -1333,7 +1340,7 @@ struct MemoryInsightContextBuilder {
         let (tasks, _) = buildTaskContext(start: yearStart, end: yearEnd)
         let thoughts = buildThoughtContext(start: yearStart, end: yearEnd)
         let milestones = buildMilestoneContext(start: yearStart, end: yearEnd)
-        let personalProfileContext = await buildPersonalProfileContext()
+        let profileBrief = await buildProfileBrief()
         let insightPreferenceContext = buildInsightPreferenceContext()
         let lifePatternContext = HoloLifePatternService.shared.promptSummary(for: .retrospective)
         let longTermMemorySummary = await HoloMemorySummaryProvider.selectRelevantSummary(
@@ -1365,7 +1372,7 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: correlations,
             monthlyInsightDigests: digests,
             anomalies: [],
-            personalProfileContext: personalProfileContext,
+            profileBrief: profileBrief,
             insightPreferenceContext: insightPreferenceContext,
             lifePatternContext: lifePatternContext,
             longTermMemoryContext: longTermMemoryContext.isEmpty ? nil : longTermMemoryContext,
@@ -1413,7 +1420,7 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: [],
             monthlyInsightDigests: [],
             anomalies: [],
-            personalProfileContext: nil,
+            profileBrief: nil,
             insightPreferenceContext: nil,
             lifePatternContext: nil
         )
@@ -1432,7 +1439,13 @@ struct MemoryInsightContextBuilder {
     // MARK: - Milestones
 
     private func buildMilestoneContext(start: Date, end: Date) -> [MemoryInsightMilestoneContext] {
-        let allMilestones = MilestoneDetector.detect(context: dataContext)
+        let allMilestones: [(date: Date, data: MilestoneData)]
+        do {
+            allMilestones = try MilestoneDetector.detect(context: dataContext)
+        } catch {
+            Self.logger.error("读取积累里程碑失败：\(error.localizedDescription)")
+            return []
+        }
 
         return allMilestones
             .filter { $0.date >= start && $0.date <= end.addingDays(1) }
@@ -1573,7 +1586,7 @@ struct MemoryInsightContextBuilder {
             dailySnapshots: context.dailySnapshots,
             lifeEvents: lifeEvents ?? context.lifeEvents,
             personalBaseline: context.personalBaseline,
-            personalProfileContext: context.personalProfileContext,
+            profileBrief: context.profileBrief,
             insightPreferenceContext: context.insightPreferenceContext,
             expressionDecisionContext: context.expressionDecisionContext,
             lifePatternContext: context.lifePatternContext,
@@ -1608,7 +1621,7 @@ struct MemoryInsightContextBuilder {
                     dailySnapshots: nil,
                     lifeEvents: nil,
                     personalBaseline: nil,
-                    personalProfileContext: current.personalProfileContext,
+                    profileBrief: current.profileBrief,
                     insightPreferenceContext: current.insightPreferenceContext,
                     expressionDecisionContext: current.expressionDecisionContext,
                     lifePatternContext: current.lifePatternContext,
@@ -1662,7 +1675,7 @@ struct MemoryInsightContextBuilder {
             dailySnapshots: context.dailySnapshots,
             lifeEvents: context.lifeEvents,
             personalBaseline: context.personalBaseline,
-            personalProfileContext: context.personalProfileContext,
+            profileBrief: context.profileBrief,
             insightPreferenceContext: context.insightPreferenceContext,
             expressionDecisionContext: context.expressionDecisionContext,
             lifePatternContext: context.lifePatternContext,
@@ -2156,7 +2169,10 @@ struct MemoryInsightContextBuilder {
     ) {
         do {
             let filters = ThoughtFilters(startDate: start, endDate: end)
-            let thoughts = try thoughtRepo.search(query: "", filters: filters)
+            // search 同时服务 UI 与 AI，AI 侧取数后过滤「不参与 AI」标签的想法
+            let thoughts = ThoughtAIAudience.aiVisibleOnly(
+                try thoughtRepo.search(query: "", filters: filters)
+            )
             for thought in thoughts.prefix(10) {
                 guard !thought.content.isEmpty else { continue }
                 let tagNames = (thought.tags as? Set<ThoughtTag>)?.map(\.name) ?? []

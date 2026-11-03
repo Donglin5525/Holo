@@ -9,6 +9,7 @@
 //
 
 import Foundation
+import CoreData
 
 /// 量化目标进度快照
 struct GoalMetricProgress: Equatable {
@@ -63,7 +64,7 @@ enum GoalMetricEvaluator {
         case .target:
             // 达标型：取最新一条记录为当前水平，无记录时=基线
             guard let baseline = goal.baselineValueDouble, baseline != target else { return nil }
-            let current = GoalRepository.shared.latestMetricLog(for: goal)?.value ?? baseline
+            guard let current = GoalRepository.shared.latestMetricLog(for: goal)?.value else { return nil }
             return makeProgress(goal: goal, current: current, target: target, baseline: baseline, elapsedAnchor: goal.baselineDate ?? goal.createdAt)
         }
     }
@@ -98,7 +99,7 @@ enum GoalMetricEvaluator {
         case .target:
             // 达标型：源习惯最新一条为当前水平，无记录时=基线
             guard let baseline = goal.baselineValueDouble, baseline != target else { return nil }
-            let current = HabitRepository.shared.getLatestValue(for: habit) ?? baseline
+            guard let current = HabitRepository.shared.getLatestValue(for: habit) else { return nil }
             return makeProgress(goal: goal, current: current, target: target, baseline: baseline, elapsedAnchor: goal.baselineDate ?? goal.createdAt)
         }
     }
@@ -110,6 +111,29 @@ enum GoalMetricEvaluator {
     private static func evaluateLedger(goal: Goal, target: Double) -> GoalMetricProgress? {
         guard goal.goalKindEnum == .cumulative else { return nil }
         let finance = FinanceRepository.shared
+        // 兼容旧入口与小组件：已有单账户约定时，也必须读取该真实账户。
+        if let context = goal.managedObjectContext {
+            let request = NSFetchRequest<NSDictionary>(entityName: "GoalPlanRevisionMO")
+            request.resultType = .dictionaryResultType
+            request.propertiesToFetch = ["planPayloadJSON"]
+            request.predicate = NSPredicate(format: "goalID == %@ AND deletedAt == nil", goal.id as CVarArg)
+            request.sortDescriptors = [NSSortDescriptor(key: "revisionNumber", ascending: false), NSSortDescriptor(key: "createdAt", ascending: false)]
+            request.fetchLimit = 1
+            guard let rows = try? context.fetch(request) else { return nil }
+            if let json = rows.first?["planPayloadJSON"] as? String {
+                switch GoalPlanPayloadCodec.decode(json) {
+                case .current(let plan):
+                    if plan.resultSource?.resolvedLedgerScope == .accountBalance {
+                        guard let id = plan.resultSource?.ledgerScope?.accountID,
+                              case .observed(let balance, _, _, _) = finance.accountBalanceObservation(accountId: id, before: Date()) else { return nil }
+                        let current = NSDecimalNumber(decimal: balance).doubleValue
+                        return GoalMetricProgress(currentValue: current, progress: min(max(current / target, 0), 1), isAchieved: current >= target, forecast: nil)
+                    }
+                case .unsupportedFuture, .corrupted: return nil
+                default: break
+                }
+            }
+        }
         let start = goal.baselineDate ?? goal.createdAt
         let saved = finance.getCumulativeBalance(before: Date()) - finance.getCumulativeBalance(before: start)
         let current = NSDecimalNumber(decimal: saved).doubleValue

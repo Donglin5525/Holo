@@ -4,7 +4,7 @@
 //
 //  记账模块图标目录
 //  12 个展示分组，财务重绘资源按语义融入原有分类
-//  仅用于 IconPickerGrid 的 UI 展示分组，不代表业务分类
+//  选择器已统一为 UnifiedIconCatalog/UnifiedIconGrid；本目录保留供渲染层识别资产/自绘兜底图标与历史迁移
 //
 
 import Foundation

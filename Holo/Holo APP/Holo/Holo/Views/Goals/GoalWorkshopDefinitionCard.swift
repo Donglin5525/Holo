@@ -14,7 +14,7 @@ struct GoalWorkshopDefinitionCard: View {
     let isExistingGoalAdvice: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
             if isExistingGoalAdvice {
                 Label {
                     Text("以下是调整建议，尚未修改原目标")
@@ -22,7 +22,7 @@ struct GoalWorkshopDefinitionCard: View {
                     Image(systemName: "info.circle")
                 }
                 .font(.footnote)
-                .foregroundStyle(.orange)
+                .foregroundStyle(Color.holoToolWarning)
             }
 
             if let definition = session.goalDefinition {
@@ -45,7 +45,7 @@ struct GoalWorkshopDefinitionCard: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("关键假设（未确认信息，可改）")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.holoToolTextSecondary)
                         ForEach(plan.assumptions, id: \.self) { assumption in
                             Label {
                                 Text(assumption).font(.footnote)
@@ -58,13 +58,13 @@ struct GoalWorkshopDefinitionCard: View {
                 }
                 if !plan.milestones.isEmpty {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("里程碑").font(.footnote).foregroundStyle(.secondary)
+                        Text("里程碑").font(.footnote).foregroundStyle(Color.holoToolTextSecondary)
                         ForEach(plan.milestones) { milestone in
                             Label {
                                 HStack {
                                     Text(milestone.title).font(.footnote)
                                     if let date = milestone.dateText {
-                                        Text(date).font(.caption2).foregroundStyle(.tertiary)
+                                        Text(date).font(.caption2).foregroundStyle(Color.holoToolTextSecondary)
                                     }
                                 }
                             } icon: {
@@ -85,8 +85,8 @@ struct GoalWorkshopDefinitionCard: View {
                 }
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+        .padding(HoloSpacing.md)
+        .background(Color.holoToolSurface, in: RoundedRectangle(cornerRadius: HoloRadius.lg))
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -104,7 +104,7 @@ struct GoalWorkshopDefinitionCard: View {
 
     private func row(_ title: LocalizedStringKey, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.footnote).foregroundStyle(.secondary)
+            Text(title).font(.footnote).foregroundStyle(Color.holoToolTextSecondary)
             Text(value).font(.subheadline)
         }
     }

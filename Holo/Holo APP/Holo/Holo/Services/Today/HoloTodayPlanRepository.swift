@@ -207,17 +207,18 @@ nonisolated final class HoloTodayPlanRepository {
             }
         }
         if !stepIDs.isEmpty {
-            let request = NSFetchRequest<HoloTaskExecutionStep>(entityName: "HoloTaskExecutionStep")
+            // 2026-10-11 拆开瘦身：计划里的 stepID 现在是子任务（CheckItem）id
+            let request = NSFetchRequest<CheckItem>(entityName: "CheckItem")
             request.predicate = NSPredicate(format: "id IN %@", stepIDs)
-            if let steps = try? context.fetch(request) {
-                for step in steps {
-                    stepFacts[step.id] = HoloTodayReliefPolicy.StepFact(
-                        id: step.id,
-                        taskID: step.taskID,
-                        actionText: step.actionText,
-                        doneWhen: step.doneWhen,
-                        stateRaw: step.stateRaw,
-                        originRevisionID: step.originRevisionID
+            if let items = try? context.fetch(request) {
+                for item in items {
+                    stepFacts[item.id] = HoloTodayReliefPolicy.StepFact(
+                        id: item.id,
+                        taskID: item.task?.id ?? item.id,
+                        actionText: item.title,
+                        doneWhen: nil,
+                        stateRaw: item.isChecked ? "done" : (item.isWaiting ? "waiting" : "pending"),
+                        originRevisionID: item.task?.id ?? item.id
                     )
                 }
             }

@@ -283,12 +283,31 @@ struct ExportOptionsSheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // 拖动指示条
-                Capsule()
-                    .fill(Color.holoTextSecondary.opacity(0.3))
-                    .frame(width: 36, height: 5)
-                    .padding(.top, 12)
-                    .padding(.bottom, 16)
+                // 头部：左上关闭 + 居中拖动指示条（此前无任何关闭口，只能下滑）
+                ZStack {
+                    Capsule()
+                        .fill(Color.holoTextSecondary.opacity(0.3))
+                        .frame(width: 36, height: 5)
+
+                    HStack {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.holoToolTextSecondary)
+                                .frame(width: 34, height: 34)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(Text("关闭"))
+
+                        Spacer()
+                    }
+                }
+                .padding(.top, 10)
+                .padding(.bottom, 12)
+                .padding(.horizontal, 12)
                 
                 VStack(spacing: HoloSpacing.lg) {
                     // 格式选择
@@ -359,7 +378,9 @@ struct ExportOptionsSheet: View {
                 }
             }
             .background(Color.holoBackground)
+            #if canImport(UIKit)
             .navigationBarHidden(true)
+            #endif
         }
         .presentationDetents([.height(545)])
         .presentationDragIndicator(.hidden)
@@ -449,6 +470,8 @@ struct ExportOptionsSheet: View {
                     includeReceipts: includeReceipts
                 )
                 shareURL = url
+                // 产品埋点：导出文件生成成功即计（之后的分享面板去向不可知、不计）
+                HoloProductAnalytics.shared.track(.exportPerformed, ["format": selectedFormat.rawValue.lowercased()])
             } catch {
                 errorMessage = error.localizedDescription
                 showError = true

@@ -22,21 +22,8 @@ struct HealthRingView: View {
     var body: some View {
         VStack(spacing: HoloSpacing.xs) {
             ZStack {
-                // 背景环
-                Circle()
-                    .stroke(Color.holoDivider, lineWidth: 12)
+                HoloProgress(value: progress / 100, color: color, shape: .ring, lineWidth: 12)
                     .frame(width: 80, height: 80)
-
-                // 进度环
-                Circle()
-                    .trim(from: 0, to: min(progress / 100, 1.0))
-                    .stroke(
-                        color,
-                        style: StrokeStyle(lineWidth: 12, lineCap: .round)
-                    )
-                    .frame(width: 80, height: 80)
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.5), value: progress)
 
                 // 图标
                 Image(systemName: icon)
@@ -58,8 +45,6 @@ struct HealthRingView: View {
 struct TripleHealthRingView: View {
     let snapshot: HealthDashboardSnapshot
 
-    /// 出场扫开：页面出现后三环从 0 依次扫到当日进度（外环先动，错峰 0.08s）
-    @State private var appeared = false
 
     var body: some View {
         ZStack {
@@ -91,28 +76,12 @@ struct TripleHealthRingView: View {
             .frame(width: 52)
         }
         .frame(width: 168, height: 168)
-        .onAppear {
-            appeared = true
-        }
     }
 
     private func ring(for metric: HealthMetricSnapshot, size: CGFloat, lineWidth: CGFloat, sweepDelay: Double) -> some View {
-        ZStack {
-            Circle()
-                .stroke(Color.holoDivider, lineWidth: lineWidth)
-                .frame(width: size, height: size)
-
-            Circle()
-                .trim(from: 0, to: appeared ? metric.progress : 0)
-                .stroke(
-                    metric.type.color,
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
-                .frame(width: size, height: size)
-                .rotationEffect(.degrees(-90))
-                .animation(.easeOut(duration: 0.8).delay(sweepDelay), value: appeared)
-                .animation(.easeInOut(duration: 0.45), value: metric.progress)
-        }
+        HoloProgress(value: metric.availability == .available ? metric.progress : nil,
+                     color: metric.type.color, shape: .ring, lineWidth: lineWidth)
+            .frame(width: size, height: size)
     }
 }
 

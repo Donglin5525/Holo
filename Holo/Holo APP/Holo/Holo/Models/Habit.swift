@@ -25,6 +25,8 @@ public class Habit: NSManagedObject {
     @NSManaged public var targetCount: NSNumber?
     @NSManaged public var targetValue: NSNumber?
     @NSManaged public var unit: String?
+    /// 习惯描述（用户自写一句话，可含 Emoji；nil = 没写）。写入一律经 normalizedDescription
+    @NSManaged public var habitDescription: String?
     @NSManaged public var aggregationType: Int16
     @NSManaged public var isBadHabit: Bool
     @NSManaged public var isArchived: Bool
@@ -37,6 +39,9 @@ public class Habit: NSManagedObject {
     @NSManaged public var reminderMode: String
     @NSManaged public var reminderHour: Int16
     @NSManaged public var reminderMinute: Int16
+    /// 每日结算时间（距零点的时/分；0:00 = 按自然日结算）。语义见 HabitDayAttribution
+    @NSManaged public var dayEndHour: Int16
+    @NSManaged public var dayEndMinute: Int16
     @NSManaged public var createdAt: Date
     @NSManaged public var updatedAt: Date
     @NSManaged public var records: NSSet?
@@ -82,6 +87,40 @@ public class Habit: NSManagedObject {
         habitType == .checkIn
     }
 
+    // MARK: - 每日结算时间（日界平移）
+
+    /// 结算时刻距零点的分钟数；0 = 凌晨 0 点结算（自然日，默认）
+    var dayEndMinutes: Int { Int(dayEndHour) * 60 + Int(dayEndMinute) }
+
+    var dayEndTime: (hour: Int, minute: Int) {
+        get { (Int(dayEndHour), Int(dayEndMinute)) }
+        set {
+            dayEndHour = Int16(newValue.hour)
+            dayEndMinute = Int16(newValue.minute)
+        }
+    }
+
+    var hasCustomDayEnd: Bool { dayEndMinutes != 0 }
+
+    /// 把一个真实时刻换到该习惯的日界坐标（结算前的时刻落回前一天）
+    func attributedMoment(_ moment: Date) -> Date {
+        HabitDayAttribution.attributedMoment(moment, dayEndMinutes: dayEndMinutes)
+    }
+
+    func attributedDay(_ moment: Date, calendar: Calendar = .current) -> Date {
+        calendar.startOfDay(for: attributedMoment(moment))
+    }
+
+    /// 该习惯此刻所处的「今天」：结算时间前仍是前一天
+    func currentDay(now: Date = Date(), calendar: Calendar = .current) -> Date {
+        attributedDay(now, calendar: calendar)
+    }
+
+    /// 创建日（习惯口径）：结算前创建的习惯归前一天，凌晨建完立刻打卡不会被判成「创建前」
+    func creationDay(calendar: Calendar = .current) -> Date {
+        attributedDay(createdAt, calendar: calendar)
+    }
+
     // MARK: - 暂停窗口（冻结口径：暂停日不算断、不计数）
 
     /// 历次暂停窗口（编码存 pauseWindowsData）
@@ -98,7 +137,7 @@ public class Habit: NSManagedObject {
     /// 某一天是否处于暂停窗口内（开放窗口视为延伸至今天）
     func isDayPaused(_ day: Date, calendar: Calendar = .current) -> Bool {
         let dayStart = calendar.startOfDay(for: day)
-        let today = calendar.startOfDay(for: Date())
+        let today = currentDay(calendar: calendar)
         return pauseWindows.contains { window in
             let start = calendar.startOfDay(for: window.startDate)
             guard dayStart >= start else { return false }
@@ -146,7 +185,7 @@ public class Habit: NSManagedObject {
     
     /// 是否为自定义图标（Asset Catalog 图标）
     var isCustomIcon: Bool {
-        HabitIconPresets.allItems.first { $0.name == icon }?.isCustom ?? false
+        EntityIconAsset.isAsset(icon)
     }
     
     /// 记录数组
@@ -195,6 +234,23 @@ public class Habit: NSManagedObject {
 // MARK: - Identifiable
 
 extension Habit: Identifiable {}
+
+// MARK: - 习惯描述
+
+extension Habit {
+    /// 描述字数上限（按用户看到的字计，Emoji、空格、英文都算 1 个）。
+    /// 由最窄展示位反推：375pt 宽 iPhone 今天页大卡描述行可用 241pt，13pt 下汉字 12.9pt、Emoji 19pt（CoreText 实测），
+    /// 16 字含至多 5 个 Emoji 都在一行内（2026-11-02 东林：算一个最大值，超了就输不进去，页面不出现「…」）
+    nonisolated static let descriptionLimit = 16
+
+    /// 描述入库唯一口径（新建/编辑共用）：去首尾空白，空串即 nil，超出上限截断
+    nonisolated static func normalizedDescription(_ raw: String?) -> String? {
+        guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else {
+            return nil
+        }
+        return String(trimmed.prefix(descriptionLimit))
+    }
+}
 
 // MARK: - 暂停窗口
 

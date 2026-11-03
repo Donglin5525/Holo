@@ -58,15 +58,8 @@ extension HabitRepository {
         return CheckInReceiptData(recordId: record.id, previousState: false, newState: true)
     }
 
-    /// 数值记录内容指纹（撤销前校验记录未被后续修改）
-    static func recordFingerprint(_ record: HabitRecord) -> String {
-        let valueText = record.value?.stringValue ?? "nil"
-        let noteHash = (record.note ?? "").hashValue
-        return "\(record.id.uuidString)|\(valueText)|\(noteHash)|\(record.date.timeIntervalSince1970)"
-    }
-
-    /// 新增数值记录（返回回执；调用方负责值合法性校验）
-    func performAddNumericReceipt(habitId: UUID, value: Double, note: String? = nil) throws -> (recordId: UUID, fingerprint: String) {
+    /// 新增数值记录（调用方负责值合法性校验）
+    func performAddNumericReceipt(habitId: UUID, value: Double, note: String? = nil) throws -> UUID {
         if !isReady { setup() }
         guard let habit = findHabit(by: habitId) else { throw HabitError.notFound }
         guard habit.isNumericType else { throw HabitError.invalidData }
@@ -81,30 +74,7 @@ extension HabitRepository {
             throw error
         }
         notifyDataChange(habitId: habit.id)
-        return (record.id, Self.recordFingerprint(record))
-    }
-
-    /// 撤销（删除）指定记录：按 record ID 精确删除，不做「删除最新一条」。
-    /// 指纹不符说明记录已被修改（如用户已编辑），拒绝误删，返回 false。
-    @discardableResult
-    func performDeleteRecordReceipt(recordId: UUID, fingerprint: String) throws -> Bool {
-        let request = HabitRecord.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", recordId as CVarArg)
-        request.fetchLimit = 1
-        guard let record = try context.fetch(request).first else { return false }
-        guard Self.recordFingerprint(record) == fingerprint else { return false }
-
-        let habitId = record.habitId
-        context.delete(record)
-        do {
-            try context.save()
-        } catch {
-            // scoped 恢复：save 失败时对象仍在 store，refresh 撤销内存中的删除标记
-            context.refresh(record, mergeChanges: false)
-            throw error
-        }
-        notifyDataChange(habitId: habitId)
-        return true
+        return record.id
     }
 
     // MARK: - 三态编辑（2026-10 重构：nil=不更新 无法表达「清除」，方案 §12.4）
@@ -125,9 +95,11 @@ extension HabitRepository {
         let oTargetCount = habit.targetCount
         let oTargetValue = habit.targetValue
         let oUnit = habit.unit
+        let oDescription = habit.habitDescription
         let oIsBad = habit.isBadHabit
         let oReminderMode = habit.habitReminderMode
         let oReminderTime = habit.reminderTime
+        let oDayEndTime = habit.dayEndTime
         let oGoal = habit.goal
 
         func restore() {
@@ -140,9 +112,11 @@ extension HabitRepository {
             habit.targetCount = oTargetCount
             habit.targetValue = oTargetValue
             habit.unit = oUnit
+            habit.habitDescription = oDescription
             habit.isBadHabit = oIsBad
             habit.habitReminderMode = oReminderMode
             habit.reminderTime = oReminderTime
+            habit.dayEndTime = oDayEndTime
             habit.goal = oGoal
         }
 
@@ -158,6 +132,7 @@ extension HabitRepository {
         habit.isBadHabit = payload.isBadHabit
         habit.habitReminderMode = payload.reminderMode
         habit.reminderTime = payload.reminderTime
+        habit.dayEndTime = payload.dayEndTime
         if typeChanged {
             habit.type = payload.type.rawValue
             bridgeRecordsForTypeChange(habit, to: payload.type)
@@ -177,6 +152,11 @@ extension HabitRepository {
         case .keep: break
         case .set(let value): habit.unit = value
         case .clear: habit.unit = nil
+        }
+        switch payload.habitDescription {
+        case .keep: break
+        case .set(let value): habit.habitDescription = Habit.normalizedDescription(value)
+        case .clear: habit.habitDescription = nil
         }
         switch payload.goalId {
         case .keep: break
@@ -261,6 +241,18 @@ extension HabitRepository {
         request.predicate = NSPredicate(format: "id IN %@ AND deletedAt == nil", ids as NSArray)
         for habit in (try? context.fetch(request)) ?? [] {
             result[habit.id] = habit.pauseWindows
+        }
+        return result
+    }
+
+    /// 全部未删除习惯的每日结算时间（投影底座按它把记录平移到各习惯的日界坐标）。
+    /// 习惯表很小，一次全取比按 id 分批更省事，归档习惯的历史痕迹也同口径。
+    func dayEndMinutesByHabit() -> [UUID: Int] {
+        let request = Habit.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
+        var result: [UUID: Int] = [:]
+        for habit in (try? context.fetch(request)) ?? [] where habit.hasCustomDayEnd {
+            result[habit.id] = habit.dayEndMinutes
         }
         return result
     }

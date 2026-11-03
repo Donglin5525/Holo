@@ -9,9 +9,10 @@ import SwiftUI
 
 struct PersonalMemorySettingsView: View {
     @ObservedObject private var memorySettings = HoloMemorySettings.shared
+    /// 跳转记忆长廊：跨模块路由必须由宿主接线（跳转类回调不设默认空值，漏接=编译不过）
     let onOpenMemoryGallery: () -> Void
 
-    init(onOpenMemoryGallery: @escaping () -> Void = {}) {
+    init(onOpenMemoryGallery: @escaping () -> Void) {
         self.onOpenMemoryGallery = onOpenMemoryGallery
     }
 
@@ -24,9 +25,11 @@ struct PersonalMemorySettingsView: View {
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.vertical, HoloSpacing.md)
         }
-        .background(Color.holoBackground.ignoresSafeArea())
+        .background(Color.holoToolBackground.ignoresSafeArea())
         .navigationTitle("长期记忆")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     private var memoryControlsSection: some View {
@@ -55,12 +58,12 @@ struct PersonalMemorySettingsView: View {
                     isOn: $memorySettings.memoryAssistedAnsweringEnabled
                 )
             }
-            .background(Color.holoCardBackground)
+            .background(Color.holoToolSurface)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
 
             Text("关闭开关不会删除已有记忆，你仍可随时查看或管理。")
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
     }
 
@@ -83,27 +86,27 @@ struct PersonalMemorySettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("进入记忆长廊")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                         Text("统一查看、纠正或删除 Holo 记住的内容")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
                     }
 
                     Spacer()
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
                 }
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
+                .background(Color.holoToolSurface)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
             .buttonStyle(.plain)
 
             Text("普通记忆可随你的 iCloud 在设备间同步；健康相关记忆只保存在本机。")
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
         }
     }
 
@@ -115,7 +118,7 @@ struct PersonalMemorySettingsView: View {
             Text(title)
                 .font(.holoBody)
                 .fontWeight(.semibold)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.holoToolText)
         }
     }
 
@@ -139,12 +142,12 @@ struct PersonalMemorySettingsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                     .lineLimit(1)
 
                 Text(subtitle)
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary)
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -163,6 +166,6 @@ struct PersonalMemorySettingsView: View {
 
 #Preview {
     NavigationStack {
-        PersonalMemorySettingsView()
+        PersonalMemorySettingsView(onOpenMemoryGallery: {})
     }
 }

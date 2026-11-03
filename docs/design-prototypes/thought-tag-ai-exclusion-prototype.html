@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>想法 · 标签级 AI 排除（AI 分析范围）原型 v1</title>
+<style>
+  /* ============ 工作台（非 App 部分） ============ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0E0E10;
+    color: #F5F5F5;
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    min-height: 100vh;
+    padding: 36px 24px 60px;
+  }
+  .page-head { text-align: center; margin-bottom: 18px; }
+  .page-head h1 { font-size: 22px; font-weight: 600; letter-spacing: 1px; }
+  .page-head p { font-size: 13px; color: #939393; margin-top: 8px; line-height: 1.7; }
+
+  .legend {
+    max-width: 980px; margin: 0 auto 30px;
+    background: #1C1C1E; border: 1px solid #3A3A3C; border-radius: 14px;
+    padding: 16px 20px;
+  }
+  .legend h3 { font-size: 14px; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px; }
+  .legend-row { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; color: #C9C9C9; line-height: 1.65; }
+  .legend-row + .legend-row { margin-top: 8px; }
+  .legend-row b { color: #F5F5F5; }
+  .legend-row .ok { color: #9BE0A6; font-weight: 600; }
+
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 44px; }
+  .row { display: flex; gap: 44px; flex-wrap: wrap; justify-content: center; }
+  .col { display: flex; flex-direction: column; align-items: center; }
+  .col-label {
+    font-size: 14px; font-weight: 600; margin-bottom: 14px; letter-spacing: 2px;
+    color: #C9C9C9;
+  }
+  .col-label .sub { font-weight: 400; letter-spacing: 0; color: #939393; font-size: 12px; margin-left: 8px; }
+
+  .notes {
+    width: 390px; margin-top: 14px;
+    background: #1C1C1E; border: 1px solid #3A3A3C; border-radius: 14px;
+    padding: 12px 14px;
+  }
+  .notes .n { display: flex; gap: 8px; font-size: 12px; color: #C9C9C9; line-height: 1.6; }
+  .notes .n + .n { margin-top: 7px; }
+  .notes .n b { color: #F5F5F5; }
+
+  /* ============ 手机框 ============ */
+  .phone {
+    width: 390px; height: 800px;
+    background: #F7F4EF;
+    border: 3px solid #0A0A0B; border-radius: 54px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55), inset 0 0 0 6px #26262A;
+    overflow: hidden; position: relative;
+    display: flex; flex-direction: column;
+  }
+  .statusbar {
+    flex: none; height: 44px; display: flex; justify-content: space-between; align-items: center;
+    padding: 0 26px 0 32px; font-size: 13.5px; font-weight: 600; color: #1C1C1E;
+  }
+  .statusbar .icons { display: flex; gap: 5px; align-items: center; }
+  .batt { width: 22px; height: 11px; border: 1px solid rgba(28,28,30,.4); border-radius: 3px; position: relative; }
+  .batt::after { content: ""; position: absolute; left: 1.5px; top: 1.5px; bottom: 1.5px; width: 60%; background: #1C1C1E; border-radius: 1.5px; }
+
+  .pin {
+    position: absolute; z-index: 60; width: 22px; height: 22px; border-radius: 50%;
+    color: #fff; font-size: 12.5px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,.35);
+  }
+  .pin.o { background: #F46D38; box-shadow: 0 2px 8px rgba(244,109,56,.5); }
+  .pin.g { background: #3E9B4F; box-shadow: 0 2px 8px rgba(62,155,79,.5); }
+  .pin.r { background: #E0483E; box-shadow: 0 2px 8px rgba(224,72,62,.5); }
+
+  .homebar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+    width: 134px; height: 5px; border-radius: 3px; background: rgba(28,28,30,.85); z-index: 55; }
+
+  /* ============ 通用导航 ============ */
+  .nav { flex: none; height: 52px; display: flex; align-items: center;
+    padding: 0 12px; position: relative; }
+  .nav .back { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+    color: #1C1C1E; font-size: 21px; font-weight: 600; }
+  .nav .title { flex: 1; text-align: center; font-size: 18px; font-weight: 700; color: #1C1C1E; }
+  .nav .done { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+    color: #F46D38; font-size: 15px; font-weight: 600; }
+
+  /* ============ 画板① 设置页 Form ============ */
+  .form { flex: 1; overflow: hidden; padding: 4px 16px 0; }
+  .f-section { background: #FFFFFF; border-radius: 16px; margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(28,28,30,.05); overflow: hidden; }
+  .f-header { font-size: 12.5px; font-weight: 600; color: #8A8A8E; padding: 0 18px; margin-bottom: 7px; letter-spacing: .5px; }
+  .f-footer { font-size: 11.5px; color: #9B9B9F; line-height: 1.6; padding: 0 18px; margin-top: 7px; }
+  .f-row { display: flex; align-items: center; gap: 11px; min-height: 46px; padding: 0 18px; position: relative; }
+  .f-row + .f-row { border-top: 0.5px solid #F0EDE7; }
+  .f-row .f-icon { width: 28px; height: 28px; border-radius: 8px; flex: none;
+    display: flex; align-items: center; justify-content: center; }
+  .f-row .f-icon.blue { background: #EAF1F7; color: #6B8DA8; }
+  .f-row .f-icon.orange { background: #FDEFE4; color: #D96B2E; }
+  .f-row .f-icon.green { background: #EFF2EC; color: #5F7058; }
+  .f-row .f-icon.gray { background: #F2EFE9; color: #8A8A8E; }
+  .f-row .f-label { flex: 1; font-size: 15.5px; color: #1C1C1E; }
+  .f-row .f-value { font-size: 14px; color: #9B9B9F; }
+  .f-row .chev { color: #D1D1D4; font-size: 16px; font-weight: 600; }
+
+  /* iOS 开关 */
+  .switch { flex: none; width: 50px; height: 30px; border-radius: 15px; background: #E8E5DF;
+    position: relative; cursor: pointer; transition: background .2s; }
+  .switch .knob { position: absolute; top: 2px; left: 2px; width: 26px; height: 26px;
+    border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.25);
+    transition: left .2s; }
+  .switch.on { background: #F46D38; }
+  .switch.on .knob { left: 22px; }
+
+  /* ============ 画板② AI 分析范围子页 ============ */
+  .scope-intro { margin: 2px 16px 14px; background: #FFFFFF; border-radius: 20px;
+    padding: 18px 18px 15px; box-shadow: 0 2px 8px rgba(28,28,30,.05); position: relative; }
+  .scope-intro .shield-hero { width: 46px; height: 46px; border-radius: 15px; background: #FDEFE4;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 11px; }
+  .scope-intro h2 { font-size: 18.5px; font-weight: 700; color: #1C1C1E; letter-spacing: .3px; }
+  .scope-intro p { font-size: 13.5px; color: #5B5B60; line-height: 1.7; margin-top: 7px; }
+  .scope-intro .p2 { margin-top: 3px; }
+
+  .scope-summary { margin: 0 16px 14px; background: linear-gradient(135deg, #F58B4F18, #EE5A2E14);
+    border: 1px solid rgba(244,109,56,.22); border-radius: 16px; padding: 13px 16px; }
+  .scope-summary .ss-line { display: flex; align-items: baseline; gap: 6px; }
+  .scope-summary .ss-num { font-size: 15px; font-weight: 700; color: #C2551F; }
+  .scope-summary .ss-sub { font-size: 11.5px; color: #9B7A66; margin-top: 5px; line-height: 1.55; }
+
+  .scope-list { margin: 0 16px 14px; background: #FFFFFF; border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(28,28,30,.05); overflow: hidden; }
+  .scope-list .sl-head { padding: 13px 18px 10px; font-size: 12.5px; font-weight: 600; color: #8A8A8E;
+    display: flex; justify-content: space-between; align-items: center; }
+  .scope-list .sl-head .sl-hint { font-weight: 400; font-size: 11.5px; color: #B4B4B8; }
+  .tagrow { display: flex; align-items: center; gap: 11px; min-height: 52px; padding: 6px 18px;
+    position: relative; }
+  .tagrow + .tagrow { border-top: 0.5px solid #F0EDE7; }
+  .tagrow .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .tagrow .t-info { flex: 1; min-width: 0; }
+  .tagrow .t-name { font-size: 16px; font-weight: 600; color: #1C1C1E; display: flex; align-items: center; gap: 6px; }
+  .tagrow .t-meta { font-size: 12px; color: #9B9B9F; margin-top: 2px; }
+  .tagrow .mini-shield { display: none; width: 15px; height: 15px; }
+  .tagrow.excluded .mini-shield { display: inline-flex; }
+  .tagrow.excluded .t-name { color: #A9743C; }
+  .scope-foot { margin: 0 16px; font-size: 11.5px; color: #A6A6AA; line-height: 1.6; text-align: center; }
+
+  /* 确认弹窗（画板②内嵌 + 画板③静态，共用结构） */
+  .alert-mask { position: absolute; inset: 0; background: rgba(28,28,30,.32); z-index: 65; }
+  .alert { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); z-index: 66;
+    width: 288px; background: rgba(255,255,255,.98); border-radius: 18px; overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+  .alert .a-icon { width: 40px; height: 40px; border-radius: 13px; background: #FDEFE4;
+    display: flex; align-items: center; justify-content: center; margin: 20px auto 0; }
+  .alert .a-title { text-align: center; font-size: 16.5px; font-weight: 700; color: #1C1C1E; margin-top: 10px; padding: 0 20px; }
+  .alert .a-body { text-align: center; font-size: 13px; color: #5B5B60; line-height: 1.65;
+    margin-top: 8px; padding: 0 22px 4px; }
+  .alert .a-body b { color: #C2551F; }
+  .alert .a-btns { display: flex; margin-top: 14px; border-top: 0.5px solid #E8E5DF; }
+  .alert .a-btn { flex: 1; height: 46px; display: flex; align-items: center; justify-content: center;
+    font-size: 15px; }
+  .alert .a-btn + .a-btn { border-left: 0.5px solid #E8E5DF; }
+  .alert .a-btn.cancel { color: #5B5B60; }
+  .alert .a-btn.go { color: #F46D38; font-weight: 700; }
+
+  /* toast */
+  .toast { position: absolute; top: 108px; left: 50%; transform: translateX(-50%); z-index: 70;
+    background: rgba(28,28,30,.88); color: #fff; font-size: 14px; font-weight: 600;
+    padding: 10px 18px; border-radius: 22px; display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.28); white-space: nowrap; }
+  .toast .ck { width: 17px; height: 17px; border-radius: 50%; background: #3E9B4F;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; }
+
+  /* ============ 画板④ 标签管理 ============ */
+  .mgmt-list { margin: 4px 16px; background: #FFFFFF; border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(28,28,30,.05); overflow: hidden; }
+  .mgmt-foot { margin: 10px 20px 0; font-size: 11.5px; color: #A6A6AA; line-height: 1.6; text-align: center; }
+
+  /* ============ 画板⑤⑥ 想法卡片与详情 ============ */
+  .feed { flex: 1; overflow: hidden; padding: 2px 16px 0; }
+  .day { font-size: 13px; font-weight: 600; color: #A6A6AA; margin: 10px 4px 8px; }
+  .card { background: #FFFFFF; border-radius: 20px; padding: 16px 18px 13px; margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(28,28,30,.05); position: relative; }
+  .card .cdate { display: flex; justify-content: space-between; align-items: center;
+    font-size: 13px; color: #A6A6AA; margin-bottom: 8px; }
+  .card .cdate .right { display: flex; align-items: center; gap: 7px; }
+  .card .body { font-size: 16.5px; line-height: 1.55; color: #1C1C1E; }
+  .card .tags { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .htag { font-size: 12.5px; font-weight: 600; color: #C2551F; background: rgba(244,109,56,.10);
+    padding: 3px 9px; border-radius: 9px; }
+  .htag.shielded { color: #A9743C; background: rgba(169,116,60,.10); display: inline-flex; align-items: center; gap: 4px; }
+  .tbadge { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500;
+    color: #5F7058; background: #EFF2EC; padding: 4px 10px; border-radius: 10px; }
+  .card-shield { position: absolute; top: 14px; right: 16px; width: 26px; height: 26px;
+    display: flex; align-items: center; justify-content: center; }
+
+  /* 详情页操作区（画板⑥） */
+  .d-card { margin: 4px 16px 12px; background: #FFFFFF; border-radius: 20px; padding: 16px 18px;
+    box-shadow: 0 2px 8px rgba(28,28,30,.05); }
+  .d-card .d-body { font-size: 16px; line-height: 1.6; color: #1C1C1E; }
+  .ai-actions { display: flex; gap: 9px; margin: 0 16px 12px; }
+  .ai-btn { flex: 1; height: 44px; border-radius: 14px; display: flex; align-items: center; justify-content: center;
+    gap: 6px; font-size: 14.5px; font-weight: 600; }
+  .ai-btn.primary { background: linear-gradient(135deg, #F58B4F, #EE5A2E); color: #fff;
+    box-shadow: 0 3px 10px rgba(238,90,46,.3); }
+  .ai-btn.plain { background: #FFFFFF; color: #C2551F; box-shadow: 0 2px 8px rgba(28,28,30,.05); }
+  .ai-btn.disabled { background: #F2EFE9; color: #C9C9CD; box-shadow: none; }
+  .ai-hint { margin: 0 16px; background: rgba(169,116,60,.08); border: 1px solid rgba(169,116,60,.18);
+    border-radius: 13px; padding: 11px 14px; display: flex; gap: 9px; align-items: flex-start; }
+  .ai-hint .txt { font-size: 12.5px; color: #A9743C; line-height: 1.6; }
+  .ai-hint .txt b { font-weight: 700; }
+  .fade-out { position: absolute; left: 0; right: 0; bottom: 0; height: 90px;
+    background: linear-gradient(180deg, rgba(247,244,239,0), #F7F4EF 78%); z-index: 30;
+    pointer-events: none; display: flex; align-items: flex-end; justify-content: center; }
+  .fade-out span { font-size: 11px; color: #B4B4B8; margin-bottom: 14px; }
+
+  /* ============ 口径对照面板 ============ */
+  .compare {
+    max-width: 980px; width: 100%; margin: 44px auto 0;
+    background: #1C1C1E; border: 1px solid #3A3A3C; border-radius: 16px; padding: 20px 22px;
+  }
+  .compare h3 { font-size: 15px; font-weight: 700; letter-spacing: 1px; margin-bottom: 14px; }
+  .cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .cmp-col { background: #141416; border: 1px solid #2C2C2E; border-radius: 12px; padding: 13px 15px; }
+  .cmp-col h4 { font-size: 12.5px; letter-spacing: 2px; margin-bottom: 10px; }
+  .cmp-col.off h4 { color: #F08A82; }
+  .cmp-col.keep h4 { color: #9BE0A6; }
+  .cmp-col li { list-style: none; font-size: 12px; color: #C9C9C9; line-height: 1.65;
+    padding-left: 14px; position: relative; margin-bottom: 6px; }
+  .cmp-col li::before { content: "·"; position: absolute; left: 2px; color: #6A6A6E; }
+  .cmp-col li b { color: #F5F5F5; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>想法 · 标签级 AI 排除 —— 「AI 分析范围」</h1>
+  <p>原型 v1 · 2026-10-21 · 三口径已拍板（见下图例）· 画板②可交互：点击任意标签开关体验确认弹窗与效果联动</p>
+</div>
+
+<div class="legend">
+  <h3>已拍板口径（10-21）</h3>
+  <div class="legend-row"><span class="ok">口径一</span><span><b>连存量一起清</b>：开启排除后，该标签下想法已有的 AI 主题归属、AI 打的标签、向量索引一并撤下；历史已生成的洞察/复盘报告成品不重算。关闭排除后可重新归类。</span></div>
+  <div class="legend-row"><span class="ok">口径二</span><span><b>一刀切</b>：带排除标签的想法，「帮我想想」「想法转任务」等所有 AI 功能一律停用（画板⑥），想用先关掉该标签的排除。</span></div>
+  <div class="legend-row"><span class="ok">口径三</span><span><b>双入口 + 卡片角标</b>：主入口=想法设置页「AI 分析范围」子页（画板①②）；副入口=标签管理页每行盾牌开关（画板④）；列表卡片显示盾牌角标（画板⑤）。</span></div>
+  <div class="legend-row"><b>边界</b><span>排除的语义是「AI 完全看不见」：不归类、不分析、不进任何报告与聊天背景，连「存在多少条」都不知道。想法本身照常出现在列表、搜索、统计里（那是给你看的，不是给 AI 看的）。</span></div>
+</div>
+
+<div class="stage">
+
+  <!-- ================= Row 1 ================= -->
+  <div class="row">
+
+    <!-- 画板① 想法设置页 -->
+    <div class="col">
+      <div class="col-label">画板① 想法设置页<span class="sub">新增「AI 参与范围」分区</span></div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav"><span class="back">‹</span><span class="title">想法设置</span><span class="done">完成</span></div>
+        <div class="form">
+          <div class="f-header">智能整理</div>
+          <div class="f-section">
+            <div class="f-row"><span class="f-label">AI 智能整理</span><div class="switch on"><div class="knob"></div></div></div>
+            <div class="f-row"><span class="f-label">自动形成新主题</span><div class="switch on"><div class="knob"></div></div></div>
+            <div class="f-row"><span class="f-label">显示相关笔记</span><div class="switch on"><div class="knob"></div></div></div>
+          </div>
+
+          <div class="f-header">AI 参与范围</div>
+          <div class="f-section" style="position:relative;">
+            <div class="pin o" style="top:-8px; right:-8px;">1</div>
+            <div class="f-row">
+              <span class="f-icon orange">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" stroke="#D96B2E" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>
+              </span>
+              <span class="f-label" style="font-weight:600;">AI 分析范围</span>
+              <span class="f-value">2 个标签已排除</span>
+              <span class="chev">›</span>
+            </div>
+          </div>
+          <div class="f-footer">有些标签下的想法，可以只属于你自己。标记后它们不参与任何 AI 归类与分析。</div>
+
+          <div class="f-header">内容管理</div>
+          <div class="f-section">
+            <div class="f-row"><span class="f-icon blue"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="#6B8DA8" stroke-width="2"/><path d="M12 8v5l3.5 2" stroke="#6B8DA8" stroke-width="2" stroke-linecap="round"/></svg></span><span class="f-label">主题管理</span><span class="chev">›</span></div>
+            <div class="f-row"><span class="f-icon orange"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M8 12.5l3 3 5.5-6.5" stroke="#D96B2E" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="f-label">标签管理</span><span class="chev">›</span></div>
+            <div class="f-row"><span class="f-icon gray"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="4.5" y="4.5" width="15" height="15" rx="4" stroke="#8A8A8E" stroke-width="2"/><path d="M9 12.5l2 2 4-4.5" stroke="#8A8A8E" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="f-label">设备智能索引与缓存</span><span class="chev">›</span></div>
+          </div>
+
+          <div class="f-header">整理状态</div>
+          <div class="f-section">
+            <div class="f-row"><span class="f-label">已归类</span><span class="f-value">96 条笔记 · 8 个主题</span></div>
+            <div class="f-row"><span class="f-label">整理进度</span><span class="f-value">全部处理完成</span></div>
+            <div class="f-row"><span class="f-label">类别理解</span><span class="f-value">4 个主题已代写</span></div>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <div class="notes">
+        <div class="n"><b>新增分区「AI 参与范围」</b>：插在「智能整理」与「内容管理」之间——它管的是隐私边界，和「开关整理功能」是两件事，所以独立成区，不埋进管理列表。</div>
+        <div class="n">入口行的右侧值实时显示「N 个标签已排除」，没排除时显示「未设置」。</div>
+        <div class="n">footer 一句话兜底解释，点进去有完整说明（画板②）。</div>
+      </div>
+    </div>
+
+    <!-- 画板② AI 分析范围子页（可交互） -->
+    <div class="col">
+      <div class="col-label">画板② AI 分析范围<span class="sub">核心页 · 可交互</span></div>
+      <div class="phone" id="board2">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav"><span class="back">‹</span><span class="title">AI 分析范围</span><span class="done" style="color:#8A8A8E;">完成</span></div>
+
+        <div style="flex:1; overflow:hidden; position:relative;">
+          <div style="height:100%; overflow:hidden;">
+
+            <div class="scope-intro">
+              <div class="pin o" style="top:-8px; right:-8px;">2</div>
+              <div class="shield-hero">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" stroke="#F46D38" stroke-width="2" fill="none" stroke-linejoin="round"/><path d="M9 11.5l2.2 2.2 4-4.4" stroke="#F46D38" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+              <h2>有些想法，只想留给自己。</h2>
+              <p>在这里标记的标签，Holo 不会交给 AI——</p>
+              <p class="p2">不归类、不分析、不进任何报告。</p>
+            </div>
+
+            <div class="scope-summary" id="summaryCard">
+              <div class="pin g" style="top:-8px; right:-8px;">3</div>
+              <div class="ss-line"><span class="ss-num" id="ssText">已排除 2 个标签 · 覆盖 32 条想法</span></div>
+              <div class="ss-sub">AI 看不到这些想法——连「存在多少条」都看不到。</div>
+            </div>
+
+            <div class="scope-list">
+              <div class="sl-head"><span>标签</span><span class="sl-hint">按使用频次排序</span></div>
+
+              <div class="tagrow excluded" data-tag="日记" data-count="23">
+                <span class="dot" style="background:#E8A87C;"></span>
+                <span class="t-info">
+                  <span class="t-name">日记
+                    <span class="mini-shield"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#C9925A"/><path d="M9 11.5l2.2 2.2 4-4.4" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                  </span>
+                  <span class="t-meta">23 条想法 · AI 不可见</span>
+                </span>
+                <div class="switch on" onclick="onToggle(this)"><div class="knob"></div></div>
+              </div>
+
+              <div class="tagrow" data-tag="工作" data-count="31">
+                <span class="dot" style="background:#7C9EB2;"></span>
+                <span class="t-info">
+                  <span class="t-name">工作</span>
+                  <span class="t-meta">31 条想法</span>
+                </span>
+                <div class="switch" onclick="onToggle(this)"><div class="knob"></div></div>
+              </div>
+
+              <div class="tagrow" data-tag="Holo" data-count="26">
+                <span class="dot" style="background:#A8C6A1;"></span>
+                <span class="t-info">
+                  <span class="t-name">Holo</span>
+                  <span class="t-meta">26 条想法</span>
+                </span>
+                <div class="switch" onclick="onToggle(this)"><div class="knob"></div></div>
+              </div>
+
+              <div class="tagrow excluded" data-tag="心情" data-count="14">
+                <span class="dot" style="background:#D9A7C7;"></span>
+                <span class="t-info">
+                  <span class="t-name">心情
+                    <span class="mini-shield"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#C9925A"/><path d="M9 11.5l2.2 2.2 4-4.4" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                  </span>
+                  <span class="t-meta">14 条想法 · AI 不可见</span>
+                </span>
+                <div class="switch on" onclick="onToggle(this)"><div class="knob"></div></div>
+              </div>
+
+              <div class="tagrow" data-tag="灵感" data-count="9">
+                <span class="dot" style="background:#C7B2E8;"></span>
+                <span class="t-info">
+                  <span class="t-name">灵感</span>
+                  <span class="t-meta">9 条想法</span>
+                </span>
+                <div class="switch" onclick="onToggle(this)"><div class="knob"></div></div>
+              </div>
+
+              <div class="tagrow" data-tag="读书" data-count="7">
+                <span class="dot" style="background:#E8C97C;"></span>
+                <span class="t-info">
+                  <span class="t-name">读书</span>
+                  <span class="t-meta">7 条想法</span>
+                </span>
+                <div class="switch" onclick="onToggle(this)"><div class="knob"></div></div>
+              </div>
+            </div>
+
+            <div class="scope-foot">关闭排除后，这些想法会重新参与 AI 归类与分析。</div>
+          </div>
+
+          <!-- 内嵌确认弹窗（点开关触发） -->
+          <div class="alert-mask" id="b2Mask" style="display:none;"></div>
+          <div class="alert" id="b2Alert" style="display:none;">
+            <div class="a-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" stroke="#F46D38" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="a-title" id="b2Title">把「日记」留给自己？</div>
+            <div class="a-body">带<b>「日记」</b>标签的想法将退出所有 AI 处理：不归类主题、不打自动标签、不进洞察与复盘——AI 不会知道它们的存在。<br><br>已有的 AI 归类会一并撤下，随时可以关闭恢复。</div>
+            <div class="a-btns">
+              <div class="a-btn cancel" onclick="cancelExclude()">暂不</div>
+              <div class="a-btn go" onclick="confirmExclude()">开启排除</div>
+            </div>
+          </div>
+
+          <div class="toast" id="b2Toast" style="display:none; opacity:0; transition:opacity .25s;"><span class="ck">✓</span><span id="b2ToastText">已恢复参与 AI，稍后自动归类</span></div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <div class="notes">
+        <div class="n"><b>试一试</b>：点「工作」的开关 → 弹确认（口径一+二都写在正文里）→「开启排除」后：开关变橙、行首出现盾牌、摘要计数 2→3；再点已排除标签的开关 → 不弹窗直接关，toast 提示「已恢复参与 AI」。</div>
+        <div class="n">已排除行：名字转棕色 + 盾牌小标 + 「AI 不可见」状态字。摘要卡实时算「已排除标签数 × 覆盖想法数」（真实实现按想法去重，一条想法带两个排除标签只计一次）。</div>
+        <div class="n">关闭不需要确认——恢复参与是低风险方向，AI 会自动重新归类，toast 告知即可。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= Row 2 ================= -->
+  <div class="row">
+
+    <!-- 画板③ 确认弹窗静态特写 -->
+    <div class="col">
+      <div class="col-label">画板③ 开启确认弹窗<span class="sub">静态特写</span></div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div style="flex:1; position:relative;">
+          <div style="filter:blur(1.5px) brightness(.98);">
+            <div class="scope-intro" style="margin-top:60px;">
+              <h2 style="font-size:16px;">有些想法，只想留给自己。</h2>
+              <p>在这里标记的标签，Holo 不会交给 AI——不归类、不分析、不进任何报告。</p>
+            </div>
+            <div class="scope-summary"><div class="ss-line"><span class="ss-num">已排除 1 个标签 · 覆盖 23 条想法</span></div><div class="ss-sub">AI 看不到这些想法——连「存在多少条」都看不到。</div></div>
+          </div>
+          <div class="alert-mask"></div>
+          <div class="alert" style="top:46%;">
+            <div class="pin o" style="top:-9px; right:-9px;">4</div>
+            <div class="a-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" stroke="#F46D38" stroke-width="2" fill="none" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="a-title">把「日记」留给自己？</div>
+            <div class="a-body">带<b>「日记」</b>标签的想法将退出所有 AI 处理：不归类主题、不打自动标签、不进洞察与复盘——AI 不会知道它们的存在。<br><br>已有的 AI 归类会一并撤下，随时可以关闭恢复。</div>
+            <div class="a-btns">
+              <div class="a-btn cancel">暂不</div>
+              <div class="a-btn go">开启排除</div>
+            </div>
+          </div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <div class="notes">
+        <div class="n"><b>弹窗四要素</b>：① 干什么（退出所有 AI 处理）② 彻底到什么程度（连存在都不知道）③ 存量怎么办（已有归类撤下，口径一）④ 反悔成本（随时可关）。</div>
+        <div class="n">标题「把「日记」留给自己？」替代警告腔的「确定不参与 AI？」——这是一次「收回所有权」的动作，不是一次危险操作。</div>
+        <div class="n">真实实现里，弹窗只在「该标签当前有想法已被 AI 归类」或首次开启时出现？——<b>待定</b>：v1 简化为首次开启必弹，之后不再打扰（记住选择）。</div>
+      </div>
+    </div>
+
+    <!-- 画板④ 标签管理页副入口 -->
+    <div class="col">
+      <div class="col-label">画板④ 标签管理<span class="sub">副入口 · 每行盾牌开关</span></div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav"><span class="back">‹</span><span class="title">标签管理</span><span class="done" style="color:#8A8A8E;">完成</span></div>
+        <div style="flex:1; overflow:hidden; position:relative;">
+          <div class="mgmt-list" style="position:relative;">
+            <div class="pin o" style="top:-8px; right:-8px;">5</div>
+            <div class="tagrow excluded" style="min-height:56px;">
+              <span class="dot" style="background:#E8A87C;"></span>
+              <span class="t-info">
+                <span class="t-name">日记
+                  <span class="mini-shield"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#C9925A"/><path d="M9 11.5l2.2 2.2 4-4.4" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                </span>
+                <span class="t-meta">23 条 · 已排除出 AI 分析</span>
+              </span>
+              <div class="switch on"><div class="knob"></div></div>
+            </div>
+            <div class="tagrow" style="min-height:56px;">
+              <span class="dot" style="background:#7C9EB2;"></span>
+              <span class="t-info"><span class="t-name">工作</span><span class="t-meta">31 条</span></span>
+              <div class="switch"><div class="knob"></div></div>
+            </div>
+            <div class="tagrow" style="min-height:56px;">
+              <span class="dot" style="background:#A8C6A1;"></span>
+              <span class="t-info"><span class="t-name">Holo</span><span class="t-meta">26 条</span></span>
+              <div class="switch"><div class="knob"></div></div>
+            </div>
+            <div class="tagrow excluded" style="min-height:56px;">
+              <span class="dot" style="background:#D9A7C7;"></span>
+              <span class="t-info">
+                <span class="t-name">心情
+                  <span class="mini-shield"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#C9925A"/><path d="M9 11.5l2.2 2.2 4-4.4" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                </span>
+                <span class="t-meta">14 条 · 已排除出 AI 分析</span>
+              </span>
+              <div class="switch on"><div class="knob"></div></div>
+            </div>
+            <div class="tagrow" style="min-height:56px;">
+              <span class="dot" style="background:#C7B2E8;"></span>
+              <span class="t-info"><span class="t-name">灵感</span><span class="t-meta">9 条</span></span>
+              <div class="switch"><div class="knob"></div></div>
+            </div>
+            <div class="tagrow" style="min-height:56px;">
+              <span class="dot" style="background:#E8C97C;"></span>
+              <span class="t-info"><span class="t-name">读书</span><span class="t-meta">7 条</span></span>
+              <div class="switch"><div class="knob"></div></div>
+            </div>
+          </div>
+          <div class="mgmt-foot">盾牌开 = 该标签的想法不参与 AI 分析 · 完整效果见「想法设置 › AI 分析范围」</div>
+          <div class="fade-out"><span>↓ 标签列表延续（重命名 / 合并 / 颜色）</span></div>
+        </div>
+        <div class="homebar"></div>
+      </div>
+      <div class="notes">
+        <div class="n"><b>副入口逻辑</b>：管理标签时顺手就能拉起盾牌——用户大概率是在整理标签时想到「这个不想给 AI 看」，比回设置页少两步。</div>
+        <div class="n">开关行为与画板②完全一致（含确认弹窗）；此处仅示意，静态画板不放交互。</div>
+        <div class="n">原有标签管理操作（重命名/合并/颜色）不动，盾牌开关是纯增量。</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= Row 3 ================= -->
+  <div class="row">
+
+    <!-- 画板⑤ 想法列表效果 -->
+    <div class="col">
+      <div class="col-label">画板⑤ 想法列表<span class="sub">盾牌角标 · 与正常卡对照</span></div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav"><span class="back">‹</span><span class="title">想法</span><span class="done" style="color:#8A8A8E;">···</span></div>
+        <div class="feed">
+          <div class="day">10月20日 周二</div>
+
+          <div class="card" style="position:relative;">
+            <div class="pin o" style="top:-8px; right:-8px;">6</div>
+            <div class="card-shield">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#E9D5BC"/><path d="M9 11.5l2.2 2.2 4-4.4" stroke="#A9743C" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="cdate"><span>22:41</span><span class="right"></span></div>
+            <div class="body">今天聊到一半突然不想说话了，可能还是没放下上周那件事。先记到这里。</div>
+            <div class="tags">
+              <span class="htag shielded">#日记
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#A9743C"/></svg>
+              </span>
+              <span class="htag shielded">#心情
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#A9743C"/></svg>
+              </span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cdate"><span>21:07</span>
+              <span class="right">
+                <span class="tbadge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M4 13h4l2.5-6 3.5 10 2.5-4h4" stroke="#5F7058" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>产品直觉</span>
+              </span>
+            </div>
+            <div class="body">把「回忆」入口做成时间轴而不是相册——用户回到这里是为了「找回某天」，不是为了「看照片」。</div>
+            <div class="tags">
+              <span class="htag">#Holo</span>
+              <span class="htag">#灵感</span>
+              <span class="tbadge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="#5F7058" stroke-width="2.2" fill="none"/><path d="M12 8.5v4l2.5 1.8" stroke="#5F7058" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>产品直觉</span>
+            </div>
+          </div>
+
+          <div class="card" style="position:relative;">
+            <div class="card-shield">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#E9D5BC"/><path d="M9 11.5l2.2 2.2 4-4.4" stroke="#A9743C" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="cdate"><span>18:32</span><span class="right"></span></div>
+            <div class="body">妈说舅舅下个月生日，今年想送点不一样的，别又是烟酒。想起来他一直在练字。</div>
+            <div class="tags">
+              <span class="htag shielded">#日记
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#A9743C"/></svg>
+              </span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="cdate"><span>14:15</span>
+              <span class="right">
+                <span class="tbadge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M4 13h4l2.5-6 3.5 10 2.5-4h4" stroke="#5F7058" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>阅读方法</span>
+              </span>
+            </div>
+            <div class="body">《卡片笔记法》第三遍才读明白：笔记的价值不在收藏，在于它和其他笔记发生了几次关系。</div>
+            <div class="tags">
+              <span class="htag">#读书</span>
+              <span class="tbadge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="#5F7058" stroke-width="2.2" fill="none"/><path d="M12 8.5v4l2.5 1.8" stroke="#5F7058" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>阅读方法</span>
+            </div>
+          </div>
+        </div>
+        <div class="fade-out"><span>↓ 列表延续</span></div>
+        <div class="homebar"></div>
+      </div>
+      <div class="notes">
+        <div class="n"><b>排除中的卡（1、3）</b>：右上角淡金盾牌角标；带排除标签的 #标签 变棕色+小盾；<b>没有主题徽章</b>——AI 不再归类，自然没有主题可挂。</div>
+        <div class="n"><b>正常卡（2、4）</b>：现状不变——日期行右侧主题徽章 + 标签行主题徽章（现有设计）。</div>
+        <div class="n">排除卡照常出现在列表/搜索/筛选/统计里——排除只作用于「给 AI 的数据」，不动用户自己看的任何东西。角标刻意做淡（低饱和金），提示而不喧宾。</div>
+      </div>
+    </div>
+
+    <!-- 画板⑥ 详情页 AI 置灰 -->
+    <div class="col">
+      <div class="col-label">画板⑥ 想法详情<span class="sub">一刀切 · AI 按钮置灰</span></div>
+      <div class="phone">
+        <div class="statusbar"><span>9:41</span><span class="icons"><span>􀙇</span><span class="batt"></span></span></div>
+        <div class="nav"><span class="back">‹</span><span class="title">想法</span><span class="done" style="color:#8A8A8E;">···</span></div>
+        <div style="flex:1; overflow:hidden;">
+          <div class="d-card" style="position:relative;">
+            <div class="pin r" style="top:-8px; right:-8px;">7</div>
+            <div class="cdate" style="display:flex; justify-content:space-between; font-size:13px; color:#A6A6AA; margin-bottom:8px;">
+              <span>10月20日 周二 22:41</span>
+            </div>
+            <div class="d-body">今天聊到一半突然不想说话了，可能还是没放下上周那件事。先记到这里，明天再想想怎么开口。</div>
+            <div class="tags" style="display:flex; gap:6px; margin-top:12px;">
+              <span class="htag shielded">#日记
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#A9743C"/></svg>
+              </span>
+              <span class="htag shielded">#心情
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#A9743C"/></svg>
+              </span>
+            </div>
+          </div>
+
+          <div class="ai-hint">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex:none; margin-top:1px;"><path d="M12 2.5L4.5 5.5V11c0 4.9 3.2 8.6 7.5 10 4.3-1.4 7.5-5.1 7.5-10V5.5L12 2.5z" fill="#A9743C"/><path d="M9 11.5l2.2 2.2 4-4.4" stroke="#fff" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="txt">这条想法带有不参与 AI 的标签（<b>#日记</b>），AI 功能已停用。想在它身上用 AI？到「想法设置 › AI 分析范围」关掉该标签的排除。</span>
+          </div>
+
+          <div class="ai-actions">
+            <div class="ai-btn disabled">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.8 4.8L19 9.5l-5.2 1.7L12 16l-1.8-4.8L5 9.5l5.2-1.7L12 3z" fill="#C9C9CD"/></svg>
+              帮我想想
+            </div>
+            <div class="ai-btn disabled">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><rect x="4.5" y="4.5" width="15" height="15" rx="4" stroke="#C9C9CD" stroke-width="2"/><path d="M9 12.5l2 2 4-4.5" stroke="#C9C9CD" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              转为任务
+            </div>
+          </div>
+
+          <div class="d-card">
+            <div style="font-size:13px; font-weight:600; color:#A6A6AA; margin-bottom:8px;">相关笔记</div>
+            <div style="font-size:13.5px; color:#9B9B9F; line-height:1.6;">这条想法不参与 AI 整理，没有相关笔记与主题。</div>
+          </div>
+        </div>
+        <div class="fade-out"><span>↓ 详情延续</span></div>
+        <div class="homebar"></div>
+      </div>
+      <div class="notes">
+        <div class="n"><b>口径二落地</b>：「帮我想想」「转为任务」全部置灰（不是隐藏——置灰+提示条解释为什么，比按钮凭空消失更体面）。</div>
+        <div class="n">提示条给出出路：指路设置入口，而不是让用户自己猜。点提示条可直接跳「AI 分析范围」。</div>
+        <div class="n">「相关笔记」「主题」区块同样停用并说明原因（相关笔记靠向量检索，向量已删）。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 口径对照面板 ================= -->
+<div class="compare">
+  <h3>生效范围速查 · 排除什么 / 不动什么</h3>
+  <div class="cmp-grid">
+    <div class="cmp-col off">
+      <h4>AI 从此看不见（排除）</h4>
+      <li>主题归类与自动打标签（含向量索引）</li>
+      <li>每周洞察、深度洞察（想法原文通道）</li>
+      <li>复盘报告、回放摘要</li>
+      <li>聊天的「近期想法」背景资料</li>
+      <li>深度分析（agent）里的想法数据集</li>
+      <li>个人情境萃取、记忆信号观察</li>
+      <li>标签收敛、主题命名与简介</li>
+      <li>「帮我想想」「想法转任务」（一刀切）</li>
+      <li><b>连「有多少条」都不进入任何 AI 统计</b></li>
+    </div>
+    <div class="cmp-col keep">
+      <h4>照常运转（不动）</h4>
+      <li>想法列表、搜索、筛选、想法统计页</li>
+      <li>你手打的标签、iCloud 多设备同步</li>
+      <li>想法编辑、附件、回收站与恢复</li>
+      <li>不带排除标签的其他想法一切如常</li>
+      <li>「AI 智能整理」总开关等既有设置</li>
+      <li><b>历史已生成的洞察/复盘报告成品</b>（不重算）</li>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 画板②交互：开关 → 确认弹窗 → 状态联动。只做 class/display 切换，不生成 DOM。
+  var pendingSwitch = null;
+  var pendingRow = null;
+
+  function onToggle(el) {
+    var row = el.closest('.tagrow');
+    if (el.classList.contains('on')) {
+      // 关闭排除：低风险方向，不弹窗，直接关 + toast
+      el.classList.remove('on');
+      row.classList.remove('excluded');
+      row.querySelector('.t-meta').textContent = row.dataset.count + ' 条想法';
+      updateSummary();
+      showToast('已恢复参与 AI，稍后自动归类');
+    } else {
+      // 开启排除：弹确认
+      pendingSwitch = el;
+      pendingRow = row;
+      document.getElementById('b2Title').textContent = '把「' + row.dataset.tag + '」留给自己？';
+      var bodyEl = document.querySelector('#b2Alert .a-body');
+      bodyEl.innerHTML = bodyEl.innerHTML.replace(/「[^」]*」/g, '「' + row.dataset.tag + '」');
+      document.getElementById('b2Mask').style.display = 'block';
+      document.getElementById('b2Alert').style.display = 'block';
+    }
+  }
+
+  function confirmExclude() {
+    if (pendingSwitch && pendingRow) {
+      pendingSwitch.classList.add('on');
+      pendingRow.classList.add('excluded');
+      pendingRow.querySelector('.t-meta').textContent = pendingRow.dataset.count + ' 条想法 · AI 不可见';
+      updateSummary();
+    }
+    closeAlert();
+  }
+
+  function cancelExclude() { closeAlert(); }
+
+  function closeAlert() {
+    document.getElementById('b2Mask').style.display = 'none';
+    document.getElementById('b2Alert').style.display = 'none';
+    pendingSwitch = null; pendingRow = null;
+  }
+
+  function updateSummary() {
+    var rows = document.querySelectorAll('#board2 .tagrow.excluded');
+    var tagCount = rows.length;
+    var thoughtCount = 0;
+    rows.forEach(function (r) { thoughtCount += parseInt(r.dataset.count, 10); });
+    if (tagCount === 0) {
+      document.getElementById('ssText').textContent = '还没有标签被排除';
+    } else {
+      document.getElementById('ssText').textContent = '已排除 ' + tagCount + ' 个标签 · 覆盖 ' + thoughtCount + ' 条想法';
+    }
+  }
+
+  var toastTimer = null;
+  function showToast(text) {
+    var t = document.getElementById('b2Toast');
+    document.getElementById('b2ToastText').textContent = text;
+    t.style.display = 'flex';
+    requestAnimationFrame(function () { t.style.opacity = '1'; });
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      t.style.opacity = '0';
+      setTimeout(function () { t.style.display = 'none'; }, 260);
+    }, 1800);
+  }
+</script>
+
+</body>
+</html>

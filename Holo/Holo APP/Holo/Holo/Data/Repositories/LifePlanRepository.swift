@@ -163,7 +163,8 @@ final class LifePlanRepository: ObservableObject {
     /// 在计划卡渲染前与新计划生成前调用。
     func supersedeExpiredPlans(now: Date = Date()) {
         let request = NSFetchRequest<LifePlanMO>(entityName: "LifePlanMO")
-        request.predicate = NSPredicate(format: "status == %@ AND periodEnd < %@", "active", now as NSDate)
+        // 回收站里的计划不参与状态机推进（清空批次后过期/重生成不得污染已删行；2026-10-31 审计 A7）
+        request.predicate = NSPredicate(format: "status == %@ AND periodEnd < %@ AND deletedAt == nil", "active", now as NSDate)
         guard let expired = try? context.fetch(request), !expired.isEmpty else { return }
         for plan in expired {
             plan.status = "completed"
@@ -175,7 +176,7 @@ final class LifePlanRepository: ObservableObject {
 
     private func expireProposedActions(planID: UUID, now: Date) {
         let request = NSFetchRequest<PlanActionMO>(entityName: "PlanActionMO")
-        request.predicate = NSPredicate(format: "planID == %@ AND status == %@", planID as CVarArg, "proposed")
+        request.predicate = NSPredicate(format: "planID == %@ AND status == %@ AND deletedAt == nil", planID as CVarArg, "proposed")
         for action in (try? context.fetch(request)) ?? [] {
             action.status = "expired"
             action.updatedAt = now
@@ -441,16 +442,32 @@ final class LifePlanRepository: ObservableObject {
         return context
     }
 
-    /// 对账单卡：通过 undoToken/taskID 回查任务完成状态；习惯按周期内有打卡近似。
+    /// 对账单卡：优先用 undoToken 里落库的真实 ID 回查；未接受过的卡按标题/习惯名近似，
+    /// 近似匹配必须排除回收站（已删数据不得进下一轮生成 prompt；2026-10-31 审计 A6）。
     private func reconcileActionCompletion(actionID: UUID) -> Bool? {
         let request = NSFetchRequest<PlanActionMO>(entityName: "PlanActionMO")
         request.predicate = NSPredicate(format: "id == %@", actionID as CVarArg)
         guard let action = (try? context.fetch(request))?.first else { return nil }
+        let token = action.undoTokenJSON.flatMap {
+            try? JSONDecoder().decode(PlanUndoToken.self, from: Data($0.utf8))
+        }
         if action.type == "task" {
             let payload = decodePayload(action.draftPayloadJSON)
             guard let taskDraft = payload.task else { return nil }
             let taskRequest = NSFetchRequest<TodoTask>(entityName: "TodoTask")
-            taskRequest.predicate = NSPredicate(format: "title == %@ AND completed == %@", taskDraft.title, true)
+            if let taskIDs = token?.taskIDs, !taskIDs.isEmpty {
+                // 已接受过的卡：按令牌里真实创建的任务 ID 回查，同名任务不得冒充完成
+                // UUID 数组不能直接当 CVarArg（运行时强转崩溃）：桥接 NSUUID 再入谓词
+                taskRequest.predicate = NSPredicate(
+                    format: "id IN %@ AND completed == %@ AND deletedAt == nil",
+                    taskIDs.map { $0 as NSUUID } as NSArray, true
+                )
+            } else {
+                taskRequest.predicate = NSPredicate(
+                    format: "title == %@ AND completed == %@ AND deletedAt == nil",
+                    taskDraft.title, true
+                )
+            }
             taskRequest.fetchLimit = 1
             return ((try? context.fetch(taskRequest))?.first) != nil
         }
@@ -458,10 +475,18 @@ final class LifePlanRepository: ObservableObject {
             let payload = decodePayload(action.draftPayloadJSON)
             guard let habitDraft = payload.habit else { return nil }
             let recordRequest = NSFetchRequest<HabitRecord>(entityName: "HabitRecord")
-            recordRequest.predicate = NSPredicate(
-                format: "habit.name == %@ AND date > %@",
-                habitDraft.name, Date().addingTimeInterval(-7 * 24 * 3600) as NSDate
-            )
+            if let habitIDs = token?.habitIDs, !habitIDs.isEmpty {
+                recordRequest.predicate = NSPredicate(
+                    format: "habit.id IN %@ AND date > %@",
+                    habitIDs.map { $0 as NSUUID } as NSArray,
+                    Date().addingTimeInterval(-7 * 24 * 3600) as NSDate
+                )
+            } else {
+                recordRequest.predicate = NSPredicate(
+                    format: "habit.name == %@ AND habit.deletedAt == nil AND date > %@",
+                    habitDraft.name, Date().addingTimeInterval(-7 * 24 * 3600) as NSDate
+                )
+            }
             recordRequest.fetchLimit = 1
             return ((try? context.fetch(recordRequest))?.first) != nil
         }
@@ -480,7 +505,7 @@ final class LifePlanRepository: ObservableObject {
     private func fetchPlanMOs(periodStart: Date, status: String) -> [LifePlanMO] {
         let request = NSFetchRequest<LifePlanMO>(entityName: "LifePlanMO")
         request.predicate = NSPredicate(
-            format: "periodStart == %@ AND status == %@",
+            format: "periodStart == %@ AND status == %@ AND deletedAt == nil",
             periodStart as NSDate, status
         )
         return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? [])

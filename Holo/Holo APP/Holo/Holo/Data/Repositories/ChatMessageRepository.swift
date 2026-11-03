@@ -533,6 +533,28 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// 报告追问血统盖章：把锚定的根报告提问与父报告 ID 写入消息的 extractedDataJSON
+    /// （只动这两个 key，既有键值原样保留）。用户消息与生成中占位消息都盖——
+    /// 追问在 continuationMetadata 随结果返回之前就能认出归属；父报告 ID 供
+    /// 报告详情页识别「在途任务锚定的是不是自己」，重开详情页可恢复生成中反馈。
+    func stampContinuationRoot(_ messageId: UUID, rootQuestion: String, parentResultID: String?) {
+        guard let message = messageForUpdate(messageId) else { return }
+        let existing = message.extractedDataJSON?.data(using: .utf8)
+        var dict = (try? JSONDecoder().decode([String: String].self, from: existing ?? Data())) ?? [:]
+        dict["continuationRoot"] = rootQuestion
+        if let parentResultID {
+            dict["continuationParentID"] = parentResultID
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: dict),
+              let json = String(data: data, encoding: .utf8) else { return }
+        message.extractedDataJSON = json
+        save()
+
+        updateSnapshot(messageId) { snapshot in
+            snapshot.setExtractedDataJSON(json)
+        }
+    }
+
     /// 查询所有仍可恢复的周期回放消息，供冷启动保护与续跑。
     func recoverablePeriodReplayJobs() -> [(messageId: UUID, job: HoloPeriodReplayJob)] {
         let request = ChatMessage.fetchRequest()
@@ -676,6 +698,16 @@ final class ChatMessageRepository: ObservableObject {
     ) {
         guard let message = messageForUpdate(messageId) else { return }
 
+        // 规划终态同进退（2026-11-02 真机事故）：消息已带终态规划信封时，迟到的
+        // 定稿写不得把「已就绪+方案」拆散——nil/旧信封/迟到失败写此前会把
+        // contextPlanJSON 整条抹空、留下「已就绪无方案」死卡（updateContextPlanRun
+        // 早有同款单字段保护，这里把同一不变式补到整条消息定稿通道）。
+        let (plannedJSON, plannedRunJSON) = resolveContextPlanWrite(
+            message: message,
+            incomingPlanJSON: contextPlanJSON,
+            incomingRunJSON: contextPlanRunJSON
+        )
+
         // Core Data 写入（单次 save）
         message.content = finalContent
         message.isStreaming = false
@@ -688,8 +720,8 @@ final class ChatMessageRepository: ObservableObject {
         message.rawLogJSON = nil
         message.agentResultJSON = agentResultJSON
         message.insightResultJSON = insightResultJSON
-        message.contextPlanJSON = contextPlanJSON
-        message.contextPlanRunJSON = contextPlanRunJSON
+        message.contextPlanJSON = plannedJSON
+        message.contextPlanRunJSON = plannedRunJSON
         message.todayReliefJSON = todayReliefJSON
         if let messageType {
             message.messageType = messageType.rawValue
@@ -748,14 +780,61 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.rawLog = nil
             snapshot.agentResult = decodedAgentResult
             snapshot.insightResult = decodedInsightResult
-            snapshot.contextPlanJSON = contextPlanJSON
-            snapshot.contextPlanRunJSON = contextPlanRunJSON
+            snapshot.contextPlanJSON = plannedJSON
+            snapshot.contextPlanRunJSON = plannedRunJSON
             if let messageType {
                 snapshot.messageType = messageType
             }
             // finalizeMessage 已收到并解析完整元数据，当前快照可立即渲染结构化卡片。
             snapshot.metadataState = .loaded
         }
+    }
+
+    /// finalizeMessage 的规划终态裁决（2026-11-02）：决定这一笔定稿写最终落到
+    /// 消息上的方案/信封字段。规则与 updateContextPlanRun 的单字段终态保护同源，
+    /// 并额外守住「draftReady 必带方案」这条不变式：
+    /// - 既有终态信封 + 来写为 nil / 非终态 / revision 回退 → 保留既有信封；
+    ///   既有就绪态时方案一并保留（迟到写不得清空已交付方案）。
+    /// - 既有 draftReady + 方案在库，来写为 failed/cancelled 且不带方案 → 整体拒绝
+    /// （领取已成功的运行，迟到的失败收尾没有意义，抹掉等于毁掉已交付结果）。
+    /// - 就绪孤儿（draftReady 但方案本就缺失）转诚实失败 → 放行，孤儿收治依赖此路。
+    private func resolveContextPlanWrite(
+        message: ChatMessage,
+        incomingPlanJSON: String?,
+        incomingRunJSON: String?
+    ) -> (planJSON: String?, runJSON: String?) {
+        guard let existingData = message.contextPlanRunJSON,
+              let existing = HoloContextPlanRunController.decode(existingData),
+              existing.stage.isTerminal
+        else {
+            return (incomingPlanJSON, incomingRunJSON) // 无终态基线：按来写直落
+        }
+        let incoming = incomingRunJSON.flatMap { HoloContextPlanRunController.decode($0) }
+
+        // 已交付保护：就绪 + 方案在库，来写却要改判失败/取消并清掉方案——
+        // 领取已成功的运行，迟到的失败收尾没有意义，整体拒绝保住已交付结果。
+        if existing.stage == .draftReady,
+           message.contextPlanJSON?.isEmpty == false,
+           incomingPlanJSON == nil,
+           incoming?.stage != .draftReady {
+            logger.error("PLAN-DIAG 定稿写被拦截：已交付方案拒绝抹除（stage=\(existing.stage.rawValue)）")
+            return (message.contextPlanJSON, existingData)
+        }
+
+        // 终态保护：nil/非终态/revision 回退的来写不得覆盖既有终态
+        let isLegalAdvance = incoming?.stage.isTerminal == true
+            && incoming!.stageRevision >= existing.stageRevision
+        guard isLegalAdvance else {
+            logger.error("PLAN-DIAG 定稿写被拦截：旧写不得回退终态（stage=\(existing.stage.rawValue)）")
+            return (existing.stage == .draftReady ? message.contextPlanJSON : incomingPlanJSON, existingData)
+        }
+
+        // 合法终态推进，但就绪写不带方案：不制造新的「已就绪无方案」
+        if incoming?.stage == .draftReady && incomingPlanJSON == nil,
+           let kept = message.contextPlanJSON, !kept.isEmpty {
+            return (kept, incomingRunJSON)
+        }
+        return (incomingPlanJSON, incomingRunJSON)
     }
 
     /// 规划运行状态的原子单字段写入（实施方案 §6.3：每次真实状态迁移原子落盘）。
@@ -797,6 +876,27 @@ final class ChatMessageRepository: ObservableObject {
     /// ack 即焚不可逆，必须确认方案真的写到消息上才允许销毁云端副本）。
     func contextPlanDraftJSON(_ messageId: UUID) -> String? {
         messageForUpdate(messageId)?.contextPlanJSON
+    }
+
+    /// 规划方案「已提交存储」回读（2026-11-02，ack 即焚门禁专用）：
+    /// 主上下文托管对象在 save 失败时仍保留未持久化的内存值，用它放行 ack 会
+    /// 销毁云端唯一可恢复副本。这里从干净的后台上下文直读存储行——只有真正
+    /// 提交成功的方案才返回非空；save 未生效时返回 nil，ack 不放行、结果留云端
+    /// 由对账补领。轻量装载的孤儿兜底回填仍走上面的托管对象通道（职责不同）。
+    func committedContextPlanDraftJSON(_ messageId: UUID) async -> String? {
+        await CoreDataStack.shared.waitUntilReady()
+        return await Task.detached(priority: .utility) {
+            let context = CoreDataStack.shared.newBackgroundContext()
+            return await context.perform {
+                let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                request.resultType = .dictionaryResultType
+                request.propertiesToFetch = ["contextPlanJSON"]
+                request.predicate = NSPredicate(format: "id == %@", messageId as CVarArg)
+                request.fetchLimit = 1
+                let row = (try? context.fetch(request))?.first as? [String: Any]
+                return row?["contextPlanJSON"] as? String
+            }
+        }.value
     }
 
     /// Agent 结果 JSON 回读（D02，2026-10-04 体检：普通云分析 ack 前的落库校验，
@@ -845,6 +945,16 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.agentResult = rendered
             snapshot.metadataState = .loaded
         }
+
+        // 报告理解链路登记点（本地/云端轨道共用此落点；链路自身受开关保护）
+        NotificationCenter.default.post(
+            name: .agentReportDidFinalize,
+            object: nil,
+            userInfo: [
+                "messageID": messageId,
+                "rendered": rendered,
+            ]
+        )
     }
 
     /// Agent 进度同步：用持久化 job 的真实状态更新原 streaming 消息。
@@ -1584,6 +1694,9 @@ final class ChatMessageRepository: ObservableObject {
         let summary: String?
         /// 深度分析的查询范围文案；回放为周期文案
         let scopeLabel: String?
+        /// 回放报告去重键（起始日|结束日，天粒度）：同一日期范围重复生成的回放
+        /// 档案只展示最新一份（如「本月」与「自定义」跑了同一段日期）；深度分析为 nil
+        let replayDedupeKey: String?
         let observationCount: Int
         let evidenceCount: Int
         /// 正常完成但结论为空的提示文案；有结论时为 nil。
@@ -1600,6 +1713,30 @@ final class ChatMessageRepository: ObservableObject {
     }
 
     /// 归档只收已完成的报告；生成中的卡片由 ChatViewModel 的消息流派生（冷启动可恢复）。
+    /// 已落卡回放的周期三元组（periodType|periodStart|periodEnd，与 Job 载荷同编码）。
+    /// 报告档案回填用它判断哪些洞察还没落过聊天消息。
+    func periodReplayCardTriples() -> Set<String> {
+        let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["extractedDataJSON"]
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "messageType == %@ AND role == %@ AND deletedAt == nil",
+                ChatMessageType.periodReplay.rawValue, "assistant"
+            )
+        ])
+        let rows = (try? context.fetch(request) as NSArray)?.compactMap { $0 as? [String: Any] } ?? []
+        var triples = Set<String>()
+        for row in rows {
+            guard let json = row["extractedDataJSON"] as? String,
+                  let data = json.data(using: .utf8),
+                  let dict = try? JSONDecoder().decode([String: String].self, from: data),
+                  dict["kind"] == HoloPeriodReplayJob.payloadKind else { continue }
+            triples.insert("\(dict["periodType"] ?? "")|\(dict["periodStart"] ?? "")|\(dict["periodEnd"] ?? "")")
+        }
+        return triples
+    }
+
     func loadReportArchiveAsync(limit: Int = 20, offset: Int = 0) async -> [ReportArchiveDTO] {
         await CoreDataStack.shared.waitUntilReady()
 
@@ -1616,9 +1753,11 @@ final class ChatMessageRepository: ObservableObject {
                         "extractedDataJSON", "content", "favoritedAt"
                     ]
                     request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                        // 回放只收 assistant 报告消息：用户的请求气泡（「查看X回放」）
+                        // 也是 periodReplay 类型，不排除会以「自定义范围」身份混进档案
                         NSPredicate(
-                            format: "((intent == %@ AND agentResultJSON != nil) OR messageType == %@) AND isStreaming == NO",
-                            queryAnalysisIntent, replayType
+                            format: "((intent == %@ AND agentResultJSON != nil) OR (messageType == %@ AND role == %@)) AND isStreaming == NO",
+                            queryAnalysisIntent, replayType, "assistant"
                         ),
                         NSPredicate(format: "deletedAt == nil")
                     ])
@@ -1659,9 +1798,10 @@ final class ChatMessageRepository: ObservableObject {
                 let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
                 request.resultType = .countResultType
                 request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                    // 与档案列表同口径：回放只数 assistant 报告消息，用户请求气泡不计入
                     NSPredicate(
-                        format: "favoritedAt != nil AND ((intent == %@ AND agentResultJSON != nil) OR messageType == %@) AND isStreaming == NO",
-                        queryAnalysisIntent, replayType
+                        format: "favoritedAt != nil AND ((intent == %@ AND agentResultJSON != nil) OR (messageType == %@ AND role == %@)) AND isStreaming == NO",
+                        queryAnalysisIntent, replayType, "assistant"
                     ),
                     NSPredicate(format: "deletedAt == nil")
                 ])
@@ -1698,8 +1838,9 @@ final class ChatMessageRepository: ObservableObject {
                         "extractedDataJSON", "content", "favoritedAt"
                     ]
                     request.predicate = NSPredicate(
-                        format: "favoritedAt != nil AND ((intent == %@ AND agentResultJSON != nil) OR messageType == %@) AND isStreaming == NO",
-                        queryAnalysisIntent, replayType
+                        // 与档案列表同口径：回放只收 assistant 报告消息，用户请求气泡不入收藏
+                        format: "favoritedAt != nil AND ((intent == %@ AND agentResultJSON != nil) OR (messageType == %@ AND role == %@)) AND isStreaming == NO",
+                        queryAnalysisIntent, replayType, "assistant"
                     )
                     request.sortDescriptors = [NSSortDescriptor(key: "favoritedAt", ascending: false)]
                     request.fetchLimit = 200
@@ -1821,6 +1962,12 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// 档案场景归类（目标闭环 §6.4）：goalScope 权威优先，其次才是问句关键词推断。
+    /// 独立成函数供回归测试直接断言（存钱类目标报告不得被「预算/存」关键词归到财务）。
+    static func archiveScenarioTag(rendered: HoloRenderedAgentResult, question: String?) -> ReportScenarioTag {
+        rendered.goalScope != nil ? .goal : ReportScenarioTag.classify(question: question)
+    }
+
     /// 档案行字典 → DTO 的唯一出口（列表/搜索/收藏/追问共用）：
     /// 深度分析走 agentResultJSON 解码，回放走 content/extratedData。
     private static func makeArchiveDTO(
@@ -1861,11 +2008,13 @@ final class ChatMessageRepository: ObservableObject {
             id: id,
             kind: .deepAnalysis,
             timestamp: timestamp,
-            scenarioTag: ReportScenarioTag.classify(question: question),
+            // 目标闭环 §6.4：goalScope 是权威归类——目标报告不因「存钱/体重」关键词被归到财务/健康而在目标筛选中消失
+            scenarioTag: ChatMessageRepository.archiveScenarioTag(rendered: rendered, question: question),
             title: rendered.title.isEmpty ? nil : rendered.title,
             question: question,
             summary: summary?.isEmpty == true ? nil : summary,
             scopeLabel: rendered.scope?.displayLabel,
+            replayDedupeKey: nil,
             observationCount: rendered.sections.count,
             evidenceCount: rendered.evidenceReferences.count,
             issueText: rendered.emptyReason.map(Self.emptyReasonText),
@@ -1896,6 +2045,7 @@ final class ChatMessageRepository: ObservableObject {
         let summary = content?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .isEmpty == true ? nil : content
+        let job = HoloPeriodReplayJob(json: jobJSON)
         return ReportArchiveDTO(
             id: id,
             kind: .periodReplay,
@@ -1904,7 +2054,8 @@ final class ChatMessageRepository: ObservableObject {
             title: "周期回放",
             question: nil,
             summary: summary,
-            scopeLabel: HoloPeriodReplayJob(json: jobJSON).map { Self.replayPeriodLabel($0) },
+            scopeLabel: job.map { Self.replayPeriodLabel($0) },
+            replayDedupeKey: job.map { Self.replayDedupeKey($0) },
             observationCount: 0,
             evidenceCount: 0,
             issueText: nil,
@@ -1960,8 +2111,9 @@ final class ChatMessageRepository: ObservableObject {
                     ]
                     request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
                         NSPredicate(
-                            format: "((intent == %@ AND agentResultJSON CONTAINS[C] %@) OR (messageType == %@ AND content CONTAINS[C] %@)) AND isStreaming == NO",
-                            queryAnalysisIntent, trimmed, replayType, trimmed
+                            // 与档案列表同口径：回放只搜 assistant 报告消息，用户请求气泡不命中
+                            format: "((intent == %@ AND agentResultJSON CONTAINS[C] %@) OR (messageType == %@ AND content CONTAINS[C] %@ AND role == %@)) AND isStreaming == NO",
+                            queryAnalysisIntent, trimmed, replayType, trimmed, "assistant"
                         ),
                         NSPredicate(format: "deletedAt == nil")
                     ])
@@ -2013,17 +2165,59 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// 回放档案卡称谓：按真实起止日期生成相对词，不再按 periodType 套固定标签——
+    /// 旧逻辑对任何 monthly 回放都说「上月」，10 月看「上月 · 10/1–10/8」自相矛盾。
     private static func replayPeriodLabel(_ job: HoloPeriodReplayJob) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "M/d"
         let range = "\(formatter.string(from: job.periodStart))–\(formatter.string(from: job.periodEnd))"
+
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: job.periodStart)
+        let end = calendar.startOfDay(for: job.periodEnd)
+
+        // 完全落在当前自然月：按起止日给旬称谓（1-10 上旬 / 11-20 中旬 / 21-末 下旬），跨旬带具体日期
+        if let currentMonth = calendar.dateInterval(of: .month, for: Date()),
+           currentMonth.contains(start), currentMonth.contains(end) {
+            let startDay = calendar.component(.day, from: start)
+            let endDay = calendar.component(.day, from: end)
+            if endDay <= 10 {
+                return String(localized: "本月上旬")
+            }
+            if startDay >= 11 && endDay <= 20 {
+                return String(localized: "本月中旬")
+            }
+            if startDay >= 21 {
+                return String(localized: "本月下旬")
+            }
+            return String(localized: "本月 · \(range)")
+        }
+        // 完全落在上一自然月才叫「上月」
+        if let previousMonth = calendar.date(byAdding: .month, value: -1, to: Date())
+            .flatMap({ calendar.dateInterval(of: .month, for: $0) }),
+           previousMonth.contains(start), previousMonth.contains(end) {
+            return String(localized: "上月 · \(range)")
+        }
         switch job.periodType {
-        case .daily: return "日回放 · \(range)"
-        case .weekly: return "上周 · \(range)"
-        case .monthly: return "上月 · \(range)"
-        case .quarterly: return "上季度 · \(range)"
+        case .daily: return String(localized: "日回放 · \(range)")
+        case .weekly: return String(localized: "回放 · \(range)")
+        case .monthly: return String(localized: "回放 · \(range)")
+        case .quarterly: return String(localized: "上季度 · \(range)")
         case .custom: return range
         }
+    }
+
+    /// 回放去重键的天粒度日期格式（POSIX 固定格式，避免随系统语言漂移）
+    private static let replayDayKeyFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    /// 回放去重键：起始日|结束日（天粒度），同键报告在档案列表只展示最新一份
+    private static func replayDedupeKey(_ job: HoloPeriodReplayJob) -> String {
+        "\(replayDayKeyFormatter.string(from: job.periodStart))|\(replayDayKeyFormatter.string(from: job.periodEnd))"
     }
 
     private static func emptyReasonText(_ reason: HoloAgentEmptyReason) -> String {

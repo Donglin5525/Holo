@@ -111,6 +111,13 @@ extension CoreDataStack {
         thoughtRichContentJSON.isOptional = true
         thoughtAttributes.append(thoughtRichContentJSON)
 
+        // 增量可空字段：旧记录保持原样，通过轻量迁移保留既有数据及云端身份。
+        let thoughtAppearance = NSAttributeDescription()
+        thoughtAppearance.name = "appearanceRaw"
+        thoughtAppearance.attributeType = .stringAttributeType
+        thoughtAppearance.isOptional = true
+        thoughtAttributes.append(thoughtAppearance)
+
         // 首行摘要（@ 引用候选列表标题，保存时派生）
         let thoughtFirstLine = NSAttributeDescription()
         thoughtFirstLine.name = "firstLine"
@@ -279,6 +286,15 @@ extension CoreDataStack {
         thoughtTagAutoCollectionHidden.defaultValue = false
         thoughtTagAttributes.append(thoughtTagAutoCollectionHidden)
 
+        // 用户声明「带此标签的想法不交给 AI」：命中（用户关联）的想法整体退出全部 AI 通道，
+        // 与 autoSuggestionBlocked（只禁 AI 自动复用概念名、想法仍参与分析）是两层语义
+        let thoughtTagExcludeFromAI = NSAttributeDescription()
+        thoughtTagExcludeFromAI.name = "excludeFromAI"
+        thoughtTagExcludeFromAI.attributeType = .booleanAttributeType
+        thoughtTagExcludeFromAI.isOptional = false
+        thoughtTagExcludeFromAI.defaultValue = false
+        thoughtTagAttributes.append(thoughtTagExcludeFromAI)
+
         // MARK: - ThoughtReference Entity
         // 观点模块 - 引用关系实体
         let thoughtReferenceEntity = NSEntityDescription()
@@ -421,6 +437,15 @@ extension CoreDataStack {
         topicSummary.attributeType = .stringAttributeType
         topicSummary.isOptional = true
         topicAttributes.append(topicSummary)
+
+        // 用户类别定义（2026-10-12 主题双通道）：classification 主题「收什么/不收什么」
+        // 的用户口径，与 AI 内容摘要（summary）严格分开——语义关联按它做类别匹配，
+        // 用户可改，改动进目录指纹自然触发重评。
+        let topicCategoryDefinition = NSAttributeDescription()
+        topicCategoryDefinition.name = "categoryDefinition"
+        topicCategoryDefinition.attributeType = .stringAttributeType
+        topicCategoryDefinition.isOptional = true
+        topicAttributes.append(topicCategoryDefinition)
 
         let topicStatus = NSAttributeDescription()
         topicStatus.name = "status"

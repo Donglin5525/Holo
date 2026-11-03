@@ -17,7 +17,7 @@ struct OnboardingAIConsentPage: View {
 
     var body: some View {
         ZStack {
-            Color.holoBackground.ignoresSafeArea()
+            Color.holoToolBackground.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
@@ -25,11 +25,11 @@ struct OnboardingAIConsentPage: View {
 
                     Text("开始前，确认一项授权")
                         .font(.holoTitle)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(.holoToolText)
 
                     Text("当你使用 HoloAI、AI 洞察、语音转文字，或在保存想法后（想法自动整理默认开启），完成该功能所需的信息，以及财务、习惯、待办、想法、健康摘要或语音片段，会经 Holo 后端发送给第三方 AI 或语音服务处理。")
                         .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     VStack(alignment: .leading, spacing: HoloSpacing.md) {
@@ -40,7 +40,7 @@ struct OnboardingAIConsentPage: View {
                     .padding(HoloSpacing.lg)
                     .background(
                         RoundedRectangle(cornerRadius: HoloRadius.lg)
-                            .fill(Color.holoCardBackground)
+                            .fill(Color.holoToolSurface)
                     )
 
                     Button {
@@ -65,7 +65,7 @@ struct OnboardingAIConsentPage: View {
             .padding(.horizontal, HoloSpacing.xl)
             .padding(.top, HoloSpacing.md)
             .padding(.bottom, HoloSpacing.lg)
-            .background(Color.holoBackground)
+            .background(Color.holoToolBackground)
         }
         .sheet(isPresented: $showPrivacyPolicy) {
             LegalDocumentSheet(documentType: .privacyPolicy)
@@ -84,7 +84,7 @@ struct OnboardingAIConsentPage: View {
 
             Text(text)
                 .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)

@@ -154,7 +154,7 @@ struct TodayAgendaSection: View {
                         }
                     }
                 }
-                .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color(.secondarySystemGroupedBackground)))
+                .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoSecondaryGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
         }
@@ -168,7 +168,7 @@ struct TodayAgendaSection: View {
             VStack(spacing: 0) {
                 content()
             }
-            .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color(.secondarySystemGroupedBackground)))
+            .background(RoundedRectangle(cornerRadius: HoloRadius.lg).fill(Color.holoSecondaryGroupedBackground))
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
     }
@@ -432,7 +432,7 @@ struct TodayAgendaSection: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.lg)
-                        .fill(Color(.secondarySystemGroupedBackground))
+                        .fill(Color.holoSecondaryGroupedBackground)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
 
@@ -506,7 +506,7 @@ struct TodayAgendaSection: View {
         case .taskOverdue:
             Image(systemName: "exclamationmark.circle")
                 .font(.caption)
-                .foregroundStyle(Color.holoError)
+                .foregroundStyle(Color.holoToolError)
         default:
             Circle()
                 .strokeBorder(Color.secondary.opacity(0.5), lineWidth: 1.4)

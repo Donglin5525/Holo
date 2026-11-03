@@ -21,6 +21,9 @@ class Topic: NSManagedObject {
     @NSManaged var title: String
     @NSManaged var iconEmoji: String?
     @NSManaged var summary: String?
+    /// 用户类别定义（主题双通道 2026-10-12）：classification 主题的「收什么」口径，
+    /// 与 AI 摘要（summary）分开；为空时类别匹配退化为「标题+用户确认代表例」。
+    @NSManaged var categoryDefinition: String?
     @NSManaged var status: String
     @NSManaged var confidence: Double
     @NSManaged var associatedTagNames: String?

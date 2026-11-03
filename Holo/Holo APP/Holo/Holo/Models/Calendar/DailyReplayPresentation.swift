@@ -7,9 +7,13 @@
 //
 
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
-enum DailyReplayPeriod: Int, CaseIterable, Identifiable {
+nonisolated enum DailyReplayPeriod: Int, CaseIterable, Identifiable {
     case untimed
     case earlyMorning
     case morning
@@ -45,13 +49,15 @@ enum DailyReplayPeriod: Int, CaseIterable, Identifiable {
     }
 }
 
-struct DailyReplayMoment: Identifiable {
+nonisolated struct DailyReplayMoment: Identifiable {
     let id: String
     let module: CalendarModule
     let date: Date
     let events: [CalendarEvent]
     let title: String
     let signedTotal: Decimal?
+    /// 缩略图版本在组装时计算；卡片身份保持稳定，附件编辑仍会重新解码。
+    let photoRevision: Int
 
     var timeText: String {
         events.allSatisfy { !$0.hasReliableTime }
@@ -76,6 +82,15 @@ struct DailyReplayMoment: Identifiable {
         return event.detail
     }
 
+    /// 正文 @ 引用的被引内容摘要（想法时刻才有；多条事件合并时逐条汇入并按内容去重）
+    var referenceQuotes: [ThoughtReferenceQuote] {
+        var result: [ThoughtReferenceQuote] = []
+        for quote in events.flatMap(\.thoughtReferenceQuotes) where !result.contains(quote) {
+            result.append(quote)
+        }
+        return result
+    }
+
     private static let timeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
@@ -84,7 +99,7 @@ struct DailyReplayMoment: Identifiable {
     }()
 }
 
-enum DailyReplayPresentation {
+nonisolated enum DailyReplayPresentation {
 
     /// 一个时段的记忆分块：河流阅读序的排版单元。
     struct PeriodBlock: Identifiable {
@@ -116,13 +131,18 @@ enum DailyReplayPresentation {
                 return lhs.id.uuidString < rhs.id.uuidString
             }
             let module = sorted[0].module
+            var photoHasher = Hasher()
+            for data in sorted.first(where: { !$0.attachmentThumbnails.isEmpty })?.attachmentThumbnails ?? [] {
+                photoHasher.combine(data)
+            }
             return DailyReplayMoment(
                 id: sorted.map { $0.id.uuidString }.joined(separator: "-"),
                 module: module,
                 date: sorted[0].date,
                 events: sorted,
                 title: groupTitle(for: sorted, module: module),
-                signedTotal: signedFinanceTotal(for: sorted, module: module)
+                signedTotal: signedFinanceTotal(for: sorted, module: module),
+                photoRevision: photoHasher.finalize()
             )
         }
         .sorted { lhs, rhs in
@@ -187,15 +207,34 @@ enum DailyReplayPresentation {
                                         lines: Int,
                                         fontSize: CGFloat,
                                         availableWidth: CGFloat) -> Bool {
+        // 字体度量只用于量文本高度；双平台条件编译让本文件保持 macOS 可独立验证
+        // （standalone 套件在命令行直接跑），iOS 上仍是 serif 语义字体。
+        #if canImport(UIKit)
         let base = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
         let font = base.fontDescriptor.withDesign(.serif).map { UIFont(descriptor: $0, size: fontSize) } ?? base
+        #else
+        let base = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let font = base.fontDescriptor.withDesign(.serif).flatMap { NSFont(descriptor: $0, size: fontSize) } ?? base
+        #endif
         let textHeight = (text as NSString).boundingRect(
             with: CGSize(width: availableWidth, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font],
             context: nil
         ).height
-        return textHeight > font.lineHeight * (CGFloat(lines) + 0.5)
+        // UIFont.lineHeight 的定义式，UIFont/NSFont 通用
+        let lineHeight = font.ascender - font.descender + font.leading
+        return textHeight > lineHeight * (CGFloat(lines) + 0.5)
+    }
+
+    /// 「轻点查看全文」的统一判定：摘要被 80 字上限截断（…结尾）即有全文可看，
+    /// 与排版行数无关——否则短行宽卡上的截断摘要会显得像一句没说完的完整文本。
+    static func thoughtNeedsFullTextHint(_ text: String,
+                                         lines: Int,
+                                         fontSize: CGFloat,
+                                         availableWidth: CGFloat) -> Bool {
+        if text.hasSuffix("…") { return true }
+        return thoughtExceedsLineLimit(text, lines: lines, fontSize: fontSize, availableWidth: availableWidth)
     }
 
     private static func groupTitle(for events: [CalendarEvent], module: CalendarModule) -> String {
@@ -206,7 +245,14 @@ enum DailyReplayPresentation {
             if directions == [.positive] { return String(localized: "\(events.count) 笔收入") }
             if directions == [.negative] { return String(localized: "\(events.count) 笔支出") }
             return String(localized: "\(events.count) 笔记账")
-        case .habit:   return String(localized: "完成了 \(events.count) 个习惯")
+        case .habit:
+            // 一条记录 ≠ 一个习惯：数值型/多次打卡同一天会留下多条同习惯记录，
+            // 「完成了 N 个习惯」必须按去重后的习惯数说，单习惯时改用次数表述。
+            let habitNames = Set(events.compactMap(\.title))
+            if habitNames.count == 1, let name = habitNames.first {
+                return String(localized: "\(name) · \(events.count) 次记录")
+            }
+            return String(localized: "完成了 \(habitNames.count) 个习惯")
         case .todo:    return String(localized: "完成了 \(events.count) 项待办")
         case .thought: return String(localized: "记录了 \(events.count) 条想法")
         case .health:  return String(localized: "留下了 \(events.count) 条健康记录")
@@ -292,7 +338,8 @@ enum DailyReplayChapterBuilder {
 
 // MARK: - 回放窗口翻页
 
-/// 日回放自最新向过去流动：列表顶部是最晚一天（通常为今天），向上滑动回看更早。
+/// 日回放自最新向过去流动：列表顶部恒为今天（时间河的源头固定，跳到过去后仍可
+/// 一路滑回今天），向上滑动回看更早。
 /// 翻页只有向过去一个方向——更早的页追加在列表底部，永远不打扰正在阅读的位置。
 /// 区间数学收在这里，保证翻页规则可以独立验证。
 enum DailyReplayPageWindow {

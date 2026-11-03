@@ -8,6 +8,10 @@
 
 #if DEBUG || INTERNAL_DIAGNOSTICS
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 
 struct ChatLogView: View {
 
@@ -88,7 +92,9 @@ struct ChatLogView: View {
             }
         }
         .swipeBackToDismiss { dismiss() }
+        #if canImport(UIKit)
         .navigationBarHidden(true)
+        #endif
     }
 
     // MARK: - Call Section
@@ -204,7 +210,12 @@ struct ChatLogView: View {
     @ViewBuilder
     private func copyButton(text: String, sectionId: String) -> some View {
         Button {
+            #if canImport(UIKit)
             UIPasteboard.general.string = text
+            #else
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            #endif
             copiedSection = sectionId
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 if copiedSection == sectionId { copiedSection = nil }
@@ -241,7 +252,12 @@ struct ChatLogView: View {
             return String(localized: "\(header)\n\n--- 请求 ---\n\(request)\n\n--- 响应 ---\n\(call.responseText)")
         }.joined(separator: "\n\n")
 
+        #if canImport(UIKit)
         UIPasteboard.general.string = fullText
+        #else
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(fullText, forType: .string)
+        #endif
         copiedSection = "all"
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             if copiedSection == "all" { copiedSection = nil }

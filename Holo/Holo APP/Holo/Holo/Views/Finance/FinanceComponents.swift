@@ -195,6 +195,23 @@ struct TransactionRowView: View {
 
     /// 原交易的累计退款（「已退 ¥X」徽章；nil=无退款）。退款笔自身徽章走 isRefund 本地判断
     @State private var refundedTotal: Decimal?
+    @ObservedObject private var categoryNames = FinanceCategoryNameCache.shared
+
+    private var categoryPresentation: FinanceCategoryRowPresentation {
+        let category = transaction.category.flatMap { $0.isInvalidated ? nil : $0 }
+        return FinanceCategoryRowPresentation(
+            note: transaction.note,
+            categoryName: category?.name,
+            parentName: category.flatMap { categoryNames.parentName(for: $0) }
+        )
+    }
+
+    /// 搜索结果始终保留账户，普通列表只显示非默认账户。
+    private var accountName: String? {
+        guard let account = transaction.account, !account.isInvalidated,
+              showsDate || !account.isDefault else { return nil }
+        return account.name
+    }
 
     /// 标题下方的退款族徽章：退款笔「退款」/ 原交易「已退 ¥X」。
     /// 独立成行不与标题挤同一行（徽章带金额太长会把科目名挤成省略号）
@@ -208,6 +225,9 @@ struct TransactionRowView: View {
 
     /// 支出原交易的退款累计查询（列表行懒加载内跑，索引查询；退款增删靠通知刷新）
     private func refreshRefundBadge() async {
+        // 刚删除的交易：行还在退场动画或他处屏幕上时收到删除完成广播，不得访问已死对象，
+        // 也不得写 refundedTotal（@State 写入会重算 body，body 读已死属性同样闪退）
+        guard !transaction.isInvalidated else { return }
         guard transaction.transactionType == .expense, !transaction.isRefund else {
             refundedTotal = nil
             return
@@ -215,14 +235,6 @@ struct TransactionRowView: View {
         let refunds = (try? await FinanceRepository.shared.getRefunds(for: transaction)) ?? []
         let total = refunds.reduce(Decimal(0)) { $0 + $1.amountAsDecimal }
         refundedTotal = total > 0 ? total : nil
-    }
-
-    /// 是否有用户填写的名称
-    private var hasNote: Bool {
-        if let note = transaction.note, !note.isEmpty {
-            return true
-        }
-        return false
     }
 
     /// 是否有备注
@@ -242,21 +254,13 @@ struct TransactionRowView: View {
         if hasRemark, let remark = transaction.remark {
             parts.append(remark)
         }
-        if let account = transaction.account, !account.isDefault {
-            parts.append(account.name)
-        }
-
         let text = parts.joined(separator: " · ")
         return text.isEmpty ? nil : text
     }
 
-    /// 搜索等跨账户场景的元信息行：时间 · 账户 · 备注。
-    /// 账户不受「默认账户省略」规则限制——搜索结果跨账户，账户是关键上下文。
+    /// 搜索的日期与备注保留在左侧；账户统一显示在右侧金额下方。
     private var searchMetadataText: String {
         var parts = [formatDateTime(transaction.date)]
-        if let account = transaction.account {
-            parts.append(account.name)
-        }
         if hasRemark, let remark = transaction.remark {
             parts.append(remark)
         }
@@ -266,14 +270,14 @@ struct TransactionRowView: View {
     var body: some View {
         Button(action: onTap) {
             // 列表行风格：左侧分类信息，右侧金额严格对齐
-            HStack(alignment: .center, spacing: isCompact ? 10 : HoloSpacing.md) {
+            HStack(alignment: .top, spacing: isCompact ? 10 : HoloSpacing.md) {
                 // 分类图标
                 categoryIcon
 
                 VStack(alignment: .leading, spacing: isCompact ? 2 : 4) {
                     // 主标题 + 分期标签
                     HStack(spacing: 4) {
-                        Text(hasNote ? (transaction.note ?? "") : (transaction.category?.name ?? String(localized: "未分类")))
+                        Text(categoryPresentation.title)
                             .holoText(.body)
                             .foregroundColor(.holoToolText)
                             .lineLimit(1)
@@ -286,10 +290,12 @@ struct TransactionRowView: View {
                         }
                     }
 
-                    // 退款 mini 胶囊：标题下方独立一行，不挤占科目名
+                    TransactionCategoryPathView(presentation: categoryPresentation)
+
+                    // 退款标记排在分类之后，保持分类路径的固定位置。
                     if let refundBadgeText {
                         Text(refundBadgeText)
-                            .font(.system(size: 9.5, weight: .semibold))
+                            .font(.holoTinyLabel)
                             .foregroundColor(.holoSuccessDark)
                             .lineLimit(1)
                             .padding(.horizontal, 6)
@@ -302,20 +308,20 @@ struct TransactionRowView: View {
                     if isCompact {
                         if let compactMetadataText {
                             Text(compactMetadataText)
-                                .font(.system(size: 11))
+                                .font(.holoLabel)
                                 .foregroundColor(.holoToolTextSecondary)
                                 .lineLimit(1)
                         }
                     } else if showsDate {
                         Text(searchMetadataText)
-                            .font(.system(size: 12))
+                            .font(.holoLabel)
                             .foregroundColor(.holoToolTextSecondary)
                             .lineLimit(1)
                     } else {
                         // 副标题：有备注显示备注，无备注不显示副标题
                         if hasRemark, let remark = transaction.remark {
                             Text(remark)
-                                .font(.system(size: 12))
+                                .font(.holoLabel)
                                 .foregroundColor(.holoToolTextSecondary)
                                 .lineLimit(1)
                         }
@@ -323,15 +329,7 @@ struct TransactionRowView: View {
                         // 挂靠的财务项目（如东京旅行）
                         if let tag = FinanceProjectTagCache.lookup(transaction.financeProjectId) {
                             Text("\(tag.icon) \(tag.name)")
-                                .font(.system(size: 11))
-                                .foregroundColor(.holoToolTextSecondary.opacity(0.7))
-                                .lineLimit(1)
-                        }
-
-                        // 非默认账户时显示账户名
-                        if let account = transaction.account, !account.isDefault {
-                            Text(account.name)
-                                .font(.system(size: 11))
+                                .font(.holoLabel)
                                 .foregroundColor(.holoToolTextSecondary.opacity(0.7))
                                 .lineLimit(1)
                         }
@@ -341,14 +339,23 @@ struct TransactionRowView: View {
                 Spacer(minLength: 0)
 
                 // 金额：右侧对齐，空间不足时自动缩放
-                Text(transaction.formattedAmount)
-                    .holoText(.body)
-                    .foregroundColor(transaction.transactionType == .expense ? .holoToolText : .holoSuccess)
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-                    .frame(alignment: .trailing)
+                VStack(alignment: .trailing, spacing: HoloSpacing.xs) {
+                    Text(transaction.formattedAmount)
+                        .holoText(.body)
+                        .monospacedDigit()
+                        .foregroundColor(transaction.transactionType == .expense ? .holoToolText : .holoSuccess)
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
+                    if let accountName {
+                        Text(accountName)
+                            .font(.holoLabel)
+                            .foregroundColor(.holoToolTextSecondary)
+                            .lineLimit(1)
+                            .frame(maxWidth: HoloSpacing.xxl * 2, alignment: .trailing)
+                    }
+                }
+                .layoutPriority(1)
             }
-            .frame(maxWidth: .infinity)
             .padding(.leading, isCompact ? 6 : 11)
             .padding(.trailing, isCompact ? HoloSpacing.sm : HoloSpacing.md)
             .padding(.vertical, isCompact ? HoloSpacing.xs : 10)
@@ -358,7 +365,7 @@ struct TransactionRowView: View {
                     ? AnyShapeStyle(Color.holoPrimary.opacity(0.10))
                     : AnyShapeStyle(Color.clear)
             )
-            .contentShape(Rectangle())
+            .holoRowHitArea()
         }
         .buttonStyle(HoloPressStyle())
         .holoRecordArrival(transaction.id, domain: .finance)
@@ -376,14 +383,25 @@ struct TransactionRowView: View {
         return CategoryIconBadge(iconName: iconName, color: color, diameter: isCompact ? 40 : 48)
     }
 
-    private func formatDateTime(_ date: Date) -> String {
+    /// 行级格式化器缓存：本视图在列表/搜索结果里每行每渲染周期都会调到，
+    /// 每次 new DateFormatter 约 1ms，几十可见行即几十毫秒纯构造
+    /// （2026-10-30 性能审计 C9；缓存范式同 TaskQuadrantBoardView）
+    private static let sameYearFormatter: DateFormatter = {
         let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("MMMdHHmm")
+        return f
+    }()
+
+    private static let crossYearFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("yMMMdHHmm")
+        return f
+    }()
+
+    private func formatDateTime(_ date: Date) -> String {
         // 同年省略年份，跨年带年份，避免跨年列表（如搜索结果）产生年份歧义
-        if Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year) {
-            f.setLocalizedDateFormatFromTemplate("MMMdHHmm")
-        } else {
-            f.setLocalizedDateFormatFromTemplate("yMMMdHHmm")
-        }
+        let f = Calendar.current.isDate(date, equalTo: Date(), toGranularity: .year)
+            ? Self.sameYearFormatter : Self.crossYearFormatter
         return f.string(from: date)
     }
 }
@@ -403,7 +421,8 @@ struct EmptyStateView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "wallet.pass")
                 .font(.system(size: 64, weight: .light))
-                .foregroundColor(.holoToolTextSecondary.opacity(0.3))
+                // 深色下空态图标隐身：透明度从 0.3 提到 0.5 保住幽灵层级
+                .foregroundColor(.holoToolTextSecondary.opacity(0.5))
 
             Text(isFirstRecord ? String(localized: "暂无交易记录") : String(localized: "这一天还没有记录"))
                 .holoText(.body)
@@ -416,15 +435,16 @@ struct EmptyStateView: View {
                     .multilineTextAlignment(.center)
 
                 if let ctaTitle, let ctaAction {
+                    // 右下 FAB 已是本屏唯一橙主行动；空态引导钮退为灰描边次级（2026-10-12 橙纪律）
                     Button(action: ctaAction) {
-                        Label(ctaTitle, systemImage: "plus.circle.fill")
+                        Label(ctaTitle, systemImage: "plus.circle")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(.holoToolTextSecondary)
                             .padding(.horizontal, 26)
                             .padding(.vertical, 11)
                             .background(
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(Color.holoPrimary)
+                                    .strokeBorder(Color.holoToolBorder, lineWidth: 1)
                             )
                             .contentShape(Rectangle())
                     }

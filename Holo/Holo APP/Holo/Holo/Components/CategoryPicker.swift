@@ -328,6 +328,7 @@ private struct PickerCategoryButton: View {
                     .foregroundColor(isSelected ? category.swiftUIColor : .holoTextSecondary)
                     .lineLimit(1)
             }
+            .holoRowHitArea(alignment: .center)
         }
         // Form/List 环境里必须显式 plain，否则点击会被行级手势吞给行内第一个按钮
         .buttonStyle(.plain)

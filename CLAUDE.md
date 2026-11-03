@@ -1,7 +1,9 @@
 # HOLO · 人生数据库 — 个人数据资产 + AI 规划 iOS 应用
 
-**技术栈**：SwiftUI, Swift 5+, MVVM, Core Data
-**核心模块**：记账 ✅ | 习惯追踪 ✅ | 待办 🚧 | 健康 ✅ | 观点 📋 | AI 对话 ✅
+> 本文件只被 Claude Code 加载；ZCode 与 Codex 读的是同目录 `AGENTS.md`。三宿主共享的项目红线（CloudKit 开发库、质量闸门、禁止操作、后端发版真源）以 `AGENTS.md` 为准，本文件只保留 Claude Code 特有约定与编码细则，两边冲突时以 `AGENTS.md` 为准。（2026-10-20 跨平台配置审计后修订）
+
+**技术栈**：SwiftUI, Swift 5+, MVVM, Core Data；后端 Node.js + Hono（`HoloBackend/`）
+**核心模块**：记账 | 习惯 | 任务 | 健康 | 想法 | AI 对话 | 记忆长廊 均已上线；各模块状态以 `CHANGELOG.md` 为准，本行不再逐版维护
 
 ---
 
@@ -11,8 +13,8 @@
 |------|------|
 | 全局中文回复 | 所有回复使用中文 |
 | 称呼东林 | 每次回答前先称呼名字 |
-| 禁止兼容性代码 | 除非东林主动要求 |
-| 需求模糊时 | 先提问澄清再写代码 |
+| 不写无需求的兼容分支 | 不为假想的旧版本/旧数据加兼容代码；**数据模型/Schema 的增量兼容迁移是 `AGENTS.md` CloudKit 红线的要求，不在此禁令内** |
+| 需求模糊时 | 有合理默认就按推荐直接做并说明理由；只有不可逆、无默认可推断、或模糊到无法继续时才提问；问一次没答 → 按推荐落地，不重复追问 |
 | 修改 >3 个文件 | 先拆成小任务 |
 | 出 Bug 时 | 先写能重现的测试再修复 |
 | 被纠正后 | 反思并制定不再犯的计划 |
@@ -45,7 +47,7 @@
 |------|------|
 | 写方案 | 在 `docs/*/plans/` 下写实施计划，明确范围、数据结构、涉及文件 |
 | 对抗评审 | 方案完成后做对抗性审查：检查边界遗漏、技术可行性、与现有代码冲突 |
-| 实施 | 评审通过后按步骤实施，多步任务用 TaskCreate 追踪进度 |
+| 实施 | 评审通过后按步骤实施，多步任务用宿主自带的任务清单工具追踪进度（Claude Code：TaskCreate；ZCode：TodoWrite） |
 
 ---
 
@@ -143,7 +145,7 @@
 
 Holo 的 AI/ASR 调用已从客户端直连大模型改为经阿里云后端网关统一代理，客户端不再持有 API Key。
 
-**架构**：`iOS App → Holo AI Gateway (阿里云 ECS 123.56.104.9:8787) → LLM / DashScope ASR`
+**架构**：`iOS App → Holo AI Gateway（公网 https://api.holoapp.cn，Nginx 反代到 ECS 本机 8787）→ LLM / DashScope ASR`。`123.56.104.9` 是 ECS 服务器地址，只用于 SSH/部署，不是客户端 API 端点。
 
 **方案文档**：`docs/_common/plans/HoloAI商用后端网关MVP方案.md`
 
@@ -187,8 +189,8 @@ HoloBackend 内置内部管理后台，供开发者调试 AI 调用、查看日�
 
 Prompt 管理：
 - 默认 Prompt 来源：`HoloBackend/src/prompts/defaultPrompts.json`
-- 后台编辑后的 Prompt 写入：`HoloBackend/src/prompts/managedPrompts.json`
-- `/v1/prompts/:type` 优先返回 managed 版本，无 managed 版本则回退 default
+- 运行时加载顺序（`src/prompts/promptRegistry.js`）：**优先读 SQLite `prompt_versions` 表的最新版本**，无记录才回退 `defaultPrompts.json`；容器启动时 `syncDefaultPromptsToHistory` 会把文件变更自动登记为新版本（source=default_sync），所以改文件＋发版即生效
+- 管理后台编辑的 Prompt 同样落 `prompt_versions`（旧文档所说的 `managedPrompts.json` 优先级描述已过时，以 promptRegistry.js 为准）
 - App 普通用户不能手动调整 Prompt；管理后台仅供开发者内部调试和发布前校准
 
 ### Prompt 双端同步（重要）
@@ -204,18 +206,18 @@ Prompt 管理：
 1. 修改 iOS 端 `PromptManager.swift` 内嵌模板（后备）
 2. 同步修改后端 `HoloBackend/src/prompts/defaultPrompts.json`（生效端）
 3. 升级 `PromptManager.promptVersions` 版本号
-4. **必须重新部署后端**：`ssh root@123.56.104.9` → `cd /root/Holo/HoloBackend/deploy` → `docker compose build --no-cache && docker compose up -d`
-5. 部署后验证：`curl http://localhost:8787/v1/prompts/intent_recognition` 确认版本和内容
+4. **必须重新部署后端**：走统一真源技能 `holo-backend-deploy`（`docs/_common/agent-skills/holo-backend-deploy/`），不要手敲 `docker compose build --no-cache`——BuildKit 远程拉镜像卡死与镜像层自引用堆积两个坑都在记忆档里
+5. 部署后验证：`SKIP_INTENT_CASES=1 EXPECT_PROMPT_VERSION=<n> npm run verify:prod --prefix HoloBackend`，或直接查 ECS SQLite `prompt_versions` 最新行。`/v1/prompts/:type` 在生产返回 404（仅测试模式注册），不能当验证手段
 
 **常见陷阱**：
 - 只改 iOS 端 PromptManager 不改后端 → 不生效（后端优先）
 - 改了后端源文件但没重建 Docker 镜像 → 不生效（源码 baked 进镜像，非 volume 挂载）
-- Docker compose restart 不够 → 需 `build --no-cache` 重建镜像
+- Docker compose restart 不够 → 需重新 build 镜像（默认走缓存即可；`--no-cache` 只在怀疑缓存污染时用）
 - iOS 端 `HoloBackendPromptService` 有 2 分钟 metaTTL 缓存 → 部署后杀掉 App 重开
 
 日志：
 - `/admin/logs` 记录 `/v1/ai/chat/completions` 的请求、响应、provider、model、耗时和错误
-- 日志当前仅保存在后端进程内存中，服务重启后清空
+- 请求级日志持久化在 SQLite `ai_call_logs` 表（adminLogStore 热缓存＋落库，`src/middleware/requestLogger.js`），时间戳为 UTC；查询通道见记忆档 `production-insight-diagnosis-toolbox`
 - 当前不记录 ASR 音频二进制内容
 - 真机 App 默认后端为 `HoloBackendEnvironment.baseURL`，若要在本地后台看真机日志，需让真机临时连接电脑局域网地址，例如 `http://<Mac局域网IP>:8787`
 
@@ -227,8 +229,8 @@ Prompt 管理：
 | `Services/AI/HoloBackendAIProvider.swift` | 替代 OpenAICompatibleProvider，走后端网关 |
 | `Services/Speech/HoloBackendSpeechRecognitionProvider.swift` | 录音上传到后端转写 |
 
-- Debug 环境已默认接入后端；Release 暂未启用
-- `AliyunQwenASRRealtimeProvider.swift`（客户端直连方案）将在后端方案上线后废弃
+- Debug 与 Release 均默认走后端网关（`HoloBackendEnvironment.isEnabledByDefault = true`，默认 `https://api.holoapp.cn`，可用环境变量 `HOLO_BACKEND_URL` 覆盖）
+- 客户端直连大模型/ASR 的旧 Provider 只作 DEBUG「路径 B」的后备，不是生产路径
 
 > 涉及 AI/ASR 的改动需同时考虑 iOS 端和后端两侧。后端代码在 `HoloBackend/`，iOS 集成在 `Services/AI/HoloBackend*.swift`。后端待完成项见 `TODO.md`「后端网关」章节。
 

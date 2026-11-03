@@ -22,6 +22,8 @@ struct HoloReportTrendSeries: Equatable, Sendable {
     var title: String
     var unitLabel: String
     var points: [Point]
+    var isWeeklyAggregated = false
+    var interval: DateInterval? = nil
 }
 
 enum HoloReportTrendDataResolver {
@@ -43,7 +45,7 @@ enum HoloReportTrendDataResolver {
         return supportedDatasets[dataset] != nil
     }
 
-    /// 回查数据集在 [start, end] 的逐日序列。序列点 < 3 返回 nil（画不出趋势）。
+    /// 回查逐日序列；单点交给公共组件明确画点，无记录则不伪造趋势。
     static func resolve(dataset: String, start: Date, end: Date) async -> HoloReportTrendSeries? {
         guard let config = supportedDatasets[dataset] else { return nil }
         let calendar = Calendar.current
@@ -54,13 +56,21 @@ enum HoloReportTrendDataResolver {
         var points: [HoloReportTrendSeries.Point]
         switch dataset {
         case "health.sleep":
-            points = healthPoints(await HealthRepository.shared.fetchSleepRange(from: windowStart, to: windowEnd))
+            if case let .value(data) = await HealthRepository.shared.fetchDailyRangeStrict(for: .sleep, from: windowStart, to: windowEnd) {
+                points = healthPoints(data)
+            } else { return nil }
         case "health.steps":
-            points = healthPoints(await HealthRepository.shared.fetchStepsRange(from: windowStart, to: windowEnd))
+            if case let .value(data) = await HealthRepository.shared.fetchDailyRangeStrict(for: .steps, from: windowStart, to: windowEnd) {
+                points = healthPoints(data)
+            } else { return nil }
         case "health.stand":
-            points = healthPoints(await HealthRepository.shared.fetchStandTimeRange(from: windowStart, to: windowEnd))
+            if case let .value(data) = await HealthRepository.shared.fetchDailyRangeStrict(for: .standHours, from: windowStart, to: windowEnd) {
+                points = healthPoints(data)
+            } else { return nil }
         case "health.activity":
-            points = healthPoints(await HealthRepository.shared.fetchActiveMinutesRange(from: windowStart, to: windowEnd))
+            if case let .value(data) = await HealthRepository.shared.fetchDailyRangeStrict(for: .activeMinutes, from: windowStart, to: windowEnd) {
+                points = healthPoints(data)
+            } else { return nil }
         case "health.energy":
             if case let .value(data) = await HealthRepository.shared.fetchEnergyRangeStrict(from: windowStart, to: windowEnd) {
                 points = healthPoints(data)
@@ -82,19 +92,20 @@ enum HoloReportTrendDataResolver {
         let filtered = points
             .filter { $0.date >= windowStart && $0.date <= windowEnd }
             .sorted { $0.date < $1.date }
-        guard filtered.count >= 3 else { return nil }
+        guard !filtered.isEmpty else { return nil }
         return HoloReportTrendSeries(
             title: config.title,
             unitLabel: config.unit,
-            points: weeklyAggregatedIfDense(filtered)
+            points: weeklyAggregatedIfDense(filtered),
+            isWeeklyAggregated: filtered.count > 62,
+            interval: DateInterval(start: windowStart, end: windowEnd)
         )
     }
 
-    /// 健康逐日序列：只保留有样本且 > 0 的天（0 常见于未佩戴/无读数，
-    /// 画成 0 会制造「那天没睡」的假象；断线比假 0 诚实）。
+    /// 严格查询只返回有样本的天；真实零值保留，缺失由图表补空槽并断线。
     private static func healthPoints(_ data: [DailyHealthData]) -> [HoloReportTrendSeries.Point] {
         data.compactMap { item in
-            guard item.value > 0 else { return nil }
+            guard item.value.isFinite else { return nil }
             return HoloReportTrendSeries.Point(date: Calendar.current.startOfDay(for: item.date), value: item.value)
         }
     }

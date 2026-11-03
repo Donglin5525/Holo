@@ -62,7 +62,7 @@ struct TaskChatCard: View {
                         HStack(alignment: .top, spacing: 9) {
                             Image(systemName: "minus.circle.fill")
                                 .font(.system(size: 11))
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
                                 .padding(.top, 3)
                             Text(item)
                                 .font(.system(size: 14, weight: .medium))
@@ -89,7 +89,7 @@ struct TaskChatCard: View {
                     if data.isFailed, let error = data.confirmationError, !error.isEmpty {
                         Text(error)
                             .font(.system(size: 13, weight: .regular))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     }
 
                     HStack(spacing: 10) {

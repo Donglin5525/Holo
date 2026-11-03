@@ -141,11 +141,16 @@ enum BillDuplicateDetector {
 
     // MARK: - 已有交易查询
 
-    /// 查询日期范围内交易的轻量投影（后台 context 只读）
+    /// 查询日期范围内交易的轻量投影（后台 context 只读）。
+    /// 只对有效交易判重：用户删掉的账单重新导入/重扫时应重新入账，
+    /// 而不是被软删行（回收站 30 天保留期）永久判重挡回。
     static func fetchExistingEntries(from start: Date, to end: Date) -> [ExistingEntry] {
         let context = CoreDataStack.shared.newBackgroundContext()
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "date >= %@ AND date <= %@", start as NSDate, end as NSDate)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "date >= %@ AND date <= %@", start as NSDate, end as NSDate),
+            Transaction.notDeletedPredicate
+        ])
         request.propertiesToFetch = ["amount", "type", "date", "note", "importSource"]
 
         let result = (try? context.performAndWait2 { try context.fetch(request) }) ?? []

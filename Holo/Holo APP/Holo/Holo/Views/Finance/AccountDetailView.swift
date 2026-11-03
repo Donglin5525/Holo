@@ -85,12 +85,17 @@ struct AccountDetailView: View {
         // 露出系统窗口黑底，页面顶部出现黑色片区
         .background(Color.holoBackground.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Color.clear.frame(height: 88)
+            // 让位 FinanceView 的「记一笔」浮钮（右下角，悬在列表上层）：
+            // 浮钮顶缘约在屏底 156pt 处，浮钮顶缘实测距屏底 190pt，扣除主屏指示条后内容让出 160pt
+            // 才能保证滚到底时最后一笔金额完整可见（2026-10-17 设计审查 C4）
+            Color.clear.frame(height: 160)
         }
         .navigationTitle(account.name)
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                 Menu {
                     Button {
                         showEditSheet = true
@@ -257,7 +262,9 @@ struct AccountDetailView: View {
                 .environment(\.locale, Locale(identifier: "zh_CN"))
                 .padding(.horizontal, HoloSpacing.lg)
                 .navigationTitle("复制到")
+                #if canImport(UIKit)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("取消") {
@@ -292,7 +299,7 @@ struct AccountDetailView: View {
                 transactionToDelete = nil
             }
         } message: {
-            Text("删除后无法恢复，确定要删除吗？")
+            Text("删除后会移入回收站，30 天内可恢复。")
         }
         // 分期交易删除选项
         .confirmationDialog(
@@ -366,10 +373,10 @@ struct AccountDetailView: View {
                 case .broken:
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                     Text("账目有变动，建议重新对账")
                         .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -444,7 +451,7 @@ struct AccountDetailView: View {
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.lg)
 
-            Text(formatAmount(balance))
+            Text(formatSignedAmount(balance))
                 .font(.system(size: 36, weight: .bold, design: .rounded))
                 .foregroundColor(balance >= 0 ? .holoTextPrimary : .holoError)
                 .contentTransition(.numericText())
@@ -484,21 +491,7 @@ struct AccountDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             // 进度条
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(Color.holoDivider.opacity(0.3))
-                        .frame(height: 12)
-
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(budgetProgressColor(status.progress))
-                        .frame(
-                            width: geometry.size.width * min(CGFloat(status.progress), 1.0),
-                            height: 12
-                        )
-                }
-            }
-            .frame(height: 12)
+            HoloProgress(value: status.progress, color: budgetProgressColor(status.progress), lineWidth: 12)
 
             // 金额和进度百分比（分母为严格模式有效额度）
             HStack {
@@ -528,7 +521,7 @@ struct AccountDetailView: View {
                 if status.isOverBudget {
                     Text("已超支 \(formatAmount(abs(status.remainingAmount)))")
                         .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 } else {
                     Text("剩余 \(formatAmount(status.remainingAmount))")
                         .font(.holoCaption)
@@ -667,20 +660,7 @@ struct AccountDetailView: View {
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
 
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.holoBorder.opacity(0.3))
-                                .frame(height: 4)
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(budgetProgressColor(status.progress))
-                                .frame(
-                                    width: geo.size.width * min(CGFloat(status.progress), 1.0),
-                                    height: 4
-                                )
-                        }
-                    }
-                    .frame(height: 4)
+                    HoloProgress(value: status.progress, color: budgetProgressColor(status.progress), lineWidth: 4)
                 }
 
                 Spacer()
@@ -693,7 +673,7 @@ struct AccountDetailView: View {
                     if status.isOverBudget {
                         Text("超支 \(formatAmount(status.remainingAmount))")
                             .font(.system(size: 10))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                     } else {
                         Text("剩余 \(formatAmount(status.remainingAmount))")
                             .font(.system(size: 10))
@@ -776,7 +756,7 @@ struct AccountDetailView: View {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text("¥")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                 Text(formatAmount(creditStatement.expense))
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .foregroundColor(.holoTextPrimary)
@@ -888,7 +868,7 @@ struct AccountDetailView: View {
                         .foregroundColor(.holoTextSecondary)
                     Text(formatAmount(monthlySummary.expense))
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
                 .frame(maxWidth: .infinity)
 
@@ -899,9 +879,11 @@ struct AccountDetailView: View {
                     Text("净变动")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
-                    Text(formatAmount(monthlySummary.net))
+                    Text(formatSignedAmount(monthlySummary.net))
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
-                        .foregroundColor(monthlySummary.net >= 0 ? .holoSuccess : .holoError)
+                        .foregroundColor(monthlySummary.net > 0 ? .holoSuccess
+                                         : monthlySummary.net < 0 ? .holoToolError
+                                         : .holoTextPrimary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -1043,6 +1025,12 @@ struct AccountDetailView: View {
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.maximumFractionDigits = 2
         return formatter.string(from: NSDecimalNumber(decimal: abs(amount))) ?? "¥0.00"
+    }
+
+    /// 带符号金额：净变动、账户余额这类「方向即信息」的数值必须保留负号，
+    /// 否则 -¥592 的欠款会被读成 ¥592 的存款
+    private func formatSignedAmount(_ amount: Decimal) -> String {
+        amount < 0 ? "-\(formatAmount(amount))" : formatAmount(amount)
     }
 
     /// 同年分组标题：「8月22日 星期六」

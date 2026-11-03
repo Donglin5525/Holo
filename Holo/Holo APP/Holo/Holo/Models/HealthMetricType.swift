@@ -176,6 +176,16 @@ struct DailyHealthData: Identifiable {
 
     var id: Date { date }
 
+    /// 增量求均值，避免相同样本反复相加的舍入误差让「均值」显示得高于最高值。
+    static func averageValue(in samples: [DailyHealthData]) -> Double? {
+        guard !samples.isEmpty else { return nil }
+        var average = 0.0
+        for (index, sample) in samples.enumerated() {
+            average += (sample.value - average) / Double(index + 1)
+        }
+        return average
+    }
+
     /// 格式化日期（MM-dd）
     var formattedDate: String {
         let formatter = DateFormatter()

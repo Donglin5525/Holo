@@ -87,13 +87,16 @@ struct AddAccountSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle(isEditMode ? "编辑账户" : "新建账户")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭"))
                         .foregroundColor(.holoToolTextSecondary)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button("保存") { save() }
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(canSave ? .holoPrimary : .holoToolTextSecondary)
@@ -262,7 +265,9 @@ struct AddAccountSheet: View {
 
                 TextField("0.00", text: $initialBalance)
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    #if canImport(UIKit)
                     .keyboardType(.decimalPad)
+                    #endif
             }
             .padding(HoloSpacing.md)
             .background(Color.holoToolSurface)
@@ -278,7 +283,7 @@ struct AddAccountSheet: View {
                         if hasReconciliationAnchor {
                             Text("此账户已对过账：修改期初会使对账基准失效，建议保存后再对一次账")
                                 .font(.system(size: 12))
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
                         }
                     }
                 } else {
@@ -345,7 +350,7 @@ struct AddAccountSheet: View {
 
                 // 额度（选填）
                 HStack {
-                    Text("额度（选填）")
+                    Text("额度（可选）")
                         .font(.holoBody)
                         .foregroundColor(.holoToolText)
                     Spacer()
@@ -354,7 +359,9 @@ struct AddAccountSheet: View {
                         .foregroundColor(.holoToolText)
                     TextField("如 30000", text: $creditLimit)
                         .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        #if canImport(UIKit)
                         .keyboardType(.decimalPad)
+                        #endif
                         .multilineTextAlignment(.trailing)
                         .frame(width: 100)
                 }

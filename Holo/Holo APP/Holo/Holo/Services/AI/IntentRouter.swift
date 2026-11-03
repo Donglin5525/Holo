@@ -584,6 +584,8 @@ final class IntentRouter {
 
         let task = try todoRepo.createTask(
             title: title,
+            // 长段陈述建任务：AI 提炼的背景细节落备注（卡片就地编辑也回写同一键，所见即所建）
+            description: data["description"],
             list: targetList,
             priority: priority ?? .medium,
             dueDate: dueDate,
@@ -743,6 +745,7 @@ final class IntentRouter {
 
         let thoughtRepo = ThoughtRepository()
         let thought = try thoughtRepo.create(content: content, mood: mood, tags: [])
+        HoloProductAnalytics.shared.track(.thoughtCreated, ["source": "ai"])
 
         logger.info("心情已记录")
         return RouteResult(
@@ -1241,18 +1244,7 @@ final class IntentRouter {
         }
 
         let task = matches[0]
-        // 分步接管任务：聊天里的明确完成 = 用户对原结果的直接断言（规格 §8.5），
-        // 走统一根完成写来源回执；生成步骤保持真实历史不被补勾。
-        if task.isExecutionManaged {
-            try HoloTaskExecutionService.shared.completeRootDirectly(
-                taskID: task.id,
-                sourceSurface: "chat",
-                operationID: UUID().uuidString,
-                in: todoRepo
-            )
-        } else {
-            try todoRepo.completeTask(task)
-        }
+        try todoRepo.completeTask(task)
         logger.info("任务已完成：\(task.title)")
         return RouteResult(
             text: "已完成任务：\(task.title)",
@@ -1359,6 +1351,7 @@ final class IntentRouter {
 
         let thoughtRepo = ThoughtRepository()
         let thought = try thoughtRepo.create(content: content, mood: nil, tags: tags)
+        HoloProductAnalytics.shared.track(.thoughtCreated, ["source": "ai"])
 
         logger.info("笔记已创建")
         return RouteResult(
@@ -1616,13 +1609,17 @@ final class IntentRouter {
 
     /// 账户解析：截图识别确认流注入 visionAccountId（识别出的支付通道匹配账户）时
     /// 一次 save 直接落到目标账户，不再「先落默认、确认后再搬运」；
-    /// 账户已归档/删除或未注入时走默认账户（既有口径）。
+    /// 聊天通道的 accountCandidate（用户话中点名的账户，2026-11-01 起 AI 回传）次优先；
+    /// 均未命中时走默认账户（既有口径）。
     private func resolveWriteAccount(from data: [String: String], repo: FinanceRepository) async throws -> Account? {
         if let idString = data["visionAccountId"],
            let id = UUID(uuidString: idString),
            let account = repo.findAccount(by: id),
            !account.isArchived, account.deletedAt == nil {
             return account
+        }
+        if let named = FinanceTransactionDraftResolver.matchAccount(candidate: data["accountCandidate"]) {
+            return named
         }
         return try await repo.getDefaultAccount()
     }
@@ -1811,6 +1808,72 @@ nonisolated enum TaskPendingDefaults {
     static let userListNameKey = "userListName"
     /// 用户改过子条目：换行分隔（单项合法；AI 通道 subtasks 沿用「≥2 项才算清单」约定）
     static let userSubtasksKey = "userSubtasks"
+
+    // MARK: - 时段词未来下限
+
+    /// 时段词未来下限（2026-10-19）：用户没报具体钟点、只说「今晚/晚上」这类时段词时，
+    /// AI 按固定映射（晚上=20:00）给出的时刻可能已过去或近在眼前，提醒失效。
+    /// 在解析结果进入系统的这一刻把顺延值（至少 now+1h）冻结进 extractedData：
+    /// 确认卡、编辑弹层、落库读到同一个字符串，回看历史卡片也不会漂移。
+    /// 豁免：用户原话报了钟点（含已过去）尊重原值，确认卡上可改；
+    /// 记账类的过去日期合法，只处理任务类意图。
+    static func applyingFutureFloor(
+        to batch: AIParseBatch,
+        originalInput: String,
+        now: Date = Date()
+    ) -> AIParseBatch {
+        if NLDateParser.hasExplicitClock(originalInput) { return batch }
+        let floor = now.addingTimeInterval(3600)
+        let items = batch.items.map { item -> AIParseItem in
+            guard item.intent == .createTask || item.intent == .updateTask,
+                  var data = item.extractedData else { return item }
+            for key in ["dueDate", "reminderDate"] {
+                if let floored = futureFlooredString(data[key], floor: floor) {
+                    data[key] = floored
+                }
+            }
+            if let multi = data["reminderDates"] {
+                data["reminderDates"] = multi.components(separatedBy: ",")
+                    .map { futureFlooredString($0, floor: floor) ?? $0.trimmingCharacters(in: .whitespaces) }
+                    .joined(separator: ",")
+            }
+            // 模型漏填时间、但原话带时段词（「提醒我今晚买猫砂」只回了标题）：
+            // 在这里解析并冻结顺延值——否则路由/卡片各自从原话兜底解析出过期时刻且冻结不住
+            if data["dueDate"] == nil && data["reminderDate"] == nil && data["reminderDates"] == nil,
+               NLDateParser.containsTimeComponent(originalInput),
+               let parsed = NLDateParser.parse(originalInput) {
+                data["dueDate"] = DateFormatter.holoUserDueDateTime.string(from: max(parsed, floor))
+            }
+            return AIParseItem(
+                id: item.id,
+                intent: item.intent,
+                confidence: item.confidence,
+                extractedData: data,
+                responseText: item.responseText,
+                routeSource: item.routeSource,
+                routeReasonCode: item.routeReasonCode
+            )
+        }
+        return AIParseBatch(
+            mode: batch.mode,
+            items: items,
+            needsClarification: batch.needsClarification,
+            clarificationQuestion: batch.clarificationQuestion,
+            fallbackResponseText: batch.fallbackResponseText
+        )
+    }
+
+    /// 单个时间字符串的未来下限：带时刻且早于 floor 时改写为 floor（yyyy-MM-dd HH:mm）；
+    /// 其余（无时刻/在未来/解析失败）返回 nil 不动
+    private static func futureFlooredString(_ raw: String?, floor: Date) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty,
+              NLDateParser.containsTimeComponent(trimmed),
+              let date = NLDateParser.parse(trimmed),
+              date < floor else { return nil }
+        return DateFormatter.holoUserDueDateTime.string(from: floor)
+    }
 
     // MARK: 编解码
 

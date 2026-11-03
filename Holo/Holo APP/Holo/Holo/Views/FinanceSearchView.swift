@@ -135,9 +135,9 @@ struct FinanceSearchView: View {
                     .frame(width: 36, height: 36)
             }
 
-            // 搜索输入框
+            // 搜索输入框（精确结果模式=只读结果视图：灰化+锁定图标，明示不可编辑）
             HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
+                Image(systemName: isExactResultMode ? "lock" : "magnifyingglass")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
 
@@ -162,6 +162,7 @@ struct FinanceSearchView: View {
             .padding(.vertical, 10)
             .background(Color.holoBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            .opacity(isExactResultMode ? 0.6 : 1)
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.sm)

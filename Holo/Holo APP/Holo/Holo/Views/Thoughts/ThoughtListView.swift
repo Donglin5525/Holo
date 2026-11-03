@@ -117,12 +117,8 @@ struct ThoughtListView: View {
     /// 是否显示批量整理确认 Sheet
     @State private var showBatchOrganizeSheet: Bool = false
 
-    /// 批量整理提示文案（toast，nil 不显示）
-    @State private var batchOrganizeNotice: String? = nil
-
-    /// P1 归入回执：AI 主题归类落库后的一次性短暂 toast（主题标题，nil 不显示）
-    @State private var topicReceiptTitle: String? = nil
-    @State private var topicReceiptTask: Task<Void, Never>? = nil
+    /// 批量整理提示文案 → 2026-10-22 挑刺修复：自建 toast 压顶栏，改走全局 HoloToastCenter
+    /// P1 归入回执同步改走 HoloToastCenter（.success）
 
     /// 用户从外层「自动整理」启动批量标签整理后，完成时继续归纳主题
     @State private var shouldRunTopicConvergenceAfterBatch: Bool = false
@@ -303,6 +299,7 @@ struct ThoughtListView: View {
         // 窄屏全屏 cover、宽屏内联右栏，同一个选中态驱动；
         // 编辑器内保存/删除通过通知与 onSave 回调刷新列表。
         .environment(\.holoMotionSurfaceIsActive, parentMotionSurfaceActive && selectedThoughtId == nil)
+        #if canImport(UIKit)
         .fullScreenCover(item: editorCoverBinding, onDismiss: {
             selectedThoughtFocusConfirmation = false
         }) { thoughtId in
@@ -317,6 +314,22 @@ struct ThoughtListView: View {
             )
             .holoContentColumn()
         }
+        #else
+                .sheet(item: editorCoverBinding, onDismiss: {
+            selectedThoughtFocusConfirmation = false
+        }) { thoughtId in
+            ThoughtEditorView(
+                onSave: {
+                    loadThoughts()
+                    loadTags()
+                    loadUnprocessedCount()
+                },
+                editingThoughtId: thoughtId,
+                focusAIConfirmation: selectedThoughtFocusConfirmation
+            )
+            .holoContentColumn()
+        }
+        #endif
         // 编辑器内发起的跨模块跳转（如「问问 Holo」）请求关闭整个 fullScreenCover，
         // 否则 cover 仍盖在目标页之上（dismiss 只能 pop 一层 NavigationStack）。
         .onReceive(NotificationCenter.default.publisher(for: .holoRequestCloseThoughtEditor)) { _ in
@@ -346,6 +359,7 @@ struct ThoughtListView: View {
                 }
             }
         }
+        #if canImport(UIKit)
         .fullScreenCover(item: $selectedTopicId, onDismiss: {
             reloadByDrawer()
         }) { topicId in
@@ -360,6 +374,22 @@ struct ThoughtListView: View {
             )
             .holoContentColumn()
         }
+        #else
+                .sheet(item: $selectedTopicId, onDismiss: {
+            reloadByDrawer()
+        }) { topicId in
+            TopicDetailView(
+                topicId: topicId,
+                topicRepository: topicRepository,
+                thoughtRepository: thoughtRepository,
+                onTopicDeleted: {
+                    selectedTopicId = nil
+                    drawerSelection = nil
+                }
+            )
+            .holoContentColumn()
+        }
+        #endif
         .sheet(isPresented: $showTopicManagement, onDismiss: {
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         }) {
@@ -367,6 +397,7 @@ struct ThoughtListView: View {
                 TopicManagementView(topicRepository: topicRepository, thoughtRepository: thoughtRepository)
             }
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showConfirmationQueue, onDismiss: {
             loadPendingConfirmationCount()
         }) {
@@ -377,14 +408,23 @@ struct ThoughtListView: View {
             )
             .holoContentColumn()
         }
+        #else
+                .sheet(isPresented: $showConfirmationQueue, onDismiss: {
+            loadPendingConfirmationCount()
+        }) {
+            TopicConfirmationQueueView(
+                thoughtRepository: thoughtRepository,
+                topicRepository: topicRepository,
+                onQueueDrained: { loadPendingConfirmationCount() }
+            )
+            .holoContentColumn()
+        }
+        #endif
         // Cmd+F：聚焦搜索栏；知识树视图下先切回列表视图（搜索栏只在列表视图）
         .onReceive(HoloShortcutBus.shared.$lastEvent) { event in
             guard event?.action == .searchInCurrentModule else { return }
             browseMode = "timeline"
             searchFieldFocused = true
-        }
-        .overlay(alignment: .top) {
-            noticeToast
         }
         .onAppear {
             // Core Data 未就绪时 fetch 静默返回空，首次加载交给 .task 等就绪后执行
@@ -424,12 +464,7 @@ struct ThoughtListView: View {
                   let thoughtId = payload["thoughtId"] as? UUID,
                   let topicTitle = payload["topicTitle"] as? String,
                   thoughts.contains(where: { $0.id == thoughtId }) else { return }
-            topicReceiptTitle = topicTitle
-            topicReceiptTask?.cancel()
-            topicReceiptTask = Task {
-                try? await Task.sleep(nanoseconds: 2_400_000_000)
-                if !Task.isCancelled { topicReceiptTitle = nil }
-            }
+            HoloToastCenter.shared.show(String(localized: "已归入「\(topicTitle)」"), type: .success)
         }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
             scheduleListRefreshAfterDataChange()
@@ -459,11 +494,11 @@ struct ThoughtListView: View {
             loadUnprocessedCount()
 
             guard !orgQueue.dailyLimitHit else {
-                batchOrganizeNotice = String(localized: "标签整理已暂停，配额恢复后再继续归纳主题")
+                HoloToastCenter.shared.show(String(localized: "标签整理已暂停，配额恢复后再继续归纳主题"), type: .info)
                 return
             }
 
-            batchOrganizeNotice = String(localized: "标签整理完成，正在归纳主题")
+            HoloToastCenter.shared.show(String(localized: "标签整理完成，正在归纳主题"), type: .info)
             onAIOrganize()
         }
         .onChange(of: searchText) { _, newValue in
@@ -932,11 +967,11 @@ struct ThoughtListView: View {
             return
         }
         if orgQueue.dailyLimitHit {
-            batchOrganizeNotice = String(localized: "今日 AI 额度已用尽，剩余条目明天自动续做")
+            HoloToastCenter.shared.show(String(localized: "今日 AI 额度已用尽，剩余条目明天自动续做"), type: .info)
             return
         }
         if unprocessedCount == 0 {
-            batchOrganizeNotice = String(localized: "正在归纳主题")
+            HoloToastCenter.shared.show(String(localized: "正在归纳主题"), type: .info)
             onAIOrganize()
             return
         }
@@ -949,16 +984,16 @@ struct ThoughtListView: View {
         do {
             let ids = try thoughtRepository.fetchUnprocessedThoughtIds()
             guard !ids.isEmpty else {
-                batchOrganizeNotice = String(localized: "没有需要整理的想法")
+                HoloToastCenter.shared.show(String(localized: "没有需要整理的想法"), type: .info)
                 return
             }
             try thoughtRepository.markBatchPending(thoughtIds: ids)
             shouldRunTopicConvergenceAfterBatch = true
             orgQueue.enqueueBatch(thoughtIds: ids)
-            batchOrganizeNotice = String(localized: "已开始整理 \(ids.count) 条想法，完成后会归纳主题")
+            HoloToastCenter.shared.show(String(localized: "已开始整理 \(ids.count) 条想法，完成后会归纳主题"), type: .info)
         } catch {
             logger.error("启动批量整理失败：\(error)")
-            batchOrganizeNotice = String(localized: "启动失败，请稍后重试")
+            HoloToastCenter.shared.show(String(localized: "启动失败，请稍后重试"), type: .info)
         }
     }
 
@@ -1020,79 +1055,39 @@ struct ThoughtListView: View {
         .padding(HoloSpacing.lg)
     }
 
-    /// 提示 toast（自动消失）
-    private var noticeToast: some View {
-        Group {
-            if let notice = batchOrganizeNotice {
-                Text(notice)
-                    .holoText(.supporting)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, HoloSpacing.md)
-                    .padding(.vertical, HoloSpacing.sm)
-                    .background(Color.black.opacity(0.75))
-                    .cornerRadius(HoloRadius.md)
-                    .padding(.top, HoloSpacing.xl)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                    .task {
-                        try? await Task.sleep(nanoseconds: 2_500_000_000)
-                        withAnimation(.easeInOut) { batchOrganizeNotice = nil }
-                    }
-            } else if let receipt = topicReceiptTitle {
-                // P1 归入回执：AI 落库后的一次性短暂提示（绿色主题语义，来源可感知）
-                HStack(spacing: 4) {
-                    Image(systemName: "leaf.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                    Text(String(localized: "已归入「\(receipt)」"))
-                        .holoText(.supporting)
-                }
-                .foregroundColor(Color.holoSuccess)
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.vertical, HoloSpacing.sm)
-                .background(Color.holoToolSurface.opacity(0.97))
-                .overlay(Capsule().stroke(Color.holoSuccess.opacity(0.3), lineWidth: 1))
-                .clipShape(Capsule())
-                .padding(.top, HoloSpacing.xl)
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .accessibilityLabel(String(localized: "Holo 已将这条想法归入主题\(receipt)"))
-            }
-        }
-    }
-
     // MARK: - 顶部导航栏
 
     @ViewBuilder
     private var headerView: some View {
         if let onOpenSidebar {
-            // 侧栏形态：左上菜单 + 当前范围标题（点标题也可开侧栏）+ 右上独立返回 Holo
-            // 左缘右滑沿用全 App 的返回手势；侧栏由菜单或标题打开。
-            HStack(spacing: 0) {
-                Button {
-                    onOpenSidebar()
-                } label: {
-                    Image(systemName: "sidebar.leading")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.holoToolText)
-                        .frame(width: 44, height: 44)
+            // 侧栏形态：左上返回 Holo + 当前范围标题（点标题开侧栏）+ 设置。
+            // 返回与其他根模块（财务/习惯/任务/长廊）同位最左；左缘右滑沿用全 App 返回手势。
+            // 2026-10-22 挑刺修复：原 spacing:0 三钮零间距拥挤，且侧栏钮与标题重复同一动作——
+            // 侧栏入口收敛进标题（图标表意），按钮热区统一 HoloIconButton 44pt。
+            HStack(spacing: HoloSpacing.xs) {
+                HoloIconButton(systemName: "chevron.left",
+                               title: "返回 Holo",
+                               showsSurface: true) {
+                    onBack()
                 }
-                .accessibilityLabel(String(localized: "打开导航侧栏"))
 
                 Button {
                     onOpenSidebar()
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "sidebar.leading")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.holoToolTextSecondary)
                         Text(sidebarScopeTitle)
                             .holoText(.sectionTitle)
                             .foregroundColor(.holoToolText)
                             .lineLimit(1)
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.holoToolTextSecondary)
                     }
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(String(localized: "当前范围：\(sidebarScopeTitle)"))
+                .accessibilityLabel(String(localized: "打开导航侧栏，当前范围：\(sidebarScopeTitle)"))
 
                 Spacer()
 
@@ -1115,26 +1110,14 @@ struct ThoughtListView: View {
                     .accessibilityLabel(String(localized: "新增想法"))
                 }
 
-                Button { showThoughtSettings = true } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 17)).foregroundStyle(Color.holoTextSecondary)
-                        .frame(width: 44, height: 44).contentShape(Rectangle())
+                HoloIconButton(systemName: "gearshape",
+                               title: "想法设置",
+                               showsSurface: true) {
+                    showThoughtSettings = true
                 }
-                .accessibilityLabel("想法设置")
                 .accessibilityIdentifier("thoughts.settings.open")
-
-                Button {
-                    onBack()
-                } label: {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.holoToolText)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel(String(localized: "返回 Holo"))
             }
-            .padding(.horizontal, HoloSpacing.md)
+            .padding(.horizontal, HoloSpacing.page)
             .padding(.vertical, HoloSpacing.sm)
             .background(Color.holoToolBackground)
         } else {
@@ -1311,30 +1294,30 @@ struct ThoughtListView: View {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 14))
                         .foregroundColor(hasActivePanelFilters ? .holoPrimary : .holoToolTextSecondary)
-                        .frame(width: 30, height: 30)
-                        .contentShape(Rectangle())
                         .overlay(alignment: .topTrailing) {
                             if hasActivePanelFilters {
                                 Circle()
                                     .fill(Color.holoPrimary)
                                     .frame(width: 6, height: 6)
-                                    .offset(x: 2, y: 0)
+                                    .offset(x: 3, y: -2)
                             }
                         }
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(String(localized: "筛选"))
             }
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.holoToolSurface)
+        .padding(.vertical, 8)
+        .background(Color.holoToolInset)
         .cornerRadius(HoloRadius.md)
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
                 .stroke(Color.holoToolBorder, lineWidth: 1)
         )
-        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.horizontal, HoloSpacing.page)
         .padding(.vertical, HoloSpacing.sm)
     }
 
@@ -1388,10 +1371,12 @@ struct ThoughtListView: View {
                     Text("清除筛选")
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoToolTextSecondary)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.horizontal, HoloSpacing.page)
             .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
@@ -1407,7 +1392,7 @@ struct ThoughtListView: View {
                 HStack(spacing: HoloSpacing.sm) {
                     Image(systemName: "leaf.fill")
                         .font(.system(size: 13))
-                        .foregroundColor(.holoSuccess)
+                        .foregroundColor(.holoSuccessText)
                         .frame(width: 28, height: 28)
                         .background(Circle().fill(Color.holoSuccess.opacity(0.1)))
 
@@ -1423,10 +1408,10 @@ struct ThoughtListView: View {
                     Spacer(minLength: 0)
                     Text("查看")
                         .holoText(.supporting)
-                        .foregroundColor(.holoSuccess)
+                        .foregroundColor(.holoSuccessText)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.holoSuccess)
+                        .foregroundColor(.holoSuccessText)
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, HoloSpacing.sm)
@@ -1435,7 +1420,7 @@ struct ThoughtListView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.horizontal, HoloSpacing.page)
             .padding(.bottom, HoloSpacing.xs)
             .accessibilityLabel(String(localized: "查看主题脉络"))
         }
@@ -1482,7 +1467,7 @@ struct ThoughtListView: View {
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 9, weight: .semibold))
                             }
-                            .foregroundColor(Color.holoSuccess)
+                            .foregroundColor(Color.holoSuccessText)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 7)
                             .background(RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -1494,7 +1479,7 @@ struct ThoughtListView: View {
                         .accessibilityLabel(String(localized: "\(item.count) 条想法也在主题\(item.topic.title)，点按查看"))
                     }
                 }
-                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.horizontal, HoloSpacing.page)
             }
             .padding(.bottom, HoloSpacing.xs)
         }
@@ -1524,7 +1509,7 @@ struct ThoughtListView: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundColor(.holoToolTextSecondary)
-                    .frame(width: 22, height: 22)
+                    .frame(width: 28, height: 28)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -1635,11 +1620,12 @@ struct ThoughtListView: View {
                                     .lineLimit(1)
                             }
                             .foregroundColor(isTopicFilterSelected(topic)
-                                             ? .white : Color.holoSuccess.opacity(0.9))
+                                             ? .white : Color.holoSuccessText)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
+                            .frame(minHeight: 32)
                             .background(isTopicFilterSelected(topic)
-                                        ? Color.holoSuccess.opacity(0.85)
+                                        ? Color.holoSuccessText
                                         : Color.holoSuccess.opacity(0.09))
                             .cornerRadius(HoloRadius.full)
                         }
@@ -1734,6 +1720,12 @@ struct ThoughtListView: View {
                             )
                             .contextMenu {
                                 Button {
+                                    copyThoughtToPasteboard(thought)
+                                } label: {
+                                    Label("复制", systemImage: "doc.on.doc")
+                                }
+
+                                Button {
                                     askHoloAboutThought(thought)
                                 } label: {
                                     Label("问问 Holo", systemImage: "sparkles")
@@ -1762,7 +1754,7 @@ struct ThoughtListView: View {
                     .holoStaggeredAppear(index: index)
                 }
             }
-            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.horizontal, HoloSpacing.page)
             .padding(.top, HoloSpacing.md)
             .padding(.bottom, 90) // 给浮动按钮留位
         }
@@ -1880,20 +1872,19 @@ struct ThoughtListView: View {
                 .holoText(.supporting)
                 .foregroundColor(.holoToolTextSecondary.opacity(0.7))
 
-            // 空态行动按钮（激活方案 §3.2）：一键直达编辑器，替代「找右下角 +」
-            // 仅真·零想法出现（搜索/筛选空态点它不符合用户当下意图）
+            // 空态行动按钮：右下 FAB 是本屏唯一橙主行动，此处退为灰描边次级引导
             if !isSearching && !isFiltering {
                 Button {
                     showAddThought = true
                 } label: {
-                    Label(String(localized: "记录第一条想法"), systemImage: "plus.circle.fill")
+                    Label(String(localized: "记录第一条想法"), systemImage: "plus.circle")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(.holoToolTextSecondary)
                         .padding(.horizontal, 26)
                         .padding(.vertical, 11)
                         .background(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(Color.holoPrimary)
+                                .strokeBorder(Color.holoToolBorder, lineWidth: 1)
                         )
                         .contentShape(Rectangle())
                 }

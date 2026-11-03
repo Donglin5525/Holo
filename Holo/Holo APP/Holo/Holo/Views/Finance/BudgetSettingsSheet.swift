@@ -107,7 +107,9 @@ struct BudgetSettingsSheet: View {
                                 .foregroundColor(.holoToolText)
                             TextField("0.00", text: $amountString)
                                 .font(.system(size: 24, weight: .semibold, design: .rounded))
+                                #if canImport(UIKit)
                                 .keyboardType(.decimalPad)
+                                #endif
                         }
                         .padding(HoloSpacing.md)
                         .background(Color.holoToolSurface)
@@ -115,7 +117,7 @@ struct BudgetSettingsSheet: View {
                         if !amountString.isEmpty && !isAmountFormatValid {
                             Text("请输入有效的金额")
                                 .font(.holoCaption)
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
                         }
                     }
 
@@ -169,7 +171,7 @@ struct BudgetSettingsSheet: View {
                                 Text("删除预算")
                             }
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.holoError)
+                            .foregroundColor(.holoToolError)
                             .frame(maxWidth: .infinity)
                             .padding(HoloSpacing.md)
                             .background(Color.holoError.opacity(0.1))
@@ -183,13 +185,16 @@ struct BudgetSettingsSheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle(isEditMode ? String(localized: "预算设置") : String(localized: "新建预算"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭"))
                         .foregroundColor(.holoToolTextSecondary)
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.topBarTrailing) {
                     Button(isEditMode ? String(localized: "保存") : String(localized: "创建")) {
                         saveBudget()
                     }

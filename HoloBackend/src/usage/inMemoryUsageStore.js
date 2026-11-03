@@ -11,9 +11,8 @@ export function createInMemoryUsageStore(clock = () => new Date()) {
       const minuteCount = (minuteBuckets.get(minuteKey) ?? 0) + 1;
       const dayCount = (dailyBuckets.get(dayKey) ?? 0) + 1;
 
-      if (minuteCount > minuteLimit || dayCount > dailyLimit) {
-        return { allowed: false };
-      }
+      if (minuteCount > minuteLimit) return { allowed: false, reason: 'minute_limit' };
+      if (dailyLimit > 0 && dayCount > dailyLimit) return { allowed: false, reason: 'daily_limit' };
 
       minuteBuckets.set(minuteKey, minuteCount);
       dailyBuckets.set(dayKey, dayCount);

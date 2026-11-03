@@ -7,7 +7,7 @@ struct ThoughtOrganizationSettingsView: View {
     @AppStorage(ThoughtSemanticFeatureFlags.newTopicsKey) private var newTopics = true
     @AppStorage(ThoughtSemanticFeatureFlags.relatedKey) private var related = true
     private enum Destination: String, Identifiable {
-        case topics, tags, index, clear
+        case topics, tags, index, clear, aiScope
         var id: String { rawValue }
     }
     @State private var destination: Destination?
@@ -16,9 +16,14 @@ struct ThoughtOrganizationSettingsView: View {
     @State private var busy = false
     @State private var message: String?
     @State private var discoveryMessage: String?
+    /// 已开启「不参与 AI」的标签数（AI 参与范围入口行的右侧值）
+    @State private var excludedTagCount = 0
     /// 成果视角计数：已归类笔记数与可见主题数（与工程视角的索引/队列数互补）
     @State private var classifiedCount = 0
     @State private var topicCount = 0
+    /// 类别理解进度（2026-10-12 主题双通道 B4）：防「没做/没轮到」误判——
+    /// 起草走慢速节拍，没有进度表达时装包数小时看不到定义会被当成没生效。
+    @State private var briefStats: (count: Int, lastUpdatedAt: Date?)? = nil
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -34,6 +39,29 @@ struct ThoughtOrganizationSettingsView: View {
                 } header: { Text("智能整理") } footer: {
                     Text("随手记录时，Holo 根据笔记内容把笔记归入已有主题，积累同一方向后自动形成新主题；这些功能默认开启，关闭后停止新的 AI 处理，已形成的主题和手动标签保留。处理时会将必要的脱敏正文和少量相关笔记交给 AI 服务核对；需要你已授予 HoloAI 数据处理授权。")
                 }
+                // AI 参与范围：隐私边界控制，独立成区不埋进管理列表（2026-10-21 标签级 AI 排除）
+                Section {
+                    Button {
+                        destination = .aiScope
+                    } label: {
+                        HStack {
+                            Label("AI 分析范围", systemImage: "checkmark.shield")
+                                .foregroundStyle(Color.primary)
+                            Spacer()
+                            Text(excludedTagCount > 0
+                                 ? "\(excludedTagCount) 个标签已排除"
+                                 : "未设置")
+                                .font(.holoCaption)
+                                .foregroundStyle(Color.holoTextSecondary)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.holoTextSecondary.opacity(0.6))
+                        }
+                    }
+                    .accessibilityIdentifier("thoughts.settings.aiScope.open")
+                } header: { Text("AI 参与范围") } footer: {
+                    Text("有些标签下的想法，可以只属于你自己。标记后它们不参与任何 AI 归类与分析。")
+                }
                 // 小屏适配：内容管理是固定高度的高频入口，必须排在会随整理数据长高的
                 // 「整理状态」之前——否则数据一多它就被推到折叠线以下，静止状态下页面
                 // 看起来「到此为止」，管理入口像被裁掉。
@@ -48,13 +76,26 @@ struct ThoughtOrganizationSettingsView: View {
                         NavigationLink("授权后开始整理") { AIDataProcessingConsentView() }
                     } else if let stats {
                         LabeledContent("已归类", value: "\(classifiedCount) 条笔记 · \(topicCount) 个主题")
-                        LabeledContent("整理进度", value: stats.pendingJobs + stats.runningJobs > 0
-                                       ? "\(stats.pendingJobs + stats.runningJobs) 条排队中" : "全部处理完成")
+                        LabeledContent("已建立智能索引", value: "\(stats.activeItems) 条笔记")
+                        LabeledContent("整理进度", value: stats.unfinishedThoughts > 0
+                                       ? "\(stats.unfinishedThoughts) 条笔记待整理"
+                                       : stats.failedJobs > 0 ? "\(stats.failedJobs) 项处理失败，可重试" : "全部处理完成")
                         if let last = stats.lastFinishedAt {
                             LabeledContent("最近整理", value: last.formatted(.relative(presentation: .named)))
                         } else if stats.activeItems == 0 {
                             Text("还没有开始整理，保持 App 打开会自动进行")
                                 .font(.holoCaption).foregroundStyle(Color.holoTextSecondary)
+                        }
+                        // 类别理解（零打扰管线）：进度可见，等待期不再像「没生效」
+                        if let briefStats {
+                            if briefStats.count > 0 {
+                                LabeledContent("类别理解",
+                                               value: briefStats.lastUpdatedAt != nil
+                                               ? "\(briefStats.count) 个主题已代写 · 最近 \(briefStats.lastUpdatedAt!.formatted(.relative(presentation: .named)))"
+                                               : "\(briefStats.count) 个主题已代写")
+                            } else {
+                                LabeledContent("类别理解", value: "待起草（分类主题攒够 5 条笔记后自动开始）")
+                            }
                         }
                         // 等待原因只保留一条：与主题发现状态撞同一文案时去重，避免同句提示重复出现
                         if let reason = stats.waitingReason {
@@ -89,7 +130,10 @@ struct ThoughtOrganizationSettingsView: View {
                 } footer: { Text("清理的数据进入回收站，自动整理不会代替你删除笔记。") }
             }
             .tint(.holoPrimary)
-            .navigationTitle("想法设置").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("想法设置")
+            #if canImport(UIKit)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } } }
             .holoSheetShell()
             .sheet(item: $destination) { target in
@@ -98,6 +142,7 @@ struct ThoughtOrganizationSettingsView: View {
                 case .tags: ThoughtTagManagementView()
                 case .index: NavigationStack { DeviceIntelligenceIndexView().holoSheetShell() }
                 case .clear: ModuleClearSheet(module: .thought)
+                case .aiScope: ThoughtAIScopeSettingsView()
                 }
             }
             .task {
@@ -113,9 +158,13 @@ struct ThoughtOrganizationSettingsView: View {
     }
     @MainActor private func refresh() async {
         granted = HoloAIDataProcessingConsent.shared.isGranted
-        if let store = await ThoughtSemanticPipeline.shared.store { stats = try? await store.indexStats() }
+        if let store = await ThoughtSemanticPipeline.shared.store {
+            stats = try? await store.indexStats()
+            briefStats = try? await store.categoryBriefStats()
+        }
         discoveryMessage = await ThoughtAutomaticTopicDiscovery.shared.statusMessage
         await refreshOutcomeCounts()
+        excludedTagCount = ThoughtRepository().countExcludedTags()
     }
 
     /// 成果计数（已归类笔记/可见主题）。数据量在数百条级，直接投影统计。

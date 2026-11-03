@@ -225,6 +225,14 @@ export function createThoughtTopicInsightService({
 
     const validated = validateOutput(parseModelJSON(content), parsed);
     if (validated.malformed) {
+      // 保留校验失败的字段原因，诊断时不需要额外上传笔记或持久化模型正文。
+      if (config.aiCallLogs.enabled && logId) {
+        adminLogStore.finishAiCall(logId, {
+          status: "error",
+          error: { code: `MODEL_OUTPUT_INVALID/${validated.reason}`, status: 502 },
+          usage: { prompt_tokens: usage.inputTokens, completion_tokens: usage.outputTokens },
+        });
+      }
       finalize("failed", committedMicro + moderationFeeMicro());
       throw new GatewayError("MODEL_OUTPUT_INVALID", `Topic insight output malformed: ${validated.reason}`, 502);
     }

@@ -48,10 +48,12 @@ extension Habit {
     ///   - targetCount: 目标次数（打卡型）
     ///   - targetValue: 目标数值（数值型）
     ///   - unit: 单位（数值型）
+    ///   - habitDescription: 习惯描述（经 Habit.normalizedDescription 清洗，空即 nil）
     ///   - aggregationType: 聚合类型（计数类/测量类）
     ///   - sortOrder: 排序顺序
     ///   - reminderMode: 打卡提醒模式（仅打卡型参与提醒，默认跟随兜底）
     ///   - reminderTime: 单独提醒时间（solo 模式使用，默认 09:00）
+    ///   - dayEndTime: 每日结算时间（默认 0:00 = 自然日；结算前的打卡归前一天）
     /// - Returns: 新建的 Habit 实例
     static func create(
         in context: NSManagedObjectContext,
@@ -63,11 +65,13 @@ extension Habit {
         targetCount: Int? = nil,
         targetValue: Double? = nil,
         unit: String? = nil,
+        habitDescription: String? = nil,
         aggregationType: HabitAggregationType = .sum,
         isBadHabit: Bool = false,
         sortOrder: Int16 = 0,
         reminderMode: HabitReminderMode = .follow,
-        reminderTime: (hour: Int, minute: Int) = (hour: 9, minute: 0)
+        reminderTime: (hour: Int, minute: Int) = (hour: 9, minute: 0),
+        dayEndTime: (hour: Int, minute: Int) = (hour: 0, minute: 0)
     ) -> Habit {
         let habit = Habit(context: context)
         habit.id = UUID()
@@ -79,12 +83,14 @@ extension Habit {
         habit.targetCount = targetCount.map { NSNumber(value: $0) }
         habit.targetValue = targetValue.map { NSNumber(value: $0) }
         habit.unit = unit
+        habit.habitDescription = Habit.normalizedDescription(habitDescription)
         habit.aggregationType = aggregationType.rawValue
         habit.isBadHabit = isBadHabit
         habit.isArchived = false
         habit.sortOrder = sortOrder
         habit.habitReminderMode = reminderMode
         habit.reminderTime = reminderTime
+        habit.dayEndTime = dayEndTime
         habit.createdAt = Date()
         habit.updatedAt = Date()
         return habit

@@ -7,7 +7,9 @@
 //
 
 import Foundation
+#if canImport(UIKit)
 import BackgroundTasks
+#endif
 import os.log
 
 @MainActor
@@ -42,6 +44,7 @@ final class MemoryInsightBackgroundService {
 
     /// 在 App 启动时注册后台任务
     func registerBackgroundTask() {
+        #if canImport(UIKit)
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: taskIdentifier,
             using: nil
@@ -51,16 +54,28 @@ final class MemoryInsightBackgroundService {
                 await self.handleBackgroundTask(bgTask)
             }
         }
+        #endif
     }
 
     /// 调度后台任务（用户开启后台自动生成后调用）
     func scheduleBackgroundTask() {
+        #if canImport(UIKit)
+        bgScheduleBackgroundTask()
+        #endif
+    }
+
+    #if canImport(UIKit)
+    private func bgScheduleBackgroundTask() {
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
-        // 正常最早 1 小时后；额度耗尽时延后到 resetAt，避免系统唤醒后再次撞 429。
+        // 正常最早 1 小时后；额度耗尽时延后到 resetAt，避免系统唤醒后再次撞 429；
+        // 谷时段门控（2026-10-09 降本）：再取「下一个谷窗起点」，让系统唤醒落在谷价时段。
         request.earliestBeginDate = max(
-            Date().addingTimeInterval(3600),
-            automaticQuotaCooldownUntil() ?? .distantPast
+            max(
+                Date().addingTimeInterval(3600),
+                automaticQuotaCooldownUntil() ?? .distantPast
+            ),
+            HoloAIWindowPolicy.nextValleyStart()
         )
 
         do {
@@ -70,15 +85,19 @@ final class MemoryInsightBackgroundService {
             logger.error("调度后台任务失败：\(error.localizedDescription)")
         }
     }
+    #endif
 
     /// 取消后台任务
     func cancelScheduledTask() {
+        #if canImport(UIKit)
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         logger.info("后台洞察生成任务已取消")
+        #endif
     }
 
     // MARK: - Task Handler
 
+    #if canImport(UIKit)
     private func handleBackgroundTask(_ task: BGAppRefreshTask) async {
         // 设置过期处理
         task.expirationHandler = {
@@ -100,11 +119,13 @@ final class MemoryInsightBackgroundService {
             return
         }
 
-        // 上周洞察是产品基础能力，不依赖 legacy 日/月后台生成开关。
-        await generatePreviousWeekObservationIfNeeded(
-            service: service,
-            repository: repository
-        )
+        // 周观察自动生成受独立开关控制（2026-10-23 前=不受任何开关控制恒自动，迁移默认开保持原行为）。
+        if settings.weeklyAutoGenerationEnabled {
+            await generatePreviousWeekObservationIfNeeded(
+                service: service,
+                repository: repository
+            )
+        }
 
         guard canAttemptAutomaticInsight() else {
             finishBackgroundTask(task)
@@ -188,6 +209,7 @@ final class MemoryInsightBackgroundService {
         task.setTaskCompleted(success: true)
         scheduleBackgroundTask()
     }
+    #endif
 
     // MARK: - Foreground Compensation
 
@@ -214,10 +236,12 @@ final class MemoryInsightBackgroundService {
 
         let repository = MemoryInsightRepository()
 
-        await generatePreviousWeekObservationIfNeeded(
-            service: service,
-            repository: repository
-        )
+        if settings.weeklyAutoGenerationEnabled {
+            await generatePreviousWeekObservationIfNeeded(
+                service: service,
+                repository: repository
+            )
+        }
 
         guard canAttemptAutomaticInsight() else { return }
 

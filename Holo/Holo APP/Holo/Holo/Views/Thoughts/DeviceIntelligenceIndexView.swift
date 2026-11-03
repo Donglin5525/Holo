@@ -28,6 +28,7 @@ struct DeviceIntelligenceIndexView: View {
     @State private var snapshot = StatusSnapshot()
     @State private var showDestroyConfirm = false
     @State private var busy = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -42,9 +43,23 @@ struct DeviceIntelligenceIndexView: View {
             .padding(.top, HoloSpacing.sm)
             .padding(.bottom, HoloSpacing.xl)
         }
+        .toolbar {
+            ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+                .accessibilityLabel(Text("关闭"))
+            }
+        }
         .background(Color.holoBackground)
         .navigationTitle(String(localized: "设备智能索引"))
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task { await loadStatus() }
         .alert("删除设备智能索引？", isPresented: $showDestroyConfirm) {
             Button("取消", role: .cancel) {}

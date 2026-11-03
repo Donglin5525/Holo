@@ -70,9 +70,15 @@ final class ReceiptBookingNotificationService {
         guard Self.isUserEnabled else { return }
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
+        #if canImport(UIKit)
+        let ephemeralAuthorized = settings.authorizationStatus == .ephemeral
+        #else
+        // ephemeral（App Clip 场景）为 iOS 专属状态，macOS 恒 false
+        let ephemeralAuthorized = false
+        #endif
         guard settings.authorizationStatus == .authorized
             || settings.authorizationStatus == .provisional
-            || settings.authorizationStatus == .ephemeral else {
+            || ephemeralAuthorized else {
             return
         }
 

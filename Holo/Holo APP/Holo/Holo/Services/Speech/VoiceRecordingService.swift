@@ -56,9 +56,11 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
     private var outputFileHandle: FileHandle?
     private var recordedPCMByteCount = 0
     private var lastAveragePower: Float = -160
+    #if canImport(UIKit)
     private var savedCategory: AVAudioSession.Category?
     private var savedOptions: AVAudioSession.CategoryOptions?
     private var savedMode: AVAudioSession.Mode?
+    #endif
     private var interruptionObserver: NSObjectProtocol?
     private var didCleanupStaleFiles = false
 
@@ -87,6 +89,7 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
     }
 
     func requestPermission() async -> Bool {
+        #if canImport(UIKit)
         await withCheckedContinuation { continuation in
             if #available(iOS 17.0, *) {
                 AVAudioApplication.requestRecordPermission { granted in
@@ -98,6 +101,10 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
                 }
             }
         }
+        #else
+        // macOS：麦克风权限由系统 TCC 在首次录音时弹窗，无前置请求 API
+        return true
+        #endif
     }
 
     func startRecording() throws {
@@ -106,8 +113,10 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
             didCleanupStaleFiles = true
         }
 
+        #if canImport(UIKit)
         try configureAudioSession()
         observeInterruptions()
+        #endif
 
         let url = createTempFileURL()
         fileManager.createFile(atPath: url.path, contents: nil)
@@ -143,7 +152,9 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
     }
 
     func resumeRecording() {
+        #if canImport(UIKit)
         try? AVAudioSession.sharedInstance().setActive(true)
+        #endif
         try? audioEngine?.start()
     }
 
@@ -154,7 +165,9 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
         audioEngine = nil
         try? outputFileHandle?.close()
         outputFileHandle = nil
+        #if canImport(UIKit)
         restoreAudioSession()
+        #endif
 
         guard let currentFileURL else { return nil }
         return VoiceRecordingResult(fileURL: currentFileURL, duration: duration)
@@ -167,7 +180,9 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
         try? outputFileHandle?.close()
         outputFileHandle = nil
         deleteCurrentRecording()
+        #if canImport(UIKit)
         restoreAudioSession()
+        #endif
     }
 
     func deleteCurrentRecording() {
@@ -274,6 +289,7 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
             .appendingPathComponent("holo-voice-input", isDirectory: true)
     }
 
+    #if canImport(UIKit)
     private func configureAudioSession() throws {
         let session = AVAudioSession.sharedInstance()
         savedCategory = session.category
@@ -303,6 +319,9 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
         savedMode = nil
     }
 
+    #endif
+
+    #if canImport(UIKit)
     private func observeInterruptions() {
         if interruptionObserver != nil { return }
 
@@ -328,6 +347,7 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
             }
         }
     }
+    #endif
 }
 
 private final class AudioConverterInputState: @unchecked Sendable {

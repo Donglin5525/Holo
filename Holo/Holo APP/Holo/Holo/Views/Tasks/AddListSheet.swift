@@ -116,9 +116,11 @@ struct AddListSheet: View {
                 .padding(.top, HoloSpacing.md)
             }
             .navigationTitle("新建清单")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消") {
                         if !name.trimmingCharacters(in: .whitespaces).isEmpty {
                             showDismissAlert = true
@@ -129,7 +131,7 @@ struct AddListSheet: View {
                     .foregroundColor(.holoTextSecondary)
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("创建") {
                         createList()
                     }

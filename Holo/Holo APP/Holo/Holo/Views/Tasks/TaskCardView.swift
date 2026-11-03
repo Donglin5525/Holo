@@ -44,6 +44,16 @@ struct TaskCardView: View {
     var onNavigateToAnniversary: ((UUID) -> Void)?
     /// 点击时间胶囊弹出延期面板（nil = 胶囊不可点，如重复任务/未安排任务）
     var onPostpone: (() -> Void)?
+    /// 右键菜单扩展项（2026-10-28 Mac 任务工作台接入；nil = 菜单不显示该项，
+    /// iOS 调用点不传，行为零变化）
+    var onMoveToList: (() -> Void)?
+    var onArchive: (() -> Void)?
+    var onCopyTitle: (() -> Void)?
+    var onDelete: (() -> Void)?
+    /// 右键「移到象限」子菜单（2026-10-30 Mac 四象限看板接入；
+    /// currentQuadrant = nil = 菜单不显示，iOS 调用点不传，行为零变化）
+    var currentQuadrant: TaskQuadrant?
+    var onMoveToQuadrant: ((TaskQuadrant) -> Void)?
     /// 是否展开检查清单
     @State private var isChecklistExpanded = false
 
@@ -93,7 +103,7 @@ struct TaskCardView: View {
                 Button(action: toggleCompletion) {
                     Image(systemName: showsCompleted ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 22, weight: .medium))
-                        .foregroundColor(showsCompleted ? .holoPrimary : .holoTextSecondary)
+                        .foregroundColor(showsCompleted ? .holoPrimary : .holoToolTextSecondary)
                         .symbolEffect(.bounce, value: showsCompleted)
                         // 固定网格宽：子任务勾选框按此宽居中对齐，保证上下文字同线
                         .frame(width: 22, height: 22)
@@ -113,8 +123,9 @@ struct TaskCardView: View {
                         Spacer(minLength: 6)
 
                         duePill
-                            .onTapGesture {
-                                // 子视图手势优先于整卡 onTap；胶囊=什么时候，点它=改什么时候
+                            .onTapGestureIf(onPostpone != nil) {
+                                // 子视图手势优先于整卡 onTap；胶囊=什么时候，点它=改什么时候。
+                                // 不支持改期（重复/已完成/搜索结果）时不挂手势，让点击落到整卡。
                                 onPostpone?()
                             }
                     }
@@ -276,10 +287,12 @@ struct TaskCardView: View {
             }
         }
         // 整卡热区：留白、元信息、子任务平铺区点按均可进入任务页；
-        // 完成圈 / 子任务勾选 / 纪念日徽章等子视图交互优先消费，不触发跳转
-        .contentShape(Rectangle())
+        // 完成圈 / 子任务勾选 / 纪念日徽章等子视图交互优先消费，不触发跳转。
+        // 未接线（onNavigate 为 nil，如搜索结果页）时整组不挂手势，点击穿透到
+        // 父级——挂了手势又在 action 里判空 = 吞点击的死区（ConditionalGestureModifiers）
+        .contentShapeIf(onNavigate != nil, shape: Rectangle())
         .holoHover()
-        .onTapGesture {
+        .onTapGestureIf(onNavigate != nil) {
             onNavigate?()
         }
         // 通宵冲刺 E 轮：右键/长按菜单与行内既有操作同语义（指针用户不依赖左滑）
@@ -295,6 +308,55 @@ struct TaskCardView: View {
                     onPostpone()
                 } label: {
                     Label("延期", systemImage: "calendar.badge.clock")
+                }
+            }
+            if let onMoveToList = onMoveToList {
+                Button {
+                    onMoveToList()
+                } label: {
+                    Label("移动到清单", systemImage: "tray.and.arrow.down")
+                }
+            }
+            if let onMoveToQuadrant = onMoveToQuadrant, let currentQuadrant {
+                Menu {
+                    ForEach(TaskQuadrant.overviewOrder, id: \.self) { target in
+                        Button {
+                            onMoveToQuadrant(target)
+                        } label: {
+                            if target == currentQuadrant {
+                                Label(target.displayTitle, systemImage: "checkmark")
+                            } else {
+                                Text(target.displayTitle)
+                            }
+                        }
+                        .disabled(target == currentQuadrant)
+                    }
+                } label: {
+                    Label("移到象限", systemImage: "square.grid.2x2")
+                }
+            }
+            if onArchive != nil || onCopyTitle != nil || onDelete != nil {
+                Divider()
+            }
+            if let onCopyTitle = onCopyTitle {
+                Button {
+                    onCopyTitle()
+                } label: {
+                    Label("复制标题", systemImage: "doc.on.doc")
+                }
+            }
+            if let onArchive = onArchive {
+                Button {
+                    onArchive()
+                } label: {
+                    Label("归档", systemImage: "archivebox")
+                }
+            }
+            if let onDelete = onDelete {
+                Button(role: .destructive) {
+                    onDelete()
+                } label: {
+                    Label("删除任务", systemImage: "trash")
                 }
             }
         }
@@ -395,7 +457,8 @@ struct TaskCardView: View {
     // MARK: - 纪念日来源徽章
 
     /// 纪念日自动生成的任务，在元信息行显示来源徽章。
-    /// 点击直达纪念日详情，形成串联闭环。
+    /// 点击直达纪念日详情，形成串联闭环；未接线（onNavigateToAnniversary 为 nil）
+    /// 时不挂手势，让点击落到整卡打开任务详情。
     @ViewBuilder
     private func anniversarySourceBadge(_ anniversaryId: UUID) -> some View {
         if let anniversary = AnniversaryRepository.shared.anniversary(by: anniversaryId) {
@@ -411,7 +474,7 @@ struct TaskCardView: View {
             .padding(.vertical, 2)
             .background(Color(hex: anniversary.color).opacity(0.12))
             .clipShape(Capsule())
-            .onTapGesture {
+            .onTapGestureIf(onNavigateToAnniversary != nil) {
                 HapticManager.selection()
                 onNavigateToAnniversary?(anniversaryId)
             }
@@ -455,19 +518,14 @@ struct TaskCardView: View {
 
             // 所有子项完成 → 通过 onToggleCompletion 走撤回流程自动完成父任务
             // 有子项未完成且父任务已完成/完成中 → 同样走回调取消或撤回
-            // 分步接管任务（executionSchemaVersion>=1）禁止清单全勾隐式完成根（规格 §8.4-2）：
-            // 完成根必须来自用户结果断言或直接完成；取消完成方向保持原语义。
+            //（2026-10-11 拆开瘦身：等待项 = 未勾，天然不触发完成，无需特判）
             let items = checkItems
             guard !items.isEmpty else { return }
 
             let allChecked = items.allSatisfy(\.isChecked)
-            if task.allowsChecklistAutoCompletion {
-                if allChecked && !task.completed && !isCompleting {
-                    onToggleCompletion?((checkItemID: item.id, wasChecked: wasChecked))
-                } else if !allChecked && (task.completed || isCompleting) {
-                    onToggleCompletion?(nil)
-                }
-            } else if !allChecked && task.completed {
+            if allChecked && !task.completed && !isCompleting {
+                onToggleCompletion?((checkItemID: item.id, wasChecked: wasChecked))
+            } else if !allChecked && (task.completed || isCompleting) {
                 onToggleCompletion?(nil)
             }
         } catch {

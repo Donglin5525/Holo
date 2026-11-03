@@ -9,7 +9,10 @@
 import Foundation
 import CoreData
 import CloudKit
+#if canImport(UIKit)
 import BackgroundTasks
+#endif
+import os.log
 
 /// 记账功能数据仓库
 /// 使用 @MainActor 保证所有操作在主线程执行，返回的对象可在 UI 中安全使用
@@ -37,11 +40,20 @@ class FinanceRepository {
         self.context = context
     }
 
+    /// setup 幂等标记（2026-10-09 C2）：setup 有多个生产调用点（App 启动/账本页/
+    /// AI 路由/组件快照/截图种子），旧实现每次调用都 force 首扫，多入口叠加会把
+    /// 全实体扫描越开越多。现在只有进程内首次调用做种子/迁移/首扫。
+    /// 实例级（测试用 init(context:) 注入的独立实例互不影响）。
+    private var isSetupComplete = false
+
     /// 延迟初始化：触发 Core Data → seed
-    /// 在首次使用 FinanceRepository 时调用
+    /// 在首次使用 FinanceRepository 时调用；重复调用无副作用
     func setup() {
+        guard !isSetupComplete else { return }
+        isSetupComplete = true
         _ = context          // 触发 lazy var → CoreDataStack.shared.viewContext
         seedDefaultData()
+        softDeleteOrphanPendingCategories()
         migrateLegacyInstallmentNotes()
         migrateFixedExpenseSemantics()
         migrateCardToCreditCard()
@@ -84,36 +96,66 @@ class FinanceRepository {
     /// 在 viewContext（主线程）同步跑会把 UI 反复锤死。主线程绝不同步执行扫描：
     /// 这里只做调度，实际扫描（含误种清理）全部在后台 context 跑完，
     /// 删除落库后由 automaticallyMergesChangesFromParent 自动合并回主上下文。
-    private static let minScanInterval: TimeInterval = 60
-    private static var lastScanAt: Date?
-    /// 后台扫描启动时刻。宽限期内视为「正在跑」挡住新轮；超期视为僵死
-    /// （如 SQLite 长锁等待），放行新一轮——避免一次卡住永久停摆清不动数据。
-    private static var scanStartedAt: Date?
-    private static let scanStuckGrace: TimeInterval = 300
+    private static let scanLogger = Logger(subsystem: "com.holo.app", category: "FinanceDuplicateScan")
+    /// 调度状态机（纯值，单测覆盖）。旧实现（2026-10-09 C2 之前）：force 可绕过
+    /// 「正在扫」、300s 宽限到期还放行新扫——多入口 setup 叠加时全实体扫描并发
+    /// 争抢数据库与 CPU。现语义：in-flight 硬门禁（force 也只跳过冷却）；
+    /// 扫描中的新变化记 pending 结束后补一轮；完成回调按 runID 对身份。
+    private static var scanGate = DuplicateScanGate(minScanInterval: 60)
+    /// 僵死只记异常日志不重开（单工作者不可破）；超时值沿用旧宽限
+    private static let scanStuckLogThreshold: TimeInterval = 300
 
-    /// 调度一轮副本修复（任意线程可调）。force 跳过节流，仅启动首扫使用。
+    /// 调度一轮副本修复（任意线程可调）。force 只跳过冷却，不绕过单工作者门禁。
     private func scheduleDuplicateScan(force: Bool = false) {
         Task { @MainActor in
             FinanceRepository.shared.scheduleDuplicateScanOnMain(force: force)
         }
     }
 
-    /// 节流 + 防重入 + 起后台任务；状态只在主线程读写，无需加锁。
+    /// 节流 + 单工作者 + 起后台任务；状态只在主线程读写，无需加锁。
     @MainActor
     private func scheduleDuplicateScanOnMain(force: Bool) {
-        let now = Date()
-        if !force {
-            if let started = Self.scanStartedAt, now.timeIntervalSince(started) < Self.scanStuckGrace { return }
-            if let last = Self.lastScanAt, now.timeIntervalSince(last) < Self.minScanInterval { return }
+        switch Self.scanGate.request(force: force, now: Date()) {
+        case .start(let runID):
+            self.beginScanRun(runID: runID)
+        case .markPending:
+            Self.scanLogger.notice("副本扫描进行中：新请求记 pending（force=\(force, privacy: .public)）")
+        case .dropped:
+            break
         }
-        Self.lastScanAt = now
-        Self.scanStartedAt = now
-        let container = CoreDataStack.shared.persistentContainer
-        container.performBackgroundTask { bgContext in
-            self.runRepairPass(on: bgContext)
-            Task { @MainActor in
-                Self.scanStartedAt = nil
+    }
+
+    @MainActor
+    private func beginScanRun(runID: UUID) {
+        Self.scanLogger.notice("副本扫描开始 run=\(runID)")
+        // 僵死观察：超时只记异常日志，保持单工作者不重开（防叠跑优先于自愈）
+        let threshold = Self.scanStuckLogThreshold
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(threshold))
+            if Self.scanGate.isRunning(runID: runID) {
+                Self.scanLogger.error("副本扫描超 \(Int(threshold))s 未结束，保持单工作者不重开 run=\(runID)")
             }
+        }
+        let container = CoreDataStack.shared.persistentContainer
+        let repairHierarchies = FinanceCategoryRepairCatalog.standardHierarchies()
+        container.performBackgroundTask { bgContext in
+            self.runRepairPass(on: bgContext, repairHierarchies: repairHierarchies)
+            Task { @MainActor in
+                self.completeScanRun(runID: runID)
+            }
+        }
+    }
+
+    @MainActor
+    private func completeScanRun(runID: UUID) {
+        switch Self.scanGate.finish(runID: runID, now: Date()) {
+        case .start(let nextID):
+            Self.scanLogger.notice("副本扫描结束，补做 pending 一轮 run=\(nextID)")
+            self.beginScanRun(runID: nextID)
+        case .dropped:
+            Self.scanLogger.notice("副本扫描结束 run=\(runID)")
+        case .markPending:
+            break   // finish 不返回此值，穷尽分支
         }
     }
 
@@ -121,7 +163,8 @@ class FinanceRepository {
     /// 全程不触碰 viewContext；有删除时回主线程广播刷新。
     /// 每轮结果无条件进日志（节流下每分钟最多一行）：真机上「清不动」时
     /// 靠它区分「没在跑 / 全组等同步身份 / 全组内容冲突」三种卡点。
-    nonisolated private func runRepairPass(on bgContext: NSManagedObjectContext) {
+    nonisolated private func runRepairPass(on bgContext: NSManagedObjectContext,
+                                         repairHierarchies: [FinanceCategoryRepairHierarchy]) {
         SeedRevivalRepair.repairIfNeeded(context: bgContext)
         do {
             let orphanResult = try CategoryOrphanRepair.repair(in: bgContext)
@@ -136,6 +179,22 @@ class FinanceRepository {
             }
         } catch {
             NSLog("孤儿分类修复未保存：%@", error.localizedDescription)
+        }
+        do {
+            let directory = URL.applicationSupportDirectory.appendingPathComponent("FinanceCategoryRepairReceipts", isDirectory: true)
+            let result = try CategoryParentRepairService.repairAutomatically(in: bgContext,
+                hierarchies: repairHierarchies, receiptDirectory: directory)
+            if result.repairedGroups > 0 {
+                NSLog("分类父级自动恢复：%d 组，%d 个分类", result.repairedGroups, result.repairedCategories)
+                Task { @MainActor in
+                    NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+                }
+            }
+            if result.deferredGroups > 0 {
+                NSLog("分类父级诊断：%d 组缺少可靠归属证据，保留原数据供开发排查", result.deferredGroups)
+            }
+        } catch {
+            NSLog("分类父级自动恢复未保存：%@", error.localizedDescription)
         }
         guard let cloudContainer = CoreDataStack.shared.persistentContainer as? NSPersistentCloudKitContainer else { return }
         do {
@@ -202,13 +261,13 @@ class FinanceRepository {
                       globalResult.conflictingGroups, globalResult.deferredGroups)
             }
             if globalResult.removed > 0 {
+                // C3a（2026-10-09）：按实际删除的实体精准失效所在域，不再六连发。
+                // 域外实体由 domainNotifications 兜底退回全六域，不丢刷新。
+                let domainNames = GlobalDuplicateRepair.domainNotifications(for: globalResult.removedByEntity)
                 Task { @MainActor in
-                    NotificationCenter.default.post(name: .todoDataDidChange, object: nil)
-                    NotificationCenter.default.post(name: .habitDataDidChange, object: nil)
-                    NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
-                    NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
-                    NotificationCenter.default.post(name: .anniversaryDataDidChange, object: nil)
-                    NotificationCenter.default.post(name: .goalDataDidChange, object: nil)
+                    for name in domainNames {
+                        NotificationCenter.default.post(name: name, object: nil)
+                    }
                 }
             }
         } catch {
@@ -276,8 +335,8 @@ class FinanceRepository {
     // MARK: - Seed Data
     
     func seedDefaultData() {
-        // 先修复云同步竞态产生的重复数据（卸载重装后种子与 iCloud 恢复并存），再补种
-        Category.repairDuplicateCategories(in: context)
+        // 不按名称删除不同 UUID 的分类，迟到的同步记录仍可能引用这些身份。
+        // 相同 UUID 的真实同步副本由后台 FinanceDuplicateRepair 合并。
         Account.repairDuplicateAccounts(in: context)
         Category.seedDefaultCategories(in: context)
         Account.seedDefaultAccounts(in: context)
@@ -336,6 +395,8 @@ class FinanceRepository {
         transaction.updatedAt = Date()
         try context.save()
         broadcastFinanceDataDidChange()
+        // 产品埋点：手动/聊天记账成功汇聚点（识图复核确认与自动写在各自成功点单独上报；不收金额内容）
+        HoloProductAnalytics.shared.track(.billCreated, ["source": aiSourceMessageId != nil ? "ai" : "manual"])
         return transaction
     }
 
@@ -393,10 +454,30 @@ class FinanceRepository {
         broadcastFinanceDataDidChange()
     }
 
+    /// 删除交易：软删除进回收站批次（30 天可恢复、到期物理清理），与分类删除同链路。
+    /// 物理销毁会让持有该对象的在途视图（行退场动画/他屏渲染）读已死对象而闪退，
+    /// 此坑已四次复发（最近 2026-11-01 真机 .ips 实锤 TransactionRowView.body），
+    /// 结构性结论：交易删除一律软删，全库不再有用户路径的物理删除。
     func deleteTransaction(_ transaction: Transaction) async throws {
-        context.delete(transaction)
+        let now = Date()
+        let batch = RecycleBinService.makeSingleItemBatch(
+            module: .finance,
+            summary: FinanceRepository.transactionRecycleSummary(transaction),
+            context: context,
+            now: now
+        )
+        transaction.markDeleted(batchId: batch.id, at: now)
         try context.save()
         broadcastFinanceDataDidChange()
+    }
+
+    /// 回收站批次摘要（与 RecycleBinRestoreEngine.transactionSummary 同口径）
+    static func transactionRecycleSummary(_ transaction: Transaction) -> String {
+        let amount = transaction.amount as Decimal
+        let day = transaction.date.formatted(.dateTime.month().day())
+        let categoryName = transaction.category?.name ?? String(localized: "未分类")
+        let typeText = transaction.type == "income" ? String(localized: "收入") : String(localized: "支出")
+        return String(localized: "\(typeText) ¥\(String(describing: amount)) · \(day) · \(categoryName)")
     }
 
     /// 根据 ID 查找交易记录
@@ -593,8 +674,11 @@ class FinanceRepository {
         }
 
         if existing.count > periods {
+            // 超出期数的行降级为单条软删（无批次不可恢复、30 天物理清理）：
+            // 缩期时这些行可能还在屏上（退场动画），物理销毁会触发死对象闪退
+            let removedAt = Date()
             for transaction in existing.dropFirst(periods) {
-                context.delete(transaction)
+                transaction.markDeleted(batchId: nil, at: removedAt)
             }
         }
 
@@ -694,7 +778,8 @@ class FinanceRepository {
             let request = Transaction.fetchRequest()
             request.predicate = NSPredicate(format: "spendingProjectId IN %@", oneOffIDs)
             for transaction in (try? context.fetch(request)) ?? [] {
-                context.delete(transaction)
+                // 单条软删（同缩期口径）：这些行可能在屏上被持有
+                transaction.markDeleted(batchId: nil, at: now)
                 changedCount += 1
             }
         }
@@ -714,6 +799,7 @@ class FinanceRepository {
         guard category.isSubCategory else {
             throw FinanceError.subCategoryRequired
         }
+        try FinanceCategoryIntegrity.validateForBooking(category, in: context)
     }
 
     /// 查询子分类所属的一级分类名称
@@ -814,19 +900,30 @@ class FinanceRepository {
         return (transaction, true)
     }
 
-    /// 查询同一分期组的所有交易
+    /// 查询同一分期组的所有交易（只取有效行）
     func getInstallmentGroup(groupId: UUID) async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "installmentGroupId == %@", groupId as CVarArg)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "installmentGroupId == %@", groupId as CVarArg),
+            Transaction.notDeletedPredicate
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "installmentIndex", ascending: true)]
         return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
 
-    /// 删除整个分期组
+    /// 删除整个分期组：整组软删进同一回收站批次（同 deleteTransaction 口径）
     func deleteInstallmentGroup(groupId: UUID) async throws {
         let transactions = try await getInstallmentGroup(groupId: groupId)
+        guard !transactions.isEmpty else { return }
+        let now = Date()
+        let batch = RecycleBinService.makeSingleItemBatch(
+            module: .finance,
+            summary: String(localized: "分期组（\(transactions.count) 笔）"),
+            context: context,
+            now: now
+        )
         for tx in transactions {
-            context.delete(tx)
+            tx.markDeleted(batchId: batch.id, at: now)
         }
         try context.save()
         broadcastFinanceDataDidChange()
@@ -973,32 +1070,63 @@ class FinanceRepository {
 
     /// 给交易贴一张票根：压缩管线产出 2048px 原图 + 300px 缩略图，纯二进制双存，
     /// 随 CoreData/CloudKit 同步（对齐 ThoughtAttachment 已验证模式，不落沙盒文件）
+    /// 挂票根。图片压缩与 BLOB 落库全在后台：全尺寸图+缩略图几 MB 写进 viewContext
+    /// （主线程）会在确认/保存动画窗口里写 SQLite 造成掉帧。后台上下文挂同一
+    /// coordinator（测试注入的内存栈同样工作），保存后经 viewContext 的
+    /// automaticallyMergesChangesFromParent 自动并回 UI 侧。
+    /// - Parameter postNotification: 手动挂图保持广播；识图复核页逐笔批量归档传
+    ///   false——确认页整批完成后已有统一收尾广播，逐笔广播会让全部财务观察者
+    ///   在收起动画窗口里多跑 N 轮全量刷新。
     func attachReceipt(
         to transaction: Transaction,
         imageData rawData: Data,
-        source: TransactionAttachment.AttachmentSource
+        source: TransactionAttachment.AttachmentSource,
+        postNotification: Bool = true
     ) async throws -> TransactionAttachment {
-        guard transaction.receiptAttachments.count < Transaction.maxReceiptCount else {
-            throw FinanceError.receiptLimitReached(maxCount: Transaction.maxReceiptCount)
-        }
         let attachmentId = UUID()
         guard let processed = await AttachmentFileManager.processRawImageData(rawData, attachmentId: attachmentId) else {
             throw FinanceError.receiptImageProcessingFailed
         }
-        let attachment = TransactionAttachment(context: context)
-        attachment.id = attachmentId
-        attachment.fileName = processed.fileName
-        attachment.thumbnailFileName = processed.thumbnailFileName
-        attachment.sortOrder = (transaction.receiptAttachments.map(\.sortOrder).max() ?? -1) + 1
-        attachment.sourceType = source.rawValue
-        attachment.createdAt = Date()
-        attachment.imageData = processed.imageData
-        attachment.thumbnailData = processed.thumbnailData
-        attachment.transaction = transaction
-        transaction.updatedAt = Date()
-        try context.save()
-        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
-        return attachment
+        // 跨上下文只传 objectID，NSManagedObject 不出本上下文（跨线程访问崩）
+        let txID = transaction.objectID
+        let bgContext = NSManagedObjectContext(concurrencyType: .privateQueueConcurrencyType)
+        bgContext.persistentStoreCoordinator = context.persistentStoreCoordinator
+        try await bgContext.perform {
+            guard let tx = try bgContext.existingObject(with: txID) as? Transaction else {
+                throw FinanceError.notFound
+            }
+            guard tx.receiptAttachments.count < Transaction.maxReceiptCount else {
+                throw FinanceError.receiptLimitReached(maxCount: Transaction.maxReceiptCount)
+            }
+            let attachment = TransactionAttachment(context: bgContext)
+            attachment.id = attachmentId
+            attachment.fileName = processed.fileName
+            attachment.thumbnailFileName = processed.thumbnailFileName
+            attachment.sortOrder = (tx.receiptAttachments.map(\.sortOrder).max() ?? -1) + 1
+            attachment.sourceType = source.rawValue
+            attachment.createdAt = Date()
+            attachment.imageData = processed.imageData
+            attachment.thumbnailData = processed.thumbnailData
+            attachment.transaction = tx
+            tx.updatedAt = Date()
+            try bgContext.save()
+        }
+        // 后台保存把交易的 updatedAt 挪了版本；显式 refresh 让 viewContext 的快照
+        // 对齐 store，后续主线程写操作（删除/再保存）不再撞乐观锁（133020）。
+        // 生产有 automaticallyMergesChangesFromParent 兜底，测试容器没开该开关，
+        // 必须显式做——两侧行为就此一致。
+        context.refresh(transaction, mergeChanges: true)
+        // 后台对象不能送回主线程：在 viewContext 按 id 重新物化返回
+        let fetch = TransactionAttachment.fetchRequest()
+        fetch.predicate = NSPredicate(format: "id == %@", attachmentId as CVarArg)
+        fetch.fetchLimit = 1
+        guard let saved = try context.fetch(fetch).first else {
+            throw FinanceError.notFound
+        }
+        if postNotification {
+            NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+        }
+        return saved
     }
 
     /// 撕掉一张票根（附件删除即净，宿主交易保留）
@@ -1441,11 +1569,11 @@ final class SpendingProjectRepository {
         project.paymentMode = nil
         project.updatedAt = Date()
 
-        // 兼容历史版本：编辑时顺手清理曾经自动生成的关联流水。
+        // 兼容历史版本：编辑时顺手清理曾经自动生成的关联流水（单条软删）。
         let request = NSFetchRequest<Transaction>(entityName: "Transaction")
         request.predicate = NSPredicate(format: "spendingProjectId == %@", project.id as CVarArg)
         for transaction in try context.fetch(request) {
-            context.delete(transaction)
+            transaction.markDeleted(batchId: nil, at: Date())
         }
 
         try context.save()
@@ -1454,15 +1582,18 @@ final class SpendingProjectRepository {
 
     func deleteProject(id: NSManagedObjectID) throws {
         guard let project = try? context.existingObject(with: id) as? SpendingProject else { return }
-        // 历史版本可能残留一次性购买关联流水；删除项目时一并兜底清理。
+        let now = Date()
+        // 历史版本可能残留一次性购买关联流水；删除项目时一并兜底清理（单条软删）。
         if !project.isRecurring {
             let request = NSFetchRequest<Transaction>(entityName: "Transaction")
             request.predicate = NSPredicate(format: "spendingProjectId == %@", project.id as CVarArg)
             for transaction in (try? context.fetch(request)) ?? [] {
-                context.delete(transaction)
+                transaction.markDeleted(batchId: nil, at: now)
             }
         }
-        context.delete(project)
+        // 项目本体同样软删（回收站实体清单已含 SpendingProject；
+        // 物理销毁同样会让持有项目的视图读死对象）
+        project.markDeleted(batchId: nil, at: now)
         try context.save()
         SpendingProjectBackgroundService.shared.scheduleNextTask()
         NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
@@ -1483,7 +1614,8 @@ final class SpendingProjectBackgroundService {
 
     func registerBackgroundTask() {
         // BGTaskScheduler 的注册/提交接口仅限主 App 进程调用（小组件扩展 target 下编译不可用）
-        #if !HOLO_APP_EXTENSION
+        // macOS 无 BGTaskScheduler：前台启动的幂等补账已覆盖同一路径
+        #if !HOLO_APP_EXTENSION && canImport(UIKit)
         BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
             Task { @MainActor in
                 guard let refreshTask = task as? BGAppRefreshTask else { return }
@@ -1500,7 +1632,7 @@ final class SpendingProjectBackgroundService {
     }
 
     func scheduleNextTask() {
-        #if !HOLO_APP_EXTENSION
+        #if !HOLO_APP_EXTENSION && canImport(UIKit)
         BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
 
         let nextDate = SpendingProjectRepository.shared.allProjects()
@@ -1522,4 +1654,58 @@ final class SpendingProjectBackgroundService {
 extension Notification.Name {
     /// 财务数据发生变化时发送此通知，账本列表监听后刷新
     static let financeDataDidChange = Notification.Name("financeDataDidChange")
+}
+
+// MARK: - 副本扫描调度状态机（2026-10-09 C2，纯值可单测）
+
+/// 副本扫描的调度决策核心：单工作者硬门禁（force 只跳过冷却，不绕过「正在扫」）、
+/// in-flight 期间新变化挂 pending 结束后补一轮、完成回调按 runID 对身份。
+/// 语义细节由 HoloSyncSchedulingTests 钉死；FinanceRepository 只做薄壳接线。
+struct DuplicateScanGate {
+    enum Decision: Equatable {
+        /// 放行开跑（附本轮 runID）
+        case start(UUID)
+        /// in-flight：挂 pending，本轮结束后补做
+        case markPending
+        /// 冷却期内丢弃 / 过期回调无动作
+        case dropped
+    }
+
+    private(set) var currentRunID: UUID?
+    private(set) var pendingRescan = false
+    private(set) var lastScanAt: Date?
+    let minScanInterval: TimeInterval
+
+    init(minScanInterval: TimeInterval) {
+        self.minScanInterval = minScanInterval
+    }
+
+    var isScanning: Bool { currentRunID != nil }
+
+    func isRunning(runID: UUID) -> Bool { currentRunID == runID }
+
+    mutating func request(force: Bool, now: Date) -> Decision {
+        if currentRunID != nil {
+            pendingRescan = true
+            return .markPending
+        }
+        if !force, let last = lastScanAt, now.timeIntervalSince(last) < minScanInterval {
+            return .dropped
+        }
+        let id = UUID()
+        currentRunID = id
+        lastScanAt = now
+        return .start(id)
+    }
+
+    mutating func finish(runID: UUID, now: Date) -> Decision {
+        guard currentRunID == runID else { return .dropped }
+        currentRunID = nil
+        guard pendingRescan else { return .dropped }
+        pendingRescan = false
+        let id = UUID()
+        currentRunID = id
+        lastScanAt = now
+        return .start(id)
+    }
 }

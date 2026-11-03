@@ -40,14 +40,21 @@ struct TaskScopeSheet: View {
                                 Circle()
                                     .fill(Color(hex: list.color ?? "#007AFF"))
                                     .frame(width: 8, height: 8)
-                                Text(list.name)
-                                    .foregroundColor(.holoTextPrimary)
+                                HStack(spacing: 6) {
+                                    Text(list.name)
+                                        .foregroundColor(.holoToolText)
+                                    if list.isEphemeral {
+                                        EphemeralListBadge()
+                                    }
+                                }
                                 Spacer()
                                 if case .list(let id) = scope, id == list.id {
                                     Image(systemName: "checkmark")
                                         .foregroundColor(.holoPrimary)
                                 }
                             }
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
@@ -59,23 +66,26 @@ struct TaskScopeSheet: View {
                         showArchiveManagement = true
                     } label: {
                         Label(String(localized: "归档管理"), systemImage: "archivebox")
-                            .foregroundColor(.holoTextPrimary)
+                            .foregroundColor(.holoToolText)
                     }
                 }
                 Section {
                     Button {
                         showNewListAlert = true
                     } label: {
-                        Label(String(localized: "新建清单"), systemImage: "plus.folder")
-                            .foregroundColor(.holoTextPrimary)
+                        Label(String(localized: "新建清单"), systemImage: "folder.badge.plus")
+                            .foregroundColor(.holoToolText)
                     }
                 }
             }
             .navigationTitle(String(localized: "查看范围"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
             }
             .sheet(isPresented: $showArchiveManagement) {
@@ -110,18 +120,20 @@ struct TaskScopeSheet: View {
         } label: {
             HStack {
                 Text(value.title)
-                    .foregroundColor(.holoTextPrimary)
+                    .foregroundColor(.holoToolText)
                 Spacer()
                 if let count = scopeCounts[value] {
                     Text("\(count)")
                         .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 if scope == value {
                     Image(systemName: "checkmark")
                         .foregroundColor(.holoPrimary)
                 }
             }
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

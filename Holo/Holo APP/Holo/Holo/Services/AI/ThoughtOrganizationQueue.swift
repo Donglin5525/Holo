@@ -229,6 +229,10 @@ final class ThoughtOrganizationQueue: ObservableObject {
         // 断网挂起：不发起注定失败的请求，条目留在队列等网络恢复沿续做
         guard !isOffline else { return }
 
+        // 谷时段门控（2026-10-09 降本）：高峰期不消费队列，条目留 pending 跨天续做，
+        // 谷窗的下一次触发（回前台/启动 rebuild/失败重试自唤）沿既有链路恢复。
+        guard HoloAIWindowPolicy.isValleyWindow() else { return }
+
         guard let item = pendingItems.first else {
             // 队列清空：批量模式若已完成全部，进度会在 onItemDone 里清空
             return

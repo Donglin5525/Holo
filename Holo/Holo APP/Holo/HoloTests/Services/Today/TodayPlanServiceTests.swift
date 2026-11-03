@@ -158,7 +158,10 @@ final class TodayPlanServiceTests: XCTestCase {
 
     func test_手动放下_无计划时继承基础可灵活任务() async throws {
         // 基础列表：今日到期 + 无日期（可灵活）；逾期不进 entries
-        let todayTask = try todoRepo.createTask(title: "今日到期", dueDate: Date().addingTimeInterval(3_600))
+        // 「今日到期」须钉在今天之内：深夜 23 点后跑测试时 now+1h 已跨天，
+        // needsDeadlineAcknowledgement 判 effective < dayEnd 会翻转成「明日到期」不要求确认（时间炸弹）
+        let dueTodayDate = min(Date().addingTimeInterval(3_600), scope.dayEnd.addingTimeInterval(-60))
+        let todayTask = try todoRepo.createTask(title: "今日到期", dueDate: dueTodayDate)
         let noDateTask = try todoRepo.createTask(title: "无日期")
         let overdueTask = try todoRepo.createTask(title: "已逾期", dueDate: Date().addingTimeInterval(-86_400 * 3))
         let laterTask = try todoRepo.createTask(title: "明天到期", dueDate: Date().addingTimeInterval(86_400 * 2))
@@ -182,7 +185,8 @@ final class TodayPlanServiceTests: XCTestCase {
     }
 
     func test_手动放下_今日到期无确认被拒() async throws {
-        let dueToday = try todoRepo.createTask(title: "今晚到期", dueDate: Date().addingTimeInterval(3_600))
+        // 同上：深夜跑测试时 now+1h 跨天会让「今晚到期」变「明日到期」，ack 判定翻转（时间炸弹）
+        let dueToday = try todoRepo.createTask(title: "今晚到期", dueDate: min(Date().addingTimeInterval(3_600), scope.dayEnd.addingTimeInterval(-60)))
         do {
             _ = try await service.deferTask(
                 taskID: dueToday.id, acknowledgement: nil,

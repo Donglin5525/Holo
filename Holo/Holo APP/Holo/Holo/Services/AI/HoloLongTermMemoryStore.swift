@@ -157,6 +157,23 @@ final class HoloLongTermMemoryFileStore: @unchecked Sendable {
         } ?? false
     }
 
+    /// 标签级 AI 排除（2026-10-21 方案）：删除证据里含指定想法的长期记忆。
+    /// 口径「含即删」——宁可少记一条，不可漏一条；单次 mutate 批量删除避免整文件反复读写。
+    /// - Returns: 实际删除条数
+    func deleteMemoriesReferencing(thoughtIDs: Set<String>) -> Int {
+        let normalizedKeys = Set(thoughtIDs.map { $0.lowercased() })
+        return mutate { memories in
+            let originalCount = memories.count
+            memories.removeAll { memory in
+                memory.evidence.contains { evidence in
+                    guard evidence.source == .thoughts else { return false }
+                    return evidence.sourceID.map { normalizedKeys.contains($0.lowercased()) } == true
+                }
+            }
+            return originalCount - memories.count
+        } ?? 0
+    }
+
     func queryCandidates() -> [HoloLongTermMemory] {
         let now = Date()
         return load().filter { memory in
@@ -299,6 +316,12 @@ enum HoloLongTermMemoryStore {
     static func delete(id: String) -> Bool { backend.delete(id: id) }
     static func queryCandidates() -> [HoloLongTermMemory] { backend.queryCandidates() }
     static func queryConfirmed() -> [HoloLongTermMemory] { backend.queryConfirmed() }
+
+    /// 标签级 AI 排除：删除证据含指定想法的长期记忆（ThoughtAIExclusionService 调用）
+    @discardableResult
+    static func deleteMemories(referencingThoughtIDs thoughtIDs: Set<String>) -> Int {
+        backend.deleteMemoriesReferencing(thoughtIDs: thoughtIDs)
+    }
 
     @discardableResult
     static func cleanupExpired(now: Date = Date()) -> Int {

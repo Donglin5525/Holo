@@ -80,7 +80,11 @@ struct MonthYearPickerView: View {
                             .tag(month)
                     }
                 }
+                #if canImport(UIKit)
                 .pickerStyle(.wheel)
+                #else
+                .pickerStyle(.automatic)
+                #endif
                 .frame(maxWidth: .infinity)
                 .clipped()
 
@@ -91,7 +95,11 @@ struct MonthYearPickerView: View {
                             .tag(year)
                     }
                 }
+                #if canImport(UIKit)
                 .pickerStyle(.wheel)
+                #else
+                .pickerStyle(.automatic)
+                #endif
                 .frame(maxWidth: .infinity)
                 .clipped()
             }

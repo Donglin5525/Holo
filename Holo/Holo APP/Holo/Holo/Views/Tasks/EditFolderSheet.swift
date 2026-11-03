@@ -44,9 +44,11 @@ struct EditFolderSheet: View {
                 .padding(.top, HoloSpacing.md)
             }
             .navigationTitle("编辑文件夹")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消") {
                         if name != folder.name {
                             showDismissAlert = true
@@ -57,7 +59,7 @@ struct EditFolderSheet: View {
                     .foregroundColor(.holoTextSecondary)
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Button("保存") {
                         saveFolder()
                     }

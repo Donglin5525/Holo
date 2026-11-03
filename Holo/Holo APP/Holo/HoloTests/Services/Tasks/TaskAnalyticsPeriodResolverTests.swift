@@ -133,6 +133,15 @@ final class TaskAnalyticsPeriodResolverTests: XCTestCase {
         XCTAssertEqual(window.previousEnd, makeDate(2026, 10, 1))
     }
 
+    func test_对比窗口_整段未来周期上期窗口不得倒挂() {
+        // 未来整周期（start > asOf）：已过天数为负，输出恒须 previousStart <= previousEnd
+        // （聚合层用两个端点构造半开区间，倒挂即崩溃）
+        let now = makeDate(2026, 10, 6, 15, 30)
+        let bounds = TaskAnalyticsPeriodResolver.bounds(of: .week(anchorDay: makeDate(2026, 10, 13)), asOf: now, calendar: calendar)
+        let window = TaskAnalyticsPeriodResolver.compareWindow(current: bounds, asOf: now, calendar: calendar)
+        XCTAssertLessThanOrEqual(window.previousStart, window.previousEnd)
+    }
+
     // MARK: - 趋势桶粒度
 
     func test_桶粒度_自定义31天按日_32天按月() {
@@ -177,6 +186,51 @@ final class TaskAnalyticsPeriodResolverTests: XCTestCase {
         for pair in zip(buckets, buckets.dropFirst()) {
             XCTAssertEqual(pair.0.endExclusive, pair.1.start, "桶必须连续无缝")
         }
+    }
+
+    // MARK: - 相对今天的位置（胶囊徽标内核，§7.2 修复）
+
+    func test_位置_周_当前上周与N周前() {
+        let now = makeDate(2026, 10, 8, 15, 30) // 周四
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .week(anchorDay: now), asOf: now, calendar: calendar), .current)
+        // 同周任一天（周一锚定）都算当前期
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .week(anchorDay: makeDate(2026, 10, 5)), asOf: now, calendar: calendar), .current)
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .week(anchorDay: makeDate(2026, 10, 1)), asOf: now, calendar: calendar), .previous)
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .week(anchorDay: makeDate(2026, 9, 17)), asOf: now, calendar: calendar), .earlier(3))
+    }
+
+    func test_位置_周_跨年不漂移() {
+        // 2026-12-28 与 2027-01-04 都是周一
+        let now = makeDate(2027, 1, 5, 10, 0)
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .week(anchorDay: makeDate(2026, 12, 31)), asOf: now, calendar: calendar), .previous)
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .week(anchorDay: makeDate(2027, 1, 1)), asOf: now, calendar: calendar), .previous)
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .week(anchorDay: makeDate(2026, 12, 25)), asOf: now, calendar: calendar), .earlier(2))
+    }
+
+    func test_位置_月_当前上月与更早() {
+        let now = makeDate(2026, 10, 8, 15, 30)
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .month(anchorDay: now), asOf: now, calendar: calendar), .current)
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .month(anchorDay: makeDate(2026, 9, 15)), asOf: now, calendar: calendar), .previous)
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .month(anchorDay: makeDate(2026, 8, 20)), asOf: now, calendar: calendar), .earlier(2))
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .month(anchorDay: makeDate(2025, 12, 20)), asOf: now, calendar: calendar), .earlier(10))
+    }
+
+    func test_位置_年_当前去年与更早() {
+        let now = makeDate(2026, 10, 8, 15, 30)
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .year(anchorDay: makeDate(2026, 3, 1)), asOf: now, calendar: calendar), .current)
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .year(anchorDay: makeDate(2025, 6, 1)), asOf: now, calendar: calendar), .previous)
+        XCTAssertEqual(TaskAnalyticsPeriodResolver.position(of: .year(anchorDay: makeDate(2023, 6, 1)), asOf: now, calendar: calendar), .earlier(3))
+    }
+
+    func test_位置_自定义恒为当前期() {
+        let now = makeDate(2026, 10, 8, 15, 30)
+        XCTAssertEqual(
+            TaskAnalyticsPeriodResolver.position(
+                of: .custom(startDay: makeDate(2026, 9, 20), endDay: makeDate(2026, 9, 25)),
+                asOf: now, calendar: calendar
+            ),
+            .current
+        )
     }
 
     // MARK: - DST 日历推进

@@ -36,7 +36,9 @@ struct AIMemoryLabDomainView: View {
             recordsSection
         }
         .navigationTitle(scope.title)
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task { await loadTombstonesAndTrace() }
     }
 
@@ -358,7 +360,9 @@ private struct AIMemoryLabRecordInspectorView: View {
             }
         }
         .navigationTitle("记录检查")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     private func debugRow(_ label: String, _ value: String) -> some View {

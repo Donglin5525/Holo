@@ -653,7 +653,10 @@ final class ChatCardDataTests: XCTestCase {
         )
         controller.advance(to: .readingPersonalContext)
         controller.completeDraft()
-        XCTAssertEqual(written, [1, 2], "每次迁移都应原样写穿")
+        // 2026-09-20 起 draftReady 不再单独 writeThrough：「就绪」信封与方案 JSON
+        // 须在同一笔 finalizeMessage 原子落库（先单独落「就绪」曾留下已就绪无方案的
+        // 死状态）。非终态迁移照常写穿，终态由调用方随方案单笔写入。
+        XCTAssertEqual(written, [1], "非终态迁移写穿；draftReady 与方案原子落库不单独写穿")
     }
 
     func testInterruptedRunDetectionSkipsTerminalAndLiveRuns() {

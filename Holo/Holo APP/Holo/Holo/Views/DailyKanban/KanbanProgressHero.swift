@@ -79,14 +79,7 @@ struct KanbanProgressHero: View {
             .frame(width: 64, height: 64)
             .overlay {
                 ZStack {
-                    Circle()
-                        .stroke(Color.white.opacity(0.2), lineWidth: 5)
-
-                    Circle()
-                        .trim(from: 0, to: overallPercent)
-                        .stroke(Color.white, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                        .animation(.spring(response: 0.6, dampingFraction: 0.7), value: overallPercent)
+                    HoloProgress(value: overallPercent, color: .white, shape: .ring, lineWidth: 5, trackColor: .white.opacity(0.2))
 
                     Text("\(Int(overallPercent * 100))%")
                         .font(.system(size: 17, weight: .bold, design: .rounded))
@@ -126,19 +119,7 @@ struct KanbanProgressHero: View {
     }
 
     private var progressBar: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.white.opacity(0.15))
-                    .frame(height: 4)
-
-                Capsule()
-                    .fill(Color.white)
-                    .frame(width: geo.size.width * overallPercent, height: 4)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.7), value: overallPercent)
-            }
-        }
-        .frame(height: 4)
+        HoloProgress(value: overallPercent, color: .white, lineWidth: 4, trackColor: .white.opacity(0.15))
     }
 
     private func statItem(value: String, label: String) -> some View {

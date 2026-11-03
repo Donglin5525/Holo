@@ -11,6 +11,7 @@ import SwiftUI
 
 struct GoalWorkshopQuestionCard: View {
     let question: GoalWorkshopQuestion
+    @Binding var draft: String
     /// 模型最近一轮的回应语（如「明白了，那…」）
     let assistantText: String?
     /// 用户上一轮回答的原话（给下一问做上下文）
@@ -21,7 +22,6 @@ struct GoalWorkshopQuestionCard: View {
     let onReply: (String) -> Void
     let onSkip: () -> Void
 
-    @State private var draft: String = ""
     @FocusState private var focused: Bool
 
     /// 等待模型时回显刚发出的原话；空闲时回显上一轮原话
@@ -32,12 +32,12 @@ struct GoalWorkshopQuestionCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
             if let echoText {
                 Label {
                     Text("你刚说：「\(echoText)」")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.holoToolTextSecondary)
                 } icon: {
                     Image(systemName: "text.quote")
                         .font(.footnote)
@@ -46,14 +46,14 @@ struct GoalWorkshopQuestionCard: View {
             if let assistantText, !assistantText.isEmpty {
                 Text(assistantText)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.holoToolTextSecondary)
             }
             Text(question.text)
                 .font(.headline)
             Label {
                 Text(question.whyItMatters)
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.holoToolTextSecondary)
             } icon: {
                 Image(systemName: "questionmark.circle")
                     .font(.footnote)
@@ -64,7 +64,7 @@ struct GoalWorkshopQuestionCard: View {
                     ProgressView().controlSize(.small)
                     Text("Holo 正在想…")
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.holoToolTextSecondary)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 4)
@@ -80,25 +80,28 @@ struct GoalWorkshopQuestionCard: View {
                     } label: {
                         Image(systemName: "arrow.up.circle.fill")
                             .font(.title2)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
+                    .accessibilityLabel(Text("发送回答"))
                     .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
 
                 Button(action: onSkip) {
                     Text("先跳过这个问题")
                         .font(.footnote)
+                        .frame(minHeight: 44)
                 }
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+        .padding(HoloSpacing.md)
+        .background(Color.holoToolSurface, in: RoundedRectangle(cornerRadius: HoloRadius.lg))
         .onAppear { if !isBusy { focused = true } }
     }
 
     private func submit() {
         let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isBusy else { return }
-        draft = ""
         onReply(trimmed)
     }
 }

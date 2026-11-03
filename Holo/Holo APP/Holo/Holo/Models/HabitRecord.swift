@@ -55,14 +55,31 @@ public class HabitRecord: NSManagedObject {
         return formatter.string(from: date)
     }
     
-    /// 是否为今天的记录
+    /// 是否为今天的记录（自然日；习惯口径的今日判定走 Repository / attributedDay）
     var isToday: Bool {
         Calendar.current.isDateInToday(date)
     }
     
-    /// 所属日期（不含时间部分）
+    /// 所属自然日（不含时间部分；不按结算时间平移，习惯统计口径请用 attributedDay）
     var dayDate: Date {
         Calendar.current.startOfDay(for: date)
+    }
+
+    // MARK: - 归属日（按习惯的每日结算时间，见 HabitDayAttribution）
+
+    /// 归属时刻：实时记录按结算时间平移，补签/整日坐标记录原样
+    func attributedMoment(dayEndMinutes: Int, calendar: Calendar = .current) -> Date {
+        HabitDayAttribution.attributedMoment(
+            recordDate: date,
+            isRetroactive: isRetroactive,
+            dayEndMinutes: dayEndMinutes,
+            calendar: calendar
+        )
+    }
+
+    /// 归属日（startOfDay）
+    func attributedDay(dayEndMinutes: Int, calendar: Calendar = .current) -> Date {
+        calendar.startOfDay(for: attributedMoment(dayEndMinutes: dayEndMinutes, calendar: calendar))
     }
 
     /// 补签记录的实际补签时刻（createdAt；date 归到目标日当天零点，不反映补签时间）

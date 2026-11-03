@@ -197,10 +197,18 @@ struct ContentView: View {
                 .holoContentColumn()
                 .transition(.opacity)
             case .profile:
-                PersonalView(onPlanGoal: {
-                    pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
-                    selectedTab = .holo
-                }, pendingGoalDetailId: $pendingGoalDetailId)
+                PersonalView(
+                    onPlanGoal: {
+                        pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
+                        selectedTab = .holo
+                    },
+                    onOpenMemoryGallery: {
+                        // 深链走 handleDeepLink default 分支：切回「今天」由 HomeView 开长廊
+                        DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))
+                    },
+                    onOpenLinkedEntity: { DeepLinkState.shared.navigate(to: $0) },
+                    pendingGoalDetailId: $pendingGoalDetailId
+                )
                     .holoContentColumn()
                     .transition(.opacity)
             }

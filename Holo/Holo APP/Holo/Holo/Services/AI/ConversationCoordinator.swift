@@ -150,7 +150,10 @@ final class ConversationCoordinator {
         planningProgress: ((HoloContextPlanStage, HoloContextPlanRouteSource?, String?) -> Void)? = nil,
         contextPlanCloudAsync: Bool = false
     ) async throws -> ConversationProcessResult {
-        let parseBatch = try await provider.parseUserInputBatch(text, context: userContext)
+        var parseBatch = try await provider.parseUserInputBatch(text, context: userContext)
+        // 时段词未来下限：今晚类模糊时刻（如 21:59 说「今晚」得 20:00 的过期提醒）
+        // 在结果进系统这一刻冻结顺延值，卡片/编辑弹层/落库读到同一个字符串
+        parseBatch = TaskPendingDefaults.applyingFutureFloor(to: parseBatch, originalInput: text)
         let intentLog = provider.lastCallLog
 
         // 需要追问
@@ -706,6 +709,14 @@ final class ConversationCoordinator {
                     if let sub = preview.sub {
                         renderData["subCategory"] = sub
                     }
+                }
+
+                // 账户候选预览匹配（不写库）：用户话中点名账户（如「用招商银行付的」）时，
+                // 卡片显示将记入的账户；确认落账由 resolveWriteAccount 按同一匹配重算
+                if let named = FinanceTransactionDraftResolver.matchAccount(
+                    candidate: item.extractedData?["accountCandidate"]
+                ) {
+                    renderData["accountName"] = named.name
                 }
 
                 // 退款识别（iOS 侧识别，零后端依赖）：收入话术带退款语义时匹配候选原支出，

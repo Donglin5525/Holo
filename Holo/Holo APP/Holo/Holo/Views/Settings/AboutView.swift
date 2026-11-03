@@ -4,15 +4,25 @@
 //
 //  「关于 Holo」页面
 //  展示 App 图标、版本号与法律文档入口
+//  2026-10-25 设置页规整：原一级页「重看新手引导/重看新人笔记」收编至此
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 
 struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showPrivacyPolicy = false
     @State private var showTermsOfUse = false
     @State private var copiedDeviceId = false
+
+    /// 重看首页导览：关于页是 sheet 叠 sheet 的第二层，由调用方负责先关掉两层弹层再触发
+    var onReplayCoachTour: (() -> Void)? = nil
+    /// 重看新人笔记（跳转预置欢迎笔记）：同上，两层 dismiss 后深链跳转
+    var onReplayWelcomeNote: (() -> Void)? = nil
 
     private var appVersionText: String {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
@@ -26,13 +36,28 @@ struct AboutView: View {
                 appHeader
                 deviceSection
                 legalSection
+                replaySection
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.vertical, HoloSpacing.md)
         }
         .background(Color.holoBackground)
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .toolbar {
+            // sheet 自带 NavigationStack 且无系统返回键，没有关闭钮用户就退不出去
+            // （2026-10-17 设计走查实锤：只能靠重启 App 脱身）；对齐 §8.8 左上关闭惯例
+            ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoToolTextSecondary)
+                }
+                .accessibilityLabel(String(localized: "关闭"))
+            }
             ToolbarItem(placement: .principal) {
                 Text("关于 Holo")
                     .font(.holoHeading)
@@ -81,7 +106,12 @@ struct AboutView: View {
     /// 设备号用于反馈问题时定位账号（客服/测试期权益调整），点击整行复制
     private var deviceSection: some View {
         Button {
+            #if canImport(UIKit)
             UIPasteboard.general.string = HoloBackendDeviceIdentity.shared.deviceId
+            #else
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(HoloBackendDeviceIdentity.shared.deviceId, forType: .string)
+            #endif
             copiedDeviceId = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                 copiedDeviceId = false
@@ -161,6 +191,44 @@ struct AboutView: View {
                     title: String(localized: "用户协议"),
                     subtitle: String(localized: "服务条款与使用规范")
                 )
+            }
+        }
+    }
+
+    // MARK: - 重看引导（2026-10-25 从设置一级页收编至此）
+
+    /// 点击后先关关于 sheet，等收起动画结束再交调用方关设置页并触发跳转
+    private var replaySection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            Button {
+                dismiss()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    onReplayCoachTour?()
+                }
+            } label: {
+                settingsRowContent(
+                    icon: "sparkles",
+                    iconColor: .holoPurple,
+                    title: String(localized: "重看新手引导"),
+                    subtitle: String(localized: "三步回顾首页的功能入口")
+                )
+            }
+
+            // 预置欢迎笔记被删后入口自动隐藏，不复活
+            if WelcomeNoteSeed.isNoteAlive() {
+                Button {
+                    dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        onReplayWelcomeNote?()
+                    }
+                } label: {
+                    settingsRowContent(
+                        icon: "book",
+                        iconColor: .holoPrimary,
+                        title: String(localized: "重看新人笔记"),
+                        subtitle: String(localized: "产品理念与功能速览")
+                    )
+                }
             }
         }
     }

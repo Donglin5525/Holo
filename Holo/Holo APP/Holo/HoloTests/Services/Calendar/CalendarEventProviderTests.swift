@@ -134,6 +134,92 @@ final class CalendarEventProviderTests: XCTestCase {
         XCTAssertFalse(result.hasFailure, "空数据不是失败")
     }
 
+    // MARK: - 后台取数与展示索引回归
+
+    @MainActor
+    func test_backgroundRead保留稳定身份并读取编辑后的内容() async throws {
+        let (provider, context) = try makeProviderWithThought()
+        let range = CalendarRangeBuilder.monthRange(makeDate(year: 2026, month: 7, day: 1))
+        let first = await provider.fetchEvents(in: range)
+        let thought = try XCTUnwrap(context.fetch(Thought.fetchRequest()).first)
+        let firstEvent = try XCTUnwrap(first.events.first)
+        XCTAssertEqual(firstEvent.id, thought.id)
+        thought.content = "修改后的想法"
+        try context.save()
+        let updated = await provider.fetchEvents(in: range)
+        XCTAssertEqual(updated.events.first?.id, firstEvent.id, "刷新不能重置卡片身份与照片翻片状态")
+        XCTAssertEqual(updated.events.first?.title, "修改后的想法")
+        XCTAssertEqual(updated.events.first?.originID, thought.objectID)
+    }
+
+    func test_snapshot日周月与筛选复用同一份事实() {
+        let events = (1...12).flatMap { day in
+            [makeEvent(.finance, day: day, hour: 9),
+             makeEvent(.habit, day: day, hour: 9),
+             makeEvent(.thought, day: day, hour: 22)]
+        }
+        let snapshot = CalendarPresentationSnapshot(events: events, range: nil)
+        let index = snapshot.index(for: nil)
+        XCTAssertEqual(index.eventsByDay.values.reduce(0) { $0 + $1.count }, events.count)
+        for (day, presentation) in index.days {
+            let expected = DailyReplayPresentation.readingOrderBlocks(from: index.eventsByDay[day] ?? [])
+            XCTAssertEqual(presentation.blocks.map(\.period), expected.map(\.period))
+            XCTAssertEqual(presentation.moments.map(\.id), expected.flatMap(\.moments).map(\.id))
+            XCTAssertEqual(presentation.narrative, DailyReplayPresentation.narrative(for: presentation.events))
+        }
+        let focused = makeDate(year: 2026, month: 7, day: 6)
+        let weekRange = CalendarRangeBuilder.weekRange(around: focused)
+        XCTAssertEqual(index.weeks[weekRange.start]?.events.count,
+                       events.filter { CalendarRangeBuilder.contains($0.date, in: weekRange) }.count)
+        let monthRange = CalendarRangeBuilder.monthRange(focused)
+        XCTAssertEqual(index.months[monthRange.start]?.events.count, events.count)
+        XCTAssertEqual(snapshot.index(for: .thought).eventsByDay.values.flatMap { $0 }.count, 12)
+        XCTAssertTrue(snapshot.index(for: .health).eventsByDay.isEmpty)
+    }
+
+    func test_snapshot刷新替换编辑删除并保留失败模块() {
+        let oldFinance = makeEvent(.finance, day: 1, hour: 9)
+        let oldThought = makeEvent(.thought, day: 1, hour: 10)
+        let outside = makeEvent(.finance, day: 2, hour: 9)
+        let range = CalendarRangeBuilder.dayRange(oldFinance.date)
+        let edited = CalendarEvent(id: oldThought.id, module: .thought, date: oldThought.date,
+                                   title: "最新内容", originID: oldThought.originID)
+        let fetched = CalendarEventsResult(events: [edited], moduleStates: [.finance: .empty, .thought: .loaded])
+        let merged = CalendarPresentationSnapshot.merging(existing: [oldFinance, oldThought, outside], fetched: fetched, range: range)
+        XCTAssertEqual(merged.count, 2, "删除的旧记录不能在增量合并中复活")
+        XCTAssertEqual(merged.first?.title, "最新内容")
+        XCTAssertEqual(merged.last?.id, outside.id, "窗口以外的历史内容保持可回看")
+        let failed = CalendarEventsResult(events: [edited], moduleStates: [.finance: .failed(message: "读取失败"), .thought: .loaded])
+        let retained = CalendarPresentationSnapshot.merging(existing: [oldFinance, oldThought], fetched: failed, range: range)
+        XCTAssertEqual(retained.count, 2, "单模块失败不能擦掉已经显示的事实")
+        XCTAssertTrue(retained.contains { $0.id == oldFinance.id })
+    }
+
+    func test_snapshot空模块与空周期预先准备且附件编辑版本改变() {
+        let date = makeDate(year: 2026, month: 7, day: 1, hour: 9)
+        let range = CalendarRangeBuilder.monthRange(date)
+        let empty = CalendarPresentationSnapshot(events: [], range: range)
+        XCTAssertEqual(empty.index(for: .health).days.count, 31)
+        XCTAssertNotNil(empty.index(for: .health).weeks[CalendarRangeBuilder.weekRange(around: date).start])
+        XCTAssertEqual(empty.index(for: .health).months[range.start]?.events.count, 0)
+        let id = UUID()
+        let original = CalendarEvent(id: id, module: .thought, date: date, title: "有照片",
+                                     attachmentThumbnails: [Data([1, 2])], originID: sharedObjectID)
+        let edited = CalendarEvent(id: id, module: .thought, date: date, title: "有照片",
+                                   attachmentThumbnails: [Data([1, 3])], originID: sharedObjectID)
+        let first = DailyReplayPresentation.moments(from: [original])[0]
+        let next = DailyReplayPresentation.moments(from: [edited])[0]
+        XCTAssertEqual(first.id, next.id)
+        XCTAssertNotEqual(first.photoRevision, next.photoRevision)
+        let moved = CalendarEvent(id: id, module: .thought, date: date.addingTimeInterval(86400),
+                                  title: "移到窗口内", originID: sharedObjectID)
+        let merged = CalendarPresentationSnapshot.merging(existing: [original],
+            fetched: CalendarEventsResult(events: [moved], moduleStates: [.thought: .loaded]),
+            range: CalendarRangeBuilder.dayRange(moved.date))
+        XCTAssertEqual(merged.count, 1)
+        XCTAssertEqual(merged.first?.date, moved.date)
+    }
+
     // MARK: - 展示层模型
 
     func test_weeklyGridLayout同时间事件按顺序纵向展开() {

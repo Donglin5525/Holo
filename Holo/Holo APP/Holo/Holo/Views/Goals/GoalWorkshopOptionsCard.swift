@@ -15,11 +15,11 @@ struct GoalWorkshopOptionsCard: View {
     let onChoose: (String) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
             if let assistantText, !assistantText.isEmpty {
                 Text(assistantText)
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.holoToolTextSecondary)
             }
             Text("有\(options.count > 1 ? "几条" : "一条")走得通的路，代价各不相同：")
                 .font(.headline)
@@ -36,54 +36,53 @@ struct GoalWorkshopOptionsCard: View {
                     Text("听你的，按「\(recommended.title)」来")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(HoloActionStyle(role: .primary))
                 .disabled(isBusy)
             }
         }
-        .padding()
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+        .padding(HoloSpacing.md)
+        .background(Color.holoToolSurface, in: RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
 
     private func routeRow(_ option: GoalRouteOption) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
+            HStack(alignment: .top, spacing: HoloSpacing.sm) {
+                VStack(alignment: .leading, spacing: HoloSpacing.xs) {
                 Text(option.title)
                     .font(.subheadline.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
                 if option.id == recommendedOptionID {
                     Text("推荐")
                         .font(.caption2)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(.tint.opacity(0.15), in: Capsule())
+                        .foregroundStyle(Color.holoToolAction)
+                        .background(Color.holoToolAction.opacity(0.1), in: Capsule())
+                }
                 }
                 Spacer()
                 Button("选这条") { onChoose(option.id) }
                     .font(.subheadline)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .fixedSize(horizontal: true, vertical: false)
                     .disabled(isBusy)
             }
-            LabeledContent {
-                Text(option.fit)
-                    .foregroundStyle(.secondary)
-            } label: {
-                Text("适合").font(.footnote)
-            }
-            LabeledContent {
-                Text(option.effort)
-                    .foregroundStyle(.secondary)
-            } label: {
-                Text("投入").font(.footnote)
-            }
-            LabeledContent {
-                Text(option.tradeoff)
-                    .foregroundStyle(.secondary)
-            } label: {
-                Text("代价").font(.footnote)
-            }
+            detail("适合", value: option.fit)
+            detail("投入", value: option.effort)
+            detail("代价", value: option.tradeoff)
             Text(option.reason)
                 .font(.footnote)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.holoToolTextSecondary)
         }
         .padding(12)
-        .background(Color(.tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+        .background(Color.holoToolInset, in: RoundedRectangle(cornerRadius: HoloRadius.md))
+    }
+
+    private func detail(_ title: LocalizedStringKey, value: String) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+            Text(title).holoText(.metadata).foregroundStyle(Color.holoToolTextSecondary)
+            Text(value).holoText(.supporting).foregroundStyle(Color.holoToolText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

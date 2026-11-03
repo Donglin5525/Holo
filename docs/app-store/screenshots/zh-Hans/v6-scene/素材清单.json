@@ -1,0 +1,503 @@
+{
+  "appVersion": "1.1.0",
+  "build": "32",
+  "language": "zh-Hans",
+  "connectVersionVerified": false,
+  "checks": [
+    "exact dimensions",
+    "RGB no alpha",
+    "PNG decode",
+    "set counts 7/5/7",
+    "PPO images 2-7 identical"
+  ],
+  "files": [
+    {
+      "file": "upload/ipad-13/default/01-input.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 570074,
+      "sha256": "6b1aad38a1d65c22cf89a81c1cd25dd2fb1f83b034539ec0ae0fd1f20a3243d8"
+    },
+    {
+      "file": "upload/ipad-13/default/02-stats.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 524826,
+      "sha256": "5d94fa19331255e273773bc56f93d908aaeea0a7178791a2aa514d1bd59e0919"
+    },
+    {
+      "file": "upload/ipad-13/default/03-budget.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 596660,
+      "sha256": "bd4ccd566fd10090a15c02f50b43bd0bc705df7e3100e53b683177ee55e7b0d9"
+    },
+    {
+      "file": "upload/ipad-13/default/04-habits.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 406761,
+      "sha256": "4b41db53745e94d4b2c3d9e2dd4d2030367c3d68617f528261a0c298cacd1c05"
+    },
+    {
+      "file": "upload/ipad-13/default/05-thoughts.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 354855,
+      "sha256": "df98822eff9afbdfaf75e5eb955d507161ea4e45cf5037cc91bb19b7325f10d9"
+    },
+    {
+      "file": "upload/ipad-13/default/06-memory.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 1475353,
+      "sha256": "fcd06031807dd91fed69e298a3977eda012a3ee4a4972d896179799610860a37"
+    },
+    {
+      "file": "upload/ipad-13/default/07-home.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 707930,
+      "sha256": "f716163790a27e9630201735cb398a5ef196721b78a312f922462e8b8712b088"
+    },
+    {
+      "file": "upload/ipad-13/finance-cpp/01-input.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 570074,
+      "sha256": "6b1aad38a1d65c22cf89a81c1cd25dd2fb1f83b034539ec0ae0fd1f20a3243d8"
+    },
+    {
+      "file": "upload/ipad-13/finance-cpp/02-ledger.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 505539,
+      "sha256": "a3cb06d81f7ea8337319e0647ccfcf3f8209f4427428d9c151c9d70f50c82846"
+    },
+    {
+      "file": "upload/ipad-13/finance-cpp/03-stats.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 524938,
+      "sha256": "c70d2d33c974a6d6e8bd64c996f4d6ed3ab4faa37d09b230f795d142ff2f208f"
+    },
+    {
+      "file": "upload/ipad-13/finance-cpp/04-budget.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 596470,
+      "sha256": "ac70ddf28e9443704d7dac9506cf904df17951c3f6a74aec75dde6c5ada18264"
+    },
+    {
+      "file": "upload/ipad-13/finance-cpp/05-category.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 480213,
+      "sha256": "c352c0f807b3a17a27ddb1eb6af76add82ea9eeed3680f32c9c9794f10f9fd90"
+    },
+    {
+      "file": "upload/ipad-13/ppo-title-b/01-input.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 570717,
+      "sha256": "7f9a31f42478168d156e1fbbc61aef4bdd6b63b52f7ab3ac8f0d823f1ec748a2"
+    },
+    {
+      "file": "upload/ipad-13/ppo-title-b/02-stats.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 524826,
+      "sha256": "5d94fa19331255e273773bc56f93d908aaeea0a7178791a2aa514d1bd59e0919"
+    },
+    {
+      "file": "upload/ipad-13/ppo-title-b/03-budget.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 596660,
+      "sha256": "bd4ccd566fd10090a15c02f50b43bd0bc705df7e3100e53b683177ee55e7b0d9"
+    },
+    {
+      "file": "upload/ipad-13/ppo-title-b/04-habits.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 406761,
+      "sha256": "4b41db53745e94d4b2c3d9e2dd4d2030367c3d68617f528261a0c298cacd1c05"
+    },
+    {
+      "file": "upload/ipad-13/ppo-title-b/05-thoughts.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 354855,
+      "sha256": "df98822eff9afbdfaf75e5eb955d507161ea4e45cf5037cc91bb19b7325f10d9"
+    },
+    {
+      "file": "upload/ipad-13/ppo-title-b/06-memory.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 1475353,
+      "sha256": "fcd06031807dd91fed69e298a3977eda012a3ee4a4972d896179799610860a37"
+    },
+    {
+      "file": "upload/ipad-13/ppo-title-b/07-home.png",
+      "width": 2064,
+      "height": 2752,
+      "mode": "RGB",
+      "bytes": 707930,
+      "sha256": "f716163790a27e9630201735cb398a5ef196721b78a312f922462e8b8712b088"
+    },
+    {
+      "file": "upload/iphone-large/default/01-input.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 346583,
+      "sha256": "fa5454c39b9a280d4d44c3ffb764b8a230bb7c074b12cd256dbe42831203af4c"
+    },
+    {
+      "file": "upload/iphone-large/default/02-stats.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 375428,
+      "sha256": "228370053fe72c54ffcd2d99e825a08996dcba7e173e426652cc354643ef7c7c"
+    },
+    {
+      "file": "upload/iphone-large/default/03-budget.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 316999,
+      "sha256": "33d1d6fca08e66d7562361d3e235819cb7da2042688525d4f96c8fda0d513c29"
+    },
+    {
+      "file": "upload/iphone-large/default/04-habits.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 323719,
+      "sha256": "73aec502aa6398c04ddc78a9ca9f26504421edfadbc3d2e3af5e31961adcd7b6"
+    },
+    {
+      "file": "upload/iphone-large/default/05-thoughts.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 307867,
+      "sha256": "0feb69f92c2db9bc3794ce2dbee984287918c95dc6c4dcb1055a299e9102d4eb"
+    },
+    {
+      "file": "upload/iphone-large/default/06-memory.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 965006,
+      "sha256": "db9064bcc0ac08ab9b8b8232dac4842ed45ecf3a37489f15798b996714b17011"
+    },
+    {
+      "file": "upload/iphone-large/default/07-home.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 1063940,
+      "sha256": "d8c738d66bbc8a3c89819bd56f7cb488bb1f29a3331d1442ce59cfdc3a6ebcd6"
+    },
+    {
+      "file": "upload/iphone-large/finance-cpp/01-input.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 346583,
+      "sha256": "fa5454c39b9a280d4d44c3ffb764b8a230bb7c074b12cd256dbe42831203af4c"
+    },
+    {
+      "file": "upload/iphone-large/finance-cpp/02-ledger.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 434928,
+      "sha256": "99e023a7e5e7e5cbca1f1d945183e67e2a8868d86c277ce9c6076251c822777f"
+    },
+    {
+      "file": "upload/iphone-large/finance-cpp/03-stats.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 375611,
+      "sha256": "30d5aae20ab605bc9f4c6c16859f3df5def6f51601116fe88aaf93b92727f57b"
+    },
+    {
+      "file": "upload/iphone-large/finance-cpp/04-budget.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 316694,
+      "sha256": "5300e4605cc8c143f65b364f0d5619416d533b362175c09c44173f478f6fd1d0"
+    },
+    {
+      "file": "upload/iphone-large/finance-cpp/05-category.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 357096,
+      "sha256": "3f4dfc01c7f09bc83e1259afd46840e9ecc266df2a2021f2df20ba5e63a14298"
+    },
+    {
+      "file": "upload/iphone-large/ppo-title-b/01-input.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 346928,
+      "sha256": "6ecb139d24ce4e20184cc91d39af312ceab3006a38277d5048538b4a4008a0a9"
+    },
+    {
+      "file": "upload/iphone-large/ppo-title-b/02-stats.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 375428,
+      "sha256": "228370053fe72c54ffcd2d99e825a08996dcba7e173e426652cc354643ef7c7c"
+    },
+    {
+      "file": "upload/iphone-large/ppo-title-b/03-budget.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 316999,
+      "sha256": "33d1d6fca08e66d7562361d3e235819cb7da2042688525d4f96c8fda0d513c29"
+    },
+    {
+      "file": "upload/iphone-large/ppo-title-b/04-habits.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 323719,
+      "sha256": "73aec502aa6398c04ddc78a9ca9f26504421edfadbc3d2e3af5e31961adcd7b6"
+    },
+    {
+      "file": "upload/iphone-large/ppo-title-b/05-thoughts.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 307867,
+      "sha256": "0feb69f92c2db9bc3794ce2dbee984287918c95dc6c4dcb1055a299e9102d4eb"
+    },
+    {
+      "file": "upload/iphone-large/ppo-title-b/06-memory.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 965006,
+      "sha256": "db9064bcc0ac08ab9b8b8232dac4842ed45ecf3a37489f15798b996714b17011"
+    },
+    {
+      "file": "upload/iphone-large/ppo-title-b/07-home.png",
+      "width": 1320,
+      "height": 2868,
+      "mode": "RGB",
+      "bytes": 1063940,
+      "sha256": "d8c738d66bbc8a3c89819bd56f7cb488bb1f29a3331d1442ce59cfdc3a6ebcd6"
+    },
+    {
+      "file": "upload/iphone-medium/default/01-input.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 297922,
+      "sha256": "7d4f0853cc4696da5d567ddaa91688aea0397ddc6c8d75858d2c9272b684feaf"
+    },
+    {
+      "file": "upload/iphone-medium/default/02-stats.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 342926,
+      "sha256": "14bcbd349281ef4faa81a0227a5045411d91673792c2322b1b3cda470953bd89"
+    },
+    {
+      "file": "upload/iphone-medium/default/03-budget.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 286544,
+      "sha256": "6e2dce0c7e22b74efa9f6e9441e8754eb78306db41918be7badb7d7b33c821c2"
+    },
+    {
+      "file": "upload/iphone-medium/default/04-habits.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 285498,
+      "sha256": "1e1d84dff74a2536456d79bccd758fb648cff7c8a34c41256f513de7b39da5e4"
+    },
+    {
+      "file": "upload/iphone-medium/default/05-thoughts.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 266109,
+      "sha256": "afb7a4b473819a4b2585018c3ee40be8cd049494c6dd1ff4997717f726b9fadb"
+    },
+    {
+      "file": "upload/iphone-medium/default/06-memory.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 883478,
+      "sha256": "fec4ed17a9108617ae14e1e322513b15dd7d31caf757298fcde8531a699b2ea1"
+    },
+    {
+      "file": "upload/iphone-medium/default/07-home.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 930783,
+      "sha256": "b0fa3404ce6017ad81686efe59907b840a82a683fe04f059e220ab4b6980c4d5"
+    },
+    {
+      "file": "upload/iphone-medium/finance-cpp/01-input.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 297922,
+      "sha256": "7d4f0853cc4696da5d567ddaa91688aea0397ddc6c8d75858d2c9272b684feaf"
+    },
+    {
+      "file": "upload/iphone-medium/finance-cpp/02-ledger.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 399282,
+      "sha256": "58abae42a34f76f2f16d7c913134b10ac43e81a0add6f58a654e4e40adfad8a4"
+    },
+    {
+      "file": "upload/iphone-medium/finance-cpp/03-stats.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 343116,
+      "sha256": "3d1462292dd5658e9337e79de3a26cff94358dd994eb63fdbfb76ed4d4149c40"
+    },
+    {
+      "file": "upload/iphone-medium/finance-cpp/04-budget.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 286350,
+      "sha256": "dc700d6bec068975f69f7959b4b09e45c6af46aaf74e130fe08671d8046d8e9f"
+    },
+    {
+      "file": "upload/iphone-medium/finance-cpp/05-category.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 314742,
+      "sha256": "b138238c73c9927d5cf9d64701807bbf0e8af9764a83364823aebfdd8eba6ca4"
+    },
+    {
+      "file": "upload/iphone-medium/ppo-title-b/01-input.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 298574,
+      "sha256": "d9be6e77bbc2bac2725088247af3a8d1d98659f53109ff3e9b7dfc3a11044c11"
+    },
+    {
+      "file": "upload/iphone-medium/ppo-title-b/02-stats.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 342926,
+      "sha256": "14bcbd349281ef4faa81a0227a5045411d91673792c2322b1b3cda470953bd89"
+    },
+    {
+      "file": "upload/iphone-medium/ppo-title-b/03-budget.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 286544,
+      "sha256": "6e2dce0c7e22b74efa9f6e9441e8754eb78306db41918be7badb7d7b33c821c2"
+    },
+    {
+      "file": "upload/iphone-medium/ppo-title-b/04-habits.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 285498,
+      "sha256": "1e1d84dff74a2536456d79bccd758fb648cff7c8a34c41256f513de7b39da5e4"
+    },
+    {
+      "file": "upload/iphone-medium/ppo-title-b/05-thoughts.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 266109,
+      "sha256": "afb7a4b473819a4b2585018c3ee40be8cd049494c6dd1ff4997717f726b9fadb"
+    },
+    {
+      "file": "upload/iphone-medium/ppo-title-b/06-memory.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 883478,
+      "sha256": "fec4ed17a9108617ae14e1e322513b15dd7d31caf757298fcde8531a699b2ea1"
+    },
+    {
+      "file": "upload/iphone-medium/ppo-title-b/07-home.png",
+      "width": 1206,
+      "height": 2622,
+      "mode": "RGB",
+      "bytes": 930783,
+      "sha256": "b0fa3404ce6017ad81686efe59907b840a82a683fe04f059e220ab4b6980c4d5"
+    },
+    {
+      "file": "creative/brand-header-3840x1646.png",
+      "width": 3840,
+      "height": 1646,
+      "mode": "RGB",
+      "bytes": 5632677,
+      "sha256": "5f399ddcd930d4752c7ba3a3ddb9e6dd8b6e3b4b8b64b2ec20339a9ad783d911"
+    },
+    {
+      "file": "creative/brand-search-1920x1280.png",
+      "width": 1920,
+      "height": 1280,
+      "mode": "RGB",
+      "bytes": 2563912,
+      "sha256": "54235655068b87e4412b70b315175c739583cc1a4cc6e890a27653a915c54a59"
+    },
+    {
+      "file": "creative/finance-header-3840x1646.png",
+      "width": 3840,
+      "height": 1646,
+      "mode": "RGB",
+      "bytes": 4717309,
+      "sha256": "6acd31ac05c4b10075e85f60577b203e318987b55205190241afa408121b059f"
+    },
+    {
+      "file": "creative/finance-search-1920x1280.png",
+      "width": 1920,
+      "height": 1280,
+      "mode": "RGB",
+      "bytes": 2410309,
+      "sha256": "a06d5473cd2813ceef809b8285007aad7e14ba5162e3e01a909d6bcd866b4728"
+    }
+  ]
+}

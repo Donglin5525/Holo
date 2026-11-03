@@ -44,7 +44,12 @@ extension FinanceRepository {
     ) -> [(amount: Decimal, frequency: Int)] {
         let request = Transaction.fetchRequest()
         if let category = category {
-            request.predicate = NSPredicate(format: "category == %@", category)
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "category == %@", category),
+                Transaction.notDeletedPredicate
+            ])
+        } else {
+            request.predicate = Transaction.notDeletedPredicate
         }
 
         guard let transactions = try? context.fetch(request) else {
@@ -87,12 +92,15 @@ extension FinanceRepository {
     ) -> [(note: String, frequency: Int)] {
         let request = Transaction.fetchRequest()
         if let category = category {
-            request.predicate = NSPredicate(
-                format: "category == %@ AND note != nil AND note != ''",
-                category
-            )
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "category == %@ AND note != nil AND note != ''", category),
+                Transaction.notDeletedPredicate
+            ])
         } else {
-            request.predicate = NSPredicate(format: "note != nil AND note != ''")
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "note != nil AND note != ''"),
+                Transaction.notDeletedPredicate
+            ])
         }
 
         guard let transactions = try? context.fetch(request) else {

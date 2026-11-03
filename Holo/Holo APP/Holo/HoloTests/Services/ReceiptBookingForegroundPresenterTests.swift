@@ -2,9 +2,10 @@
 //  ReceiptBookingForegroundPresenterTests.swift
 //  HoloTests
 //
-//  图片快捷记账「确认页必达」（2026-09-22）：
-//  - present：导航 + 落「已自动弹过」标记
-//  - presentIfNeeded：无草案不动；有未弹过草案弹最新；弹过的不再弹（不重复打扰）
+//  图片快捷指令记账「确认页必达」（2026-09-22；2026-10-14 ack 语义升级）：
+//  - present：只导航，不落「已自动弹过」标记（被其他弹层挡掉时保留重试机会）
+//  - acknowledge：复核页真正到达（onAppear）才落标记
+//  - presentIfNeeded：无草案不动；有未弹过草案弹最新并返回 true；弹过的不再弹
 //
 //  草案通过 store 的磁盘目录直接注入（StoredDraft → JSON 落盘），
 //  与生产 loadDrafts 同一条读取链路，不 mock。
@@ -66,14 +67,25 @@ final class ReceiptBookingForegroundPresenterTests: XCTestCase {
         injectedDraftIDs.append(id)
     }
 
-    // MARK: - present
+    // MARK: - present / acknowledge（2026-10-14：真弹出才落标记）
 
-    func testPresentNavigatesAndMarksDraft() {
+    func testPresentNavigatesWithoutMarking() {
         let id = UUID()
 
         ReceiptBookingForegroundPresenter.present(draftID: id)
 
         XCTAssertEqual(DeepLinkState.shared.pendingTarget, .receiptReview(draftID: id))
+        XCTAssertNil(
+            UserDefaults.standard.string(forKey: key),
+            "派发导航不落标记——复核页被其他弹层挡掉时，下次回前台还能重试"
+        )
+    }
+
+    func testAcknowledgeMarksDraft() {
+        let id = UUID()
+
+        ReceiptBookingForegroundPresenter.acknowledge(draftID: id)
+
         XCTAssertEqual(UserDefaults.standard.string(forKey: key), id.uuidString)
     }
 
@@ -82,9 +94,10 @@ final class ReceiptBookingForegroundPresenterTests: XCTestCase {
     func testPresentIfNeededDoesNothingWithoutDrafts() {
         DeepLinkState.shared.pendingTarget = nil
 
-        ReceiptBookingForegroundPresenter.presentIfNeeded()
+        let dispatched = ReceiptBookingForegroundPresenter.presentIfNeeded()
 
         XCTAssertNil(DeepLinkState.shared.pendingTarget)
+        XCTAssertFalse(dispatched, "无草案时返回 false，供结果播报通道接管")
     }
 
     func testPresentIfNeededPresentsLatestUnseenDraft() throws {
@@ -92,21 +105,23 @@ final class ReceiptBookingForegroundPresenterTests: XCTestCase {
         try injectDraft(id: older, createdAt: Date().addingTimeInterval(-60))
         try injectDraft(id: latest)
 
-        ReceiptBookingForegroundPresenter.presentIfNeeded()
+        let dispatched = ReceiptBookingForegroundPresenter.presentIfNeeded()
 
-        // 弹的是最新一条，并落标记
+        // 弹的是最新一条；标记由复核页真正到达时的 acknowledge 落（见上）
+        XCTAssertTrue(dispatched)
         XCTAssertEqual(DeepLinkState.shared.pendingTarget, .receiptReview(draftID: latest))
-        XCTAssertEqual(UserDefaults.standard.string(forKey: key), latest.uuidString)
+        XCTAssertNil(UserDefaults.standard.string(forKey: key))
     }
 
     func testPresentIfNeededSkipsAlreadyPresentedDraft() throws {
         let id = UUID()
         try injectDraft(id: id)
-        // 模拟已自动弹过：用户关掉复核页 = 暂不处理的信号
+        // 模拟复核页已真正弹过（acknowledge 落的标记）：关掉复核页 = 暂不处理的信号
         UserDefaults.standard.set(id.uuidString, forKey: key)
 
-        ReceiptBookingForegroundPresenter.presentIfNeeded()
+        let dispatched = ReceiptBookingForegroundPresenter.presentIfNeeded()
 
+        XCTAssertFalse(dispatched)
         XCTAssertNil(DeepLinkState.shared.pendingTarget)
     }
 

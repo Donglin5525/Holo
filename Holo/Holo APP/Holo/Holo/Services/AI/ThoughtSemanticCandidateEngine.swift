@@ -141,7 +141,10 @@ enum ThoughtSemanticCandidateEngine {
     static func backfill(limit: Int = 64) async -> Int {
         guard ThoughtSemanticCandidateMode.current != .off else { return 0 }
         let repository = ThoughtRepository()
-        guard let organized = try? repository.fetchAll() else { return 0 }
+        guard let all = try? repository.fetchAll() else { return 0 }
+        // 「不参与 AI」标签的想法不建向量（fetchAll 同时服务 UI，AI 侧取数后过滤）
+        let organized = ThoughtAIAudience.aiVisibleOnly(all)
+        guard !organized.isEmpty else { return 0 }
 
         var embedded = 0
         var batchTexts: [(id: UUID, text: String, hash: String)] = []

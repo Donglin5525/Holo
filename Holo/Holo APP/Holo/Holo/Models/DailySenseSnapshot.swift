@@ -20,7 +20,7 @@ enum SenseDimension: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .task: return String(localized: "待办")
+        case .task: return String(localized: "任务")
         case .habit: return String(localized: "习惯")
         case .expense: return String(localized: "消费")
         case .health: return String(localized: "健康")

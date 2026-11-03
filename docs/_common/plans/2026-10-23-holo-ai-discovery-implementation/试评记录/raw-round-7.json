@@ -1,0 +1,324 @@
+{
+  "meta": {
+    "round": 7,
+    "generatedAt": "2026-10-30T06:20:35.026Z",
+    "anchorNow": "2026-10-30T14:20:35+08:00",
+    "fixtureVersion": 1,
+    "modelRoute": {
+      "candidates": {
+        "provider": "qwen",
+        "model": "qwen3.7-flash",
+        "temperature": 0.3,
+        "maxTokens": 3072,
+        "reasoningEffort": "low"
+      },
+      "verify": {
+        "provider": "qwen",
+        "model": "qwen3.7-flash",
+        "temperature": 0,
+        "maxTokens": 4096,
+        "reasoningEffort": "none"
+      }
+    },
+    "promptVersions": {
+      "discovery_candidate_v1": 2,
+      "discovery_verify_v1": 2
+    },
+    "notes": [
+      "进程内 app.request() 跑完整 enable→runs→candidates(→verify) 链路，保留 Prompt 注入/schema 严格校验/候选包 hash/预算闸。",
+      "每场景×每轮×每角色独立 deviceId（独立 subject），每轮全新 :memory: 库——绕开同主体单日单 run 限制。",
+      "verify 评估的 candidates 阶段由脚本注入 fixture proposedClaim 组装的候选包（过 schema 准入），verify 阶段为真实模型。",
+      "协议层 requestLimits 与全局预算为试评放宽（不影响模型语义）；单条原文场景（F08/F10/F12/F14）的同一记录按句子级逐字拆为两个 evidence 块。",
+      "模型调用不重试；失败原样记录。",
+      "轮次对照：raw-round-1..3 为 Prompt v1 + verify maxTokens 2048/effort low（修复前）；raw-round-4..6 为 Prompt v2 + verify maxTokens 4096/effort none（修复后）。实际命中版本以每条响应的 promptVersion 为准。"
+    ]
+  },
+  "results": [
+    {
+      "caseID": "F01",
+      "positive": true,
+      "expectedVerdict": "supported",
+      "generation": {
+        "runID": "run-gen-r7-f01",
+        "deviceID": "eval-r7-g-f01",
+        "stage": "candidates",
+        "httpStatus": 200,
+        "error": null,
+        "envelope": {
+          "schemaVersion": 1,
+          "kind": "candidates",
+          "runID": "run-gen-r7-f01",
+          "candidates": [
+            {
+              "candidateID": "C01",
+              "type": "two_episodes",
+              "subjectKey": "lowered-expectations",
+              "scopeKind": "two_episodes",
+              "timeRange": {
+                "start": "2026-10-08",
+                "end": "2026-10-17"
+              },
+              "claims": [
+                {
+                  "claimID": "T01",
+                  "kind": "observation",
+                  "text": "这两次重新开始（运动和阅读），你都主动降低了第一步的要求。",
+                  "citations": [
+                    {
+                      "evidenceID": "E01",
+                      "quote": "停了一阵，今天先出去走了十分钟。没有要求自己一定跑起来。"
+                    },
+                    {
+                      "evidenceID": "E02",
+                      "quote": "重新读书，今晚只翻了两页，没有要求读完一章。"
+                    }
+                  ],
+                  "metricIDs": []
+                },
+                {
+                  "claimID": "B01",
+                  "kind": "fact",
+                  "text": "在 E01 中，你选择走十分钟作为开始；在 E02 中，你选择翻两页作为开始。",
+                  "citations": [
+                    {
+                      "evidenceID": "E01",
+                      "quote": "今天先出去走了十分钟。"
+                    },
+                    {
+                      "evidenceID": "E02",
+                      "quote": "今晚只翻了两页"
+                    }
+                  ],
+                  "metricIDs": []
+                }
+              ],
+              "titleClaimID": "T01",
+              "bodyClaimIDs": [
+                "B01"
+              ],
+              "supportEvidenceIDs": [
+                "E01",
+                "E02"
+              ],
+              "counterSearch": [
+                {
+                  "domains": [
+                    "thought"
+                  ],
+                  "anchorRefs": [],
+                  "keywords": [
+                    "要求完成"
+                  ]
+                }
+              ],
+              "sensitivity": "non_sensitive",
+              "comparisonPeriods": []
+            }
+          ],
+          "noFindingReason": "none"
+        },
+        "candidatesHash": "913381389ed0d0d759ef802a771e2792a25546b6267e18a3bcb6eeb8f8b43995",
+        "usage": {
+          "promptTokens": 1906,
+          "completionTokens": 2656,
+          "totalTokens": 4562
+        },
+        "model": {
+          "provider": "qwen",
+          "model": "qwen3.7-flash"
+        },
+        "promptVersion": 2,
+        "replayed": false,
+        "noFindingReason": "none",
+        "candidateCount": 1,
+        "verifyOfGenerated": {
+          "httpStatus": 200,
+          "envelope": {
+            "schemaVersion": 1,
+            "kind": "verification",
+            "runID": "run-gen-r7-f01",
+            "candidateResults": [
+              {
+                "candidateID": "C01",
+                "verdict": "accept",
+                "reasonCodes": [],
+                "claimResults": [
+                  {
+                    "claimID": "T01",
+                    "verdict": "supported",
+                    "reasonCodes": [],
+                    "supportEvidenceIDs": [
+                      "E01",
+                      "E02"
+                    ],
+                    "counterEvidenceIDs": []
+                  },
+                  {
+                    "claimID": "B01",
+                    "verdict": "supported",
+                    "reasonCodes": [],
+                    "supportEvidenceIDs": [
+                      "E01",
+                      "E02"
+                    ],
+                    "counterEvidenceIDs": []
+                  }
+                ]
+              }
+            ]
+          },
+          "usage": {
+            "promptTokens": 2064,
+            "completionTokens": 220,
+            "totalTokens": 2284
+          },
+          "model": {
+            "provider": "qwen",
+            "model": "qwen3.7-flash"
+          },
+          "promptVersion": 2
+        }
+      },
+      "verifyEval": {
+        "runID": "run-ver-r7-f01",
+        "deviceID": "eval-r7-v-f01",
+        "fabricatedCandidate": {
+          "candidateID": "C01",
+          "type": "two_episodes",
+          "subjectKey": "eval-f01",
+          "scopeKind": "two_episodes",
+          "timeRange": {
+            "start": "2026-10-08T00:00:00+08:00",
+            "end": "2026-10-17T00:00:00+08:00"
+          },
+          "claims": [
+            {
+              "claimID": "C01-title",
+              "kind": "observation",
+              "text": "这两次重新开始，你都降低了第一步的要求。",
+              "citations": [
+                {
+                  "evidenceID": "E01",
+                  "quote": "今天先出去走了十分钟"
+                },
+                {
+                  "evidenceID": "E02",
+                  "quote": "今晚只翻了两页"
+                }
+              ],
+              "metricIDs": []
+            },
+            {
+              "claimID": "C01-body-1",
+              "kind": "fact",
+              "text": "10 月 8 日恢复运动时先走了十分钟，10 月 16 日重新读书时只翻了两页。",
+              "citations": [
+                {
+                  "evidenceID": "E01",
+                  "quote": "停了一阵，今天先出去走了十分钟"
+                },
+                {
+                  "evidenceID": "E02",
+                  "quote": "重新读书，今晚只翻了两页"
+                }
+              ],
+              "metricIDs": []
+            },
+            {
+              "claimID": "C01-body-2",
+              "kind": "fact",
+              "text": "两次都没有要求自己立刻做到完整目标。",
+              "citations": [
+                {
+                  "evidenceID": "E01",
+                  "quote": "没有要求自己一定跑起来"
+                },
+                {
+                  "evidenceID": "E02",
+                  "quote": "没有要求读完一章"
+                }
+              ],
+              "metricIDs": []
+            }
+          ],
+          "titleClaimID": "C01-title",
+          "bodyClaimIDs": [
+            "C01-body-1",
+            "C01-body-2"
+          ],
+          "supportEvidenceIDs": [
+            "E01",
+            "E02"
+          ],
+          "counterSearch": [
+            {
+              "domains": [
+                "thought"
+              ],
+              "anchorRefs": [],
+              "keywords": [
+                "重新开始",
+                "要求"
+              ]
+            }
+          ],
+          "sensitivity": "non_sensitive",
+          "comparisonPeriods": []
+        },
+        "supportBlocks": [
+          {
+            "evidenceID": "E01",
+            "sourceKind": "thought",
+            "sourceBlock": "停了一阵，今天先出去走了十分钟。没有要求自己一定跑起来。",
+            "occurredRange": {
+              "start": "2026-10-08",
+              "end": "2026-10-09",
+              "precision": "day"
+            },
+            "recordedAt": "2026-10-08T21:00:00+08:00",
+            "lineageGroup": "L01",
+            "entityRefs": []
+          },
+          {
+            "evidenceID": "E02",
+            "sourceKind": "thought",
+            "sourceBlock": "重新读书，今晚只翻了两页，没有要求读完一章。",
+            "occurredRange": {
+              "start": "2026-10-16",
+              "end": "2026-10-17",
+              "precision": "day"
+            },
+            "recordedAt": "2026-10-16T21:00:00+08:00",
+            "lineageGroup": "L02",
+            "entityRefs": []
+          }
+        ],
+        "counterMeta": {
+          "searchCompleted": true,
+          "windowDays": 30,
+          "truncated": false,
+          "note": "反例检索已完成，未取得同主题做法或结果不同的材料",
+          "items": []
+        },
+        "stage": "verify",
+        "httpStatus": 503,
+        "error": {
+          "error": {
+            "code": "UPSTREAM_AUTH_FAILED",
+            "message": "模型服务暂时不可用，请稍后重试"
+          }
+        },
+        "step": "verify"
+      }
+    }
+  ],
+  "rawModelCalls": {
+    "generation": [],
+    "verify": []
+  },
+  "tokenTotals": {
+    "prompt": 0,
+    "completion": 0,
+    "calls": 0
+  }
+}

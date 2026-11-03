@@ -8,7 +8,10 @@
 
 import Foundation
 import os.log
+#if canImport(UIKit)
 import UIKit
+#endif
+import ImageIO
 
 /// 反馈类型。rawValue 对应后端 user_feedback.category。
 enum FeedbackCategory: String, CaseIterable, Identifiable {
@@ -160,6 +163,7 @@ enum FeedbackImageCompressor {
     /// 压缩截图：降采样到最长边 2400 + 循环降质直到 ≤1MB。
     /// 重绘（draw 进 renderer）同时剥离 EXIF 元数据，包括照片的 GPS 位置信息。
     static func compress(_ data: Data) -> Data? {
+        #if canImport(UIKit)
         guard let image = UIImage(data: data) else { return nil }
         var quality: CGFloat = 0.75
         var output = AttachmentFileManager.compressImage(image, maxDimension: 2400, quality: quality)
@@ -168,6 +172,37 @@ enum FeedbackImageCompressor {
             output = AttachmentFileManager.compressImage(image, maxDimension: 2400, quality: quality)
         }
         return output
+        #else
+        // macOS：UIGraphicsImageRenderer 管线不可用，走 ImageIO 等价实现（缩放+降质，产物剥离 EXIF）
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let thumbOptions: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 2400
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbOptions as CFDictionary) else {
+            return nil
+        }
+        func jpeg(_ quality: CGFloat) -> Data? {
+            let output = NSMutableData()
+            guard let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil) else {
+                return nil
+            }
+            CGImageDestinationAddImage(
+                destination, cgImage,
+                [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary
+            )
+            guard CGImageDestinationFinalize(destination) else { return nil }
+            return output as Data
+        }
+        var quality: CGFloat = 0.75
+        var output = jpeg(quality)
+        while let current = output, current.count > maxBytes, quality > 0.3 {
+            quality -= 0.15
+            output = jpeg(quality)
+        }
+        return output
+        #endif
     }
 }
 

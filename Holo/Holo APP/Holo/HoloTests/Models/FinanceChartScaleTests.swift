@@ -10,6 +10,29 @@ import XCTest
 
 final class FinanceChartScaleTests: XCTestCase {
 
+    func testSharedChartKeepsMissingZeroAndFutureSeriesDistinct() {
+        let bucket = HoloChartBucket(id: "comparison", label: "12月", values: [nil, 0, 500], futureSeries: [2])
+        XCTAssertNil(bucket.value(forSeries: 0))
+        XCTAssertEqual(bucket.value(forSeries: 1), 0)
+        XCTAssertNil(bucket.value(forSeries: 2), "未来本期不可进入绘图和坐标域")
+        let comparison = HoloChartBucket(id: "year", label: "12月", values: [999_999, 120], futureSeries: [0])
+        XCTAssertNil(comparison.value(forSeries: 0))
+        XCTAssertEqual(comparison.value(forSeries: 1), 120, "历史同期仍可展示")
+        XCTAssertNil(HoloChartBucket(id: "future", label: "未来", values: [10], isFuture: true).value(forSeries: 0))
+    }
+
+    func testSharedChartCalendarKeepsEmptyDayInItsOwnSlot() throws {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_800_000_000))
+        let end = try XCTUnwrap(calendar.date(byAdding: .day, value: 2, to: start))
+        let buckets = HoloChartFormat.days(from: start, through: end, values: [(start, 0), (end, 8)])
+        XCTAssertEqual(buckets.count, 3)
+        XCTAssertEqual(buckets[0].value(forSeries: 0), 0)
+        XCTAssertNil(buckets[1].value(forSeries: 0), "空日期不能跳到邻日，也不能被补成 0")
+        XCTAssertEqual(buckets[2].value(forSeries: 0), 8)
+        XCTAssertEqual(Set(buckets.map(\.id)).count, 3)
+    }
+
     func testBalanceScaleMapsLargeBalanceIntoAmountAxisRange() {
         let scale = BalanceChartScale(
             amountValues: [120, 240, 360],

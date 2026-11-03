@@ -37,7 +37,7 @@ struct TodayRoutineStrip: View {
                 }
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.lg)
-                        .fill(Color(.secondarySystemGroupedBackground))
+                        .fill(Color.holoSecondaryGroupedBackground)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
             }
@@ -70,7 +70,7 @@ struct TodayRoutineStrip: View {
             .frame(minHeight: 44)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(Color(.secondarySystemGroupedBackground))
+                    .fill(Color.holoSecondaryGroupedBackground)
             )
             .contentShape(Rectangle())
         }
@@ -83,7 +83,7 @@ struct TodayRoutineStrip: View {
     private var summaryText: String {
         var parts: [String] = []
         if routine.habitTotal > 0 {
-            parts.append(String(localized: "习惯 \(routine.habitCompleted)/\(routine.habitTotal)"))
+            parts.append(String(localized: "习惯已记录 \(routine.habitCompleted)/\(routine.habitTotal)"))
         } else {
             parts.append(String(localized: "习惯暂无待办"))
         }
@@ -127,7 +127,7 @@ struct TodayRoutineStrip: View {
                 Button {
                     onCheckIn?(row)
                 } label: {
-                    Text(String(localized: "打卡"))
+                    Text(row.isMeasurable ? String(localized: "记录") : String(localized: "打卡"))
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)

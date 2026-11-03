@@ -83,7 +83,7 @@ struct MatterOpenLoopRow<MenuContent: View>: View {
         .padding(.vertical, 9)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .fill(epistemic == .confirmed ? Color(.secondarySystemGroupedBackground) : Color(.tertiarySystemGroupedBackground))
+                .fill(epistemic == .confirmed ? Color.holoSecondaryGroupedBackground : Color.holoTertiaryGroupedBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -154,7 +154,7 @@ struct MatterResolvedLoopRow: View {
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .fill(Color(.tertiarySystemGroupedBackground))
+                .fill(Color.holoTertiaryGroupedBackground)
         )
         .accessibilityElement(children: .combine)
     }

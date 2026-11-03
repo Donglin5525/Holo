@@ -1,0 +1,689 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:holo:discovery:ai-output:v1",
+  "title": "Holo Discovery V1 AI output",
+  "description": "模型输出协议，不包括控制令牌、鉴权与 HTTP 外层。schema 后还必须执行语义、引用和权限校验。",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/CandidateEnvelope"
+    },
+    {
+      "$ref": "#/$defs/VerificationEnvelope"
+    }
+  ],
+  "$defs": {
+    "ID": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9:_-]*$"
+    },
+    "IDList": {
+      "type": "array",
+      "maxItems": 24,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/ID"
+      }
+    },
+    "TimeRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "end": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        }
+      }
+    },
+    "Citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidenceID",
+        "quote"
+      ],
+      "properties": {
+        "evidenceID": {
+          "$ref": "#/$defs/ID"
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 400
+        }
+      }
+    },
+    "Claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimID",
+        "kind",
+        "text",
+        "citations",
+        "metricIDs"
+      ],
+      "properties": {
+        "claimID": {
+          "$ref": "#/$defs/ID"
+        },
+        "kind": {
+          "enum": [
+            "fact",
+            "observation"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 180
+        },
+        "citations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6,
+          "items": {
+            "$ref": "#/$defs/Citation"
+          }
+        },
+        "metricIDs": {
+          "$ref": "#/$defs/IDList"
+        }
+      }
+    },
+    "CounterSearch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "domains",
+        "anchorRefs",
+        "keywords"
+      ],
+      "properties": {
+        "domains": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "thought",
+              "task",
+              "habit"
+            ]
+          }
+        },
+        "anchorRefs": {
+          "$ref": "#/$defs/IDList"
+        },
+        "keywords": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24
+          }
+        }
+      }
+    },
+    "Candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateID",
+        "type",
+        "subjectKey",
+        "scopeKind",
+        "timeRange",
+        "claims",
+        "titleClaimID",
+        "bodyClaimIDs",
+        "supportEvidenceIDs",
+        "counterSearch",
+        "sensitivity",
+        "comparisonPeriods"
+      ],
+      "properties": {
+        "candidateID": {
+          "$ref": "#/$defs/ID"
+        },
+        "type": {
+          "enum": [
+            "two_episodes",
+            "bounded_pattern",
+            "change_over_time"
+          ]
+        },
+        "subjectKey": {
+          "$ref": "#/$defs/ID"
+        },
+        "scopeKind": {
+          "enum": [
+            "two_episodes",
+            "bounded_events",
+            "compared_periods"
+          ]
+        },
+        "timeRange": {
+          "$ref": "#/$defs/TimeRange"
+        },
+        "claims": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/Claim"
+          }
+        },
+        "titleClaimID": {
+          "$ref": "#/$defs/ID"
+        },
+        "bodyClaimIDs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ID"
+          }
+        },
+        "supportEvidenceIDs": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/ID"
+          }
+        },
+        "counterSearch": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/CounterSearch"
+          }
+        },
+        "sensitivity": {
+          "enum": [
+            "non_sensitive",
+            "sensitive",
+            "uncertain"
+          ]
+        },
+        "comparisonPeriods": {
+          "type": "array",
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/TimeRange"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "change_over_time"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "scopeKind": {
+                "const": "compared_periods"
+              },
+              "comparisonPeriods": {
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "comparisonPeriods": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "two_episodes"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "scopeKind": {
+                "const": "two_episodes"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "bounded_pattern"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "scopeKind": {
+                "const": "bounded_events"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "CandidateEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "runID",
+        "candidates",
+        "noFindingReason"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "kind": {
+          "const": "candidates"
+        },
+        "runID": {
+          "$ref": "#/$defs/ID"
+        },
+        "candidates": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/Candidate"
+          }
+        },
+        "noFindingReason": {
+          "enum": [
+            "none",
+            "no_material",
+            "no_nontrivial_observation",
+            "insufficient_independence",
+            "insufficient_coverage",
+            "sensitive_inference"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "candidates": {
+                "maxItems": 0
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "noFindingReason": {
+                "not": {
+                  "const": "none"
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "noFindingReason": {
+                "const": "none"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ReasonCode": {
+      "enum": [
+        "insufficient_independence",
+        "insufficient_coverage",
+        "unknown_event_time",
+        "unsupported_generalization",
+        "unsupported_causality",
+        "contradicting_evidence",
+        "irrelevant_citation",
+        "quote_mismatch",
+        "numeric_mismatch",
+        "wrong_subject",
+        "sensitive_inference",
+        "injection_attempt",
+        "limited_scope"
+      ]
+    },
+    "ReasonCodes": {
+      "type": "array",
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/ReasonCode"
+      }
+    },
+    "ClaimResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimID",
+        "verdict",
+        "reasonCodes",
+        "supportEvidenceIDs",
+        "counterEvidenceIDs"
+      ],
+      "properties": {
+        "claimID": {
+          "$ref": "#/$defs/ID"
+        },
+        "verdict": {
+          "enum": [
+            "supported",
+            "unsupported",
+            "contradicted",
+            "insufficient"
+          ]
+        },
+        "reasonCodes": {
+          "$ref": "#/$defs/ReasonCodes"
+        },
+        "supportEvidenceIDs": {
+          "$ref": "#/$defs/IDList"
+        },
+        "counterEvidenceIDs": {
+          "$ref": "#/$defs/IDList"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "supported"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "supportEvidenceIDs": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "CandidateResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateID",
+        "verdict",
+        "claimResults",
+        "reasonCodes"
+      ],
+      "properties": {
+        "candidateID": {
+          "$ref": "#/$defs/ID"
+        },
+        "verdict": {
+          "enum": [
+            "accept",
+            "reject"
+          ]
+        },
+        "claimResults": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/ClaimResult"
+          }
+        },
+        "reasonCodes": {
+          "$ref": "#/$defs/ReasonCodes"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "verdict": {
+                "const": "accept"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "claimResults": {
+                "items": {
+                  "properties": {
+                    "verdict": {
+                      "const": "supported"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "VerificationEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "runID",
+        "candidateResults"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "kind": {
+          "const": "verification"
+        },
+        "runID": {
+          "$ref": "#/$defs/ID"
+        },
+        "candidateResults": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/CandidateResult"
+          }
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "schemaVersion": 1,
+      "kind": "candidates",
+      "runID": "run-empty",
+      "candidates": [],
+      "noFindingReason": "no_material"
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "candidates",
+      "runID": "run-example",
+      "noFindingReason": "none",
+      "candidates": [
+        {
+          "candidateID": "C01",
+          "type": "two_episodes",
+          "subjectKey": "lighter-start",
+          "scopeKind": "two_episodes",
+          "timeRange": {
+            "start": "2026-10-08T00:00:00+08:00",
+            "end": "2026-10-17T00:00:00+08:00"
+          },
+          "claims": [
+            {
+              "claimID": "C01-title",
+              "kind": "observation",
+              "text": "这两次重新开始，你都把第一步变轻了。",
+              "citations": [
+                {
+                  "evidenceID": "E01",
+                  "quote": "今天先出去走了十分钟"
+                },
+                {
+                  "evidenceID": "E02",
+                  "quote": "今晚只翻了两页"
+                }
+              ],
+              "metricIDs": [
+                "M01"
+              ]
+            },
+            {
+              "claimID": "C01-body",
+              "kind": "fact",
+              "text": "恢复运动时先走十分钟，重新阅读时先翻两页。",
+              "citations": [
+                {
+                  "evidenceID": "E01",
+                  "quote": "今天先出去走了十分钟"
+                },
+                {
+                  "evidenceID": "E02",
+                  "quote": "今晚只翻了两页"
+                }
+              ],
+              "metricIDs": [
+                "M02",
+                "M03"
+              ]
+            }
+          ],
+          "titleClaimID": "C01-title",
+          "bodyClaimIDs": [
+            "C01-body"
+          ],
+          "supportEvidenceIDs": [
+            "E01",
+            "E02"
+          ],
+          "counterSearch": [
+            {
+              "domains": [
+                "thought"
+              ],
+              "anchorRefs": [],
+              "keywords": [
+                "重新开始",
+                "没有继续"
+              ]
+            }
+          ],
+          "sensitivity": "non_sensitive",
+          "comparisonPeriods": []
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "verification",
+      "runID": "run-example",
+      "candidateResults": [
+        {
+          "candidateID": "C01",
+          "verdict": "accept",
+          "reasonCodes": [],
+          "claimResults": [
+            {
+              "claimID": "C01-title",
+              "verdict": "supported",
+              "reasonCodes": [
+                "limited_scope"
+              ],
+              "supportEvidenceIDs": [
+                "E01",
+                "E02"
+              ],
+              "counterEvidenceIDs": []
+            },
+            {
+              "claimID": "C01-body",
+              "verdict": "supported",
+              "reasonCodes": [],
+              "supportEvidenceIDs": [
+                "E01",
+                "E02"
+              ],
+              "counterEvidenceIDs": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "schemaVersion": 1,
+      "kind": "verification",
+      "runID": "run-reject-example",
+      "candidateResults": [
+        {
+          "candidateID": "C01",
+          "verdict": "reject",
+          "reasonCodes": [
+            "unsupported_generalization"
+          ],
+          "claimResults": [
+            {
+              "claimID": "C01-title",
+              "verdict": "unsupported",
+              "reasonCodes": [
+                "unsupported_generalization"
+              ],
+              "supportEvidenceIDs": [
+                "E01",
+                "E02"
+              ],
+              "counterEvidenceIDs": []
+            },
+            {
+              "claimID": "C01-body",
+              "verdict": "supported",
+              "reasonCodes": [],
+              "supportEvidenceIDs": [
+                "E01",
+                "E02"
+              ],
+              "counterEvidenceIDs": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -257,4 +257,78 @@ final class TopicRepositoryTests: XCTestCase {
         XCTAssertEqual(topic.id, existing.id)
         XCTAssertEqual(repo.thoughtCount(of: topic), 1)
     }
+
+    // MARK: - 同 id 多行副本的有效行解析（语义 V3 读源统一，2026-10-12）
+
+    /// 直插一行 Topic（不走 repo.create，避免幂等查重吞掉同 id 副本场景）。
+    @discardableResult
+    private func insertTopicRow(_ ctx: NSManagedObjectContext, id: UUID, status: Topic.TopicStatus) throws -> Topic {
+        let topic = ctx.insertTestObject(Topic.self)
+        topic.id = id
+        topic.title = "碎碎念"
+        topic.status = status.rawValue
+        topic.titleSource = "user"
+        topic.confidence = 0
+        topic.thoughtCount = 0
+        topic.createdAt = Date()
+        topic.updatedAt = Date()
+        topic.topicRevision = 1
+        try ctx.save()
+        return topic
+    }
+
+    /// 真机「碎碎念」实况：同 id 一行 classification、一行 merged 旧行，
+    /// 且 merged 行物理行号更小（先落库）。旧实现 fetch 后取 .first 是抓阄，
+    /// 抓到 merged 行候选即在 AI 调用前消失；解析入口必须稳定取到有效行。
+    func test_resolveValid同id有效行与merged旧行_稳定解析到有效行() throws {
+        let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(ctx, ["Topic"])
+        let id = UUID()
+        try insertTopicRow(ctx, id: id, status: .merged)          // 先插入：行号更小
+        try insertTopicRow(ctx, id: id, status: .classification)  // 后插入：当前有效行
+
+        let resolved = Topic.resolveValid(id: id, in: ctx)
+
+        XCTAssertEqual(resolved?.statusEnum, .classification)
+    }
+
+    /// 顺序红线：必须先过滤可见再去重副本。反过来会把行号更小的 merged
+    /// 副本钉成幸存行，再被可见过滤丢掉，等于整个主题被判不存在。
+    func test_resolveValidRows先过滤可见再去重() throws {
+        let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(ctx, ["Topic"])
+        let shared = UUID(), other = UUID()
+        try insertTopicRow(ctx, id: shared, status: .merged)
+        try insertTopicRow(ctx, id: shared, status: .classification)
+        try insertTopicRow(ctx, id: other, status: .active)
+
+        let all = try ctx.fetch(Topic.fetchRequest())
+        let resolved = Topic.resolveValidRows(all)
+
+        XCTAssertEqual(Set(resolved.map(\.id)), Set([shared, other]))
+        XCTAssertEqual(resolved.first(where: { $0.id == shared })?.statusEnum, .classification)
+    }
+
+    func test_resolveValid同id双可见副本收敛单行() throws {
+        let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(ctx, ["Topic"])
+        let id = UUID()
+        try insertTopicRow(ctx, id: id, status: .classification)
+        try insertTopicRow(ctx, id: id, status: .active)
+
+        let all = try ctx.fetch(Topic.fetchRequest())
+        let resolved = Topic.resolveValidRows(all)
+
+        XCTAssertEqual(resolved.count, 1)
+        XCTAssertEqual(resolved.first?.id, id)
+    }
+
+    func test_resolveValid无可见行返回nil() throws {
+        let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(ctx, ["Topic"])
+        let id = UUID()
+        try insertTopicRow(ctx, id: id, status: .merged)
+
+        XCTAssertNil(Topic.resolveValid(id: id, in: ctx))
+    }
 }

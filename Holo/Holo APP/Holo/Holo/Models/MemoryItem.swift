@@ -23,7 +23,7 @@ enum MemoryItemType: String, CaseIterable {
         switch self {
         case .transaction: return "记账"
         case .habitRecord: return "习惯"
-        case .task: return "待办"
+        case .task: return "任务"
         case .thought: return "想法"
         }
     }

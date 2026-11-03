@@ -298,14 +298,16 @@ struct AddTransactionSheet: View {
                 if showProjectPicker { projectPopup }
                 if showReceiptSourcePicker { receiptSourcePopup }
             }
+            #if canImport(UIKit)
             .navigationBarHidden(true)
+            #endif
             .confirmationDialog("确认删除", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
                 Button("删除这笔交易", role: .destructive) {
                     deleteTransaction()
                 }
                 Button("取消", role: .cancel) {}
             } message: {
-                Text("删除后无法恢复，确定要删除吗？")
+                Text("删除后会移入回收站，30 天内可恢复。")
             }
             .swipeBackToDismiss {
                 if hasUnsavedChanges {
@@ -325,7 +327,13 @@ struct AddTransactionSheet: View {
                 if let date = prefill.date {
                     selectedDate = date
                 }
-                loadDefaultAccount()
+                // 用户话中点名的账户优先；未点名走默认/上次选择
+                if let account = prefill.account,
+                   !account.isArchived, account.deletedAt == nil {
+                    selectedAccount = account
+                } else {
+                    loadDefaultAccount()
+                }
                 Task {
                     await loadCategories()
                     if let category = prefill.category {
@@ -391,9 +399,13 @@ struct AddTransactionSheet: View {
         .alert(String(localized: "无法访问"), isPresented: $showReceiptPermissionAlert) {
             Button(String(localized: "取消"), role: .cancel) {}
             Button(String(localized: "去设置")) {
+                #if canImport(UIKit)
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
+                #else
+                // macOS：票根权限弹窗场景不适用，去设置暂无对应入口
+                #endif
             }
         } message: {
             Text(receiptPermissionMessage)
@@ -409,7 +421,9 @@ struct AddTransactionSheet: View {
                 .environment(\.locale, Locale(identifier: "zh_CN"))
                 .padding(.horizontal, HoloSpacing.lg)
                 .navigationTitle("复制到")
+                #if canImport(UIKit)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("取消") {
@@ -426,9 +440,15 @@ struct AddTransactionSheet: View {
             }
                 .presentationDetents([.medium])
         }
+        #if canImport(UIKit)
         .fullScreenCover(isPresented: $showReceiptGallery) {
             receiptGalleryCover
         }
+        #else
+                .sheet(isPresented: $showReceiptGallery) {
+            receiptGalleryCover
+        }
+        #endif
     }
 
     // MARK: - Top Bar
@@ -526,6 +546,7 @@ struct AddTransactionSheet: View {
                     .foregroundColor(amountString == "0" ? .holoToolTextSecondary : .holoToolText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.65)
+                    .accessibilityIdentifier("transactionSheet.amountDisplay")
 
                 if showNumericKeypad {
                     Rectangle()
@@ -617,7 +638,7 @@ struct AddTransactionSheet: View {
         } label: {
             Text("删除交易")
                 .font(.holoBody)
-                .foregroundColor(.holoError)
+                .foregroundColor(.holoToolError)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, HoloSpacing.md)
                 .background(Color.holoToolSurface)
@@ -640,6 +661,8 @@ struct PendingTransactionPrefill {
     let type: TransactionType
     let category: Category?
     let date: Date?
+    /// 用户话中点名且命中的账户（2026-11-01 聊天账户识别）：改分类手动入账时账户不回退默认
+    let account: Account?
 }
 
 // MARK: - 退款录入弹层
@@ -704,10 +727,13 @@ struct RefundEntrySheet: View {
             }
             .background(Color.holoToolBackground)
             .navigationTitle(editingRefund == nil ? String(localized: "记退款") : String(localized: "编辑退款"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
@@ -800,6 +826,7 @@ struct RefundEntrySheet: View {
                         .foregroundColor(amountText == "0" || amountText.isEmpty ? .holoToolTextSecondary : .holoPrimaryDark)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
+                        .accessibilityIdentifier("refundSheet.amountDisplay")
                     if showKeypad {
                         Rectangle()
                             .fill(Color.holoPrimary)
@@ -862,7 +889,7 @@ struct RefundEntrySheet: View {
                     .font(.holoBody)
                     .foregroundColor(.holoToolTextSecondary)
                 Spacer()
-                TextField(String(localized: "选填"), text: $remarkText)
+                TextField(String(localized: "可选"), text: $remarkText)
                     .font(.holoBody)
                     .multilineTextAlignment(.trailing)
                     .focused($remarkFocused)
@@ -883,7 +910,6 @@ struct RefundEntrySheet: View {
             HoloAmountKeypad(
                 amountText: $amountText,
                 onConfirm: {
-                    amountText = AmountMath.resolve(amountText)
                     save()
                 },
                 onNext: {
@@ -953,10 +979,10 @@ struct RefundEntrySheet: View {
 
     private var limitWarning: some View {        Text(String(localized: "超出可退金额：这笔支出最多还可退 \(maxRefundable.formattedAsCurrency())"))
             .font(.holoCaption.weight(.semibold))
-            .foregroundColor(.holoError)
+            .foregroundColor(.holoToolError)
             .padding(HoloSpacing.sm)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color.holoErrorLight))
+            .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(Color.holoError.opacity(0.12)))
     }
 
     // MARK: - 数据与保存
@@ -1059,14 +1085,21 @@ struct RefundPickerSheet: View {
                     .buttonStyle(.plain)
                 }
             }
+            #if canImport(UIKit)
             .listStyle(.insetGrouped)
+            #else
+            .listStyle(.inset)
+            #endif
             .scrollContentBackground(.hidden)
             .background(Color.holoToolBackground)
             .navigationTitle(String(localized: "退款记录"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
             }
         }

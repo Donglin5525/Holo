@@ -17,6 +17,9 @@ final class GoalWorkshopJourneyUITests: XCTestCase {
 
     private func launchApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "life-flow"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "home"
         app.launchArguments = ["GOAL_WORKSHOP_FORCE_ON", "GOAL_WORKSHOP_UI_MOCK"] + extraArguments
         app.launch()
         return app
@@ -113,9 +116,11 @@ final class GoalWorkshopJourneyUITests: XCTestCase {
         app.buttons["关闭"].firstMatch.tap()
         openWorkshopMenu(app)
         app.buttons["一起想清楚"].firstMatch.tap()
-        let discard = app.buttons["trash"].firstMatch
+        let discard = app.buttons["放弃规划"].firstMatch
         if discard.waitForExistence(timeout: 6) {
             discard.tap()
+            let confirmDiscard = try XCTUnwrap(app.buttons.matching(identifier: "放弃规划").allElementsBoundByIndex.last)
+            confirmDiscard.tap()
             // 放弃后：要么列表清空自动开新会话（问题卡），要么恢复卡仍在并可另建
             XCTAssertTrue(app.buttons["先跳过这个问题"].waitForExistence(timeout: 8)
                           || app.buttons["换个新的想法"].firstMatch.waitForExistence(timeout: 4),
@@ -126,6 +131,9 @@ final class GoalWorkshopJourneyUITests: XCTestCase {
     func testFlagOffKeepsLegacyBehavior() throws {
         // 不带 FORCE_ON：开闸参数缺省（服务端未下发=关），菜单回到旧三件
         let app = XCUIApplication()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_MODE"] = "1"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_STORY"] = "life-flow"
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "home"
         app.launchArguments = ["GOAL_WORKSHOP_UI_MOCK"]
         app.launch()
         openGoalList(app)

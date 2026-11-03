@@ -82,6 +82,251 @@ final class ThoughtSemanticSafetyTests: XCTestCase {
         return (store, root)
     }
 
+    // MARK: - ④ 主题双通道候选召回（2026-10-12）
+
+    @discardableResult
+    private func insertSemanticTopic(_ ctx: NSManagedObjectContext, title: String, classification: Bool) throws -> Topic {
+        let topic = ctx.insertTestObject(Topic.self)
+        topic.id = UUID()
+        topic.title = title
+        topic.status = classification ? Topic.TopicStatus.classification.rawValue : Topic.TopicStatus.active.rawValue
+        topic.titleSource = "user"
+        topic.confidence = 0
+        topic.thoughtCount = 0
+        topic.createdAt = Date()
+        topic.updatedAt = Date()
+        topic.topicRevision = 1
+        try ctx.save()
+        return topic
+    }
+
+    /// 类别通道全量直达：classification 主题不经相似度竞争直接进候选（kind=category），
+    /// 脉络主题仍走原通道（无向量大目录 ≤3 走小目录兜底）；全程零网络调用。
+    func testRecallCategoryChannelFullAccessWithoutCompetition() async throws {
+        let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(ctx, ["Topic"])
+        try insertSemanticTopic(ctx, title: "碎碎念", classification: true)
+        try insertSemanticTopic(ctx, title: "工作与事业", classification: true)
+        let threadA = try insertSemanticTopic(ctx, title: "跑步训练", classification: false)
+        let threadB = try insertSemanticTopic(ctx, title: "产品思考", classification: false)
+
+        let (store, root) = try await makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let provider = HoloBackendAIProvider(baseURL: "https://mock.local",
+            apiClient: APIClient(urlSession: URLSession(configuration: .ephemeral)))
+        let vector = SemanticVectorMath.normalized((0..<1024).map { _ in Float.random(in: -1...1) })
+
+        let outcome = try await ThoughtTopicCandidateEngine.recall(
+            targetVector: vector, thoughtID: UUID(), store: store, index: nil,
+            context: ctx, calibration: .seed, provider: provider)
+
+        let categories = outcome.candidates.filter { $0.kind == "category" }
+        let threads = outcome.candidates.filter { $0.kind == "thread" }
+        XCTAssertEqual(Set(categories.map(\.topicTitle)), Set(["碎碎念", "工作与事业"]),
+                       "用户类别必须全量直达，不与脉络争名额")
+        XCTAssertEqual(Set(threads.map(\.topicID)), Set([threadA.id, threadB.id]),
+                       "脉络主题走原通道（小目录兜底）")
+        XCTAssertNil(outcome.reason)
+    }
+
+    /// 类别通道全量核对（A1 自查修复）：不再按标题码点砍主题；成员多的证据足优先。
+    func testRecallCategoryChannelFullCoverageAndEvidenceOrdering() async throws {
+        let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(ctx, ["Topic", "Thought", "ThoughtTopicLink"])
+        // 大主题：2 条有效成员；小主题：1 条；三个空主题——全部都应进候选，大者在前
+        func makeMember(_ name: String) throws -> Thought {
+            let t = ctx.insertTestObject(Thought.self)
+            t.id = UUID()
+            t.content = name
+            t.createdAt = Date()
+            t.updatedAt = Date()
+            t.orderIndex = 0
+            t.organizedStatus = "organized"
+            return t
+        }
+        func link(_ thought: Thought, _ topic: Topic) {
+            let l = ctx.insertTestObject(ThoughtTopicLink.self)
+            l.id = ThoughtTopicLink.deterministicID(thoughtID: thought.id, topicID: topic.id)
+            l.thought = thought
+            l.topic = topic
+            l.sourceEnum = .userManual
+            l.stateEnum = .active
+            l.visibilityEnum = .internalOnly
+            l.consentGeneration = 0
+            l.createdAt = Date()
+            l.updatedAt = Date()
+        }
+        let richTopic = try insertSemanticTopic(ctx, title: "类别小样本", classification: true)
+        let thinTopic = try insertSemanticTopic(ctx, title: "类别大样本", classification: true)
+        let m1 = try makeMember("成员一")
+        let m2 = try makeMember("成员二")
+        let m3 = try makeMember("成员三")
+        link(m1, richTopic); link(m2, richTopic); link(m3, thinTopic)
+        for index in 0..<3 {
+            try insertSemanticTopic(ctx, title: "空类别\(index)", classification: true)
+        }
+        try ctx.save()
+
+        let (store, root) = try await makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let provider = HoloBackendAIProvider(baseURL: "https://mock.local",
+            apiClient: APIClient(urlSession: URLSession(configuration: .ephemeral)))
+        let vector = SemanticVectorMath.normalized((0..<1024).map { _ in Float.random(in: -1...1) })
+
+        let outcome = try await ThoughtTopicCandidateEngine.recall(
+            targetVector: vector, thoughtID: UUID(), store: store, index: nil,
+            context: ctx, calibration: .seed, provider: provider)
+
+        let categories = outcome.candidates.filter { $0.kind == "category" }
+        XCTAssertEqual(categories.count, 5, "5 个分类主题全量进候选，不再有任意截断")
+        // richTopic 2 条成员但标题按码点排在 thinTopic（1 条成员）之后：
+        // 断言 rich 在前 = 排序依据是成员数而非标题，A1 修复的核心行为。
+        XCTAssertEqual(categories.first?.topicID, richTopic.id)
+    }
+
+    /// 用户拒绝墓碑同样压制类别候选：手动移出过的主题，类别通道也不得再收。
+    func testRecallRejectedTombstoneSuppressesCategoryCandidate() async throws {
+        let ctx = CoreDataTestSupport.sharedTestContainer.viewContext
+        try CoreDataTestSupport.clearEntities(ctx, ["Topic", "Thought", "ThoughtTopicLink"])
+        let thought = ctx.insertTestObject(Thought.self)
+        thought.id = UUID()
+        thought.content = "测试想法"
+        thought.createdAt = Date()
+        thought.updatedAt = Date()
+        thought.orderIndex = 0
+        thought.organizedStatus = "organized"
+        let topic = try insertSemanticTopic(ctx, title: "碎碎念", classification: true)
+        let link = ctx.insertTestObject(ThoughtTopicLink.self)
+        link.id = ThoughtTopicLink.deterministicID(thoughtID: thought.id, topicID: topic.id)
+        link.thought = thought
+        link.topic = topic
+        link.sourceEnum = .userManual
+        link.stateEnum = .rejected
+        link.visibilityEnum = .internalOnly
+        link.consentGeneration = 0
+        link.createdAt = Date()
+        link.updatedAt = Date()
+        try ctx.save()
+
+        let (store, root) = try await makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let provider = HoloBackendAIProvider(baseURL: "https://mock.local",
+            apiClient: APIClient(urlSession: URLSession(configuration: .ephemeral)))
+        let vector = SemanticVectorMath.normalized((0..<1024).map { _ in Float.random(in: -1...1) })
+
+        let outcome = try await ThoughtTopicCandidateEngine.recall(
+            targetVector: vector, thoughtID: thought.id, store: store, index: nil,
+            context: ctx, calibration: .seed, provider: provider)
+
+        XCTAssertTrue(outcome.candidates.isEmpty, "唯一类别被墓碑压制后不得有任何候选")
+        XCTAssertEqual(outcome.reason, "below_recall_threshold")
+    }
+
+    // MARK: - ⑤ 类别理解 brief（2026-10-12 主题双通道·零打扰）
+
+    /// 铁律：排除项只增不减；无新移出时 AI 提议的新排除全部丢弃。
+    func testBriefExclusionsMergeIronRule() {
+        let previous = ["纯转载", "任务清单"]
+        // 无新移出：AI 想加「会议纪要」→ 丢弃（边界只由用户动作改写）
+        XCTAssertEqual(ThoughtCategoryBriefClient.mergedExclusions(
+            previous: previous, proposed: ["纯转载", "会议纪要"], newRemovalCount: 0), previous)
+        // 有新移出：允许追加，永不删除已有项
+        XCTAssertEqual(ThoughtCategoryBriefClient.mergedExclusions(
+            previous: previous, proposed: ["纯转载", "行业报告转载"], newRemovalCount: 1),
+            ["纯转载", "任务清单", "行业报告转载"])
+        // 上限 6：追加截断不溢出
+        let six = ["一", "二", "三", "四", "五", "六"]
+        XCTAssertEqual(ThoughtCategoryBriefClient.mergedExclusions(
+            previous: six, proposed: ["七"], newRemovalCount: 2).count, 6)
+    }
+
+    /// brief 库表往返：保存/读回/版本键排序（版本键进关联重评指纹，稳定性必须锁定）。
+    func testCategoryBriefStoreRoundTripAndVersionKeys() async throws {
+        let (store, root) = try await makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let topicID = UUID()
+        let initial = try await store.loadCategoryBrief(topicID: topicID)
+        XCTAssertNil(initial)
+
+        let record = ThoughtSemanticStore.CategoryBriefRecord(
+            topicID: topicID, version: 1,
+            definition: "个人生活片段、即时感受、吐槽，以及个人观察与反思。",
+            exclusions: ["纯转载", "任务清单"],
+            basisMemberCount: 12, basisRemovalCount: 1, updatedAt: Date())
+        try await store.saveCategoryBrief(record)
+
+        let loaded = try await store.loadCategoryBrief(topicID: topicID)
+        XCTAssertEqual(loaded?.definition, record.definition)
+        XCTAssertEqual(loaded?.exclusions, record.exclusions)
+        XCTAssertEqual(loaded?.basisMemberCount, 12)
+        XCTAssertEqual(loaded?.basisRemovalCount, 1)
+
+        let other = ThoughtSemanticStore.CategoryBriefRecord(
+            topicID: UUID(), version: 3, definition: "工作与事业的观察记录。",
+            exclusions: [], basisMemberCount: 8, basisRemovalCount: 0, updatedAt: Date())
+        try await store.saveCategoryBrief(other)
+        let keys = try await store.allCategoryBriefVersionKeys()
+        XCTAssertEqual(keys.count, 2)
+        XCTAssertTrue(keys.contains("\(topicID.uuidString):1"))
+        XCTAssertTrue(keys.contains("\(other.topicID.uuidString):3"))
+    }
+
+    /// 完整指纹读写一致，空结果也算完成；类别理解升版后才恢复重评。
+    func testCategoryBriefEvaluationReceiptPreventsRequeue() async throws {
+        let (store, root) = try await makeStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let topicID = UUID()
+        let thoughtID = UUID()
+        let catalog = "thought_semantic_v3.2:catalog:live"
+        var brief = ThoughtSemanticStore.CategoryBriefRecord(topicID: topicID, version: 1,
+            definition: "个人观察", exclusions: [], basisMemberCount: 5,
+            basisRemovalCount: 0, updatedAt: Date())
+        try await store.saveCategoryBrief(brief)
+        let version = try await store.relationEvaluationVersion(catalogVersion: catalog)
+        XCTAssertEqual(version, catalog + ":brief=\(topicID.uuidString):1")
+        try await store.recordRelationCandidate(thoughtID: thoughtID, topicID: thoughtID,
+            contentHash: "same-text", scoreFeatures: "{}", verifierResult: "no_match",
+            state: "evaluated", engineVersion: version, expiryDays: 14)
+        let alreadyEvaluated = try await store.hasRelationRecord(thoughtID: thoughtID,
+            contentHash: "same-text", evaluationVersion: catalog)
+        XCTAssertTrue(alreadyEvaluated, "成功的空结果也不能反复排队")
+        brief.version = 2
+        try await store.saveCategoryBrief(brief)
+        let needsReevaluation = try await store.hasRelationRecord(thoughtID: thoughtID,
+            contentHash: "same-text", evaluationVersion: catalog)
+        XCTAssertFalse(needsReevaluation, "类别理解升版后仍须按新口径重评")
+        await store.close()
+    }
+
+    /// 响应二次校验：证据逐字回源才放行；伪 quote / 越界定义 / 空 evidence 拒绝。
+    func testBriefValidatedContentContract() {
+        let request = ThoughtCategoryBriefClient.makeRequest(
+            title: "碎碎念", userDefinition: nil, currentBrief: nil,
+            members: [
+                ("R0", "食堂两个肉菜 53 块，这定价是认真的吗。", "user"),
+                ("R1", "出门喂猫的时候发现楼下的桂花开了。", "user"),
+                ("R2", "Agent 越来越能干，人反而更不敢拍板了。", "ai"),
+            ],
+            removals: [])!
+        func response(_ brief: ThoughtCategoryBriefResponseDTO.Brief,
+                      evidence: [ThoughtCategoryBriefResponseDTO.Evidence]) -> ThoughtCategoryBriefResponseDTO {
+            .init(schemaVersion: 1, operationId: request.operationId, brief: brief, evidence: evidence)
+        }
+        let good = ThoughtCategoryBriefClient.validatedContent(from: response(
+            .init(definition: "个人生活片段、即时感受、吐槽与观察反思。", exclusions: ["纯转载", ""]),
+            evidence: [.init(ref: "R0", quote: "这定价是认真的吗")]), request: request)
+        XCTAssertEqual(good?.exclusions, ["纯转载"], "排除项去空")
+
+        XCTAssertNil(ThoughtCategoryBriefClient.validatedContent(from: response(
+            .init(definition: "定义", exclusions: []),
+            evidence: [.init(ref: "R0", quote: "不在原文里的字")]), request: request))
+        XCTAssertNil(ThoughtCategoryBriefClient.validatedContent(from: response(
+            .init(definition: "定".padding(toLength: 250, withPad: "义", startingAt: 0), exclusions: []),
+            evidence: [.init(ref: "R0", quote: "这定价是认真的吗")]), request: request), "定义超 240 拒绝")
+        XCTAssertNil(ThoughtCategoryBriefClient.validatedContent(from: response(
+            .init(definition: "定义", exclusions: []), evidence: []), request: request), "空 evidence 拒绝")
+    }
+
     func testIndexStatsDistinguishesPendingFailedAndUnavailable() async throws {
         let (store, root) = try await makeStore()
         defer { try? FileManager.default.removeItem(at: root) }

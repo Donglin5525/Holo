@@ -6,7 +6,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 import WebKit
 
 // MARK: - 法律文档查看器
@@ -22,9 +26,11 @@ struct LegalDocumentSheet: View {
         NavigationStack {
             LegalWebView(htmlContent: documentType.htmlContent)
                 .navigationTitle(documentType.title)
+                #if canImport(UIKit)
                 .navigationBarTitleDisplayMode(.inline)
+                #endif
                 .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
+                    ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                         Button("完成") {
                             dismiss()
                         }
@@ -57,6 +63,7 @@ enum LegalDocumentType {
 
 // MARK: - WebView
 
+#if canImport(UIKit)
 private struct LegalWebView: UIViewRepresentable {
 
     let htmlContent: String
@@ -93,6 +100,43 @@ private struct LegalWebView: UIViewRepresentable {
         }
     }
 }
+#else
+/// macOS：WKWebView 走 NSViewRepresentable 桥
+private struct LegalWebView: NSViewRepresentable {
+
+    let htmlContent: String
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeNSView(context: Context) -> WKWebView {
+        let webView = WKWebView()
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.navigationDelegate = context.coordinator
+        return webView
+    }
+
+    func updateNSView(_ webView: WKWebView, context: Context) {
+        webView.loadHTMLString(htmlContent, baseURL: nil)
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            if let url = navigationAction.request.url, url.scheme?.lowercased() == "mailto" {
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+                return
+            }
+            decisionHandler(.allow)
+        }
+    }
+}
+#endif
 
 // MARK: - HTML 模板
 
@@ -154,7 +198,7 @@ enum LegalHTMLTemplates {
     <body>
 
     <h1>Holo 隐私政策</h1>
-    <p class="meta">最后更新日期：2026 年 9 月 19 日<br>生效日期：2026 年 9 月 19 日</p>
+    <p class="meta">最后更新日期：2026 年 10 月 25 日<br>生效日期：2026 年 10 月 25 日</p>
 
     <p>欢迎使用 Holo（以下简称"本应用"）。我们深知个人数据的重要性，并致力于保护您的隐私。本隐私政策旨在向您说明我们如何收集、使用、存储和保护您的信息。</p>
 
@@ -187,7 +231,7 @@ enum LegalHTMLTemplates {
     </ul>
 
     <h3>1.3 自动收集的信息</h3>
-    <p>我们<strong>不会</strong>自动收集您的设备信息、位置信息或使用行为数据。我们不使用任何第三方分析工具。</p>
+    <p>为改进产品，本应用会自动收集<strong>匿名使用事件</strong>（例如打开了哪个功能模块、完成了一次记账或打卡、是否发起了 AI 对话）。这些事件<strong>不包含任何您记录的内容</strong>（如金额、标题、备注、习惯名称、消息正文），仅携带功能名称等枚举信息、应用版本和一个匿名设备标识。我们不收集您的位置信息，不使用任何第三方分析工具。使用事件最多保留 180 天，仅用于统计功能使用情况与改进产品设计。</p>
 
     <h2>二、信息的使用目的</h2>
 
@@ -203,6 +247,7 @@ enum LegalHTMLTemplates {
             <tr><td>语音音频</td><td>语音转文字，用于记账或 AI 对话输入</td></tr>
             <tr><td>AI 对话上下文</td><td>生成数据分析、智能建议等 AI 功能</td></tr>
             <tr><td>AI 派生记忆</td><td>减少重复分析，并在合适的问题中提供个性化上下文</td></tr>
+            <tr><td>匿名使用事件</td><td>统计功能使用情况，改进产品设计（不含任何记录内容）</td></tr>
         </tbody>
     </table>
 

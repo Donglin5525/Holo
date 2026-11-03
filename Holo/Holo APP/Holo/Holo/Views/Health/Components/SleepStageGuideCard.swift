@@ -16,25 +16,25 @@ struct SleepStageGuideCard: View {
         HStack(alignment: .top, spacing: HoloSpacing.md) {
             Image(systemName: "applewatch")
                 .font(.system(size: 18, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .frame(width: 36, height: 36)
                 .background(Color.holoNestedCardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("想看睡眠阶段（深睡 / REM）？")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextPrimary)
+                Text("未读取到睡眠分期")
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolText)
 
-                Text("佩戴 Apple Watch 入睡即可自动记录阶段结构与整晚时间轴。在此之前，时长趋势与作息规律分析不受影响。")
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
+                Text("目前只有睡眠时长。阶段数据需由 Apple Watch 或兼容设备写入“健康”；可在系统“健康”App 中核对睡眠阶段与数据来源。")
+                    .holoText(.metadata)
+                    .foregroundColor(.holoToolTextSecondary)
                     .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(HoloSpacing.md)
-        .holoCard()
+        .holoSurface()
     }
 }
 

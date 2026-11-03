@@ -62,6 +62,13 @@ nonisolated struct APIRequest {
             forHTTPHeaderField: "x-holo-language"
         )
 
+        // 会话关联键（2026-10-19 前后端链路打通）：所有后端请求携带当前分析会话
+        // ID，服务端 request_logs / ai_call_logs 记录该列，与 product_events
+        // 的 session_id 对齐；无前台会话（后台唤醒）不带此头。
+        if let sessionId = HoloAnalyticsSession.currentId {
+            request.setValue(sessionId, forHTTPHeaderField: "x-holo-session-id")
+        }
+
         if let body = body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try JSONEncoder().encode(body)

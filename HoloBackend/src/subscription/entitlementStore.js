@@ -20,6 +20,11 @@ export function createEntitlementStore(db, { now = () => new Date() } = {}) {
       revoked_at = excluded.revoked_at,
       updated_at = CURRENT_TIMESTAMP
   `);
+  const countOtherActive = db.prepare(`
+    SELECT COUNT(*) AS count FROM subscription_entitlements
+    WHERE original_transaction_id = ? AND device_id != ? AND tier = 'plus'
+      AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
+  `);
 
   return {
     get(deviceId) {
@@ -53,6 +58,14 @@ export function createEntitlementStore(db, { now = () => new Date() } = {}) {
         entitlement.revokedAt ?? null,
       );
       return this.get(deviceId);
+    },
+
+    /// 归属防复用（2026-10-31 审计 D2）：JWS 是不记名凭证，同一 originalTransactionId
+    /// 不加约束会被任意多台设备各自兑换完整 Plus 配额。统计同笔购买已绑定的
+    /// 其他有效 Plus 设备数，供 sync 端点做设备数上限判断。
+    countOtherActiveDevicesByOriginalTransaction(originalTransactionId, deviceId) {
+      const row = countOtherActive.get(originalTransactionId, deviceId, now().toISOString());
+      return Number(row?.count ?? 0);
     },
   };
 }

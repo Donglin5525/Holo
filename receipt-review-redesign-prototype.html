@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>识图记账 · 确认页改版原型（2026-10-13）</title>
+<style>
+  /* ===== Holo 设计 token ===== */
+  :root {
+    --holo-primary: #F46D38;
+    --holo-primary-light: #FED7AA;
+    --bg: #F2F2F7;
+    --card: #FFFFFF;
+    --text-1: #1C1C1E;
+    --text-2: #8A8A8E;
+    --text-3: #B8B8BB;
+    --sep: #E5E5EA;
+    --danger: #FF3B30;
+    --warn: #D97706;
+    --warn-bg: #FFF7ED;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+    background: #E8E8ED;
+    padding: 32px 24px 48px;
+    color: var(--text-1);
+  }
+
+  /* ===== 页头 ===== */
+  .page-head { max-width: 1280px; margin: 0 auto 28px; }
+  .page-head h1 { font-size: 22px; font-weight: 700; margin-bottom: 10px; }
+  .page-head p { font-size: 13px; color: var(--text-2); line-height: 1.7; max-width: 860px; }
+  .page-head .legend { display: flex; gap: 18px; margin-top: 12px; font-size: 12px; color: var(--text-2); flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .dash { display: inline-block; width: 22px; border-top: 2px dashed #FF3B30; }
+  .legend .num { display: inline-flex; width: 16px; height: 16px; border-radius: 50%; background: #FF3B30; color: #fff; font-size: 11px; align-items: center; justify-content: center; font-weight: 600; }
+
+  /* ===== 画板排布 ===== */
+  /* inline-block 上古布局：不依赖 flex，任何渲染器不吃进 */
+  .boards { font-size: 0; padding-bottom: 16px; }
+  .board-wrap {
+    display: inline-block; vertical-align: top;
+    width: 375px; margin-right: 36px;
+    font-size: 14px;
+  }
+  .board-wrap:last-child { margin-right: 0; }
+  .board-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .board-sub { font-size: 12px; color: var(--text-2); margin-bottom: 12px; line-height: 1.6; max-width: 375px; }
+
+  /* ===== 手机壳 ===== */
+  .phone {
+    width: 375px; background: var(--bg);
+    border-radius: 28px; overflow: hidden;
+    border: 1px solid #D8D8DC;
+    box-shadow: 0 12px 40px rgba(0,0,0,.12);
+    display: flex; flex-direction: column;
+    height: 780px;
+  }
+  .phone.tall { height: 1400px; }
+  .phone.legacy { height: 960px; }
+  .nav {
+    position: absolute; top: 0; left: 0; right: 0; height: 48px;
+    background: rgba(255,255,255,.92);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 600;
+    border-bottom: 1px solid rgba(0,0,0,.04); z-index: 5;
+  }
+  .nav .back { position: absolute; left: 14px; color: var(--holo-primary); font-size: 20px; }
+  /* 滚动区/底部条钉死绝对定位：不依赖 flex 收缩，任何渲染器行为一致 */
+  .scroll {
+    position: absolute; top: 48px; bottom: 165px; left: 0; right: 0;
+    overflow-y: auto; padding: 8px 20px 24px;
+  }
+  .scroll.with-legacy-bar { bottom: 215px; }
+
+  /* ===== 通用卡片 ===== */
+  .card {
+    background: var(--card); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 14px;
+  }
+
+  /* ===== 现状画板 ===== */
+  .cur-summary-top { display: flex; justify-content: space-between; align-items: center; }
+  .cur-summary-top .t { font-size: 16px; font-weight: 600; }
+  .cur-summary-top .amt { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cur-summary-sub { font-size: 12px; color: var(--text-2); margin-top: 4px; }
+  .cur-reason { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  .cur-reason .ic { color: #F59E0B; font-size: 15px; }
+  .item-head { display: flex; justify-content: space-between; align-items: center; }
+  .item-head .t { font-size: 13px; color: var(--text-2); font-weight: 600; }
+  .amount-row { display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; }
+  .amount-row .cur { font-size: 22px; font-weight: 600; }
+  .amount-row input {
+    flex: 1; border: none; outline: none; font-size: 30px; font-weight: 700;
+    font-family: -apple-system, "PingFang SC", sans-serif; color: var(--text-1);
+    background: transparent; min-width: 0;
+  }
+  .seg { display: flex; background: #E9E9EB; border-radius: 8px; padding: 2px; flex: 0 0 auto; }
+  .seg button {
+    border: none; background: transparent; font-size: 13px; padding: 4px 12px;
+    border-radius: 7px; cursor: pointer; color: var(--text-1); font-family: inherit;
+  }
+  .seg button.on { background: #fff; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  .orig-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); margin: 6px 0 2px; }
+  .orig-row .v { font-variant-numeric: tabular-nums; }
+  .divider { height: 1px; background: var(--sep); margin: 12px -16px; }
+  .field-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; }
+  .field-row .k { font-size: 15px; }
+  .field-row .v { font-size: 15px; display: flex; align-items: center; gap: 4px; }
+  .field-row .chev { color: var(--text-2); font-size: 11px; }
+  .field-row .placeholder { color: var(--text-3); }
+  .date-note-row { display: flex; flex-direction: column; gap: 10px; padding: 7px 0 2px; }
+  .date-note-row .fake-date { font-size: 15px; }
+  .bare-note { font-size: 15px; color: var(--text-3); }
+
+  /* iOS 开关 */
+  .switch {
+    width: 46px; height: 28px; border-radius: 14px; background: #E9E9EB;
+    position: relative; cursor: pointer; transition: background .2s; flex: 0 0 auto; border: none;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 2px; left: 2px; width: 24px; height: 24px;
+    border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.25);
+    transition: left .2s;
+  }
+  .switch.on { background: #34C759; }
+  .switch.on::after { left: 20px; }
+
+  /* 底部按钮区 */
+  .phone .bottom-bar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: rgba(255,255,255,.88);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    padding: 10px 20px 22px; border-top: 1px solid rgba(0,0,0,.05); z-index: 6;
+  }
+  .btn-primary {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 13px 0; border: none; border-radius: var(--radius);
+    background: var(--holo-primary); color: #fff; font-size: 16px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn-primary:active { opacity: .85; }
+  .btn-secondary {
+    display: block; width: 100%; padding: 11px 0; border: none; border-radius: var(--radius);
+    background: #fff; color: var(--text-1); font-size: 15px; margin-top: 10px;
+    cursor: pointer; font-family: inherit; box-shadow: 0 1px 4px rgba(0,0,0,.05);
+  }
+  .btn-danger-legacy {
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    width: 100%; padding: 6px 0; border: none; background: transparent;
+    color: var(--danger); font-size: 15px; margin-top: 2px; cursor: pointer; font-family: inherit;
+  }
+  .archive-hint { font-size: 11px; color: var(--text-3); text-align: center; margin-top: 6px; }
+
+  /* ===== 标注体系（现状画板） ===== */
+  .mark {
+    position: absolute; width: 18px; height: 18px; border-radius: 50%;
+    background: var(--danger); color: #fff; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 3px rgba(255,59,48,.25); z-index: 30;
+  }
+  .phone { position: relative; }
+  .relrow { position: relative; }
+  .fold-line {
+    position: relative; margin: 4px -20px 12px; border-top: 2px dashed var(--danger);
+  }
+  .fold-line .tag {
+    position: absolute; right: 8px; top: -9px; background: var(--danger); color: #fff;
+    font-size: 10px; padding: 2px 7px; border-radius: 9px; white-space: nowrap;
+  }
+  .mark-list { margin-top: 10px; font-size: 12px; color: var(--text-2); line-height: 1.9; max-width: 375px; }
+  .mark-list b { color: var(--text-1); }
+
+  /* ===== 改版画板 ===== */
+  .meta-line { font-size: 12px; color: var(--text-2); padding: 2px 2px 8px; display: flex; justify-content: space-between; }
+  .v2-head { display: flex; justify-content: space-between; align-items: center; }
+  .v2-head .merchant { font-size: 17px; font-weight: 700; }
+  .v2-head .toggle-label { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--text-1); }
+  .reason-inline {
+    display: flex; gap: 6px; align-items: flex-start; font-size: 12px; color: var(--warn);
+    background: var(--warn-bg); border-radius: 8px; padding: 7px 10px; margin-top: 10px;
+  }
+  .thumb-row {
+    display: flex; align-items: center; gap: 12px; margin-top: 12px;
+    background: #F7F7F9; border-radius: 10px; padding: 8px; cursor: pointer;
+  }
+  .thumb-row .thumb {
+    width: 72px; height: 52px; border-radius: 7px; flex: 0 0 auto;
+    background: linear-gradient(160deg, #FFF6EE 0%, #FBE3CE 45%, #F6D2B4 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: #C98A4B; font-size: 10px; letter-spacing: 1px;
+    border: 1px solid #EEDDCB;
+  }
+  .thumb-row .t { font-size: 13px; font-weight: 500; }
+  .thumb-row .s { font-size: 11px; color: var(--text-2); margin-top: 2px; }
+  .thumb-row .go { margin-left: auto; color: var(--text-3); font-size: 15px; }
+  .v2-amount { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .v2-amount .cur { font-size: 22px; font-weight: 600; }
+  .v2-amount input {
+    flex: 1; border: none; outline: none; font-size: 34px; font-weight: 700;
+    font-family: -apple-system, "PingFang SC", sans-serif; background: transparent; min-width: 0;
+  }
+  .note-box {
+    margin-top: 10px; background: #F4F4F6; border-radius: 10px;
+    padding: 10px 12px; font-size: 14px; color: var(--text-3);
+    border: 1px solid #EAEAEF;
+  }
+  .minor-row { display: flex; justify-content: center; align-items: center; gap: 22px; margin-top: 9px; }
+  .minor-row button {
+    border: none; background: transparent; font-size: 13px; cursor: pointer; font-family: inherit;
+    color: var(--text-2); padding: 4px 6px;
+  }
+  .minor-row button.danger { color: var(--danger); }
+  .card.excluded { opacity: .55; }
+  .card.excluded .fade-hide { display: none; }
+  .excluded-tag { display: none; font-size: 12px; color: var(--text-2); margin-top: 6px; }
+  .card.excluded .excluded-tag { display: block; }
+
+  /* 多笔汇总行 */
+  .multi-summary {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 2px 2px 8px; font-size: 13px; color: var(--text-2);
+  }
+  .multi-summary .amt { font-size: 17px; font-weight: 700; color: var(--text-1); font-variant-numeric: tabular-nums; }
+
+  /* 大图浮层 */
+  .lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,.72); z-index: 100;
+    display: none; align-items: center; justify-content: center; flex-direction: column; gap: 14px;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox .img {
+    width: 300px; height: 380px; border-radius: 12px;
+    background: linear-gradient(160deg, #FFF6EE 0%, #FBE3CE 45%, #F6D2B4 100%);
+    display: flex; align-items: center; justify-content: center; color: #C98A4B; font-size: 13px;
+  }
+  .lightbox .close { color: #fff; font-size: 15px; cursor: pointer; background: rgba(255,255,255,.14); padding: 7px 22px; border-radius: 16px; border: none; font-family: inherit; }
+
+  .footnote { max-width: 1280px; margin: 22px auto 0; font-size: 12px; color: var(--text-2); line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<div class="page-head">
+  <h1>识图记账 · 确认页改版原型</h1>
+  <p>三个画板：左=现状复刻（标注 6 处问题），中=单笔改版（推荐方案），右=多笔改版。改版画板可交互：点开关试试「不记这笔」、点缩略图看大图、点收支胶囊切换。<b>虚线=小屏手机（667pt）的首屏可视线</b>——现状版备注在线下，改版版备注拉回线内。</p>
+  <div class="legend">
+    <span><span class="dash"></span>小屏首屏线（667pt 机型）</span>
+    <span><span class="num">n</span>现状问题编号</span>
+  </div>
+</div>
+
+<div class="boards">
+
+  <!-- ================= 画板 1：现状复刻 + 问题标注 ================= -->
+  <div class="board-wrap">
+    <div class="board-title">① 现状（复刻 · 标注问题）</div>
+    <div class="board-sub">按当前代码 1:1 复刻单笔形态。红色编号对应右侧问题清单。</div>
+    <div class="phone legacy">
+      <div class="nav"><span class="back">‹</span>确认这笔账</div>
+      <div class="scroll with-legacy-bar">
+        <div class="card">
+          <div class="cur-summary-top"><span class="t">1 笔待确认</span><span class="amt">¥35.00</span></div>
+          <div class="cur-summary-sub">识别于 3 分钟前</div>
+        </div>
+        <div class="card relrow">
+          <span class="mark" style="right:-8px; top:-8px;">3</span>
+          <div class="cur-reason"><span class="ic">⚠︎</span>这笔账需要你确认。</div>
+        </div>
+        <div class="card">
+          <div class="item-head relrow">
+            <span class="mark" style="left:-8px; top:-9px;">5</span>
+            <span class="t">第 1 笔</span>
+            <span class="relrow"><span class="mark" style="right:-26px; top:0;">2</span><button class="switch on" onclick="toggleLegacy(this)" aria-label="不记这笔（现状为无标签裸开关）"></button></span>
+          </div>
+          <div class="legacy-fields">
+            <div class="amount-row">
+              <span class="cur">¥</span><input value="35.00" inputmode="decimal">
+              <div class="seg"><button class="on">支出</button><button>收入</button></div>
+            </div>
+            <div class="orig-row"><span>票面金额原文</span><span class="v">¥35.00</span></div>
+            <div class="divider"></div>
+            <div class="field-row"><span class="k">科目</span><span class="v">餐饮 · 午餐<span class="chev">⌃⌄</span></span></div>
+            <div class="fold-line"><span class="tag">小屏首屏线 · 账户以下全在线下</span></div>
+            <div class="field-row"><span class="k">账户</span><span class="v">自动识别<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">项目</span><span class="v placeholder">不挂项目<span class="chev">⌃⌄</span></span></div>
+            <div class="date-note-row">
+              <span class="fake-date">日期　2026-10-13</span>
+              <span class="relrow"><span class="mark" style="right:-8px; top:0;">1</span><span class="bare-note">备注</span></span>
+            </div>
+          </div>
+        </div>
+        <div class="card relrow">
+          <span class="mark" style="right:-8px; top:-8px;">6</span>
+          <div class="field-row" style="padding:0;"><span class="k" style="font-weight:600;">▸ 查看原图核对</span></span>
+        </div>
+      </div>
+      </div>
+      <div class="bottom-bar relrow">
+        <span class="mark" style="right:10px; top:34px;">4</span>
+        <button class="btn-primary">确认记账</button>
+        <div class="archive-hint">确认后，凭证照片将自动归档为票根</div>
+        <button class="btn-secondary">稍后处理</button>
+        <button class="btn-danger-legacy">🗑 删除这条草稿</button>
+      </div>
+    </div>
+    <div class="mark-list">
+      <b>1</b> 备注输入框在第 8 行：小屏首屏看不到，且裸占位文字不像可输入<br>
+      <b>2</b> 「不记这笔」是无标签裸开关，得靠猜；隐藏的文案语义还与开关方向相反<br>
+      <b>3</b> 原因卡兜底文案「这笔账需要你确认。」每张都有=零信息，白占首屏<br>
+      <b>4</b> 底部三按钮竖排 ≈250pt，占小屏近 1/3<br>
+      <b>5</b> 多笔时标题只有「第 N 笔」，分不清哪笔是哪笔<br>
+      <b>6</b> 复核的核心依据（原图）压在页面最底部
+    </div>
+  </div>
+
+  <!-- ================= 画板 2：单笔改版（推荐） ================= -->
+  <div class="board-wrap">
+    <div class="board-title">② 单笔 · 改版（推荐）</div>
+    <div class="board-sub">信息收一行 / 原图贴卡内（点缩略图看大图）/ 原因只在有具体问题时出现 / 备注框有容器形态 / 底部瘦身成 1 主按钮 + 1 行次要操作。</div>
+    <div class="phone">
+      <div class="nav"><span class="back">‹</span>确认这笔账</div>
+      <div class="scroll">
+        <div class="meta-line"><span>识别于 3 分钟前</span><span>截图来源 · 小票</span></div>
+        <div class="card" id="v2card">
+          <div class="v2-head">
+            <span class="merchant">美团外卖</span>
+            <span class="toggle-label">记这笔 <button class="switch on" onclick="toggleV2(this)" aria-label="记这笔"></button></span>
+          </div>
+          <div class="excluded-tag">这笔不记，确认时将跳过</div>
+
+          <div class="fade-hide">
+            <div class="reason-inline"><span>⚠︎</span>金额没认准，请核对</div>
+
+            <div class="thumb-row" onclick="openLightbox()">
+              <div class="thumb">小票缩略</div>
+              <div><div class="t">查看原图核对</div><div class="s">仅本机暂存，确认后自动清理</div></div>
+              <span class="go">›</span>
+            </div>
+
+            <div class="v2-amount">
+              <span class="cur">¥</span><input value="35.00" inputmode="decimal">
+              <div class="seg"><button class="on" onclick="segPick(this)">支出</button><button onclick="segPick(this)">收入</button></div>
+            </div>
+            <div class="orig-row"><span>票面金额原文</span><span class="v">¥35.00</span></div>
+
+            <div class="divider"></div>
+            <div class="field-row"><span class="k">科目</span><span class="v">餐饮 · 午餐<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">账户</span><span class="v">微信支付<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">项目</span><span class="v placeholder">不挂项目<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">日期</span><span class="v">今天<span class="chev">⌃⌄</span></span></div>
+            <div class="note-box">备注（选填）</div>
+            <div class="fold-line" style="border-color:#34C759;"><span class="tag" style="background:#34C759;">改版后：备注回到首屏线内 ✓</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom-bar">
+        <button class="btn-primary">确认记账 ¥35.00</button>
+        <div class="archive-hint">确认后，凭证照片将自动归档为票根</div>
+        <div class="minor-row">
+          <button>稍后处理</button><span style="color:var(--text-3)">·</span>
+          <button class="danger">删除草稿</button>
+        </div>
+      </div>
+    </div>
+    <div class="mark-list">
+      · 单笔不再出「1 笔待确认」汇总卡：金额就在卡内，识别时间收进顶部一行<br>
+      · 原因卡并入笔卡，只在该笔有具体问题时出现（如金额没认准）<br>
+      · 开关带「记这笔」标签，方向与语义一致<br>
+      · 底部省出约 110pt：日期 + 备注全部回到小屏首屏
+    </div>
+  </div>
+
+  <!-- ================= 画板 3：多笔改版 ================= -->
+  <div class="board-wrap">
+    <div class="board-title">③ 多笔 · 改版</div>
+    <div class="board-sub">一图多笔：每笔卡标题=商户+预览金额，原因贴各笔卡内；开关切换会实时重算合计（点卡 2 的开关试试）。可滚动。</div>
+    <div class="phone tall">
+      <div class="nav"><span class="back">‹</span>确认这几笔账</div>
+      <div class="scroll">
+        <div class="multi-summary"><span>识别于 3 分钟前 · 同一截图</span><span>合计 <span class="amt" id="multiTotal">¥86.50</span></span></div>
+
+        <div class="card mcard" data-amt="35.00">
+          <div class="v2-head">
+            <span class="merchant">美团外卖 <span style="font-size:13px;color:var(--text-2);font-weight:400;">¥35.00</span></span>
+            <span class="toggle-label">记这笔 <button class="switch on" onclick="toggleMulti(this)" aria-label="记这笔"></button></span>
+          </div>
+          <div class="excluded-tag">这笔不记，确认时将跳过</div>
+          <div class="fade-hide">
+            <div class="v2-amount">
+              <span class="cur">¥</span><input value="35.00" inputmode="decimal">
+              <div class="seg"><button class="on" onclick="segPick(this)">支出</button><button onclick="segPick(this)">收入</button></div>
+            </div>
+            <div class="orig-row"><span>票面金额原文</span><span class="v">¥35.00</span></div>
+            <div class="divider"></div>
+            <div class="field-row"><span class="k">科目</span><span class="v">餐饮 · 午餐<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">账户</span><span class="v">微信支付<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">项目</span><span class="v placeholder">不挂项目<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">日期</span><span class="v">今天<span class="chev">⌃⌄</span></span></div>
+            <div class="note-box">备注（选填）</div>
+          </div>
+        </div>
+
+        <div class="card mcard" data-amt="12.50">
+          <div class="v2-head">
+            <span class="merchant">滴滴出行 <span style="font-size:13px;color:var(--text-2);font-weight:400;">¥12.50</span></span>
+            <span class="toggle-label">记这笔 <button class="switch on" onclick="toggleMulti(this)" aria-label="记这笔"></button></span>
+          </div>
+          <div class="excluded-tag">这笔不记，确认时将跳过</div>
+          <div class="fade-hide">
+            <div class="reason-inline"><span>⚠︎</span>可能已经记过一笔，请核对后再确认</div>
+            <div class="v2-amount">
+              <span class="cur">¥</span><input value="12.50" inputmode="decimal">
+              <div class="seg"><button class="on" onclick="segPick(this)">支出</button><button onclick="segPick(this)">收入</button></div>
+            </div>
+            <div class="orig-row"><span>票面金额原文</span><span class="v">¥12.50</span></div>
+            <div class="divider"></div>
+            <div class="field-row"><span class="k">科目</span><span class="v">交通 · 打车<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">账户</span><span class="v">支付宝<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">项目</span><span class="v placeholder">不挂项目<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">日期</span><span class="v">今天<span class="chev">⌃⌄</span></span></div>
+            <div class="note-box">备注（选填）</div>
+          </div>
+        </div>
+
+        <div class="card mcard" data-amt="39.00">
+          <div class="v2-head">
+            <span class="merchant">京东商城 <span style="font-size:13px;color:var(--text-2);font-weight:400;">¥39.00</span></span>
+            <span class="toggle-label">记这笔 <button class="switch on" onclick="toggleMulti(this)" aria-label="记这笔"></button></span>
+          </div>
+          <div class="excluded-tag">这笔不记，确认时将跳过</div>
+          <div class="fade-hide">
+            <div class="v2-amount">
+              <span class="cur">¥</span><input value="39.00" inputmode="decimal">
+              <div class="seg"><button class="on" onclick="segPick(this)">支出</button><button onclick="segPick(this)">收入</button></div>
+            </div>
+            <div class="orig-row"><span>票面金额原文</span><span class="v">¥39.00</span></div>
+            <div class="divider"></div>
+            <div class="field-row"><span class="k">科目</span><span class="v">购物 · 日用百货<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">账户</span><span class="v">自动识别<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">项目</span><span class="v">新家置办<span class="chev">⌃⌄</span></span></div>
+            <div class="field-row"><span class="k">日期</span><span class="v">今天<span class="chev">⌃⌄</span></span></div>
+            <div class="note-box">备注（选填）</div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom-bar">
+        <button class="btn-primary" id="multiBtn">确认记 3 笔 · ¥86.50</button>
+        <div class="archive-hint">确认后，凭证照片将自动归档为票根</div>
+        <div class="minor-row">
+          <button>稍后处理</button><span style="color:var(--text-3)">·</span>
+          <button class="danger">删除草稿</button>
+        </div>
+      </div>
+    </div>
+    <div class="mark-list">
+      · 笔卡标题从「第 N 笔」换成商户 + 预览金额，不用展开原图就能分辨<br>
+      · 各笔自己的风险提示（可能重复）贴各笔卡内，不再挤页面级卡
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <div class="img">原图大图（仅本机暂存）</div>
+  <button class="close">关闭</button>
+</div>
+
+<div class="footnote">
+  口径说明：本原型为浅色形态，深色模式同构（卡片深底、背景 #0E0E10）；「记这笔」开关=现状 included 语义，文案与方向对齐；确认按钮金额随开关实时重算；科目建议仍走「学习映射 → AI 标准 → 自定义 → 语义」链，此原型不含该链展示。
+</div>
+
+<script>
+  // 现状画板：裸开关（off 时字段消失——复刻现状代码行为）
+  function toggleLegacy(el) {
+    el.classList.toggle('on');
+    var fields = el.closest('.card').querySelector('.legacy-fields');
+    fields.style.display = el.classList.contains('on') ? '' : 'none';
+  }
+  // 改版单笔：开关带标签
+  function toggleV2(el) {
+    el.classList.toggle('on');
+    el.closest('.card').classList.toggle('excluded');
+  }
+  // 改版多笔：开关 + 合计重算
+  function toggleMulti(el) {
+    el.classList.toggle('on');
+    var card = el.closest('.card');
+    card.classList.toggle('excluded');
+    var total = 0, count = 0;
+    document.querySelectorAll('.mcard').forEach(function (c) {
+      if (!c.classList.contains('excluded')) {
+        total += parseFloat(c.dataset.amt);
+        count++;
+      }
+    });
+    document.getElementById('multiTotal').textContent = '¥' + total.toFixed(2);
+    var btn = document.getElementById('multiBtn');
+    btn.textContent = count === 1 ? '确认记账 · ¥' + total.toFixed(2)
+      : '确认记 ' + count + ' 笔 · ¥' + total.toFixed(2);
+  }
+  // 收支胶囊（纯视觉切换）
+  function segPick(el) {
+    el.parentElement.querySelectorAll('button').forEach(function (b) { b.classList.remove('on'); });
+    el.classList.add('on');
+  }
+  // 大图浮层
+  function openLightbox() { document.getElementById('lightbox').classList.add('open'); }
+  function closeLightbox() { document.getElementById('lightbox').classList.remove('open'); }
+</script>
+</body>
+</html>

@@ -24,7 +24,9 @@ struct VoiceRecognitionSettingsView: View {
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
         .navigationTitle("语音识别设置")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             await viewModel.loadConfig()
         }
@@ -39,7 +41,8 @@ struct VoiceRecognitionSettingsView: View {
             }
 
             ToolbarItem(placement: .cancellationAction) {
-                Button("取消") { dismiss() }
+                Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                            .accessibilityLabel(Text("关闭"))
             }
         }
     }
@@ -71,7 +74,9 @@ struct VoiceRecognitionSettingsView: View {
         Section {
             SecureField("DashScope API Key", text: $viewModel.apiKey)
                 .font(.holoBody)
+                #if canImport(UIKit)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
         } header: {
             Text("API Key")
@@ -86,12 +91,16 @@ struct VoiceRecognitionSettingsView: View {
         Section {
             TextField("模型", text: $viewModel.model)
                 .font(.holoBody)
+                #if canImport(UIKit)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
 
             TextField("语言", text: $viewModel.language)
                 .font(.holoBody)
+                #if canImport(UIKit)
                 .textInputAutocapitalization(.never)
+                #endif
                 .autocorrectionDisabled()
 
             HStack {
@@ -134,7 +143,7 @@ struct VoiceRecognitionSettingsView: View {
                 case .failure(let message):
                     Label(message, systemImage: "xmark.circle.fill")
                         .font(.caption)
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoToolError)
                 }
             }
         } header: {

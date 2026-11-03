@@ -49,13 +49,15 @@ struct TopicConfirmationQueueView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle("待确认")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("返回") { dismiss() }
                         .foregroundColor(.holoPrimary)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     if !thoughts.isEmpty {
                         Button("全部跳过") { dismiss() }
                             .foregroundColor(.holoTextSecondary)
@@ -122,27 +124,17 @@ struct TopicConfirmationQueueView: View {
                     pickerThoughtId = thought.id
                 } label: {
                     Text("换一个")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.holoNestedCardBackground)
-                        .cornerRadius(HoloRadius.md)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoloActionStyle(role: .secondary))
 
                 Button {
                     confirmPlacement(thought)
                 } label: {
                     Text("放这里")
-                        .font(.holoBody)
-                        .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.holoSuccess)
-                        .cornerRadius(HoloRadius.md)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(HoloActionStyle(role: .primary))
             }
         }
         .padding(HoloSpacing.md)
@@ -169,10 +161,10 @@ struct TopicConfirmationQueueView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "sparkles")
                         .font(.system(size: 10))
-                        .foregroundColor(.holoAI)
+                        .foregroundColor(.holoToolAI)
                     Text("AI 建议")
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoAI)
+                        .foregroundColor(.holoToolAI)
                 }
             }
 
@@ -219,7 +211,7 @@ struct TopicConfirmationQueueView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 44))
-                .foregroundColor(.holoSuccess.opacity(0.8))
+                .foregroundColor(.holoSuccessText)
             Text("都确认完了")
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)

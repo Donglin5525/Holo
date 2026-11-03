@@ -1,0 +1,247 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import { createHash, randomUUID } from "node:crypto";
+import { GatewayError } from "../errors.js";
+
+// 仅后台维护共用此预算；主动聊天、分析、语音不占用。
+// replayDigest（2026-10-20 报告理解方案修订1）：回放摘要直调轨道的真实 purpose，
+// 进集合并经 chat/completions 入口守卫建域；云端轨道 worker 走 reserveDirect。
+// discovery_candidate_v1 / discovery_verify_v1（2026-10-23「一个发现」G3）：
+// 专用控制器阶段调用，走正常 provider wrap（不 reserveDirect），
+// 阶段路径由 backgroundPathPurpose 前缀匹配建域，成本并入后台总预算。
+export const BACKGROUND_PURPOSES = new Set([
+  "personal_context_extraction", "personal_context_verification",
+  "memory_observer", "memory_domain_extraction", "memory_cross_domain_fusion",
+  "thought_organization", "thought_tag_convergence",
+  "thought_organize_a", "thought_organize_r", "thought_organize_b",
+  "thought_semantic_relate_v1", "thought_category_brief_v1",
+  "thought_topic_name_v1", "thought_topic_summary_v1",
+  "replayDigest",
+  "discovery_candidate_v1", "discovery_verify_v1",
+]);
+
+export const BACKGROUND_PATHS = {
+  "/v1/thoughts/organize": "thought_organize_a",
+  "/v1/thoughts/semantic-relate": "thought_semantic_relate_v1",
+  "/v1/thoughts/category-brief": "thought_category_brief_v1",
+  "/v1/thoughts/topic-name": "thought_topic_name_v1",
+  "/v1/thoughts/topic-summary": "thought_topic_summary_v1",
+};
+
+// 「一个发现」两阶段路径（含动态 runID 段，无法静态枚举，前缀匹配）
+const BACKGROUND_PATH_PREFIXES = [
+  { prefix: "/v1/discovery/runs/", suffix: "/candidates", purpose: "discovery_candidate_v1" },
+  { prefix: "/v1/discovery/runs/", suffix: "/verify", purpose: "discovery_verify_v1" },
+];
+
+/** 入口守卫的路径→purpose 解析：静态表精确匹配 + 发现阶段路径前缀匹配。 */
+export function backgroundPathPurpose(path) {
+  const exact = BACKGROUND_PATHS[path];
+  if (exact) return exact;
+  for (const { prefix, suffix, purpose } of BACKGROUND_PATH_PREFIXES) {
+    if (path.startsWith(prefix) && path.endsWith(suffix)) return purpose;
+  }
+  return null;
+}
+
+const hash = (value) => createHash("sha256").update(value).digest("hex");
+const micro = (cny) => Math.ceil(cny * 1_000_000);
+const validTokens = (value) => Number.isSafeInteger(value) && value >= 0;
+
+/** 发现专用池的 purpose 集合（subject 级限额按此拆池；global 级不受影响）。 */
+const DISCOVERY_POOL_PURPOSES = new Set(["discovery_candidate_v1", "discovery_verify_v1"]);
+
+export function backgroundSubject(deviceId, entitlement) {
+  // 只采用服务端已验证的原始交易号；验收模式切换不重置预算。
+  return hash(entitlement?.originalTransactionId
+    ? `purchase:${entitlement.environment}:${entitlement.originalTransactionId}`
+    : `device:${deviceId}`);
+}
+
+function periods(now) {
+  const local = new Date(now + 8 * 3600_000).toISOString();
+  const day = local.slice(0, 10);
+  const month = local.slice(0, 7);
+  const resetDay = Date.parse(`${day}T00:00:00+08:00`) + 86400_000;
+  const [year, mon] = month.split("-").map(Number);
+  const resetMonth = Date.UTC(year, mon, 1) - 8 * 3600_000;
+  return { day, month, resetDay, resetMonth };
+}
+
+export function createBackgroundCostGuard(db, config, now = Date.now) {
+  for (const key of ["dailyCNY", "monthlyCNY", "discoveryDailyCNY", "discoveryMonthlyCNY",
+    "globalDailyCNY", "globalMonthlyCNY",
+    "inputPerMillionCNY", "outputPerMillionCNY", "cachedPerMillionCNY", "maxInputBytes", "minBuild"]) {
+    if (!Number.isFinite(config[key]) || config[key] <= 0) {
+      throw new Error(`Invalid background cost guard setting: ${key}`);
+    }
+  }
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS background_cost_calls (
+      id TEXT PRIMARY KEY, subject TEXT NOT NULL, day TEXT NOT NULL, month TEXT NOT NULL,
+      purpose TEXT NOT NULL, reserved_micro INTEGER NOT NULL, charged_micro INTEGER,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS background_cost_day ON background_cost_calls(day, subject);
+    CREATE INDEX IF NOT EXISTS background_cost_month ON background_cost_calls(month, subject);
+    CREATE TABLE IF NOT EXISTS background_brief_attempts (
+      fingerprint TEXT PRIMARY KEY, retry_at INTEGER NOT NULL
+    );
+  `);
+  // 只保留核账所需的近 90 天元数据；当前月预算与在途预留不会被清理。
+  db.prepare("DELETE FROM background_cost_calls WHERE created_at < ?").run(now() - 90 * 86400_000);
+  db.prepare("DELETE FROM background_brief_attempts WHERE retry_at <= ?").run(now());
+  const scope = new AsyncLocalStorage();
+  // 2026-10-30 拆池：发现两 purpose 与后台整理分池止损——后台池被想法整理类任务烧穿时
+  // 连坐饿死「一个发现」的首次体验（10-28 东林真机事故：月池 ¥2 已耗 ¥200，首跑
+  // candidate 必 429）。subject 级日/月限额按池独立；global 级仍聚合全部调用兜底。
+  // discoveryOnly 参数：1=只聚合发现池，0=只聚合后台池，-1=全部（global 检查用）。
+  const sum = db.prepare(`SELECT COALESCE(SUM(COALESCE(charged_micro, reserved_micro)), 0) AS spent
+    FROM background_cost_calls
+    WHERE (day = @period OR month = @period)
+    AND (@subject IS NULL OR subject = @subject)
+    AND (@discoveryOnly < 0
+      OR (@discoveryOnly = 1 AND purpose IN ('discovery_candidate_v1','discovery_verify_v1'))
+      OR (@discoveryOnly = 0 AND purpose NOT IN ('discovery_candidate_v1','discovery_verify_v1')))`);
+  const insert = db.prepare(`INSERT INTO background_cost_calls
+    (id, subject, day, month, purpose, reserved_micro, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+  const settle = db.prepare(`UPDATE background_cost_calls SET charged_micro = ? WHERE id = ? AND charged_micro IS NULL`);
+
+  function limits(subject, isDiscovery) {
+    const p = periods(now());
+    return [
+      [subject, p.day, isDiscovery ? config.discoveryDailyCNY : config.dailyCNY, p.resetDay, isDiscovery ? 1 : 0],
+      [subject, p.month, isDiscovery ? config.discoveryMonthlyCNY : config.monthlyCNY, p.resetMonth, isDiscovery ? 1 : 0],
+      [null, p.day, config.globalDailyCNY, p.resetDay, -1],
+      [null, p.month, config.globalMonthlyCNY, p.resetMonth, -1],
+    ];
+  }
+
+  function checkBudget(subject, amount, isDiscovery) {
+    for (const [owner, period, cny, reset, pool] of limits(subject, isDiscovery)) {
+      const spent = sum.get({ subject: owner, period, discoveryOnly: pool }).spent;
+      if (spent + amount > micro(cny)) {
+        throw new GatewayError("BACKGROUND_BUDGET_EXCEEDED", "Background budget exceeded", 429, {
+          resetAt: new Date(reset).toISOString(),
+        });
+      }
+    }
+  }
+
+  const reserve = db.transaction((request) => {
+    const subject = scope.getStore();
+    if (!subject) throw new GatewayError("BACKGROUND_CONTEXT_REQUIRED", "Missing cost subject", 503);
+    const bytes = Buffer.byteLength(JSON.stringify(request.messages ?? []));
+    if (bytes > config.maxInputBytes) {
+      throw new GatewayError("BACKGROUND_INPUT_TOO_LARGE", "Background context exceeds limit", 413);
+    }
+    if (!Number.isSafeInteger(request.maxTokens) || request.maxTokens <= 0) {
+      throw new GatewayError("BACKGROUND_CONTEXT_REQUIRED", "Missing output limit", 503);
+    }
+    // UTF-8 字节数是文本 token 的保守上界；另留消息协议开销，不依赖中文字符估算。
+    const reserved = Math.ceil((bytes + 64 * ((request.messages?.length ?? 0) + 1))
+      * config.inputPerMillionCNY + request.maxTokens * config.outputPerMillionCNY);
+    checkBudget(subject, reserved, DISCOVERY_POOL_PURPOSES.has(request.purpose));
+    const id = randomUUID();
+    const p = periods(now());
+    insert.run(id, subject, p.day, p.month, request.purpose, reserved, now());
+    return id;
+  });
+
+  function finish(id, usage) {
+    // 超时、断流或缺 usage 可能已经计费，保留完整预留；重启后也不能退回预算。
+    if (!validTokens(usage?.prompt_tokens) || !validTokens(usage?.completion_tokens)) return;
+    const cached = Math.min(usage.prompt_tokens, Math.max(0,
+      Number(usage.prompt_cache_hit_tokens ?? usage.prompt_tokens_details?.cached_tokens) || 0));
+    const charged = Math.ceil((usage.prompt_tokens - cached) * config.inputPerMillionCNY
+      + cached * config.cachedPerMillionCNY + usage.completion_tokens * config.outputPerMillionCNY);
+    // reasoning_tokens 属于 completion_tokens，不能重复收费。
+    settle.run(charged, id);
+  }
+
+  function wrapProvider(provider) {
+    const wrapped = { ...provider };
+    for (const method of ["complete", "completeViaStream"]) {
+      if (typeof provider[method] !== "function") continue;
+      wrapped[method] = async (request) => {
+        if (!BACKGROUND_PURPOSES.has(request.purpose)) return provider[method](request);
+        const id = reserve.immediate(request);
+        const result = await provider[method](request);
+        finish(id, result?.usage);
+        return result;
+      };
+    }
+    if (typeof provider.stream === "function") {
+      wrapped.stream = async function* (request) {
+        if (!BACKGROUND_PURPOSES.has(request.purpose)) { yield* provider.stream(request); return; }
+        const id = reserve.immediate(request);
+        let pending = "";
+        let usage;
+        try {
+          for await (const chunk of provider.stream(request)) {
+            if (typeof chunk === "string") {
+              pending += chunk;
+              let newline;
+              while ((newline = pending.indexOf("\n")) !== -1) {
+                const line = pending.slice(0, newline).trim();
+                pending = pending.slice(newline + 1);
+                if (line.startsWith("data:")) {
+                  try { usage = JSON.parse(line.slice(5)).usage ?? usage; } catch { /* 非 JSON 结束帧 */ }
+                }
+              }
+            } else { usage = chunk?.usage ?? usage; }
+            yield chunk;
+          }
+        } finally { finish(id, usage); }
+      };
+    }
+    return wrapped;
+  }
+
+  const acquireBrief = db.transaction((fingerprint) => {
+    const row = db.prepare("SELECT retry_at FROM background_brief_attempts WHERE fingerprint = ?").get(fingerprint);
+    if (row?.retry_at > now()) {
+      throw new GatewayError("BACKGROUND_RETRY_DEFERRED", "Unchanged brief is cooling down", 429, {
+        resetAt: new Date(row.retry_at).toISOString(),
+      });
+    }
+    // 进程崩溃也保持冷却，避免启动后立即重放。
+    db.prepare("INSERT OR REPLACE INTO background_brief_attempts VALUES (?, ?)").run(fingerprint, now() + 86400_000);
+  });
+
+  return {
+    run: (subject, action) => scope.run(subject, action),
+    wrapProviders: (providers) => new Map([...providers].map(([name, provider]) => [name, wrapProvider(provider)])),
+    // 云端 worker 后台任务（replay_digest 等）不经入口中间件、provider 请求
+    // purpose 固定 agent_loop（不能整列进后台集合，会误伤主动深度分析）：
+    // 在每次真实上游尝试前由调用方从已验证的任务归属解析 subject 并显式
+    // 预留；request 需带 messages/maxTokens，purpose 仅供记账。
+    reserveDirect: (subject, request) => scope.run(subject, () => reserve.immediate(request)),
+    settleDirect: (id, usage) => finish(id, usage),
+    checkIngress({ subject, userAgent, body }) {
+      const build = /\bHolo\/(\d+)\b/i.exec(userAgent ?? "");
+      if (build && Number(build[1]) < config.minBuild) {
+        throw new GatewayError("BACKGROUND_CLIENT_UPDATE_REQUIRED", "Old background client blocked", 426);
+      }
+      if (Buffer.byteLength(JSON.stringify(body)) > config.maxInputBytes) {
+        throw new GatewayError("BACKGROUND_INPUT_TOO_LARGE", "Background context exceeds limit", 413);
+      }
+      checkBudget(subject, 1);
+    },
+    async briefAttempt(key, action) {
+      const fingerprint = hash(JSON.stringify([scope.getStore() ?? key[0], ...key.slice(1)]));
+      acquireBrief.immediate(fingerprint);
+      try {
+        const result = await action();
+        db.prepare("DELETE FROM background_brief_attempts WHERE fingerprint = ?").run(fingerprint);
+        return result;
+      } catch (error) {
+        // 无效输出需等内容变化或 24 小时；上游暂时故障至少间隔 1 小时。
+        const delay = error.code === "MODEL_OUTPUT_INVALID" || error.code === "EMPTY_MODEL_RESPONSE"
+          ? 86400_000 : 3600_000;
+        db.prepare("UPDATE background_brief_attempts SET retry_at = ? WHERE fingerprint = ?")
+          .run(now() + delay, fingerprint);
+        throw error;
+      }
+    },
+  };
+}

@@ -30,6 +30,12 @@ struct TopicDetailView: View {
     @State private var showDeleteConfirm = false
     @State private var showIconPicker = false
 
+    /// 类别定义编辑（主题双通道 2026-10-12）：仅 classification 主题展示定义卡
+    @State private var showDefinitionEditor = false
+    @State private var definitionInput = ""
+    /// AI 代写回退（零打扰）：用户没写过定义时展示本机 brief（语义库 AI 派生）
+    @State private var briefDefinition: String? = nil
+
     /// 关键词管理（长按：全局重命名/删除，承接原抽屉能力）
     @State private var tagActionTarget: ThoughtRepository.AITagBucket?
     @State private var showTagRenameAlert = false
@@ -96,13 +102,15 @@ struct TopicDetailView: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(topic?.title ?? String(localized: "主题"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("返回") { dismiss() }
                         .foregroundColor(.holoPrimary)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     Menu {
                         Button {
                             showIconPicker = true
@@ -158,12 +166,24 @@ struct TopicDetailView: View {
                     applyIcon(emoji)
                 }
             }
+            .sheet(isPresented: $showDefinitionEditor) {
+                categoryDefinitionEditorSheet
+            }
+            #if canImport(UIKit)
             .fullScreenCover(item: $selectedThoughtId) { thoughtId in
                 ThoughtEditorView(
                     editingThoughtId: thoughtId
                 )
                 .holoContentColumn()
             }
+            #else
+                        .sheet(item: $selectedThoughtId) { thoughtId in
+                ThoughtEditorView(
+                    editingThoughtId: thoughtId
+                )
+                .holoContentColumn()
+            }
+            #endif
             .overlay(alignment: .top) { actionToast }
         }
         .task { await loadData() }
@@ -184,7 +204,19 @@ struct TopicDetailView: View {
         tagBuckets = (try? thoughtRepository.fetchAITagBuckets(excludeAbsorbed: false)) ?? []
         if ThoughtSemanticFeatureFlags.uiEnabled, let topic {
             await loadSummaryIfEligible(for: topic)
+            await loadBriefDefinitionIfEligible(for: topic)
         }
+    }
+
+    /// AI 代写定义（零打扰）：用户没写过定义的 classification 主题，回退展示本机 brief。
+    @MainActor
+    private func loadBriefDefinitionIfEligible(for topic: Topic) async {
+        briefDefinition = nil
+        guard topic.isClassificationTopic,
+              topic.categoryDefinition?.isEmpty != false,
+              let store = await ThoughtSemanticPipeline.shared.store,
+              let brief = try? await store.loadCategoryBrief(topicID: topicId) else { return }
+        briefDefinition = brief.definition
     }
 
     // MARK: - V3 主题摘要（§4.5；AI 派生只存本机语义库）
@@ -240,6 +272,8 @@ struct TopicDetailView: View {
     @ViewBuilder
     private func topicContentSections(_ topic: Topic) -> some View {
         heroSection(topic)
+        // 类别定义卡（主题双通道）：仅用户启用的归档类别展示；点开可改
+        categoryDefinitionSection(topic)
         // 构成行：让 AI 自动归类的贡献可见（你加入 N · Holo 找到 M）
         if ThoughtSemanticFeatureFlags.uiEnabled, !thoughts.isEmpty {
             membershipSplitSection
@@ -260,6 +294,62 @@ struct TopicDetailView: View {
             memberTagChipsSection
         }
         thoughtListSection
+    }
+
+    /// 类别定义卡（主题双通道 2026-10-12）：classification 主题的「收什么」口径。
+    /// 已有定义=AI 归类依据，点开可改；为空=引导一句但不强制（AI 按标题+用户确认代表例判定）。
+    @ViewBuilder
+    private func categoryDefinitionSection(_ topic: Topic) -> some View {
+        if topic.isClassificationTopic {
+            Button {
+                definitionInput = topic.categoryDefinition ?? ""
+                showDefinitionEditor = true
+            } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "sparkles")
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoToolAI)
+                        Text("这个主题收什么")
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoTextSecondary)
+                        Spacer()
+                        Image(systemName: "pencil")
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoTextPlaceholder)
+                    }
+                    if let definition = topic.categoryDefinition, !definition.isEmpty {
+                        Text(definition)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextPrimary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    } else if let brief = briefDefinition {
+                        Text(brief)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextPrimary)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("AI 根据你放进来的笔记代写 · 点开可改；不改它，它也只跟着你的动作学")
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoTextPlaceholder)
+                            .multilineTextAlignment(.leading)
+                    } else {
+                        Text("写一句「收什么、不收什么」，AI 会按它归类；不写也可以，AI 按你的用法慢慢学")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextPlaceholder)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(RoundedRectangle(cornerRadius: HoloRadius.md)
+                    .fill(Color.holoAI.opacity(0.06)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "主题定义，点按编辑"))
+        }
     }
 
     /// 成员构成：你加入 N 条 · Holo 找到 M 条（历史归集单独一档，不冒充任何一类）。
@@ -621,10 +711,15 @@ struct TopicDetailView: View {
                         // P1 校验补链：主题页是纠错的天然阵地——成员卡长按可「从这个主题移除」
                         //（卡片列表的主题行纠错是长按隐藏手势，这里给一个语境明确的可见兜底）
                         .contextMenu {
+                            Button {
+                                copyThoughtToPasteboard(thought)
+                            } label: {
+                                Label("复制", systemImage: "doc.on.doc")
+                            }
                             Button(role: .destructive) {
                                 removeMember(thought)
                             } label: {
-                                Label("从这个主题移除", systemImage: "leaf.slash")
+                                Label("从这个主题移除", systemImage: "minus.circle")
                             }
                         }
                     }
@@ -686,6 +781,56 @@ struct TopicDetailView: View {
             Task { await loadData() }
         } catch {
             HoloToastCenter.shared.show(String(localized: "重命名失败"), type: .error)
+        }
+    }
+
+    /// 类别定义编辑弹层（主题双通道）：改定义 → 进目录指纹 → 受影响笔记自动重评
+    private var categoryDefinitionEditorSheet: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                TextEditor(text: $definitionInput)
+                    .font(.body)
+                    .frame(minHeight: 108)
+                    .padding(HoloSpacing.sm + 2)
+                    .scrollContentBackground(.hidden)
+                    .background(RoundedRectangle(cornerRadius: HoloRadius.md)
+                        .fill(Color.holoNestedCardBackground))
+                Text("这行话就是 AI 的归类依据。改了它，相关笔记会自动重新归类；不写也可以，AI 按你放进来的笔记用法判定。")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextPlaceholder)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.top, HoloSpacing.md)
+            .navigationTitle(String(localized: "这个主题收什么"))
+            #if canImport(UIKit)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
+            .toolbar {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
+                    Button("取消") { showDefinitionEditor = false }
+                        .foregroundColor(.holoPrimary)
+                }
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
+                    Button("保存") { saveCategoryDefinition() }
+                        .foregroundColor(.holoPrimary)
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func saveCategoryDefinition() {
+        guard let topic else { return }
+        let input = definitionInput
+        showDefinitionEditor = false
+        do {
+            try topicRepository.updateCategoryDefinition(topic, definition: input)
+            HapticManager.light()
+            Task { await loadData() }
+        } catch {
+            HoloToastCenter.shared.show(String(localized: "保存失败"), type: .error)
         }
     }
 

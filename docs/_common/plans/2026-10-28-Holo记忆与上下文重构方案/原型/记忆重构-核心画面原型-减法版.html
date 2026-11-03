@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 记忆重构 · 减法版原型（8 屏）</title>
+<style>
+  :root{
+    --bg:#F7F7F9; --card:#FFFFFF; --ink:#1C1C1E; --ink2:#8A8A8E; --ink3:#B8B8BD;
+    --line:#ECECEF; --accent:#5856D6;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","SF Pro SC","Helvetica Neue",sans-serif; background:#EBEBEF; color:var(--ink); padding:28px 20px 60px;}
+  header.doc{max-width:1280px; margin:0 auto 24px;}
+  header.doc h1{font-size:22px; font-weight:700;}
+  header.doc p{font-size:13px; color:var(--ink2); margin-top:6px; line-height:1.7;}
+  .screens{display:flex; flex-wrap:wrap; gap:28px; justify-content:center; max-width:1480px; margin:0 auto;}
+  .col{display:flex; flex-direction:column; gap:10px; width:392px;}
+  .col-title{font-size:14px; font-weight:700; text-align:center;}
+  .col-title small{display:block; font-weight:400; color:var(--ink2); font-size:11px; margin-top:2px; line-height:1.5;}
+  .phone{width:392px; background:var(--bg); border:1px solid #DCDCE1; border-radius:36px; padding:10px; box-shadow:0 8px 24px rgba(0,0,0,.08);}
+  .phone-screen{background:var(--bg); border-radius:28px; overflow:hidden; border:1px solid #E6E6EB;}
+  .statusbar{height:38px; display:flex; justify-content:space-between; align-items:center; padding:0 22px; font-size:12px; font-weight:600; background:var(--bg);}
+  .body{min-height:640px; padding-bottom:22px;}
+  .nav{display:flex; align-items:center; padding:6px 16px 10px;}
+  .nav .back{color:var(--accent); font-size:15px; width:60px;}
+  .nav .title{flex:1; text-align:center; font-size:16px; font-weight:700;}
+  .nav .act{width:60px; text-align:right; color:var(--accent); font-size:14px;}
+  .seg{display:flex; background:#E6E6EB; border-radius:9px; margin:0 16px 14px; padding:2px;}
+  .seg div{flex:1; text-align:center; font-size:13px; font-weight:600; padding:6px 0; border-radius:7px; color:var(--ink2);}
+  .seg div.on{background:var(--card); color:var(--ink); box-shadow:0 1px 3px rgba(0,0,0,.10);}
+  .group-h{margin:18px 20px 6px; font-size:12px; font-weight:600; color:var(--ink2);}
+  /* 减法核心：卡片两行 */
+  .item{background:var(--card); border-radius:14px; margin:0 16px 8px; padding:13px 16px; box-shadow:0 1px 2px rgba(0,0,0,.04); position:relative;}
+  .item .stmt{font-size:15px; font-weight:600; line-height:1.5; padding-right:14px;}
+  .item .sub{margin-top:3px; font-size:12px; color:var(--ink2);}
+  .item .chev{position:absolute; right:14px; top:16px; color:#C7C7CC; font-size:14px;}
+  /* 详情 */
+  .detail-hero{padding:18px 20px 6px;}
+  .detail-hero h2{font-size:19px; line-height:1.45; font-weight:700;}
+  .detail-hero .sub{margin-top:4px; font-size:12.5px; color:var(--ink2);}
+  .sec{margin:14px 16px 0;}
+  .sec .h{font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:6px;}
+  .sec .card{background:var(--card); border-radius:14px; padding:13px 16px; box-shadow:0 1px 2px rgba(0,0,0,.04);}
+  .quote{background:#F3F2FD; border-left:3px solid var(--accent); border-radius:8px; padding:10px 12px; font-size:14px; line-height:1.65;}
+  .quote mark{background:#FFE9A8; padding:0 2px; border-radius:3px;}
+  .plain{font-size:14px; line-height:1.65;}
+  .link{color:var(--accent); font-size:13px;}
+  .more{margin:10px 20px 0; text-align:center; font-size:13px; color:var(--ink2);}
+  /* 按钮 */
+  .btnrow{display:flex; gap:8px; margin-top:12px;}
+  .btn{flex:1; text-align:center; font-size:14px; font-weight:600; padding:10px 0; border-radius:11px; border:1px solid var(--line); background:#FAFAFC; color:var(--ink);}
+  .btn.pri{background:var(--accent); color:#fff; border:none;}
+  .btn.ghost{border:none; background:none; color:var(--ink2); font-weight:400; flex:0 0 auto; padding:10px 8px;}
+  .dots{color:var(--ink3); font-size:16px; padding:10px 6px;}
+  /* 弹层 */
+  .sheet-wrap{position:relative; height:660px; background:var(--bg);}
+  .sheet-wrap.dim{background:rgba(60,60,67,.24);}
+  .sheet{position:absolute; left:0; right:0; bottom:0; background:var(--card); border-radius:22px 22px 0 0; padding:16px 18px 28px; box-shadow:0 -6px 24px rgba(0,0,0,.14);}
+  .grabber{width:36px; height:5px; border-radius:99px; background:var(--line); margin:0 auto 14px;}
+  /* 聊天 */
+  .chat{padding:6px 14px;}
+  .bub{max-width:82%; border-radius:16px; padding:10px 13px; font-size:14px; line-height:1.55; margin-bottom:10px;}
+  .bub.me{background:var(--accent); color:#fff; margin-left:auto;}
+  .bub.ai{background:var(--card); box-shadow:0 1px 2px rgba(0,0,0,.05);}
+  .receipt{background:#EDF7EF; border-radius:14px; padding:10px 13px; margin:0 0 10px auto; width:82%; font-size:13px; line-height:1.55; color:#1E6B38;}
+  .receipt span{font-weight:600; margin-right:12px;}
+  .foot-note{padding:8px 16px 0; font-size:12px; color:var(--ink2);}
+  .foot-note .link{font-size:12px;}
+  /* 输入框 */
+  .field{background:#F2F2F6; border-radius:11px; padding:11px 13px; font-size:14px; color:var(--ink3); line-height:1.5;}
+  .quick{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+  .quick span{font-size:12px; color:var(--ink2); border:1px solid var(--line); border-radius:99px; padding:5px 11px; background:#FAFAFC;}
+  /* 注释 */
+  .anno{background:#FFFDF3; border:1px solid #EFE3B3; border-radius:12px; padding:12px 14px; font-size:12px; line-height:1.7; color:#6B5D2E;}
+  .anno b{color:#4A3F17;}
+  .cut{color:#A0522D; font-weight:700;}
+  .anno ul{margin-left:16px;}
+  .anno li{margin:3px 0;}
+</style>
+</head>
+<body>
+
+<header class="doc">
+  <h1>Holo 记忆重构 · 减法版原型（8 屏）</h1>
+  <p>与左侧完整版（记忆重构-核心画面原型.html）对照看。减法原则：契约不变、默认可见层最小——数字、六段、异常态全部保留但收进「按需展开」。<b>本版通过后作为实施契约，完整版仅作对照。</b>黄底注释标注每屏「减了什么、藏到哪了」。</p>
+</header>
+
+<div class="screens">
+
+<!-- ① 已记住 -->
+<div class="col">
+  <div class="col-title">① 已记住<small>卡片两行：一句话 + 一行灰字，其他全收</small></div>
+  <div class="phone"><div class="phone-screen">
+    <div class="statusbar"><span>9:41</span><span>􀛨 􀙇 􀛭</span></div>
+    <div class="nav"><div class="back">‹ 设置</div><div class="title">Holo 记忆</div><div class="act"></div></div>
+    <div class="seg"><div class="on">已记住</div><div>值得确认</div></div>
+
+    <div class="group-h">偏好与约束</div>
+    <div class="item"><span class="chev">›</span>
+      <div class="stmt">周末尽量不排工作，把时间留给家人</div>
+      <div class="sub">你告诉我的 · 1 句原话</div>
+    </div>
+    <div class="item"><span class="chev">›</span>
+      <div class="stmt">烟酒支出每月想控制在 300 元内</div>
+      <div class="sub">你告诉我的 · 你改过一次</div>
+    </div>
+
+    <div class="group-h">当前关注</div>
+    <div class="item"><span class="chev">›</span>
+      <div class="stmt">在打磨 Holo 的财务与任务模块</div>
+      <div class="sub">来自你的 12 条记录</div>
+    </div>
+
+    <div class="group-h">重要经历</div>
+    <div class="item"><span class="chev">›</span>
+      <div class="stmt">5 月完成了第一次半程马拉松</div>
+      <div class="sub">你确认过的</div>
+    </div>
+
+    <div class="group-h">生活规律</div>
+    <div class="item"><span class="chev">›</span>
+      <div class="stmt">阅读大多在晚上</div>
+      <div class="sub">你确认过的 · 来自 6 周记录</div>
+    </div>
+    <div class="item"><span class="chev">›</span>
+      <div class="stmt">工作日下午比上午更容易专注</div>
+      <div class="sub">你确认过的 · 来自 6 周记录</div>
+    </div>
+
+    <div class="more" style="margin-top:16px">历史 · 停用 · 设置 ▾</div>
+  </div></div></div>
+  <div class="anno"><b>减了什么</b>
+    <ul>
+      <li><span class="cut">标签胶囊（3 色 chip）→</span> 融进行内灰字，颜色区块全删</li>
+      <li><span class="cut">「持续有效 / 样本 42 / 覆盖 78%」等数字 →</span> 只留来源感（「6 周记录」），精确数字在详情</li>
+      <li><span class="cut">顶部搜索常驻 →</span> 收进导航（列表短了，搜索不是第一动作）</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ② 值得确认 -->
+<div class="col">
+  <div class="col-title">② 值得确认<small>一句人话 + 一个主按钮</small></div>
+  <div class="phone"><div class="phone-screen">
+    <div class="statusbar"><span>9:41</span><span>􀛨 􀙇 􀛭</span></div>
+    <div class="nav"><div class="back">‹ 设置</div><div class="title">Holo 记忆</div><div class="act"></div></div>
+    <div class="seg"><div>已记住</div><div class="on">值得确认</div></div>
+
+    <div class="item" style="padding-bottom:15px">
+      <div class="stmt" style="padding-right:0">最近 6 周，你的阅读大多在晚上</div>
+      <div class="sub">看了 42 次阅读，30 次在晚上，也有 3 次例外</div>
+      <div class="btnrow">
+        <div class="btn pri">对，记住</div>
+        <div class="btn" style="flex:0 0 88px">不对</div>
+        <div class="dots">···</div>
+      </div>
+    </div>
+
+    <div class="item" style="padding-bottom:15px">
+      <div class="stmt" style="padding-right:0">周末的花销比工作日高</div>
+      <div class="sub">比了最近 8 周，大约高四成</div>
+      <div class="btnrow">
+        <div class="btn pri">对，记住</div>
+        <div class="btn" style="flex:0 0 88px">不对</div>
+        <div class="dots">···</div>
+      </div>
+    </div>
+
+    <div class="more" style="margin-top:14px">为什么这么说？点卡片可看完整依据</div>
+  </div></div></div>
+  <div class="anno"><b>减了什么</b>
+    <ul>
+      <li><span class="cut">统计表 8 个数字 →</span> 一句人话（42 次里 30 次），完整统计收进卡片点开后的「看数据」</li>
+      <li><span class="cut">4 个等权按钮 →</span> 1 个主按钮「对，记住」+「不对」；<b>修改、暂不处理收进 ···</b></li>
+      <li><span class="cut">「用途」说明文案 →</span> 删除（确认后详情里有，此时不需要用户理解用途才敢确认）</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ③ 详情·明确表达 -->
+<div class="col">
+  <div class="col-title">③ 详情 · 明确表达型<small>默认两段：这句话 + 依据</small></div>
+  <div class="phone"><div class="phone-screen">
+    <div class="statusbar"><span>9:41</span><span>􀛨 􀙇 􀛭</span></div>
+    <div class="nav"><div class="back">‹ 记忆</div><div class="title"></div><div class="act"></div></div>
+    <div class="detail-hero">
+      <h2>周末尽量不排工作，把时间留给家人</h2>
+      <div class="sub">你告诉我的 · 一直有效</div>
+    </div>
+
+    <div class="sec">
+      <div class="h">依据</div>
+      <div class="card">
+        <div class="quote">「周末我想留给家人，<mark>工作尽量排在工作日</mark>。」</div>
+        <div style="margin-top:8px; font-size:12.5px; color:var(--ink2)">10 月 20 日 · 对话 <span class="link" style="margin-left:6px">查看原话 ›</span></div>
+      </div>
+    </div>
+
+    <div class="btnrow" style="margin:16px 16px 0">
+      <div class="btn pri">修改</div>
+      <div class="btn">不对</div>
+      <div class="dots">···</div>
+    </div>
+
+    <div class="more" style="margin-top:22px">更多信息 ▾<br><span style="font-size:11px; color:var(--ink3)">适用范围 · 用途 · 用过几次 · 暂停 / 遗忘</span></div>
+  </div></div></div>
+  <div class="anno"><b>减了什么</b>
+    <ul>
+      <li><span class="cut">六段全展开 →</span> 默认两段（这句话+依据）；其余收进「更多信息 ▾」展开后仍按六段顺序呈现（契约不变）</li>
+      <li><span class="cut">4 个控制按钮 →</span> 修改/不对 + ···（暂停、遗忘在 ··· 里，遗忘前有确认）</li>
+      <li><span class="cut">「最近核验 10 月 26 日」等状态行 →</span> 收进更多信息</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ④ 详情·规律 -->
+<div class="col">
+  <div class="col-title">④ 详情 · 规律型<small>统计一句人话，数字按需查</small></div>
+  <div class="phone"><div class="phone-screen">
+    <div class="statusbar"><span>9:41</span><span>􀛨 􀙇 􀛭</span></div>
+    <div class="nav"><div class="back">‹ 记忆</div><div class="title"></div><div class="act"></div></div>
+    <div class="detail-hero">
+      <h2>阅读大多在晚上</h2>
+      <div class="sub">你确认过的理解</div>
+    </div>
+
+    <div class="sec">
+      <div class="h">为什么这么说</div>
+      <div class="card">
+        <div class="plain">最近 6 周，42 次阅读里 30 次发生在晚上九点后，大约占八成；有 3 次例外，已计入。</div>
+        <div class="btnrow"><div class="btn">看数据</div><div class="btn">在原模块查看</div></div>
+        <div style="font-size:11px; color:var(--ink3); margin-top:8px">「看数据」展开：窗口、完整周数、机会分母、覆盖、例外、反例检索范围、组成记录清单</div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="h">会怎么用</div>
+      <div class="card"><div class="plain">给你安排阅读时，优先建议晚间的时段。</div></div>
+    </div>
+
+    <div class="btnrow" style="margin:16px 16px 0">
+      <div class="btn pri">修改</div>
+      <div class="btn">不对</div>
+      <div class="dots">···</div>
+    </div>
+
+    <div class="more" style="margin-top:20px">更多信息 ▾<br><span style="font-size:11px; color:var(--ink3)">适用范围 · 用过几次 · 暂停 / 遗忘</span></div>
+  </div></div></div>
+  <div class="anno"><b>减了什么</b>
+    <ul>
+      <li><span class="cut">统计卡 2×4 网格 8 个数字 →</span> 一句自然语言；点「看数据」才出现完整统计卡和组成记录</li>
+      <li><span class="cut">「口径版本 v2」这类工程字段 →</span> 只留在「看数据」最底部，正文永不出现</li>
+      <li>分母/去重/口径的计算契约不变（08 冻结），只是不首屏示人</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ⑤ 来源核对 -->
+<div class="col">
+  <div class="col-title">⑤ 来源核对<small>轻弹层不变；异常态只是来源行上的一个小标记</small></div>
+  <div class="phone"><div class="phone-screen">
+    <div class="statusbar"><span>9:41</span><span>􀛨 􀙇 􀛭</span></div>
+    <div class="sheet-wrap dim">
+      <div style="padding:12px 18px; opacity:.25">
+        <div class="item" style="margin:0"><div class="stmt" style="font-size:13px; color:var(--ink2)">周末尽量不排工作……</div></div>
+      </div>
+      <div class="sheet">
+        <div class="grabber"></div>
+        <div class="quote">「周末我想留给家人，<mark>工作尽量排在工作日</mark>。」</div>
+        <div style="margin-top:8px; font-size:12.5px; color:var(--ink2)">10 月 20 日 · 对话</div>
+        <div class="btnrow"><div class="btn pri">打开原对话</div><div class="btn">返回</div></div>
+      </div>
+    </div>
+  </div></div></div>
+  <div class="phone" style="margin-top:10px"><div class="phone-screen" style="height:auto; padding:14px 16px 16px">
+    <div style="font-size:12px; font-weight:600; color:var(--ink2); margin-bottom:8px">异常不再单独成卡，只是来源行末尾一个小标记：</div>
+    <div class="item" style="margin:0 0 8px"><div class="stmt" style="font-size:14px">周末尽量不排工作…</div><div class="sub">来源记录已修改 <span style="color:#B27A00">●</span></div></div>
+    <div class="item" style="margin:0 0 8px"><div class="stmt" style="font-size:14px">在打磨财务模块…</div><div class="sub">来源已删除 <span style="color:#C05656">●</span></div></div>
+    <div class="item" style="margin:0"><div class="stmt" style="font-size:14px">阅读大多在晚上…</div><div class="sub">来源待同步 <span style="color:#8A8A8E">●</span></div></div>
+    <div style="font-size:11px; color:var(--ink3); margin-top:10px">点标记才展开一句解释（三态文案见完整版⑤，契约不变）</div>
+  </div></div></div>
+  <div class="anno"><b>减了什么</b>
+    <ul>
+      <li><span class="cut">三张异常说明卡 →</span> 来源行上的小圆点+两字；解释点开才有一句</li>
+      <li>弹层本身从 4 行说明减到 0 行（返回保证在「返回」按钮上自明）</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ⑥ 聊天 -->
+<div class="col">
+  <div class="col-title">⑥ 聊天<small>回执一行；回答标注收成半行小字</small></div>
+  <div class="phone"><div class="phone-screen">
+    <div class="statusbar"><span>9:41</span><span>􀛨 􀙇 􀛭</span></div>
+    <div class="nav"><div class="back"></div><div class="title">HoloAI</div><div class="act">记忆</div></div>
+    <div class="chat">
+      <div class="bub me">请记住：周末尽量不排工作，我想把时间留给家人。</div>
+      <div class="receipt">记住了。<span>查看</span><span>撤销</span></div>
+      <div class="bub me" style="margin-top:20px">帮我安排下周的工作。</div>
+      <div class="bub ai">我优先把工作安排在了工作日，共 6 项。可能与周末冲突的 2 项放在最后，你来定。</div>
+    </div>
+    <div class="foot-note" style="margin-top:12px">回答参考了你的 1 条偏好 <span class="link">›</span></div>
+  </div></div></div>
+  <div class="anno"><b>减了什么</b>
+    <ul>
+      <li><span class="cut">回执两行+标题 →</span> 「记住了。」三个字+查看/撤销</li>
+      <li><span class="cut">标注卡片（chip+陈述+箭头）→</span> 半行灰字入口，点开才列出记忆卡</li>
+      <li>失败态同理：一行「没存上，原话在草稿里 · 重试」</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ⑦ 规划 -->
+<div class="col">
+  <div class="col-title">⑦ 规划 · 因你而作的调整<small>不减：这是「记忆帮上忙」的时刻</small></div>
+  <div class="phone"><div class="phone-screen">
+    <div class="statusbar"><span>9:41</span><span>􀛨 􀙇 􀛭</span></div>
+    <div class="nav"><div class="back">‹ 取消</div><div class="title">下周安排（草案）</div><div class="act"></div></div>
+
+    <div class="group-h" style="margin-top:12px">工作日</div>
+    <div class="item"><div class="stmt" style="font-size:14px; font-weight:500">周一 · 财报分析 / 客户投诉报表跟进</div></div>
+    <div class="item"><div class="stmt" style="font-size:14px; font-weight:500">周三 · 模块走查 / 2 项开发</div></div>
+    <div class="item"><div class="stmt" style="font-size:14px; font-weight:500">周五 · 周复盘 + 收尾 2 项</div></div>
+
+    <div class="group-h">因你而作的调整</div>
+    <div class="item"><span class="chev">›</span>
+      <div class="stmt" style="font-size:14px">6 项工作都排在了工作日，周日留空</div>
+      <div class="sub">因为你说过周末尽量不排工作</div>
+    </div>
+
+    <div class="group-h">需要你定</div>
+    <div class="item"><div class="stmt" style="font-size:14px">周六有 2 项标注「周末」的紧急任务</div><div class="sub">移到工作日还是保留，你定</div></div>
+
+    <div class="btnrow" style="margin:16px 16px 0"><div class="btn pri">采纳</div><div class="btn">调整</div></div>
+    <div class="more" style="margin-top:10px; font-size:11px; color:var(--ink3)">草案不会自动创建任务</div>
+  </div></div></div>
+  <div class="anno"><b>减了什么</b>
+    <ul>
+      <li><span class="cut">调整区块两条重复依据行 →</span> 合成一条调整+一行「因为你说过…」，依据可点回原话</li>
+      <li>每项挂依据的契约不变（点调整行回⑤闭环），只是不逐行重复</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ⑧ 纠正与遗忘 -->
+<div class="col">
+  <div class="col-title">⑧ 「不对」之后：说人话，不做选择题<small>三分法退到后台，用户只管说哪里不对</small></div>
+  <div class="phone"><div class="phone-screen" style="height:auto; padding:16px 16px 20px">
+    <div class="detail-hero" style="padding:0 0 4px">
+      <h2 style="font-size:17px">哪里不对？</h2>
+      <div class="sub">说一句就行，我来改</div>
+    </div>
+    <div class="field" style="margin-top:12px">比如：这次是替朋友买的，我没养猫</div>
+    <div class="quick">
+      <span>理解错了</span><span>依据对不上</span><span>现在不一样了</span>
+    </div>
+    <div class="btnrow" style="margin-top:14px"><div class="btn pri">提交</div><div class="btn">算了</div></div>
+    <div style="font-size:11px; color:var(--ink3); margin-top:10px; line-height:1.6">快捷提示可不选；系统按这句话自动归类：理解错→停用并记你的纠正；依据对不上→重核来源；现在不一样了→更新范围。三类处理链契约不变。</div>
+
+    <div style="height:1px; background:var(--line); margin:18px 0"></div>
+
+    <div style="font-size:12px; font-weight:600; color:var(--ink2)">遗忘（在 ··· 里两步确认后）</div>
+    <div class="item" style="margin-top:8px">
+      <div class="stmt" style="font-size:14px">正在清除…</div>
+      <div class="sub">完成后显示「已遗忘」。原账单、任务、对话不受影响。</div>
+    </div>
+  </div></div></div>
+  <div class="anno"><b>减了什么</b>
+    <ul>
+      <li><span class="cut">三分选择题弹层 →</span> 一个输入框+三个可选快捷 chip（不强制）；三分法变成系统的归类逻辑，不是用户的前置功课</li>
+      <li><span class="cut">遗忘两段态的长文案 →</span> 清除中一行；影响范围说明压成一句，详情可点</li>
+    </ul>
+  </div>
+</div>
+
+</div>
+
+<footer style="max-width:1280px; margin:32px auto 0; text-align:center; font-size:12px; color:var(--ink3); line-height:1.8;">
+  减法版 = 实施契约候选；完整版（同目录）仅作对照与验收清单来源。<br>
+  契约不变项：六段详情可达、统计可展开、来源可核对、使用可追溯、纠正/遗忘处理链——全部保留为「点两下能到」。
+</footer>
+
+</body>
+</html>

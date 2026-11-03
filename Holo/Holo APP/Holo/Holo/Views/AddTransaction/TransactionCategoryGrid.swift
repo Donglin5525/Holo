@@ -44,6 +44,7 @@ extension AddTransactionSheet {
                                 .font(.system(size: 13, weight: .medium))
                         }
                         .foregroundColor(.holoPrimary)
+                        .holoRowHitArea()
                     }
                 } else {
                     Text("选择分类")
@@ -63,6 +64,7 @@ extension AddTransactionSheet {
                             .font(.system(size: 12))
                     }
                     .foregroundColor(.holoPrimary)
+                    .holoRowHitArea()
                 }
             }
 
@@ -164,6 +166,7 @@ extension AddTransactionSheet {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
+            .contentShape(Rectangle())
         }
     }
 
@@ -196,6 +199,7 @@ extension AddTransactionSheet {
             )
             // 最近使用分类名称来自数据，保持胶囊完整宽度后再交给横向滚动条处理
             .fixedSize(horizontal: true, vertical: false)
+            .holoRowHitArea(alignment: .center)
         }
         .buttonStyle(.plain)
     }
@@ -219,6 +223,7 @@ extension AddTransactionSheet {
                     .foregroundColor(hasSelectedChild ? .holoTextPrimary : .holoTextSecondary)
                     .lineLimit(1)
             }
+            .holoRowHitArea(alignment: .center)
         }
         .buttonStyle(.plain)
     }
@@ -240,6 +245,7 @@ extension AddTransactionSheet {
                     .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
                     .lineLimit(1)
             }
+            .holoRowHitArea(alignment: .center)
         }
         .buttonStyle(.plain)
     }
@@ -282,6 +288,7 @@ extension AddTransactionSheet {
                     .foregroundColor(.holoPrimary)
                     .lineLimit(1)
             }
+            .holoRowHitArea(alignment: .center)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)

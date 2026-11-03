@@ -61,21 +61,32 @@ final class ThoughtSemanticChangeFeed {
               context.persistentStoreCoordinator === CoreDataStack.shared.persistentContainer.persistentStoreCoordinator
         else { return }
         // 通知由保存上下文同步发出，必须在其队列内读成值快照。
-        let events: [(id: UUID, hash: String?, deleted: Bool)] = context.performAndWait {
+        let events: [(id: UUID, hash: String?, deleted: Bool, needsExclusionReconcile: Bool)] = context.performAndWait {
             let inserted = (note.userInfo?[NSInsertedObjectsKey] as? Set<NSManagedObject>) ?? []
             let updated = (note.userInfo?[NSUpdatedObjectsKey] as? Set<NSManagedObject>) ?? []
             let deleted = (note.userInfo?[NSDeletedObjectsKey] as? Set<NSManagedObject>) ?? []
-            return inserted.union(updated).union(deleted).compactMap { object in
+            return inserted.union(updated).union(deleted).compactMap { object -> (UUID, String?, Bool, Bool)? in
                 guard object.entity.name == "Thought", let id = object.value(forKey: "id") as? UUID else { return nil }
                 let unavailable = deleted.contains(object) || (object.value(forKey: "deletedAt") as? Date) != nil
                     || (object.value(forKey: "isArchived") as? Bool) == true
                 let content = object.value(forKey: "content") as? String ?? ""
-                return (id, content.isEmpty ? nil : ThoughtSemanticText.contentHash( content), unavailable)
+                // 标签级 AI 排除（2026-10-21）：命中排除标签、或仍是排除态但标签事实可能已变（去掉
+                // 排除标签的恢复路径），都交给 ExclusionService 双向 reconcile；排除想法永不入队
+                let excludedHit = !unavailable && (object as? Thought).map(ThoughtAIAudience.isExcluded) == true
+                let status = object.value(forKey: "organizedStatus") as? String
+                let needsReconcile = excludedHit
+                    || (!unavailable && status == ThoughtAIClassificationPolicy.excludedStatus)
+                return (id, content.isEmpty ? nil : ThoughtSemanticText.contentHash(content), unavailable, needsReconcile)
             }
         }
         Task { @MainActor in
             for event in events {
                 if event.deleted { await handleSoftDelete(thoughtID: event.id) }
+                else if event.needsExclusionReconcile {
+                    // 双向收敛：新命中→excluded+清痕迹；标签事实已解除→回 pending 重新入队（其 save
+                    // 会再次进入 handleSave 走正常 embed 入队，自然收敛不循环）
+                    await ThoughtAIExclusionService.shared.reconcile(thoughtIDs: [event.id])
+                }
                 else if let hash = event.hash { _ = await enqueueEmbedIfNeeded(thoughtID: event.id, contentHash: hash, priority: 100) }
             }
             scheduleWake()
@@ -109,6 +120,9 @@ final class ThoughtSemanticChangeFeed {
         Task {
             let pending = (try? await store.pendingJobCount()) ?? 0
             logger.debug("远端变更通知：当前待处理 \(pending)")
+            // 多设备：另一台设备的排除开关/清理墓碑经 CloudKit 同步过来，本机向量库与
+            // 排除状态需要按标签事实重判（ExclusionService 每次回读事实源，幂等）
+            await ThoughtAIExclusionService.shared.reconcileAll()
             await reconcileAllThoughts()
         }
     }
@@ -142,7 +156,9 @@ final class ThoughtSemanticChangeFeed {
             let page: [(id: UUID, hash: String)] = await MainActor.run {
                 context.performAndWait {
                     let request = Thought.fetchRequest()
-                    request.predicate = NSPredicate(format: "deletedAt == nil AND isArchived == NO")
+                    // 「不参与 AI」标签的想法不入队（embed/relate 都不碰）
+                    request.predicate = ThoughtAIAudience.aiVisible(
+                        NSPredicate(format: "deletedAt == nil AND isArchived == NO"))
                     request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
                     request.fetchLimit = pageSize
                     request.fetchOffset = offset

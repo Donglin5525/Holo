@@ -11,7 +11,13 @@
 //  主线程不再为看图付 SQLite IO。
 //
 
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+import CoreGraphics
+#endif
+import Foundation
 import CryptoKit
 import CoreData
 
@@ -127,6 +133,12 @@ nonisolated enum AttachmentImageLoader {
     }
 
     private static func bitmapBytes(_ image: UIImage) -> Int {
-        image.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
+        #if canImport(UIKit)
+        return image.cgImage.map { $0.bytesPerRow * $0.height } ?? 0
+        #else
+        var rect = CGRect(origin: .zero, size: image.size)
+        guard let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil) else { return 0 }
+        return cgImage.bytesPerRow * cgImage.height
+        #endif
     }
 }

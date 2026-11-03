@@ -8,7 +8,9 @@
 
 import CoreData
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 
 @MainActor
 enum HoloAppStoreScreenshotSeeder {
@@ -70,6 +72,7 @@ enum HoloAppStoreScreenshotSeeder {
     static var isRequested: Bool {
         #if targetEnvironment(simulator)
         ProcessInfo.processInfo.environment[modeKey] == "1"
+            || ProcessInfo.processInfo.environment["HOLO_ASO_V10"] == "1"
         #else
         false
         #endif
@@ -92,6 +95,17 @@ enum HoloAppStoreScreenshotSeeder {
         now: Date = Date()
     ) async -> Bool {
         #if targetEnvironment(simulator)
+        if environment["HOLO_ASO_V10"] == "1" {
+            do {
+                if environment["HOLO_ASO_FINANCE"] == "1" {
+                    return try await HoloASOFinanceSeeder.seedIfRequested(environment: environment)
+                }
+                return try HoloASOCaptureHarness.seedHabitsIfRequested(environment: environment)
+            } catch {
+                print("[HoloASO] 演示数据写入失败：\(error)")
+                return false
+            }
+        }
         guard environment[modeKey] == "1" else { return false }
 
         // 截图摆拍一律按 Plus 展示（小组件等 Plus 权益需完整出镜）；权益快照同步写给桌面小组件
@@ -122,6 +136,9 @@ enum HoloAppStoreScreenshotSeeder {
         let context = CoreDataStack.shared.viewContext
         let story = requestedStory
         do {
+            if environment["HOLO_THOUGHT_TOPIC_BADGE_GATE"] == "1" {
+                try HoloThoughtTopicBadgeGateSeeder.seed(in: context, now: now)
+            }
             try seedMarkdownTableConversationIfNeeded(
                 context: context,
                 route: Route(rawValue: environment[routeKey] ?? "")
@@ -1388,6 +1405,47 @@ enum HoloAppStoreScreenshotSeeder {
             sortOrder: 2
         )
 
+        // 历史记录最早写在 -24 天，创建日必须更早：统计口径「创建前不计入」
+        // 会被创建日晚于记录的数据放大成荒谬值（如完成率 = 记录天数 ÷ 1 天）
+        let historyStart = date(from: startOfWeek, dayOffset: -25, hour: 0, minute: 0)
+        reading.createdAt = historyStart
+        walk.createdAt = historyStart
+        sleep.createdAt = historyStart
+
+        // 稀疏态样本（验收必测：图表在数据少时必须收缩形态而不是硬画）
+        let stretch = Habit.create(
+            in: context,
+            name: "拉伸",
+            icon: "figure.flexibility",
+            color: "#1F9E9E",
+            type: .checkIn,
+            frequency: .daily,
+            targetCount: 1,
+            sortOrder: 3
+        )
+        let breathe = Habit.create(
+            in: context,
+            name: "深呼吸",
+            icon: "lungs.fill",
+            color: "#8063CE",
+            type: .checkIn,
+            frequency: .daily,
+            targetCount: 1,
+            sortOrder: 4
+        )
+        let todayOffset = Calendar.current.dateComponents(
+            [.day], from: startOfWeek, to: Date()).day ?? 0
+        stretch.createdAt = date(from: startOfWeek, dayOffset: todayOffset - 1, hour: 0, minute: 0)
+        let stretchRecord = HabitRecord.createCheckIn(in: context, habit: stretch)
+        stretchRecord.date = date(from: startOfWeek, dayOffset: todayOffset, hour: 8, minute: 5)
+        stretchRecord.createdAt = stretchRecord.date
+        breathe.createdAt = date(from: startOfWeek, dayOffset: todayOffset - 3, hour: 0, minute: 0)
+        for offset in [todayOffset - 1, todayOffset] {
+            let record = HabitRecord.createCheckIn(in: context, habit: breathe)
+            record.date = date(from: startOfWeek, dayOffset: offset, hour: 7, minute: 40)
+            record.createdAt = record.date
+        }
+
         for day in 0...4 {
             let record = HabitRecord.createCheckIn(in: context, habit: reading)
             record.date = date(from: startOfWeek, dayOffset: day, hour: 8, minute: 35)
@@ -1417,6 +1475,19 @@ enum HoloAppStoreScreenshotSeeder {
             let record = HabitRecord.createCheckIn(in: context, habit: sleep)
             record.date = date(from: startOfWeek, dayOffset: day, hour: 23, minute: 10)
             record.createdAt = record.date
+        }
+
+        // 播种时刻可能早于记录名义时刻（如凌晨跑测试时「今天 08:05」尚未到来）：
+        // 未来时刻记录会被投影层排除，造成「今天的记录在列表里、统计却算未记录」的自相矛盾。
+        // 只钳「今天之内、时刻未到」的记录；未来日期保持原样（isFuture 隔离即可，
+        // 钳了会全挤到今天造成同刻多条）。必须在全部习惯记录创建完之后执行。
+        let seededNow = Date()
+        for case let record as HabitRecord in context.insertedObjects {
+            if record.date > seededNow,
+               Calendar.current.isDate(record.date, inSameDayAs: seededNow) {
+                record.date = seededNow.addingTimeInterval(-60)
+                record.createdAt = record.date
+            }
         }
         return reading
     }
@@ -1553,6 +1624,7 @@ enum HoloAppStoreScreenshotSeeder {
 
         let repository = ThoughtRepository(context: context)
         for name in photoNames {
+            #if canImport(UIKit)
             guard let image = UIImage(named: name),
                   let imageData = image.jpegData(compressionQuality: 0.9) else {
                 throw ScreenshotSeedError.missingMemoryPhoto(name)
@@ -1562,6 +1634,10 @@ enum HoloAppStoreScreenshotSeeder {
                 to: thought,
                 sourceType: "screenshotSeed"
             )
+            #else
+            // 宣传图种子仅在 iOS 模拟器拍摄场景使用；macOS 无 UIImage(named:) 管线
+            throw ScreenshotSeedError.missingMemoryPhoto(name)
+            #endif
         }
     }
 

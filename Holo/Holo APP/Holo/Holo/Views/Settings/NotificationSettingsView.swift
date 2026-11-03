@@ -9,6 +9,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import CoreData
 import UserNotifications
 
@@ -67,7 +71,7 @@ struct NotificationSettingsView: View {
             ZStack {
                 Color.holoBackground.ignoresSafeArea()
 
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: HoloSpacing.md) {
                         // 通知权限状态（已授权=不显眼的一行小字）
                         permissionSection
@@ -100,9 +104,11 @@ struct NotificationSettingsView: View {
                 }
             }
             .navigationTitle("通知设置")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("关闭") {
                         dismiss()
                     }
@@ -115,9 +121,15 @@ struct NotificationSettingsView: View {
             .alert("通知权限", isPresented: $showPermissionAlert) {
                 Button("取消", role: .cancel) { }
                 Button("去设置") {
+                    #if canImport(UIKit)
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
+                    #else
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.notifications") {
+                        NSWorkspace.shared.open(url)
+                    }
+                    #endif
                 }
             } message: {
                 Text("请在系统设置中开启 Holo 的通知权限")
@@ -131,9 +143,15 @@ struct NotificationSettingsView: View {
                 loadRowStates()
                 loadCounts()
             }
+            #if canImport(UIKit)
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
                 loadCounts()
             }
+            #else
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.willBecomeActiveNotification)) { _ in
+                loadCounts()
+            }
+            #endif
             .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
                 loadCounts()
             }
@@ -368,7 +386,7 @@ struct NotificationSettingsView: View {
         entryRow(
             icon: "bell.fill",
             title: String(localized: "任务提醒"),
-            summary: String(localized: "\(taskReminderCount) 条已设置"),
+            summary: String(localized: "\(taskReminderCount) 项已设置"),
             note: .tasks,
             noteText: String(localized: "各任务的提醒在对应任务的详情页设置：打开任务模块，点开任务后选择「提醒」。")
         )
@@ -427,21 +445,28 @@ struct NotificationSettingsView: View {
         HStack(spacing: 10) {
             NotificationSettingsIconBlock(systemName: icon, tint: iconColor)
 
-            Text(title)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-                .lineLimit(1)
+            // 两行式行模板（同习惯「更多选项」行结构）：标题+徽章一行、摘要一行，
+            // 避免长标题被徽章和摘要挤成「周期账...」式截断
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(title)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
 
-            if plusBadge {
-                NotificationSettingsPlusBadge()
+                    if plusBadge {
+                        NotificationSettingsPlusBadge()
+                    }
+                }
+
+                Text(summary)
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoTextSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer(minLength: HoloSpacing.sm)
-
-            Text(summary)
-                .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary)
-                .lineLimit(1)
 
             trailing()
         }
@@ -454,7 +479,7 @@ struct NotificationSettingsView: View {
         .onTapGesture(perform: action)
     }
 
-    /// 入口行：右侧 chevron，点击展开/收起底部说明
+    /// 按条提醒在原记录中设置；这里明确提供设置方法，不伪装成跳转入口。
     private func entryRow(
         icon: String,
         iconColor: Color = .holoPrimary,
@@ -463,50 +488,23 @@ struct NotificationSettingsView: View {
         note: EntryNote,
         noteText: String
     ) -> some View {
-        VStack(spacing: HoloSpacing.xs) {
-            HStack(spacing: 10) {
-                NotificationSettingsIconBlock(systemName: icon, tint: iconColor)
-
-                Text(title)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-                    .lineLimit(1)
-
-                Spacer(minLength: HoloSpacing.sm)
-
-                Text(summary)
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary)
-                    .lineLimit(1)
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoTextPlaceholder)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.holoCardBackground)
-            .cornerRadius(HoloRadius.md)
-            .contentShape(Rectangle())
-            .onTapGesture {
-                withAnimation(HoloAnimation.standard) {
-                    expandedEntry = expandedEntry == note ? nil : note
-                }
-            }
-
-            if expandedEntry == note {
-                Text(noteText)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background(Color.holoCardBackground)
-                    .cornerRadius(HoloRadius.md)
-                    .transition(.opacity)
-            }
+        DisclosureGroup(isExpanded: Binding(
+            get: { expandedEntry == note },
+            set: { expandedEntry = $0 ? note : nil }
+        )) {
+            Text(noteText)
+                .holoText(.supporting)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, HoloSpacing.sm)
+        } label: {
+            HoloSettingsRow(icon: icon, iconColor: iconColor, title: title,
+                            subtitle: summary + String(localized: " · 查看设置方法"))
         }
+        .tint(.holoToolTextSecondary)
+        .padding(.horizontal, HoloSpacing.md)
+        .holoSurface()
+        .animation(HoloAnimation.standard, value: expandedEntry)
     }
 
     /// 行内 Toggle（未授权时禁用）
@@ -649,7 +647,9 @@ private struct DailyBriefNotificationDetailView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("每日早报")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             enabled = DailyBriefScheduler.shared.isEnabled
             time = notificationTimeDate(DailyBriefScheduler.shared.reminderTime)
@@ -720,7 +720,9 @@ private struct WeeklyBriefNotificationDetailView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("周一晨报")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             enabled = WeeklyBriefScheduler.shared.isEnabled
             time = notificationTimeDate(WeeklyBriefScheduler.shared.reminderTime)
@@ -765,6 +767,17 @@ private struct InsightNotificationDetailView: View {
 
                     Divider().padding(.horizontal, 12)
 
+                    // 周观察自动生成（2026-10-23 独立开关）：控制后台+前台补偿两路的每周观察
+                    // 自动生成；与提醒互相独立（提醒开不自动生成）。默认开=此前行为。
+                    DetailToggleRow(
+                        icon: "wand.and.stars",
+                        iconColor: .holoAI,
+                        title: String(localized: "自动生成每周观察"),
+                        isOn: $insightSettings.weeklyAutoGenerationEnabled
+                    )
+
+                    Divider().padding(.horizontal, 12)
+
                     DetailToggleRow(
                         icon: "calendar.circle",
                         iconColor: .holoAI,
@@ -788,7 +801,9 @@ private struct InsightNotificationDetailView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("AI 回放")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
     }
 
     /// 周回放时间：周几 + 小时
@@ -884,7 +899,9 @@ private struct BillDueNotificationDetailView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("周期账单到期提醒")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             let scheduler = BillDueReminderScheduler.shared
             enabled = scheduler.isEnabled
@@ -1046,7 +1063,9 @@ private struct BudgetOverrunNotificationDetailView: View {
         }
         .background(Color.holoBackground)
         .navigationTitle("预算超支提醒")
+        #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
+        #endif
         .task {
             enabled = BudgetOverrunNotificationService.shared.isEnabled
         }
@@ -1163,13 +1182,13 @@ private struct PreviewButtonRow: View {
 
                 Text(title)
                     .font(.holoBody)
-                    .foregroundColor(.holoPrimaryDark)
+                    .foregroundColor(.holoPrimary)
 
                 Spacer()
 
                 Image(systemName: "paperplane.fill")
                     .font(.system(size: 12))
-                    .foregroundColor(.holoPrimaryDark.opacity(0.6))
+                    .foregroundColor(.holoPrimary.opacity(0.6))
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
@@ -1197,16 +1216,16 @@ private struct NotificationSettingsIconBlock: View {
     }
 }
 
-/// PLUS 小胶囊徽章（holoPrimaryLight 底 / holoPrimaryDark 字）
+/// PLUS 小胶囊徽章（holoToolInset 底 / holoToolWarning 字：两模式对比达标）
 private struct NotificationSettingsPlusBadge: View {
 
     var body: some View {
         Text("PLUS")
             .font(.system(size: 9, weight: .bold))
-            .foregroundColor(.holoPrimaryDark)
+            .foregroundColor(.holoToolWarning)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
-            .background(Color.holoPrimaryLight)
+            .background(Color.holoToolInset)
             .cornerRadius(5)
     }
 }

@@ -24,6 +24,10 @@ struct MemoryGalleryView: View {
 
     @StateObject private var viewModel = MemoryGalleryViewModel()
     @State private var selectedTab: MemoryGalleryTab = .calendar
+    @State private var hasMountedInsight = false
+    @State private var showGrowth = false
+    @Environment(\.holoMotionSurfaceIsActive) private var presentationIsVisible
+    private var insightIsVisible: Bool { presentationIsVisible && selectedTab == .insight }
     @ObservedObject private var deepLinkState = DeepLinkState.shared
     /// expanded 档放宽内容列（720→920），减少两侧留白；其余档维持全局列宽
     @Environment(\.holoContentWidth) private var galleryWindowWidth
@@ -64,6 +68,14 @@ struct MemoryGalleryView: View {
                     .padding(.top, HoloSpacing.sm)
                 }
 
+                Button { showGrowth = true } label: {
+                    HoloGrowthEntryView(compact: true)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, HoloSpacing.page)
+                .padding(.vertical, HoloSpacing.xs)
+                .holoContentColumn(maxWidth: contentColumnWidth, paintsBackground: false)
+
                 // 主内容区：两 tab 常驻不销毁（切走仅隐藏），
                 // 日历侧的取数与网格状态跨切换存活，消除切回卡顿
                 tabContent
@@ -77,6 +89,20 @@ struct MemoryGalleryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
+        .sheet(isPresented: $showGrowth) {
+            NavigationStack {
+                HoloGrowthView(onOpenModule: { target in
+                    showGrowth = false
+                    close()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { DeepLinkState.shared.navigate(to: target) }
+                })
+                .toolbar {
+                    ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
+                        Button("关闭") { showGrowth = false }
+                    }
+                }
+            }
+        }
         #if DEBUG
         .sheet(isPresented: $showAISettings) {
             NavigationStack {
@@ -92,7 +118,9 @@ struct MemoryGalleryView: View {
             }
             #endif
             consumeMemoryFocus()
-            await viewModel.refresh()
+        }
+        .task(id: insightIsVisible) {
+            await viewModel.setPresentationVisible(insightIsVisible)
         }
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             consumeMemoryFocus()
@@ -162,16 +190,21 @@ struct MemoryGalleryView: View {
         GeometryReader { geo in
             ZStack {
                 calendarTab
+                    .environment(\.holoMotionSurfaceIsActive, presentationIsVisible && selectedTab == .calendar)
                     .frame(width: geo.size.width)
                     .opacity(selectedTab == .calendar ? 1 : 0)
                     .allowsHitTesting(selectedTab == .calendar)
                     .accessibilityHidden(selectedTab != .calendar)
 
-                insightTab
-                    .frame(width: geo.size.width)
-                    .opacity(selectedTab == .insight ? 1 : 0)
-                    .allowsHitTesting(selectedTab == .insight)
-                    .accessibilityHidden(selectedTab != .insight)
+                if selectedTab == .insight || hasMountedInsight {
+                    insightTab
+                        .frame(width: geo.size.width)
+                        .opacity(selectedTab == .insight ? 1 : 0)
+                        .allowsHitTesting(selectedTab == .insight)
+                        .accessibilityHidden(selectedTab != .insight)
+                        .environment(\.holoMotionSurfaceIsActive, insightIsVisible)
+                        .onAppear { hasMountedInsight = true }
+                }
             }
         }
     }
@@ -192,12 +225,12 @@ struct MemoryGalleryView: View {
             errorView(message: errorMessage)
         } else {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 0) {
+                LazyVStack(spacing: 0) {
                     insightChapterHeader
 
-                    // 通宵冲刺 D4（v2 三批欠账）：expanded 档洞察分双栏——
-                    // 左「理解档案」（报告门/域记忆/DailySense）、右「行为层」（热力图/计划/精选故事）
                     if HoloAdaptiveLayout.isExpandedWidth(galleryWindowWidth) {
+                        // 通宵冲刺 D4（v2 三批欠账）：expanded 档洞察分双栏——
+                        // 左「理解档案」（报告门/域记忆/DailySense）、右「行为层」（热力图/计划/精选故事）
                         HStack(alignment: .top, spacing: HoloSpacing.lg) {
                             insightUnderstandingColumn
                                 .frame(maxWidth: .infinity)
@@ -207,18 +240,67 @@ struct MemoryGalleryView: View {
                         .padding(.horizontal, HoloSpacing.md)
                         .padding(.bottom, HoloSpacing.lg)
                     } else {
-                        VStack(spacing: HoloSpacing.lg) {
-                            insightUnderstandingColumn
-                            insightActivityColumn
-                        }
-                        .padding(.horizontal, HoloSpacing.md)
-                        .padding(.bottom, HoloSpacing.lg)
+                        // 窄屏：区块拍平为 LazyVStack 直接行。此前「理解/行为」两列各是
+                        // 一个 VStack，整列成为单个懒加载单元，域记忆全部卡片（真机
+                        // 2500+ 条记忆、约 1900 张卡）同帧构建——洞察页滚动卡顿的根因。
+                        // 拍平后每张卡独立懒加载，视口外不构建、滚出即回收。
+                        flatInsightContent
                     }
                 }
                 // 不加 containerRelativeFrame(.horizontal)：它按容器全宽定宽，
                 // 在 iPad 上无视 720 列提议并沿安全区链把整个 tab 层撑回全屏（通铺根因）
             }
         }
+    }
+
+    /// 窄屏洞察页拍平内容：区块间距规则——首区块与章节头之间由章节头自带
+    /// bottom padding 承担；区块之间由下一区块的 top(lg) 承担；尾部兜底 lg。
+    @ViewBuilder
+    private var flatInsightContent: some View {
+        // 报告门卡（一个家两个门）：最新一份报告的轻入口，直达 Holo AI 报告 Tab。
+        // 无报告时不展示，长廊对无报告用户保持零噪音。
+        if let reportEntry = viewModel.latestReportEntry {
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                sectionHeading(title: String(localized: "它看懂了你"), icon: "sparkles")
+                ReportDoorCard(entry: reportEntry) {
+                    DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
+                    ChatReportTabRouter.shared.openReportTab()
+                }
+            }
+            .padding(.horizontal, HoloSpacing.md)
+        }
+
+        // 域记忆（用户可理解的记忆中心）：flat 形态下组头与每张卡均为懒加载行。
+        // 上方有报告门卡时间距 lg，直接顶在章节头下时间距 md，与原列布局等价。
+        DomainMemorySection(
+            flat: true,
+            headerTopSpacing: viewModel.latestReportEntry == nil ? HoloSpacing.md : HoloSpacing.lg
+        )
+
+        // Daily Sense 状态卡片
+        if InsightFeatureFlags.dailySenseEnabled,
+           let snapshot = viewModel.dailySenseSnapshot,
+           !snapshot.signals.isEmpty {
+            DailySenseStatusCard(snapshot: snapshot)
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.top, HoloSpacing.lg)
+        }
+
+        // 活跃热力图（原明细 tab 资产，随两 tab 收敛迁入洞察）
+        heatmapSection
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.top, HoloSpacing.lg)
+
+        // 一起做的计划（LifePlan 台账）：理解档案第三块
+        LifePlanGallerySection()
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.top, HoloSpacing.lg)
+            .padding(.bottom, viewModel.featuredNarrativeNodes().isEmpty ? HoloSpacing.lg : 0)
+
+        featuredStoriesSection
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.top, HoloSpacing.lg)
+            .padding(.bottom, HoloSpacing.lg)
     }
 
     /// 洞察与日/周/月共用「章节开场」语法：一个大主题、一句解释、一行事实证据。
@@ -235,7 +317,7 @@ struct MemoryGalleryView: View {
                 Text("Holo 看见的你")
                     .font(.system(size: 15 * typeScale, weight: .semibold, design: .serif))
                     .foregroundColor(.holoToolText)
-                Text("\(viewModel.totalRecordedDays) 天生活证据 · \(viewModel.totalMemoryCount) 条记录")
+                Text("从生活记录里，慢慢认识自己")
                     .font(.system(size: 10 * typeScale, weight: .medium))
                     .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(1)
@@ -451,7 +533,7 @@ struct MemoryGalleryView: View {
 
                 Text(item.section.displayLabel)
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoPrimary)
+                    .foregroundColor(.holoToolWarning)
                     .padding(.horizontal, HoloSpacing.xs)
                     .padding(.vertical, 2)
                     .background(Color.holoPrimary.opacity(0.1))

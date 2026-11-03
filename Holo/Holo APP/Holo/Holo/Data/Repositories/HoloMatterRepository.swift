@@ -620,7 +620,8 @@ final class HoloMatterRepository: ObservableObject {
         )
     }
 
-    /// 主题清单解析：精确同名未删除 → 复用；未命中 → 新建。
+    /// 主题清单解析：精确同名未删除 → 复用；未命中 → 新建（一次性清单，
+    /// 计划做完自动归档退场）。
     nonisolated private static func resolveOrCreatePlanList(named name: String, in ctx: NSManagedObjectContext) throws -> TodoList {
         let request = TodoList.fetchRequest()
         request.predicate = NSPredicate(format: "name == %@ AND deletedAt == nil", name)
@@ -628,7 +629,7 @@ final class HoloMatterRepository: ObservableObject {
         if let existing = (try? ctx.fetch(request))?.first {
             return existing
         }
-        return TodoList.create(in: ctx, name: name)
+        return TodoList.create(in: ctx, name: name, isEphemeral: true)
     }
 
     /// Matter 的主题清单（todoList link 解析；老数据无此 link 返回 nil）。

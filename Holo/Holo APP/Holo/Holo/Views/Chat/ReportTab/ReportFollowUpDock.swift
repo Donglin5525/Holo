@@ -76,7 +76,7 @@ struct ReportFollowUpDock: View {
         if let remaining = controller.quotaRemaining, remaining <= 0 {
             Text("深度洞察额度已用完，恢复后可继续追问；普通对话不受影响")
                 .font(.system(size: 10.5, weight: .medium))
-                .foregroundColor(.holoError)
+                .foregroundColor(.holoToolError)
         } else {
             Text(quotaNoteText)
                 .font(.system(size: 10.5, weight: .medium))
@@ -148,7 +148,7 @@ struct ReportFollowUpDock: View {
             HStack(alignment: .top, spacing: 7) {
                 Image(systemName: "exclamationmark.circle.fill")
                     .font(.system(size: 13))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
                     .padding(.top, 1)
                 Text(message)
                     .font(.system(size: 12))

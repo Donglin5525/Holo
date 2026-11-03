@@ -6,7 +6,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
 
 struct VoiceResultConfig: Equatable {
     var title: String = String(localized: "识别结果")
@@ -82,12 +86,20 @@ struct VoiceInputSheet: View {
         .presentationDetents([.height(preferredSheetHeight), .medium])
         .presentationDragIndicator(.hidden)
         .task {
+            #if canImport(UIKit)
             UIApplication.shared.isIdleTimerDisabled = true
+            #else
+            // macOS：无 idle timer 概念，无需持锁
+            #endif
             await viewModel.startRecording()
         }
         .onDisappear {
             viewModel.cleanupAfterDismiss()
+            #if canImport(UIKit)
             UIApplication.shared.isIdleTimerDisabled = false
+            #else
+            // macOS：无 idle timer 概念，无需持锁
+            #endif
         }
         .onChange(of: scenePhase) { _, newPhase in
             viewModel.handleScenePhaseChange(newPhase)

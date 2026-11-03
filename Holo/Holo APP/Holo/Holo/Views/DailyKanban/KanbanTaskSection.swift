@@ -184,10 +184,10 @@ struct KanbanTaskSection: View {
                         if let list = task.list {
                             Text(list.name)
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.holoPrimaryDark)
+                                .foregroundColor(.holoToolWarning)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 1)
-                                .background(Color.holoPrimaryLight)
+                                .background(Color.holoToolInset)
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
                         if let goal = task.goal {
@@ -202,10 +202,12 @@ struct KanbanTaskSection: View {
                                 // 逾期任务：红色提示
                                 Text("已逾期 · \(formatDate(dueDate))")
                                     .font(.holoTinyLabel)
-                                    .foregroundColor(.holoError)
+                                    .foregroundColor(.holoToolError)
                             }
                         }
                     }
+                    // 清单名/目标名偏长时内部折行会与相邻徽章底边参差，整行锁单行截断
+                    .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -316,10 +318,10 @@ struct KanbanTaskSection: View {
                         if let list = task.list {
                             Text(list.name)
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.holoPrimaryDark)
+                                .foregroundColor(.holoToolWarning)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 1)
-                                .background(Color.holoPrimaryLight)
+                                .background(Color.holoToolInset)
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
                         if let goal = task.goal {
@@ -328,7 +330,7 @@ struct KanbanTaskSection: View {
                         if let dueDate = task.dueDate {
                             Text(formatDate(dueDate))
                                 .font(.holoTinyLabel)
-                                .foregroundColor(.holoError)
+                                .foregroundColor(.holoToolError)
                         } else {
                             Text("无截止日期")
                                 .font(.holoTinyLabel)
@@ -345,10 +347,10 @@ struct KanbanTaskSection: View {
             } label: {
                 Text("加入今日")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoPrimary)
+                    .foregroundColor(.holoToolWarning)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(Color.holoPrimaryLight)
+                    .background(Color.holoToolInset)
                     .clipShape(Capsule())
             }
             .buttonStyle(.plain)
@@ -423,17 +425,26 @@ struct KanbanTaskSection: View {
         }
     }
 
-    private func formatTime(_ date: Date) -> String {
+    /// 行级格式化器缓存（2026-10-30 性能审计 C9；缓存范式同 TaskQuadrantBoardView）
+    private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "zh_CN")
         f.dateFormat = "HH:mm"
-        return f.string(from: date)
-    }
+        return f
+    }()
 
-    private func formatDate(_ date: Date) -> String {
+    private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "zh_CN")
         f.dateFormat = "M/d"
-        return f.string(from: date)
+        return f
+    }()
+
+    private func formatTime(_ date: Date) -> String {
+        Self.timeFormatter.string(from: date)
+    }
+
+    private func formatDate(_ date: Date) -> String {
+        Self.dateFormatter.string(from: date)
     }
 }

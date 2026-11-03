@@ -18,12 +18,13 @@ struct SleepStructureAnalyzerTests {
     static func main() {
         testREM计数与潜伏期()
         test重叠REM段合并为一段()
-        test五分钟以下REM碎片不计段()
+        test保留设备记录的短REM片段()
         test深睡前半夜占比()
         test深睡全在后半夜占比为零()
         test入睡潜伏期按在床到首次入睡计算()
         test无阶段数据时结构特征全部为nil()
         test无睡着段返回空特征()
+        test上床与入睡同时为真实零分钟()
         print("SleepStructureAnalyzerTests passed")
     }
 
@@ -71,7 +72,7 @@ struct SleepStructureAnalyzerTests {
         expect(features.remEpisodes == 2, "重叠 REM 段应合并后计数：[192,204)+[200,220) 合并 1 段 + [300,320) 1 段 = 2，实际 \(String(describing: features.remEpisodes))")
     }
 
-    private static func test五分钟以下REM碎片不计段() {
+    private static func test保留设备记录的短REM片段() {
         let night = NightSegmentsBuilder()
             .inBed(0, 17)
             .asleep(core: (17, 100))
@@ -80,8 +81,8 @@ struct SleepStructureAnalyzerTests {
             .build()
 
         let features = SleepStructureAnalyzer.features(night)
-        expect(features.remEpisodes == 1, "3 分钟 REM 碎片应被过滤，实际 \(String(describing: features.remEpisodes))")
-        expect(features.remLatencyMinutes == 183, "潜伏期应取过滤后首段（200-17=183），实际 \(String(describing: features.remLatencyMinutes))")
+        expect(features.remEpisodes == 2, "3 分钟 REM 也应计入设备记录，实际 \(String(describing: features.remEpisodes))")
+        expect(features.remLatencyMinutes == 103, "潜伏期应取首个真实 REM 段（120-17=103），实际 \(String(describing: features.remLatencyMinutes))")
     }
 
     private static func test深睡前半夜占比() {
@@ -142,6 +143,11 @@ struct SleepStructureAnalyzerTests {
         let features = SleepStructureAnalyzer.features(night)
         expect(features.remEpisodes == nil && features.deepFrontLoadPercent == nil
                 && features.sleepOnsetLatencyMinutes == nil, "无睡着段时全部结构特征应为 nil")
+    }
+
+    private static func test上床与入睡同时为真实零分钟() {
+        let night = NightSegmentsBuilder().inBed(0, 120).asleep(core: (0, 120)).build()
+        expect(SleepStructureAnalyzer.features(night).sleepOnsetLatencyMinutes == 0, "同时上床入睡的零分钟不能变成未知")
     }
 }
 

@@ -109,8 +109,81 @@ final class ChatViewModel: ObservableObject {
     /// 空状态卡片使用的能力入口（含 onboarding 引导等，按用户状态动态生成）。
     @Published private(set) var emptyStateCapabilities: [HoloAICapability] = []
 
-    /// 输入框上方常驻能力行使用的能力入口（今日状态/最近分析/规划目标等常驻项）。
+    /// 输入框上方常驻能力行使用的能力入口（深度分析/周期回放/规划目标；「一个发现」
+    /// 胶囊由 QuickActionBar 在周期回放前按 presentationState 独立渲染，不在此列）。
     @Published private(set) var persistentCapabilities: [HoloAICapability] = HoloAICapabilityProvider.persistentCapabilities()
+
+    // MARK: - 一个发现（Discovery）
+
+    /// 胶囊呈现状态（拉取式同步：发现一天最多一批，onAppear/回前台/动作后刷新足够）。
+    @Published private(set) var discoveryPresentationState: DiscoveryPresentationState = .disabled
+    /// 当前正在阅读的发现（打开期间不被新结果替换；撤权/失效由服务侧强制关闭）。
+    @Published var discoveryFinding: DiscoveryFindingPresentation?
+    @Published var showsDiscoveryDetail = false
+    /// 详情被服务侧强制关闭时的失效说明（撤权/来源失效）。
+    @Published var discoveryInvalidationText: String?
+
+    var discoveryService: any DiscoveryService { DiscoveryCoordinator.shared }
+
+    /// 拉取发现状态（onAppear / 回前台 / 关键动作后调用）。
+    @MainActor
+    func refreshDiscoveryState() async {
+        await discoveryService.refresh()
+        discoveryPresentationState = discoveryService.presentationState
+        if !discoveryService.isDetailPresented, showsDiscoveryDetail {
+            // 撤权/失效：服务侧已关闭阅读，带上失效说明
+            discoveryInvalidationText = "这条发现已失效或授权已撤回"
+            showsDiscoveryDetail = false
+        }
+    }
+
+    /// 胶囊点击：打开当前有效发现（过期/失效返回 nil 则不呈现）。
+    @MainActor
+    func openDiscoveryFinding() {
+        if let finding = discoveryService.openFinding() {
+            discoveryFinding = finding
+            discoveryInvalidationText = nil
+            showsDiscoveryDetail = true
+        }
+        discoveryPresentationState = discoveryService.presentationState
+    }
+
+    @MainActor
+    func closeDiscoveryDetail() {
+        showsDiscoveryDetail = false
+        discoveryPresentationState = discoveryService.presentationState
+    }
+
+    /// 「一个发现」依据「打开原记录」路由：sourceRef canonical 串（thought:<uuid> /
+    /// task:<uuid> / habitEvent:<uuid>；habitEvent 无独立详情页，跳对应习惯详情——
+    /// V1 事件 ref 的 localID 即 HabitRecord id，经 habitId 反查跳转见 habitEvent 分支）。
+    @MainActor
+    func openRecord(sourceRef: String) {
+        let parts = sourceRef.split(separator: ":", maxSplits: 1)
+        guard parts.count == 2, let id = UUID(uuidString: String(parts[1])) else { return }
+        switch parts[0] {
+        case "thought":
+            DeepLinkState.shared.navigate(to: .thoughtDetail(thoughtId: id))
+        case "task":
+            DeepLinkState.shared.navigate(to: .taskDetail(taskId: id))
+        case "habitEvent":
+            if let habitId = HabitRepository.shared.habitId(ofRecord: id) {
+                DeepLinkState.shared.navigate(to: .habitDetail(habitId: habitId))
+            } else {
+                DeepLinkState.shared.navigate(to: .habits)
+            }
+        default:
+            break
+        }
+    }
+
+    /// 「聊聊这个」续聊草稿：仅在输入框为空时预填（01 §3「草稿非空时给保留/替换选择」的
+    /// V1 简化——不覆盖用户未发送的草稿；完整选择弹窗待协议补齐后接入）。
+    @MainActor
+    func seedDiscoveryDraft(_ draft: DiscoveryConversationDraft) {
+        guard inputText.isEmpty else { return }
+        inputText = draft.suggestedDraftText
+    }
 
     /// 是否处于真正的空会话（历史消息加载完成且无消息）。
     /// 用于区分「加载中的假空」与「加载完成的真空」，避免空状态 UI 闪烁出现又消失。
@@ -269,7 +342,15 @@ final class ChatViewModel: ObservableObject {
     /// 有则交 analysisService 处理三类悬挂（超截止终结 / 进度刷新 / 无 job 落地中断）。
     /// 一次性孤儿清理（bootstrap 时跑一次 + 180s 宽限）接不住「强杀后短时间内
     /// 重进并停留在聊天页」的场景——用户会看着「分析中」永远转圈。
+    /// 2026-11-02：同轮补上规划运行对账——规划此前只在冷启动 bootstrap 收治一次，
+    /// 「App 冻结/轮询任务随页面销毁静默退出 + 仅前后台切换」的运行卡会无限期
+    /// 停在旧阶段（真机实锤：卡片转 3 小时，云端 35 秒已完成）；页面驻留每 8 秒
+    /// 复查一次，中断运行/就绪孤儿都在 ~10s 内进入补领或诚实失败。
     private var analysisReconcileTask: Task<Void, Never>?
+
+    /// 规划恢复在途防重入：云查证+补领链路一次可达分钟级（本机检索重建慢），
+    /// 对账循环每 8 秒都会扫到同一条非终态消息，没有守卫会叠出并发补领。
+    private var planningRecoveryInFlight = Set<UUID>()
 
     private func startAnalysisReconcileLoop() {
         guard analysisReconcileTask == nil else { return }
@@ -278,6 +359,7 @@ final class ChatViewModel: ObservableObject {
                 try? await Task.sleep(for: .seconds(8))
                 guard let self else { return }
                 await self.analysisService.reconcileStalledAnalysisMessages()
+                self.reconcileInterruptedPlanningRuns()
             }
         }
     }
@@ -333,7 +415,9 @@ final class ChatViewModel: ObservableObject {
         }
         // 云端轨道启动即请求通知授权+注册 APNs（「分析完成」推送）；
         // 权限拒绝/注册失败不影响分析本身（打开 App 照常领取结果）
-        HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
+        #if canImport(UIKit)
+HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
+#endif
         switch await HoloCloudAnalysisService.shared.attempt(
             question: question,
             sourceMessageID: aiMessageId,
@@ -774,12 +858,15 @@ final class ChatViewModel: ObservableObject {
         }
         let caption = rawCaption.trimmingCharacters(in: .whitespacesAndNewlines)
         errorMessage = nil
+        trackOutgoingMessage(kind: "image")
 
-        // 1. 用户消息（内容=附言，无附言落占位）+ 确定性路径缩略图（拍板 5，不进 Core Data）
+        // 1. 压缩先行（后台线程，重活不占主线程）：完成后再落用户消息+缩略图，
+        //    保持「缩略图先于气泡渲染存在」的既有时序（气泡探测不到文件=不显示图）
+        let thumbnailJPEG = await HoloVisionImagePipeline.compressedJPEGInBackground(from: rawImageData)
         let displayText = caption.isEmpty ? String(localized: "[图片]") : caption
         let userMessageId = chatRepo.addMessage(role: "user", content: displayText)
-        if let jpeg = HoloVisionImagePipeline.compressedJPEG(from: rawImageData) {
-            VisionImageStore.save(jpeg, messageID: userMessageId)
+        if let thumbnailJPEG {
+            VisionImageStore.save(thumbnailJPEG, messageID: userMessageId)
         }
 
         // 2. AI 占位 + 流式状态（停止键/watchdog 复用既有机制）
@@ -884,6 +971,24 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    // MARK: - 产品埋点（AI 交互，字典 v2）
+
+    /// 本进程内最近一次记过 ai_conversation_started 的分析会话键。会话 ID 每次前台激活换新
+    ///（HoloAnalyticsSession），自然得到「每次使用 App 首次发 AI 消息记一次」；
+    /// 与 app_session_start 相除即 AI 渗透率。无会话时用哨兵键，保证首条消息必记。
+    private static var lastConversationTrackedKey: String?
+
+    /// 用户消息真正发出时调用（本地拦截分支如草案待确认提示不计）：
+    /// 首条消息补记会话开始，再记消息本身；kind=text/image/report_followup
+    private func trackOutgoingMessage(kind: String) {
+        let key = HoloAnalyticsSession.currentId ?? "no-session"
+        if key != Self.lastConversationTrackedKey {
+            Self.lastConversationTrackedKey = key
+            HoloProductAnalytics.shared.track(.aiConversationStarted)
+        }
+        HoloProductAnalytics.shared.track(.aiMessageSent, ["kind": kind])
+    }
+
     func sendMessage() async {
         // 一条流式回复进行中时禁止再发：并发发送会互相覆盖 currentTask/activeStreamingMessageID，
         // 两条气泡还会显示同一段交叉串流内容（发送按钮已切换为停止键，这里挡住键盘回车等旁路入口）
@@ -899,8 +1004,17 @@ final class ChatViewModel: ObservableObject {
             return
         }
 
+        // 发送路由统一决策：显式场景 > 规划续答 > 草案待确认 > 常规意图识别。
+        // 显式场景命中时规划会话让位（取消有气泡交代），深度分析不再被吞（2026-09-19）。
+        // 场景意图必须在 inputText 置空前捕获：didSet 会把清空视为「用户删光预填=
+        // 放弃场景」解除绑定（4764ad2849），先清后取会让每次显式场景发送都退回
+        // 常规意图识别（2026-10-25 埋点冒烟实锤回归）。
+        let explicitScenario = consumeExplicitScenarioIntent(for: text)
         inputText = ""
         errorMessage = nil
+        // 上一轮的记忆署名提示随新一轮发送收起（提示不再 3 秒自动消失后，
+        // 由发送动作负责生命周期：核对入口保留完整一轮）。
+        memoryNotice = nil
 
         // 目标规划分流。会话可能因页面重建（切 Tab / 杀 App）丢失，先从持久化恢复：
         // 恢复失败就当普通消息走路由，不再让回答掉进意图识别被误判成建任务（2026-09-18）
@@ -908,21 +1022,21 @@ final class ChatViewModel: ObservableObject {
             restoreActiveGoalPlanningIfNeeded()
         }
 
-        // 发送路由统一决策：显式场景 > 规划续答 > 草案待确认 > 常规意图识别。
-        // 显式场景命中时规划会话让位（取消有气泡交代），深度分析不再被吞（2026-09-19）。
-        let explicitScenario = consumeExplicitScenarioIntent(for: text)
         switch Self.resolveSendRoute(
             text: text,
             explicitScenario: explicitScenario,
             planningStatus: activeGoalPlanningSession?.status,
             hasDraftForReview: goalDraftForReview != nil
         ) {
-        case .explicitDeepAnalysis:
+        case .explicitDeepAnalysis(let scenario):
             if activeGoalPlanningSession != nil || goalDraftForReview != nil {
                 cancelGoalPlanning()
             }
+            // 产品埋点：深度洞察发起（消耗 Plus 额度；消息本身在下方统一记 ai_message_sent）
+            HoloProductAnalytics.shared.track(.aiDeepReportRequested, ["scenario": scenario.rawValue])
         case .goalPlanningReply:
             if let session = activeGoalPlanningSession {
+                trackOutgoingMessage(kind: "text")
                 await handleGoalPlanningReply(text, session: session)
             }
             return
@@ -942,6 +1056,7 @@ final class ChatViewModel: ObservableObject {
         }
 
         // 1. 保存用户消息
+        trackOutgoingMessage(kind: continuationDraft != nil ? "report_followup" : "text")
         let userMessageId = chatRepo.addMessage(role: "user", content: text)
         lastSentUserText = text
 
@@ -999,6 +1114,15 @@ final class ChatViewModel: ObservableObject {
                 let continuation = resolvedContinuation?.relation == .executeFromResult
                     ? nil
                     : resolvedContinuation
+
+                // 报告追问血统盖章（对齐 2026-11-01 追问链路原型）：用户消息与
+                // 生成中占位消息都带上根报告提问——生成完成前（continuationMetadata
+                // 尚未随结果返回）聊天侧就能认出这是对哪份报告的追问。
+                if let rootQuestion = continuation?.rootUserQuestion, !rootQuestion.isEmpty {
+                    let parentResultID = continuation?.parentResultID
+                    self.chatRepo?.stampContinuationRoot(userMessageId, rootQuestion: rootQuestion, parentResultID: parentResultID)
+                    self.chatRepo?.stampContinuationRoot(aiMessageId, rootQuestion: rootQuestion, parentResultID: parentResultID)
+                }
                 // 规划运行态（§6.2）：首个进度事件把占位消息升级为 .contextPlan 运行卡，
                 // 阶段迁移经 RunController 守卫（revision 单调 + 终态锁）后原子落盘；
                 // 退出重进按持久化信封渲染同一张卡，不再依赖全局 isStreaming 推断。
@@ -1099,6 +1223,11 @@ final class ChatViewModel: ObservableObject {
                 // 云端异步规划已启动（§5.3）：流式会话立即收尾（输入不锁死），
                 // 轮询/领取/ack 由独立任务接管；运行卡按真实阶段推进。
                 if let cloudStart = processResult.contextPlanCloudStart {
+                    // 云端任务接管即注册推送（「个性化规划已就绪」通知；拒绝不影响规划）——
+                    // 2026-11-02 实锤：规划路径此前从不注册，完成推送无处可发。
+                    #if canImport(UIKit)
+                    HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
+                    #endif
                     planningRunBox.value?.advance(to: .uploadingContext, cloudTaskID: cloudStart.cloudTaskID)
                     planningRunBox.value?.advance(to: .cloudPlanning)
                     let runController = planningRunBox.value
@@ -2117,11 +2246,13 @@ final class ChatViewModel: ObservableObject {
             && ["pending", "failed"].contains(item.renderData?["confirmationStatus"] ?? "")
     }
 
-    /// 待确认财务项谓词
+    /// 待确认财务项谓词（pending/failed 均可操作：failed 卡的「重试」走确认入口、
+    /// 「修改分类」走编辑入口——此前只认 pending，重试按钮在入口闸门即被挡回，
+    /// 用户点了多少次都不会真的执行，2026-11-01 实报）
     private static func isPendingFinanceItem(_ item: AIExecutionItem) -> Bool {
         item.intent.isFinance
             && item.status == .skipped
-            && item.renderData?["confirmationStatus"] == "pending"
+            && ["pending", "failed"].contains(item.renderData?["confirmationStatus"] ?? "")
     }
 
     /// 把消息里指定 item 的确认状态持久化（基于重读的最新 batch 按 itemId 定位）。
@@ -2458,8 +2589,10 @@ final class ChatViewModel: ObservableObject {
     private static func confirmedFinalText(from items: [AIExecutionItem]) -> String {
         guard !items.isEmpty else { return String(localized: "已处理") }
         if items.count == 1 { return items[0].summaryText }
-        // 与真实状态对齐：还有未确认项时不说「已处理」
-        let pendingCount = items.filter { $0.status == .skipped }.count
+        // 与真实状态对齐：还有未确认项时不说「已处理」。
+        // 待确认口径与卡片渲染同源（ChatCardData.isPendingConfirmation）：
+        // 已取消的项 status 仍是 skipped，但卡片已显示「已取消」，不能再计入「待确认」
+        let pendingCount = items.filter { ChatCardData.from(executionItem: $0)?.isPendingConfirmation == true }.count
         let body = items.enumerated().map { index, item in
             "\(index + 1). \(item.summaryText)"
         }.joined(separator: "\n")
@@ -3455,7 +3588,7 @@ final class ChatViewModel: ObservableObject {
         let loadedMessages = chatRepo?.messages ?? messages
         let interruptedIDs = HoloContextPlanRunController.interruptedRunIDs(from: loadedMessages)
         let orphanReadyIDs = HoloContextPlanRunController.orphanReadyRunIDs(from: loadedMessages)
-        for messageID in interruptedIDs {
+        for messageID in interruptedIDs where !planningRecoveryInFlight.contains(messageID) {
             guard let view = loadedMessages.first(where: { $0.id == messageID }),
                   let envelope = HoloContextPlanRunController.decode(view.contextPlanRunJSON) else { continue }
             // 云端查证优先：有云端任务 ID 的先尝试恢复，而不是直接判死
@@ -3464,7 +3597,10 @@ final class ChatViewModel: ObservableObject {
                     .flatMap { parentID in loadedMessages.first(where: { $0.id == parentID }) }?
                     .content ?? ""
                 let parentMessageID = view.parentMessageId?.uuidString
-                Task { @MainActor in
+                planningRecoveryInFlight.insert(messageID)
+                Task { @MainActor [weak self] in
+                    defer { self?.planningRecoveryInFlight.remove(messageID) }
+                    guard let self else { return }
                     await self.resumeInterruptedCloudRun(
                         messageID: messageID,
                         previous: envelope,
@@ -3477,7 +3613,7 @@ final class ChatViewModel: ObservableObject {
             }
             finalizeInterruptedRun(messageID: messageID, previous: envelope)
         }
-        for messageID in orphanReadyIDs {
+        for messageID in orphanReadyIDs where !planningRecoveryInFlight.contains(messageID) {
             guard let view = loadedMessages.first(where: { $0.id == messageID }),
                   let envelope = HoloContextPlanRunController.decode(view.contextPlanRunJSON) else { continue }
             guard let cloudTaskID = envelope.cloudTaskID, !cloudTaskID.isEmpty else {
@@ -3488,7 +3624,10 @@ final class ChatViewModel: ObservableObject {
                 .flatMap { parentID in loadedMessages.first(where: { $0.id == parentID }) }?
                 .content ?? ""
             let parentMessageID = view.parentMessageId?.uuidString
-            Task { @MainActor in
+            planningRecoveryInFlight.insert(messageID)
+            Task { @MainActor [weak self] in
+                defer { self?.planningRecoveryInFlight.remove(messageID) }
+                guard let self else { return }
                 await self.recoverOrphanReadyRun(
                     messageID: messageID,
                     previous: envelope,
@@ -3627,8 +3766,9 @@ final class ChatViewModel: ObservableObject {
             messageType: .contextPlan
         )
         // ack 前回读校验：方案没落上绝不销毁云端结果（ack 即焚不可逆；未 ack 的
-        // 结果留云端 7 天，由重进对账补领恢复）。
-        if let landed = chatRepo?.contextPlanDraftJSON(messageID), !landed.isEmpty {
+        // 结果留云端 7 天，由重进对账补领恢复）。2026-11-02：改读「已提交存储」——
+        // 主上下文对象在 save 失败时仍带内存值，据此 ack 会把云端唯一副本销毁掉。
+        if let landed = await chatRepo?.committedContextPlanDraftJSON(messageID), !landed.isEmpty {
             try? await client.ackResult(taskId: start.cloudTaskID)
             logger.info("PLAN-DIAG 云端方案已落卡并确认领取：task=\(start.cloudTaskID)")
             return true
@@ -3847,14 +3987,41 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// 云端运行失败终态的统一落盘（信封失败终态 + 消息定稿为运行卡失败态）。
+    /// 2026-11-02：两类历史病灶收口——
+    /// ① 领取已成功（消息已带方案+就绪终态）时，迟到的失败收尾整体跳过：
+    ///   此前会把已交付方案抹成「已就绪无方案」死卡（真机实锤）；
+    /// ② 控制器信封已终态（fail 被终态锁拒绝）或控制器缺席时，不再把
+    ///   「就绪信封/nil 信封」当失败载荷写库——一律从消息当前信封强制构造
+    ///   failed 终态，保证失败定稿永远携带失败信封。
     private func finishCloudRunAsFailed(
         aiMessageId: UUID,
         runController: HoloContextPlanRunController?,
         code: String,
         copy: String
     ) {
+        let currentView = (chatRepo?.messages ?? messages).first(where: { $0.id == aiMessageId })
+        // 已交付保护：方案在库且信封已就绪，这条失败写没有意义
+        if let envelope = currentView?.contextPlanRunJSON.flatMap(HoloContextPlanRunController.decode(_:)),
+           envelope.stage == .draftReady,
+           currentView?.contextPlanJSON?.isEmpty == false {
+            logger.error("PLAN-DIAG 迟到失败写被丢弃（方案已交付）：message=\(aiMessageId) code=\(code)")
+            return
+        }
         runController?.fail(code: code)
-        let failedRunJSON = runController.flatMap { HoloContextPlanRunController.encode($0.envelope) }
+        let previous: HoloContextPlanRunEnvelope?
+        if runController?.envelope.stage == .failed {
+            previous = runController?.envelope
+        } else {
+            // fail 被终态锁拒绝（如控制器已 draftReady）或无控制器：回读消息信封兜底
+            previous = currentView?.contextPlanRunJSON.flatMap(HoloContextPlanRunController.decode(_:))
+        }
+        let failedRunJSON = HoloContextPlanRunController.encode(
+            HoloContextPlanRunController.interruptedEnvelope(
+                for: aiMessageId,
+                previous: previous,
+                failureCode: code
+            )
+        )
         chatRepo?.finalizeMessage(
             aiMessageId,
             finalContent: copy,
@@ -3873,6 +4040,9 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// 返回剥离 marker 后的正文 + 实际引用的记忆 ID（供消息持久署名）。
+    /// 只认模型显式引用标记（09-R13）：词重合兜底已删除——「我不游泳」也会被
+    /// 词重合算成引用游泳记忆（实测反例），冒领的归因比没有归因更糟。
+    /// 缺标记时只保留「本次提供」事实，不擅称「回答引用」。
     private func consumeMemoryUsageMarker(
         from text: String,
         availableMemoryIDs: [String],
@@ -3883,17 +4053,7 @@ final class ChatViewModel: ObservableObject {
             text,
             allowedMemoryIDs: Set(availableMemoryIDs)
         )
-        var usedMemoryIDs = result.usedMemoryIDs
-        if usedMemoryIDs.isEmpty, !memoryEntries.isEmpty {
-            // 署名兜底：注入了记忆但模型没吐引用标记时，按内容词对账补署名，
-            // 避免「用了记忆却不说来源」。
-            usedMemoryIDs = HoloMemoryAttributionReconciler.matchedMemoryIDs(
-                reply: result.cleanText,
-                entries: memoryEntries.map {
-                    HoloMemoryAttributionReconciler.Entry(id: $0.id, text: $0.title + "\n" + $0.aiUseSummary)
-                }
-            )
-        }
+        let usedMemoryIDs = result.usedMemoryIDs
         if !usedMemoryIDs.isEmpty {
             let notice = String(localized: "Holo 参考了 \(usedMemoryIDs.count) 条已记住的信息")
             HoloMemoryReceiptStore.record(
@@ -3903,13 +4063,10 @@ final class ChatViewModel: ObservableObject {
                 message: notice
             )
             recordMemoryUsage(usedMemoryIDs)
+            // 提示保留到下一轮（减法原型⑥）：署名入口不能 3 秒消失，
+            // 否则用户来不及核对「用了哪几条」。memoryNotice 在下一条
+            // 用户消息发送流程中会被置空。
             memoryNotice = notice
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .seconds(3))
-                if self?.memoryNotice == notice {
-                    self?.memoryNotice = nil
-                }
-            }
         }
         return (result.cleanText, usedMemoryIDs)
     }
@@ -3987,7 +4144,9 @@ final class ChatViewModel: ObservableObject {
             showCloudPrivacySheet = true
         } else if HoloCloudAnalysisService.shared.canTakeCloudTask() {
             // 云端接管即注册推送（「回放已生成」通知）；拒绝不影响生成
+            #if canImport(UIKit)
             HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
+            #endif
         }
         await HoloPeriodReplayCoordinator.shared.start(
             periodType: periodType,
@@ -4330,7 +4489,7 @@ enum QuickAction: String, CaseIterable {
         case .weeklyReport: return "chart.bar"
         case .createNote: return "note.text"
         case .queryTasks: return "list.bullet.circle"
-        case .queryHabits: return "chart.circle"
+        case .queryHabits: return "chart.bar.xaxis"
         case .planGoal: return "target"
         }
     }

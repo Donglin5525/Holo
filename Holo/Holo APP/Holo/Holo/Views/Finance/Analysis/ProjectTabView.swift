@@ -23,14 +23,21 @@ extension FinanceProjectStatus {
 
 struct ProjectTabView: View {
     @ObservedObject var state: FinanceAnalysisState
+    /// 点分类构成横条的下钻请求：上报给分析页统一渲染全屏 push 层
+    var onDrillDownCategory: ((ScopeDrillDownRequest) -> Void)? = nil
     @State private var selectedProject: FinanceProject?
 
     var body: some View {
         Group {
             if let project = selectedProject {
-                ProjectInsightView(state: state, project: project) {
-                    selectedProject = nil
-                }
+                ProjectInsightView(
+                    state: state,
+                    project: project,
+                    onBack: {
+                        selectedProject = nil
+                    },
+                    onDrillDownCategory: onDrillDownCategory
+                )
             } else {
                 listView
             }
@@ -126,8 +133,7 @@ struct ProjectTabView: View {
             selectedProject = project
         } label: {
             HStack(spacing: HoloSpacing.sm) {
-                Text(project.icon)
-                    .font(.system(size: 17))
+                entityIconGlyph(project.icon, size: 17, color: Color(hex: project.color))
                     .frame(width: 38, height: 38)
                     .background(
                         RoundedRectangle(cornerRadius: 11, style: .continuous)
@@ -180,16 +186,7 @@ struct ProjectTabView: View {
                     }
 
                     if let budget = project.budgetDecimal, budget > 0, let spent {
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule()
-                                    .fill(Color.holoDivider.opacity(0.4))
-                                Capsule()
-                                    .fill(spent > budget ? Color.holoError.opacity(0.8) : Color(hex: project.color).opacity(0.75))
-                                    .frame(width: max(4, geo.size.width * min(max(Double(truncating: (spent / budget) as NSDecimalNumber), 0), 1)))
-                            }
-                        }
-                        .frame(width: 76, height: 5)
+                        HoloProgress(value: Double(truncating: (spent / budget) as NSDecimalNumber), color: spent > budget ? .holoError : Color(hex: project.color), lineWidth: 5).frame(width: 76)
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true)
@@ -228,6 +225,7 @@ private struct ProjectInsightView: View {
     @ObservedObject var state: FinanceAnalysisState
     let project: FinanceProject
     var onBack: () -> Void
+    var onDrillDownCategory: ((ScopeDrillDownRequest) -> Void)? = nil
 
     @State private var insight: FinanceAnalysisState.ScopeInsight?
 
@@ -236,17 +234,8 @@ private struct ProjectInsightView: View {
     @State private var totalIncome: Decimal = 0
     @State private var spanDays: Int?
 
-    /// 分类筛选（点分类横条展开二级+筛流水），时间范围取自全局时间档
-    @StateObject private var categoryFilter: ScopeCategoryFilterModel
-
-    init(state: FinanceAnalysisState, project: FinanceProject, onBack: @escaping () -> Void) {
-        self.state = state
-        self.project = project
-        self.onBack = onBack
-        _categoryFilter = StateObject(wrappedValue: ScopeCategoryFilterModel(
-            scope: StatisticsScope(accountId: nil, financeProjectId: project.id),
-            dateRange: { state.currentDateRange }
-        ))
+    private var scope: StatisticsScope {
+        StatisticsScope(accountId: nil, financeProjectId: project.id)
     }
 
     /// 重载键：项目 + 当前时间范围（含排他上界），任一变化即重取
@@ -274,21 +263,13 @@ private struct ProjectInsightView: View {
                             .fontWeight(.semibold)
                             .foregroundColor(.holoToolText)
                         ScopeCategoryBars(
-                            aggregations: insight.expenseAggregations,
-                            selectedCategoryId: categoryFilter.selectedTop?.id,
-                            selectedSubCategoryId: categoryFilter.selectedSub?.id,
-                            subAggregations: categoryFilter.subAggregations,
-                            onSelect: { item in
-                                withAnimation(HoloAnimation.quick) {
-                                    categoryFilter.tapTop(item)
-                                }
-                            },
-                            onSelectSub: { item in
-                                withAnimation(HoloAnimation.quick) {
-                                    categoryFilter.tapSub(item)
-                                }
-                            }
-                        )
+                            aggregations: insight.expenseAggregations
+                        ) { item in
+                            onDrillDownCategory?(ScopeDrillDownRequest(
+                                payload: .top(item.category, transactions: insight.transactions),
+                                scope: scope
+                            ))
+                        }
                     }
                     .padding(HoloSpacing.md)
                     .holoSurface()
@@ -304,52 +285,23 @@ private struct ProjectInsightView: View {
         }
         .background(Color.holoToolBackground)
         .task(id: reloadKey) {
-            // 时间档变化后二级聚合随旧范围过期，连筛选一起复位
-            categoryFilter.reset()
             await load()
         }
     }
 
-    // MARK: 交易流水（随分类筛选联动）
+    // MARK: 交易流水（最近交易）
 
     private func transactionSection(_ insight: FinanceAnalysisState.ScopeInsight) -> some View {
-        let visible = categoryFilter.filter(insight.transactions)
-        // 筛选态显示全部命中并带笔数；无筛选维持最近 30 条防长列表
-        let display = categoryFilter.hasFilter ? visible.reversed() : visible.suffix(30).reversed()
+        let display = insight.transactions.suffix(30).reversed()
 
         return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack(spacing: HoloSpacing.sm) {
-                Text(categoryFilter.hasFilter
-                     ? String(localized: "交易流水 · \(visible.count) 笔")
-                     : String(localized: "交易流水"))
-                    .font(.holoLabel)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
+            Text(String(localized: "交易流水"))
+                .font(.holoLabel)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoToolText)
 
-                if let label = categoryFilter.filterLabelText {
-                    Button {
-                        withAnimation(HoloAnimation.quick) {
-                            categoryFilter.reset()
-                        }
-                    } label: {
-                        HStack(spacing: 3) {
-                            Text(label)
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 10))
-                        }
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Spacer()
-            }
-
-            if visible.isEmpty {
-                Text(insight.transactions.isEmpty
-                     ? String(localized: "该时间范围内无交易")
-                     : String(localized: "该分类在此范围无交易"))
+            if display.isEmpty {
+                Text(String(localized: "该时间范围内无交易"))
                     .font(.system(size: 12))
                     .foregroundColor(.holoToolTextSecondary)
                     .frame(maxWidth: .infinity)
@@ -375,9 +327,7 @@ private struct ProjectInsightView: View {
             }
         }
         // 本期数据（随时间档）
-        insight = await state.loadScopeInsight(
-            scope: StatisticsScope(accountId: nil, financeProjectId: project.id)
-        )
+        insight = await state.loadScopeInsight(scope: scope)
     }
 
     // MARK: 头卡（全程口径）
@@ -385,8 +335,7 @@ private struct ProjectInsightView: View {
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack(spacing: HoloSpacing.sm) {
-                Text(project.icon)
-                    .font(.system(size: 22))
+                entityIconGlyph(project.icon, size: 22, color: .white)
                     .frame(width: 44, height: 44)
                     .background(
                         RoundedRectangle(cornerRadius: 12, style: .continuous)

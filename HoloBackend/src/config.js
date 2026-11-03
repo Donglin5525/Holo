@@ -58,6 +58,9 @@ const DEFAULT_CONFIG = {
     // Agent 遥测批量上报：低频（前台化/冷却时 diff 上报），单批 ≤100 条由路由校验。
     agentTelemetryUploadsPerMinute: Number(process.env.HOLO_AGENT_TELEMETRY_UPLOADS_PER_MINUTE ?? 10),
     agentTelemetryUploadsPerDay: Number(process.env.HOLO_AGENT_TELEMETRY_UPLOADS_PER_DAY ?? 500),
+    // 产品埋点批量上报（2026-10-19 方案）：与 Agent 遥测同款节奏（前台化/进后台各一次）。
+    productEventUploadsPerMinute: Number(process.env.HOLO_PRODUCT_EVENTS_PER_MINUTE ?? 10),
+    productEventUploadsPerDay: Number(process.env.HOLO_PRODUCT_EVENTS_PER_DAY ?? 500),
     // 云端异步分析（二期）：创建与快照上传限流；额度池接入在 M2 执行器上线时统一接线。
     cloudAnalysisStartsPerMinute: Number(process.env.HOLO_CLOUD_ANALYSIS_STARTS_PER_MINUTE ?? 6),
     cloudAnalysisStartsPerDay: Number(process.env.HOLO_CLOUD_ANALYSIS_STARTS_PER_DAY ?? 30),
@@ -65,6 +68,9 @@ const DEFAULT_CONFIG = {
     cloudContextPlanStartsPerMinute: Number(process.env.HOLO_CLOUD_CONTEXT_PLAN_STARTS_PER_MINUTE ?? 10),
     cloudContextPlanStartsPerDay: Number(process.env.HOLO_CLOUD_CONTEXT_PLAN_STARTS_PER_DAY ?? 60),
     cloudAnalysisSnapshotMaxBytes: Number(process.env.HOLO_CLOUD_ANALYSIS_SNAPSHOT_MAX_BYTES ?? 2 * 1024 * 1024),
+    // 个人档案通道：profileBrief 随请求上传的体积上限（字节）。档案文件端上限 8KB，
+    // 12KB 上限留出余量；超限拒绝（400），不静默截断——截断会让用户误以为档案全量生效。
+    profileBriefMaxBytes: Number(process.env.HOLO_PROFILE_BRIEF_MAX_BYTES ?? 12 * 1024),
     // 推送令牌上报：启动/令牌轮换时一次，正常用户远低于此额度。
     deviceTokenReportsPerMinute: Number(process.env.HOLO_DEVICE_TOKEN_REPORTS_PER_MINUTE ?? 10),
     deviceTokenReportsPerDay: Number(process.env.HOLO_DEVICE_TOKEN_REPORTS_PER_DAY ?? 50),
@@ -75,6 +81,13 @@ const DEFAULT_CONFIG = {
   visionAutomation: {
     autoCommitAllowed: process.env.HOLO_VISION_AUTO_COMMIT_ALLOWED === "true",
     policyVersion: process.env.HOLO_VISION_AUTO_COMMIT_POLICY_VERSION ?? "v1",
+  },
+  // 个人档案通道（2026-11-01 东林拍板「档案=通用指令而非备注」）：用户在 App 亲手写的
+  // 个人档案（称呼/身份/健康限制/沟通偏好…）作为「用户本人说明」随请求上云，由
+  // serverPromptPolicy 在所有产出给用户看的 purpose 统一注入成指令级 system 消息。
+  // 总闸：env 置 HOLO_PROFILE_CHANNEL_ENABLED=false 重启即全链关闭（不出指令、不收字段），不用发版。
+  profileChannel: {
+    enabled: process.env.HOLO_PROFILE_CHANNEL_ENABLED !== "false",
   },
   routes: {
     chat: {
@@ -92,6 +105,9 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_ANALYSIS_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_ANALYSIS_TEMPERATURE ?? 0.2),
       maxTokens: Number(process.env.HOLO_ANALYSIS_MAX_TOKENS ?? 4096),
+      // §reasoning-budget（2026-10-09 全量补档）：不配 effort → 模型默认满档思考。
+      // low 档与 chat 同级：自由问答保理解质量，思考开销可控。
+      reasoningEffort: process.env.HOLO_ANALYSIS_REASONING_EFFORT ?? "low",
     },
     intent: {
       provider: process.env.HOLO_INTENT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -115,6 +131,9 @@ const DEFAULT_CONFIG = {
         ?? "holo-mock",
       temperature: Number(process.env.HOLO_FLEXIBLE_QUERY_PLANNER_TEMPERATURE ?? 0),
       maxTokens: Number(process.env.HOLO_FLEXIBLE_QUERY_PLANNER_MAX_TOKENS ?? 4096),
+      // §reasoning-budget（2026-10-09 全量补档）：规划器输出固定 schema 短 JSON，
+      // 与 intent 同理（单步分类/规划，无多步推理需求）配 none。
+      reasoningEffort: process.env.HOLO_FLEXIBLE_QUERY_PLANNER_REASONING_EFFORT ?? "none",
     },
     insight: {
       provider: process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -138,7 +157,7 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_REPLAY_DIGEST_PROVIDER ?? process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_REPLAY_DIGEST_MODEL ?? process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_REPLAY_DIGEST_TEMPERATURE ?? 0.2),
-      // §reasoning-budget: 跨周期归纳是复杂任务，推理模型（deepseek-v4-flash）会先在
+      // §reasoning-budget: 跨周期归纳是复杂任务，推理模型（deepseek-flash）会先在
       // reasoning_content 里展开大量思考，再写 content。maxTokens=1024 时思维链就吃满，
       // finish_reason=length，content 为空 → App 端报"回放摘要返回格式不正确"。
       // 提到 4096，与 insight / memory_domain_extraction 等同类复杂任务对齐。
@@ -160,15 +179,21 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_HEALTH_INSIGHT_MODEL ?? process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_HEALTH_INSIGHT_TEMPERATURE ?? 0.35),
       maxTokens: Number(process.env.HOLO_HEALTH_INSIGHT_MAX_TOKENS ?? 1600),
+      // §reasoning-budget（2026-10-09 全量补档）：此前未配 effort → 满档思考，
+      // 生产实测（2026-10-03~09）completion 的 82% 是 reasoning tokens。低档与 insight
+      // 同级；若洞察质量下降可经 env 调回。
+      reasoningEffort: process.env.HOLO_HEALTH_INSIGHT_REASONING_EFFORT ?? "low",
     },
     thought_voice_summary: {
       provider: process.env.HOLO_THOUGHT_VOICE_SUMMARY_PROVIDER
         ?? process.env.HOLO_CHAT_PROVIDER
         ?? "mock",
-      // §model-v4-flash: 切到 v4-flash（理解力强于 deepseek-chat，能更好识别自我纠正/废话/情绪信号）。
+      // §model-v4-flash: v4 系（理解力强于 deepseek-chat，能更好识别自我纠正/废话/情绪信号）。
       // 仍允许 env 覆盖，但默认不再 fallback 到 HOLO_CHAT_MODEL，避免被旧配置拖回 deepseek-chat。
+      // §model-rename（2026-10-09）：deepseek-v4-flash 旧名已被官方路由到 V4.1 Flash 且仅「暂时」
+      // 维持——正名 deepseek-flash 防路由停止断线（v4-flash-vision-exp 同批下线）。
       model: process.env.HOLO_THOUGHT_VOICE_SUMMARY_MODEL
-        ?? "deepseek-v4-flash",
+        ?? "deepseek-flash",
       temperature: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_MAX_TOKENS ?? 1024),
       // §reasoning-off: 语音总结是轻量文本整理任务，不需要推理模型先思考再输出。
@@ -233,12 +258,17 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_FINANCE_ACTION_PARSER_MODEL ?? process.env.HOLO_INTENT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_FINANCE_ACTION_PARSER_TEMPERATURE ?? 0),
       maxTokens: Number(process.env.HOLO_FINANCE_ACTION_PARSER_MAX_TOKENS ?? 512),
+      // §reasoning-budget（2026-10-09 全量补档）：解析器输出固定 schema 短 JSON（maxTokens 512），
+      // 满档思考极易吃满上限导致 content 空，与 intent 同机制配 none。
+      reasoningEffort: process.env.HOLO_FINANCE_ACTION_PARSER_REASONING_EFFORT ?? "none",
     },
     task_action_parser: {
       provider: process.env.HOLO_TASK_ACTION_PARSER_PROVIDER ?? process.env.HOLO_INTENT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_TASK_ACTION_PARSER_MODEL ?? process.env.HOLO_INTENT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_TASK_ACTION_PARSER_TEMPERATURE ?? 0),
       maxTokens: Number(process.env.HOLO_TASK_ACTION_PARSER_MAX_TOKENS ?? 512),
+      // §reasoning-budget（2026-10-09 全量补档）：同 finance_action_parser。
+      reasoningEffort: process.env.HOLO_TASK_ACTION_PARSER_REASONING_EFFORT ?? "none",
     },
     thought_organization: {
       provider: process.env.HOLO_THOUGHT_ORG_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -260,7 +290,7 @@ const DEFAULT_CONFIG = {
       dimensions: Number(process.env.HOLO_EMBEDDING_DIMENSIONS ?? 1024),
       requestLimits: {
         perMinute: Number(process.env.HOLO_EMBEDDING_REQUESTS_PER_MINUTE ?? 20),
-        perDay: Number(process.env.HOLO_EMBEDDING_REQUESTS_PER_DAY ?? 120),
+        perDay: Number(process.env.HOLO_EMBEDDING_REQUESTS_PER_DAY ?? 0), // 0：历史回填不设日次数上限
       },
     },
     // 通用个人情境（docs/_common/plans/2026-09-06-HoloAI通用个人情境理解与规划-完整实施方案.md §11）。
@@ -380,12 +410,16 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_THOUGHT_TASK_EXTRACTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_TASK_EXTRACTION_TEMPERATURE ?? 0),
       maxTokens: Number(process.env.HOLO_THOUGHT_TASK_EXTRACTION_MAX_TOKENS ?? 1024),
+      // §reasoning-budget（2026-10-09 全量补档）：任务抽取输出短结构化 JSON，与 thought_organization 同理配 none。
+      reasoningEffort: process.env.HOLO_THOUGHT_TASK_EXTRACTION_REASONING_EFFORT ?? "none",
     },
     thought_tag_convergence: {
       provider: process.env.HOLO_THOUGHT_CONVERGENCE_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_THOUGHT_CONVERGENCE_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_CONVERGENCE_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_THOUGHT_CONVERGENCE_MAX_TOKENS ?? 2048),
+      // §reasoning-budget（2026-10-09 全量补档）：标签收敛是短列表归纳，none 档足够。
+      reasoningEffort: process.env.HOLO_THOUGHT_CONVERGENCE_REASONING_EFFORT ?? "none",
     },
     // 想法自动整理 V2（docs/thoughts/plans/2026-09-05-想法自动整理V2实施方案-GLM.md §5/§6）：
     // A 提取概念 / R 目录筛选 / B 词表对齐，三段结构化短 JSON 输出，非思考模式。
@@ -420,6 +454,15 @@ const DEFAULT_CONFIG = {
       reasoningEffort: process.env.HOLO_THOUGHT_SEMANTIC_REASONING_EFFORT ?? "none",
       maxTokens: Number(process.env.HOLO_THOUGHT_SEMANTIC_MAX_TOKENS ?? 1400),
     },
+    // 归档类别理解器（2026-10-12 主题双通道·零打扰）：成员证据→类别定义/排除边界。
+    // 沿用语义关联同组 env（provider/model 同源），生产零配置；输出短，maxTokens 独立默认。
+    thought_category_brief_v1: {
+      provider: process.env.HOLO_THOUGHT_SEMANTIC_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_SEMANTIC_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_SEMANTIC_TEMPERATURE ?? 0),
+      reasoningEffort: process.env.HOLO_THOUGHT_SEMANTIC_REASONING_EFFORT ?? "none",
+      maxTokens: Number(process.env.HOLO_THOUGHT_CATEGORY_BRIEF_MAX_TOKENS ?? 600),
+    },
     // 主题命名/摘要 V3（§4.4/§4.5）：命名是轻量归纳（短输出），摘要是带反复观点的结构化 JSON。
     thought_topic_name_v1: {
       provider: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -449,6 +492,9 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_CATEGORY_INDUCTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_CATEGORY_INDUCTION_TEMPERATURE ?? 0.2),
       maxTokens: Number(process.env.HOLO_CATEGORY_INDUCTION_MAX_TOKENS ?? 2048),
+      // §reasoning-budget（2026-10-09 全量补档）：跨周期归纳是复杂任务，low 档保归纳质量
+      // （与 memory_cross_domain_fusion 同级），仅规避满档默认值。
+      reasoningEffort: process.env.HOLO_CATEGORY_INDUCTION_REASONING_EFFORT ?? "low",
     },
     // 账单智能导入（docs/plans/2026-08-17-finance-bill-import-ai-plan.md §5）：
     // 两个 purpose 都只输出短结构化 JSON（列号指认 / 科目路径指认），无多步推理需求，
@@ -472,15 +518,18 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_BILL_CATEGORIZATION_REQUESTS_PER_DAY ?? 300),
       },
     },
-    // 截图识别记账（2026-09-09 方案 §5）：视觉抽取单次调用。模型 deepseek-v4-flash-vision-exp
+    // 截图识别记账（2026-09-09 方案 §5）：视觉抽取单次调用。DeepSeek 视觉通道
     //（2026-09-09 东林拍板定版 DeepSeek 不换模型，2026-09-23 代码默认值与生产 env 对齐，
     // 删掉误导性的 qwen3-vl-plus 默认）。钥匙独立于主 DEEPSEEK_API_KEY，避免视觉实验
     // 模型与主聊天通道互相牵连。
+    // §model-rename（2026-10-09）：deepseek-v4-flash-vision-exp 已随 V4 系下线、被官方「暂时」
+    // 路由到 V4.1 Flash——正名 deepseek-flash（V4.1 原生多模态，image_url 格式不变，
+    // 实测识别正常且 effort=none 思考归零与旧通道一致）。
     vision_extraction: {
       provider: process.env.HOLO_VISION_EXTRACTION_PROVIDER ?? "deepseek-vision",
-      model: process.env.HOLO_VISION_EXTRACTION_MODEL ?? "deepseek-v4-flash-vision-exp",
+      model: process.env.HOLO_VISION_EXTRACTION_MODEL ?? "deepseek-flash",
       temperature: Number(process.env.HOLO_VISION_EXTRACTION_TEMPERATURE ?? 0),
-      // 4000：deepseek-v4-flash-vision-exp 是推理模型（评测实测会先思考再出 JSON），
+      // 4000：该通道是推理模型（评测实测会先思考再出 JSON），
       // 1500 时推理偶发吃满上限导致 content 空回复（f01 空回复实锤），放宽保输出。
       maxTokens: Number(process.env.HOLO_VISION_EXTRACTION_MAX_TOKENS ?? 4000),
       // 思考档位 none：单步感知任务不需要多步推理（同 intent §reasoning-off 先例，
@@ -508,6 +557,51 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_DAY ?? 500),
       },
     },
+    // HoloAI「一个发现」两阶段（2026-10-23 实施包 §4 预算初值）：生成输出 ≤3072、核验 ≤2048；
+    // 输入 16k 总上限由 backgroundCostGuard.maxInputBytes + 端点 96KiB body 闸共同兜底。
+    // 专用控制器调用，通用 chat 端点显式拒绝这两个 purpose（防旁路，见 app.js）。
+    discovery_candidate_v1: {
+      provider: process.env.HOLO_DISCOVERY_CANDIDATE_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_DISCOVERY_CANDIDATE_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_DISCOVERY_CANDIDATE_TEMPERATURE ?? 0.3),
+      maxTokens: Number(process.env.HOLO_DISCOVERY_CANDIDATE_MAX_TOKENS ?? 3072),
+      // 候选生成含跨材料联系判断，low 档保结构化质量（与 cross_domain_fusion 同级）。
+      reasoningEffort: process.env.HOLO_DISCOVERY_CANDIDATE_REASONING_EFFORT ?? "low",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_DISCOVERY_REQUESTS_PER_MINUTE ?? 4),
+        perDay: Number(process.env.HOLO_DISCOVERY_REQUESTS_PER_DAY ?? 40),
+      },
+    },
+    discovery_verify_v1: {
+      provider: process.env.HOLO_DISCOVERY_VERIFY_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_DISCOVERY_VERIFY_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_DISCOVERY_VERIFY_TEMPERATURE ?? 0),
+      // 4096（2026-10-23 试评修复）：上游 deepseek-chat 已路由为推理模型（deepseek-flash），
+      // 2048 时 reasoning 可独吃全部输出预算导致 content 空（试评 4/54 判决 finish=length，
+      // 05 §4.6 禁重试即本批终止）。与 replayDigest/insight 同型修复先例。
+      maxTokens: Number(process.env.HOLO_DISCOVERY_VERIFY_MAX_TOKENS ?? 4096),
+      // 核验是支持度判断（宁可 reject 不可放水）。effort=none（2026-10-23 试评修复）：
+      // 逐句支持度判断不需要长思考，none 档把输出预算全部留给判决 JSON；
+      // 若后续观察到判级质量下降，可经 env 调回 low。
+      reasoningEffort: process.env.HOLO_DISCOVERY_VERIFY_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_DISCOVERY_REQUESTS_PER_MINUTE ?? 4),
+        perDay: Number(process.env.HOLO_DISCOVERY_REQUESTS_PER_DAY ?? 40),
+      },
+    },
+  },
+  // HoloAI「一个发现」服务端总开关与预算初值（2026-10-23 实施包 §3/§4）。
+  // enabled 默认 false：kill switch——质量或成本问题时改 env 重启即全量停新调用（T49）。
+  discovery: {
+    enabled: process.env.HOLO_DISCOVERY_ENABLED === "true",
+    policyVersion: process.env.HOLO_DISCOVERY_POLICY_VERSION ?? "v1",
+    allowedDomains: ["thought", "task", "habit"],
+    runsPerDay: Number(process.env.HOLO_DISCOVERY_RUNS_PER_DAY ?? 1),
+    // 03 §3.5：body 上限 96KiB；输入 16k token 总上限在 backgroundCostGuard.maxInputBytes 兜底
+    maxBodyBytes: Number(process.env.HOLO_DISCOVERY_MAX_BODY_BYTES ?? 96 * 1024),
+    leaseSeconds: Number(process.env.HOLO_DISCOVERY_LEASE_SECONDS ?? 600),
+    inputBudgetTokens: Number(process.env.HOLO_DISCOVERY_INPUT_BUDGET_TOKENS ?? 16_384),
+    responseFormat: process.env.HOLO_DISCOVERY_RESPONSE_FORMAT === "none" ? null : { type: "json_object" },
   },
   providers: {
     deepseek: {
@@ -515,7 +609,8 @@ const DEFAULT_CONFIG = {
       baseURL: process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
       apiKey: process.env.DEEPSEEK_API_KEY,
     },
-    // 截图识别专用 DeepSeek 通道（2026-09-09 东林拍板换 deepseek-v4-flash-vision-exp）：
+    // 截图识别专用 DeepSeek 通道（2026-09-09 东林拍板走 DeepSeek 视觉模型，2026-10-09 正名
+    // deepseek-flash，V4.1 原生多模态）：
     // 钥匙独立于主 DEEPSEEK_API_KEY，避免视觉实验模型与主聊天通道互相牵连。
     "deepseek-vision": {
       type: "openai-compatible",
@@ -523,6 +618,7 @@ const DEFAULT_CONFIG = {
       apiKey: process.env.DEEPSEEK_VISION_API_KEY ?? process.env.DEEPSEEK_API_KEY,
     },
     qwen: {
+      embeddingBatchSize: 10,
       type: "openai-compatible",
       baseURL: process.env.QWEN_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1",
       // QWEN_BASE_URL 默认就是 DashScope 兼容模式，生产只配了 DASHSCOPE_API_KEY（ASR 在用），
@@ -564,6 +660,9 @@ const DEFAULT_CONFIG = {
   },
   subscription: {
     appleVerificationMode: process.env.HOLO_APPLE_VERIFICATION_MODE ?? "disabled",
+    // 同一笔购买（originalTransactionId）最多绑定的设备数（2026-10-31 审计 D2：
+    // JWS 不记名，无上限时一份 Plus 凭证可解锁任意多台设备且各享完整配额）
+    deviceLimit: Math.max(1, Number(process.env.HOLO_SUBSCRIPTION_DEVICE_LIMIT ?? 3) || 3),
     // production 验单的苹果凭据（mode=production 时首次验单前必须配齐，缺失报 503）：
     // 密钥来自 App Store Connect 的 In-App Purchase key（.p8），二选一：内联 PEM 或文件路径。
     apple: {
@@ -583,6 +682,11 @@ const DEFAULT_CONFIG = {
     accessKeySecret: process.env.ALIBABA_CLOUD_ACCESS_KEY_SECRET ?? "",
     endpoint: process.env.HOLO_MODERATION_ENDPOINT ?? "green-cip.cn-shanghai.aliyuncs.com",
     service: process.env.HOLO_MODERATION_SERVICE ?? "chat_detection_pro",
+  },
+  // 产品埋点（2026-10-19 自建方案）：匿名使用事件收集总开关。关闭时端点收下
+  // 事件但即弃（2xx accepted:0），客户端清队列——env 可不发版全量关停收集。
+  productAnalytics: {
+    enabled: process.env.HOLO_PRODUCT_ANALYTICS_ENABLED !== "false",
   },
   // 想法自动整理 V2（方案 §6.3 默认工程预算；服务器执行，客户端不可提升）。
   // privacyVerified：供应商留存证据（缓存/日志/审核边界）经人工核实后由 env 显式开启；
@@ -616,7 +720,7 @@ const DEFAULT_CONFIG = {
     privacyVerified: process.env.HOLO_THOUGHT_SEMANTIC_PRIVACY_VERIFIED === "true",
     deadlineMs: Number(process.env.HOLO_THOUGHT_SEMANTIC_DEADLINE_MS ?? 30_000),
     budgets: {
-      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_SEMANTIC_DAILY_MAX_CNY ?? 0.10),
+      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_SEMANTIC_DAILY_MAX_CNY ?? 0), // 保留费用台账，不以日预算阻断整理
       moderationPerCallCNY: Number(process.env.HOLO_THOUGHT_SEMANTIC_MODERATION_CNY ?? 0.0005),
     },
     pricing: {
@@ -625,7 +729,7 @@ const DEFAULT_CONFIG = {
     },
     requestLimits: {
       perMinute: Number(process.env.HOLO_THOUGHT_SEMANTIC_REQUESTS_PER_MINUTE ?? 20),
-      perDay: Number(process.env.HOLO_THOUGHT_SEMANTIC_REQUESTS_PER_DAY ?? 200),
+      perDay: Number(process.env.HOLO_THOUGHT_SEMANTIC_REQUESTS_PER_DAY ?? 0),
     },
   },
   // 主题命名/摘要 V3：两端点共享预算池（Phase 5 低频事件），限流各自独立桶
@@ -634,7 +738,7 @@ const DEFAULT_CONFIG = {
     privacyVerified: process.env.HOLO_THOUGHT_TOPIC_INSIGHT_PRIVACY_VERIFIED === "true",
     deadlineMs: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_DEADLINE_MS ?? 30_000),
     budgets: {
-      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_DAILY_MAX_CNY ?? 0.20),
+      perSubjectDailyCNY: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_DAILY_MAX_CNY ?? 0),
       moderationPerCallCNY: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_MODERATION_CNY ?? 0.0005),
     },
     pricing: {
@@ -643,7 +747,7 @@ const DEFAULT_CONFIG = {
     },
     requestLimits: {
       perMinute: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REQUESTS_PER_MINUTE ?? 20),
-      perDay: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REQUESTS_PER_DAY ?? 100),
+      perDay: Number(process.env.HOLO_THOUGHT_TOPIC_INSIGHT_REQUESTS_PER_DAY ?? 0),
     },
   },
   // 想法按需洞察（2026-09-24 方案 §5.1）：用户主动点击才发生，独立小额预算
@@ -683,6 +787,23 @@ export function insightMaxTokensFor(periodType, baseMaxTokens) {
 
 export function loadConfig(overrides = {}) {
   return {
+    // 后台维护止损预算，采用高于当前 Flash 账单价的保守费率；不是会员展示额度。
+    backgroundCost: {
+      dailyCNY: Number(process.env.HOLO_BACKGROUND_DAILY_CNY ?? 0.30),
+      monthlyCNY: Number(process.env.HOLO_BACKGROUND_MONTHLY_CNY ?? 2),
+      // 发现池独立止损（2026-10-30 拆池）：后台整理池被烧穿时连坐饿死「一个发现」
+      // 首次体验（10-28 事故）；一次 candidate+verify 全流程按现价约 ¥0.05，月 ¥5 富余。
+      discoveryDailyCNY: Number(process.env.HOLO_DISCOVERY_DAILY_CNY ?? 1),
+      discoveryMonthlyCNY: Number(process.env.HOLO_DISCOVERY_MONTHLY_CNY ?? 5),
+      globalDailyCNY: Number(process.env.HOLO_BACKGROUND_GLOBAL_DAILY_CNY ?? 3),
+      globalMonthlyCNY: Number(process.env.HOLO_BACKGROUND_GLOBAL_MONTHLY_CNY ?? 60),
+      maxInputBytes: Number(process.env.HOLO_BACKGROUND_MAX_INPUT_BYTES ?? 98304),
+      minBuild: Number(process.env.HOLO_BACKGROUND_MIN_BUILD ?? 32),
+      inputPerMillionCNY: Number(process.env.HOLO_BACKGROUND_INPUT_PRICE ?? 3),
+      outputPerMillionCNY: Number(process.env.HOLO_BACKGROUND_OUTPUT_PRICE ?? 9),
+      cachedPerMillionCNY: Number(process.env.HOLO_BACKGROUND_CACHED_PRICE ?? 0.1),
+      ...overrides.backgroundCost,
+    },
     auth: {
       ...DEFAULT_CONFIG.auth,
       ...overrides.auth,
@@ -722,6 +843,14 @@ export function loadConfig(overrides = {}) {
     moderation: {
       ...DEFAULT_CONFIG.moderation,
       ...overrides.moderation,
+    },
+    discovery: {
+      ...DEFAULT_CONFIG.discovery,
+      ...overrides.discovery,
+    },
+    productAnalytics: {
+      ...DEFAULT_CONFIG.productAnalytics,
+      ...overrides.productAnalytics,
     },
     thoughtSemanticRelate: {
       ...DEFAULT_CONFIG.thoughtSemanticRelate,
@@ -807,6 +936,7 @@ export function loadConfig(overrides = {}) {
     contentReportStore: overrides.contentReportStore,
     feedbackStore: overrides.feedbackStore,
     agentTelemetryStore: overrides.agentTelemetryStore,
+    productEventStore: overrides.productEventStore,
     cloudAnalysisTaskStore: overrides.cloudAnalysisTaskStore,
     cloudAnalysisExecutor: overrides.cloudAnalysisExecutor,
     deviceTokenStore: overrides.deviceTokenStore,
@@ -828,6 +958,8 @@ export function loadConfig(overrides = {}) {
         ?? process.env.HOLO_AGENT_STEP_IDEMPOTENCY_PREVIOUS_ENCRYPTION_KEYS
         ?? "",
     thoughtOrganizeBudgetStore: overrides.thoughtOrganizeBudgetStore,
+    discoveryControlStore: overrides.discoveryControlStore,
+    discoveryRunStore: overrides.discoveryRunStore,
     runtimeEnvironment: overrides.runtimeEnvironment ?? process.env.NODE_ENV ?? "development",
     agentStepIdempotencyTtlSeconds: Number(
       overrides.agentStepIdempotencyTtlSeconds

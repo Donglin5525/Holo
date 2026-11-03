@@ -6,6 +6,10 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
+#else
+import AppKit
+#endif
 import PhotosUI
 import AVFoundation
 
@@ -46,6 +50,7 @@ struct TaskImagePicker: View {
             .onChange(of: selectedPhotos) { _, newItems in
                 loadSelectedPhotos(newItems)
             }
+            #if canImport(UIKit)
             .fullScreenCover(isPresented: $showCamera) {
                 CameraView(onCapture: { imageData in
                     if let image = UIImage(data: imageData) {
@@ -56,12 +61,30 @@ struct TaskImagePicker: View {
                     showCamera = false
                 })
             }
+            #else
+                        .sheet(isPresented: $showCamera) {
+                CameraView(onCapture: { imageData in
+                    if let image = UIImage(data: imageData) {
+                        onSelectImages([image])
+                    }
+                    showCamera = false
+                }, onDismiss: {
+                    showCamera = false
+                })
+            }
+            #endif
             .alert("无法访问", isPresented: $showPermissionAlert) {
                 Button("取消", role: .cancel) {}
                 Button("去设置") {
+                    #if canImport(UIKit)
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         UIApplication.shared.open(url)
                     }
+                    #else
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos") {
+                        NSWorkspace.shared.open(url)
+                    }
+                    #endif
                 }
             } message: {
                 Text(permissionMessage)
@@ -126,6 +149,7 @@ struct TaskImagePicker: View {
 
 // MARK: - Camera View (UIImagePickerController Wrapper)
 
+#if canImport(UIKit)
 struct CameraView: UIViewControllerRepresentable {
     let onCapture: (Data) -> Void
     let onDismiss: () -> Void
@@ -166,3 +190,22 @@ struct CameraView: UIViewControllerRepresentable {
         }
     }
 }
+
+#else
+/// macOS：UIImagePickerController 相机 iOS 专属；占位说明并立即回调退出
+struct CameraView: View {
+    var onCapture: (Data) -> Void = { _ in }
+    var onDismiss: () -> Void = {}
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "camera")
+                .font(.largeTitle)
+            Text("Mac 版暂不支持拍照，请从图片文件选择")
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { onDismiss() }
+    }
+}
+#endif

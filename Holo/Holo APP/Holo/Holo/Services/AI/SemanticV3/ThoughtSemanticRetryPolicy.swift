@@ -12,9 +12,11 @@ nonisolated enum ThoughtSemanticRetryPolicy {
     static func userMessage(for code: String) -> String {
         switch code {
         case "PRIVACY_ROUTE_UNVERIFIED": return "AI 整理服务尚未开放，笔记已保留，服务可用后继续。"
-        case "BUDGET_EXCEEDED": return "今日整理额度已用完，明天自动继续，笔记都在。"
+        case "BUDGET_EXCEEDED", "BACKGROUND_BUDGET_EXCEEDED": return "今日整理额度已用完，明天自动继续，笔记都在。"
+        case "DAILY_RATE_LIMITED": return "服务的今日处理次数已达上限，恢复后自动继续。"
         case "RATE_LIMITED": return "整理请求稍密，稍候自动继续。"
-        case "INVALID_AI_RESULT": return "AI 返回结果未通过核对，未更改主题，可重试。"
+        case "INVALID_AI_RESULT", "MODEL_OUTPUT_INVALID": return "AI 返回结果未通过核对，未更改主题，可重试。"
+        case "CONTENT_DEFERRED": return "部分笔记暂未通过 AI 处理审核，原文已保留。"
         default: return "网络或服务暂不可用，稍后自动继续，笔记都在。"
         }
     }
@@ -27,10 +29,21 @@ nonisolated enum ThoughtSemanticRetryPolicy {
         return false
     }
     static func delay(_ error: Error, attempt: Int) -> TimeInterval {
-        if case APIError.rateLimited = error { return 3_600 }
+        if case APIError.rateLimited = error { return 60 }
         if case APIError.backendError(let status, let code, _, _) = error {
-            if code == "BUDGET_EXCEEDED" { return 86_400 }
-            if status == 429 { return 3_600 }
+            // 模型格式错误不需要等外部额度恢复，避免指数退避把单条笔记挂起很久。
+            if code == "MODEL_OUTPUT_INVALID" { return 60 }
+            // 预算墙（当日后台/整理额度用尽）整池等次日重置：精确匹配此前漏了带
+            // 前缀的 BACKGROUND_BUDGET_EXCEEDED，落到 429→60s 分支，叠加积压队列
+            // 变成每 4 秒空打一次、一天 246 次的风暴（2026-11-01 实锤）。两个
+            // BUDGET 码的后台池都按东八区切天，等待对齐东八区次日零点。
+            if code == "BUDGET_EXCEEDED" || code == "BACKGROUND_BUDGET_EXCEEDED" || code == "DAILY_RATE_LIMITED" {
+                var calendar = Calendar(identifier: .gregorian)
+                calendar.timeZone = TimeZone(secondsFromGMT: code == "DAILY_RATE_LIMITED" ? 0 : 8 * 3_600)!
+                let now = Date()
+                return calendar.startOfDay(for: now).addingTimeInterval(86_400).timeIntervalSince(now)
+            }
+            if status == 429 { return 60 }
             if status == 503 { return 900 }
         }
         return min(60 * pow(2, Double(min(attempt, 6))), 3_600)

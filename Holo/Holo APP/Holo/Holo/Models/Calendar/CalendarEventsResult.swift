@@ -20,7 +20,7 @@ enum CalendarModuleLoadState: Equatable {
 /// 会让「待办仓储失败」被误读为「今天没有待办」，破坏信任。
 /// 因此 Provider 对每个模块单独 do-catch，失败在 moduleStates 标 .failed，
 /// UI 据此显示「部分数据暂未载入」+ retry。
-struct CalendarEventsResult {
+nonisolated struct CalendarEventsResult {
     /// 按 date 升序的事件列表
     let events: [CalendarEvent]
 

@@ -1,4 +1,5 @@
 import { GatewayError } from "../errors.js";
+import { alignQuoteToSource } from "./quoteAlignment.js";
 
 /**
  * 想法语义关联 V3 /v1/thoughts/semantic-relate 输入/输出契约
@@ -12,16 +13,22 @@ export const RELATE_LIMITS = Object.freeze({
   requestBodyMaxBytes: 64 * 1024,
   targetTextMaxUTF16: 4_000,
   candidateMaxCount: 3,
+  // schema 3（2026-10-12 主题双通道，A1 自查修复后全量核对）：脉络 ≤3 + 用户类别 ≤9
+  candidateMaxCountV3: 12,
   titleMaxUTF16: 32,
   summaryMaxUTF16: 240,
+  definitionMaxUTF16: 240,
   representativeMaxCount: 3,
   representativeTextMaxUTF16: 240,
-  decisionsMaxCount: 3,
+  decisionsMaxCount: 12,
   quoteMaxUTF16: 120,
   idMaxUTF16: 64,
 });
 
-export const RELATION_VALUES = Object.freeze(new Set(["same_thread", "related", "none", "insufficient"]));
+const RELATION_VALUES_V1 = Object.freeze(new Set(["same_thread", "related", "none", "insufficient"]));
+// schema 3 新增 fits_category：符合用户类别定义（不要求共同对象，doc 双通道方案）
+const RELATION_VALUES_V3 = Object.freeze(new Set(["same_thread", "fits_category", "related", "none", "insufficient"]));
+const CANDIDATE_KINDS = Object.freeze(new Set(["category", "thread"]));
 
 /** 短标识串：拒绝空串、控制字符与换行（防协议/路径注入）。 */
 function isCleanShortString(value, maxLength) {
@@ -46,9 +53,10 @@ export function validateRelateRequest(body) {
   if (!body || typeof body !== "object") {
     throw new GatewayError("INVALID_REQUEST", "Request body must be an object", 400);
   }
-  if (![1, 2].includes(body.schemaVersion)) {
-    throw new GatewayError("INVALID_REQUEST", "schemaVersion must be 1", 400);
+  if (![1, 2, 3].includes(body.schemaVersion)) {
+    throw new GatewayError("INVALID_REQUEST", "schemaVersion must be 1, 2 or 3", 400);
   }
+  const isV3 = body.schemaVersion === 3;
   if (!isCleanShortString(body.operationId, RELATE_LIMITS.idMaxUTF16)) {
     throw new GatewayError("INVALID_REQUEST", "operationId must be 1-64 clean chars", 400);
   }
@@ -68,8 +76,9 @@ export function validateRelateRequest(body) {
   if (!Array.isArray(body.candidates) || body.candidates.length === 0) {
     throw new GatewayError("INVALID_REQUEST", "candidates must be a non-empty array", 400);
   }
-  if (body.candidates.length > RELATE_LIMITS.candidateMaxCount) {
-    throw new GatewayError("INVALID_REQUEST", `candidates exceed ${RELATE_LIMITS.candidateMaxCount}`, 400);
+  const candidateCap = isV3 ? RELATE_LIMITS.candidateMaxCountV3 : RELATE_LIMITS.candidateMaxCount;
+  if (body.candidates.length > candidateCap) {
+    throw new GatewayError("INVALID_REQUEST", `candidates exceed ${candidateCap}`, 400);
   }
   const allowedRefs = new Set([target.ref]);
   const candidates = body.candidates.map((candidate, index) => {
@@ -90,6 +99,14 @@ export function validateRelateRequest(body) {
         && !isBoundedText(candidate.summary, RELATE_LIMITS.summaryMaxUTF16)) {
       throw new GatewayError("INVALID_REQUEST", `candidates[${index}].summary exceeds ${RELATE_LIMITS.summaryMaxUTF16} UTF-16 units`, 400);
     }
+    // schema 3：kind 标通道（category=用户类别 / thread=内容脉络）；definition 只随类别候选
+    if (candidate.kind !== undefined && candidate.kind !== null && !CANDIDATE_KINDS.has(candidate.kind)) {
+      throw new GatewayError("INVALID_REQUEST", `candidates[${index}].kind must be category or thread`, 400);
+    }
+    if (candidate.definition !== undefined && candidate.definition !== null
+        && !isBoundedText(candidate.definition, RELATE_LIMITS.definitionMaxUTF16)) {
+      throw new GatewayError("INVALID_REQUEST", `candidates[${index}].definition exceeds ${RELATE_LIMITS.definitionMaxUTF16} UTF-16 units`, 400);
+    }
     if (!Array.isArray(candidate.representatives) || (candidate.representatives.length === 0 && body.schemaVersion === 1)) {
       throw new GatewayError("INVALID_REQUEST", `candidates[${index}].representatives must be non-empty`, 400);
     }
@@ -109,6 +126,8 @@ export function validateRelateRequest(body) {
       ref: candidate.ref,
       title: candidate.title,
       summary: candidate.summary ?? null,
+      kind: candidate.kind ?? null,
+      definition: candidate.definition ?? null,
       representatives,
     };
   });
@@ -135,16 +154,18 @@ export function validateRelateRequest(body) {
  */
 export function validateRelateModelOutput(output, parsedRequest) {
   if (!output || typeof output !== "object") return { malformed: true, reason: "not_object" };
+  const isV3 = parsedRequest.schemaVersion === 3;
+  const relationValues = isV3 ? RELATION_VALUES_V3 : RELATION_VALUES_V1;
   const allowedRefs = new Set(parsedRequest.candidates.map((c) => c.ref));
   const decisionsRaw = output.decisions;
   if (decisionsRaw === undefined || decisionsRaw === null) {
-    if (parsedRequest.schemaVersion === 2) return { malformed: true, reason: "decisions_missing" };
+    if (parsedRequest.schemaVersion >= 2) return { malformed: true, reason: "decisions_missing" };
     return { decisions: [] };
   }
   if (!Array.isArray(decisionsRaw) || decisionsRaw.length > RELATE_LIMITS.decisionsMaxCount) {
     return { malformed: true, reason: "decisions_shape" };
   }
-  if (parsedRequest.schemaVersion === 2 && decisionsRaw.length !== parsedRequest.candidates.length) {
+  if (parsedRequest.schemaVersion >= 2 && decisionsRaw.length !== parsedRequest.candidates.length) {
     return { malformed: true, reason: "decisions_missing" };
   }
   const seen = new Set();
@@ -156,45 +177,70 @@ export function validateRelateModelOutput(output, parsedRequest) {
     }
     if (seen.has(item.candidateRef)) return { malformed: true, reason: "candidate_ref_duplicated" };
     seen.add(item.candidateRef);
-    if (!RELATION_VALUES.has(item.relation)) {
+    if (!relationValues.has(item.relation)) {
       return { malformed: true, reason: "relation_enum" };
     }
     if (item.confidence !== undefined && item.confidence !== null) {
       return { malformed: true, reason: "confidence_forbidden" };
     }
     if (item.relation === "none" || item.relation === "insufficient"
-        || (parsedRequest.schemaVersion === 2 && item.relation === "related")) {
+        || (parsedRequest.schemaVersion >= 2 && item.relation === "related")) {
       decisions.push({ candidateRef: item.candidateRef, relation: item.relation, quote: null, rangeUTF16: null });
       continue;
     }
-    // 正式归属必须携带可核对证据；V1 的 related 保留原契约，V2 非归属结果不要求引用。
+    // 正式归属（same_thread / fits_category）必须携带可核对证据；V1 的 related 保留原契约。
     if (typeof item.quote !== "string" || item.quote.length === 0
-        || item.quote.length > RELATE_LIMITS.quoteMaxUTF16) {
+        || (parsedRequest.schemaVersion === 1 && item.quote.length > RELATE_LIMITS.quoteMaxUTF16)) {
       return { malformed: true, reason: "quote_shape" };
     }
     const text = parsedRequest.target.text;
-    const start = text.indexOf(item.quote);
-    if (start < 0) return { malformed: true, reason: "quote_not_verbatim" };
-    const range = parsedRequest.schemaVersion === 2 ? [start, start + item.quote.length] : item.rangeUTF16;
+    // 证据回源契约不变；排版微差（空白/大小写/引号形态）由服务端对齐（quoteAlignment.js）
+    let quote = alignQuoteToSource(item.quote, text);
+    if (!quote) return { malformed: true, reason: "quote_not_verbatim" };
+    const start = text.indexOf(quote);
+    // 先核对完整引用确实来自原文，再规范成协议允许的证据长度；不信任部分匹配。
+    // 模型经常复制整段，长度属于传输规范，不应使已核对的笔记无限重试。
+    if (parsedRequest.schemaVersion >= 2 && quote.length > RELATE_LIMITS.quoteMaxUTF16) {
+      quote = quote.slice(0, RELATE_LIMITS.quoteMaxUTF16);
+      if (/[\uD800-\uDBFF]$/.test(quote)) quote = quote.slice(0, -1);
+    }
+    const range = parsedRequest.schemaVersion >= 2 ? [start, start + quote.length] : item.rangeUTF16;
     if (!Array.isArray(range) || range.length !== 2
         || !Number.isInteger(range[0]) || !Number.isInteger(range[1])
-        || range[0] !== start || range[1] !== start + item.quote.length) {
+        || range[0] !== start || range[1] !== start + quote.length) {
       return { malformed: true, reason: "range_mismatch" };
     }
     let evidence = {};
-    if (parsedRequest.schemaVersion === 2 && item.relation === "same_thread") {
+    if (parsedRequest.schemaVersion >= 2 && (item.relation === "same_thread" || item.relation === "fits_category")) {
       const candidate = parsedRequest.candidates.find(c => c.ref === item.candidateRef);
+      // schema 3 起类别定义是独立字段（与 AI 摘要 summary 分开）；"definition" 依据
+      // 的回源基准=类别定义优先，其次摘要，最后标题。
+      const definitionBasis = isV3
+        ? (candidate.definition ?? candidate.summary ?? candidate.title)
+        : (candidate.summary ?? candidate.title);
       const basis = item.representativeRef === "definition"
-        ? (candidate.summary ?? candidate.title)
+        ? definitionBasis
         : candidate.representatives.find(r => r.ref === item.representativeRef)?.text;
-      if (typeof item.representativeQuote !== "string" || !item.representativeQuote.length
-          || item.representativeQuote.length > 120 || !basis?.includes(item.representativeQuote)) {
-        return { malformed: true, reason: "representative_quote_not_verbatim" };
+      // 主题侧依据同样走对齐：排版微差不判依据不足（quoteAlignment.js，2026-10-19）。
+      const representativeAligned = (typeof item.representativeQuote === "string" && item.representativeQuote.length)
+        ? alignQuoteToSource(item.representativeQuote, basis ?? "")
+        : null;
+      if (!representativeAligned) {
+        // 这个候选缺少可核对的主题侧依据：明确保留为依据不足，不写归属，也不阻塞其他候选。
+        decisions.push({ candidateRef: item.candidateRef, relation: "insufficient", quote: null, rangeUTF16: null });
+        continue;
       }
-      if (!isCleanShortString(item.sharedSubject, 120)) return { malformed: true, reason: "shared_subject_missing" };
-      evidence = { representativeRef: item.representativeRef, representativeQuote: item.representativeQuote, sharedSubject: item.sharedSubject };
+      // fits_category 是类别符合（无「共同对象」语义），sharedSubject 仅 same_thread 必填。
+      if (item.relation === "same_thread" && !isCleanShortString(item.sharedSubject, 120)) {
+        return { malformed: true, reason: "shared_subject_missing" };
+      }
+      let representativeQuote = representativeAligned.slice(0, 120);
+      if (/[\uD800-\uDBFF]$/.test(representativeQuote)) representativeQuote = representativeQuote.slice(0, -1);
+      evidence = item.relation === "same_thread"
+        ? { representativeRef: item.representativeRef, representativeQuote, sharedSubject: item.sharedSubject }
+        : { representativeRef: item.representativeRef, representativeQuote };
     }
-    decisions.push({ candidateRef: item.candidateRef, relation: item.relation, quote: item.quote, rangeUTF16: [range[0], range[1]], ...evidence });
+    decisions.push({ candidateRef: item.candidateRef, relation: item.relation, quote, rangeUTF16: [range[0], range[1]], ...evidence });
   }
   return { decisions };
 }

@@ -121,6 +121,33 @@ enum ReceiptBookingReason: String, Sendable, Equatable, CaseIterable {
     }
 }
 
+/// 识别失败分类：连接层失败（设备没网/超时）与后端服务失败（5xx/上游 AI 故障）
+/// 必须分开报——后端故障被归成 failureNetwork 会显示「网络不可用」，
+/// 误导用户去排查自己的网络（2026-10-15 qwen 密钥失效事故实锤，5 台外部用户受误导）。
+enum ReceiptBookingFailureClassifier {
+    static func reason(for error: Error) -> ReceiptBookingReason {
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .networkUnavailable, .timeout:
+                return .failureNetwork
+            case .rateLimited:
+                return .failureRateLimited
+            case .cancelled:
+                return .failureCancelled
+            default:
+                return .failureServer
+            }
+        }
+        if error is CancellationError {
+            return .failureCancelled
+        }
+        if error is URLError {
+            return .failureNetwork
+        }
+        return .failureServer
+    }
+}
+
 // MARK: - 结果回执
 
 /// 「识别于 …」时间文案（2026-09-23 起确认页与复核列表必显）：

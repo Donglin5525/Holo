@@ -15,7 +15,9 @@
 //
 
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 import UserNotifications
 
 nonisolated enum HoloAgentPauseNotifier {
@@ -57,9 +59,14 @@ nonisolated enum HoloAgentPauseNotifier {
         Task {
             // 前台时用户直接可见 App 内的等待/暂停卡片，横幅+提示音只会构成打扰；
             // 对冲通知的价值现场在锁屏/后台（那里只有系统失败卡片可看）。
+            #if canImport(UIKit)
             let isForeground = await MainActor.run {
                 UIApplication.shared.applicationState == .active
             }
+            #else
+            // macOS 单窗口 App 视为始终前台：跳过横幅，用户直接可见等待卡片
+            let isForeground = await MainActor.run { true }
+            #endif
             guard !isForeground else { return }
             let granted = await authorizationGranted()
             guard granted else { return }

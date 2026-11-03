@@ -10,6 +10,13 @@ import SwiftUI
 
 // MARK: - 任务行
 
+enum TaskExperienceRowLayout {
+    static let horizontalInset: CGFloat = 14
+    static let gap: CGFloat = 14
+    static let actionSide: CGFloat = 44
+    static let textInset: CGFloat = horizontalInset + actionSide + gap
+}
+
 struct TaskExperienceRow: View {
     let member: TaskRecordSnapshot
     let calendar: Calendar
@@ -18,7 +25,7 @@ struct TaskExperienceRow: View {
     var isCompleted: Bool = false
     var isHistoryRow: Bool = false
 
-    /// 是否已加入今日安排（菜单文案与动作状态化）
+    /// 是否已加入今日安排（长按菜单文案与动作状态化）
     var isInTodayPlan: Bool = false
 
     let onToggleCompletion: () -> Void
@@ -29,112 +36,224 @@ struct TaskExperienceRow: View {
     let onToggleToday: () -> Void
     let onArchive: () -> Void
     let onDelete: () -> Void
+    let onToggleCheckItem: (CheckItemSnapshot) -> Void
+    let onAddCheckItem: (String) -> Bool
 
-    private var quadrant: TaskQuadrant {
-        member.quadrant(now: now, calendar: calendar)
-    }
+    /// 展开态（点行就地展开子任务，无弹窗）；LazyVStack 里按行自身 id 保持
+    @State private var isExpanded = false
+    @State private var newStepTitle = ""
+    @State private var stepSaveFailed = false
+    @FocusState private var isNewStepFocused: Bool
 
     private var isOverdueRow: Bool {
         !member.completed && member.isOverdue(asOf: now, calendar: calendar)
     }
 
+    private var showsChevron: Bool {
+        !member.checkItems.isEmpty
+    }
+
     var body: some View {
-        HStack(alignment: .center, spacing: 10) {
-            // 完成按钮（独立，不触发详情）
+        HStack(alignment: .top, spacing: TaskExperienceRowLayout.gap) {
+            // 进度环：点=完成/撤回整卡；弧=子任务进度（无子任务是细空环）
             Button(action: onToggleCompletion) {
-                Image(systemName: isCompleting || isCompleted ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 21))
-                    .foregroundColor(isCompleting || isCompleted ? .holoSuccess : .holoTextPlaceholder)
-                    .frame(width: 32, height: 44)
+                progressRing.frame(width: TaskExperienceRowLayout.actionSide, height: TaskExperienceRowLayout.actionSide, alignment: .top)
                     .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(String(localized: "完成\(member.title)"))
+                .buttonStyle(.plain)
+                .accessibilityLabel(isCompleted ? String(localized: "取消完成\(member.title)") : String(localized: "完成\(member.title)"))
+                .accessibilityIdentifier("task.completion.\(member.id.uuidString)")
+                .accessibilityValue(Text(isCompleting ? "等待完成" : (isCompleted ? "已完成" : "未完成")))
 
-            // 行主体：点开详情
-            Button(action: onOpenDetail) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        // 象限色点（辅助，文字才是主信息）
-                        if !isHistoryRow {
-                            Circle()
-                                .fill(quadrant.tintColor)
-                                .frame(width: 6, height: 6)
-                        }
+            // 标题负责展开，子任务和输入框独立，避免 Button 内嵌 Button 吞掉操作。
+            VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                Button {
+                    guard !member.checkItems.isEmpty else {
+                        onOpenDetail()
+                        return
+                    }
+                    withAnimation(HoloAnimation.snappy) { isExpanded.toggle() }
+                } label: {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(member.title)
-                            .font(.system(size: 17))
-                            .foregroundColor(isCompleted ? .holoTextSecondary : .holoTextPrimary)
+                            .holoText(.body)
+                            .fontWeight(.semibold)
+                            .foregroundColor(isCompleted ? .holoToolTextSecondary : .holoTextPrimary)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                             .strikethrough(isCompleted, color: .holoTextPlaceholder)
-                    }
+                            .frame(maxWidth: .infinity, alignment: .leading)
 
-                    HStack(spacing: 8) {
-                        // 历史·已完成：展示完成时间（缺失明示），不再显示截止
-                        if isHistoryRow && isCompleted {
-                            if let completedAt = member.completedAt {
-                                Text(String(localized: "完成于 ") + Self.historyTimeFormatter.string(from: completedAt))
-                            } else {
-                                Text("完成时间未记录")
-                            }
-                        } else {
-                            // 截止信息（今天/明天/后天自然语言；全天只显示自然日，§4.4）
-                            dueText
+                        // 唯一辅助信息：历史行报完成时间；进行中报截止（今天橙/逾期红）
+                        if let auxiliary = auxiliaryText {
+                            Text(auxiliary.text)
+                                .holoText(.metadata)
+                                .foregroundColor(auxiliary.color)
                         }
-                        Text("·")
-                            .foregroundColor(.holoTextPlaceholder)
-                        Text(listLabel)
-                        // 紧急分徽章（2026-10-07）：待整理无分不显示；分数即组内次序
-                        if !isHistoryRow, let score = member.urgencyScore(now: now, calendar: calendar) {
-                            Spacer(minLength: 6)
-                            Text("\(score)")
-                                .font(.system(size: 10.5, weight: .bold, design: .rounded))
-                                .foregroundColor(quadrant.tintColor)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 1.5)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 5)
-                                        .fill(quadrant.backgroundColor.opacity(0.8))
-                                )
-                                .fixedSize()
-                                .accessibilityLabel(Text(String(localized: "紧急分 \(score)")))
-                        }
+
                     }
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("task.row.\(member.id.uuidString)")
+                if isExpanded { expandedContent }
             }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .combine)
 
-            // 更多入口（独立）
-            rowMenu
+            if showsChevron {
+                // 展开箭头是真按钮（真机实报「点不动」：初版只当装饰画，点了没反应）
+                Button {
+                    withAnimation(HoloAnimation.snappy) { isExpanded.toggle() }
+                } label: {
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(isExpanded ? .holoToolTextSecondary : .holoTextPlaceholder)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isExpanded ? String(localized: "收起子任务") : String(localized: "展开子任务"))
+            }
         }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, 9)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+        .padding(.horizontal, TaskExperienceRowLayout.horizontalInset)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+        .contextMenu { rowActions }
         .opacity(isCompleting ? 0.55 : 1)
     }
 
-    @ViewBuilder
-    private var dueText: some View {
-        if let due = member.effectiveDue(calendar: calendar) {
-            if isOverdueRow {
-                Text("\(Self.formatNatural(due, member: member, calendar: calendar)) · 已逾期")
-                    .foregroundColor(.holoError)
-            } else {
-                Text(Self.formatNatural(due, member: member, calendar: calendar))
+    // MARK: 进度环（「还有 N 步」的图形化继任者）
+
+    private var progressRing: some View {
+        let items = member.checkItems
+        let fraction = items.isEmpty ? 0 : Double(items.filter(\.isChecked).count) / Double(items.count)
+        return ZStack {
+            Circle()
+                .stroke(Color.holoToolTextSecondary.opacity(0.24), lineWidth: 1.2)
+            if !items.isEmpty {
+                // 至少留一粒起点弧：0 完成也能看出「这行有进度系统」
+                Circle()
+                    .trim(from: 0, to: max(fraction, 0.05))
+                    .stroke(Color.holoTextPrimary,
+                            style: StrokeStyle(lineWidth: 3.2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(HoloAnimation.snappy, value: fraction)
             }
+            if isCompleting || isCompleted {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.holoTextPrimary)
+            }
+        }
+        .frame(width: 26, height: 26)
+        .padding(.top, 1)
+        .contentShape(Circle())
+    }
+
+    // MARK: 展开态：子任务就地勾选 + 加一步 + 注脚
+
+    private var expandedContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(member.checkItems) { item in
+                Button {
+                    onToggleCheckItem(item)
+                } label: {
+                    HStack(alignment: .top, spacing: 10) {
+                        ZStack {
+                            Circle()
+                                .strokeBorder(item.isChecked ? Color.holoToolTextSecondary : Color.holoTextPlaceholder,
+                                              lineWidth: 1.5)
+                                .frame(width: 17, height: 17)
+                            if item.isChecked {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(.holoBackground)
+                            }
+                        }
+                        .frame(width: 17, height: 17)
+                        .padding(.top, 1.5)
+                        Text(item.title)
+                            .holoText(.supporting)
+                            .foregroundColor(item.isChecked ? .holoTextPlaceholder : .holoToolTextSecondary)
+                            .strikethrough(item.isChecked, color: .holoTextPlaceholder)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.vertical, 7)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("task.step.\(item.id.uuidString)")
+                .accessibilityValue(Text(item.isChecked ? "已完成" : "未完成"))
+            }
+
+            // 加一步（行内输入，回车落库）
+            HStack(spacing: 10) {
+                Image(systemName: "plus")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.holoTextPlaceholder)
+                TextField(String(localized: "加一步，回车保存"), text: $newStepTitle)
+                    .holoText(.supporting)
+                    .foregroundColor(.holoToolTextSecondary)
+                    .focused($isNewStepFocused)
+                    .submitLabel(.done)
+                    .onSubmit(commitNewStep)
+            }
+            .padding(.top, 4)
+            if stepSaveFailed {
+                HoloInlineState(kind: .failure, message: String(localized: "这一步未保存，内容已保留，请重试。"),
+                                actionTitle: String(localized: "重试"), action: commitNewStep)
+            }
+
+            // 注脚：清单名（收起态不上屏，展开态才出现）+ 详情入口
+            HStack(spacing: 6) {
+                Text(verbatim: String(localized: "清单：\(Self.listLabel(for: member))"))
+                Text(verbatim: "·")
+                Button(String(localized: "详情 ›")) { onOpenDetail() }
+            }
+            .font(.system(size: 11.5))
+            .foregroundColor(.holoTextPlaceholder)
+            .padding(.top, 8)
+        }
+        .padding(.top, 6)
+    }
+
+    private func commitNewStep() {
+        let trimmed = newStepTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if onAddCheckItem(trimmed) {
+            newStepTitle = ""
+            stepSaveFailed = false
         } else {
-            Text("未设截止日期")
+            stepSaveFailed = true
         }
     }
 
-    private var listLabel: String {
+    // MARK: 唯一辅助信息
+
+    private var auxiliaryText: (text: String, color: Color)? {
+        if isHistoryRow {
+            if let completedAt = member.completedAt {
+                return (String(localized: "完成于 ") + Self.historyTimeFormatter.string(from: completedAt),
+                        .holoToolTextSecondary)
+            }
+            return nil
+        }
+        guard let due = member.effectiveDue(calendar: calendar) else { return nil }
+        let natural = Self.formatNatural(due, member: member, calendar: calendar)
+        if isOverdueRow {
+            return (natural + String(localized: " · 已逾期"), .holoToolError)
+        }
+        if calendar.isDateInToday(due) {
+            return (natural, .holoPrimary)
+        }
+        return (natural, .holoToolTextSecondary)
+    }
+
+    /// 清单名（展开态注脚显示）
+    static func listLabel(for member: TaskRecordSnapshot) -> String {
         if member.listID == nil { return String(localized: "收件箱") }
         return member.listAvailable ? (member.listName ?? String(localized: "未归属清单")) : String(localized: "未归属清单")
     }
@@ -168,37 +287,36 @@ struct TaskExperienceRow: View {
         return base + " " + timeFormatter.string(from: due)
     }
 
-    private var rowMenu: some View {
-        Menu {
-            Button(action: onClassify) {
-                Label(String(localized: "调整轻重缓急"), systemImage: "square.grid.2x2")
-            }
-            Button(action: onChangeDue) {
-                Label(String(localized: "修改截止日期"), systemImage: "calendar")
-            }
-            Button(action: onPlanRange) {
-                Label(String(localized: member.hasValidPlannedRange ? "调整执行时段" : "安排执行时段"), systemImage: "clock")
-            }
-            Button(action: onToggleToday) {
-                Label(
-                    isInTodayPlan ? String(localized: "放下今日安排") : String(localized: "加入今日安排"),
-                    systemImage: isInTodayPlan ? "moon.zzz" : "sun.max"
-                )
-            }
-            Button(action: onArchive) {
-                Label(String(localized: "归档"), systemImage: "archivebox")
-            }
-            Button(role: .destructive, action: onDelete) {
-                Label(String(localized: "删除"), systemImage: "trash")
-            }
+    // MARK: 长按菜单（原「⋯」的继任者：低频操作收进长按，不占常驻视觉）
+
+    @ViewBuilder
+    private var rowActions: some View {
+        Button {
+            onOpenDetail()
         } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
-                .frame(width: 32, height: 44)
-                .contentShape(Rectangle())
+            Label(String(localized: "打开详情"), systemImage: "doc.text")
         }
-        .accessibilityLabel(String(localized: "更多操作"))
+        Button(action: onClassify) {
+            Label(String(localized: "调整轻重缓急"), systemImage: "square.grid.2x2")
+        }
+        Button(action: onChangeDue) {
+            Label(String(localized: "修改截止日期"), systemImage: "calendar")
+        }
+        Button(action: onPlanRange) {
+            Label(String(localized: member.hasValidPlannedRange ? "调整执行时段" : "安排执行时段"), systemImage: "clock")
+        }
+        Button(action: onToggleToday) {
+            Label(
+                isInTodayPlan ? String(localized: "放下今日安排") : String(localized: "加入今日安排"),
+                systemImage: isInTodayPlan ? "moon.zzz" : "sun.max"
+            )
+        }
+        Button(action: onArchive) {
+            Label(String(localized: "归档"), systemImage: "archivebox")
+        }
+        Button(role: .destructive, action: onDelete) {
+            Label(String(localized: "删除"), systemImage: "trash")
+        }
     }
 }
 
@@ -241,14 +359,17 @@ struct TaskDueQuickEditSheet: View {
                 if let errorMessage {
                     Text(errorMessage)
                         .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
             }
             .navigationTitle(String(localized: "截止日期"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "保存")) { save() }
@@ -277,65 +398,124 @@ struct TaskDueQuickEditSheet: View {
     }
 }
 
-// MARK: - 执行时段快捷编辑（成对保存或成对清空，§6.3）
+// MARK: - 计划时间弹层（多视图方案 §5.4：安排/调整/移除，失败保留草稿）
 
+/// 计划时段编辑：标题「安排时间/调整计划时间」；顶部任务名与「截止保持为…」；
+/// 非法输入保留并报错；冲突/晚于截止为非阻断提示；已有计划可移除；
+/// 保存走 TaskPresentationActionCoordinator（失败限定字段恢复+草稿保留）。
 struct TaskPlannedRangeQuickSheet: View {
     @ObservedObject var repository: TodoRepository
     let snapshot: TaskRecordSnapshot
-    let onDone: () -> Void
+    /// 新安排的默认日期（日历待安排入口传当前选中日，§5.3；nil=今天）
+    var defaultDay: Date? = nil
+    /// 保存成功回执（携带新计划日；调用方据此定位日历）
+    var onApplied: ((Date?) -> Void)? = nil
+    /// 旧兼容回调（成功后 reload）
+    var onDone: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
-    @State private var hasRange: Bool
     @State private var start: Date
     @State private var end: Date
     @State private var errorMessage: String?
+    @State private var unavailableMessage: String?
+    @ObservedObject private var actionCoordinator = TaskPresentationActionCoordinator.shared
 
-    init(repository: TodoRepository, snapshot: TaskRecordSnapshot, onDone: @escaping () -> Void) {
+    private let calendar = TaskAnalyticsPeriod.makeCalendar()
+
+    init(
+        repository: TodoRepository,
+        snapshot: TaskRecordSnapshot,
+        defaultDay: Date? = nil,
+        onApplied: ((Date?) -> Void)? = nil,
+        onDone: (() -> Void)? = nil
+    ) {
         self.repository = repository
         self.snapshot = snapshot
+        self.defaultDay = defaultDay
+        self.onApplied = onApplied
         self.onDone = onDone
-        _hasRange = State(initialValue: snapshot.hasValidPlannedRange)
-        _start = State(initialValue: snapshot.hasValidPlannedRange
-            ? (repository.findTask(by: snapshot.id)?.plannedStart ?? Date())
-            : Date())
-        _end = State(initialValue: snapshot.hasValidPlannedRange
-            ? (repository.findTask(by: snapshot.id)?.plannedEnd ?? Date().addingTimeInterval(3600))
-            : Date().addingTimeInterval(3600))
+        // 有现成计划默认原日期；新安排默认选中日（无则今天）的默认时段（§5.3）
+        if snapshot.hasValidPlannedRange,
+           let taskStart = repository.findTask(by: snapshot.id)?.plannedStart,
+           let taskEnd = repository.findTask(by: snapshot.id)?.plannedEnd {
+            _start = State(initialValue: taskStart)
+            _end = State(initialValue: taskEnd)
+        } else {
+            let anchor = defaultDay ?? Date()
+            let range = TaskPlannedTimeDefaults.defaultRange(on: anchor, from: Date(), calendar: TaskAnalyticsPeriod.makeCalendar())
+            _start = State(initialValue: range.start)
+            _end = State(initialValue: range.end)
+        }
     }
 
+    private var hasExistingPlan: Bool {
+        snapshot.hasValidPlannedRange
+    }
+
+    /// 同日且结束晚于开始（§5.4；非法保留输入、字段下明确报错）
     private var isValid: Bool {
-        !hasRange || TodoTask.isValidPlannedRange(start, end)
+        TodoTask.isValidPlannedRange(start, end, calendar: calendar)
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                Toggle(String(localized: "安排执行时段"), isOn: $hasRange)
-                if hasRange {
-                    DatePicker(String(localized: "日期"), selection: $start, displayedComponents: [.date])
+                Section {
+                    Text("\(snapshot.title)")
+                        .font(.holoBody.weight(.medium))
+                        .foregroundColor(.holoTextPrimary)
+                    Text("此次只调整计划，截止时间保持为：\(dueSummary)")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                Section {
+                    DatePicker(String(localized: "计划日期"), selection: dateBinding, displayedComponents: [.date])
                         .environment(\.locale, Locale(identifier: "zh_CN"))
                     DatePicker(String(localized: "开始"), selection: $start, displayedComponents: [.hourAndMinute])
                         .environment(\.locale, Locale(identifier: "zh_CN"))
                     DatePicker(String(localized: "结束"), selection: $end, displayedComponents: [.hourAndMinute])
                         .environment(\.locale, Locale(identifier: "zh_CN"))
+                    if !isValid {
+                        Label(String(localized: "结束时间需晚于开始时间，且安排在同一天。"), systemImage: "exclamationmark.triangle")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoToolError)
+                    }
+                    if let unavailableMessage {
+                        Label(unavailableMessage, systemImage: "exclamationmark.triangle")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoToolError)
+                    }
                 }
-                // 非法时段在字段附近解释，不闪退（§6.3）
-                if hasRange && !isValid {
-                    Label(String(localized: "时段需要同一天且开始早于结束"), systemImage: "exclamationmark.triangle")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                if let warning = warningsText {
+                    Section {
+                        Text(warning)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                    }
                 }
                 if let errorMessage {
-                    Text(errorMessage)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                    Section {
+                        Label(errorMessage, systemImage: "exclamationmark.triangle")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoToolError)
+                    }
+                }
+                if hasExistingPlan {
+                    Section {
+                        Button(role: .destructive, action: clearPlan) {
+                            Text("移除计划时间")
+                        }
+                    }
                 }
             }
-            .navigationTitle(String(localized: "执行时段"))
+            .navigationTitle(hasExistingPlan ? String(localized: "调整计划时间") : String(localized: "安排时间"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(String(localized: "保存")) { save() }
@@ -343,23 +523,106 @@ struct TaskPlannedRangeQuickSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+    }
+
+    /// 日期改变时把起止跟随到同一天（默认时段），避免日期与时刻跨日错位
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: { calendar.startOfDay(for: start) },
+            set: { newDay in
+                let oldDay = calendar.startOfDay(for: start)
+                guard !calendar.isDate(newDay, inSameDayAs: oldDay) else { return }
+                let hour = calendar.component(.hour, from: start)
+                let minute = calendar.component(.minute, from: start)
+                let newStart = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: newDay) ?? newDay
+                let newEnd = calendar.date(bySettingHour: calendar.component(.hour, from: end),
+                                           minute: calendar.component(.minute, from: end),
+                                           second: 0, of: newDay) ?? newDay
+                start = newStart
+                end = newEnd
+            }
+        )
+    }
+
+    private var dueSummary: String {
+        guard let due = snapshot.effectiveDue(calendar: calendar) else {
+            return String(localized: "未设截止")
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate(snapshot.isAllDay ? "M月d日" : "M月d日 HH:mm")
+        return formatter.string(from: due)
+    }
+
+    /// 非阻断提示：与 n 项任务时间重叠 / 计划晚于截止（§5.4）
+    private var warningsText: String? {
+        var warnings: [String] = []
+        let overlaps = overlappingTaskCount()
+        if overlaps > 0 {
+            warnings.append(String(localized: "与\(overlaps)项任务时间重叠"))
+        }
+        if let due = snapshot.effectiveDue(calendar: calendar), end > due {
+            warnings.append(String(localized: "计划晚于截止，截止时间不会改变"))
+        }
+        return warnings.isEmpty ? nil : warnings.joined(separator: "\n")
+    }
+
+    private func overlappingTaskCount() -> Int {
+        // 与当日已有计划时段相交的其他任务数（读快照投影口径）
+        guard let all = try? TaskSnapshotReader.readAllSnapshots(in: repository.context) else { return 0 }
+        var count = 0
+        for other in all {
+            guard other.id != snapshot.id,
+                  other.hasValidPlannedRange,
+                  let otherStart = other.plannedStart,
+                  let otherEnd = other.plannedEnd,
+                  otherStart < end, otherEnd > start else { continue }
+            count += 1
+        }
+        return count
     }
 
     private func save() {
-        guard let task = repository.findTask(by: snapshot.id) else {
+        guard isValid else { return }
+        errorMessage = nil
+        unavailableMessage = nil
+        switch actionCoordinator.commitPlannedRange(
+            taskID: snapshot.id,
+            update: .set(start: start, end: end),
+            repository: repository
+        ) {
+        case .applied:
             dismiss()
-            return
+            let plannedDay = calendar.startOfDay(for: start)
+            onApplied?(plannedDay)
+            onDone?()
+        case .noOp:
+            dismiss()
+        case .taskUnavailable:
+            unavailableMessage = String(localized: "任务已发生变化，请关闭后重新查看。")
+        case .saveFailed:
+            // 草稿保留在弹层，字段已恢复原值（不显示成功提示，§5.4）
+            errorMessage = String(localized: "暂时未能保存，修改仍保留在这里，请重试。")
         }
-        do {
-            try repository.updateTask(
-                task,
-                plannedTime: hasRange ? .set(start: start, end: end) : .clear
-            )
+    }
+
+    private func clearPlan() {
+        errorMessage = nil
+        unavailableMessage = nil
+        switch actionCoordinator.commitPlannedRange(
+            taskID: snapshot.id,
+            update: .clear,
+            repository: repository
+        ) {
+        case .applied:
             dismiss()
-            onDone()
-        } catch {
-            errorMessage = String(localized: "保存失败，请重试")
+            onApplied?(nil)
+            onDone?()
+        case .noOp, .taskUnavailable:
+            dismiss()
+        case .saveFailed:
+            errorMessage = String(localized: "暂时未能保存，请重试。")
         }
     }
 }
@@ -390,7 +653,7 @@ struct TaskExperienceSearchView: View {
                             .foregroundColor(.holoTextPlaceholder)
                         Text("搜索全部任务")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                         Text("包含已完成和归档任务")
                             .font(.holoCaption)
                             .foregroundColor(.holoTextPlaceholder)
@@ -401,7 +664,7 @@ struct TaskExperienceSearchView: View {
                     VStack(spacing: HoloSpacing.md) {
                         Text("没有找到「\(keyword)」相关任务")
                             .font(.holoBody)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(.holoToolTextSecondary)
                         Button(String(localized: "清除搜索")) {
                             keyword = ""
                         }
@@ -416,18 +679,28 @@ struct TaskExperienceSearchView: View {
                 }
             }
             .navigationTitle(String(localized: "搜索任务"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
             }
         }
+        #if canImport(UIKit)
         .searchable(
             text: $keyword,
             placement: .navigationBarDrawer(displayMode: .always),
             prompt: String(localized: "标题、描述、清单名")
         )
+        #else
+        .searchable(
+            text: $keyword,
+            prompt: String(localized: "标题、描述、清单名")
+        )
+        #endif
         .holoEdgeSwipeBack { dismiss() }
     }
 
@@ -457,7 +730,7 @@ struct TaskExperienceSearchView: View {
                     }
                     Text(statusDescription(snapshot))
                         .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        .foregroundColor(.holoToolTextSecondary)
                 }
                 .contentShape(Rectangle())
             }
@@ -474,7 +747,7 @@ struct TaskExperienceSearchView: View {
         if snapshot.archived {
             Text("已归档")
                 .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoToolTextSecondary)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Capsule().fill(Color.holoBorder))

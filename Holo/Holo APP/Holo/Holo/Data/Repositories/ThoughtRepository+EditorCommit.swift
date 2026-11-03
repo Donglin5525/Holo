@@ -30,6 +30,7 @@ extension ThoughtRepository {
     ///     manual 来源保留；ai/confirmedAI/rejectedAI 不参与本次提交。
     ///   - richContentJSON: 双层可选。外层 nil = 不改动；外层非 nil 写入（内层 nil = 清除）。
     ///   - references: 引用关系目标列表。nil = 不改动；非 nil 全量对齐（含清空）。
+    ///   - style: nil 保留本条最新样式；只有用户明确更改外观时才传值。
     ///   - createIfMissing: 实体不存在时创建（新建会话首次落库 / 草稿续写）。
     ///     编辑已有想法时传 false，避免已删除想法被静默复活。
     @discardableResult
@@ -39,18 +40,23 @@ extension ThoughtRepository {
         inlineTags: [String] = [],
         richContentJSON: String?? = nil,
         references: [ReferenceSnapshot]? = nil,
+        style: ThoughtStyle? = nil,
         createIfMissing: Bool
     ) throws -> ThoughtEditorCommitReceipt {
         let thought: Thought
+        let isNewThought: Bool
         if let existing = try fetchById(thoughtId) {
             thought = existing
+            isNewThought = false
         } else if createIfMissing {
             thought = makeEditorThought(id: thoughtId, content: content, richContentJSON: richContentJSON)
+            isNewThought = true
         } else {
             throw ThoughtError.notFound
         }
 
         let contentChanged = thought.content != content
+        if let style, thought.appearanceRaw != style.storedValue { thought.appearanceRaw = style.storedValue }
         var richChanged = false
         if let richContentJSON, thought.richContentJSON != richContentJSON {
             thought.richContentJSON = richContentJSON
@@ -88,6 +94,10 @@ extension ThoughtRepository {
         thought.updatedAt = Date()
 
         try context.save()
+        // 产品埋点：仅首次落库的新想法记一次（后续编辑同一想法不计；AI 建笔记走 IntentRouter 另记 source=ai）
+        if isNewThought {
+            HoloProductAnalytics.shared.track(.thoughtCreated, ["source": "editor"])
+        }
         return ThoughtEditorCommitReceipt(thoughtId: thoughtId, committed: true, savedAt: Date())
     }
 

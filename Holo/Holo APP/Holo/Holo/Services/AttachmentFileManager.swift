@@ -6,7 +6,12 @@
 //  负责图片压缩、缩略图生成、文件读写
 //
 
+#if canImport(UIKit)
 import UIKit
+#else
+import AppKit
+#endif
+import Foundation
 import ImageIO
 import os.log
 
@@ -40,7 +45,74 @@ nonisolated enum AttachmentFileManager {
         attachmentsRoot.appendingPathComponent(taskId.uuidString, isDirectory: true)
     }
 
-    // MARK: - 保存图片
+    // MARK: - 删除文件
+
+    /// 删除任务的所有附件文件（删除整个任务目录）
+    static func deleteAllAttachments(for taskId: UUID) {
+        let dir = taskDirectory(taskId: taskId)
+        do {
+            if FileManager.default.fileExists(atPath: dir.path) {
+                try FileManager.default.removeItem(at: dir)
+            }
+        } catch {
+            logger.error("删除附件目录失败: \(error.localizedDescription)")
+        }
+    }
+
+    /// 批量删除多个任务的附件
+    static func deleteAttachmentDirectories(for taskIds: [UUID]) {
+        for taskId in taskIds {
+            deleteAllAttachments(for: taskId)
+        }
+    }
+
+    /// 删除单个附件的文件
+    static func deleteAttachmentFiles(fileName: String, thumbnailFileName: String, taskId: UUID) {
+        let dir = taskDirectory(taskId: taskId)
+        let fm = FileManager.default
+
+        let originalURL = dir.appendingPathComponent(fileName)
+        let thumbnailURL = dir.appendingPathComponent(thumbnailFileName)
+
+        try? fm.removeItem(at: originalURL)
+        try? fm.removeItem(at: thumbnailURL)
+
+        if let contents = try? fm.contentsOfDirectory(atPath: dir.path), contents.isEmpty {
+            try? fm.removeItem(at: dir)
+        }
+    }
+
+    // MARK: - 原始 Data 处理（跨平台：想法/账单附件入库通道）
+
+    /// 从原始 Data 解码图片后处理（不写磁盘）
+    static func processRawImageData(_ rawData: Data, attachmentId: UUID) async -> ProcessedImageData? {
+        await Task.detached(priority: .userInitiated) {
+            #if canImport(UIKit)
+            guard let image = UIImage(data: rawData) else { return nil }
+            guard let originalData = compressImage(image, maxDimension: 2048, quality: 0.8),
+                  let thumbData = generateThumbnail(from: image, maxSize: 300) else {
+                return nil
+            }
+            #else
+            // macOS：UIKit 渲染管线不可用，走 ImageIO 等价实现（缩放/居中裁剪/编码行为一致）
+            guard let originalData = Self.cgCompressImageData(rawData, maxDimension: 2048, quality: 0.8),
+                  let thumbData = Self.cgThumbnailImageData(from: rawData, maxSize: 300) else {
+                return nil
+            }
+            #endif
+            let fileName = "\(attachmentId.uuidString).jpeg"
+            let thumbnailFileName = "\(attachmentId.uuidString)_thumb.jpeg"
+            return ProcessedImageData(
+                fileName: fileName,
+                thumbnailFileName: thumbnailFileName,
+                imageData: originalData,
+                thumbnailData: thumbData
+            )
+        }.value
+    }
+
+    #if canImport(UIKit)
+    // MARK: - 保存图片（UIKit 管线，iOS 专属）
 
     /// 保存图片（压缩原图 + 生成缩略图），返回 (原图文件名, 缩略图文件名)
     static func saveImage(_ image: UIImage, taskId: UUID, attachmentId: UUID) -> (fileName: String, thumbnailFileName: String)? {
@@ -126,24 +198,7 @@ nonisolated enum AttachmentFileManager {
         }.value
     }
 
-    /// 从原始 Data 解码图片后处理（不写磁盘）
-    static func processRawImageData(_ rawData: Data, attachmentId: UUID) async -> ProcessedImageData? {
-        await Task.detached(priority: .userInitiated) {
-            guard let image = UIImage(data: rawData) else { return nil }
-            guard let originalData = compressImage(image, maxDimension: 2048, quality: 0.8),
-                  let thumbData = generateThumbnail(from: image, maxSize: 300) else {
-                return nil
-            }
-            let fileName = "\(attachmentId.uuidString).jpeg"
-            let thumbnailFileName = "\(attachmentId.uuidString)_thumb.jpeg"
-            return ProcessedImageData(
-                fileName: fileName,
-                thumbnailFileName: thumbnailFileName,
-                imageData: originalData,
-                thumbnailData: thumbData
-            )
-        }.value
-    }
+    // MARK: - 加载图片（UIKit 管线，iOS 专属）
 
     /// 生成用于界面预览的轻量图片，避免相机原图直接进入 SwiftUI 网格导致卡顿。
     static func previewImageInBackground(_ image: UIImage, maxDimension: CGFloat = 1024) async -> UIImage? {
@@ -172,8 +227,6 @@ nonisolated enum AttachmentFileManager {
         return UIImage(cgImage: cgImage)
     }
 
-    // MARK: - 加载图片
-
     /// 加载缩略图
     static func loadThumbnail(fileName: String, taskId: UUID) -> UIImage? {
         let url = taskDirectory(taskId: taskId).appendingPathComponent(fileName)
@@ -188,44 +241,7 @@ nonisolated enum AttachmentFileManager {
         return UIImage(data: data)
     }
 
-    // MARK: - 删除文件
-
-    /// 删除任务的所有附件文件（删除整个任务目录）
-    static func deleteAllAttachments(for taskId: UUID) {
-        let dir = taskDirectory(taskId: taskId)
-        do {
-            if FileManager.default.fileExists(atPath: dir.path) {
-                try FileManager.default.removeItem(at: dir)
-            }
-        } catch {
-            logger.error("删除附件目录失败: \(error.localizedDescription)")
-        }
-    }
-
-    /// 批量删除多个任务的附件
-    static func deleteAttachmentDirectories(for taskIds: [UUID]) {
-        for taskId in taskIds {
-            deleteAllAttachments(for: taskId)
-        }
-    }
-
-    /// 删除单个附件的文件
-    static func deleteAttachmentFiles(fileName: String, thumbnailFileName: String, taskId: UUID) {
-        let dir = taskDirectory(taskId: taskId)
-        let fm = FileManager.default
-
-        let originalURL = dir.appendingPathComponent(fileName)
-        let thumbnailURL = dir.appendingPathComponent(thumbnailFileName)
-
-        try? fm.removeItem(at: originalURL)
-        try? fm.removeItem(at: thumbnailURL)
-
-        if let contents = try? fm.contentsOfDirectory(atPath: dir.path), contents.isEmpty {
-            try? fm.removeItem(at: dir)
-        }
-    }
-
-    // MARK: - 图片处理
+    // MARK: - 图片处理（UIKit 渲染管线，iOS 专属）
 
     /// 压缩图片到指定尺寸和质量
     static func compressImage(_ image: UIImage, maxDimension: CGFloat, quality: CGFloat) -> Data? {
@@ -272,4 +288,89 @@ nonisolated enum AttachmentFileManager {
 
         return rendered.jpegData(compressionQuality: 0.6)
     }
+
+    #else
+    // MARK: - macOS ImageIO 等价管线（Phase A：无 UIKit 渲染器）
+
+    /// 缩放到 maxDimension 上限并编码 JPEG（maxPixelSize 是上限，不放大小图，与 iOS 行为一致）
+    private static func cgCompressImageData(_ data: Data, maxDimension: CGFloat, quality: CGFloat) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxDimension
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return cgJPEGData(from: cgImage, quality: quality)
+    }
+
+    /// 居中裁剪正方形缩略图并编码 JPEG（与 iOS generateThumbnail 行为一致）
+    private static func cgThumbnailImageData(from data: Data, maxSize: CGFloat) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxSize
+        ]
+        guard let scaled = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        let side = min(scaled.width, scaled.height)
+        let cropRect = CGRect(
+            x: (scaled.width - side) / 2,
+            y: (scaled.height - side) / 2,
+            width: side,
+            height: side
+        )
+        guard let cropped = scaled.cropping(to: cropRect) else { return nil }
+        return cgJPEGData(from: cropped, quality: 0.6)
+    }
+
+    private static func cgJPEGData(from image: CGImage, quality: CGFloat) -> Data? {
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil) else {
+            return nil
+        }
+        let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: quality]
+        CGImageDestinationAddImage(destination, image, options as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
+    }
+
+    /// 加载原图（磁盘文件 → NSImage）
+    static func loadFullImage(fileName: String, taskId: UUID) -> NSImage? {
+        let url = taskDirectory(taskId: taskId).appendingPathComponent(fileName)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return NSImage(data: data)
+    }
+
+    /// 生成界面预览轻量图（macOS：直接透传）
+    static func previewImageInBackground(_ image: NSImage, maxDimension: CGFloat = 1024) async -> NSImage? {
+        image
+    }
+
+    /// 加载缩略图（磁盘文件 → NSImage）
+    static func loadThumbnail(fileName: String, taskId: UUID) -> NSImage? {
+        let url = taskDirectory(taskId: taskId).appendingPathComponent(fileName)
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return NSImage(data: data)
+    }
+
+    /// 强制立即完整解码（与 iOS 版语义一致：maxPixelSize 为上限、不放大小图、像素就绪）
+    static func fullyDecodedImage(from data: Data, maxPixelSize: CGFloat = 4096) -> NSImage? {
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ]
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+    }
+    #endif
 }

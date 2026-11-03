@@ -95,7 +95,7 @@ struct CategoryBudgetPicker: View {
 
                     Spacer(minLength: 0)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .holoRowHitArea()
             }
             .buttonStyle(PlainButtonStyle())
 
@@ -109,10 +109,11 @@ struct CategoryBudgetPicker: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
-                    .frame(width: 32, height: 32)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel(isExpanded ? String(localized: "收起子分类") : String(localized: "展开子分类"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -174,6 +175,7 @@ struct CategoryBudgetPicker: View {
                             .foregroundColor(selectedCategory?.id == child.id ? .holoPrimary : .holoTextSecondary)
                             .lineLimit(1)
                     }
+                    .holoRowHitArea(alignment: .center)
                 }
                 .buttonStyle(PlainButtonStyle())
             }

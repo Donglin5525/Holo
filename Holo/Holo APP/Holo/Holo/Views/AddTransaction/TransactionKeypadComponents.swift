@@ -21,7 +21,7 @@ struct KeypadButton: View {
                 case "AC":
                     Text("AC")
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
 
                 case "⌫":
                     Image(systemName: "delete.left")

@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 设置页规整方案 v2 · 原型</title>
+<style>
+  :root{
+    --primary:#F46D38; --error:#EF4444; --success:#22C55E; --info:#60A5FA; --purple:#C084FC;
+    --canvas:#EDEAE4; --canvas-text:#3A3A3A;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+    background:var(--canvas); color:var(--canvas-text);
+    padding:36px 20px 60px; -webkit-font-smoothing:antialiased;
+  }
+  header{max-width:1060px;margin:0 auto 26px;}
+  header h1{font-size:22px;font-weight:700;letter-spacing:.5px;}
+  header p.sub{font-size:13px;color:#7A756C;margin-top:6px;line-height:1.7;}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px;}
+  .chip{background:#fff;border-radius:12px;padding:10px 14px;font-size:12px;line-height:1.5;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+  .chip b{display:block;font-size:15px;color:var(--primary);font-weight:700;}
+  .chip b .arrow{color:#B9B3A8;font-weight:500;}
+  .toolbar{margin-top:16px;}
+  .theme-btn{
+    border:none;background:#fff;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600;
+    cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08);color:#3A3A3A;
+  }
+  .theme-btn.active{background:var(--primary);color:#fff;}
+
+  .phones{display:flex;gap:34px;justify-content:center;flex-wrap:wrap;margin-top:8px;}
+  .phone-wrap{display:flex;flex-direction:column;align-items:center;}
+  .phone-wrap>h3{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+  .tag-old{background:#FDE8E8;color:#C0392B;font-size:11px;padding:3px 8px;border-radius:99px;font-weight:600;}
+  .tag-new{background:#E8F6EE;color:#1E8E4E;font-size:11px;padding:3px 8px;border-radius:99px;font-weight:600;}
+
+  /* ===== 手机壳 ===== */
+  .phone{
+    width:393px;border-radius:54px;background:#1B1B1D;padding:12px;
+    box-shadow:0 24px 60px rgba(0,0,0,.25), inset 0 0 0 2px #3A3A3C;
+  }
+  .screen{border-radius:44px;overflow:hidden;height:812px;display:flex;flex-direction:column;position:relative;}
+  .screen{
+    --bg:#FDFCF8; --surface:#FFFFFF; --inset:#F7F1EA; --text:#333333; --text2:#6E6E6E;
+    --border:#E9E4DA; --hair:rgba(0,0,0,.06);
+    background:var(--bg);
+  }
+  .screen.dark{
+    --bg:#0E0E10; --surface:#2C2C2E; --inset:#3A3A3C; --text:#F5F5F5; --text2:#A8A8A8;
+    --border:#48484A; --hair:rgba(255,255,255,.08);
+  }
+  .statusbar{
+    height:54px;flex:none;display:flex;justify-content:space-between;align-items:flex-end;
+    padding:0 32px 6px;font-size:15px;font-weight:600;color:var(--text);
+  }
+  .sb-right{display:flex;align-items:center;gap:6px;}
+  .sig{display:flex;align-items:flex-end;gap:2px;}
+  .sig i{width:3px;background:var(--text);border-radius:1px;display:block;}
+  .sig i:nth-child(1){height:4px}.sig i:nth-child(2){height:6px}.sig i:nth-child(3){height:8px}.sig i:nth-child(4){height:10px}
+  .battery{width:25px;height:12px;border:1.5px solid var(--text2);border-radius:4px;position:relative;opacity:.9;}
+  .battery::before{content:"";position:absolute;left:1.5px;top:1.5px;bottom:1.5px;width:70%;background:var(--text);border-radius:2px;}
+  .battery::after{content:"";position:absolute;right:-4px;top:3.5px;width:2px;height:5px;background:var(--text2);border-radius:0 2px 2px 0;}
+
+  .navbar{
+    height:44px;flex:none;display:flex;align-items:center;position:relative;
+    border-bottom:.5px solid var(--hair);
+  }
+  .navbar .x{position:absolute;left:16px;font-size:14px;color:var(--text2);font-weight:500;}
+  .navbar .t{position:absolute;left:50%;transform:translateX(-50%);font-size:16px;font-weight:600;color:var(--text);}
+
+  .content{flex:1;overflow-y:auto;padding:14px 18px 28px;scrollbar-width:none;}
+  .content::-webkit-scrollbar{display:none;}
+  .content .inner{display:flex;flex-direction:column;gap:16px;}
+
+  /* ===== 分组卡 ===== */
+  .group{position:relative;}
+  .ghead{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .ghead .gi{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .ghead .gt{font-size:15px;font-weight:700;color:var(--text);}
+  .card{background:var(--surface);border-radius:16px;overflow:hidden;}
+  .row{
+    display:flex;align-items:center;gap:12px;padding:11px 14px;position:relative;
+  }
+  .row + .row{border-top:.5px solid var(--hair);}
+  .ic{
+    width:40px;height:40px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;
+    font-size:19px;
+  }
+  .rt{flex:1;min-width:0;}
+  .rt .l1{font-size:15px;font-weight:600;color:var(--text);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .rt .l2{font-size:12px;color:var(--text2);line-height:1.35;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .chev{color:var(--text2);opacity:.55;font-size:18px;font-weight:600;flex:none;}
+  .val{font-size:13px;color:var(--text2);flex:none;}
+  .toggle{
+    width:51px;height:31px;border-radius:99px;background:#D8D3CA;position:relative;flex:none;transition:background .2s;
+  }
+  .screen.dark .toggle{background:#3A3A3C;}
+  .toggle.on{background:var(--primary);}
+  .toggle i{position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.2);transition:left .2s;}
+  .toggle.on i{left:22px;}
+  .check{color:var(--primary);font-size:20px;font-weight:700;flex:none;}
+  .danger .l1{color:var(--error);}
+  .danger .ic{background:rgba(239,68,68,.1);}
+  .ghostrow{opacity:.5;}
+  .ghostnote{font-size:10px;color:var(--text2);}
+
+  /* 用户卡 */
+  .ucard{background:var(--surface);border-radius:16px;padding:14px;}
+  .urow{display:flex;align-items:center;gap:12px;}
+  .avatar{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#F46D38,#FB923C);color:#fff;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;position:relative;flex:none;}
+  .avatar .dot{position:absolute;right:0;bottom:2px;width:12px;height:12px;border-radius:50%;background:var(--success);border:2.5px solid var(--surface);}
+  .signout{
+    margin-top:12px;display:flex;align-items:center;justify-content:center;gap:6px;
+    background:rgba(239,68,68,.08);color:var(--error);border-radius:12px;height:42px;
+    font-size:15px;font-weight:600;
+  }
+
+  /* ===== 标注 ===== */
+  .flagp{
+    position:absolute;top:-9px;right:-6px;z-index:2;background:#E74C3C;color:#fff;font-size:10px;font-weight:700;
+    min-width:19px;height:19px;border-radius:99px;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,.25);padding:0 5px;
+  }
+  .flagc{
+    position:absolute;top:-9px;right:0;z-index:2;background:#1E8E4E;color:#fff;font-size:10px;font-weight:600;
+    padding:3px 8px;border-radius:99px;box-shadow:0 2px 6px rgba(0,0,0,.18);max-width:230px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .movetag{font-size:10px;color:var(--primary);background:rgba(244,109,56,.1);border-radius:6px;padding:2px 6px;margin-left:8px;flex:none;font-weight:600;}
+
+  /* ===== 减法清单 / 去向表 ===== */
+  .below{max-width:1060px;margin:40px auto 0;display:flex;gap:24px;flex-wrap:wrap;}
+  .panel{background:#fff;border-radius:16px;padding:22px 24px;flex:1;min-width:320px;box-shadow:0 1px 4px rgba(0,0,0,.06);}
+  .panel h4{font-size:14px;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+  .panel ol{list-style:none;display:flex;flex-direction:column;gap:9px;}
+  .panel ol li{font-size:12.5px;line-height:1.6;color:#4A453D;display:flex;gap:8px;}
+  .num{flex:none;width:19px;height:19px;border-radius:99px;background:#FDE8E8;color:#C0392B;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+  .cut{flex:none;width:19px;height:19px;border-radius:6px;background:#E8F6EE;color:#1E8E4E;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;margin-top:1px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{text-align:left;font-size:11px;color:#8A857B;font-weight:600;padding:0 8px 8px;border-bottom:1px solid #EFECE6;}
+  td{padding:8px;border-bottom:1px solid #F5F2EC;color:#4A453D;line-height:1.5;}
+  td.from{color:#8A857B;}
+  td .pill{background:#E8F6EE;color:#1E8E4E;font-size:11px;font-weight:600;padding:2px 7px;border-radius:6px;white-space:nowrap;}
+  .foot-note{max-width:1060px;margin:22px auto 0;font-size:12px;color:#8A857B;line-height:1.8;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Holo 设置页规整方案 v2（减法加强版）</h1>
+  <p class="sub">左边是现在的样子（11 个分组），右边是这轮规整后（5 个分组 + 底部危险区）。功能一个不少：低频项收进二级页，一级页只留「一秒能找到」的入口。手机内容可以滚动。</p>
+  <div class="chips">
+    <div class="chip"><b>11 <span class="arrow">→</span> 5</b>分组数量，一屏看全</div>
+    <div class="chip"><b>约 30 <span class="arrow">→</span> 15</b>一级页条目行数砍半</div>
+    <div class="chip"><b>3.5 <span class="arrow">→</span> 1.2</span></b>屏：页面长度约缩短三分之二</div>
+    <div class="chip"><b>6 <span class="arrow">→</span> 6</b>六刀减法，刀刀见行数（见下方清单）</div>
+  </div>
+  <div class="toolbar">
+    <button class="theme-btn active" id="btnLight">浅色</button>
+    <button class="theme-btn" id="btnDark">深色</button>
+  </div>
+</header>
+
+<div class="phones">
+
+  <!-- ================= 现状 ================= -->
+  <section class="phone-wrap">
+    <h3><span class="tag-old">现状</span>11 组 · 杂</h3>
+    <div class="phone">
+      <div class="screen" id="screenOld">
+        <div class="statusbar"><span>9:41</span><span class="sb-right"><span class="sig"><i></i><i></i><i></i><i></i></span><span class="battery"></span></span></div>
+        <div class="navbar"><span class="x">✕</span><span class="t">设置</span></div>
+        <div class="content"><div class="inner">
+
+          <div class="ucard">
+            <div class="urow">
+              <div class="avatar">东<div class="dot"></div></div>
+              <div class="rt"><div class="l1">东林</div><div class="l2">已登录，iCloud 云同步已开启</div></div>
+              <span class="chev">›</span>
+            </div>
+            <div class="signout">⎋ 退出登录</div>
+          </div>
+
+          <div class="group"><span class="flagp">④</span>
+            <div class="ghead" style="color:#F46D38"><span class="gi">🌙</span><span class="gt">外观</span></div>
+            <div class="card">
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">🌗</div><div class="rt"><div class="l1">跟随系统</div><div class="l2">当前：浅色</div></div><span class="check">✓</span></div>
+              <div class="row"><div class="ic" style="background:var(--inset)">☀️</div><div class="rt"><div class="l1">浅色</div></div></div>
+              <div class="row"><div class="ic" style="background:var(--inset)">🌚</div><div class="rt"><div class="l1">深色</div></div></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagp">②</span>
+            <div class="ghead" style="color:#F46D38"><span class="gi">☁️</span><span class="gt">iCloud 同步</span></div>
+            <div class="card">
+              <div class="row"><div class="rt"><div class="l1" style="font-size:13px;color:var(--text2)">账号状态</div><div class="l2">iCloud 可用，云同步已开启</div></div></div>
+              <div class="row"><div class="ic" style="background:rgba(96,165,250,.1)">🔄</div><div class="rt"><div class="l1">立即同步</div></div></div>
+              <div class="row"><div class="ic" style="background:rgba(96,165,250,.1)">🩺</div><div class="rt"><div class="l1">同步诊断</div><div class="l2">查看同步状态与最近的错误记录</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(96,165,250,.1)">⬇️</div><div class="rt"><div class="l1">从 iCloud 重新拉取</div><div class="l2">以云端数据为准覆盖本机</div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group">
+            <div class="ghead" style="color:#F46D38"><span class="gi">📅</span><span class="gt">日历</span></div>
+            <div class="card">
+              <div class="row"><div class="rt"><div class="l1">启用日历</div></div><span class="toggle on"><i></i></span></div>
+              <div class="row"><div class="rt"><div class="l1">任务同步到日历</div><div class="l2">带时间段的任务自动写入「Holo」日历</div></div><span class="toggle on"><i></i></span></div>
+              <div class="row"><div class="rt"><div class="l1">日历权限</div><div class="l2">已授权，可读取日程</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="rt"><div class="l1">显示的日历</div><div class="l2">勾选后才在 Holo 展示、供 AI 读取</div></div><span class="val">2/5</span><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagp">④</span>
+            <div class="ghead" style="color:#F46D38"><span class="gi">🏷️</span><span class="gt">AI 整理</span></div>
+            <div class="card">
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">✨</div><div class="rt"><div class="l1">HoloAI</div><div class="l2">一个发现 · 记忆 · 自动处理 · 数据与隐私</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">✋</div><div class="rt"><div class="l1">HoloAI 数据授权</div><div class="l2">已授权，可随时撤回</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">⚙️</div><div class="rt"><div class="l1">想法设置</div><div class="l2">智能整理、主题与标签管理</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">🔔</div><div class="rt"><div class="l1">通知设置</div><div class="l2">每日早报 · 习惯提醒 · 周一晨报 · AI 回放</div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagp">④</span>
+            <div class="ghead" style="color:#F46D38"><span class="gi">🎞️</span><span class="gt">AI 回放</span></div>
+            <div class="card">
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">🗓️</div><div class="rt"><div class="l1">每周提醒我生成周回放</div><div class="l2">每周一 9:00</div></div><span class="toggle on"><i></i></span></div>
+              <div class="row"><div class="ic" style="background:rgba(34,197,94,.1)">📆</div><div class="rt"><div class="l1">每月提醒我生成月回放</div><div class="l2">每月 1 日 9:00</div></div><span class="toggle on"><i></i></span></div>
+              <div class="row"><div class="ic" style="background:rgba(96,165,250,.1)">🔁</div><div class="rt"><div class="l1">允许后台自动尝试生成</div><div class="l2">iOS 不保证准时执行，下次打开 App 时会补生成</div></div><span class="toggle on"><i></i></span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagp">②</span>
+            <div class="ghead" style="color:#F46D38"><span class="gi">💾</span><span class="gt">存储与缓存</span></div>
+            <div class="card">
+              <div class="row"><div class="ic" style="background:rgba(96,165,250,.1)">📊</div><div class="rt"><div class="l1">缓存大小</div><div class="l2">128 MB</div></div></div>
+              <div class="row"><div class="ic" style="background:rgba(239,68,68,.1)">🗑️</div><div class="rt"><div class="l1" style="color:var(--error)">清除缓存</div><div class="l2">清理诊断日志和过期数据</div></div></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagp">①</span>
+            <div class="ghead" style="color:#F46D38"><span class="gi">🛡️</span><span class="gt">隐私与安全</span></div>
+            <div class="card">
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">🔑</div><div class="rt"><div class="l1">应用锁</div><div class="l2">已开启 · 退出 5 分钟后锁定</div></div><span class="toggle on"><i></i></span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">⏱️</div><div class="rt"><div class="l1">锁定时机</div><div class="l2">5 分钟</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">📱</div><div class="rt"><div class="l1">桌面小组件显示想法原文</div><div class="l2">关闭后小组件只显示来源提示</div></div><span class="toggle on"><i></i></span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagp">①</span>
+            <div class="ghead" style="color:#F46D38"><span class="gi">📄</span><span class="gt">法律与隐私</span></div>
+            <div class="card">
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">🛡️</div><div class="rt"><div class="l1">隐私政策</div><div class="l2">了解我们如何保护你的数据</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(96,165,250,.1)">📃</div><div class="rt"><div class="l1">用户协议</div><div class="l2">服务条款与使用规范</div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagp">⑥</span>
+            <div class="ghead" style="color:#EF4444"><span class="gi">🚪</span><span class="gt">账号与数据</span></div>
+            <div class="card">
+              <div class="row danger"><div class="ic">🚫</div><div class="rt"><div class="l1">删除账号与 Holo 数据</div><div class="l2">清除本机数据、附件、AI 记忆和登录状态</div></div></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagp" style="left:-6px;right:auto">③</span><span class="flagp">⑤</span>
+            <div class="ghead" style="color:#6E6E6E"><span class="gi">⚙️</span><span class="gt">通用</span></div>
+            <div class="card">
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">💬</div><div class="rt"><div class="l1">反馈给开发者</div><div class="l2">建议、问题、吐槽都欢迎</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(192,132,252,.1)">✨</div><div class="rt"><div class="l1">重看新手引导</div><div class="l2">三步回顾首页的功能入口</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">📖</div><div class="rt"><div class="l1">重看新人笔记</div><div class="l2">产品理念与功能速览</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(96,165,250,.1)">ℹ️</div><div class="rt"><div class="l1">关于 Holo</div><div class="l2">版本 1.1.3 (35)</div></div><span class="chev">›</span></div>
+            </div>
+            <div style="height:10px"></div>
+            <div class="card">
+              <div class="group" style="padding:12px 14px 0">
+                <div style="font-size:14px;font-weight:700;color:#D97706;display:flex;align-items:center;gap:6px;margin-bottom:10px">🧰 数据管理</div>
+              </div>
+              <div class="row" style="border-top:.5px solid var(--hair)"><div class="ic" style="background:rgba(244,109,56,.1)">🗃️</div><div class="rt"><div class="l1">数据管理</div><div class="l2">数据概览 · 清空所有数据 · 最近删除（30 天可恢复）</div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 新方案 v2 ================= -->
+  <section class="phone-wrap">
+    <h3><span class="tag-new">新方案 v2</span>5 组 + 危险区 · 净</h3>
+    <div class="phone">
+      <div class="screen" id="screenNew">
+        <div class="statusbar"><span>9:41</span><span class="sb-right"><span class="sig"><i></i><i></i><i></i><i></i></span><span class="battery"></span></span></div>
+        <div class="navbar"><span class="x">✕</span><span class="t">设置</span></div>
+        <div class="content"><div class="inner">
+
+          <div class="ucard">
+            <div class="urow">
+              <div class="avatar">东<div class="dot"></div></div>
+              <div class="rt"><div class="l1">东林</div><div class="l2">已登录，iCloud 云同步已开启</div></div>
+              <span class="chev">›</span>
+            </div>
+            <div class="signout">⎋ 退出登录</div>
+          </div>
+
+          <div class="group"><span class="flagc">AI 整理 + AI 回放 两组合并</span>
+            <div class="ghead" style="color:#F46D38"><span class="gi">✨</span><span class="gt">AI 与记忆</span></div>
+            <div class="card">
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">✨</div><div class="rt"><div class="l1">HoloAI</div><div class="l2">一个发现 · 记忆 · 自动处理 · 数据与隐私</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">✋</div><div class="rt"><div class="l1">HoloAI 数据授权</div><div class="l2">已授权，可随时撤回</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">💭</div><div class="rt"><div class="l1">想法设置</div><div class="l2">智能整理、主题与标签管理</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">🎞️</div><div class="rt"><div class="l1">AI 回放<span class="movetag">3 开关收进门</span></div><div class="l2">每周提醒 · 每月提醒 · 后台自动生成</div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagc">iCloud / 日历 / 数据管理 / 缓存 · 四处归一</span>
+            <div class="ghead" style="color:#F46D38"><span class="gi">🗄️</span><span class="gt">数据与同步</span></div>
+            <div class="card">
+              <div class="row"><div class="ic" style="background:rgba(96,165,250,.1)">☁️</div><div class="rt"><div class="l1">iCloud 同步<span class="movetag">原平铺收进门</span></div><div class="l2">已开启 · 上次同步 刚刚</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(96,165,250,.1)">📅</div><div class="rt"><div class="l1">日历<span class="movetag">原平铺收进门</span></div><div class="l2">已授权 · 显示 2/5 个日历</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">🗃️</div><div class="rt"><div class="l1">数据管理<span class="movetag">缓存也收编于此</span></div><div class="l2">数据概览 · 最近删除 · 清理缓存 · 清空所有数据</div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagc">只剩三个纯开关，文档移入「关于」</span>
+            <div class="ghead" style="color:#F46D38"><span class="gi">🛡️</span><span class="gt">隐私与安全</span></div>
+            <div class="card">
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">🔑</div><div class="rt"><div class="l1">应用锁</div><div class="l2">已开启 · 退出 5 分钟后锁定</div></div><span class="toggle on"><i></i></span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">⏱️</div><div class="rt"><div class="l1">锁定时机</div><div class="l2">5 分钟</div></div><span class="val">5 分钟</span><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">📱</div><div class="rt"><div class="l1">桌面小组件显示想法原文</div><div class="l2">关闭后小组件只显示来源提示</div></div><span class="toggle on"><i></i></span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagc">外观 / 通知 收编入组，只剩 4 行</span>
+            <div class="ghead" style="color:#6E6E6E"><span class="gi">⚙️</span><span class="gt">通用</span></div>
+            <div class="card">
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">🌗</div><div class="rt"><div class="l1">外观<span class="movetag">3 行并 1 行</span></div><div class="l2">跟随系统 · 当前浅色，点开可改</div></div><span class="val">跟随系统</span><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">🔔</div><div class="rt"><div class="l1">通知<span class="movetag">单行组取消</span></div><div class="l2">每日早报 · 习惯提醒 · 周一晨报 · AI 回放</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(244,109,56,.1)">💬</div><div class="rt"><div class="l1">反馈给开发者</div><div class="l2">建议、问题、吐槽都欢迎</div></div><span class="chev">›</span></div>
+              <div class="row"><div class="ic" style="background:rgba(96,165,250,.1)">ℹ️</div><div class="rt"><div class="l1">关于 Holo<span class="movetag">政策·引导收进门</span></div><div class="l2">版本 · 隐私政策与用户协议 · 重看引导和笔记</div></div><span class="chev">›</span></div>
+              <div class="row ghostrow"><div class="ic" style="background:rgba(244,109,56,.1)">🛠️</div><div class="rt"><div class="l1">开发者选项 <span class="ghostnote">仅 Debug 构建可见</span></div></div><span class="chev">›</span></div>
+            </div>
+          </div>
+
+          <div class="group"><span class="flagc">危险操作孤立最底，iOS 惯例</span>
+            <div class="card">
+              <div class="row danger"><div class="ic">🚫</div><div class="rt"><div class="l1">删除账号与 Holo 数据</div><div class="l2">清除本机数据、附件、AI 记忆和登录状态</div></div></div>
+            </div>
+          </div>
+
+        </div></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="below">
+  <div class="panel">
+    <h4>✂️ 这轮的六刀减法（每刀都少几行）</h4>
+    <ol>
+      <li><span class="cut">1</span><b>外观 3 行 → 1 行</b>：一级只留一行、右侧显示当前值，点开二级页选跟随系统 / 浅色 / 深色（你拍板的）。</li>
+      <li><span class="cut">2</span><b>缓存 2 行 → 收进数据管理</b>：缓存大小 + 清除缓存是低频操作，跟「清空数据、最近删除」是同一类事，归进数据管理页。</li>
+      <li><span class="cut">3</span><b>隐私政策 + 用户协议 → 收进「关于」</b>：政策文档是「了解 Holo」类内容，放关于页是 App Store 审核惯例位置，一级页省 2 行。</li>
+      <li><span class="cut">4</span><b>重看新手引导 + 重看新人笔记 → 收进「关于」</b>：一次性内容、极低频，跟政策文档同属「回看 Holo 是什么」。</li>
+      <li><span class="cut">5</span><b>「外观」「通知」两个单行组 → 收进「通用」</b>：一行还单独挂组标题显得碎；收编后组数 7 → 5。</li>
+      <li><span class="cut">6</span><b>AI 回放 3 开关 → 收成 1 个入口</b>：上一版已做，保留。点开就是原来的三个开关，功能不变。</li>
+    </ol>
+  </div>
+  <div class="panel">
+    <h4>📦 去向总表（功能一个不少）</h4>
+    <table>
+      <tr><th>现在的位置</th><th>规整后</th></tr>
+      <tr><td class="from">外观（3 行平铺）</td><td><span class="pill">通用 › 外观</span> 点开选择</td></tr>
+      <tr><td class="from">AI 整理（4 行）</td><td>AI 与记忆（通知搬出）</td></tr>
+      <tr><td class="from">AI 回放（3 开关）</td><td>AI 与记忆 › AI 回放</td></tr>
+      <tr><td class="from">通知设置</td><td>通用 › 通知</td></tr>
+      <tr><td class="from">iCloud 同步（4 行平铺）</td><td>数据与同步 › iCloud 同步</td></tr>
+      <tr><td class="from">日历（4 行平铺）</td><td>数据与同步 › 日历</td></tr>
+      <tr><td class="from">存储与缓存（2 行）</td><td>数据与同步 › 数据管理</td></tr>
+      <tr><td class="from">通用 › 数据管理</td><td>数据与同步 › 数据管理</td></tr>
+      <tr><td class="from">隐私与安全（3 开关）</td><td><span class="pill">不变</span> 隐私与安全</td></tr>
+      <tr><td class="from">法律与隐私（2 行）</td><td>通用 › 关于 Holo</td></tr>
+      <tr><td class="from">重看新手引导 / 新人笔记</td><td>通用 › 关于 Holo</td></tr>
+      <tr><td class="from">账号与数据（删除账号）</td><td>底部孤立危险区</td></tr>
+      <tr><td class="from">反馈给开发者</td><td><span class="pill">不变</span> 通用</td></tr>
+    </table>
+  </div>
+</div>
+
+<p class="foot-note">
+  · 保留没砍的三处，理由：<b>应用锁</b>是安全开关需要直达；<b>小组件显示想法原文</b>是隐私泄露担忧型开关，用户警觉时要一秒找到；<b>反馈给开发者</b>是产品生命线，保留一级。<br>
+  · 图标在原型里用 emoji 示意，正式实现沿用 App 现有 SF Symbols 砖样式，颜色 / 圆角 / 字号 / 间距与现设置页完全一致。<br>
+  · 所有二级页（HoloAI 聚合页、通知设置、数据管理等）内容原样复用；外观选择、关于页内政策 / 引导是新增的轻量二级页。纯界面重组，不动业务逻辑，无需后端发版。<br>
+  · iPad 宽屏双栏设置页左侧导航从 10 项收敛为 5 项。
+</p>
+
+<script>
+  const btnL=document.getElementById('btnLight'), btnD=document.getElementById('btnDark');
+  const sOld=document.getElementById('screenOld'), sNew=document.getElementById('screenNew');
+  function setTheme(dark){
+    sOld.classList.toggle('dark',dark); sNew.classList.toggle('dark',dark);
+    btnL.classList.toggle('active',!dark); btnD.classList.toggle('active',dark);
+  }
+  btnL.onclick=()=>setTheme(false); btnD.onclick=()=>setTheme(true);
+</script>
+</body>
+</html>

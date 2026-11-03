@@ -80,8 +80,10 @@ enum InstallmentImportRecognizer {
         let ungroupedSignalCount: Int
     }
 
-    // 原生分期期数上限（与 FinanceRepository.addInstallmentTransactions / IntentRouter 口径一致）
-    static let maxPeriods = 36
+    // 原生分期期数上限。导入识别放宽到 60：车贷等真实存在 60 期形态（2026-10-17
+    // Moze 融合演练实锤 model3 车贷 60 期整组被 36 上限拒掉）；原生创建/AI 意图
+    // （PromptManager/IntentRouter）仍为 2-36，两口径合并需连后端提示词一起决策。
+    static let maxPeriods = 60
     static let minPeriods = 2
 
     // MARK: - 信号解析

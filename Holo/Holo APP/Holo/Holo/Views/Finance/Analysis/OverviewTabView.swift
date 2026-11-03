@@ -9,7 +9,6 @@
 
 import SwiftUI
 import CoreData
-import Charts
 
 // MARK: - OverviewTabView
 
@@ -316,13 +315,7 @@ struct YearOverYearSummaryCard: View {
                 .foregroundColor(.holoToolTextSecondary)
                 .frame(width: 64, alignment: .leading)
 
-            GeometryReader { barGeo in
-                Capsule()
-                    .fill(color)
-                    .frame(width: barWidth(total: barGeo.size.width, amount: amount, base: base), height: 7)
-                    .frame(maxHeight: .infinity, alignment: .center)
-            }
-            .frame(height: 14)
+            HoloProgress(value: base > 0 ? Double(truncating: (amount / base) as NSDecimalNumber) : 0, color: color, lineWidth: 7).frame(height: 14)
 
             Text(NumberFormatter.compactCurrency(amount))
                 .font(.system(size: 10, design: .rounded))
@@ -334,11 +327,7 @@ struct YearOverYearSummaryCard: View {
         .frame(height: 14)
     }
 
-    private func barWidth(total: CGFloat, amount: Decimal, base: Decimal) -> CGFloat {
-        guard base > 0 else { return 4 }
-        let ratio = Double(truncating: (amount / base) as NSDecimalNumber)
-        return max(4, total * min(max(ratio, 0), 1))
-    }
+
 }
 
 // MARK: - 年度同比双柱图
@@ -349,285 +338,21 @@ struct YearComparisonChartView: View {
     let points: [YearComparisonPoint]
     var currentLabel: String = String(localized: "今年")
     var previousLabel: String = String(localized: "上年")
-
-    @State private var selectedIndex: Int?
-
-    private var selectedIdx: Int? {
-        if let selectedIndex, points.indices.contains(selectedIndex) {
-            return selectedIndex
-        }
-        return points.lastIndex(where: { !$0.isFuture })
-    }
+    @State private var selection: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.lg) {
-                Text(String(localized: "支出同比"))
-                    .font(.holoLabel)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoToolText)
-
-                Spacer()
-
-                legendDot(color: .holoError, label: currentLabel)
-                legendDot(color: .holoToolTextSecondary.opacity(0.4), label: previousLabel)
-            }
-
-            if let idx = selectedIdx {
-                detailRow(points[idx])
-            }
-
-            if points.isEmpty {
-                Text(String(localized: "暂无数据"))
-                    .holoText(.supporting)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, HoloSpacing.xl)
-            } else {
-                chartBody
-            }
+        HoloChartFrame(title: "支出同比", independent: true) {
+            HoloBarChart(buckets: points.enumerated().map { index, point in
+                HoloChartBucket(id: String(index), label: point.label,
+                                values: [point.isFuture ? nil : Double(truncating: point.current as NSDecimalNumber),
+                                         Double(truncating: point.previous as NSDecimalNumber)],
+                                futureSeries: point.isFuture ? [0] : [])
+            }, series: [.init(id: "current", title: currentLabel, color: .holoError),
+                        .init(id: "previous", title: previousLabel, color: .holoToolTextSecondary)],
+               selection: $selection, height: 160,
+               valueText: { NumberFormatter.currency.string(from: NSNumber(value: $0)) ?? "—" })
         }
-        .padding(HoloSpacing.md)
-        .holoSurface()
-    }
-
-    // MARK: 图例
-
-    private func legendDot(color: Color, label: String) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
-            Text(label)
-                .font(.system(size: 10))
-                .foregroundColor(.holoToolTextSecondary)
-        }
-    }
-
-    // MARK: 选中详情行
-
-    @ViewBuilder
-    private func detailRow(_ point: YearComparisonPoint) -> some View {
-        HStack(spacing: HoloSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(point.label)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoToolText)
-
-                    if let rangeText = point.rangeText {
-                        Text(rangeText)
-                            .font(.system(size: 10))
-                            .foregroundColor(.holoToolTextSecondary)
-                    }
-
-                    if point.isOngoing {
-                        Text(String(localized: "进行中"))
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(.holoPrimary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(Color.holoPrimary.opacity(0.12))
-                            .clipShape(Capsule())
-                    }
-                }
-
-                Text(String(localized: "点击柱子查看单期对照"))
-                    .font(.system(size: 9))
-                    .foregroundColor(.holoTextPlaceholder)
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(currentLabel) \(NumberFormatter.compactCurrency(point.current))")
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundColor(.holoError)
-
-                if let percentage = point.changePercentage, !point.isFuture {
-                    let arrow = percentage >= 0 ? "▲" : "▼"
-                    let color: Color = percentage >= 0 ? .holoError : .holoSuccess
-                    Text("\(previousLabel) \(NumberFormatter.compactCurrency(point.previous))  \(arrow) \(String(format: "%.1f", abs(percentage)))%")
-                        .font(.system(size: 10, design: .rounded))
-                        .foregroundColor(color)
-                } else {
-                    Text("\(previousLabel) \(NumberFormatter.compactCurrency(point.previous))")
-                        .font(.system(size: 10, design: .rounded))
-                        .foregroundColor(.holoToolTextSecondary)
-                }
-            }
-        }
-        .padding(.horizontal, 2)
-    }
-
-    // MARK: 图表
-
-    private var barValues: [Double] {
-        points.flatMap { point -> [Double] in
-            [Double(truncating: point.current as NSDecimalNumber),
-             Double(truncating: point.previous as NSDecimalNumber)]
-        }
-    }
-
-    private var yCeiling: Double {
-        let maxValue = barValues.max() ?? 0
-        guard maxValue > 0 else { return 1 }
-        let magnitude = pow(10, floor(log10(maxValue)))
-        for step in [1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0] {
-            let candidate = step * magnitude
-            if candidate >= maxValue { return candidate }
-        }
-        return 10 * magnitude
-    }
-
-    private var chartBody: some View {
-        GeometryReader { geometry in
-            chartBody(
-                slotWidthPt: ChartBarPairLayout.estimatedSlotWidthPt(
-                    containerWidthPt: geometry.size.width,
-                    pointCount: points.count
-                )
-            )
-        }
-        .frame(height: 168)
-    }
-
-    private func chartBody(slotWidthPt: CGFloat) -> some View {
-        let ceiling = yCeiling
-        let domain: ClosedRange<Double> = -0.5...Double(max(points.count - 1, 0)) + 0.5
-        // 双柱偏移按 pt 封顶（与 TrendChartView 同治：年档 12 桶宽槽下比例偏移
-        // 会把柱子推离刻度、组内缝比柱宽还宽）
-        let offset = ChartBarPairLayout.barOffsetUnits(
-            pointCount: points.count,
-            slotWidthPt: slotWidthPt,
-            barWidth: 5
-        )
-
-        return Chart {
-            ForEach(points.indices, id: \.self) { index in
-                let point = points[index]
-                let isSelected = index == selectedIdx
-
-                // 上年对照柱（上年数据全年存在，未来桶照画）
-                if Double(truncating: point.previous as NSDecimalNumber) > 0 {
-                    BarMark(
-                        x: .value("期", Double(index) - offset),
-                        yStart: .value("起点", 0.0),
-                        yEnd: .value("金额", Double(truncating: point.previous as NSDecimalNumber)),
-                        width: .fixed(5)
-                    )
-                    .cornerRadius(1.5)
-                    .foregroundStyle(Color.holoToolTextSecondary.opacity(0.4))
-                }
-
-                // 今年柱（未来桶不画，避免零柱读成「暴跌」）
-                let currentValue = Double(truncating: point.current as NSDecimalNumber)
-                if !point.isFuture && currentValue > 0 {
-                    BarMark(
-                        x: .value("期", Double(index) + offset),
-                        yStart: .value("起点", 0.0),
-                        yEnd: .value("金额", currentValue),
-                        width: .fixed(5)
-                    )
-                    .cornerRadius(1.5)
-                    .foregroundStyle(
-                        isSelected
-                            ? Color.holoError
-                            : Color.holoError.opacity(0.78)
-                    )
-                }
-            }
-        }
-        .chartXScale(domain: domain)
-        .chartYScale(domain: 0...ceiling)
-        // X 刻度由 chartOverlay 自绘（见下方）；显式隐藏默认数字轴，防止与自绘日期混排
-        .chartXAxis(.hidden)
-        .chartYAxis {
-            AxisMarks(position: .leading, values: [0.0, ceiling * 0.5, ceiling]) { value in
-                AxisGridLine()
-                    .foregroundStyle(Color.holoDivider.opacity(0.7))
-                AxisValueLabel {
-                    if let axisValue = value.as(Double.self) {
-                        Text(Self.compactAmount(axisValue))
-                            .font(.system(size: 9))
-                            .foregroundStyle(Color.holoTextPlaceholder)
-                    }
-                }
-            }
-        }
-        .chartPlotStyle { plotArea in
-            plotArea
-                .padding(.leading, 2)
-                .padding(.trailing, 2)
-        }
-        .frame(height: 168)
-        .chartOverlay { proxy in
-            GeometryReader { geometry in
-                // plotFrame 是 Anchor，需经 GeometryReader 解引用成 CGRect（与 TrendChartView 同画法）
-                let plotFrame = proxy.plotFrame.map { geometry[$0] }
-
-                // X 轴刻度自绘：AxisValueLabel 位置不可控会右偏（2026-10-07 实测），
-                // 与柱子共用 position(forX:) 坐标系
-                if let plotFrame {
-                    ForEach(xTickIndices, id: \.self) { tick in
-                        if let xPos = proxy.position(forX: tick),
-                           points.indices.contains(Int(tick.rounded())) {
-                            let point = points[Int(tick.rounded())]
-                            Text(point.label)
-                                .font(.system(size: 9))
-                                .foregroundStyle(
-                                    point.isFuture
-                                        ? Color.holoTextPlaceholder.opacity(0.6)
-                                        : Color.holoToolTextSecondary
-                                )
-                                .position(x: plotFrame.minX + xPos, y: plotFrame.maxY + 10)
-                        }
-                    }
-                }
-
-                DirectionalChartGestureOverlay(
-                    onChanged: { location in
-                        applySelection(location, plotFrame: plotFrame)
-                    },
-                    onEnded: { _ in },
-                    onCancelled: {},
-                    onTap: { location in
-                        applySelection(location, plotFrame: plotFrame)
-                    }
-                )
-            }
-        }
-    }
-
-    /// X 轴稀疏刻度（12 桶全画太挤：每 2 期一格 + 末位）
-    private var xTickIndices: [Double] {
-        guard points.count > 1 else { return [] }
-        var indices = Array(stride(from: 0, to: points.count - 1, by: 2).map(Double.init))
-        let last = Double(points.count - 1)
-        if !indices.contains(last) {
-            indices.append(last)
-        }
-        return indices
-    }
-
-    private func applySelection(_ location: CGPoint, plotFrame: CGRect?) {
-        // overlay 与图表同 frame；plotFrame 已解引用为 CGRect，location 直接减其 minX
-        guard let plotFrame, plotFrame.width > 0, points.count > 1 else { return }
-        let ratio = (location.x - plotFrame.minX) / plotFrame.width
-        let index = Int((ratio * Double(points.count - 1)).rounded())
-        guard points.indices.contains(index) else { return }
-        selectedIndex = index
-    }
-
-    /// 轴刻度金额紧凑口径（万 / 千 / 整数）
-    private static func compactAmount(_ value: Double) -> String {
-        if abs(value) < 1 { return value == 0 ? "0" : "" }
-        if value >= 10_000 {
-            return String(format: String(localized: "%.1f万"), value / 10_000)
-        } else if value >= 1_000 {
-            return String(format: String(localized: "%.1f千"), value / 1_000)
-        }
-        return String(format: "%.0f", value)
+        .onChange(of: currentLabel) { _, _ in selection = nil }
     }
 }
 
@@ -664,7 +389,7 @@ struct YearBudgetProgressCard: View {
                 if summary.isOverBudget {
                     Text(String(localized: "已超支"))
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 } else if summary.isWarning {
                     Text(String(localized: "接近上限"))
                         .font(.system(size: 10, weight: .semibold))
@@ -672,21 +397,7 @@ struct YearBudgetProgressCard: View {
                 }
             }
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.holoDivider.opacity(0.5))
-
-                    Capsule()
-                        .fill(
-                            summary.isOverBudget
-                                ? Color.holoError
-                                : (summary.isWarning ? Color.holoError.opacity(0.85) : Color.holoPrimary)
-                        )
-                        .frame(width: max(4, geo.size.width * min(summary.progress, 1)))
-                }
-            }
-            .frame(height: 8)
+            HoloProgress(value: summary.progress, color: budgetProgressColor(summary.progress), lineWidth: 8)
 
             HStack {
                 Text(String(localized: "已用 \(NumberFormatter.compactCurrency(summary.totalSpentAmount))"))

@@ -49,7 +49,9 @@ struct PlannedTimeRangeSheet: View {
                 }
             }
             .navigationTitle("计划时间段")
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("取消") {

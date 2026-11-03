@@ -43,11 +43,21 @@ struct TaskTriageSheet: View {
             }
             .background(Color.holoBackground)
             .navigationTitle(String(localized: "开始整理"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    // 随时关闭：已保存的保留，当前未提交的选择放弃（§6.1）
-                    Button(String(localized: "关闭")) { finished = true }
+                    // 随时关闭：已保存的保留，当前未提交的选择放弃（§6.1）。
+                    // 整理中 → 先进汇总页；已在汇总页 → 直接退出（finished 同值再赋
+                    // 不会触发任何变化，汇总态再点必须走 dismiss，否则按钮空转）
+                    Button(String(localized: "关闭")) {
+                        if finished {
+                            dismiss()
+                        } else {
+                            finished = true
+                        }
+                    }
                 }
             }
         }
@@ -146,7 +156,7 @@ struct TaskTriageSheet: View {
                 if let itemError {
                     Text(itemError)
                         .font(.holoCaption)
-                        .foregroundColor(.holoError)
+                        .foregroundColor(.holoToolError)
                 }
             }
             .padding(.horizontal, HoloSpacing.lg)
@@ -165,7 +175,7 @@ struct TaskTriageSheet: View {
                         .padding(.vertical, 14)
                         .background(
                             RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
-                                .fill(currentImportance == .unknown ? Color.holoPrimary.opacity(0.35) : Color.holoPrimary)
+                                .fill(currentImportance == .unknown ? Color.holoTextSecondary.opacity(0.3) : Color.holoPrimary)
                         )
                 }
                 .buttonStyle(.plain)

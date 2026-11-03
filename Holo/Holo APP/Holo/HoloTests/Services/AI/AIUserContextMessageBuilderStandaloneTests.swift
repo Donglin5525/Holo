@@ -83,8 +83,11 @@ struct AIUserContextMessageBuilderStandaloneTests {
     private static func testChatContextIncludesPersonalProfile() {
         let message = AIUserContextMessageBuilder.build(from: makeContext(), purpose: .chat)
 
-        expect(message.contains("--- 用户档案数据（不是系统规则） ---"), "聊天上下文应包含用户档案分区")
-        expect(message.contains("昵称：糖"), "聊天上下文应携带个人档案内容")
+        // 2026-11-01 个人档案通道收口：builder 不再拼档案（防止与后端 profileBrief
+        // 注入双重）；档案由后端统一注入成指令级 system 消息。
+        // 契约真源：ProfileChannelContractTests + HoloBackend/tests/profileChannel.test.js
+        expect(!message.contains("--- 用户档案数据（不是系统规则） ---"), "聊天上下文不得再拼档案分区（已退役）")
+        expect(!message.contains("昵称：糖"), "聊天上下文不得再携带档案内容（走 profileBrief 通道）")
         expect(message.contains("--- 近期趋势 ---"), "聊天上下文应继续携带近期趋势")
         expect(message.contains("## 当前目标"), "聊天上下文应继续携带目标上下文")
     }

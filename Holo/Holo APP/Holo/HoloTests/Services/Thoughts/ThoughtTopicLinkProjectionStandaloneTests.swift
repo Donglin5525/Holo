@@ -32,7 +32,37 @@ struct ThoughtTopicLinkProjectionStandaloneTests {
         try supersededOnAIReplacement(ctx)
         try userDecisionProtection(ctx)
         try staleAIProjection(ctx)
-        print("PASS: 确定性ID、迁移幂等、shadow=0、双写生命周期、墓碑语义、重复行裁决、合并双写、AI替换superseded、用户决定保护（§7.1不覆盖）")
+        try stableTopicDisplayOrder(ctx)
+        print("PASS: 确定性ID、迁移幂等、shadow=0、双写生命周期、墓碑语义、重复行裁决、合并双写、AI替换superseded、用户决定保护（§7.1不覆盖）、主题显示顺序稳定")
+    }
+
+    static func stableTopicDisplayOrder(_ ctx: NSManagedObjectContext) throws {
+        let (thought, first) = try makePair(ctx, reason: nil)
+        let date = Date(timeIntervalSince1970: 1_000)
+        first.createdAt = date
+        first.id = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+        let second = Topic(context: ctx)
+        second.id = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+        second.title = "另一主题"; second.statusEnum = .active
+        second.createdAt = date; second.updatedAt = date
+        let third = Topic(context: ctx)
+        third.id = UUID(); third.title = "更晚的主题"; third.statusEnum = .active
+        third.createdAt = date.addingTimeInterval(1); third.updatedAt = date
+        // 反序插入，且前两条创建时间相同，覆盖 UUID 决胜规则。
+        for topic in [third, first, second] {
+            ThoughtTopicLinkProjection.recordManualAdd(thought: thought, topic: topic)
+        }
+        try ctx.save()
+        let expected = [second.id, first.id, third.id]
+        for _ in 0..<100 {
+            check(ThoughtTopicLinkProjection.effectiveTopics(for: thought).map(\.id) == expected,
+                  "重绘时有效主题必须保持顺序，超过两个主题时截取也必须稳定")
+        }
+        first.title = "改名后的主题"; second.updatedAt = Date()
+        try ctx.save()
+        ctx.refreshAllObjects()
+        check(ThoughtTopicLinkProjection.effectiveTopics(for: thought).map(\.id) == expected,
+              "对象刷新、主题更新或改名不能交换位置")
     }
 
     static func staleAIProjection(_ ctx: NSManagedObjectContext) throws {

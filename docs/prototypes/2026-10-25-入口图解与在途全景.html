@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>图解 · 记忆中心的两个入口 + 在途任务全景</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#17171A; color:#F5F5F5; font-family:-apple-system,"PingFang SC",sans-serif; padding:30px 24px 70px; }
+h1 { text-align:center; font-size:21px; margin-bottom:6px; }
+.sub { text-align:center; font-size:13px; color:#939393; margin-bottom:26px; }
+.section { max-width:1000px; margin:0 auto 34px; background:#1F1F23; border:1px solid #3A3A3C; border-radius:14px; padding:20px 22px; }
+.section h2 { font-size:16px; margin-bottom:14px; }
+.section h2 .tag { font-size:11px; padding:3px 9px; border-radius:6px; margin-left:8px; vertical-align:2px; }
+.ok { background:rgba(52,199,89,.15); color:#4cd964; }
+.todo { background:rgba(255,159,10,.15); color:#ff9f0a; }
+.risk { background:rgba(255,69,58,.15); color:#ff453a; }
+.cols { display:flex; gap:26px; flex-wrap:wrap; justify-content:center; }
+.phone { width:280px; background:#0E0E10; border:2px solid #3A3A3C; border-radius:32px; overflow:hidden; flex:none; }
+.p-head { padding:14px 16px 8px; display:flex; align-items:center; justify-content:space-between; }
+.p-title { font-size:15px; font-weight:700; }
+.badge { font-size:10px; padding:3px 8px; border-radius:6px; font-weight:700; }
+.b-ok { background:#4cd964; color:#061; }
+.b-no { background:#ff9f0a; color:#431; }
+.b-row { display:flex; gap:8px; padding:0 16px 14px; align-items:center; }
+.btn { font-size:12px; padding:7px 12px; border-radius:999px; border:1px solid #3A3A3C; color:#ddd; }
+.btn.hot { background:#F46D38; color:#fff; border-color:#F46D38; font-weight:700; }
+.btn.gray { color:#888; }
+.chat { padding:0 14px 14px; display:flex; flex-direction:column; gap:8px; }
+.msg { max-width:80%; border-radius:12px; padding:8px 11px; font-size:12px; line-height:1.5; }
+.msg.u { align-self:flex-end; background:#F46D38; color:#fff; }
+.msg.h { align-self:flex-start; background:#2C2C2E; }
+.p-list { padding:0 16px 16px; }
+.p-item { display:flex; align-items:center; gap:10px; padding:11px 12px; background:#2C2C2E; border-radius:12px; margin-bottom:8px; }
+.p-item .ico { width:30px; height:30px; border-radius:8px; background:#3A3A3C; display:flex; align-items:center; justify-content:center; }
+.p-item .t { font-size:13px; font-weight:600; }
+.p-item .s { font-size:11px; color:#999; margin-top:2px; }
+.arrow-note { font-size:12.5px; line-height:1.8; color:#D8D8D8; margin-top:14px; }
+.arrow-note b { color:#fff; }
+.arrow-note .g { color:#4cd964; font-weight:700; }
+.arrow-note .o { color:#ff9f0a; font-weight:700; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; color:#999; font-weight:600; padding:8px 10px; border-bottom:1px solid #3A3A3C; font-size:12px; }
+td { padding:9px 10px; border-bottom:1px solid #2C2C2E; line-height:1.55; vertical-align:top; }
+td .pill { font-size:11px; padding:2px 8px; border-radius:6px; white-space:nowrap; }
+.p-green { background:rgba(52,199,89,.15); color:#4cd964; }
+.p-orange { background:rgba(255,159,10,.15); color:#ff9f0a; }
+.p-red { background:rgba(255,69,58,.15); color:#ff453a; }
+.foot { max-width:1000px; margin:0 auto; font-size:13px; color:#bbb; line-height:1.9; background:#1F1F23; border-radius:14px; padding:16px 22px; border:1px solid #3A3A3C; }
+.foot b { color:#fff; }
+</style>
+</head>
+<body>
+<h1>图解 · 「记忆中心」的两个入口 + 在途任务全景</h1>
+<div class="sub">给东林的决策图 · 2026-10-25</div>
+
+<div class="section">
+  <h2>第一件事：什么叫「入口」？<span class="tag todo">用户从哪进新页面</span></h2>
+  <div class="cols">
+    <div class="phone">
+      <div class="p-head"><span class="p-title">聊天页</span><span class="badge b-no">入口还没接</span></div>
+      <div class="b-row">
+        <span class="btn hot">记忆</span>
+        <span style="font-size:11px;color:#888;">← 就是这个按钮（画在顶栏）</span>
+        <span class="btn gray">⚙︎ 设置</span>
+      </div>
+      <div class="chat">
+        <div class="msg u">我最近老晚上跑步，帮我看看睡眠</div>
+        <div class="msg h">结合你的记录，晚上跑步后入睡平均推迟25分钟…</div>
+      </div>
+    </div>
+    <div class="phone">
+      <div class="p-head"><span class="p-title">个人页</span><span class="badge b-ok">已接好 ✓</span></div>
+      <div class="p-list">
+        <div class="p-item">
+          <div class="ico">🧠</div>
+          <div><div class="t">Holo 记住的你</div><div class="s">管理 Holo 对你的理解 · 点进就是新页面</div></div>
+        </div>
+        <div class="p-item" style="opacity:.45"><div class="ico">☁️</div><div><div class="t">iCloud 同步</div></div></div>
+        <div class="p-item" style="opacity:.45"><div class="ico">🎨</div><div><div class="t">外观</div></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="arrow-note">
+    「入口」= 用户点哪里能进到「记忆管理」这个新页面。目前计划了两个：<br>
+    ① <b>个人页</b>：<span class="g">已经接好了</span>，开关一开用户就能用。<br>
+    ② <b>聊天页</b>：就是聊天打字那个页面的右上角加一个「记忆」按钮。<span class="o">还没接</span>——因为聊天页的代码这几天正被另一个任务大改，我现在硬改它，两边容易互相踩坏（之前吃过这种亏）。
+  </div>
+</div>
+
+<div class="section">
+  <h2>第二件事：「清空在途、一起发」的任务全景<span class="tag ok">按你的拍板重排</span></h2>
+  <table>
+    <tr><th style="width:34%">在途的事</th><th style="width:16%">状态</th><th>发版前要做什么、谁来</th></tr>
+    <tr>
+      <td><b>记忆中心</b>（本会话）</td>
+      <td><span class="pill p-orange">差收尾</span></td>
+      <td>补三语词条 + 开关设为开 + 大字体/iPad 走查 → <b>我来，约半天</b></td>
+    </tr>
+    <tr>
+      <td>其他会话的功能批（想法修复、习惯结算、目标闭环、埋点等，已在代码里）</td>
+      <td><span class="pill p-orange">差提交</span></td>
+      <td>各自收尾提交 → <b>需各会话收口，或授权我做切片提交</b></td>
+    </tr>
+    <tr>
+      <td>聊天页大改 + 「一个发现」（另一会话正在改的就是聊天页）</td>
+      <td><span class="pill p-red">进行中</span></td>
+      <td>等它改完提交 → <b>你催那个会话收口</b>；收完我再补聊天页「记忆」按钮（半小时）</td>
+    </tr>
+    <tr>
+      <td>真机验收欠账（几批修复都写着「待真机验证」）</td>
+      <td><span class="pill p-red">红线</span></td>
+      <td>装包后<b>你本人真机过一遍</b>（我给验收清单，约 20 分钟）——这条不做不能发</td>
+    </tr>
+    <tr>
+      <td>后端发版依赖（「今晚时段词」修复需要后端一起发）</td>
+      <td><span class="pill p-orange">待办</span></td>
+      <td>我按发版技能部署后端（含在你授权下执行）</td>
+    </tr>
+    <tr>
+      <td>版本号 / 打包 / 提审材料</td>
+      <td><span class="pill p-green">流程活</span></td>
+      <td>全部我来 → 最后你上传 App Store Connect</td>
+    </tr>
+  </table>
+</div>
+
+<div class="foot">
+  <b>按「一起发」的顺序，接下来发生什么：</b><br>
+  ① 你拍板：聊天页入口<b>等那个会话收完我再接</b>（推荐，不冒险）还是<b>我现在就接</b>（要冒险改正在被改的文件）。<br>
+  ② 我先把记忆中心收尾（词条/开关/走查）。<br>
+  ③ 各会话收口提交（你催或授权我切）。<br>
+  ④ 我打整包 → 你真机验收 20 分钟 → 我传归档 → 你上传提审。<br>
+  <b>风险提示：全都在途一起发 = 包很大，任何一件没验收完都会拖住整版。</b>这是「一起发」的代价，你知情即可。
+</div>
+</body>
+</html>

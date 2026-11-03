@@ -22,7 +22,7 @@ enum AccountType: String, CaseIterable {
         case .cash: return String(localized: "现金")
         case .digital: return String(localized: "数字钱包")
         case .bank: return String(localized: "储蓄卡")
-        case .card: return String(localized: "储蓄卡")
+        case .card: return String(localized: "借记卡")
         case .creditCard: return String(localized: "信用卡")
         case .other: return String(localized: "其他")
         }

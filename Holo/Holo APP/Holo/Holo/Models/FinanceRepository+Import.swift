@@ -50,12 +50,12 @@ extension FinanceRepository {
         let preloadCategoryRequest = Category.fetchRequest()
         preloadCategoryRequest.predicate = NSPredicate(format: "deletedAt == nil")
         if let allCategories = try? context.fetch(preloadCategoryRequest) {
-            for cat in allCategories {
+            for cat in FinanceCategoryIntegrity.selectableCategories(in: allCategories) {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
                 } else if let pid = cat.parentId {
                     // 查找父级名称用于组合 key
-                    if let parent = allCategories.first(where: { $0.id == pid }) {
+                    if let parent = allCategories.first(where: { $0.id == pid && $0.parentId == nil && $0.deletedAt == nil && $0.type == cat.type }) {
                         categoryCache["\(cat.type):\(parent.name):\(cat.name)"] = cat
                     }
                 }
@@ -228,11 +228,11 @@ extension FinanceRepository {
         let streamCategoryRequest = Category.fetchRequest()
         streamCategoryRequest.predicate = NSPredicate(format: "deletedAt == nil")
         if let allCategories = try? context.fetch(streamCategoryRequest) {
-            for cat in allCategories {
+            for cat in FinanceCategoryIntegrity.selectableCategories(in: allCategories) {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
                 } else if let pid = cat.parentId {
-                    if let parent = allCategories.first(where: { $0.id == pid }) {
+                    if let parent = allCategories.first(where: { $0.id == pid && $0.parentId == nil && $0.deletedAt == nil && $0.type == cat.type }) {
                         categoryCache["\(cat.type):\(parent.name):\(cat.name)"] = cat
                     }
                 }
@@ -786,9 +786,12 @@ extension FinanceRepository {
 
         return try await bgContext.perform {
 
-            // 1. 查该批次所有交易
+            // 1. 查该批次有效交易（已单独删过的行不再重复处理）
             let txRequest = Transaction.fetchRequest()
-            txRequest.predicate = NSPredicate(format: "importBatchId == %@", batchId as CVarArg)
+            txRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                NSPredicate(format: "importBatchId == %@", batchId as CVarArg),
+                Transaction.notDeletedPredicate
+            ])
             let batchTransactions = (try? bgContext.fetch(txRequest)) ?? []
 
             guard !batchTransactions.isEmpty else {
@@ -804,37 +807,41 @@ extension FinanceRepository {
                 throw UndoBatchError.editedTransactionsExist(count: editedCount)
             }
 
-            // 3. 删除该批次交易
+            // 3. 撤回 = 单条软删（不可恢复、30 天物理清理）：
+            //    撤回时账本行可能还在屏上，物理销毁会触发死对象闪退；
+            //    软删后 BillDuplicateDetector 只对有效行判重，同文件可重新导入
+            let undoAt = Date()
             for tx in batchTransactions {
-                bgContext.delete(tx)
+                tx.markDeleted(batchId: nil, at: undoAt)
             }
             let deletedTransactions = batchTransactions.count
 
-            // 先保存交易删除，使分类/账户的关系计数反映删除后的真实状态
             try bgContext.save()
 
             // 4. 删除该批次自动创建且无引用的分类
-            //    save 后 transactions 关系已更新，refCount 反映的是"除本批次外还有谁引用"
+            //    引用计数只数有效交易（软删行不复活、也不阻碍自动分类清理）
             var deletedCategories = 0
             let catRequest = Category.fetchRequest()
             catRequest.predicate = NSPredicate(format: "importBatchId == %@", batchId as CVarArg)
             let batchCategories = (try? bgContext.fetch(catRequest)) ?? []
             for cat in batchCategories {
-                let refCount = cat.transactions?.count ?? 0
-                if refCount == 0 {
+                let liveRefCount = (cat.transactions as? Set<Transaction> ?? [])
+                    .filter { $0.deletedAt == nil }.count
+                if liveRefCount == 0 {
                     bgContext.delete(cat)
                     deletedCategories += 1
                 }
             }
 
-            // 5. 删除该批次自动创建且无引用的账户
+            // 5. 删除该批次自动创建且无引用的账户（同口径只数有效交易）
             var deletedAccounts = 0
             let accRequest = Account.fetchRequest()
             accRequest.predicate = NSPredicate(format: "importBatchId == %@", batchId as CVarArg)
             let batchAccounts = (try? bgContext.fetch(accRequest)) ?? []
             for acc in batchAccounts {
-                let refCount = acc.transactions?.count ?? 0
-                if refCount == 0 {
+                let liveRefCount = (acc.transactions as? Set<Transaction> ?? [])
+                    .filter { $0.deletedAt == nil }.count
+                if liveRefCount == 0 {
                     bgContext.delete(acc)
                     deletedAccounts += 1
                 }
@@ -871,11 +878,11 @@ extension FinanceRepository {
         // 直接构造 NSFetchRequest，绕开被推断为 main-actor 的 fetchRequest() 类方法（本函数跑在后台 context 队列）
         let categoryRequest = NSFetchRequest<Category>(entityName: "Category")
         if let allCategories = try? context.fetch(categoryRequest) {
-            for cat in allCategories {
+            for cat in FinanceCategoryIntegrity.selectableCategories(in: allCategories) {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
                 } else if let pid = cat.parentId {
-                    if let parent = allCategories.first(where: { $0.id == pid }) {
+                    if let parent = allCategories.first(where: { $0.id == pid && $0.parentId == nil && $0.deletedAt == nil && $0.type == cat.type }) {
                         categoryCache["\(cat.type):\(parent.name):\(cat.name)"] = cat
                     }
                 }
@@ -961,11 +968,11 @@ extension FinanceRepository {
         let reloadCategoryRequest = Category.fetchRequest()
         reloadCategoryRequest.predicate = NSPredicate(format: "deletedAt == nil")
         if let allCategories = try? context.fetch(reloadCategoryRequest) {
-            for cat in allCategories {
+            for cat in FinanceCategoryIntegrity.selectableCategories(in: allCategories) {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
                 } else if let pid = cat.parentId {
-                    if let parent = allCategories.first(where: { $0.id == pid }) {
+                    if let parent = allCategories.first(where: { $0.id == pid && $0.parentId == nil && $0.deletedAt == nil && $0.type == cat.type }) {
                         categoryCache["\(cat.type):\(parent.name):\(cat.name)"] = cat
                     }
                 }

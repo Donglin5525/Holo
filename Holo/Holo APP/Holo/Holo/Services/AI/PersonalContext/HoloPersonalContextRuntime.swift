@@ -29,7 +29,11 @@ extension ThoughtRepository {
         limit: Int
     ) throws -> [Thought] {
         let request = Thought.fetchRequest()
-        var predicates = [NSPredicate(format: "deletedAt == nil AND isArchived == NO")]
+        // 预置欢迎笔记不进情境萃取（预置内容不冒充用户生活素材）
+        var predicates = [
+            NSPredicate(format: "deletedAt == nil AND isArchived == NO"),
+            WelcomeNoteSeed.exclusionPredicate
+        ]
         if let afterUpdatedAt {
             predicates.append(NSPredicate(format: "updatedAt >= %@", afterUpdatedAt as NSDate))
         }
@@ -50,9 +54,12 @@ extension ThoughtRepository {
             request.fetchLimit = limit
         }
         let results = try context.fetch(request)
-        guard let afterID, let afterUpdatedAt else { return Array(results.prefix(limit)) }
+        // 「不参与 AI」标签的想法不进情境萃取；在结果侧过滤而非改谓词，
+        // 不扰动同秒 count 自适应放大的游标逻辑（被跳过的想法下次重扫幂等跳过）
+        let aiVisible = results.filter { !ThoughtAIAudience.isExcluded($0) }
+        guard let afterID, let afterUpdatedAt else { return Array(aiVisible.prefix(limit)) }
         // 跳过游标位置及之前的记录（同 updatedAt 时按 id 比较）。
-        let filtered = results.drop { thought in
+        let filtered = aiVisible.drop { thought in
             if thought.updatedAt < afterUpdatedAt { return true }
             if thought.updatedAt == afterUpdatedAt, thought.id.uuidString <= afterID.uuidString {
                 return true
@@ -136,7 +143,10 @@ struct HoloPersonalContextRuntimeWriter: HoloPersonalContextRecordWriting {
 
     func existingContextRecords() async throws -> [HoloMemoryRecord] {
         // R1 四域归并：跨域候选参与同一归并池（多源聚合责任命题的基础）。
-        try await repository.query(.all).filter { $0.personalContext != nil }
+        // M06：直连读者必须套统一资格判据，用户停用/删除的记忆不进个人情境。
+        try await repository.query(.all)
+            .filter(HoloMemoryAnswerEligibility.isEligible)
+            .filter { $0.personalContext != nil }
     }
 
     func write(records: [HoloMemoryRecord], batchKey: String) async throws {
@@ -272,7 +282,8 @@ enum HoloPersonalContextExtractionJob {
     }
 
     /// 四域轮转指针键：保证游标公平推进（不总从同一域开始）。
-    private static let roundRobinKey = "holo_personal_context_extraction_domain_pointer_v1"
+    /// 非私有：存量重建迁移清空调度状态时需要同一键名。
+    static let roundRobinKey = "holo_personal_context_extraction_domain_pointer_v1"
 
     /// 一轮萃取通过调用（appLaunch/回前台触发；前台每轮最多 2 包）。
     /// R1 四域：thought/finance/task/habit 轮转，每域独立游标；单域失败不拖垮其他域（§3.11）。
@@ -456,6 +467,11 @@ enum HoloPersonalContextExtractionScheduler {
         let defaults = UserDefaults.standard
         if !bypassDebounce, let last = defaults.object(forKey: lastPassAtKey) as? Date,
            Date().timeIntervalSince(last) < minimumInterval {
+            return
+        }
+        // 谷时段门控（2026-10-09 降本）：高峰期不跑也不写防抖时间戳，谷窗首次触发即补跑。
+        // 手动（实验室按钮）直调 runPass 不经过这里，不受影响。
+        if !HoloAIWindowPolicy.isValleyWindow() {
             return
         }
         defaults.set(Date(), forKey: lastPassAtKey)

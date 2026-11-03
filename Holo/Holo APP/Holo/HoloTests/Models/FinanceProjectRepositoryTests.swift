@@ -83,6 +83,34 @@ final class FinanceProjectRepositoryTests: XCTestCase {
         XCTAssertEqual(projectRepo.activeProjects().map(\.id), [active.id])
     }
 
+    // MARK: - 到期自动完结
+
+    func test_allProjects_autoCompletesWhenEndDayHasPassed() throws {
+        let now = Date()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now)!
+        let expired = try projectRepo.create(name: "上周露营", icon: "⛺️", color: "#FF9500", endDate: yesterday)
+        // 结束日=今天：当天仍在记账挂靠，不得提前收口
+        let endsToday = try projectRepo.create(name: "今日马拉松", icon: "🏃", color: "#FF9500", endDate: now)
+        let openEnded = try projectRepo.create(name: "装修", icon: "🔨", color: "#FF9500")
+        let archived = try projectRepo.create(name: "旧项目", icon: "📦", color: "#FF9500", endDate: yesterday)
+        try projectRepo.updateStatus(archived, status: .archived)
+
+        XCTAssertEqual(projectRepo.allProjects().count, 4)
+        XCTAssertEqual(expired.statusEnum, .completed)
+        XCTAssertEqual(endsToday.statusEnum, .active)
+        XCTAssertEqual(openEnded.statusEnum, .active)
+        XCTAssertEqual(archived.statusEnum, .archived, "只结算进行中项目，归档态不被改写")
+        XCTAssertEqual(Set(projectRepo.activeProjects().map(\.id)), [endsToday.id, openEnded.id])
+    }
+
+    func test_completeExpiredProjects_isIdempotent() throws {
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        try projectRepo.create(name: "上周露营", icon: "⛺️", color: "#FF9500", endDate: yesterday)
+
+        XCTAssertEqual(projectRepo.completeExpiredProjects().count, 1)
+        XCTAssertTrue(projectRepo.completeExpiredProjects().isEmpty, "二次结算无到期项目，零写入")
+    }
+
     // MARK: - 记账挂项目
 
     func test_addTransaction_withProject_setsId() async throws {

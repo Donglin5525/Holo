@@ -16,7 +16,10 @@
 import Foundation
 import CoreData
 import os.log
+#if canImport(UIKit)
 import UIKit
+#endif
+import ImageIO
 
 // MARK: - DTO
 
@@ -123,6 +126,7 @@ enum HoloVisionImagePipeline {
     /// 逐级降尺寸兜底（2000→1400→980→686px）：极端图在低质量档仍超 1MB 时缩尺寸重来，
     /// 保证产出 ≤ 服务端 1.5MB 上限。aggressive=true 是服务端 413 后的二次尝试（1200px 起步）。
     static func compressedJPEG(from rawData: Data, aggressive: Bool = false) -> Data? {
+        #if canImport(UIKit)
         guard let source = UIImage(data: rawData) else { return nil }
         let pixelWidth = source.size.width * source.scale
         let pixelHeight = source.size.height * source.scale
@@ -153,6 +157,57 @@ enum HoloVisionImagePipeline {
             maxDimension *= 0.7
         }
         return best
+        #else
+        // macOS：UIGraphicsImageRenderer 不可用，走 ImageIO 等价管线
+        // （缩到 maxDimension 上限 + 逐级降质至 ≤ maxBytes，产物语义一致：剥离 EXIF 的 JPEG）
+        guard let cgImage = Self.cgDownsample(rawData, maxPixel: aggressive ? 1200 : 2000) else { return nil }
+        var best: Data?
+        var quality: CGFloat = aggressive ? 0.6 : 0.75
+        var data = Self.cgJPEG(cgImage, quality: quality)
+        while let current = data, current.count > FeedbackImageCompressor.maxBytes, quality > 0.3 {
+            quality -= 0.15
+            data = Self.cgJPEG(cgImage, quality: quality)
+        }
+        if let data, data.count <= FeedbackImageCompressor.maxBytes {
+            return data
+        }
+        if let data, best == nil || data.count < best!.count {
+            best = data
+        }
+        return best
+        #endif
+    }
+
+    #if !canImport(UIKit)
+    private static func cgDownsample(_ data: Data, maxPixel: CGFloat) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+    }
+
+    private static func cgJPEG(_ image: CGImage, quality: CGFloat) -> Data? {
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, "public.jpeg" as CFString, 1, nil) else {
+            return nil
+        }
+        let options: [CFString: Any] = [kCGImageDestinationLossyCompressionQuality: quality]
+        CGImageDestinationAddImage(destination, image, options as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return output as Data
+    }
+    #endif
+
+    /// 后台压缩：原图解码/重绘/JPEG 编码是几百毫秒级的 CPU 重活，同步跑在调用方
+    /// 线程（识图/聊天入口都是 MainActor）会直接顶掉系统转场与弹层动画帧；
+    /// 挪后台后主线程只做纯值编排。压缩参数与同步版完全一致，产物字节不变。
+    static func compressedJPEGInBackground(from rawData: Data, aggressive: Bool = false) async -> Data? {
+        await Task.detached(priority: .userInitiated) {
+            compressedJPEG(from: rawData, aggressive: aggressive)
+        }.value
     }
 }
 
@@ -290,8 +345,14 @@ final class HoloVisionExtractionService {
         precompressedJPEG: Data?,
         aggressive: Bool
     ) async throws -> ExtractionOutcome {
-        guard let jpeg = precompressedJPEG ?? HoloVisionImagePipeline.compressedJPEG(from: rawImageData, aggressive: aggressive) else {
-            throw VisionError(userMessage: String(localized: "图片读取失败，请换一张试试"))
+        let jpeg: Data
+        if let precompressedJPEG {
+            jpeg = precompressedJPEG
+        } else {
+            guard let compressed = await HoloVisionImagePipeline.compressedJPEGInBackground(from: rawImageData, aggressive: aggressive) else {
+                throw VisionError(userMessage: String(localized: "图片读取失败，请换一张试试"))
+            }
+            jpeg = compressed
         }
 
         let request = APIRequest(
@@ -421,8 +482,7 @@ final class HoloVisionExtractionService {
         let calendar = Calendar.current
         let now = Date()
         guard let createdAfter = calendar.date(byAdding: .day, value: -2, to: now) else { return [] }
-        let all = (try? await FinanceRepository.shared.getAllTransactions()) ?? []
-        let recentlyCreated = all.filter { $0.createdAt >= createdAfter }
+        let recentlyCreated = (try? await FinanceRepository.shared.recentlyCreatedTransactions(since: createdAfter)) ?? []
 
         var hints: [String] = []
         for transaction in understanding.transactions.prefix(3) {
@@ -446,6 +506,22 @@ final class HoloVisionExtractionService {
 // MARK: - 确认后账户归位（拍板 6）
 
 extension FinanceRepository {
+
+    /// 近 N 天创建的交易（识图防重软检测窗口；按 createdAt 过滤而非交易日期，
+    /// 语义见 duplicateHints 注释）。谓词下推+截断，替代旧「全库物化再内存 filter」
+    /// ——旧实现拍一张小票就把上万账单整表搬到主线程，只为找最近两天的几十条
+    /// （2026-10-30 性能审计 C5）。
+    func recentlyCreatedTransactions(since createdAfter: Date, limit: Int = 200) async throws -> [Transaction] {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "createdAt >= %@", createdAfter as NSDate),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        request.fetchLimit = limit
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
+    }
 
     /// 截图记账确认后把交易搬到匹配账户：IntentRouter 落库走默认账户，
     /// 识别出的支付通道匹配到更合适账户时只换 account 关系，

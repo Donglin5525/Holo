@@ -3,7 +3,7 @@
 //  Holo
 //
 //  明细 Tab 视图
-//  包含折线图 + 点击日期后的交易列表
+//  收支趋势柱状卡（与总览/项目/账户同款）固定在顶部 + 交易明细独立滚动
 //  支持按粒度下钻显示数据
 //
 
@@ -24,24 +24,6 @@ private enum DetailTabFormatters {
         df.setLocalizedDateFormatFromTemplate("MMMdEEEE")
         return df
     }()
-
-    static let periodHour: DateFormatter = {
-        let df = DateFormatter()
-        df.setLocalizedDateFormatFromTemplate("MMMdHH")
-        return df
-    }()
-
-    static let periodDay: DateFormatter = {
-        let df = DateFormatter()
-        df.setLocalizedDateFormatFromTemplate("MMMd")
-        return df
-    }()
-
-    static let periodMonth: DateFormatter = {
-        let df = DateFormatter()
-        df.setLocalizedDateFormatFromTemplate("yMMM")
-        return df
-    }()
 }
 
 // MARK: - DetailTabView
@@ -49,8 +31,9 @@ private enum DetailTabFormatters {
 /// 明细 Tab 视图
 struct DetailTabView: View {
     @ObservedObject var state: FinanceAnalysisState
+    /// push 覆盖层模式：外层已带返回栏与分类标题，分类筛选横幅不在本页重复出现
+    var isPushed: Bool = false
     @State private var editingTransaction: Transaction?
-    @State private var selectedTrendType: TransactionType = .expense
     @State private var sortOrder: FinanceDetailSortOrder = .timeDescending
     @State private var listScrollTarget: Date?
     @State private var listScrollRequestID = 0
@@ -67,12 +50,6 @@ struct DetailTabView: View {
     private var sortedFilteredTransactions: [Transaction] {
         filteredTransactions.sorted {
             sortOrder.areInIncreasingOrder(sortValue(for: $0), sortValue(for: $1))
-        }
-    }
-
-    private var dailySelectionPoints: [ChartDataPoint] {
-        dailyChartDataPoints.filter { point in
-            amount(for: point, type: selectedTrendType) > 0
         }
     }
 
@@ -111,58 +88,59 @@ struct DetailTabView: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            ScrollView {
-                VStack(spacing: 0) {
-                    trendSection
-                        .padding(.horizontal, HoloSpacing.lg)
-                        .padding(.top, HoloSpacing.md)
-                        .padding(.bottom, HoloSpacing.md)
+        // 趋势卡与列表头固定在顶部，滚动的只有交易明细（2026-10-30 东林需求：
+        // 卡片不动、下方数据动，同时收紧纵向留白让首屏多露明细行）。
+        // 与 2026-10-16 修掉的「双层滚动顶牛」不同：图表在滚动容器之外，
+        // 全页只有列表一个滚动体，不存在内层滚到底不交棒的问题。
+        VStack(spacing: 0) {
+            trendSection
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.sm)
+                .padding(.bottom, HoloSpacing.sm)
 
-                    transactionListHeader
-                        .padding(.horizontal, HoloSpacing.lg)
-                        .padding(.bottom, HoloSpacing.xs)
+            transactionListHeader
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.bottom, HoloSpacing.xs)
 
-                    transactionListViewport(
-                        height: max(geometry.size.height - 56, 320)
-                    )
+            ScrollViewReader { listProxy in
+                ScrollView {
+                    transactionListContent
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.bottom, HoloSpacing.lg)
                 }
+                .scrollIndicators(.hidden)
+                .onChange(of: listScrollRequestID) { _, _ in
+                    guard let target = listScrollTarget else { return }
+
+                    // 排序模式切换与列表重建发生在同一轮更新，下一帧再定位可确保锚点已存在。
+                    DispatchQueue.main.async {
+                        listProxy.scrollTo(target, anchor: .top)
+                    }
+                }
             }
-            .scrollIndicators(.hidden)
-            .background(Color.holoToolBackground)
         }
+        .background(Color.holoToolBackground)
         .sheet(item: $editingTransaction) { transaction in
             AddTransactionSheet(editingTransaction: transaction) { _ in
                 state.refresh()
             }
         }
-        .onChange(of: selectedTrendType) { _, _ in
-            state.selectChartDate(nil)
-        }
     }
 
     private var trendSection: some View {
-        VStack(spacing: HoloSpacing.lg) {
-            if let category = state.selectedDetailCategory {
+        VStack(spacing: HoloSpacing.md) {
+            if !isPushed, let category = state.selectedDetailCategory {
                 categoryFilterBanner(category)
             }
 
-            LineChartView(
+            // 与总览/项目/账户页签同一张「收支趋势」柱状卡（红支出/绿收入同框），
+            // 取代本页原有的折线形态+支出/收入切换器；点选/滑动选日→列表实时定位。
+            // 不挂「查看明细」按钮：选日瞬间列表已跳转定位，按钮必是空动作（10-30 东林实报移除）。
+            TrendChartView(
                 dataPoints: dailyChartDataPoints,
+                showsBalanceLine: false,
                 selectedDate: state.selectedChartDate,
-                displayedType: selectedTrendType,
-                displayedTypeSelection: $selectedTrendType,
-                selectionDataPoints: dailySelectionPoints,
-                onScrubDate: selectChartDateAndScroll,
-                onSelectDate: { date in
-                    guard let date else {
-                        state.selectChartDate(nil)
-                        return
-                    }
-                    selectChartDateAndScroll(date)
-                }
+                onScrubDate: selectChartDateAndScroll
             )
         }
     }
@@ -171,8 +149,8 @@ struct DetailTabView: View {
     /// 时间定位与金额排序语义冲突时自动回到“时间从新到旧”，避免日期锚点失真。
     private func selectChartDateAndScroll(_ date: Date) {
         let day = Calendar.current.startOfDay(for: date)
-        guard dailySelectionPoints.contains(where: {
-            Calendar.current.isDate($0.date, inSameDayAs: day)
+        guard dailyChartDataPoints.contains(where: {
+            $0.hasTransactions && Calendar.current.isDate($0.date, inSameDayAs: day)
         }) else {
             return
         }
@@ -184,180 +162,12 @@ struct DetailTabView: View {
         listScrollRequestID &+= 1
     }
 
-    private func transactionListViewport(height: CGFloat) -> some View {
-        ScrollViewReader { listProxy in
-            ScrollView {
-                transactionListContent
-                    .padding(.top, 2)
-            }
-            .scrollIndicators(.hidden)
-            .frame(height: height)
-            .onChange(of: listScrollRequestID) { _, _ in
-                guard let target = listScrollTarget else { return }
-
-                // 排序模式切换与列表重建发生在同一轮更新，下一帧再定位可确保锚点已存在。
-                DispatchQueue.main.async {
-                    listProxy.scrollTo(target, anchor: .top)
-                }
-            }
-        }
-    }
-
-    private func amount(for point: ChartDataPoint, type: TransactionType) -> Decimal {
-        switch type {
-        case .expense:
-            return point.expense
-        case .income:
-            return point.income
-        }
-    }
-
     private func sortValue(for transaction: Transaction) -> FinanceDetailSortValue {
         FinanceDetailSortValue(
             id: transaction.id,
             date: transaction.date,
             amount: transaction.amount.decimalValue
         )
-    }
-
-    // MARK: - 选中时间段的交易列表（根据粒度显示）
-
-    private func selectedPeriodTransactionsView(_ date: Date) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // 标题栏
-            HStack {
-                Text(periodTitle(for: date))
-                    .holoText(.sectionTitle)
-                    .foregroundColor(.holoToolText)
-
-                Spacer()
-
-                Button {
-                    state.selectChartDate(nil)
-                } label: {
-                    Text("查看全部")
-                        .holoText(.supporting)
-                        .foregroundColor(.holoPrimary)
-                }
-            }
-
-            // 时间段统计
-            periodSummary(for: date)
-
-            // 交易列表
-            let periodTransactions = transactionsForPeriod(date)
-
-            if periodTransactions.isEmpty {
-                emptyTransactionState
-            } else {
-                ForEach(periodTransactions, id: \.self) { tx in
-                    TransactionRowView(transaction: tx) {
-                        editingTransaction = tx
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - 时间段标题
-
-    private func periodTitle(for date: Date) -> String {
-        switch state.chartGranularity {
-        case .hour:
-            return DetailTabFormatters.periodHour.string(from: date) + ":00" + String(localized: " 时段")
-
-        case .day:
-            return DetailTabFormatters.periodDay.string(from: date)
-
-        case .week:
-            let weekStart = date.startOfWeek
-            guard let weekEnd = Calendar.current.date(byAdding: .day, value: 6, to: weekStart) else {
-                return String(localized: "本周")
-            }
-            return "\(DetailTabFormatters.periodDay.string(from: weekStart)) - \(DetailTabFormatters.periodDay.string(from: weekEnd))"
-
-        case .month:
-            return DetailTabFormatters.periodMonth.string(from: date)
-        }
-    }
-
-    // MARK: - 时间段统计
-
-    private func periodSummary(for date: Date) -> some View {
-        let periodTxns = transactionsForPeriod(date)
-        let expense = periodTxns
-            .filter { $0.statisticsType == .expense }
-            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
-        let income = periodTxns
-            .filter { $0.statisticsType == .income }
-            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
-
-        return HStack(spacing: HoloSpacing.lg) {
-            HStack(spacing: HoloSpacing.xs) {
-                Text("支出")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoToolTextSecondary)
-                Text(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "¥0")
-                    .holoText(.body)
-                    .foregroundColor(.holoError)
-            }
-
-            HStack(spacing: HoloSpacing.xs) {
-                Text("收入")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoToolTextSecondary)
-                Text(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "¥0")
-                    .holoText(.body)
-                    .foregroundColor(.holoSuccess)
-            }
-
-            Spacer()
-
-            Text("\(periodTxns.count) 笔")
-                .holoText(.supporting)
-                .foregroundColor(.holoToolTextSecondary)
-        }
-        .padding(HoloSpacing.sm)
-        .background(Color.holoToolBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-    }
-
-    // MARK: - 获取时间段内的交易
-
-    private func transactionsForPeriod(_ date: Date) -> [Transaction] {
-        let calendar = Calendar.current
-
-        switch state.chartGranularity {
-        case .hour:
-            // 该小时的交易
-            let hourStart = calendar.date(bySettingHour: calendar.component(.hour, from: date), minute: 0, second: 0, of: date) ?? date
-            guard let hourEnd = calendar.date(byAdding: .hour, value: 1, to: hourStart) else { return [] }
-            return filteredTransactions.filter { tx in
-                tx.date >= hourStart && tx.date < hourEnd
-            }
-
-        case .day:
-            // 该天的交易
-            return filteredTransactions.filter { tx in
-                calendar.isDate(tx.date, inSameDayAs: date)
-            }
-
-        case .week:
-            // 该周的交易
-            let weekStart = date.startOfWeek
-            guard let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) else { return [] }
-            return filteredTransactions.filter { tx in
-                tx.date >= weekStart && tx.date < weekEnd
-            }
-
-        case .month:
-            // 该月的交易
-            let monthStart = date.startOfMonth
-            guard let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else { return [] }
-            return filteredTransactions.filter { tx in
-                tx.date >= monthStart && tx.date < monthEnd
-            }
-        }
     }
 
     // MARK: - 分类筛选
@@ -504,7 +314,7 @@ struct DetailTabView: View {
             if expense > 0 {
                 Text("-\(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "")")
                     .font(.system(size: 12))
-                    .foregroundColor(.holoError)
+                    .foregroundColor(.holoToolError)
             }
             if income > 0 {
                 Text("+\(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "")")

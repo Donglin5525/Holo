@@ -7,11 +7,11 @@
 //
 //  口径：单层时间轴只画「睡着类（深睡/核心/REM/未分期）+ 清醒」，在床但未睡的
 //  首尾段画为入睡潜伏样式；与一期 SleepStructureAnalyzer 共用归晚窗口与阶段色语义。
-//  阶段原始值与 HKCategoryValueSleepAnalysis.rawValue 对齐（inBed=0/awake=2/
-//  asleepUnspecified=3/asleepCore=4/asleepDeep=5/asleepREM=6），保持独立于 HealthKit 可测。
+//  阶段直接读取 Apple SDK 枚举，不复制数字映射；计算本身不访问健康数据库。
 //
 
 import Foundation
+import HealthKit
 
 /// 时间轴上的一个分段（阶段内已合并重叠、已裁剪到归晚窗口）
 struct HealthSleepSegment: Equatable, Sendable {
@@ -49,28 +49,18 @@ enum HealthSleepTimelineBuilder {
 
     typealias Interval = HealthSleepSampleAggregator.Interval
 
-    /// HKCategoryValueSleepAnalysis.rawValue 对照（独立于 HealthKit，纯函数可测）
-    private enum StageRawValue {
-        static let inBed = 0
-        static let awake = 2
-        static let asleepUnspecified = 3
-        static let asleepCore = 4
-        static let asleepDeep = 5
-        static let asleepREM = 6
-    }
-
     /// 输入：一晚的原始样本（阶段原始值、起止）。返回 nil = 该晚没有任何睡着段。
     static func build(wakeDay: Date, samples: [(value: Int, start: Date, end: Date)]) -> HealthSleepTimeline? {
         guard !samples.isEmpty else { return nil }
 
         func stage(for value: Int) -> HealthSleepSegment.Stage? {
-            switch value {
-            case StageRawValue.asleepDeep: return .asleepDeep
-            case StageRawValue.asleepCore: return .asleepCore
-            case StageRawValue.asleepREM: return .asleepREM
-            case StageRawValue.asleepUnspecified: return .asleepUnspecified
-            case StageRawValue.awake: return .awake
-            case StageRawValue.inBed: return .inBedAwake
+            switch HKCategoryValueSleepAnalysis(rawValue: value) {
+            case .asleepDeep: return .asleepDeep
+            case .asleepCore: return .asleepCore
+            case .asleepREM: return .asleepREM
+            case .asleepUnspecified: return .asleepUnspecified
+            case .awake: return .awake
+            case .inBed: return .inBedAwake
             default: return nil
             }
         }
@@ -88,7 +78,25 @@ enum HealthSleepTimelineBuilder {
         var segments: [HealthSleepSegment] = []
         for (resolved, intervals) in byStage {
             for interval in HealthSleepSampleAggregator.merged(intervals) {
-                segments.append(HealthSleepSegment(stage: resolved, start: interval.start, end: interval.end))
+                // 在床通常覆盖整晚；未分期记录也可能覆盖设备分期。仅保留未被细分记录覆盖的部分，
+                // 避免底层样本遮住阶段条、点到 REM 却读出「在床」。
+                let coveringStages: [HealthSleepSegment.Stage]
+                switch resolved {
+                case .inBedAwake: coveringStages = asleepStages + [.awake]
+                case .asleepUnspecified: coveringStages = [.asleepCore, .asleepDeep, .asleepREM, .awake]
+                default: coveringStages = []
+                }
+                let covering = HealthSleepSampleAggregator.merged(coveringStages.flatMap { byStage[$0] ?? [] })
+                var cursor = interval.start
+                for cover in covering where cover.end > cursor && cover.start < interval.end {
+                    if cover.start > cursor {
+                        segments.append(HealthSleepSegment(stage: resolved, start: cursor, end: cover.start))
+                    }
+                    cursor = max(cursor, cover.end)
+                }
+                if cursor < interval.end {
+                    segments.append(HealthSleepSegment(stage: resolved, start: cursor, end: interval.end))
+                }
             }
         }
         segments.sort { $0.start < $1.start }

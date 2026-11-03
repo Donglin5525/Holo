@@ -36,9 +36,11 @@ struct TodayReliefSheet: View {
                 }
             }
             .navigationTitle(String(localized: "帮我理一理"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button {
                         viewModel.teardown()
                         dismiss()
@@ -50,7 +52,11 @@ struct TodayReliefSheet: View {
             }
         }
         .holoSheetShell()
-        .task { await loadContext() }
+        .task {
+            // AI 协调器随弹层挂载（此前漏接：入口永远走手动候选，AI 从未被调用）
+            viewModel.attachCoordinator(HoloTodayReliefCoordinator.makeDefault())
+            await loadContext()
+        }
         .sheet(isPresented: $showVoiceInput) {
             VoiceInputSheet(
                 readySubtitle: String(localized: "说完后自动填入"),
@@ -187,8 +193,7 @@ struct TodayReliefSheet: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Button {
-                    viewModel.updateSituation(String(localized: "手动整理"))
-                    viewModel.submit(context: context)
+                    viewModel.submitManually(context: context)
                 } label: {
                     Text(String(localized: "手动挑今天要做的事"))
                         .font(.subheadline.weight(.medium))
@@ -270,14 +275,14 @@ struct TodayReliefSheet: View {
                         .font(.headline)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(clarificationAnswer.isEmpty ? Color.holoPrimary.opacity(0.4) : Color.holoPrimary))
+                        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(clarificationAnswer.isEmpty ? Color.holoTextSecondary.opacity(0.3) : Color.holoPrimary))
                 }
                 .buttonStyle(.plain)
                 .disabled(clarificationAnswer.isEmpty)
 
                 Button {
                     // 跳过追问直接手动（R34：一次追问后不再循环）
-                    viewModel.answerClarification(String(localized: "先手动选"), context: context)
+                    viewModel.submitManually(context: context)
                 } label: {
                     Text(String(localized: "先手动选"))
                         .font(.subheadline)
@@ -338,7 +343,7 @@ struct TodayReliefSheet: View {
                                 withAnimation(HoloAnimation.snappy) { showConstraints.toggle() }
                             } label: {
                                 HStack {
-                                    Label(String(localized: "需要留意（\(candidate.displayFacts.constraints.count)）"), systemImage: "exclamationmark.book")
+                                    Label(String(localized: "需要留意（\(candidate.displayFacts.constraints.count)）"), systemImage: "exclamationmark.circle")
                                         .font(.caption.weight(.semibold))
                                         .foregroundStyle(.secondary)
                                     Spacer()
@@ -684,7 +689,7 @@ struct TodayReliefSheet: View {
                         .font(.headline)
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(pendingAck > 0 ? Color.holoPrimary.opacity(0.4) : Color.holoPrimary))
+                        .background(RoundedRectangle(cornerRadius: HoloRadius.md).fill(pendingAck > 0 ? Color.holoTextSecondary.opacity(0.3) : Color.holoPrimary))
                 }
                 .buttonStyle(.plain)
                 .disabled(pendingAck > 0)
@@ -787,7 +792,7 @@ struct TodayReliefSheet: View {
             }
             Button {
                 // 手动模式兜底（R27：失败后手动可用）
-                viewModel.submit(context: context)
+                viewModel.submitManually(context: context)
             } label: {
                 Text(String(localized: "先手动挑"))
                     .font(.subheadline.weight(.medium))

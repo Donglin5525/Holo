@@ -204,6 +204,18 @@ struct ReportInProgressCard: View {
                 .foregroundColor(.holoTextSecondary)
                 .lineLimit(2)
 
+            // 血统行（2026-11-01 追问链路原型）：生成中的追问报告在档案里也交代归属
+            if let rootQuestion = message.continuationRootQuestion {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrowshape.turn.up.left.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                    Text(String(localized: "追问自报告「\(rootQuestion)」"))
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .lineLimit(1)
+                }
+                .foregroundColor(Color.holoFollowUpTint)
+            }
+
             Text("可以先切回对话继续聊，完成时「报告」会亮红点")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(Color.holoPrimary.opacity(0.85))

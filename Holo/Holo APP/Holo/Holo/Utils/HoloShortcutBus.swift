@@ -22,6 +22,9 @@ enum HoloShortcutAction: Equatable {
     case openSettings
     /// Cmd+1…9：侧边栏直跳（iPad v2 骨架；iPhone 由 ContentView 映射到主 tab）
     case goToSidebar(HoloSidebarDestination)
+    /// Mac ⌘1/⌘2：工作台模块切换（2026-10-28 任务模块迁移；iOS 侧无订阅方，安全忽略）
+    case switchToThoughts
+    case switchToTasks
 }
 
 /// 快捷键事件：带自增 id，同一动作连按也能逐次触发订阅方。
@@ -34,6 +37,10 @@ final class HoloShortcutBus: ObservableObject {
 
     static let shared = HoloShortcutBus()
 
+    /// ⚠️ @Published 的 `$lastEvent` 会在**每次新订阅时立即重放当前值**。
+    /// 常驻视图无感；条件挂载的视图（如 Mac 模块 if/else 互斥渲染）切回即重建订阅，
+    /// 会把上一条旧事件当新事件消费（2026-10-31 审计 M2：切回模块设置页自动弹出）。
+    /// 非常驻消费方必须接 `.dropFirst()` 只响应订阅后的新事件。
     @Published private(set) var lastEvent: HoloShortcutEvent?
 
     private var nextId = 0

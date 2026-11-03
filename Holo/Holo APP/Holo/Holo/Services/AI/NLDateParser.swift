@@ -35,6 +35,12 @@ enum NLDateParser {
         return text.range(of: pattern, options: .regularExpression) != nil
     }
 
+    /// 文本里是否有用户报出的具体钟点（「10点」「21:30」）
+    /// 区别于「今晚/晚上」等时段词的默认映射时刻——时段词未来下限的豁免判定用
+    static func hasExplicitClock(_ text: String) -> Bool {
+        extractHourMinute(text) != nil
+    }
+
     // MARK: - Standard Format
 
     private static func parseStandardFormat(_ text: String) -> Date? {

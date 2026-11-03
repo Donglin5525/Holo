@@ -131,6 +131,36 @@ actor ThoughtSemanticStore {
         try migrateIfNeeded()
         // 上一次进程在网络请求中退出，running 没有执行者；冷启动统一回收到队列。
         try exec("UPDATE semantic_job SET state='pending', next_attempt_at=NULL, last_error_code='interrupted' WHERE state='running'")
+        try repairLegacyQueue()
+    }
+
+    /// 升级旧队列：同一笔记同一阶段只留最新版任务，历史重复记录保留为取消态。
+    /// 唯一索引保证以后所有写入口都遵循同一规则，不再重复调用或虚增排队数。
+    private func repairLegacyQueue() throws {
+        try exec("BEGIN IMMEDIATE")
+        do {
+            try exec("""
+                UPDATE semantic_job SET state='cancelled', last_error_code='duplicate_job',
+                    finished_at=strftime('%s','now')
+                WHERE state IN ('pending','running') AND rowid NOT IN (
+                    SELECT MAX(rowid) FROM semantic_job WHERE state IN ('pending','running')
+                    GROUP BY thought_id, kind)
+                """)
+            let marker = try prepare("SELECT COUNT(*) FROM sqlite_master WHERE name='idx_semantic_job_active_unique'")
+            let needsRecovery = sqlite3_step(marker) == SQLITE_ROW && sqlite3_column_int64(marker, 0) == 0
+            sqlite3_finalize(marker)
+            if needsRecovery {
+                // 旧版把任何 429 都挂起一小时；服务与批次修复后仅首次升级立即恢复。
+                try exec("UPDATE semantic_job SET next_attempt_at=NULL, last_error_code=NULL WHERE state='pending' AND last_error_code='RATE_LIMITED'")
+            }
+            try exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_semantic_job_active_unique ON semantic_job(thought_id,kind) WHERE state IN ('pending','running')")
+            // 与新版重试策略对齐：恢复旧版模型格式错误留下的长退避，不改额度/网络等待。
+            try exec("UPDATE semantic_job SET next_attempt_at=MIN(next_attempt_at,strftime('%s','now')+60) WHERE state='pending' AND last_error_code='MODEL_OUTPUT_INVALID'")
+            try exec("COMMIT")
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
     }
 
     func close() {
@@ -276,13 +306,15 @@ actor ThoughtSemanticStore {
             .text(verifierResult), .text(state), .text(engineVersion), .date(expires), .text(verifierQuote))
     }
 
-    /// 该想法此正文版本是否已有 relate 记录（P0-C 补跑去重：跑过就不再重复入队）。
+    /// 该想法此正文版本是否已有 relate 记录。传入目录版本后统一补齐类别理解版本，
+    /// 与执行器的回执保持同一口径，避免有 brief 的笔记成功后仍反复入队。
     func hasRelationRecord(thoughtID: UUID, contentHash: String, evaluationVersion: String? = nil) throws -> Bool {
+        let currentVersion = try evaluationVersion.map { try relationEvaluationVersion(catalogVersion: $0) }
         let stmt = try prepare("""
             SELECT COUNT(*) FROM relation_candidate
             WHERE thought_id=?1 AND content_hash=?2 AND expires_at > ?3
                 AND (?4 IS NULL OR engine_version=?4)
-            """, .uuid(thoughtID), .text(contentHash), .date(Date()), .text(evaluationVersion))
+            """, .uuid(thoughtID), .text(contentHash), .date(Date()), .text(currentVersion))
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return false }
         return sqlite3_column_int64(stmt, 0) > 0
@@ -331,6 +363,100 @@ actor ThoughtSemanticStore {
     /// 成员变化使摘要失效（basisRevision 落后）时由调用方判断；此处仅提供按删除清理。
     func deleteTopicSummary(topicID: UUID) throws {
         try bindExec("DELETE FROM topic_summary WHERE topic_id=?1", .uuid(topicID))
+    }
+
+    // MARK: - category_brief（类别理解，2026-10-12 主题双通道·零打扰；AI 派生只存本机）
+
+    struct CategoryBriefRecord: Equatable {
+        var topicID: UUID
+        var version: Int
+        var definition: String
+        var exclusions: [String]
+        var basisMemberCount: Int
+        var basisRemovalCount: Int
+        var updatedAt: Date
+
+        var exclusionsJSON: String {
+            (try? JSONEncoder().encode(exclusions)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        }
+    }
+
+    /// 幂等落库一版 brief（version 由调用方递增）。
+    func saveCategoryBrief(_ record: CategoryBriefRecord) throws {
+        try bindExec("""
+            INSERT INTO category_brief(topic_id, version, definition, exclusions_json,
+                                       basis_member_count, basis_removal_count, updated_at)
+            VALUES(?1,?2,?3,?4,?5,?6,?7)
+            ON CONFLICT(topic_id) DO UPDATE SET version=?2, definition=?3, exclusions_json=?4,
+                basis_member_count=?5, basis_removal_count=?6, updated_at=?7
+            """,
+            .uuid(record.topicID), .int64(Int64(record.version)), .text(record.definition),
+            .text(record.exclusionsJSON), .int64(Int64(record.basisMemberCount)),
+            .int64(Int64(record.basisRemovalCount)), .date(record.updatedAt))
+    }
+
+    func loadCategoryBrief(topicID: UUID) throws -> CategoryBriefRecord? {
+        let stmt = try prepare("""
+            SELECT version, definition, exclusions_json, basis_member_count, basis_removal_count, updated_at
+            FROM category_brief WHERE topic_id=?1
+            """, .uuid(topicID))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        let exclusionsData = Data(bytes: sqlite3_column_blob(stmt, 2), count: Int(sqlite3_column_bytes(stmt, 2)))
+        let exclusions = (try? JSONDecoder().decode([String].self, from: exclusionsData)) ?? []
+        return CategoryBriefRecord(
+            topicID: topicID,
+            version: Int(sqlite3_column_int64(stmt, 0)),
+            definition: String(cString: sqlite3_column_text(stmt, 1)),
+            exclusions: exclusions,
+            basisMemberCount: Int(sqlite3_column_int64(stmt, 3)),
+            basisRemovalCount: Int(sqlite3_column_int64(stmt, 4)),
+            updatedAt: dateCol(stmt, 5) ?? Date())
+    }
+
+    /// 全部 brief 的版本键（topicID:version），供关联重评指纹拼接——brief 升版自然重评。
+    func allCategoryBriefVersionKeys() throws -> [String] {
+        let stmt = try prepare("SELECT topic_id, version FROM category_brief")
+        defer { sqlite3_finalize(stmt) }
+        var keys: [String] = []
+        while sqlite3_step(stmt) == SQLITE_ROW {
+            if let id = uuidCol(stmt, 0) {
+                keys.append("\(id.uuidString):\(sqlite3_column_int64(stmt, 1))")
+            }
+        }
+        return keys.sorted()
+    }
+
+    /// 入队去重与整理回执共用完整指纹；沿用既有格式，可直接识别历史成功记录。
+    func relationEvaluationVersion(catalogVersion: String) throws -> String {
+        let briefKeys = try allCategoryBriefVersionKeys()
+        return briefKeys.isEmpty ? catalogVersion : catalogVersion + ":brief=" + briefKeys.joined(separator: "|")
+    }
+
+    func deleteCategoryBrief(topicID: UUID) throws {
+        try bindExec("DELETE FROM category_brief WHERE topic_id=?1", .uuid(topicID))
+    }
+
+    /// 类别理解统计（设置页状态卡）：已代写主题数 + 最近更新时间。
+    func categoryBriefStats() throws -> (count: Int, lastUpdatedAt: Date?) {
+        let stmt = try prepare("SELECT COUNT(*), MAX(updated_at) FROM category_brief")
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return (0, nil) }
+        return (Int(sqlite3_column_int64(stmt, 0)), dateCol(stmt, 1))
+    }
+
+    /// 单对判定的证据回读（主题徽章「为什么归这里」）：判定值 + 逐字依据 + 引擎版本。
+    /// 只有正式归属（same_thread/fits_category）写过逐 pair 行；无行=用户手动或历史归集。
+    func loadRelationEvidence(thoughtID: UUID, topicID: UUID) throws -> (relation: String, verifierQuote: String?, engineVersion: String?)? {
+        let stmt = try prepare("""
+            SELECT verifier_result, verifier_quote, engine_version
+            FROM relation_candidate
+            WHERE thought_id=?1 AND topic_id=?2 AND verifier_result IN ('same_thread','fits_category')
+            ORDER BY expires_at DESC LIMIT 1
+            """, .uuid(thoughtID), .uuid(topicID))
+        defer { sqlite3_finalize(stmt) }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return (String(cString: sqlite3_column_text(stmt, 0)), textCol(stmt, 1), textCol(stmt, 2))
     }
 
     // MARK: - candidate_cluster（新脉络建议，方案 §4.4；AI 派生只存本机）
@@ -518,6 +644,14 @@ actor ThoughtSemanticStore {
         try exec("UPDATE semantic_job SET state='cancelled', last_error_code='consent_revoked' WHERE state IN('pending','running')")
     }
 
+    /// 代数自愈（2026-10-19）：把旧代数 pending 任务 re-stamp 到当前代数。
+    /// 设置开关每次变化递增 consentGeneration，旧代数任务永远不被 claimNextDueJob 领取
+    /// 且无任何回收——改一次开关就冻结当时在队的全部任务。pending 尚未执行、不存在迟到
+    /// 结果，re-stamp 安全；running 不碰（Executor/Verifier 落库侧的代数校验仍是防线）。
+    func restampStalePendingJobs(to generation: Int64) throws {
+        try bindExec("UPDATE semantic_job SET consent_generation=?1 WHERE state='pending' AND consent_generation < ?1", .int64(generation))
+    }
+
     func pendingJobCount() throws -> Int {
         let stmt = try prepare("SELECT COUNT(*) FROM semantic_job WHERE state='pending'")
         defer { sqlite3_finalize(stmt) }
@@ -535,14 +669,18 @@ actor ThoughtSemanticStore {
         var unavailableDone = 0      // 合法不适处理（纯图/空文/已删）
         var lastFinishedAt: Date?    // 最近一次任务完成
         var waitingReason: String?
+        var unfinishedThoughts = 0
     }
 
     func indexStats() throws -> IndexStats {
         var stats = IndexStats()
+        let unfinished = try prepare("SELECT COUNT(DISTINCT thought_id) FROM semantic_job WHERE state IN ('pending','running')")
+        if sqlite3_step(unfinished) == SQLITE_ROW { stats.unfinishedThoughts = Int(sqlite3_column_int64(unfinished, 0)) }
+        sqlite3_finalize(unfinished)
         let runningStatement = try prepare("SELECT COUNT(*) FROM semantic_job WHERE state='running'")
         if sqlite3_step(runningStatement) == SQLITE_ROW { stats.runningJobs = Int(sqlite3_column_int64(runningStatement, 0)) }
         sqlite3_finalize(runningStatement)
-        let waitingStatement = try prepare("SELECT last_error_code FROM semantic_job WHERE state IN ('pending','failed_terminal') AND last_error_code IS NOT NULL ORDER BY finished_at DESC LIMIT 1")
+        let waitingStatement = try prepare("SELECT last_error_code FROM semantic_job WHERE state IN ('pending','failed_terminal') AND last_error_code IS NOT NULL AND rowid IN (SELECT MAX(rowid) FROM semantic_job GROUP BY thought_id,kind) ORDER BY finished_at DESC LIMIT 1")
         if sqlite3_step(waitingStatement) == SQLITE_ROW { stats.waitingReason = textCol(waitingStatement, 0) }
         sqlite3_finalize(waitingStatement)
         if let stmt = try? prepare("SELECT COUNT(*) FROM semantic_item WHERE state='active'") {
@@ -550,10 +688,11 @@ actor ThoughtSemanticStore {
             if sqlite3_step(stmt) == SQLITE_ROW { stats.activeItems = Int(sqlite3_column_int64(stmt, 0)) }
         }
         if let stmt = try? prepare("""
-            SELECT SUM(state='pending'), SUM(state='failed_terminal'),
+            SELECT SUM(state='pending'), COUNT(DISTINCT CASE WHEN state='failed_terminal' THEN thought_id END),
                    SUM(state='done' AND last_error_code IN('text_unavailable','thought_unavailable')),
-                   MAX(finished_at)
+                   MAX(CASE WHEN state='done' AND last_error_code IS NULL THEN finished_at END)
             FROM semantic_job
+            WHERE rowid IN (SELECT MAX(rowid) FROM semantic_job GROUP BY thought_id,kind)
             """) {
             defer { sqlite3_finalize(stmt) }
             if sqlite3_step(stmt) == SQLITE_ROW {
@@ -568,7 +707,17 @@ actor ThoughtSemanticStore {
 
     /// 用户主动重试：恢复失败项，也让暂时失败的待处理项立即重试；保留取消状态。
     func retryFailedJobs() throws {
-        try exec("UPDATE semantic_job SET state='pending', attempt_count=0, next_attempt_at=NULL,last_error_code=NULL WHERE state='failed_terminal' OR (state='pending' AND last_error_code IS NOT NULL)")
+        // 只恢复最新版终态任务；旧正文/旧授权和已经有执行者的版本不能被重新点燃。
+        try exec("""
+            UPDATE semantic_job AS target SET state='pending', attempt_count=0,
+                next_attempt_at=NULL,last_error_code=NULL
+            WHERE (state='pending' AND last_error_code IS NOT NULL) OR (
+                state='failed_terminal' AND rowid=(
+                    SELECT MAX(rowid) FROM semantic_job WHERE thought_id=target.thought_id
+                        AND kind=target.kind AND state!='cancelled')
+                AND NOT EXISTS (SELECT 1 FROM semantic_job WHERE thought_id=target.thought_id
+                    AND kind=target.kind AND state IN ('pending','running')))
+            """)
     }
 
     // MARK: - 相关旧想法反馈（方案 §5.2：同版本不重复推荐）
@@ -728,6 +877,20 @@ actor ThoughtSemanticStore {
                 basis_revision INTEGER NOT NULL DEFAULT 0,
                 summary TEXT NOT NULL,
                 viewpoints_json TEXT NOT NULL DEFAULT '[]',
+                updated_at REAL NOT NULL)
+            """)
+        // 类别理解 brief（2026-10-12 主题双通道·零打扰）：AI 起草/精化的「收什么」定义
+        // 与排除边界，AI 派生只存本机不进 CloudKit；exclusions_json 是字符串数组。
+        // basis_* 记录生成时的证据规模：member_count/removal_count 变化到阈值才触发精化，
+        // 排除项在客户端只增不减（边界只由用户移出动作改写的机器强制依据）。
+        try exec("""
+            CREATE TABLE IF NOT EXISTS category_brief(
+                topic_id BLOB PRIMARY KEY,
+                version INTEGER NOT NULL DEFAULT 1,
+                definition TEXT NOT NULL,
+                exclusions_json TEXT NOT NULL DEFAULT '[]',
+                basis_member_count INTEGER NOT NULL DEFAULT 0,
+                basis_removal_count INTEGER NOT NULL DEFAULT 0,
                 updated_at REAL NOT NULL)
             """)
         // Phase 5：建议卡命名（轻量加列；重复加列错误幂等吞掉）

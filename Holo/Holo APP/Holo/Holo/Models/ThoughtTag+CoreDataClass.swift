@@ -31,6 +31,7 @@ class ThoughtTag: NSManagedObject {
     @NSManaged var mergedIntoTagID: UUID?         // 确定性重定向目标（读取时解析并防环）
     @NSManaged var autoSuggestionBlocked: Bool    // 用户全局拒绝自动使用（不自动过期）
     @NSManaged var autoCollectionHidden: Bool     // 仅隐藏合集入口，不影响打标/筛选
+    @NSManaged var excludeFromAI: Bool            // 带此标签（用户关联）的想法整体退出 AI
 
     // MARK: - Relationships
 

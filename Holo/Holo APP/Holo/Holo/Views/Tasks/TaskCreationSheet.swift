@@ -58,6 +58,13 @@ struct TaskCreationSheet: View {
     @State private var showDismissConfirm = false
     @State private var isSaving = false
     @State private var saveErrorMessage: String?
+
+    // MARK: 语音输入（描述行右端入口，能力与任务详情页同源——随 10-07 换页漏搬运，找回）
+
+    @State private var showVoiceInput = false
+    @State private var pendingVoiceTranscript: String? = nil
+    @State private var isSplittingVoice = false
+    @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
     /// 首次保存已建成的任务：后续步骤（重复/附件）失败重试时跳过重建，杜绝重复任务（R11）
     @State private var createdTask: TodoTask? = nil
 
@@ -76,6 +83,9 @@ struct TaskCreationSheet: View {
                     if draft.context.sourceQuadrant != nil {
                         sourceBanner
                     }
+                    if draft.context.plannedStart != nil {
+                        calendarSourceBanner
+                    }
                     contentCard
                     scheduleCard
                     classificationCard
@@ -87,7 +97,9 @@ struct TaskCreationSheet: View {
             .scrollDismissesKeyboard(.interactively)
             .background(Color.holoBackground)
             .navigationTitle(String(localized: "添加任务"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "取消")) { handleCancel() }
@@ -129,6 +141,35 @@ struct TaskCreationSheet: View {
             .sheet(isPresented: $showListPicker) {
                 TaskCreationListPickerSheet(repository: repository, draft: draft)
                     .presentationDetents([.medium, .large])
+            }
+            .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
+                if smartSummaryEnabled {
+                    VoiceInputSheet(
+                        speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .task),
+                        readySubtitle: String(localized: "确认后插入到任务描述"),
+                        submitButtonTitle: String(localized: "插入"),
+                        resultConfig: VoiceResultConfig(
+                            title: String(localized: "智能总结完成"),
+                            subtitle: String(localized: "已整理成更适合任务描述的表达"),
+                            showsOriginalToggle: true
+                        ),
+                        postProcessor: ThoughtVoiceSummaryProcessor(),
+                        transcriptFormatter: formatVoiceTranscript
+                    ) { transcript in
+                        pendingVoiceTranscript = transcript
+                        showVoiceInput = false
+                    }
+                } else {
+                    VoiceInputSheet(
+                        speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .task),
+                        readySubtitle: String(localized: "确认后插入到任务描述"),
+                        submitButtonTitle: String(localized: "插入"),
+                        transcriptFormatter: formatVoiceTranscript
+                    ) { transcript in
+                        pendingVoiceTranscript = transcript
+                        showVoiceInput = false
+                    }
+                }
             }
             .photosPicker(
                 isPresented: $showPhotoPicker,
@@ -186,6 +227,24 @@ struct TaskCreationSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous))
     }
 
+    /// 来自日历的来源提示（§7.1：已预填计划时段、截止尚未设置）
+    private var calendarSourceBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "calendar")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.holoPrimary)
+            Text("来自日历 · 已预填\(Self.formatPlanRange(draft.plannedStart, draft.plannedEnd))的计划时间，可调整。截止时间尚未设置。")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoPrimary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous))
+    }
+
     // MARK: - 内容卡：标题（附件入口）＋描述＋检查清单
 
     private var contentCard: some View {
@@ -196,6 +255,7 @@ struct TaskCreationSheet: View {
                     set: { draft.title = $0; draft.markEdited() }
                 ))
                 .font(.system(size: 22, weight: .bold))
+                voiceButton
                 attachButton
             }
             .padding(HoloSpacing.md)
@@ -208,12 +268,14 @@ struct TaskCreationSheet: View {
 
             Rectangle().fill(Color.holoDivider).frame(height: 0.5).padding(.leading, HoloSpacing.md)
 
-            TextField(String(localized: "描述（可选）"), text: Binding(
-                get: { draft.note },
-                set: { draft.note = $0; draft.markEdited() }
-            ), axis: .vertical)
-            .lineLimit(1...4)
-            .font(.holoBody)
+            HStack(alignment: .firstTextBaseline) {
+                TextField(String(localized: "描述（可选）"), text: Binding(
+                    get: { draft.note },
+                    set: { draft.note = $0; draft.markEdited() }
+                ), axis: .vertical)
+                .lineLimit(1...4)
+                .font(.holoBody)
+            }
             .padding(HoloSpacing.md)
 
             Rectangle().fill(Color.holoDivider).frame(height: 0.5).padding(.leading, HoloSpacing.md)
@@ -223,6 +285,33 @@ struct TaskCreationSheet: View {
         }
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+    }
+
+    /// 标题行语音入口（2026-10-11 东林拍板：在上面说任务）：
+    /// 录音转文字回来后拆成「标题＋描述」；拆不出、或调用失败时整段退回塞描述。
+    /// 样式与回形针同构（32pt 圆钮）；智能总结开关与任务详情页共享同一偏好。
+    private var voiceButton: some View {
+        Button {
+            HapticManager.selection()
+            showVoiceInput = true
+        } label: {
+            Group {
+                if isSplittingVoice {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+            }
+            .foregroundColor(Color.holoPrimary)
+            .frame(width: 32, height: 32)
+            .background(Circle().fill(Color.holoBackground))
+        }
+        .buttonStyle(.plain)
+        .disabled(isSplittingVoice)
+        .accessibilityLabel(String(localized: "语音输入"))
+        .accessibilityHint(String(localized: "录音并将识别结果拆成标题和描述"))
     }
 
     /// 标题行回形针：附件入口；有附件时红点角标
@@ -254,6 +343,7 @@ struct TaskCreationSheet: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(pendingImages.indices, id: \.self) { index in
+                    #if canImport(UIKit)
                     Image(uiImage: pendingImages[index])
                         .resizable()
                         .scaledToFill()
@@ -272,6 +362,26 @@ struct TaskCreationSheet: View {
                             }
                             .buttonStyle(.plain)
                         }
+                    #else
+                    Image(nsImage: pendingImages[index])
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous))
+                        .overlay(alignment: .topTrailing) {
+                            Button {
+                                pendingImages.remove(at: index)
+                                draft.markEdited()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white)
+                                    .shadow(radius: 2)
+                                    .frame(width: 24, height: 24, alignment: .topTrailing)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    #endif
                 }
                 if pendingImages.count < 9 {
                     Button {
@@ -310,13 +420,15 @@ struct TaskCreationSheet: View {
 
             VStack(spacing: 0) {
                 ForEach(checkItemTitles.indices, id: \.self) { index in
-                    HStack(spacing: 8) {
+                    HStack(alignment: .top, spacing: 8) {
                         Circle()
                             .strokeBorder(Color.holoTextPlaceholder, lineWidth: 1.2)
                             .frame(width: 15, height: 15)
+                            .padding(.top, 3)
                         Text(checkItemTitles[index])
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
+                            .lineSpacing(2)
                         Spacer()
                         Button {
                             checkItemTitles.remove(at: index)
@@ -328,6 +440,7 @@ struct TaskCreationSheet: View {
                                 .frame(width: 32, height: 32)
                         }
                         .buttonStyle(.plain)
+                        .padding(.top, -5)
                     }
                     .padding(.vertical, 8)
                     if index < checkItemTitles.count - 1 {
@@ -335,12 +448,14 @@ struct TaskCreationSheet: View {
                     }
                 }
 
-                HStack(spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "plus")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.holoPrimary)
-                    TextField(String(localized: "添加一项"), text: $newCheckItemTitle)
+                        .padding(.top, 3)
+                    TextField(String(localized: "添加一项"), text: $newCheckItemTitle, axis: .vertical)
                         .font(.holoBody)
+                        .lineSpacing(2)
                         .focused($isNewCheckItemFocused)
                         .onSubmit(addCheckItem)
                     if !newCheckItemTitle.isEmpty {
@@ -350,6 +465,7 @@ struct TaskCreationSheet: View {
                                 .foregroundColor(.holoPrimary)
                         }
                         .buttonStyle(.plain)
+                        .padding(.top, 1)
                     }
                 }
                 .padding(.vertical, 8)
@@ -357,7 +473,9 @@ struct TaskCreationSheet: View {
         }
     }
 
-    // MARK: - 安排卡：时间＋清单（时间前移：先设日期，紧急分自动折算立刻有依据）
+    // MARK: - 安排卡：时间＋计划时段＋清单（多视图 §7.2：计划摘要入口）
+
+    @State private var isPlanExpanded = false
 
     private var scheduleCard: some View {
         VStack(spacing: 0) {
@@ -367,6 +485,11 @@ struct TaskCreationSheet: View {
                 valueProminent: draft.hasDueDate
             ) {
                 showTimeSheet = true
+            }
+            Rectangle().fill(Color.holoDivider).frame(height: 0.5).padding(.leading, HoloSpacing.md)
+            planRow
+            if isPlanExpanded {
+                planEditor
             }
             Rectangle().fill(Color.holoDivider).frame(height: 0.5).padding(.leading, HoloSpacing.md)
             scheduleRow(
@@ -379,6 +502,115 @@ struct TaskCreationSheet: View {
         }
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+    }
+
+    /// 计划时间行：打算什么时候做（与截止语义分离，§7.1/§7.2）。
+    /// 点行只展开编辑器，不预填时间（2026-10-21 拍板）——凌晨点开就被安排「03:15–04:15」
+    /// 是替用户做主；用户动了日期/时间控件才算「已安排」
+    private var planRow: some View {
+        Button {
+            HapticManager.selection()
+            withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
+                isPlanExpanded.toggle()
+            }
+        } label: {
+            HStack {
+                Text("计划时间")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                Spacer()
+                Text(planSummary)
+                    .font(.holoCaption)
+                    .foregroundColor(draft.hasPlannedRange ? .holoPrimary : .holoTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextPlaceholder)
+                    .rotationEffect(.degrees(isPlanExpanded ? 90 : 0))
+            }
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.vertical, 13)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 计划编辑：日期 + 开始 + 结束；非法时段字段下报错（§5.4 同规则）
+    private var planEditor: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            DatePicker(String(localized: "计划日期"), selection: planDateBinding, displayedComponents: [.date])
+                .environment(\.locale, Locale(identifier: "zh_CN"))
+            HStack(spacing: HoloSpacing.md) {
+                DatePicker(String(localized: "开始"), selection: $draft.plannedStart, displayedComponents: [.hourAndMinute])
+                    .environment(\.locale, Locale(identifier: "zh_CN"))
+                DatePicker(String(localized: "结束"), selection: $draft.plannedEnd, displayedComponents: [.hourAndMinute])
+                    .environment(\.locale, Locale(identifier: "zh_CN"))
+            }
+            if !draft.isPlannedRangeValid {
+                Label(String(localized: "结束时间需晚于开始时间，且安排在同一天。"), systemImage: "exclamationmark.triangle")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoToolError)
+            }
+            Button(role: .destructive) {
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
+                    draft.hasPlannedRange = false
+                    isPlanExpanded = false
+                    draft.markEdited()
+                }
+            } label: {
+                Text("移除计划时间")
+                    .font(.holoCaption)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(HoloSpacing.md)
+        .transition(.opacity.combined(with: .move(edge: .top)))
+        // 用户动了日期/时间控件才算「已安排」；只展开不选不落计划
+        .onChange(of: draft.plannedStart) { _, _ in
+            guard isPlanExpanded, !draft.hasPlannedRange else { return }
+            draft.hasPlannedRange = true
+            draft.markEdited()
+        }
+        .onChange(of: draft.plannedEnd) { _, _ in
+            guard isPlanExpanded, !draft.hasPlannedRange else { return }
+            draft.hasPlannedRange = true
+            draft.markEdited()
+        }
+    }
+
+    /// 计划日期改天时起止跟随（保持同日合法性由校验兜底）
+    private var planDateBinding: Binding<Date> {
+        Binding(
+            get: {
+                TaskAnalyticsPeriod.makeCalendar().startOfDay(for: draft.plannedStart)
+            },
+            set: { newDay in
+                let calendar = TaskAnalyticsPeriod.makeCalendar()
+                let hour = calendar.component(.hour, from: draft.plannedStart)
+                let minute = calendar.component(.minute, from: draft.plannedStart)
+                draft.plannedStart = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: newDay) ?? newDay
+                draft.plannedEnd = calendar.date(bySettingHour: calendar.component(.hour, from: draft.plannedEnd),
+                                                 minute: calendar.component(.minute, from: draft.plannedEnd),
+                                                 second: 0, of: newDay) ?? newDay
+                draft.markEdited()
+            }
+        )
+    }
+
+    private var planSummary: String {
+        guard draft.hasPlannedRange else { return String(localized: "未安排") }
+        return Self.formatPlanRange(draft.plannedStart, draft.plannedEnd)
+    }
+
+    static func formatPlanRange(_ start: Date, _ end: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.setLocalizedDateFormatFromTemplate("M月d日 HH:mm")
+        let day = DateFormatter()
+        day.locale = Locale(identifier: "zh_CN")
+        day.dateFormat = "HH:mm"
+        return formatter.string(from: start) + "–" + day.string(from: end)
     }
 
     private func scheduleRow(
@@ -483,11 +715,12 @@ struct TaskCreationSheet: View {
                 .padding(.vertical, 14)
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous)
-                        .fill(draft.canSave && !isSaving ? Color.holoPrimary : Color.holoPrimary.opacity(0.35))
+                        .fill(draft.canSave && !isSaving ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
                 )
         }
         .buttonStyle(.plain)
         .disabled(!draft.canSave || isSaving)
+        .accessibilityIdentifier("taskCreationSaveBar")
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.top, HoloSpacing.sm)
         .padding(.bottom, HoloSpacing.sm)
@@ -570,12 +803,12 @@ struct TaskCreationSheet: View {
     }
 
     private func save() {
-        guard let title = draft.submitTitle, !isSaving else { return }
+        guard let title = draft.submitTitle, draft.isPlannedRangeValid, !isSaving else { return }
         isSaving = true
         let quadrant = draft.previewQuadrant
         Task { @MainActor in
             do {
-                // 主任务 + 检查清单同一次保存（原子）。
+                // 主任务 + 检查清单 + 计划时段同一次保存（原子，§7.2：不先创建后 update）。
                 // 重试续跑：首次已建成则不再重建（避免失败重试产生重复任务，R11）
                 let task: TodoTask
                 if let createdTask {
@@ -590,7 +823,9 @@ struct TaskCreationSheet: View {
                         dueDate: draft.hasDueDate ? draft.dueDate : nil,
                         isAllDay: draft.hasDueDate && draft.dueIsAllDay,
                         reminders: selectedReminders.isEmpty ? nil : selectedReminders,
-                        checkItemTitles: checkItemTitles.isEmpty ? nil : checkItemTitles
+                        checkItemTitles: checkItemTitles.isEmpty ? nil : checkItemTitles,
+                        plannedStart: draft.hasPlannedRange ? draft.plannedStart : nil,
+                        plannedEnd: draft.hasPlannedRange ? draft.plannedEnd : nil
                     )
                     createdTask = task
                 }
@@ -634,6 +869,63 @@ struct TaskCreationSheet: View {
                 saveErrorMessage = String(localized: "没有保存成功，请重试")
             }
         }
+    }
+
+    // MARK: - 语音转写落地（在上面说任务：拆成标题＋描述，塞描述兜底）
+
+    private func formatVoiceTranscript(_ transcript: String) -> String {
+        ThoughtVoiceTranscriptInsertion.makeInsertionText(
+            transcript: transcript,
+            currentContent: draft.note,
+            selectedRange: NSRange(location: draft.note.count, length: 0)
+        )
+    }
+
+    private func insertPendingVoiceTranscript() {
+        guard let transcript = pendingVoiceTranscript else { return }
+        pendingVoiceTranscript = nil
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        splitVoiceTranscript(trimmed)
+    }
+
+    /// 语音拆解（2026-10-11 东林拍板）：在上面说任务，自动拆到标题和描述——
+    /// 拆出标题时填标题（已有标题不覆盖），其余内容按行归描述；
+    /// 拆不出、或调用失败时整段退回塞描述。不再自动生成检查清单项。
+    private func splitVoiceTranscript(_ text: String) {
+        isSplittingVoice = true
+        Task { @MainActor in
+            let splitter = TaskTextSplitter()
+            do {
+                let result = try await splitter.split(text)
+                if !result.subtasks.isEmpty {
+                    if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       !result.title.isEmpty {
+                        draft.title = result.title
+                    }
+                    appendTextToNote(result.subtasks.joined(separator: "\n"))
+                    HoloToastCenter.shared.show(String(localized: "已帮你填好标题和描述，可调整"), type: .success)
+                } else {
+                    appendTextToNote(text)
+                }
+            } catch {
+                appendTextToNote(text)
+            }
+            isSplittingVoice = false
+        }
+    }
+
+    private func appendTextToNote(_ text: String) {
+        if draft.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            draft.note = text
+        } else if draft.note.hasSuffix("\n\n") {
+            draft.note += text
+        } else if draft.note.hasSuffix("\n") {
+            draft.note += "\n" + text
+        } else {
+            draft.note += "\n\n" + text
+        }
+        draft.markEdited()
     }
 }
 
@@ -687,10 +979,13 @@ private struct TaskCreationListPickerSheet: View {
                 }
             }
             .navigationTitle(String(localized: "选择清单"))
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(String(localized: "取消")) { dismiss() }
+                    Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(.holoToolTextSecondary) }
+                    .accessibilityLabel(Text("关闭"))
                 }
             }
         }

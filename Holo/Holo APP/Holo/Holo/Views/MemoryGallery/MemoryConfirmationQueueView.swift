@@ -54,13 +54,15 @@ struct MemoryConfirmationQueueView: View {
             .navigationTitle(
                 !hasLoaded ? String(localized: "待确认") : records.isEmpty ? String(localized: "都确认完了") : String(localized: "待确认 \(records.count) 条")
             )
+            #if canImport(UIKit)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("返回") { dismiss() }
                         .foregroundColor(.holoPrimary)
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: HoloToolbarPlacement.navTrailing) {
                     if !records.isEmpty {
                         Button("稍后再说") { dismiss() }
                             .foregroundColor(.holoTextSecondary)

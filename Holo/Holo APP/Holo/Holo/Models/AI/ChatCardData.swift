@@ -69,6 +69,7 @@ nonisolated enum ChatCardData: Equatable {
                 refundCandidateTitle: nil,
                 refundCandidateAmount: nil,
                 refundCandidateDate: nil,
+                accountName: data["accountName"],
                 entityID: linkedEntityId(from: data),
                 itemID: itemID
             ))
@@ -94,6 +95,7 @@ nonisolated enum ChatCardData: Equatable {
                 refundCandidateTitle: data["refundCandidateTitle"],
                 refundCandidateAmount: data["refundCandidateAmount"],
                 refundCandidateDate: data["refundCandidateDate"],
+                accountName: data["accountName"],
                 entityID: linkedEntityId(from: data),
                 itemID: itemID
             ))
@@ -424,6 +426,8 @@ nonisolated struct TransactionCardData: Equatable {
     let refundCandidateTitle: String?
     let refundCandidateAmount: String?
     let refundCandidateDate: String?
+    /// 将记入的账户名（用户话中点名账户且命中时，预览阶段写入；确认落账以执行时匹配为准）
+    var accountName: String? = nil
     /// 关联交易实体 ID（确认后从 renderData 写入）：多卡消息里整卡点击按它定位详情，
     /// 避免消息级 linkedEntityId（只保留最后一个）导致点哪张卡都打开最后一张
     var entityID: String? = nil
@@ -1339,11 +1343,19 @@ extension ChatCardData: Sendable {}
 extension ChatCardData {
     /// 待确认类卡片：写操作还没经用户拍板。多卡汇总话术据此区分
     /// 「已处理」与「待确认」，不再对未确认的卡片说「已为你处理」。
+    /// 必须覆盖全部带确认流程的卡片（交易/任务/预算/纪念日/目标选择）：
+    /// 任何一类被排除，汇总计数就会与下方卡片真实状态对不上。
     var isPendingConfirmation: Bool {
         switch self {
         case .transaction(let data):
             return ["pending", "confirming"].contains(data.confirmationStatus ?? "")
         case .task(let data):
+            return data.requiresConfirmation
+        case .budget(let data):
+            return data.requiresConfirmation
+        case .anniversary(let data):
+            return data.requiresConfirmation
+        case .goalChoice(let data):
             return data.requiresConfirmation
         default:
             return false
