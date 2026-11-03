@@ -163,7 +163,8 @@ struct AddHabitSheet: View {
                     }
                 }
                 .padding(.horizontal, HoloSpacing.md)
-                .padding(.vertical, HoloSpacing.sm)
+                .padding(.top, HoloSpacing.sm)
+                .padding(.bottom, 28)
             }
         }
         .onAppear {
@@ -313,7 +314,7 @@ struct AddHabitSheet: View {
     private var descriptionField: some View {
         HStack(spacing: 10) {
             TextField(String(localized: "一句话，为什么开始（选填）"), text: $habitDescription)
-                .font(.holoBody)
+                .font(.holoCaption)
                 .foregroundColor(.holoToolText)
                 .tint(Color.holoToolAction)
                 .onChange(of: habitDescription) { _, newValue in
@@ -339,12 +340,12 @@ struct AddHabitSheet: View {
     // MARK: - 记录方式（三卡，P2 白话化：技术词翻译成用户动词）
 
     private var methodSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(String(localized: "你每天要记什么？"))
-                .font(.holoLabel)
+                .holoText(.metadata)
                 .foregroundColor(.holoToolTextSecondary)
 
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 methodCard(.checkIn, .sum,
                            title: String(localized: "做了没"),
                            subtitle: String(localized: "打了勾就算完成，如：冥想、跑步"),
@@ -375,12 +376,13 @@ struct AddHabitSheet: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: icon)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.holoToolTextSecondary)
-                    .frame(width: 24)
+                    .frame(width: 32)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.holoBody)
+                        .fontWeight(.semibold)
                         .foregroundColor(.holoToolText)
                     if isSelected {
                         Text(subtitle)
@@ -398,7 +400,8 @@ struct AddHabitSheet: View {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 16))
                         .foregroundColor(.holoPrimary)
-                        .padding(.top, 12)
+                        .padding(.top, 10)
+                        .padding(.trailing, 10)
                         .transition(.scale(scale: 0.5).combined(with: .opacity))
                 }
             }
@@ -554,6 +557,9 @@ struct AddHabitSheet: View {
                 parts.append(String(localized: "目标 \(tc) 次"))
             } else if selectedType == .numeric, !targetValue.isEmpty {
                 parts.append(String(localized: "目标 \(targetValue)\(unit.isEmpty ? "" : " \(unit)")"))
+            } else {
+                // 开关开着但当前类型没填值（如刚切换记录方式）：如实标注，不再无声消失
+                parts.append(String(localized: "目标未设"))
             }
         } else {
             parts.append(String(localized: "无目标"))
@@ -582,7 +588,7 @@ struct AddHabitSheet: View {
     private var dayEndSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("每日结算时间")
-                .font(.holoLabel)
+                .holoText(.metadata)
                 .foregroundColor(.holoToolTextSecondary)
 
             HStack(spacing: 10) {
@@ -624,7 +630,7 @@ struct AddHabitSheet: View {
     private var goalLinkSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("关联目标（可选）")
-                .font(.holoLabel)
+                .holoText(.metadata)
                 .foregroundColor(.holoToolTextSecondary)
 
             Button {
@@ -664,7 +670,7 @@ struct AddHabitSheet: View {
     private var reminderSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("打卡提醒")
-                .font(.holoLabel)
+                .holoText(.metadata)
                 .foregroundColor(.holoToolTextSecondary)
 
             HabitReminderModePicker(mode: $reminderMode, time: $reminderTime)
@@ -676,7 +682,7 @@ struct AddHabitSheet: View {
     private var frequencySection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("频率")
-                .font(.holoLabel)
+                .holoText(.metadata)
                 .foregroundColor(.holoToolTextSecondary)
 
             HStack(spacing: 8) {
@@ -711,6 +717,7 @@ struct AddHabitSheet: View {
                 // 目标开关：关闭 = 编辑模式提交 clear（两个兼容字段一并清除，方案 §9.2）
                 Toggle("", isOn: $targetEnabled)
                     .labelsHidden()
+                    .tint(Color.holoToolAction)
                     .frame(width: 46)
                     .accessibilityIdentifier("habit.edit.targetToggle")
             }
@@ -918,8 +925,9 @@ private struct HabitPreviewTile: View {
     private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             iconChip
+                .frame(width: 32)
             if !trimmedName.isEmpty {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
@@ -936,19 +944,18 @@ private struct HabitPreviewTile: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                // 尾部安全距离：长名不贴右上空心环
-                .padding(.trailing, 26)
             } else {
-                Spacer(minLength: 0)
+                Text(String(localized: "习惯名会出现在这里"))
+                    .holoText(.metadata)
+                    .foregroundColor(Color.holoToolTextSecondary.opacity(0.7))
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-        }
-        .frame(minHeight: 36, alignment: .center)
-        .overlay(alignment: .topTrailing) {
-            // 未完成态空心环（对照 HabitTileView）
+            // 未完成态空心环（行内置，与图标/文字垂直居中；对照 HabitTileView）
             Circle()
                 .strokeBorder(Color.holoToolTextSecondary.opacity(0.45), lineWidth: 1.6)
                 .frame(width: 21, height: 21)
         }
+        .frame(minHeight: 36, alignment: .center)
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .background(Color.holoCardBackground)
@@ -1004,19 +1011,21 @@ private struct HabitQuickColorDot: View {
                 action()
             }
         } label: {
+            // 选中态 = 放大 + 深灰外环（原同色描边在色板上不可见，2026-11-03 判读实锤）
             Circle()
                 .fill(Color(hex: color))
                 .frame(width: 24, height: 24)
-                .overlay(
-                    Circle()
-                        .stroke(Color.holoToolSurface, lineWidth: isSelected ? 2 : 0)
-                )
                 .overlay(
                     Circle()
                         .stroke(Color(hex: color).opacity(0.3), lineWidth: isSelected ? 1 : 0)
                         .padding(-1)
                 )
                 .scaleEffect(isSelected ? 1.17 : 1)
+                .overlay(
+                    Circle()
+                        .stroke(Color.holoToolText.opacity(isSelected ? 0.55 : 0), lineWidth: 2)
+                        .frame(width: 30, height: 30)
+                )
                 .animation(allowsMotion ? HoloAnimation.snappy : nil, value: isSelected)
         }
         .buttonStyle(.plain)

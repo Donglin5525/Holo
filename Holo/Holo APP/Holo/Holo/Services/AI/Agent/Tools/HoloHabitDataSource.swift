@@ -42,6 +42,7 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
             return HoloHabitToolRecord(
                 id: habit.id.uuidString,
                 name: habit.name,
+                description: habit.habitDescription,
                 polarity: habit.isBadHabit ? .negative : .positive,
                 dailyGoal: goal(for: habit),
                 dailyCounts: aggregate(

@@ -143,7 +143,7 @@ struct HabitSingleReviewView: View {
                 if let day = selectedDay {
                     dayDetailSection(snapshot, day: day)
                         .id(day)
-                } else {
+                } else if snapshot.elapsedDays > 0 {
                     Text(String(localized: "选择一个日期，查看那一天的真实记录。"))
                         .font(.system(size: 11))
                         .foregroundColor(.holoToolTextSecondary)
@@ -381,7 +381,7 @@ struct HabitSingleReviewView: View {
             case .count:
                 Text(verbatim: HabitPresentationProjector.formatValue(snapshot.countTotal ?? 0))
                     .font(.system(size: 30, weight: .bold, design: .rounded).monospacedDigit())
-                Text(info.unit.isEmpty ? String(localized: "合计") : String(localized: "\(info.unit) 合计"))
+                Text(info.unit.isEmpty ? String(localized: "合计") : String(localized: "合计 \(info.unit)"))
                     .holoText(.supporting)
                     .foregroundColor(.holoToolTextSecondary)
             case .measure:
@@ -408,7 +408,7 @@ struct HabitSingleReviewView: View {
         case .count:
             let days = max(snapshot.elapsedDays, 1)
             statValue(HabitPresentationProjector.formatValue((snapshot.countTotal ?? 0) / Double(days)),
-                      caption: String(localized: "日均\(info.unit)"))
+                      caption: String(localized: "日均 \(info.unit)"))
         case .measure:
             if let change = measureChange(snapshot) {
                 statValue(HabitPresentationProjector.formatValue(abs(change)) + (info.unit.isEmpty ? "" : " \(info.unit)"),
@@ -1345,11 +1345,13 @@ struct HabitTrendBarChart: View {
                     return HabitPresentationProjector.formatValue(value)
                         + (unit.isEmpty ? "" : " \(unit)")
                 }
-                if isRate { return "\(HoloChartFormat.number(value))%" }
+                if isRate { return "\(Int(value.rounded()))%" }
                 return "\(Int(value)) \(String(localized: "天"))"
             },
             defaultSelectsLastBucket: true,
-            slotTicks: trend.granularity == .day ? mondayTickIndices : nil,
+            slotTicks: trend.granularity == .day
+                ? mondayTickIndices
+                : (trend.granularity == .month ? Array(trend.bars.indices) : nil),
             onInspect: { bucket in
                 if let bar = trend.bars.first(where: { String($0.start.timeIntervalSince1970) == bucket.id }) {
                     onInspect(bar)

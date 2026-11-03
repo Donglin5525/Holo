@@ -34,6 +34,8 @@ enum HoloHabitPolarity: String, Codable, Sendable {
 struct HoloHabitToolRecord: Codable, Equatable, Sendable {
     var id: String
     var name: String
+    /// 用户写的一句话描述（为什么坚持；nil=没写）。可选字段，旧结果 JSON 无此键照常解码
+    var description: String?
     var polarity: HoloHabitPolarity
     /// 负向习惯=每日上限；正向习惯=每日目标次数。
     var dailyGoal: Double?

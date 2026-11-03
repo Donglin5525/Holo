@@ -178,7 +178,8 @@ final class UserContextBuilder {
 
     /// 格式化单个习惯今日状态，供 AI 上下文使用
     private func formatHabitTodayLine(habit: Habit, repo: HabitRepository) -> String {
-        let name = habit.name
+        // 描述（用户写的一句话，含 Emoji）随今日状态一起给 AI——动机是理解行为的关键上下文
+        let name = habit.habitDescription.map { "\(habit.name)（\($0)）" } ?? habit.name
 
         if habit.isCheckInType {
             let done = repo.isTodayCompleted(for: habit)

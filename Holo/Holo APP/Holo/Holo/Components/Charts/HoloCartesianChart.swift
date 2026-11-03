@@ -506,19 +506,22 @@ private struct HoloCartesianChart: View {
     private func tickLabels(proxy: ChartProxy, plot: CGRect) -> some View {
         let labelWidth = HoloChartGeometry.tickLabelWidth(plotWidth: plot.width)
         if let slotTicks {
+            // 槽位标签一律对准柱中心；槽太窄导致首尾标签出血时才退回贴边
+            let slotWidth = buckets.isEmpty ? plot.width : plot.width / CGFloat(buckets.count)
+            let edgeSafe = slotWidth >= labelWidth
             let labels = slotTicks.compactMap { index -> TickLabel? in
                 guard buckets.indices.contains(index) else { return nil }
-                if slotTicks.count > 1 && index == slotTicks.first {
+                let center = buckets.count > 1
+                    ? plot.minX + plot.width * (CGFloat(index) + 0.5) / CGFloat(buckets.count)
+                    : plot.midX
+                if !edgeSafe, slotTicks.count > 1, index == slotTicks.first {
                     return TickLabel(id: index, text: buckets[index].label, alignment: .leading,
                                      anchorX: plot.minX + labelWidth / 2)
                 }
-                if slotTicks.count > 1 && index == slotTicks.last {
+                if !edgeSafe, slotTicks.count > 1, index == slotTicks.last {
                     return TickLabel(id: index, text: buckets[index].label, alignment: .trailing,
                                      anchorX: plot.maxX - labelWidth / 2)
                 }
-                let center = buckets.indices.count > 1
-                    ? plot.minX + plot.width * (CGFloat(index) + 0.5) / CGFloat(buckets.count)
-                    : plot.midX
                 return TickLabel(id: index, text: buckets[index].label, alignment: .center, anchorX: center)
             }
             return AnyView(ForEach(labels) { label in
