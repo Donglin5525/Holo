@@ -576,18 +576,23 @@ struct AddHabitSheet: View {
                     .font(.holoCaption)
                     .foregroundColor(.holoToolTextSecondary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(-1)
 
                 Spacer(minLength: 8)
 
                 Picker("", selection: $dayEndHour) {
                     ForEach(Self.dayEndHourOptions, id: \.self) { hour in
-                        Text(hour == 0 ? String(localized: "0:00（默认）") : Self.dayEndText(hour))
-                            .tag(hour)
+                        // 0:00 不带「（默认）」后缀：左侧说明行已表达自然日语义，
+                        // 后缀曾让菜单文案折行撑爆单行容器（2026-11-03 东林真机红框实锤）
+                        Text(Self.dayEndText(hour)).tag(hour)
                     }
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
                 .tint(.holoToolText)
+                .frame(minWidth: 52, alignment: .trailing)
+                .lineLimit(1)
                 .accessibilityIdentifier("habit.edit.dayEnd")
             }
             .padding(.horizontal, 12)
