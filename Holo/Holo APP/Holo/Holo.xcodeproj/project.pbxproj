@@ -2883,7 +2883,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Holo 需要访问日历来展示您的日程、帮 AI 规划时间安排，并同步带时间段的任务";
-				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以拍摄头像或任务附件照片";
+				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以拍摄头像或任务附件照片，并扫描文字收入想法";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Holo 使用面容 ID 快速解锁，验证身份后即可查看你的数据";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";
@@ -2938,7 +2938,7 @@
 				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Holo 需要访问日历来展示您的日程、帮 AI 规划时间安排，并同步带时间段的任务";
-				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以拍摄头像或任务附件照片";
+				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以拍摄头像或任务附件照片，并扫描文字收入想法";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Holo 使用面容 ID 快速解锁，验证身份后即可查看你的数据";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";

@@ -28,6 +28,8 @@ struct EditorFormatToolbar: View {
     var onCamera: () -> Void
     /// 「从相册选择」：前置相册读取权限后弹系统选择器
     var onPickFromLibrary: () -> Void
+    /// 「扫描文字」：实时取景 OCR，识别文字进正文、原图留作附件
+    var onScanText: () -> Void
     /// 「语音输入」：弹语音面板
     var onVoiceInput: () -> Void
     /// 「完成」：收起编辑器（保存由自动保存链路兜底，这里只负责合上）
@@ -186,6 +188,11 @@ struct EditorFormatToolbar: View {
                 onPickFromLibrary()
             } label: {
                 Label(String(localized: "从相册选择"), systemImage: "photo")
+            }
+            Button {
+                onScanText()
+            } label: {
+                Label(String(localized: "扫描文字"), systemImage: "doc.text.viewfinder")
             }
         } label: {
             Image(systemName: "photo")

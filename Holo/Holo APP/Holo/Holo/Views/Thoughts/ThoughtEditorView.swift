@@ -190,6 +190,9 @@ struct ThoughtEditorView: View {
     @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
     @State private var showAttachmentCamera: Bool = false
     @State private var pendingCameraImageData: Data?
+    /// 扫描文字（系统实况文本）：只收识别文字进正文（东林 11-04 拍板可弃原图）
+    @State private var showTextScanner: Bool = false
+    @State private var pendingScannerText: String?
     @State private var showAttachmentGallery: Bool = false
     @State private var galleryStartIndex: Int = 0
     @State private var editingAttachments: [ThoughtAttachmentGridItem] = []
@@ -536,6 +539,21 @@ struct ThoughtEditorView: View {
                 },
                 onDismiss: {
                     showAttachmentCamera = false
+                }
+            )
+        }
+        #endif
+        #if canImport(UIKit)
+        .fullScreenCover(isPresented: $showTextScanner, onDismiss: {
+            handleScannerResult()
+        }) {
+            ThoughtTextScannerView(
+                onDone: { text in
+                    pendingScannerText = text
+                    showTextScanner = false
+                },
+                onDismiss: {
+                    showTextScanner = false
                 }
             )
         }
@@ -1170,6 +1188,10 @@ struct ThoughtEditorView: View {
                         await PhotoLibraryImageLoader.requestLibraryAccessIfNeeded()
                         showAttachmentPhotoPicker = true
                     }
+                },
+                onScanText: {
+                    if showsColorPalette { showsColorPalette = false }
+                    requestTextScannerAccess()
                 },
                 onVoiceInput: {
                     if showsColorPalette { showsColorPalette = false }
@@ -2025,6 +2047,14 @@ struct ThoughtEditorView: View {
         }
     }
 
+    /// 处理扫描文字结果：识别文字进正文（走 insertText 动作管线，无原图）
+    private func handleScannerResult() {
+        guard let text = pendingScannerText else { return }
+        pendingScannerText = nil
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        pendingEditorAction = .insertText(text)
+    }
+
     /// staged 文件先行 + 立即转正一张图；转正失败时原图进暂存条保留重试（G1 §E03），
     /// 不再让失败图凭空消失。
     private func commitImageDirectly(_ data: Data, to thought: Thought, sourceType: String) async -> Bool {
@@ -2061,6 +2091,25 @@ struct ThoughtEditorView: View {
                 DispatchQueue.main.async {
                     if granted {
                         showAttachmentCamera = true
+                    }
+                }
+            }
+        default:
+            showCameraPermissionAlert = true
+        }
+    }
+
+    /// 请求相机权限后打开扫描文字（与拍照同权限、不同落点）
+    private func requestTextScannerAccess() {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        switch status {
+        case .authorized:
+            showTextScanner = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showTextScanner = true
                     }
                 }
             }

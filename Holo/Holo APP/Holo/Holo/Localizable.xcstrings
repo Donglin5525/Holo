@@ -55141,6 +55141,86 @@
         }
       }
     },
+    "扫描文字" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan Text"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "掃描文字"
+          }
+        }
+      }
+    },
+    "保留" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留"
+          }
+        }
+      }
+    },
+    "已识别 %lld 字" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld characters recognized"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已識別 %lld 字"
+          }
+        }
+      }
+    },
+    "未检测到相机，扫描功能需要摄像头" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No camera detected. Scanning requires a camera"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未檢測到相機，掃描功能需要攝像頭"
+          }
+        }
+      }
+    },
+    "对准文字，识别内容会实时出现在这里" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Point at text — recognized content appears here live"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對準文字，識別內容會即時出現在這裡"
+          }
+        }
+      }
+    },
     "拍照" : {
       "localizations" : {
         "en" : {
