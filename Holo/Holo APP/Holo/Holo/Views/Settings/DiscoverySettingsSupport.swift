@@ -13,15 +13,24 @@ import SwiftUI
 enum DiscoverySettingsCopy {
 
     /// 设置子页主状态文案（01 §1 状态表第 3 列）
-    static func statusText(for state: DiscoverySettingsDetailState) -> String {
+    /// 1.1.5：拆出「整理过了」「没整理成功」，让用户分清「太严」和「坏了」。
+    static func statusText(
+        for state: DiscoverySettingsDetailState,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> String {
         switch state {
         case .disabled: return "已关闭"
-        case .preparing: return "正在准备"
+        case .preparing: return "正在整理"
         case .waitingForMaterial: return "还在等足够的记录"
+        case .checkedNoFinding(let checkedAt):
+            return "\(dayLabel(for: checkedAt, now: now, calendar: calendar))整理过了"
         case .hasFinding(viewed: false): return "有一个发现"
         case .hasFinding(viewed: true): return "已看，可重读"
         case .stale: return "等待新的线索"
-        case .pausedTemporarily: return "暂未更新"
+        case .failed(.dailyLimit, _): return "今天的整理次数已用完"
+        case .failed(_, .soon): return "这次没整理成功"
+        case .failed(_, .tomorrow): return "今天没整理成功"
         case .revoked: return "授权已撤回，已关闭"
         case .serverUnsupported: return "暂不可用"
         }
@@ -33,17 +42,25 @@ enum DiscoverySettingsCopy {
         case .disabled:
             return "开启前，不会分析你的任何记录。"
         case .preparing:
-            return "需要一些准备时间，不必在这里等待。"
+            return "正在从你允许的记录里整理，不必在这里等待。"
         case .waitingForMaterial:
-            return "记录还不够，或者解释还不够可靠；不保证每天都有。"
+            return "可用的记录还不够，多记一些后会自动整理。"
+        case .checkedNoFinding:
+            return "这次没有找到足够可靠的发现。不保证每天都有，有新记录后会再整理。"
         case .hasFinding(viewed: false):
             return "已核对记录依据，等你想看时在对话页打开。"
         case .hasFinding(viewed: true):
             return "这条发现仍有效，可随时重读。"
         case .stale:
             return "上一条已过期或来源失效，等待新的线索。"
-        case .pausedTemporarily:
-            return "暂未更新，不需要你做任何操作。"
+        case .failed(.network, _):
+            return "网络暂时不可用，联网后会自动再试，不需要你操作。"
+        case .failed(.service, .soon):
+            return "服务暂时繁忙，之后会自动再试，不需要你操作。"
+        case .failed(.service, .tomorrow):
+            return "服务暂时出了问题，明天会自动再试，不需要你操作。"
+        case .failed(.dailyLimit, _):
+            return "明天会自动再整理，不需要你操作。"
         case .revoked:
             return "数据处理授权已撤回。恢复授权后，需要你再手动开启一次。"
         case .serverUnsupported:
@@ -52,15 +69,35 @@ enum DiscoverySettingsCopy {
     }
 
     /// 统一设置页主条目行的副标题（比子页更简短的口径）
-    static func summaryText(for state: DiscoverySettingsDetailState) -> String {
+    static func summaryText(
+        for state: DiscoverySettingsDetailState,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> String {
         switch state {
         case .disabled, .revoked: return "已关闭"
-        case .preparing: return "正在准备"
-        case .waitingForMaterial, .stale: return "等待新的线索"
+        case .preparing: return "正在整理"
+        case .waitingForMaterial: return "还在等足够的记录"
+        case .stale: return "等待新的线索"
+        case .checkedNoFinding(let checkedAt):
+            return "\(dayLabel(for: checkedAt, now: now, calendar: calendar))整理过了"
+        case .failed(.dailyLimit, _): return "明天再整理"
+        case .failed(_, .soon): return "没整理成功，会再试"
+        case .failed(_, .tomorrow): return "没整理成功，明天再试"
         case .hasFinding: return "有一个发现"
-        case .pausedTemporarily: return "暂未更新"
         case .serverUnsupported: return "暂不可用"
         }
+    }
+
+    /// 「整理过了」的日期口径：今天 / 昨天 / M月d日（不显示具体时刻，避免暗示后台一直在跑）
+    static func dayLabel(for date: Date, now: Date, calendar: Calendar) -> String {
+        if calendar.isDate(date, inSameDayAs: now) { return "今天" }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+           calendar.isDate(date, inSameDayAs: yesterday) {
+            return "昨天"
+        }
+        let parts = calendar.dateComponents([.month, .day], from: date)
+        return "\(parts.month ?? 0)月\(parts.day ?? 0)日"
     }
 
     /// 该状态下功能开关是否处于“开”（serverUnsupported 时开关不可完成开启，按关显示）

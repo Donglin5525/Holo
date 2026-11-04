@@ -1,0 +1,37 @@
+{
+  "body" : [
+    "在十月八日和十六日，你分别选择了散步和翻书作为起步动作。"
+  ],
+  "candidateID" : "C01",
+  "citations" : [
+    {
+      "evidenceID" : "E01",
+      "quote" : "没有要求自己一定跑起来",
+      "sourceRef" : ""
+    },
+    {
+      "evidenceID" : "E02",
+      "quote" : "没有要求读完一章",
+      "sourceRef" : ""
+    },
+    {
+      "evidenceID" : "E01",
+      "quote" : "今天先出去走了十分钟",
+      "sourceRef" : ""
+    },
+    {
+      "evidenceID" : "E02",
+      "quote" : "重新读书，今晚只翻了两页",
+      "sourceRef" : ""
+    }
+  ],
+  "coverageNote" : "范围：这两段记录的范围，不代表经常如此。",
+  "fingerprintMaterial" : "subject:lowered-start",
+  "sensitivity" : "non_sensitive",
+  "timeRange" : {
+    "end" : "2026-10-17T23:59:59+08:00",
+    "start" : "2026-10-08T00:00:00+08:00"
+  },
+  "title" : "这两次重新开始，你都把第一步变轻了。",
+  "type" : "two_episodes"
+}

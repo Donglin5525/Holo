@@ -707,6 +707,21 @@ nonisolated final class DiscoveryStore {
         }
     }
 
+    /// 最近一次到达终态的运行（ready / noFinding / backoff，按 updatedAt 倒序取一条）。
+    /// 1.1.5：供设置页结局状态的一次性回填（升级前跑完的批次没有侧储结局记录）。
+    func latestTerminalRun() throws -> DiscoveryRunStateRecord? {
+        try performRead { context in
+            let request = NSFetchRequest<DiscoveryRunStateMO>(entityName: "DiscoveryRunStateMO")
+            request.predicate = NSPredicate(
+                format: "phaseRaw IN %@",
+                [DiscoveryRunPhase.ready, .noFinding, .backoff].map(\.rawValue)
+            )
+            request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
+            request.fetchLimit = 1
+            return try context.fetch(request).first.map { try Self.record(from: $0) }
+        }
+    }
+
     // MARK: - 来源清单
 
     /// 记录一次运行的来源清单（同 runID 整体替换）

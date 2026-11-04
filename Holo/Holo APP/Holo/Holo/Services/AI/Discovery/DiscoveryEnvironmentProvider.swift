@@ -12,7 +12,7 @@
 //  · 低数据口径：仅 path.isConstrained（用户显式开启的 Low Data Mode）让位；
 //    蜂窝/热点（isExpensive）2026-10-30 起不再算成本敏感——发现批次一天一次、
 //    单次几分钱，蜂窝可负担；原口径致无 Wi-Fi 环境功能永不触发（真机实证）。
-//  · 热状态：fair 及以上均让位（nominal 之外全部算 thermally constrained）。
+//  · 热状态：serious / critical 才让位；fair 不阻止云端分析和轻量取件。
 //
 
 import Foundation
@@ -81,11 +81,16 @@ nonisolated final class DiscoveryEnvironmentProvider {
             isTextInputActive: activity.isTextInputActive,
             isRecording: activity.isRecording,
             isManualAIRunning: activity.isManualAIRunning,
-            isThermallyConstrained: processInfo.thermalState != .nominal,
+            isThermallyConstrained: Self.shouldYield(for: processInfo.thermalState),
             isLowPowerMode: processInfo.isLowPowerModeEnabled,
             isLowDataMode: costSensitive,
             isNetworkAvailable: available
         )
+    }
+
+    /// 模型计算在服务器执行；轻度温升不应让每天一次的发现长期无法触发。
+    static func shouldYield(for thermalState: ProcessInfo.ThermalState) -> Bool {
+        thermalState == .serious || thermalState == .critical
     }
 
     /// 前台激活轻量检查（03 §4.3：只决定是否安排 utility 任务，不阻塞主线程）。

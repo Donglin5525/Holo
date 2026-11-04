@@ -124,11 +124,16 @@ final class DiscoveryContinuationBuilder {
                 .filter { $0.hasPrefix("\(adapter.sourceKind.rawValue):") }
                 .map { String($0.dropFirst(adapter.sourceKind.rawValue.count + 1)) }
             guard !localIDs.isEmpty else { continue }
-            let snapshots = try adapter.fetchSnapshots(localIDs: localIDs, limit: localIDs.count)
-            let byCanonical = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.sourceRefCanonical, $0) })
+            let snapshots = try adapter.fetchSnapshots(
+                localIDs: localIDs,
+                limit: DiscoverySnapshotRevisionIndex.refetchLimit(idCount: localIDs.count)
+            )
+            // 同 id 副本会取回多条同 canonical 快照（见 DiscoverySnapshotRevisionIndex）；
+            // limit 按副本放宽，避免副本把真正要核的条目挤出结果被误判为来源消失
+            let revisionsByCanonical = DiscoverySnapshotRevisionIndex.revisionsByCanonical(snapshots)
             for entry in kindEntries {
-                guard let current = byCanonical[entry.sourceRef] else { return false }   // 来源消失/不再可见
-                if current.sourceRevision != entry.sourceRevision { return false }       // 参与字段已变化
+                guard let currentRevisions = revisionsByCanonical[entry.sourceRef] else { return false }   // 来源消失/不再可见
+                if !currentRevisions.contains(entry.sourceRevision) { return false }                       // 参与字段已变化
             }
         }
         return true

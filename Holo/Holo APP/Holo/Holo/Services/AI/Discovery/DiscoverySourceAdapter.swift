@@ -85,6 +85,31 @@ struct DiscoverySourceSnapshot: Equatable, Sendable {
     }
 }
 
+// MARK: - 回源版本聚合（同 id 副本容忍）
+
+/// 回源重取结果按 canonical 聚合「全部现存版本」。
+///
+/// 同一 canonical 可能对应多条快照：CloudKit 镜像库不支持唯一约束，同步/导入会产生
+/// 同 `id` 的副本（2026-11-02 真机：Thought 225 行 / 117 个 id）。按 `id IN %@` 回源
+/// 会取回多条，不能用 `Dictionary(uniqueKeysWithValues:)`（重复键直接 trap）。
+/// 判定口径：AI 用过的那一版（atom/索引里的 sourceRevision）只要仍在任一副本中，
+/// 来源即仍有效；一个都不在 → 版本已变化；该 canonical 无任何快照 → 来源消失。
+enum DiscoverySnapshotRevisionIndex {
+    /// 按 id 精确回源时每个 id 预留的副本余量：limit 若只按 id 个数给，副本会把
+    /// 真正要核的条目挤出结果、被误判为来源消失。精确 id 取数本身很轻，余量只防失控。
+    static let duplicateHeadroomPerID = 8
+
+    static func refetchLimit(idCount: Int) -> Int {
+        max(idCount, 1) * duplicateHeadroomPerID
+    }
+
+    static func revisionsByCanonical(_ snapshots: [DiscoverySourceSnapshot]) -> [String: Set<String>] {
+        snapshots.reduce(into: [:]) { index, snapshot in
+            index[snapshot.sourceRefCanonical, default: []].insert(snapshot.sourceRevision)
+        }
+    }
+}
+
 // MARK: - 域可用性（反例覆盖三态判定用）
 
 /// 该域可读数据的起点。反例检索区分「搜索完成无命中」与「历史不足」（02 §6 末段）用。

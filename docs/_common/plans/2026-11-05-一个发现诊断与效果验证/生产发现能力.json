@@ -1,0 +1,20 @@
+{
+  "protocolVersion": 1,
+  "enabled": true,
+  "policyVersion": "v1",
+  "allowedDomains": [
+    "thought",
+    "task",
+    "habit"
+  ],
+  "budget": {
+    "runsPerDay": 1,
+    "attemptsPerDay": 3,
+    "candidateMaxTokens": 8192,
+    "verifyMaxTokens": 4096,
+    "inputBudgetTokens": 16384
+  },
+  "features": {
+    "asyncCandidates": true
+  }
+}

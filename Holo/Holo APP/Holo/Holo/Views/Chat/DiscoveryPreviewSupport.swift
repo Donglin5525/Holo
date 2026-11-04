@@ -99,7 +99,7 @@ final class MockDiscoveryServiceForPreview: ObservableObject, DiscoveryService {
             currentFinding = nil
         case .pausedTemporarily:
             presentationState = .temporarilyUnavailable
-            settingsDetailState = .pausedTemporarily
+            settingsDetailState = .failed(reason: .service, retry: .soon)
             currentFinding = nil
         case .revoked:
             presentationState = .disabled

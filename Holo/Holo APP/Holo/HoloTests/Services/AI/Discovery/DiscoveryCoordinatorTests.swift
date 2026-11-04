@@ -40,6 +40,9 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
     var candidatesSpec: CandidatesSpec = .happy
     /// 阶段失败注入（预算 429 等）：置位后 candidates 直接抛出，不再按 spec 构造
     var candidatesError: Error?
+    /// 真实模型试评响应：按本批匿名 ID 对齐后走生产严格解码，不用人工构造的候选。
+    var recordedSample: [String: Any]?
+    private var asyncRequestData: [String: DiscoveryJSONValue] = [:]
     var verifyEnvelopeOverride: DiscoveryVerificationEnvelope?
     var holdVerify = false
     var releaseVerify = false
@@ -58,6 +61,7 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
     var totalNetworkCalls: Int {
         capabilitiesCallCount + controlCallCount + enableCallCount + disableCallCount
             + createRunCallCount + candidatesCallCount + verifyCallCount + cancelCallCount
+            + asyncStartCallCount + asyncResultCallCount
     }
 
     func capabilities() async throws -> DiscoveryClient.CapabilitiesResponse {
@@ -200,6 +204,99 @@ private final class MockDiscoveryClient: DiscoveryClientServing {
         cancelCallCount += 1
         cancelledRunIDs.append(runID)
         return DiscoveryClient.CancelResponse(runID: runID, status: "cancelled", alreadyClosed: false)
+    }
+
+    // MARK: 1.1.5 候选异步作业
+
+    var asyncEnabled = false
+    /// 取件时先回几次 running 再给终态
+    var asyncRunningPolls = 0
+    /// 置位后作业以 failed 收尾
+    var asyncFailure: (code: String, retryAvailable: Bool)?
+    var asyncResultErrors: [Error] = []
+    var asyncLeaseExpiresAt: Int64 = 1_790_086_400_000
+    private(set) var asyncStartCallCount = 0
+    private(set) var asyncResultCallCount = 0
+    private var asyncPollsSoFar: [String: Int] = [:]
+
+    func startCandidatesAsync(
+        runID: String,
+        runToken: String,
+        requestID: String?,
+        data: DiscoveryJSONValue
+    ) async throws -> DiscoveryClient.CandidateJobPoll {
+        asyncStartCallCount += 1
+        guard asyncEnabled else { throw DiscoveryClient.DiscoveryClientError.asyncCandidatesUnsupported }
+        asyncRequestData[runID] = data
+        if asyncPollsSoFar[runID] == nil { asyncPollsSoFar[runID] = 0 }
+        return try jobPoll(runID: runID, state: .running)
+    }
+
+    func candidatesResult(runID: String, runToken: String) async throws -> DiscoveryClient.CandidateJobPoll {
+        asyncResultCallCount += 1
+        if !asyncResultErrors.isEmpty { throw asyncResultErrors.removeFirst() }
+        guard asyncEnabled else { throw DiscoveryClient.DiscoveryClientError.asyncCandidatesUnsupported }
+        guard let soFar = asyncPollsSoFar[runID] else {
+            throw APIError.backendError(statusCode: 404, code: "DISCOVERY_JOB_NOT_FOUND", message: "not found", requestId: nil)
+        }
+        if soFar < asyncRunningPolls {
+            asyncPollsSoFar[runID] = soFar + 1
+            return try jobPoll(runID: runID, state: .running)
+        }
+        return try jobPoll(runID: runID, state: asyncFailure == nil ? .completed : .failed)
+    }
+
+    private func jobPoll(runID: String, state: DiscoveryClient.CandidateJobStatus.JobState) throws -> DiscoveryClient.CandidateJobPoll {
+        var completed: (response: DiscoveryClient.StageResponse, envelope: DiscoveryCandidateEnvelope)?
+        if state == .completed {
+            if let sample = recordedSample, let requestData = asyncRequestData[runID] {
+                let request = try XCTUnwrap(try JSONSerialization.jsonObject(with: DiscoveryCanonicalJSON.data(from: requestData)) as? [String: Any])
+                let currentEvidence = try XCTUnwrap(request["evidence"] as? [[String: Any]])
+                let originalEvidence = try XCTUnwrap(sample["evidence"] as? [[String: Any]])
+                var mapping: [String: String] = [:]
+                for original in originalEvidence {
+                    let source = try XCTUnwrap(original["sourceBlock"] as? String)
+                    let current = try XCTUnwrap(currentEvidence.first { ($0["sourceBlock"] as? String) == source })
+                    mapping[try XCTUnwrap(original["evidenceID"] as? String)] = try XCTUnwrap(current["evidenceID"] as? String)
+                }
+                func remap(_ value: Any) -> Any {
+                    if let object = value as? [String: Any] {
+                        return object.mapValues { remap($0) }
+                    }
+                    if let array = value as? [Any] { return array.map(remap) }
+                    if let string = value as? String { return mapping[string] ?? string }
+                    return value
+                }
+                var candidateObject = try XCTUnwrap(remap(sample["candidates"]!) as? [String: Any])
+                candidateObject["runID"] = runID
+                var verificationObject = try XCTUnwrap(remap(sample["verification"]!) as? [String: Any])
+                verificationObject["runID"] = runID
+                let candidate = try DiscoveryAIPacket.decodeValidatedCandidateEnvelope(from: JSONSerialization.data(withJSONObject: candidateObject))
+                verifyEnvelopeOverride = try DiscoveryAIPacket.decodeValidatedVerificationEnvelope(from: JSONSerialization.data(withJSONObject: verificationObject))
+                let response = try Self.stageResponse(runID: runID, stage: "candidates", envelopeObject: candidateObject)
+                completed = (response, candidate)
+            } else {
+            let envelope = DiscoveryFixtures.candidateEnvelope(runID: runID, quoteOverride: nil)
+            let response = try Self.stageResponse(runID: runID, stage: "candidates", envelopeObject: [
+                "schemaVersion": 1, "kind": "candidates", "runID": runID,
+                "candidates": [DiscoveryFixtures.candidateObject(quoteOverride: nil)],
+                "noFindingReason": "none",
+            ])
+            completed = (response, envelope)
+            }
+        }
+        let status = DiscoveryClient.CandidateJobStatus(
+            runID: runID,
+            stage: "candidates",
+            jobStatus: state,
+            pollAfterSeconds: state == .running ? 3 : nil,
+            leaseExpiresAt: asyncLeaseExpiresAt,
+            result: completed?.response,
+            error: state == .failed ? .init(code: asyncFailure?.code, reason: nil) : nil,
+            retryAvailable: state == .failed ? (asyncFailure?.retryAvailable ?? false) : false,
+            replayed: false
+        )
+        return DiscoveryClient.CandidateJobPoll(status: status, completed: completed)
     }
 
     /// StageResponse 只有 init(from:)，经 JSON 解码构造
@@ -355,7 +452,7 @@ final class DiscoveryCoordinatorTests: XCTestCase {
     /// 协调器/mock/适配器/store 全部钉进程级池不释放。
     nonisolated(unsafe) private static var pinned: [AnyObject] = []
 
-    private let fixedNow = Date(timeIntervalSince1970: 1_790_000_000)
+    private var fixedNow = Date(timeIntervalSince1970: 1_790_000_000)
 
     private var shanghaiCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -413,7 +510,8 @@ final class DiscoveryCoordinatorTests: XCTestCase {
     }
 
     private func makeCoordinator(knowledgeRepository: CoreDataHoloMemoryRepository? = nil,
-                                 consentProvider: @escaping () -> Bool = { true }) -> DiscoveryCoordinator {
+                                 consentProvider: @escaping () -> Bool = { true },
+                                 pendingJobStore: DiscoveryPendingCandidateJobStore? = nil) -> DiscoveryCoordinator {
         let coordinator = DiscoveryCoordinator(
             settings: settings,
             store: store,
@@ -431,7 +529,9 @@ final class DiscoveryCoordinatorTests: XCTestCase {
             idProvider: { "req-\(UUID().uuidString)" },
             resourceSnapshotProvider: { self.resourceBox.value },
             sideStore: DiscoveryCoordinatorSideStore(defaults: defaults),
-            knowledgeRepositoryProvider: knowledgeRepository.map { repository in { repository } }
+            knowledgeRepositoryProvider: knowledgeRepository.map { repository in { repository } },
+            pendingJobStore: pendingJobStore,
+            pollSleeper: { _ in }
         )
         Self.pinned.append(coordinator)
         return coordinator
@@ -1014,5 +1114,370 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         XCTAssertFalse(settings.snapshot().isEnabled)
         XCTAssertEqual(mock.disableCallCount, 1)
         XCTAssertEqual(mock.createRunCallCount, 0)
+    }
+
+    // MARK: - 1.1.5 候选异步作业（服务端缓存候选 → 手机取件 → 本机找反例 → 核验）
+
+    private func tempPendingURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("discovery-pending-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("pending-candidate-job.json")
+    }
+
+    private func makePendingStore(_ url: URL) -> DiscoveryPendingCandidateJobStore {
+        let pending = DiscoveryPendingCandidateJobStore(fileURL: url)
+        Self.pinned.append(pending)
+        return pending
+    }
+
+    func test_异步_交材料即返回_前台取件后本机门禁反例核验并发布() async throws {
+        mock.asyncEnabled = true
+        mock.asyncRunningPolls = 2
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+
+        XCTAssertEqual(mock.createRunCallCount, 1)
+        XCTAssertEqual(mock.asyncStartCallCount, 1)
+        XCTAssertEqual(mock.asyncResultCallCount, 3, "running×2 → completed")
+        XCTAssertEqual(mock.candidatesCallCount, 0, "异步可用时不走同步候选端点（服务端两路不混用）")
+        XCTAssertEqual(mock.verifyCallCount, 1, "取到候选后照常本机门禁+反例召回+核验")
+        guard case .available = coordinator.presentationState else {
+            return XCTFail("发布后应为 available，实际 \(coordinator.presentationState)")
+        }
+        XCTAssertEqual(try store.runState(runID: mock.createdRunIDs[0])?.phase, .ready)
+    }
+
+    func test_异步_App被回收后重启_凭本机缓存接着取件_不重开run不另占名额() async throws {
+        let url = tempPendingURL()
+        mock.asyncEnabled = true
+        mock.asyncRunningPolls = 10_000   // 本次前台一直没等到
+        let first = makeCoordinator(pendingJobStore: makePendingStore(url))
+        await runOneBatch(first)
+        first.retryTask?.cancel()
+
+        let runID = try XCTUnwrap(mock.createdRunIDs.first)
+        XCTAssertEqual(mock.asyncStartCallCount, 1)
+        XCTAssertEqual(mock.verifyCallCount, 0)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), "未取到候选：取件缓存落盘")
+        XCTAssertEqual(try store.runState(runID: runID)?.phase, .preparing)
+        XCTAssertEqual(first.presentationState, .preparing, "如实显示「正在准备」")
+
+        // 进程被回收后重启：新协调器 + 新槽位实例读同一文件；服务端此时已算完
+        mock.asyncRunningPolls = 0
+        let second = makeCoordinator(pendingJobStore: makePendingStore(url))
+        XCTAssertEqual(try store.runState(runID: runID)?.phase, .preparing, "待取件的 run 不被 T41 冷启动误关")
+        second.runBatch(reason: .refresh)
+        await second.batchTask?.value
+
+        XCTAssertEqual(mock.createRunCallCount, 1, "续取不重开 run（不另占名额）")
+        XCTAssertEqual(mock.asyncStartCallCount, 1, "续取不重交材料")
+        XCTAssertEqual(mock.verifyCallCount, 1)
+        guard case .available = second.presentationState else {
+            return XCTFail("续取后应发布，实际 \(second.presentationState)")
+        }
+        XCTAssertEqual(try store.runState(runID: runID)?.phase, .ready)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path), "run 终态后取件缓存即删")
+    }
+
+    func test_异步_服务端判可重试失败_不关当日闸_下一批照常开() async throws {
+        mock.asyncEnabled = true
+        mock.asyncFailure = ("DISCOVERY_MODEL_OUTPUT_INVALID", true)
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        XCTAssertNotNil(coordinator.retryTask, "可重试失败排定稍后重试")
+        coordinator.retryTask?.cancel()
+        XCTAssertEqual(coordinator.settingsDetailState, .failed(reason: .service, retry: .soon),
+                       "1.1.5：服务端原因失败如实显示「没整理成功，之后再试」，不再是「还在等足够的记录」")
+        XCTAssertEqual(mock.verifyCallCount, 0)
+        XCTAssertEqual(try store.runState(runID: mock.createdRunIDs[0])?.phase, .backoff)
+
+        mock.asyncFailure = nil
+        await runOneBatch(coordinator, digest: "digest-2")
+        XCTAssertEqual(mock.createRunCallCount, 2, "失败不烧名额：同日下一批照常开 run")
+        XCTAssertEqual(mock.verifyCallCount, 1)
+        guard case .available = coordinator.presentationState else {
+            return XCTFail("重试后应发布，实际 \(coordinator.presentationState)")
+        }
+    }
+
+    func test_异步_服务端判不可重试_本机关当日闸() async throws {
+        mock.asyncEnabled = true
+        mock.asyncFailure = ("DISCOVERY_MODEL_OUTPUT_INVALID", false)
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        coordinator.retryTask?.cancel()
+        XCTAssertEqual(coordinator.settingsDetailState, .failed(reason: .service, retry: .tomorrow))
+
+        mock.asyncFailure = nil
+        await runOneBatch(coordinator, digest: "digest-2")
+        XCTAssertEqual(mock.createRunCallCount, 1, "服务端说当天次数用完：不再开 run")
+        coordinator.retryTask?.cancel()
+    }
+
+    func test_服务端不支持异步_回落同步端点全链照常() async throws {
+        let coordinator = makeCoordinator()   // 替身 asyncEnabled=false
+        await runOneBatch(coordinator)
+
+        XCTAssertEqual(mock.asyncStartCallCount, 1, "先探测异步")
+        XCTAssertEqual(mock.candidatesCallCount, 1, "不支持即回落同步")
+        XCTAssertEqual(mock.verifyCallCount, 1)
+        guard case .available = coordinator.presentationState else {
+            return XCTFail("回落同步后应发布，实际 \(coordinator.presentationState)")
+        }
+    }
+
+    func test_异步_等待取件时关闭发现_取件缓存即删() async throws {
+        let url = tempPendingURL()
+        mock.asyncEnabled = true
+        mock.asyncRunningPolls = 10_000
+        let coordinator = makeCoordinator(pendingJobStore: makePendingStore(url))
+        await runOneBatch(coordinator)
+        coordinator.retryTask?.cancel()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+
+        await coordinator.disable()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path), "取件缓存属派生数据，关闭即删")
+    }
+
+    @MainActor
+    func test_契约_候选作业三态按后端字面量解码_缓存结构不认识即丢弃() throws {
+        // 字面量逐字抄 HoloBackend/src/discovery/discoveryController.js jobStatusResponse
+        let running = #"{"runID":"r1","stage":"candidates","jobStatus":"running","pollAfterSeconds":3,"leaseExpiresAt":1790086400000,"result":null,"error":null,"retryAvailable":false,"replayed":false}"#
+        let failed = #"{"runID":"r1","stage":"candidates","jobStatus":"failed","pollAfterSeconds":null,"leaseExpiresAt":1790086400000,"result":null,"error":{"code":"DISCOVERY_MODEL_OUTPUT_INVALID","reason":"time_range_value"},"retryAvailable":true,"replayed":false}"#
+        let completed = #"{"runID":"r1","stage":"candidates","jobStatus":"completed","pollAfterSeconds":null,"leaseExpiresAt":1790086400000,"result":{"runID":"r1","stage":"candidates","envelope":{"schemaVersion":1,"kind":"candidates","runID":"r1","candidates":[],"noFindingReason":"no_material"},"promptType":"discovery_candidate_v1","promptVersion":1,"replayed":false,"candidatesHash":"abc"},"error":null,"retryAvailable":false,"replayed":true}"#
+        let decoder = JSONDecoder()
+        let r = try decoder.decode(DiscoveryClient.CandidateJobStatus.self, from: Data(running.utf8))
+        XCTAssertEqual(r.jobStatus, .running)
+        XCTAssertEqual(r.pollAfterSeconds, 3)
+        XCTAssertNil(r.result)
+        let f = try decoder.decode(DiscoveryClient.CandidateJobStatus.self, from: Data(failed.utf8))
+        XCTAssertEqual(f.jobStatus, .failed)
+        XCTAssertEqual(f.error?.code, "DISCOVERY_MODEL_OUTPUT_INVALID")
+        XCTAssertEqual(f.error?.reason, "time_range_value")
+        XCTAssertTrue(f.retryAvailable)
+        let c = try decoder.decode(DiscoveryClient.CandidateJobStatus.self, from: Data(completed.utf8))
+        XCTAssertEqual(c.jobStatus, .completed)
+        XCTAssertEqual(c.result?.runID, "r1")
+        XCTAssertEqual(c.result?.candidatesHash, "abc")
+        XCTAssertEqual(c.leaseExpiresAt, 1_790_086_400_000)
+
+        // 本机缓存结构不认识（版本升级/损坏）：丢弃，不阻塞后续批次
+        let url = tempPendingURL()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(#"{"schemaVersion":99}"#.utf8).write(to: url)
+        let pending = makePendingStore(url)
+        XCTAssertNil(pending.load())
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    // MARK: - 1.1.5 设置页状态拆分（整理过了 / 没整理成功 / 材料不够）
+
+    func test_云端发现_轻度温升仍可提交_严重温升才让位() {
+        XCTAssertFalse(DiscoveryEnvironmentProvider.shouldYield(for: .nominal))
+        XCTAssertFalse(DiscoveryEnvironmentProvider.shouldYield(for: .fair))
+        XCTAssertTrue(DiscoveryEnvironmentProvider.shouldYield(for: .serious))
+        XCTAssertTrue(DiscoveryEnvironmentProvider.shouldYield(for: .critical))
+    }
+
+    func test_资源让位后自动补查_不用用户再切前后台() async throws {
+        var snapshot = DiscoveryResourceSnapshot()
+        snapshot.isThermallyConstrained = true
+        resourceBox.value = snapshot
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        XCTAssertEqual(mock.totalNetworkCalls, 0, "让位时不发送材料")
+        XCTAssertNotNil(coordinator.retryTask, "资源恢复后必须有自动补查")
+        coordinator.retryTask?.cancel()
+
+        snapshot.isThermallyConstrained = false
+        resourceBox.value = snapshot
+        coordinator.runBatch(reason: .retry)
+        await coordinator.batchTask?.value
+        XCTAssertNotNil(try store.activeFinding(now: fixedNow), "补查可完成发布")
+    }
+
+    func test_异步取件断网_重启后继续原批次并能阅读依据续聊() async throws {
+        let url = tempPendingURL()
+        mock.asyncEnabled = true
+        mock.asyncResultErrors = [APIError.networkUnavailable]
+        let first = makeCoordinator(pendingJobStore: makePendingStore(url))
+        await runOneBatch(first)
+        first.retryTask?.cancel()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path), "断网保留取件凭据与已授权材料")
+        XCTAssertEqual(mock.createRunCallCount, 1)
+
+        let relaunched = makeCoordinator(pendingJobStore: makePendingStore(url))
+        relaunched.runBatch(reason: .foregroundActivation)
+        await relaunched.batchTask?.value
+        XCTAssertEqual(mock.createRunCallCount, 1, "恢复不重新占用当天名额")
+        XCTAssertEqual(mock.asyncStartCallCount, 1, "恢复不重复提交模型任务")
+        let finding = try XCTUnwrap(relaunched.openFinding())
+        XCTAssertFalse(finding.citations.isEmpty)
+        XCTAssertFalse(finding.displayQuotes.isEmpty)
+        let draft = try XCTUnwrap(relaunched.buildConversationDraft())
+        XCTAssertEqual(draft.findingID, finding.findingID)
+        let canSend = await relaunched.validateConversationDraftForSend(findingID: finding.findingID)
+        XCTAssertTrue(canSend)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path), "发布后清除临时材料")
+    }
+
+    func test_真实模型试评JSON_异步取件到本机落库与阅读续聊完整通过() async throws {
+        try await assertRecordedSamplePublishes(
+            fileName: "sample-input.json",
+            expectedBody: ["在十月八日和十六日，你分别选择了散步和翻书作为起步动作。"]
+        )
+    }
+
+    func test_当前Qwen实时样本_完整协调器发布阅读依据与续聊通过() async throws {
+        try await assertRecordedSamplePublishes(
+            fileName: "fresh-model-input.json",
+            expectedBody: ["第一次是十月八日去散步，第二次是十月十六日去阅读。",
+                           "两次行动都明确排除了完成完整任务的要求。"]
+        )
+    }
+
+    private func assertRecordedSamplePublishes(fileName: String, expectedBody: [String]) async throws {
+        // 真源是上一轮已展示的 Qwen r22/F01 原始生成及核验，不是 verifyEval 的人工候选。
+        // fresh-model-input 则是 2026-11-05 同生产配置的独立内存库实时调用，不触碰个人记录。
+        var repo = URL(fileURLWithPath: #filePath)
+        for _ in 0..<8 { repo.deleteLastPathComponent() }
+        let path = repo.appendingPathComponent("docs/_common/plans/2026-11-05-一个发现诊断与效果验证/\(fileName)")
+        let sample = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(contentsOf: path)) as? [String: Any])
+        let sourceEvidence = try XCTUnwrap(sample["evidence"] as? [[String: Any]])
+        let iso = ISO8601DateFormatter()
+        fixedNow = try XCTUnwrap(iso.date(from: "2026-11-05T00:00:00+08:00"))
+        adapter.snapshots = try sourceEvidence.map { item in
+            let id = try XCTUnwrap(item["evidenceID"] as? String)
+            let text = try XCTUnwrap(item["sourceBlock"] as? String)
+            let occurred = try XCTUnwrap(iso.date(from: try XCTUnwrap(item["recordedAt"] as? String)))
+            return thoughtSnapshot(id: id, text: text, daysAgo: fixedNow.timeIntervalSince(occurred) / 86400, refs: ["tag:重新开始"])
+        }
+        mock.asyncEnabled = true
+        mock.recordedSample = sample
+        mock.asyncLeaseExpiresAt = Int64(fixedNow.addingTimeInterval(86400).timeIntervalSince1970 * 1000)
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        XCTAssertEqual(mock.createRunCallCount, 1)
+        XCTAssertEqual(mock.asyncStartCallCount, 1)
+        XCTAssertEqual(mock.candidatesCallCount, 0, "真实样本通过异步接口，不回落长请求")
+        XCTAssertEqual(mock.verifyCallCount, 1)
+        let record = try XCTUnwrap(store.activeFinding(now: fixedNow))
+        XCTAssertEqual(record.payload.title, "这两次重新开始，你都把第一步变轻了。")
+        XCTAssertEqual(record.payload.body, expectedBody)
+        let finding = try XCTUnwrap(coordinator.openFinding())
+        XCTAssertEqual(Set(finding.citations.compactMap(\.sourceRef)).count, 2)
+        let draft = try XCTUnwrap(coordinator.buildConversationDraft())
+        XCTAssertTrue(draft.findingSummary.contains(record.payload.body[0]))
+        let canSend = await coordinator.validateConversationDraftForSend(findingID: finding.findingID)
+        XCTAssertTrue(canSend)
+    }
+
+    func test_状态拆分_空候选后显示今天整理过了_重启后不丢() async throws {
+        mock.candidatesSpec = .empty
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        XCTAssertEqual(coordinator.settingsDetailState, .checkedNoFinding(checkedAt: fixedNow),
+                       "跑完无合格：不再显示「还在等足够的记录」")
+        XCTAssertEqual(coordinator.presentationState, .waitingForMaterial, "胶囊口径不变（无胶囊）")
+
+        // 模拟 App 重启：同一份本机侧储重建协调器（内存态全丢），回前台后仍如实显示
+        let relaunched = makeCoordinator()
+        relaunched.runBatch(reason: .foregroundActivation)
+        await relaunched.batchTask?.value
+        XCTAssertEqual(relaunched.settingsDetailState, .checkedNoFinding(checkedAt: fixedNow), "重启后结局不丢")
+    }
+
+    func test_状态拆分_预算429显示今天次数已用完() async throws {
+        mock.candidatesError = APIError.rateLimited("后台整理额度已用完")
+        let coordinator = makeCoordinator()
+        coordinator.runBatch(reason: .foregroundActivation)
+        await coordinator.batchTask?.value
+        coordinator.retryTask?.cancel()
+        XCTAssertEqual(coordinator.settingsDetailState, .failed(reason: .dailyLimit, retry: .tomorrow))
+    }
+
+    func test_状态拆分_断网显示没整理成功会再试() async throws {
+        var snapshot = DiscoveryResourceSnapshot()
+        snapshot.isNetworkAvailable = false
+        resourceBox.value = snapshot
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        coordinator.retryTask?.cancel()
+        XCTAssertEqual(coordinator.settingsDetailState, .failed(reason: .network, retry: .soon))
+    }
+
+    func test_状态拆分_当天已整理过_次数用完仍显示整理过了() async throws {
+        let checkedAt = fixedNow.addingTimeInterval(-3600)   // 同一自然日（上海 21:13）
+        DiscoveryCoordinatorSideStore(defaults: defaults).recordLastOutcome(.noFinding(at: checkedAt))
+        mock.candidatesError = APIError.rateLimited("后台整理额度已用完")
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        coordinator.retryTask?.cancel()
+        XCTAssertEqual(coordinator.settingsDetailState, .checkedNoFinding(checkedAt: checkedAt),
+                       "「今天整理过了」比「次数已用完」更有信息量，不被覆盖")
+    }
+
+    func test_状态拆分_映射优先级与跨天() {
+        let yesterday = fixedNow.addingTimeInterval(-86_400)
+        XCTAssertEqual(
+            DiscoveryCoordinator.settingsDetail(findingRecentlyLost: false,
+                                                lastOutcome: .failed(.service, retry: .tomorrow, at: yesterday),
+                                                now: fixedNow, calendar: shanghaiCalendar),
+            .waitingForMaterial, "前一天的失败不再显示（避免过期的「明天再试」）")
+        XCTAssertEqual(
+            DiscoveryCoordinator.settingsDetail(findingRecentlyLost: false,
+                                                lastOutcome: .noFinding(at: yesterday),
+                                                now: fixedNow, calendar: shanghaiCalendar),
+            .checkedNoFinding(checkedAt: yesterday), "「整理过了」跨天仍显示，带日期")
+        XCTAssertEqual(
+            DiscoveryCoordinator.settingsDetail(findingRecentlyLost: true,
+                                                lastOutcome: .noFinding(at: fixedNow),
+                                                now: fixedNow, calendar: shanghaiCalendar),
+            .stale, "刚失去发现时优先说明「等待新的线索」")
+        XCTAssertEqual(
+            DiscoveryCoordinator.settingsDetail(findingRecentlyLost: false, lastOutcome: nil,
+                                                now: fixedNow, calendar: shanghaiCalendar),
+            .waitingForMaterial)
+    }
+
+    func test_状态拆分_关闭后清除结局() async throws {
+        mock.candidatesSpec = .empty
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        XCTAssertNotNil(DiscoveryCoordinatorSideStore(defaults: defaults).lastOutcome)
+        await coordinator.disable()
+        XCTAssertNil(DiscoveryCoordinatorSideStore(defaults: defaults).lastOutcome, "关闭即删派生的结局状态")
+    }
+
+    func test_状态拆分_升级前跑完的批次_启动时从运行记录回填整理过了() async throws {
+        mock.candidatesSpec = .empty
+        let coordinator = makeCoordinator()
+        await runOneBatch(coordinator)
+        // 模拟升级前：批次已跑完（运行记录 noFinding），但旧版本没有写结局记录
+        DiscoveryCoordinatorSideStore(defaults: defaults).clearLastOutcome()
+
+        let upgraded = makeCoordinator()
+        upgraded.runBatch(reason: .foregroundActivation)
+        await upgraded.batchTask?.value
+        XCTAssertEqual(upgraded.settingsDetailState, .checkedNoFinding(checkedAt: fixedNow),
+                       "升级后首次启动即如实显示，不必等下一次整理")
+    }
+
+    func test_状态拆分_文案可区分() {
+        let now = fixedNow
+        let copy = DiscoverySettingsCopy.self
+        XCTAssertEqual(copy.statusText(for: .checkedNoFinding(checkedAt: now), now: now, calendar: shanghaiCalendar), "今天整理过了")
+        XCTAssertEqual(copy.statusText(for: .checkedNoFinding(checkedAt: now.addingTimeInterval(-86_400)), now: now, calendar: shanghaiCalendar), "昨天整理过了")
+        XCTAssertEqual(copy.statusText(for: .checkedNoFinding(checkedAt: now.addingTimeInterval(-3 * 86_400)), now: now, calendar: shanghaiCalendar), "9月18日整理过了")
+        XCTAssertEqual(copy.statusText(for: .failed(reason: .service, retry: .soon)), "这次没整理成功")
+        XCTAssertEqual(copy.statusText(for: .failed(reason: .service, retry: .tomorrow)), "今天没整理成功")
+        XCTAssertEqual(copy.statusText(for: .failed(reason: .dailyLimit, retry: .tomorrow)), "今天的整理次数已用完")
+        XCTAssertEqual(copy.statusText(for: .waitingForMaterial), "还在等足够的记录")
+        XCTAssertEqual(copy.statusText(for: .preparing), "正在整理")
+        // 每种失败原因都有各自的说明，且都不要求用户操作
+        for reason in [DiscoveryLastOutcome.FailureReason.network, .service, .dailyLimit] {
+            let detail = copy.statusDetailText(for: .failed(reason: reason, retry: .soon))
+            XCTAssertTrue(detail.contains("自动"), "\(reason) 说明需告知会自动再试：\(detail)")
+        }
     }
 }

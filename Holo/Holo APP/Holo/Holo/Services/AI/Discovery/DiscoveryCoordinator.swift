@@ -20,6 +20,9 @@
 
 import Foundation
 import OSLog
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - 客户端服务面（测试替身挂接点；真实实现即 DiscoveryClient）
 
@@ -61,9 +64,148 @@ protocol DiscoveryClientServing {
         data: DiscoveryJSONValue
     ) async throws -> (response: DiscoveryClient.StageResponse, envelope: DiscoveryVerificationEnvelope)
     func cancel(runID: String, requestID: String) async throws -> DiscoveryClient.CancelResponse
+    /// 1.1.5 候选异步作业（交材料即返回；手机前台取件）。默认实现=不支持 → 协调器回落同步端点。
+    func startCandidatesAsync(
+        runID: String,
+        runToken: String,
+        requestID: String?,
+        data: DiscoveryJSONValue
+    ) async throws -> DiscoveryClient.CandidateJobPoll
+    func candidatesResult(runID: String, runToken: String) async throws -> DiscoveryClient.CandidateJobPoll
+}
+
+extension DiscoveryClientServing {
+    func startCandidatesAsync(
+        runID: String,
+        runToken: String,
+        requestID: String?,
+        data: DiscoveryJSONValue
+    ) async throws -> DiscoveryClient.CandidateJobPoll {
+        throw DiscoveryClient.DiscoveryClientError.asyncCandidatesUnsupported
+    }
+
+    func candidatesResult(runID: String, runToken: String) async throws -> DiscoveryClient.CandidateJobPoll {
+        throw DiscoveryClient.DiscoveryClientError.asyncCandidatesUnsupported
+    }
 }
 
 extension DiscoveryClient: DiscoveryClientServing {}
+
+// MARK: - 待取件的候选作业（1.1.5：服务端缓存候选 → 手机取件 → 本机找反例 → 核验）
+
+/// 交出材料后、取到候选前的本机缓存。App 被系统回收后，下次前台据此接着取件、
+/// 在本机用原样材料做门禁与反例召回——不重新扫描、不重开 run、不另占名额。
+/// 只存本次已上行过的证据块（不扩大上传面）；落 Application Support、
+/// 首次解锁后可读、不进备份；run 终态即删。
+struct DiscoveryPendingCandidateJob: Codable, Equatable, Sendable {
+    static let currentSchemaVersion = 1
+
+    var schemaVersion = DiscoveryPendingCandidateJob.currentSchemaVersion
+    let runID: String
+    let runToken: String
+    /// 异步启动的请求 ID：重交同 body 时复用（服务端幂等）
+    let startRequestID: String
+    let freeze: DiscoveryRunFreeze
+    let material: DiscoveryMaterialPackage
+    /// 初次召回请求的变化对象（反例召回复用同一请求口径）
+    let changedSourceRefs: [String]
+    /// 冻结时的授权域（rawValue，排序）
+    let allowedDomains: [String]
+    let startedAt: Date
+    /// 服务端 run 租约到期；过期即放弃取件
+    var leaseExpiresAt: Date?
+}
+
+/// 待取件作业的本机存储（单槽位）。fileURL=nil 为内存模式（测试/非生产装配）。
+@MainActor
+final class DiscoveryPendingCandidateJobStore {
+
+    private let fileURL: URL?
+    private var memory: DiscoveryPendingCandidateJob?
+
+    init(fileURL: URL? = nil) {
+        self.fileURL = fileURL
+    }
+
+    /// 生产装配：Application Support/Discovery/pending-candidate-job.json
+    static func live() -> DiscoveryPendingCandidateJobStore {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        let url = base?
+            .appendingPathComponent("Discovery", isDirectory: true)
+            .appendingPathComponent("pending-candidate-job.json")
+        return DiscoveryPendingCandidateJobStore(fileURL: url)
+    }
+
+    func load() -> DiscoveryPendingCandidateJob? {
+        guard let fileURL else { return memory }
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
+        guard let job = try? JSONDecoder().decode(DiscoveryPendingCandidateJob.self, from: data),
+              job.schemaVersion == DiscoveryPendingCandidateJob.currentSchemaVersion else {
+            // 结构不认识（版本升级/损坏）：丢弃，不阻塞后续批次
+            try? FileManager.default.removeItem(at: fileURL)
+            return nil
+        }
+        return job
+    }
+
+    func save(_ job: DiscoveryPendingCandidateJob) throws {
+        guard let fileURL else {
+            memory = job
+            return
+        }
+        let directory = fileURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let data = try JSONEncoder().encode(job)
+        #if os(iOS)
+        try data.write(to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        #else
+        try data.write(to: fileURL, options: [.atomic])
+        #endif
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var mutableURL = fileURL
+        try? mutableURL.setResourceValues(values)
+    }
+
+    func clear() {
+        memory = nil
+        if let fileURL {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+    }
+}
+
+/// 批次期间保后台执行时长（锁屏/切走后系统给的宽限期内把取件与核验跑完）。
+/// 返回结束闭包；非 UIKit 平台/测试为空操作。
+@MainActor
+enum DiscoveryBackgroundExecution {
+    static func live(_ name: String) -> () -> Void {
+        #if canImport(UIKit) && !os(watchOS)
+        let token = DiscoveryBackgroundTaskToken()
+        token.id = UIApplication.shared.beginBackgroundTask(withName: name) {
+            if token.id != .invalid {
+                UIApplication.shared.endBackgroundTask(token.id)
+                token.id = .invalid
+            }
+        }
+        return {
+            if token.id != .invalid {
+                UIApplication.shared.endBackgroundTask(token.id)
+                token.id = .invalid
+            }
+        }
+        #else
+        return {}
+        #endif
+    }
+}
+
+#if canImport(UIKit) && !os(watchOS)
+@MainActor
+private final class DiscoveryBackgroundTaskToken {
+    var id: UIBackgroundTaskIdentifier = .invalid
+}
+#endif
 
 // MARK: - 版本包（冻结用）
 
@@ -116,6 +258,7 @@ nonisolated final class DiscoveryCoordinatorSideStore {
         static let processedAt = Keys.prefix + "processed.at"
         static let processedPolicyVersion = Keys.prefix + "processed.policyVersion"
         static let processedPromptVersion = Keys.prefix + "processed.promptVersion"
+        static let lastOutcome = Keys.prefix + "lastOutcome.v1"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -168,6 +311,22 @@ nonisolated final class DiscoveryCoordinatorSideStore {
         defaults.set(policyVersion, forKey: Keys.processedPolicyVersion)
         defaults.set(promptVersion, forKey: Keys.processedPromptVersion)
     }
+
+    // 1.1.5：最近一次整理的结局（设置页区分「整理过了没合格」与「没整理成功」；重启不丢）。
+    // 只存类别与时刻，不存记录内容；关闭/撤权/服务端停用时随派生数据一起清。
+    var lastOutcome: DiscoveryLastOutcome? {
+        guard let data = defaults.data(forKey: Keys.lastOutcome) else { return nil }
+        return try? JSONDecoder().decode(DiscoveryLastOutcome.self, from: data)
+    }
+
+    func recordLastOutcome(_ outcome: DiscoveryLastOutcome) {
+        guard let data = try? JSONEncoder().encode(outcome) else { return }
+        defaults.set(data, forKey: Keys.lastOutcome)
+    }
+
+    func clearLastOutcome() {
+        defaults.removeObject(forKey: Keys.lastOutcome)
+    }
 }
 
 // MARK: - 协调器
@@ -198,6 +357,12 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
     private let sideStore: DiscoveryCoordinatorSideStore
     /// 知识仓库提供者（融合联动）。nil = 测试装配：知识特性惰性降级，不影响发现主链。
     private let knowledgeRepositoryProvider: (@Sendable () async throws -> CoreDataHoloMemoryRepository)?
+    /// 1.1.5 待取件作业（单槽位）
+    private let pendingJobStore: DiscoveryPendingCandidateJobStore
+    /// 批次期间申请后台宽限（返回结束闭包）
+    private let backgroundExecution: @MainActor (String) -> () -> Void
+    /// 取件轮询间隔等待（测试注入为空操作）
+    private let pollSleeper: @Sendable (TimeInterval) async -> Void
 
     // MARK: 运行状态（UI 单一事实源）
 
@@ -241,6 +406,11 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
     }
     private var dailyBatchAvailable = true
     private var serverCapabilitiesEnabled = true
+    /// 本进程已探明服务端不支持候选异步作业（老服务端/密钥未配）→ 直接走同步，下次启动重新探测
+    private var asyncCandidatesUnsupported = false
+    /// 同日服务端可重试失败的已重试次数（本机兜底上限；跨自然日复位）
+    private var serverRetryCount = 0
+    private var serverRetryDay: Date?
     private var versions = DiscoveryVersionBundle()
     /// 有效发现曾存在但已过期/失效（设置页 stale 文案依据）
     private var findingRecentlyLost = false
@@ -267,7 +437,10 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         idProvider: @escaping () -> String = { UUID().uuidString },
         resourceSnapshotProvider: (() -> DiscoveryResourceSnapshot)? = nil,
         sideStore: DiscoveryCoordinatorSideStore = DiscoveryCoordinatorSideStore(),
-        knowledgeRepositoryProvider: (@Sendable () async throws -> CoreDataHoloMemoryRepository)? = nil
+        knowledgeRepositoryProvider: (@Sendable () async throws -> CoreDataHoloMemoryRepository)? = nil,
+        pendingJobStore: DiscoveryPendingCandidateJobStore? = nil,
+        backgroundExecution: (@MainActor (String) -> () -> Void)? = nil,
+        pollSleeper: (@Sendable (TimeInterval) async -> Void)? = nil
     ) {
         let resolvedAdapters = adapters ?? [
             DiscoveryThoughtAdapter(),
@@ -302,19 +475,37 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         self.resourceSnapshotProvider = resourceSnapshotProvider ?? { resolvedEnvironmentProvider.snapshot() }
         self.sideStore = sideStore
         self.knowledgeRepositoryProvider = knowledgeRepositoryProvider
+        // 非生产装配默认内存槽位（测试互不串扰）；生产由 makeLive 注入文件槽位
+        self.pendingJobStore = pendingJobStore ?? DiscoveryPendingCandidateJobStore()
+        self.backgroundExecution = backgroundExecution ?? { _ in {} }
+        self.pollSleeper = pollSleeper ?? { seconds in
+            try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
+        }
         super.init()
 
         // App kill 恢复（T41）：在途旧 run 保守标 cancelled（本地），不重调已 dispatch 阶段；
         // 下一次资格（新材料/首开/次日批次）再跑。
+        // 1.1.5 例外：待取件的那一单保留（服务端仍在算/已算完待取），下次批次入口接着取件。
+        let pendingRunID = self.pendingJobStore.load()?.runID
         if let active = (try? store.activeRuns()), !active.isEmpty {
             let now = clock()
-            for record in active {
+            for record in active where record.runID != pendingRunID {
                 try? store.updateRunPhase(
                     runID: record.runID,
                     phase: .cancelled,
                     diagnostics: [.controlChanged],
                     now: now
                 )
+            }
+        }
+        if let pendingRunID {
+            let stillActive = ((try? store.activeRuns()) ?? []).contains { $0.runID == pendingRunID }
+            if !stillActive {
+                // 本机 run 记录已不在途（被清理/已终态）：缓存失去归属，丢弃
+                self.pendingJobStore.clear()
+                Self.diagLog.notice("disp init: pending job dropped (run not active) run=\(pendingRunID)")
+            } else {
+                Self.diagLog.notice("disp init: pending job kept for pickup run=\(pendingRunID)")
             }
         }
 
@@ -328,6 +519,14 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             firstRunPending = true
         }
         Self.diagLog.notice("disp init restore: enabled=\(restoreEnabled) processedRecord=\(restoreProcessed) → firstRunPending=\(self.firstRunPending)")
+
+        // 1.1.5 结局状态一次性回填：升级前跑完的批次没有侧储结局记录 → 从本机运行记录还原
+        // 「整理过了」（只认 noFinding；最近一单是发布或失败时不猜，按发现本身 / 材料不够显示）
+        if restoreEnabled, sideStore.lastOutcome == nil,
+           let latest = try? store.latestTerminalRun(), latest.phase == .noFinding {
+            sideStore.recordLastOutcome(.noFinding(at: latest.updatedAt))
+            Self.diagLog.notice("disp init restore: backfilled lastOutcome=noFinding from run=\(latest.runID)")
+        }
 
         self.invalidationService.start()
         NotificationCenter.default.addObserver(
@@ -356,7 +555,9 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         let store = try! DiscoveryStore()
         return DiscoveryCoordinator(
             store: store,
-            knowledgeRepositoryProvider: { try await HoloMemoryRuntime.shared.repository() }
+            knowledgeRepositoryProvider: { try await HoloMemoryRuntime.shared.repository() },
+            pendingJobStore: .live(),
+            backgroundExecution: { DiscoveryBackgroundExecution.live($0) }
         )
     }
 
@@ -421,7 +622,10 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         let generation = batchGeneration
         let epoch = settings.snapshot().localGrantEpoch
         batchTask = Task(priority: .utility) { [weak self] in
+            // 1.1.5：锁屏/切走后系统给的宽限期内把取件与核验跑完（候选 3–17s、核验 ~1s）
+            let endBackground = self?.backgroundExecution("HoloDiscoveryBatch")
             await self?.executeBatch(reason: reason, epoch: epoch)
+            endBackground?()
             guard let self else { return }
             if self.batchGeneration == generation {
                 self.isBatchRunning = false
@@ -446,6 +650,12 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             return
         }
 
+        // 1.1.5 取件续跑优先：上次交出的材料还在服务端（算着或已算完待取）→ 接着取件，
+        // 不重新扫描、不重开 run、不另占名额。必须在快路径之前（续跑与有无新变更无关）。
+        if let pending = pendingJobStore.load() {
+            if await resumePendingCandidateJob(pending, epoch: epoch) { return }
+        }
+
         // 快路径：无未消费变更、非首开、且未跨自然日 → 无新材料（本地零读源，前台激活便宜）。
         // 跨日放行进完整决策：由扫描自比 manifestDigest 判定材料是否真的变了（T20 拦住未变日）。
         let fastPathNow = clock()
@@ -461,9 +671,15 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         // 网络预检提前到重活之前：decide 的 networkUnavailable 分支原本在 90 天窗口
         // 全量扫描+召回之后才生效，断网时会每 5 分钟空转一轮全量 CoreData 重活。
         // 此处先挡（未 dispatch、不消耗任何东西），重试仍按退避排程
-        if !resourceSnapshotProvider().isNetworkAvailable {
+        let preflightResource = resourceSnapshotProvider()
+        if !preflightResource.isNetworkAvailable {
             Self.diagLog.notice("disp exit: preCheck network unavailable")
             applyDeferred(.networkUnavailable, now: fastPathNow)
+            return
+        }
+        if preflightResource.shouldYield {
+            Self.diagLog.notice("disp exit: preCheck resource yield")
+            applyDeferred(.resourceYield, now: fastPathNow)
             return
         }
         networkRetryAttempt = 0   // 网络已通：退避阶梯复位
@@ -639,144 +855,435 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
                 return
             }
 
-            let (stageResponse, envelope) = try await client.candidates(
+            // ---- 候选阶段（1.1.5）：优先异步作业（交材料即返回、前台取件），服务端不支持则回落同步 ----
+            let context = CandidateStageContext(
                 runID: runID,
                 runToken: created.runToken,
-                requestID: idProvider(),
-                data: Self.candidateRequestData(
-                    freeze: freeze,
-                    material: material,
-                    allowedDomains: settingsSnapshot.allowedDomains,
-                    iso: Self.isoFormatter.string(from:)
-                )
-            )
-            guard !Task.isCancelled, isControlStillValid(epoch: epoch) else {
-                try await abortInFlight(runID: runID, diagnostics: [.controlChanged])
-                return
-            }
-            // 门禁 2（归属）：服务端阶段响应与信封 runID 必须一致
-            guard stageResponse.runID == runID, envelope.runID == runID else {
-                try await abortInFlight(runID: runID, diagnostics: [.schemaInvalid])
-                return
-            }
-
-            // 版本回填（2026-11-01 报告问题4）：后端实际使用的 prompt 版本写回本地版本包，
-            // 使 processedRecord 的「同版本不重跑」随服务端升级自动获得重评估资格
-            if let serverPromptVersion = stageResponse.promptVersion, serverPromptVersion != versions.candidatePromptVersion {
-                versions.candidatePromptVersion = serverPromptVersion
-                Self.diagLog.notice("disp prompt version synced: candidate v\(serverPromptVersion)")
-            }
-
-            // ---- 结构门禁（02 §5 八条；1/3 的 schema 部分已在客户端解码时完成）----
-            let historyWindow = DiscoveryRetriever.windows(for: recallRequest, now: now).history
-            let gate = runStructuralGate(
-                candidates: envelope.candidates,
-                material: material,
-                historyWindow: historyWindow
-            )
-            Self.diagLog.notice("disp gate: received=\(envelope.candidates.count) survivors=\(gate.survivors.count) diagnostics=\(gate.diagnostics.map(\.rawValue))")
-
-            if envelope.candidates.isEmpty {
-                // 服务端对空候选自动 completeRun（03 §4.2），客户端不调 verify、不 cancel
-                try finishBatchNoFinding(runID: runID, digest: freeze.sourceManifestDigest, diagnostics: gate.diagnostics)
-                return
-            }
-            if gate.survivors.isEmpty {
-                // 本地全拒：cancel 释放后续语义（不承诺第三方未处理），并记成功终态
-                Self.diagLog.notice("disp cancel: structural gate rejected all")
-                _ = try? await client.cancel(runID: runID, requestID: idProvider())
-                try finishBatchNoFinding(runID: runID, digest: freeze.sourceManifestDigest, diagnostics: gate.diagnostics)
-                return
-            }
-
-            // ---- 反例召回（02 §6）+ 回源核版本（变了不用旧块）----
-            let counterPackages = try await counterRecall(
-                for: gate.survivors,
-                supportAtoms: material.supportAtoms,
-                request: recallRequest,
-                environment: environment
-            )
-            guard !Task.isCancelled, isControlStillValid(epoch: epoch) else {
-                try await abortInFlight(runID: runID, diagnostics: [.controlChanged])
-                return
-            }
-            let mergedCounter = DiscoveryRetriever.mergedCounterPackage(
-                Array(counterPackages.values),
-                totalBudget: material.counterBudgetBlocks
-            )
-            let stale = try await Task.detached(priority: .utility) { [retriever] in
-                try retriever.revalidate(
-                    atoms: material.supportAtoms + mergedCounter.blocks,
-                    environment: environment,
-                    now: now
-                )
-            }.value
-            guard !Task.isCancelled, isControlStillValid(epoch: epoch) else {
-                try await abortInFlight(runID: runID, diagnostics: [.controlChanged])
-                return
-            }
-            let staleEvidenceIDs = Set(stale.map(\.evidenceID))
-            let verifiedCandidates = gate.survivors.filter { candidate in
-                let cited = Self.citedEvidenceIDs(of: candidate)
-                return cited.isDisjoint(with: staleEvidenceIDs)   // 有 stale 即拒（02 §5 门禁 8）
-            }
-            if verifiedCandidates.isEmpty {
-                _ = try? await client.cancel(runID: runID, requestID: idProvider())
-                try finishBatchNoFinding(
-                    runID: runID,
-                    digest: freeze.sourceManifestDigest,
-                    diagnostics: gate.diagnostics + [.sourceInvalidated]
-                )
-                return
-            }
-
-            // ---- 检查位 3：verify 发出前（源版本已复核；运行阶段 preparing；控制/范围版本）----
-            guard accessPolicy.canRequestVerification(runPhase: .preparing, frozenGrantEpoch: epoch, environment: environment).isAllowed else {
-                try await abortInFlight(runID: runID, diagnostics: [.controlChanged])
-                return
-            }
-            guard let candidatesEcho = Self.candidatesArray(from: stageResponse.envelope) else {
-                try await abortInFlight(runID: runID, diagnostics: [.schemaInvalid])
-                return
-            }
-            let (verifyResponse, verifyEnvelope) = try await client.verify(
-                runID: runID,
-                runToken: created.runToken,
-                requestID: idProvider(),
-                candidates: candidatesEcho,
-                data: Self.verifyRequestData(
-                    freeze: freeze,
-                    material: material,
-                    counter: mergedCounter,
-                    perCandidateCoverage: counterPackages.mapValues(\.coverageState),
-                    allowedDomains: settingsSnapshot.allowedDomains,
-                    iso: Self.isoFormatter.string(from:)
-                )
-            )
-            // T09：跨 await 复核——撤权/关闭/重开后迟到结果丢弃，永不采纳
-            guard !Task.isCancelled, isControlStillValid(epoch: epoch) else {
-                try await abortInFlight(runID: runID, diagnostics: [.controlChanged])
-                return
-            }
-            guard verifyResponse.runID == runID, verifyEnvelope.runID == runID else {
-                try await abortInFlight(runID: runID, diagnostics: [.schemaInvalid])
-                return
-            }
-
-            // ---- 提交：核验结果归属 → 检查位 4 → 发布门禁 → 落库 ----
-            try await commitIfEligible(
-                runID: runID,
                 freeze: freeze,
                 material: material,
-                verifiedCandidates: verifiedCandidates,
-                counterPackages: counterPackages,
-                mergedCounterBlocks: mergedCounter.blocks,
-                verification: verifyEnvelope,
+                recallRequest: recallRequest,
+                allowedDomains: settingsSnapshot.allowedDomains,
                 epoch: epoch
             )
+            let requestData = Self.candidateRequestData(
+                freeze: freeze,
+                material: material,
+                allowedDomains: settingsSnapshot.allowedDomains,
+                iso: Self.isoFormatter.string(from:)
+            )
+            var pickedUp: (response: DiscoveryClient.StageResponse, envelope: DiscoveryCandidateEnvelope)?
+            if !asyncCandidatesUnsupported {
+                switch try await runCandidatesAsync(context, requestData: requestData, resume: false) {
+                case .completed(let response, let envelope):
+                    pickedUp = (response, envelope)
+                case .stillRunning, .aborted:
+                    return
+                case .unsupported:
+                    pickedUp = nil
+                }
+            }
+            let stage: (response: DiscoveryClient.StageResponse, envelope: DiscoveryCandidateEnvelope)
+            if let pickedUp {
+                stage = pickedUp
+            } else {
+                stage = try await client.candidates(
+                    runID: runID,
+                    runToken: created.runToken,
+                    requestID: idProvider(),
+                    data: requestData
+                )
+            }
+            try await continueAfterCandidates(
+                context,
+                stageResponse: stage.response,
+                envelope: stage.envelope,
+                environment: environment
+            )
+            pendingJobStore.clear()
         } catch {
+            // 网络类失败（作业可能仍在服务端算）保留取件缓存，下次前台接着取；其余作废
+            if !Self.keepsPendingJob(after: error) { pendingJobStore.clear() }
             handleStageFailure(error, runID: runID, digest: freeze.sourceManifestDigest)
         }
+    }
+
+    // MARK: - 候选后半段（1.1.5 抽出：同步与异步取件共用）
+
+    /// 一次候选阶段的上下文（同步路径在内存里直接有；续跑由取件缓存还原）
+    private struct CandidateStageContext: Sendable {
+        let runID: String
+        let runToken: String
+        let freeze: DiscoveryRunFreeze
+        let material: DiscoveryMaterialPackage
+        let recallRequest: DiscoveryRetriever.Request
+        let allowedDomains: Set<DiscoverySourceDomain>
+        let epoch: Int
+    }
+
+    /// 拿到候选之后：结构门禁 → 反例召回（只在本机）→ 回源核版本 → 核验 → 提交。
+    /// 逐行搬自 executeBatch 原后半段（行为不变）；now 取冻结锚点（与原批次 now 同值）。
+    private func continueAfterCandidates(
+        _ context: CandidateStageContext,
+        stageResponse: DiscoveryClient.StageResponse,
+        envelope: DiscoveryCandidateEnvelope,
+        environment: DiscoveryAccessSnapshot
+    ) async throws {
+        let runID = context.runID
+        let freeze = context.freeze
+        let material = context.material
+        let recallRequest = context.recallRequest
+        let epoch = context.epoch
+        let now = freeze.anchorNow
+        guard !Task.isCancelled, isControlStillValid(epoch: epoch) else {
+            try await abortInFlight(runID: runID, diagnostics: [.controlChanged])
+            return
+        }
+        // 门禁 2（归属）：服务端阶段响应与信封 runID 必须一致
+        guard stageResponse.runID == runID, envelope.runID == runID else {
+            try await abortInFlight(runID: runID, diagnostics: [.schemaInvalid])
+            return
+        }
+
+        // 版本回填（2026-11-01 报告问题4）：后端实际使用的 prompt 版本写回本地版本包，
+        // 使 processedRecord 的「同版本不重跑」随服务端升级自动获得重评估资格
+        if let serverPromptVersion = stageResponse.promptVersion, serverPromptVersion != versions.candidatePromptVersion {
+            versions.candidatePromptVersion = serverPromptVersion
+            Self.diagLog.notice("disp prompt version synced: candidate v\(serverPromptVersion)")
+        }
+
+        // ---- 结构门禁（02 §5 八条；1/3 的 schema 部分已在客户端解码时完成）----
+        let historyWindow = DiscoveryRetriever.windows(for: recallRequest, now: now).history
+        let gate = runStructuralGate(
+            candidates: envelope.candidates,
+            material: material,
+            historyWindow: historyWindow
+        )
+        Self.diagLog.notice("disp gate: received=\(envelope.candidates.count) survivors=\(gate.survivors.count) diagnostics=\(gate.diagnostics.map(\.rawValue))")
+
+        if envelope.candidates.isEmpty {
+            // 服务端对空候选自动 completeRun（03 §4.2），客户端不调 verify、不 cancel
+            try finishBatchNoFinding(runID: runID, digest: freeze.sourceManifestDigest, diagnostics: gate.diagnostics)
+            return
+        }
+        if gate.survivors.isEmpty {
+            // 本地全拒：cancel 释放后续语义（不承诺第三方未处理），并记成功终态
+            Self.diagLog.notice("disp cancel: structural gate rejected all")
+            _ = try? await client.cancel(runID: runID, requestID: idProvider())
+            try finishBatchNoFinding(runID: runID, digest: freeze.sourceManifestDigest, diagnostics: gate.diagnostics)
+            return
+        }
+
+        // ---- 反例召回（02 §6）+ 回源核版本（变了不用旧块）----
+        let counterPackages = try await counterRecall(
+            for: gate.survivors,
+            supportAtoms: material.supportAtoms,
+            request: recallRequest,
+            environment: environment
+        )
+        guard !Task.isCancelled, isControlStillValid(epoch: epoch) else {
+            try await abortInFlight(runID: runID, diagnostics: [.controlChanged])
+            return
+        }
+        let mergedCounter = DiscoveryRetriever.mergedCounterPackage(
+            Array(counterPackages.values),
+            totalBudget: material.counterBudgetBlocks
+        )
+        let stale = try await Task.detached(priority: .utility) { [retriever] in
+            try retriever.revalidate(
+                atoms: material.supportAtoms + mergedCounter.blocks,
+                environment: environment,
+                now: now
+            )
+        }.value
+        guard !Task.isCancelled, isControlStillValid(epoch: epoch) else {
+            try await abortInFlight(runID: runID, diagnostics: [.controlChanged])
+            return
+        }
+        let staleEvidenceIDs = Set(stale.map(\.evidenceID))
+        let verifiedCandidates = gate.survivors.filter { candidate in
+            let cited = Self.citedEvidenceIDs(of: candidate)
+            return cited.isDisjoint(with: staleEvidenceIDs)   // 有 stale 即拒（02 §5 门禁 8）
+        }
+        if verifiedCandidates.isEmpty {
+            _ = try? await client.cancel(runID: runID, requestID: idProvider())
+            try finishBatchNoFinding(
+                runID: runID,
+                digest: freeze.sourceManifestDigest,
+                diagnostics: gate.diagnostics + [.sourceInvalidated]
+            )
+            return
+        }
+
+        // ---- 检查位 3：verify 发出前（源版本已复核；运行阶段 preparing；控制/范围版本）----
+        guard accessPolicy.canRequestVerification(runPhase: .preparing, frozenGrantEpoch: epoch, environment: environment).isAllowed else {
+            try await abortInFlight(runID: runID, diagnostics: [.controlChanged])
+            return
+        }
+        guard let candidatesEcho = Self.candidatesArray(from: stageResponse.envelope) else {
+            try await abortInFlight(runID: runID, diagnostics: [.schemaInvalid])
+            return
+        }
+        let (verifyResponse, verifyEnvelope) = try await client.verify(
+            runID: runID,
+            runToken: context.runToken,
+            requestID: idProvider(),
+            candidates: candidatesEcho,
+            data: Self.verifyRequestData(
+                freeze: freeze,
+                material: material,
+                counter: mergedCounter,
+                perCandidateCoverage: counterPackages.mapValues(\.coverageState),
+                allowedDomains: context.allowedDomains,
+                iso: Self.isoFormatter.string(from:)
+            )
+        )
+        // T09：跨 await 复核——撤权/关闭/重开后迟到结果丢弃，永不采纳
+        guard !Task.isCancelled, isControlStillValid(epoch: epoch) else {
+            try await abortInFlight(runID: runID, diagnostics: [.controlChanged])
+            return
+        }
+        guard verifyResponse.runID == runID, verifyEnvelope.runID == runID else {
+            try await abortInFlight(runID: runID, diagnostics: [.schemaInvalid])
+            return
+        }
+
+        // ---- 提交：核验结果归属 → 检查位 4 → 发布门禁 → 落库 ----
+        try await commitIfEligible(
+            runID: runID,
+            freeze: freeze,
+            material: material,
+            verifiedCandidates: verifiedCandidates,
+            counterPackages: counterPackages,
+            mergedCounterBlocks: mergedCounter.blocks,
+            verification: verifyEnvelope,
+            epoch: epoch
+        )
+    }
+
+    // MARK: - 候选异步作业（1.1.5：服务端缓存候选 → 手机取件）
+
+    private enum CandidatePickupOutcome {
+        case completed(DiscoveryClient.StageResponse, DiscoveryCandidateEnvelope)
+        /// 本次前台没等到：缓存保留，稍后/下次前台接着取
+        case stillRunning
+        /// 控制失效：已 abortInFlight 并作废缓存
+        case aborted
+        /// 服务端未开放异步作业：回落同步端点
+        case unsupported
+    }
+
+    /// 单次会话内最多轮询次数（× pollAfterSeconds≈3s ≈ 4 分钟）；超出留待下次取件
+    private static let maxPollsPerSession = 80
+    /// 仍在算时的补查间隔
+    private static let stillRunningRecheckDelay: TimeInterval = 60
+
+    /// 交材料（或续取）并轮询到终态。先落缓存再交材料：交的瞬间被回收，下次凭缓存同 body 重交（服务端幂等）。
+    private func runCandidatesAsync(
+        _ context: CandidateStageContext,
+        requestData: DiscoveryJSONValue,
+        resume: Bool
+    ) async throws -> CandidatePickupOutcome {
+        var job: DiscoveryPendingCandidateJob
+        var poll: DiscoveryClient.CandidateJobPoll
+        if resume, let existing = pendingJobStore.load(), existing.runID == context.runID {
+            job = existing
+            do {
+                poll = try await client.candidatesResult(runID: context.runID, runToken: context.runToken)
+                Self.diagLog.notice("disp async resume: run=\(context.runID) status=\(poll.status.jobStatus.rawValue)")
+            } catch let error where Self.isJobNotFound(error) {
+                // 启动请求没到服务端（交材料瞬间被回收）：同 requestID 同 body 重交
+                Self.diagLog.notice("disp async resume: job not found, resubmit run=\(context.runID)")
+                poll = try await client.startCandidatesAsync(
+                    runID: context.runID,
+                    runToken: context.runToken,
+                    requestID: existing.startRequestID,
+                    data: requestData
+                )
+            }
+        } else {
+            job = DiscoveryPendingCandidateJob(
+                runID: context.runID,
+                runToken: context.runToken,
+                startRequestID: idProvider(),
+                freeze: context.freeze,
+                material: context.material,
+                changedSourceRefs: context.recallRequest.changedSourceRefs,
+                allowedDomains: context.allowedDomains.map(\.rawValue).sorted(),
+                startedAt: clock(),
+                leaseExpiresAt: nil
+            )
+            try pendingJobStore.save(job)
+            do {
+                poll = try await client.startCandidatesAsync(
+                    runID: context.runID,
+                    runToken: context.runToken,
+                    requestID: job.startRequestID,
+                    data: requestData
+                )
+                Self.diagLog.notice("disp async start: run=\(context.runID) status=\(poll.status.jobStatus.rawValue)")
+            } catch let error where Self.isAsyncUnsupported(error) {
+                pendingJobStore.clear()
+                asyncCandidatesUnsupported = true
+                Self.diagLog.notice("disp async unsupported → sync fallback: \(String(describing: error))")
+                return .unsupported
+            }
+        }
+
+        var polls = 0
+        while true {
+            if let lease = poll.status.leaseExpiresAt {
+                let leaseDate = Date(timeIntervalSince1970: TimeInterval(lease) / 1000)
+                if job.leaseExpiresAt != leaseDate {
+                    job.leaseExpiresAt = leaseDate
+                    try? pendingJobStore.save(job)
+                }
+            }
+            switch poll.status.jobStatus {
+            case .completed:
+                guard let completed = poll.completed else {
+                    throw DiscoveryClient.DiscoveryClientError.unexpectedStageEnvelope(runID: context.runID)
+                }
+                Self.diagLog.notice("disp async completed: run=\(context.runID) polls=\(polls)")
+                return .completed(completed.response, completed.envelope)
+            case .failed:
+                let code = poll.status.error?.code ?? "nil"
+                let retryAvailable = poll.status.retryAvailable
+                Self.diagLog.notice("disp async failed: run=\(context.runID) code=\(code) retryAvailable=\(retryAvailable)")
+                throw DiscoveryClient.DiscoveryClientError.candidateJobFailed(
+                    code: poll.status.error?.code,
+                    retryAvailable: retryAvailable
+                )
+            case .running:
+                polls += 1
+                if polls > Self.maxPollsPerSession {
+                    Self.diagLog.notice("disp async still running: keep pending run=\(context.runID)")
+                    lastPhase = .preparing
+                    recomputePresentation()
+                    scheduleRetry(after: Self.stillRunningRecheckDelay)
+                    return .stillRunning
+                }
+                let wait = TimeInterval(min(max(poll.status.pollAfterSeconds ?? 3, 1), 15))
+                await pollSleeper(wait)
+                guard !Task.isCancelled, isControlStillValid(epoch: context.epoch) else {
+                    pendingJobStore.clear()
+                    try await abortInFlight(runID: context.runID, diagnostics: [.controlChanged])
+                    return .aborted
+                }
+                poll = try await client.candidatesResult(runID: context.runID, runToken: context.runToken)
+            }
+        }
+    }
+
+    /// 取件续跑。返回 true = 本次批次已由取件流程处理（含仍在等）；false = 缓存已作废，走常规批次。
+    private func resumePendingCandidateJob(_ job: DiscoveryPendingCandidateJob, epoch: Int) async -> Bool {
+        let now = clock()
+        guard job.freeze.localGrantEpoch == epoch else {
+            // 关闭重开/撤权后代数前进：旧单作废（best effort 通知服务端）
+            Self.diagLog.notice("disp async resume: epoch changed, drop run=\(job.runID)")
+            pendingJobStore.clear()
+            _ = try? await client.cancel(runID: job.runID, requestID: idProvider())
+            try? store.updateRunPhase(runID: job.runID, phase: .cancelled, diagnostics: [.controlChanged], now: now)
+            return false
+        }
+        if let lease = job.leaseExpiresAt, now >= lease {
+            Self.diagLog.notice("disp async resume: lease expired, drop run=\(job.runID)")
+            pendingJobStore.clear()
+            try? store.updateRunPhase(runID: job.runID, phase: .cancelled, diagnostics: [.controlChanged], now: now)
+            return false
+        }
+        guard resourceSnapshotProvider().isNetworkAvailable else {
+            Self.diagLog.notice("disp async resume: network unavailable, keep pending run=\(job.runID)")
+            applyDeferred(.networkUnavailable, now: now)
+            return true
+        }
+        let allowedDomains = Set(job.allowedDomains.compactMap { DiscoverySourceDomain(rawValue: $0) })
+        let context = CandidateStageContext(
+            runID: job.runID,
+            runToken: job.runToken,
+            freeze: job.freeze,
+            material: job.material,
+            recallRequest: DiscoveryRetriever.Request(
+                changedSourceRefs: job.changedSourceRefs,
+                topicRefs: [],
+                needsComparisonHistory: true,
+                comparisonAnchorRefs: [],
+                calendar: calendar
+            ),
+            allowedDomains: allowedDomains,
+            epoch: epoch
+        )
+        lastFailure = nil
+        lastPhase = .preparing
+        recomputePresentation()
+        do {
+            let requestData = Self.candidateRequestData(
+                freeze: job.freeze,
+                material: job.material,
+                allowedDomains: allowedDomains,
+                iso: Self.isoFormatter.string(from:)
+            )
+            switch try await runCandidatesAsync(context, requestData: requestData, resume: true) {
+            case .completed(let response, let envelope):
+                let environment = makeEnvironment(serverControlRevision: storedControlRevision)
+                try await continueAfterCandidates(
+                    context,
+                    stageResponse: response,
+                    envelope: envelope,
+                    environment: environment
+                )
+                pendingJobStore.clear()
+            case .stillRunning, .aborted:
+                break
+            case .unsupported:
+                pendingJobStore.clear()
+                try? store.updateRunPhase(runID: job.runID, phase: .cancelled, diagnostics: [.controlChanged], now: clock())
+            }
+        } catch {
+            if !Self.keepsPendingJob(after: error) { pendingJobStore.clear() }
+            handleStageFailure(error, runID: job.runID, digest: job.freeze.sourceManifestDigest)
+        }
+        return true
+    }
+
+    /// 网络类失败（请求可能已到服务端、作业仍在算）保留缓存；其余失败作废。
+    private static func keepsPendingJob(after error: Error) -> Bool {
+        if error is URLError { return true }
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .networkUnavailable, .timeout:
+                return true
+            default:
+                return false
+            }
+        }
+        return false
+    }
+
+    private static func isJobNotFound(_ error: Error) -> Bool {
+        if case APIError.backendError(404, let code, _, _) = error {
+            return code == "DISCOVERY_JOB_NOT_FOUND"
+        }
+        return false
+    }
+
+    /// 服务端没有异步作业：替身默认实现、老服务端无此路由（404）、密钥未配（503 DISCOVERY_ASYNC_UNAVAILABLE）
+    private static func isAsyncUnsupported(_ error: Error) -> Bool {
+        if case DiscoveryClient.DiscoveryClientError.asyncCandidatesUnsupported = error { return true }
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .backendError(let status, let code, _, _):
+                if status == 503 { return code == "DISCOVERY_ASYNC_UNAVAILABLE" }
+                if status == 404 {
+                    return code != "DISCOVERY_JOB_NOT_FOUND" && code != "DISCOVERY_RUN_NOT_FOUND"
+                }
+                return false
+            case .httpError(let status, _):
+                return status == 404
+            default:
+                return false
+            }
+        }
+        return false
     }
 
     // MARK: - 结构门禁（02 §5）
@@ -1116,6 +1623,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             consumeDirtyMarks()
             firstRunPending = false
             lastFailure = nil
+            sideStore.clearLastOutcome()   // 已发布：以发现本身为准（失效后显示「等待新的线索」）
             lastPhase = .ready
             findingRecentlyLost = false
             recomputePresentation()
@@ -1138,6 +1646,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         consumeDirtyMarks()
         firstRunPending = false
         lastFailure = nil
+        sideStore.recordLastOutcome(.noFinding(at: clock()))
         lastPhase = .noFinding
         findingRecentlyLost = false
         recomputePresentation()
@@ -1153,6 +1662,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         case .networkUnavailablePreDispatch:
             // 未 dispatch：保持 dirty，有限退避（5/15/45 阶梯），不报「生成中」
             lastFailure = failure
+            sideStore.recordLastOutcome(.failed(.network, retry: .soon, at: now))
             if let next = schedulerCore.nextAttemptAfterFailure(failure: failure, now: now, attempt: networkRetryAttempt) {
                 networkRetryAttempt += 1
                 scheduleRetry(after: next.timeIntervalSince(now))
@@ -1161,6 +1671,9 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             return
         case .budgetExceeded:
             lastFailure = failure
+            if !hasNoFindingOutcome(sameDayAs: now) {
+                sideStore.recordLastOutcome(.failed(.dailyLimit, retry: .tomorrow, at: now))
+            }
             dailyBatchAvailable = false
             budgetResetAt = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
             // 窗口恢复后自动重试（2026-10-30）：此前只关当日不排重试，恢复完全依赖前台触发；
@@ -1173,6 +1686,7 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             // 且消费 dirty/首开标记——否则每次回前台/重启都会完整重跑一次批次，
             // 逐次烧光服务端 runsPerDay，用户永远等不到发现
             lastFailure = failure
+            sideStore.recordLastOutcome(.noFinding(at: now))   // 模型确定性拒绝 = 跑完了、没有合格的
             sideStore.recordProcessed(
                 digest: digest,
                 policyVersion: versions.policyVersion,
@@ -1187,9 +1701,19 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             // 若不本地关当日闸，每次回前台都会重跑完整批次，逐次烧光服务端日批次
             // 直到 429。这里与 budgetExceeded 同款关闸+排次日重试
             lastFailure = failure
-            dailyBatchAvailable = false
-            budgetResetAt = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
-            scheduleRetry(after: budgetResetAt!.timeIntervalSince(now))
+            if serverOwnsRetry(after: error), registerServerRetry(now: now) {
+                // 1.1.5：服务端原因失败不烧名额（S6）→ 不关当日闸，稍后新开一批。
+                // 名额以服务端为准：真用完时 createRun 回 429 走 budgetExceeded 关闸；
+                // 本机同日最多再试 maxServerRetriesPerDay 次兜底，不会无限重跑
+                Self.diagLog.notice("disp failure: server-retryable, retry in \(Int(Self.serverRetryDelay))s (count=\(serverRetryCount))")
+                sideStore.recordLastOutcome(.failed(.service, retry: .soon, at: now))
+                scheduleRetry(after: Self.serverRetryDelay)
+            } else {
+                sideStore.recordLastOutcome(.failed(.service, retry: .tomorrow, at: now))
+                dailyBatchAvailable = false
+                budgetResetAt = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
+                scheduleRetry(after: budgetResetAt!.timeIntervalSince(now))
+            }
         }
 
         if settings.snapshot().isEnabled {
@@ -1207,6 +1731,8 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
 
     private static func classify(_ error: Error) -> DiscoveryFailureKind {
         if case DiscoveryClient.DiscoveryClientError.stageResultLost = error { return .stageResultLost }
+        // 1.1.5 候选作业失败：dispatch 后失败（是否关当日闸由 serverOwnsRetry 判定）
+        if case DiscoveryClient.DiscoveryClientError.candidateJobFailed = error { return .upstreamErrorPostDispatch }
         if let apiError = error as? APIError {
             switch apiError {
             case .networkUnavailable, .timeout:
@@ -1219,6 +1745,31 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         }
         if error is URLError { return .networkUnavailablePreDispatch }
         return .upstreamErrorPostDispatch
+    }
+
+    /// 同日服务端可重试次数上限（与服务端 attemptsPerDay=3 对齐：首跑 + 2 次重试）
+    private static let maxServerRetriesPerDay = 2
+    private static let serverRetryDelay: TimeInterval = 120
+
+    /// dispatch 后失败由谁定「还能不能再试」：
+    /// - 候选作业失败：服务端明确给出 retryAvailable；
+    /// - 其余（核验/上游错误）：对端是 1.1.5 服务端（异步可用）时名额以服务端为准；
+    ///   对端是老服务端（已回落同步）时保持原口径关当日闸。
+    private func serverOwnsRetry(after error: Error) -> Bool {
+        if case DiscoveryClient.DiscoveryClientError.candidateJobFailed(_, let retryAvailable) = error {
+            return retryAvailable
+        }
+        return !asyncCandidatesUnsupported
+    }
+
+    private func registerServerRetry(now: Date) -> Bool {
+        if let day = serverRetryDay, !calendar.isDate(day, inSameDayAs: now) {
+            serverRetryCount = 0
+        }
+        serverRetryDay = now
+        guard serverRetryCount < Self.maxServerRetriesPerDay else { return false }
+        serverRetryCount += 1
+        return true
     }
 
     private static func diagnosticCode(forFailure failure: DiscoveryFailureKind) -> DiscoveryDiagnosticReasonCode {
@@ -1237,14 +1788,22 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             scheduleRetry(after: remaining)
         case .networkUnavailable:
             lastFailure = .networkUnavailablePreDispatch
+            sideStore.recordLastOutcome(.failed(.network, retry: .soon, at: now))
             if let next = schedulerCore.nextAttemptAfterFailure(failure: .networkUnavailablePreDispatch, now: now, attempt: networkRetryAttempt) {
                 networkRetryAttempt += 1
                 scheduleRetry(after: next.timeIntervalSince(now))
             }
-        case .resourceYield, .leaseActive:
-            break   // 前台激活/变更事件的轻量检查会再触发
+        case .resourceYield:
+            // 让位结束后自动补查，不依赖用户再切一次前后台；预检在读源前挡住重复扫描。
+            scheduleRetry(after: 30)
+        case .leaseActive:
+            break
         case .dailyBudgetExhausted(let resetAt):
             lastFailure = .budgetExceeded
+            // 当天已整理过（无合格）时保留「今天整理过了」——比「次数已用完」更有信息量
+            if !hasNoFindingOutcome(sameDayAs: now) {
+                sideStore.recordLastOutcome(.failed(.dailyLimit, retry: .tomorrow, at: now))
+            }
             dailyBatchAvailable = false
             // 无服务端 resetAt 时保守到次日自然日（上海日界由服务端口径，本机按本地日近似）
             budgetResetAt = resetAt ?? calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))
@@ -1255,6 +1814,11 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         }
         if lastPhase != .ready { lastPhase = .waitingForMaterial }
         recomputePresentation()
+    }
+
+    private func hasNoFindingOutcome(sameDayAs now: Date) -> Bool {
+        guard let outcome = sideStore.lastOutcome, outcome.kind == .noFinding else { return false }
+        return calendar.isDate(outcome.at, inSameDayAs: now)
     }
 
     private func scheduleRetry(after delay: TimeInterval) {
@@ -1465,6 +2029,8 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         retryTask?.cancel()
         currentFinding = nil
         isDetailPresented = false
+        pendingJobStore.clear()   // 1.1.5：取件缓存属派生数据，关闭即删
+        sideStore.clearLastOutcome()   // 1.1.5：结局状态同属派生数据，重新开启从头显示
         do {
             try store.clearAllForAccount(now: clock())
         } catch {
@@ -1947,6 +2513,8 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
             isBatchRunning = false
             currentFinding = nil
             isDetailPresented = false
+            pendingJobStore.clear()
+            sideStore.clearLastOutcome()
             try? store.clearAllForAccount(now: now)
             return
         }
@@ -2008,26 +2576,55 @@ final class DiscoveryCoordinator: NSObject, DiscoveryService {
         }
         currentFinding = nil
 
-        // 网络失败/预算不足：旧内容可读否则无胶囊；设置页不催用户重试
-        if let failure = lastFailure {
-            switch failure {
-            case .networkUnavailablePreDispatch, .budgetExceeded, .upstreamErrorPostDispatch, .stageResultLost:
-                presentationState = .temporarilyUnavailable
-                settingsDetailState = .pausedTemporarily
-                return
-            default:
-                break
-            }
-        }
-
-        switch lastPhase {
-        case .preparing, .scheduled:
+        // 在途（正在整理）优先
+        if lastPhase == .preparing || lastPhase == .scheduled {
             presentationState = .preparing
             settingsDetailState = .preparing
-        case .ready, .noFinding, .waitingForMaterial, .backoff, .cancelled:
-            presentationState = .waitingForMaterial
-            settingsDetailState = findingRecentlyLost ? .stale : .waitingForMaterial
+            return
         }
+
+        // 胶囊口径不变（均无胶囊）：网络失败/预算不足/派发后失败 → temporarilyUnavailable，其余 → waitingForMaterial
+        let capsuleUnavailable: Bool
+        switch lastFailure {
+        case .networkUnavailablePreDispatch?, .budgetExceeded?, .upstreamErrorPostDispatch?, .stageResultLost?:
+            capsuleUnavailable = true
+        default:
+            capsuleUnavailable = false
+        }
+        presentationState = capsuleUnavailable ? .temporarilyUnavailable : .waitingForMaterial
+
+        // 设置页（1.1.5）：如实区分「整理过了没合格」「没整理成功」「材料不够」，以本机持久化的最近结局为准
+        settingsDetailState = Self.settingsDetail(
+            findingRecentlyLost: findingRecentlyLost,
+            lastOutcome: sideStore.lastOutcome,
+            now: now,
+            calendar: calendar
+        )
+    }
+
+    /// 设置页状态（非在途、无可读发现时）：刚失去发现 → 最近一次结局 → 材料不够，取第一个成立的。
+    /// 「没整理成功」只在当天有效：跨天后由新一天的整理接替，不再显示「明天再试」这类过期说法；
+    /// 「整理过了」不限当天，带日期显示（「昨天整理过了」），直到下一次整理给出新结局。
+    static func settingsDetail(
+        findingRecentlyLost: Bool,
+        lastOutcome: DiscoveryLastOutcome?,
+        now: Date,
+        calendar: Calendar
+    ) -> DiscoverySettingsDetailState {
+        if findingRecentlyLost { return .stale }
+        if let outcome = lastOutcome {
+            switch outcome.kind {
+            case .noFinding:
+                return .checkedNoFinding(checkedAt: outcome.at)
+            case .failed:
+                if calendar.isDate(outcome.at, inSameDayAs: now),
+                   let reason = outcome.failureReason,
+                   let retry = outcome.retry {
+                    return .failed(reason: reason, retry: retry)
+                }
+            }
+        }
+        return .waitingForMaterial
     }
 
     /// 展示前检查（检查位 5）：canDisplay 门控 + 否定命中不展示。

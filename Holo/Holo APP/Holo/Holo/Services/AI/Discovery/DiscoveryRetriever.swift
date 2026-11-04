@@ -25,7 +25,8 @@ import Foundation
 // MARK: - 初次召回结果
 
 /// 初次召回材料包（进入候选生成前的完整支持材料）。
-struct DiscoveryMaterialPackage: Equatable, Sendable {
+/// Codable（1.1.5）：异步取件期间原样缓存到本机，App 被回收后接着做门禁与反例召回。
+struct DiscoveryMaterialPackage: Codable, Equatable, Sendable {
     /// 采用的支持块（≤ Limits.totalBlocks；末位附 1 个 computedFact atom）
     let supportAtoms: [DiscoveryFactAtom]
     /// 生成阶段材料（≤ Limits.generationBlocks；调用一输入的匿名 evidence 集）
@@ -418,16 +419,17 @@ struct DiscoveryRetriever {
             guard let refs = refsByKind[adapter.sourceKind], !refs.isEmpty else { continue }
             let snapshots = try adapter.fetchSnapshots(
                 localIDs: refs.map(\.localID),
-                limit: max(Limits.channelFetchLimit, refs.count)
+                limit: max(Limits.channelFetchLimit, DiscoverySnapshotRevisionIndex.refetchLimit(idCount: refs.count))
             )
-            let byCanonical = Dictionary(uniqueKeysWithValues: snapshots.map { ($0.sourceRefCanonical, $0) })
+            // 同 id 副本会取回多条同 canonical 快照（见 DiscoverySnapshotRevisionIndex）
+            let revisionsByCanonical = DiscoverySnapshotRevisionIndex.revisionsByCanonical(snapshots)
             for ref in refs {
                 guard let atom = atomByCanonical[ref.canonical] else { continue }
-                guard let current = byCanonical[ref.canonical] else {
+                guard let currentRevisions = revisionsByCanonical[ref.canonical] else {
                     stale.append(DiscoveryStaleEvidence(evidenceID: atom.evidenceID, sourceRef: ref.canonical, reason: .sourceMissing))
                     continue
                 }
-                if current.sourceRevision != atom.sourceRevision {
+                if !currentRevisions.contains(atom.sourceRevision) {
                     stale.append(DiscoveryStaleEvidence(evidenceID: atom.evidenceID, sourceRef: ref.canonical, reason: .revisionChanged))
                 }
             }

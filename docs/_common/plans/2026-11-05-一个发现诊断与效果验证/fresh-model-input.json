@@ -1,0 +1,183 @@
+{
+  "meta": {
+    "kind": "synthetic-live-model-isolated-memory-db",
+    "capturedAt": "2026-11-04T17:50:13.908Z",
+    "elapsedMs": 35561,
+    "candidateModel": {
+      "provider": "qwen",
+      "model": "qwen3.7-flash"
+    },
+    "candidatePromptVersion": 6
+  },
+  "candidates": {
+    "schemaVersion": 1,
+    "kind": "candidates",
+    "runID": "85e9a6d1-0068-4ded-b6e0-038969831b85",
+    "candidates": [
+      {
+        "candidateID": "C01",
+        "type": "two_episodes",
+        "subjectKey": "lighter-start",
+        "scopeKind": "two_episodes",
+        "timeRange": {
+          "start": "2026-10-08T00:00:00+08:00",
+          "end": "2026-10-17T00:00:00+08:00"
+        },
+        "claims": [
+          {
+            "claimID": "S01",
+            "kind": "observation",
+            "text": "这两次重新开始，你都把第一步变轻了。",
+            "citations": [
+              {
+                "evidenceID": "E01",
+                "quote": "停了一阵，今天先出去走了十分钟。没有要求自己一定跑起来。"
+              },
+              {
+                "evidenceID": "E02",
+                "quote": "重新读书，今晚只翻了两页，没有要求读完一章。"
+              }
+            ],
+            "metricIDs": []
+          },
+          {
+            "claimID": "F01",
+            "kind": "fact",
+            "text": "第一次是十月八日去散步，第二次是十月十六日去阅读。",
+            "citations": [
+              {
+                "evidenceID": "E01",
+                "quote": "停了一阵，今天先出去走了十分钟。"
+              },
+              {
+                "evidenceID": "E02",
+                "quote": "重新读书，今晚只翻了两页"
+              }
+            ],
+            "metricIDs": []
+          },
+          {
+            "claimID": "F02",
+            "kind": "fact",
+            "text": "两次行动都明确排除了完成完整任务的要求。",
+            "citations": [
+              {
+                "evidenceID": "E01",
+                "quote": "没有要求自己一定跑起来。"
+              },
+              {
+                "evidenceID": "E02",
+                "quote": "没有要求读完一章。"
+              }
+            ],
+            "metricIDs": []
+          }
+        ],
+        "titleClaimID": "S01",
+        "bodyClaimIDs": [
+          "F01",
+          "F02"
+        ],
+        "supportEvidenceIDs": [
+          "E01",
+          "E02"
+        ],
+        "counterSearch": [
+          {
+            "domains": [
+              "thought"
+            ],
+            "anchorRefs": [],
+            "keywords": [
+              "跑步 坚持"
+            ]
+          },
+          {
+            "domains": [
+              "thought"
+            ],
+            "anchorRefs": [],
+            "keywords": [
+              "读书 章节"
+            ]
+          }
+        ],
+        "sensitivity": "non_sensitive",
+        "comparisonPeriods": []
+      }
+    ],
+    "noFindingReason": "none"
+  },
+  "verification": {
+    "schemaVersion": 1,
+    "kind": "verification",
+    "runID": "85e9a6d1-0068-4ded-b6e0-038969831b85",
+    "candidateResults": [
+      {
+        "candidateID": "C01",
+        "verdict": "accept",
+        "reasonCodes": [],
+        "claimResults": [
+          {
+            "claimID": "S01",
+            "verdict": "supported",
+            "reasonCodes": [],
+            "supportEvidenceIDs": [
+              "E01",
+              "E02"
+            ],
+            "counterEvidenceIDs": []
+          },
+          {
+            "claimID": "F01",
+            "verdict": "supported",
+            "reasonCodes": [],
+            "supportEvidenceIDs": [
+              "E01",
+              "E02"
+            ],
+            "counterEvidenceIDs": []
+          },
+          {
+            "claimID": "F02",
+            "verdict": "supported",
+            "reasonCodes": [],
+            "supportEvidenceIDs": [
+              "E01",
+              "E02"
+            ],
+            "counterEvidenceIDs": []
+          }
+        ]
+      }
+    ]
+  },
+  "evidence": [
+    {
+      "evidenceID": "E01",
+      "sourceKind": "thought",
+      "sourceBlock": "停了一阵，今天先出去走了十分钟。没有要求自己一定跑起来。",
+      "occurredRange": {
+        "start": "2026-10-08T00:00:00+08:00",
+        "end": "2026-10-09T00:00:00+08:00",
+        "precision": "day"
+      },
+      "recordedAt": "2026-10-08T21:00:00+08:00",
+      "lineageGroup": "L01",
+      "entityRefs": []
+    },
+    {
+      "evidenceID": "E02",
+      "sourceKind": "thought",
+      "sourceBlock": "重新读书，今晚只翻了两页，没有要求读完一章。",
+      "occurredRange": {
+        "start": "2026-10-16T00:00:00+08:00",
+        "end": "2026-10-17T00:00:00+08:00",
+        "precision": "day"
+      },
+      "recordedAt": "2026-10-16T21:00:00+08:00",
+      "lineageGroup": "L02",
+      "entityRefs": []
+    }
+  ]
+}

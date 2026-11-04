@@ -186,4 +186,37 @@ final class DiscoveryContractTests: XCTestCase {
         XCTAssertGreaterThan(consumed, 0, "夹具至少应有一条 server=pass 的交付用例")
     }
 
+    // MARK: - 异步候选作业（真源：controller jobStatusResponse，三态统一字段）
+
+    func testCandidateJobDecodesRunningBackendShape() throws {
+        let payload = #"{"runID":"run-job","stage":"candidates","jobStatus":"running","pollAfterSeconds":3,"leaseExpiresAt":1790086400000,"result":null,"error":null,"retryAvailable":false,"replayed":false}"#
+        let result = try decode(DiscoveryClient.CandidateJobStatus.self, payload)
+        XCTAssertEqual(result.runID, "run-job")
+        XCTAssertEqual(result.jobStatus, .running)
+        XCTAssertEqual(result.pollAfterSeconds, 3)
+        XCTAssertNil(result.result)
+        XCTAssertNil(result.error)
+    }
+
+    func testCandidateJobDecodesCompletedBackendShapeAndValidatesEnvelope() throws {
+        let payload = #"{"runID":"run-job","stage":"candidates","jobStatus":"completed","pollAfterSeconds":null,"leaseExpiresAt":1790086400000,"result":{"runID":"run-job","stage":"candidates","envelope":{"schemaVersion":1,"kind":"candidates","runID":"run-job","candidates":[],"noFindingReason":"no_material"},"promptType":"discovery_candidate_v1","promptVersion":6,"model":{"provider":"qwen","model":"qwen3.7-flash"},"usage":null,"replayed":false,"candidatesHash":"hash"},"error":null,"retryAvailable":false,"replayed":true}"#
+        let result = try decode(DiscoveryClient.CandidateJobStatus.self, payload)
+        XCTAssertEqual(result.jobStatus, .completed)
+        let stage = try XCTUnwrap(result.result)
+        XCTAssertEqual(stage.runID, result.runID)
+        let envelope = try DiscoveryAIPacket.decodeValidatedCandidateEnvelope(from: DiscoveryCanonicalJSON.data(from: stage.envelope))
+        XCTAssertEqual(envelope.runID, result.runID)
+        XCTAssertTrue(envelope.candidates.isEmpty)
+        XCTAssertEqual(stage.promptVersion, 6)
+        XCTAssertEqual(result.replayed, true)
+    }
+
+    func testCandidateJobDecodesRetryableFailureBackendShape() throws {
+        let payload = #"{"runID":"run-job","stage":"candidates","jobStatus":"failed","pollAfterSeconds":null,"leaseExpiresAt":1790086400000,"result":null,"error":{"code":"DISCOVERY_MODEL_OUTPUT_INVALID","reason":"time_range_value"},"retryAvailable":true,"replayed":false}"#
+        let result = try decode(DiscoveryClient.CandidateJobStatus.self, payload)
+        XCTAssertEqual(result.jobStatus, .failed)
+        XCTAssertEqual(result.error?.code, "DISCOVERY_MODEL_OUTPUT_INVALID")
+        XCTAssertTrue(result.retryAvailable)
+        XCTAssertNil(result.result)
+    }
 }

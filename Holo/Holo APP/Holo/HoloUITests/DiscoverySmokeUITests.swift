@@ -93,6 +93,33 @@ final class DiscoverySmokeUITests: XCTestCase {
 
     // MARK: - Helpers
 
+    func test_聊天页可输入并发送_覆盖旧走查漏掉的TextField() {
+        skipOnboardingIfNeeded()
+        // ChatInputView 使用纵向 TextField；只找 textViews 会把真实发送路径静默跳过。
+        let textField = app.textFields.firstMatch
+        let textView = app.textViews.firstMatch
+        let input: XCUIElement
+        if textField.waitForExistence(timeout: 5), textField.isHittable {
+            input = textField
+        } else {
+            XCTAssertTrue(textView.waitForExistence(timeout: 5) && textView.isHittable,
+                          "聊天输入框必须真实可操作：\(app.debugDescription)")
+            input = textView
+        }
+        input.tap()
+        input.typeText("发现链路验收")
+        let send = app.buttons["发送消息"].firstMatch
+        XCTAssertTrue(send.waitForExistence(timeout: 5) && send.isEnabled, "发送按钮应可用")
+        send.tap()
+        let cleared = NSPredicate { _, _ in
+            !(input.value as? String ?? "").contains("发现链路验收")
+        }
+        expectation(for: cleared, evaluatedWith: input)
+        waitForExpectations(timeout: 8)
+        sleep(3)
+        XCTAssertEqual(app.state, .runningForeground, "覆盖发送及异步初始化后仍存活")
+    }
+
     @discardableResult
     private func existsAfter(el: XCUIElement, timeout: TimeInterval) -> Bool {
         el.waitForExistence(timeout: timeout)

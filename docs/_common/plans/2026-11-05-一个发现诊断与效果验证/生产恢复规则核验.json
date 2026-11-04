@@ -1,0 +1,15 @@
+{
+  "databaseCheck": [
+    {
+      "quick_check": "ok"
+    }
+  ],
+  "runStoreSHA256": "94b42002ee6df1a1629e4c5186e3e9cc9fe94d065859b8ade6de11a1734165fc",
+  "legacyRun": {
+    "status": "active",
+    "candidateDispatched": 1,
+    "verifyDispatched": 0,
+    "attemptCount": 1,
+    "eligibleExpiredIncomplete": true
+  }
+}
