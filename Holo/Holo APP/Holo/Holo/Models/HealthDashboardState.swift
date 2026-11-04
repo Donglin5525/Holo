@@ -214,8 +214,16 @@ struct HealthDashboardSnapshot: Equatable {
     }
 
     var ringBadgeText: String {
-        let nearlyMet = ringMetrics.filter { $0.progress >= 0.8 }.count
-        return String(localized: "三环 \(nearlyMet)/3 接近达标")
+        // 达标与接近分开计数：全达标却显示「3/3 接近达标」是把好消息说成还没到（11-05 挑刺 P1）
+        let met = ringMetrics.filter { $0.progress >= 1.0 }.count
+        let nearly = ringMetrics.filter { $0.progress >= 0.8 && $0.progress < 1.0 }.count
+        if met == ringMetrics.count && met > 0 {
+            return String(localized: "三环全部达标")
+        }
+        if met > 0 {
+            return String(localized: "三环 \(met)/3 已达标")
+        }
+        return String(localized: "三环 \(nearly)/3 接近达标")
     }
 
     var coreInsight: HealthInsight {

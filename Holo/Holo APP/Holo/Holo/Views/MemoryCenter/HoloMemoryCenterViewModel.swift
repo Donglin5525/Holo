@@ -124,11 +124,42 @@ final class HoloMemoryCenterViewModel: ObservableObject {
     // MARK: - 操作回执（§5.1：行内回执 + 撤销；保存成功才展示成功）
 
     struct ActionReceipt: Identifiable, Equatable {
+        /// 回执来源账本：撤销必须回到记账的那本（11-05 挑刺 P0#3：
+        /// 知识层确认的回执曾被派给用户控制服务撤销，ID 体系对不上必失败）
+        enum Source: Equatable {
+            /// 知识层（HoloKnowledgeControlService）：按 propositionID+语义指纹+因果操作集撤销
+            case knowledge
+            /// 用户控制层（HoloMemoryUserControlService）：按 recordID+内容版本撤销
+            case userControl
+        }
+
         let id = UUID()
         let recordID: String
         let text: String
         let operationID: String
         let contentVersionAfterApply: Int
+        let source: Source
+        /// 知识层撤销所需：发起时绑定的语义指纹与见过的操作集（userControl 侧为 nil/空）
+        let expectedSemanticDigest: String?
+        let knownOperationIDs: Set<String>
+
+        init(
+            recordID: String,
+            text: String,
+            operationID: String,
+            contentVersionAfterApply: Int,
+            source: Source,
+            expectedSemanticDigest: String? = nil,
+            knownOperationIDs: Set<String> = []
+        ) {
+            self.recordID = recordID
+            self.text = text
+            self.operationID = operationID
+            self.contentVersionAfterApply = contentVersionAfterApply
+            self.source = source
+            self.expectedSemanticDigest = expectedSemanticDigest
+            self.knownOperationIDs = knownOperationIDs
+        }
     }
 
     @Published var receipt: ActionReceipt?
@@ -157,41 +188,69 @@ final class HoloMemoryCenterViewModel: ObservableObject {
         worthConfirming.count > recommendedWorthConfirming.count
     }
 
-    /// 知识层控制：确认绑定当前语义指纹；保存成功才回执。
+    /// 知识层控制入口（来自页面上的具体条目）：语义指纹与因果操作集由条目解析。
     @MainActor
     func performKnowledge(
         _ action: HoloKnowledgeControlAction,
         on knowledge: HoloResolvedKnowledge
     ) async {
+        let digest = knowledge.proposedRevision?.semanticDigest ?? knowledge.currentRevision?.semanticDigest
+        await performKnowledge(
+            action,
+            propositionID: knowledge.propositionID,
+            expectedSemanticDigest: digest,
+            knownOperationIDs: knowledge.restrictingOperationIDs
+        )
+    }
+
+    /// 知识层控制核心：确认绑定当前语义指纹；保存成功才回执；撤销按回执里的因果输入重放。
+    @MainActor
+    func performKnowledge(
+        _ action: HoloKnowledgeControlAction,
+        propositionID: String,
+        expectedSemanticDigest: String?,
+        knownOperationIDs: Set<String>
+    ) async {
+        let isUndo: Bool = { if case .undo = action { return true }; return false }()
         do {
             let repository = try await HoloMemoryRuntime.shared.repository()
             let service = HoloKnowledgeControlService(repository: repository)
-            let digest = knowledge.proposedRevision?.semanticDigest ?? knowledge.currentRevision?.semanticDigest
             let request = HoloKnowledgeControlRequest(
-                propositionID: knowledge.propositionID,
-                expectedSemanticDigest: digest,
-                knownOperationIDs: knowledge.restrictingOperationIDs,
+                propositionID: propositionID,
+                expectedSemanticDigest: expectedSemanticDigest,
+                knownOperationIDs: knownOperationIDs,
                 action: action,
                 entry: "memoryCenter"
             )
             let outcome = try await service.apply(request)
             switch outcome {
             case .applied(_, let undoableID):
-                if let undoableID {
+                if isUndo {
+                    // 撤销成功：回执横幅完成使命，清掉（刷新后条目回到原状态）
+                    self.receipt = nil
+                } else if let undoableID {
                     receipt = ActionReceipt(
-                        recordID: knowledge.propositionID,
+                        recordID: propositionID,
                         text: knowledgeReceiptText(for: action),
                         operationID: undoableID,
-                        contentVersionAfterApply: 0
+                        contentVersionAfterApply: 0,
+                        source: .knowledge,
+                        // 撤销需要发起时的因果输入：语义指纹与见过的操作集
+                        expectedSemanticDigest: expectedSemanticDigest,
+                        knownOperationIDs: knownOperationIDs
                     )
                 }
                 await load()
             case .alreadyApplied:
+                if isUndo { self.receipt = nil }
                 await load()
             case .conflict:
-                actionNotice = "这条理解刚有更新，先看看最新版本再操作。"
+                actionNotice = isUndo
+                    ? "这条理解刚刚有过新变化，撤销没有执行；稍后再试。"
+                    : "这条理解刚有更新，先看看最新版本再操作。"
             case .notFound:
                 actionNotice = "这条理解已不存在，列表已刷新。"
+                self.receipt = nil
                 await load()
             case .notAllowed(let reason):
                 actionNotice = reason == "notMature" ? "这条观察还没有达到可确认的证据门槛。" : "这个操作在这里不适用。"
@@ -200,7 +259,9 @@ final class HoloMemoryCenterViewModel: ObservableObject {
             }
         } catch {
             NSLog("[HoloMemoryCenter] 知识操作异常: \(String(describing: error))")
-            actionNotice = "暂时没做成，稍后再试一次。"
+            actionNotice = isUndo
+                ? "这次撤销没成功，记录没有变化，稍后再试。"
+                : "暂时没做成，稍后再试一次。"
         }
     }
 
@@ -258,10 +319,27 @@ final class HoloMemoryCenterViewModel: ObservableObject {
         }
     }
 
-    /// 撤销回执对应的那笔操作。
+    /// 撤销回执对应的那笔操作。谁记账谁撤销：知识层回执走知识层服务
+    /// （带发起时的语义指纹与因果操作集），用户控制回执走内容版本预检（11-05 挑刺 P0#3）。
     @MainActor
     func undoReceipt() async {
         guard let receipt = receipt else { return }
+        switch receipt.source {
+        case .knowledge:
+            await performKnowledge(
+                .undo(targetOperationID: receipt.operationID),
+                propositionID: receipt.recordID,
+                expectedSemanticDigest: receipt.expectedSemanticDigest,
+                knownOperationIDs: receipt.knownOperationIDs
+            )
+        case .userControl:
+            await undoUserControlReceipt(receipt)
+        }
+    }
+
+    /// 用户控制层回执撤销（原链路：版本预检 + 事件账本撤销）。
+    @MainActor
+    private func undoUserControlReceipt(_ receipt: ActionReceipt) async {
         do {
             let service = try await makeControlService()
             let request = HoloMemoryUserControlRequest(
@@ -280,7 +358,7 @@ final class HoloMemoryCenterViewModel: ObservableObject {
                 await load()
             }
         } catch {
-            actionNotice = "暂时没做成，稍后再试一次。"
+            actionNotice = "这次撤销没成功，记录没有变化，稍后再试。"
         }
     }
 
@@ -297,7 +375,8 @@ final class HoloMemoryCenterViewModel: ObservableObject {
                     recordID: projection.recordID,
                     text: receiptText(for: action),
                     operationID: undoableID,
-                    contentVersionAfterApply: newVersion
+                    contentVersionAfterApply: newVersion,
+                    source: .userControl
                 )
             }
             await load()

@@ -308,8 +308,9 @@ struct HoloMemoryCenterView: View {
                 filterEmptyState
             } else if viewModel.worthConfirming.isEmpty && viewModel.confirmedKnowledge.isEmpty {
                 memoryEmptyState
-            } else {
-                // 已记住为空、值得确认有内容：引导切换，不称系统没有任何记忆（§4.5）。
+            } else if viewModel.confirmedKnowledge.isEmpty {
+                // 已记住（记录类）为空、知识层也为空、值得确认有内容：引导切换，不称系统没有任何记忆（§4.5）。
+                // 知识层已有确认条目时上方已显示「你确认的理解」分组，不能再挂「还没有确定下来」空态（11-05 挑刺 P0#2）。
                 VStack(spacing: HoloSpacing.sm) {
                     Text("眼下还没有确定下来的理解")
                         .font(.system(size: 15, weight: .semibold))

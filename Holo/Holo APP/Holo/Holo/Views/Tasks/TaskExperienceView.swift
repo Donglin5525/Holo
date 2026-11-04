@@ -502,7 +502,10 @@ struct TaskExperienceView: View {
             } label: {
                 Label(String(localized: "归档管理"), systemImage: "archivebox")
             }
+            // 开发验收开关（§15.1）：误触会把整个模块切回旧版 UI，只留给 Debug 包
+            #if DEBUG
             Toggle(String(localized: "新版任务体验"), isOn: v2ToggleBinding)
+            #endif
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 14, weight: .medium))

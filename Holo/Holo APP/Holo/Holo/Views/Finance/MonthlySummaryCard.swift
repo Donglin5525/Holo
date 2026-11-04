@@ -93,13 +93,16 @@ struct MonthlySummaryCard: View {
         let percentage = Double(truncating: (abs(change) / previous * 100) as NSDecimalNumber)
         let isIncrease = change > 0
         let isNeutral = change == 0
+        // 方向写进数字本体(+/-)，不靠颜色单独承担语义——月初零账打出无方向的「100.0%」
+        // 会被读成好消息（11-05 挑刺 P1：数字诚实口径）
+        let signedPercentage = isIncrease ? percentage : -percentage
 
         Group {
             if isNeutral {
                 Text("与上月同期持平")
                     .font(.system(size: 12, weight: .medium))
             } else {
-                Text(String(format: String(localized: "较上月同期%.1f%%"), percentage))
+                Text(String(format: String(localized: "较上月同期 %+.1f%%"), signedPercentage))
                     .font(.system(size: 12, weight: .medium))
             }
         }

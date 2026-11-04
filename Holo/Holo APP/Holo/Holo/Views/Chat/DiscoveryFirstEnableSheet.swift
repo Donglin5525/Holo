@@ -57,7 +57,9 @@ struct DiscoveryFirstEnableSheet: View {
             onClose: close,
             primaryTitle: isProcessing ? "正在开启…" : (outcomeMessage == nil ? "同意并开启" : "重试开启"),
             primaryAction: { submit() },
-            primaryDisabled: !canSubmit
+            primaryDisabled: !canSubmit,
+            primaryHint: submitHint,
+            primaryAccessory: { agreeToggle.disabled(isProcessing) }
         ) {
             ScrollViewReader { proxy in
                 ScrollView {
@@ -67,8 +69,6 @@ struct DiscoveryFirstEnableSheet: View {
                         consentStatusCard
 
                         domainCard.disabled(isProcessing)
-
-                        agreeToggle.disabled(isProcessing)
 
                         if isProcessing {
                             HoloInlineState(kind: .loading, message: "正在开启…")
@@ -101,6 +101,15 @@ struct DiscoveryFirstEnableSheet: View {
         }
         .presentationDetents([.large])
         .interactiveDismissDisabled(isProcessing)
+    }
+
+    /// 主按钮置灰原因（满足条件即 nil）。授权缺失不在此提示——授权卡内已有引导按钮，
+    /// 两处重复反而模糊主引导（§4.5 同屏不重复同一指引）。
+    private var submitHint: String? {
+        guard !canSubmit, outcomeMessage == nil else { return nil }
+        if selectedDomains.isEmpty { return "至少选择一类来源" }
+        if !agreed { return "勾选下方的同意说明后即可开启" }
+        return nil
     }
 
     // MARK: 说明卡（01 §5 必须明示的三件事）
