@@ -50,6 +50,7 @@ import { createContentModerationService } from "./moderation/contentModerationSe
 import { createThoughtOrganizeBudgetStore } from "./thoughts/thoughtOrganizeBudgetStore.js";
 import { createDiscoveryControlStore } from "./discovery/discoveryControlStore.js";
 import { createDiscoveryRunStore } from "./discovery/discoveryRunStore.js";
+import { createDiscoveryStageJobStore } from "./discovery/discoveryStageJobStore.js";
 import { registerDiscoveryRoutes, DISCOVERY_PURPOSES } from "./discovery/discoveryController.js";
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
 import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateService.js";
@@ -392,7 +393,21 @@ export function createApp(overrides = {}) {
   // 与 thought 路由同模式：阶段请求先经 checkIngress 建域，再进控制器）。
   const discoveryControlStore = config.discoveryControlStore
     ?? createDiscoveryControlStore(database.db);
-  const discoveryRunStore = config.discoveryRunStore ?? createDiscoveryRunStore(database.db);
+  const discoveryRunStore = config.discoveryRunStore ?? createDiscoveryRunStore(database.db, {
+    attemptsPerDay: config.discovery.attemptsPerDay,
+  });
+  // 1.1.5 S3/S4：候选异步作业存储。密钥缺失/无效时优雅禁用（异步端点 503、capabilities
+  // features.asyncCandidates=false，客户端回落同步端点）——与云端分析密钥同纪律。
+  let discoveryStageJobStore = config.discoveryStageJobStore ?? null;
+  if (!discoveryStageJobStore && config.discovery.jobEncryptionKey) {
+    try {
+      discoveryStageJobStore = createDiscoveryStageJobStore(database.db, {
+        encryptionKey: config.discovery.jobEncryptionKey,
+      });
+    } catch (error) {
+      console.error("[holo-backend] 发现异步作业密钥无效，异步候选保持禁用:", error?.message ?? error);
+    }
+  }
 
   // 请求耗时日志中间件
   const requestLogger = createRequestLogger(database.db);
@@ -433,6 +448,7 @@ export function createApp(overrides = {}) {
     getSessionId,
     controlStore: discoveryControlStore,
     runStore: discoveryRunStore,
+    stageJobStore: discoveryStageJobStore,
     backgroundCostGuard,
     captureAiCallLogs,
   });

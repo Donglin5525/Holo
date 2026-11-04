@@ -4,6 +4,8 @@ import { injectServerPrompt, promptTypeForPurpose } from "../prompts/serverPromp
 import { getPrompt } from "../prompts/promptRegistry.js";
 import { canonicalSha256 } from "./discoveryCanonicalJson.js";
 import { validateDiscoveryOutput } from "./discoveryOutputSchema.js";
+import { anchorQuoteToSource, padCountWordCitations, timezoneOffsetOf } from "./discoveryCitationRepair.js";
+import { hashRunToken } from "./discoveryStageJobStore.js";
 
 /**
  * 「一个发现」专用控制器与路由（实施包 03 §3）。
@@ -40,6 +42,8 @@ export function registerDiscoveryRoutes(app, deps) {
     getSessionId,
     controlStore,
     runStore,
+    // 1.1.5 S3：候选异步作业存储（密钥缺失时为 null → 异步端点 503，客户端回落同步）
+    stageJobStore = null,
     backgroundCostGuard,
     captureAiCallLogs,
   } = deps;
@@ -74,9 +78,9 @@ export function registerDiscoveryRoutes(app, deps) {
     }
   };
 
-  const consumeRateLimit = (context, deviceId, purpose) => {
+  const consumeRateLimit = (context, deviceId, purpose, explicitLimits = null) => {
     const route = config.routes[purpose];
-    const requestLimits = route?.requestLimits ?? {};
+    const requestLimits = explicitLimits ?? route?.requestLimits ?? {};
     const usage = usageStore.consume({
       deviceId,
       purpose,
@@ -108,9 +112,15 @@ export function registerDiscoveryRoutes(app, deps) {
         allowedDomains: config.discovery.allowedDomains,
         budget: {
           runsPerDay: config.discovery.runsPerDay,
+          // 1.1.5 S6：服务端原因失败不烧名额，同日最多尝试次数
+          attemptsPerDay: config.discovery.attemptsPerDay ?? 1,
           candidateMaxTokens: config.routes[DISCOVERY_PURPOSES.candidates]?.maxTokens ?? null,
           verifyMaxTokens: config.routes[DISCOVERY_PURPOSES.verify]?.maxTokens ?? null,
           inputBudgetTokens: config.discovery.inputBudgetTokens,
+        },
+        // 1.1.5 S3：客户端据此选择异步（candidates/async + candidates/result）或回落同步端点
+        features: {
+          asyncCandidates: stageJobStore !== null,
         },
       });
     } catch (error) {
@@ -303,6 +313,51 @@ export function registerDiscoveryRoutes(app, deps) {
     }
   });
 
+  // ===== 阶段一（异步，1.1.5 S3）：启动候选作业，立即返回 CandidateJobStatus =====
+  // 请求体与同步 /candidates 完全相同；闸门一致。模型调用在进程内后台进行，结果加密落库。
+  app.post("/v1/discovery/runs/:id/candidates/async", async (context) => {
+    try {
+      requireEnabled();
+      assertBodySize(context);
+      if (!stageJobStore) {
+        throw new GatewayError("DISCOVERY_ASYNC_UNAVAILABLE", "Async candidates are not available", 503);
+      }
+      const { deviceId, subject } = await resolveIdentity(context);
+      const body = await readJson(context);
+      const status = startCandidateJob({ context, subject, deviceId, runId: context.req.param("id"), body });
+      context.header("Cache-Control", "no-store");
+      return context.json(status);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // ===== 阶段一（异步取件）：返回 CandidateJobStatus；POST 以免 token 进 URL/访问日志 =====
+  app.post("/v1/discovery/runs/:id/candidates/result", async (context) => {
+    try {
+      requireEnabled();
+      assertBodySize(context);
+      if (!stageJobStore) {
+        throw new GatewayError("DISCOVERY_ASYNC_UNAVAILABLE", "Async candidates are not available", 503);
+      }
+      const { deviceId, subject } = await resolveIdentity(context);
+      const body = await readJson(context);
+      requireFields(body, ["runToken"]);
+      consumeRateLimit(context, deviceId, "discovery_poll", {
+        perMinute: config.discovery.pollRequestsPerMinute,
+        perDay: config.discovery.pollRequestsPerDay,
+      });
+      stageJobStore.sweepExpired();
+      const runId = context.req.param("id");
+      const job = stageJobStore.get(runId);
+      assertJobAccess(job, { subject, deviceId, runToken: body.runToken });
+      context.header("Cache-Control", "no-store");
+      return context.json(jobStatusResponse({ job: settleStaleJob(job), subject, replayed: false }));
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
   // ===== 阶段二：独立核验（必须在 candidates 成功后；候选包 hash 双端一致）=====
   app.post("/v1/discovery/runs/:id/verify", async (context) => {
     try {
@@ -412,11 +467,7 @@ export function registerDiscoveryRoutes(app, deps) {
     // verify 候选包先与 candidates 阶段的内存响应比对（T34），比对失败不占用阶段 claim
     if (verifyInput) {
       const current = runStore.get(runId);
-      const candidatesStage = runStore.readStageResult({
-        run: current,
-        stage: "candidates",
-        requestHash: current?.candidate_request_hash,
-      });
+      const candidatesStage = readCandidatesStage(current);
       if (!candidatesStage.hit) {
         // 重启/淘汰后绝不重调模型补结果（T17）
         throw new GatewayError("DISCOVERY_STAGE_RESULT_LOST", "Candidates result is no longer available", 410);
@@ -546,6 +597,8 @@ export function registerDiscoveryRoutes(app, deps) {
         const { envelope } = validateDiscoveryOutput(content, {
           expectedKind: stage === "candidates" ? "candidates" : "verification",
           expectedRunID: run.run_id,
+          // 1.1.5 S1：纯日期 timeRange 按客户端 anchorNow 的偏移补全（无偏移不修）
+          timezoneOffset: timezoneOffsetOf(body.data?.anchorNow),
         });
         return { envelope, usage: result?.usage ?? null };
       };
@@ -561,17 +614,18 @@ export function registerDiscoveryRoutes(app, deps) {
           if (!isFormatError || attempt >= 3) throw error;
           const details = error.details ?? {};
           lastRejectReason = details.reason ?? "unknown";
+          // 1.1.5 S7③：只记拒因与输出长度——模型输出含用户记录引文，不进容器日志
           console.warn(`[discovery] ${stage} output invalid attempt=${attempt}/3 run=${run.run_id}`
-            + ` reason=${JSON.stringify(details.reason ?? null)} rawTail=${JSON.stringify(details.rawTail ?? "")}`);
+            + ` reason=${JSON.stringify(details.reason ?? null)} rawLength=${Number(details.rawLength ?? 0)}`);
         }
       }
       const { envelope, usage: stageUsage } = validated;
 
       if (stage === "candidates" && envelope.candidates.length > 0) {
-        // 2026-11-01 引用锚定修复：qwen 引用时常轻微改写原文（换词/补字/标点差异）导致客户端
-        // 逐字闸全拒（实测 quote_mismatch 拒因）。修复策略：引用的前后缀若能在对应证据原文中
-        // 锚定（各自唯一命中同一段），则把引用整体替换为原文的精确片段——引用内容回归原文本身，
-        // 语义零生成。锚不定的引用保持原样（交给客户端闸如实拒绝）。
+        // 引用确定性修复（2026-11-01 引入，1.1.5 S7 纠偏，实现见 discoveryCitationRepair.js）：
+        // ① 数词句（「这两次」）引用不足 2 条时从本候选支撑证据补齐（阿拉伯数字/百分比句不补）；
+        // ② 模型轻微改写的引用按原文**真实下标**锚定回精确片段（此前用归一化下标切原文会错位）。
+        // 锚不定的引用保持原样，交给客户端逐字闸如实拒绝——全程不生成内容。
         const evidenceBlocks = new Map();
         for (const item of Array.isArray(body.data?.evidence) ? body.data.evidence : []) {
           if (item && typeof item.evidenceID === "string" && typeof item.sourceBlock === "string") {
@@ -579,49 +633,14 @@ export function registerDiscoveryRoutes(app, deps) {
           }
         }
         let repairedCount = 0;
-        const normKey = (s) => String(s).replace(/[\s“”「」『』]/g, "").toLowerCase();
         for (const candidate of envelope.candidates) {
-          // 数字纪律兜底：claim 文本含数字（两三四…八九十或阿拉伯数字）时客户端闸要求
-          // ≥2 条引用；模型常只给 1 条。从候选级支撑证据补齐——quote 取该证据原文首句
-          //（确定性截取，非生成），引用内容仍全部来自原文。
-          const containsNumber = /[0-9两三四五六七八九十]/.test(
-            (candidate.claims ?? []).map((claim) => claim?.text ?? "").join(""));
-          if (containsNumber && Array.isArray(candidate.supportEvidenceIDs)) {
-            for (const claim of candidate.claims ?? []) {
-              if (!claim || !Array.isArray(claim.citations)) continue;
-              if (!/[0-9两三四五六七八九十]/.test(claim.text ?? "")) continue;
-              if (claim.citations.length >= 2) continue;
-              for (const eid of candidate.supportEvidenceIDs) {
-                if (claim.citations.length >= 2) break;
-                if (claim.citations.some((c) => c.evidenceID === eid)) continue;
-                const source = evidenceBlocks.get(eid);
-                if (!source) continue;
-                const firstSentence = source.split(/(?<=[。！？!?])/)[0] || source.slice(0, 40);
-                if (firstSentence.length >= 4) {
-                  claim.citations.push({ evidenceID: eid, quote: firstSentence });
-                  repairedCount++;
-                }
-              }
-            }
-          }
+          repairedCount += padCountWordCitations(candidate, evidenceBlocks);
           for (const claim of candidate.claims ?? []) {
             for (const citation of claim.citations ?? []) {
               const source = evidenceBlocks.get(citation.evidenceID);
               if (typeof source !== "string" || source.includes(citation.quote)) continue;
-              const key = normKey(citation.quote);
-              if (key.length < 8) continue;
-              const sourceKey = normKey(source);
-              const prefix = key.slice(0, 8);
-              const suffix = key.slice(-8);
-              const start = sourceKey.indexOf(prefix);
-              if (start < 0) continue;
-              const end = sourceKey.lastIndexOf(suffix);
-              if (end < start) continue;
-              // 命中区间按归一化长度截取原文（归一化只删空白/引号，长度差有限，按区间就近回取）
-              let rawStart = start, rawEnd = end + 8;
-              if (rawEnd > source.length) rawEnd = source.length;
-              const anchored = source.slice(rawStart, rawEnd);
-              if (anchored.length >= 6) {
+              const anchored = anchorQuoteToSource(source, citation.quote);
+              if (anchored && anchored !== citation.quote) {
                 citation.quote = anchored;
                 repairedCount++;
               }
@@ -639,6 +658,8 @@ export function registerDiscoveryRoutes(app, deps) {
       }
       if (stage === "verify") {
         runStore.completeRun({ runId: run.run_id, status: "completed" });
+        // 1.1.5 S4 即焚：核验完成后候选作业密文不再需要
+        stageJobStore?.purge(run.run_id);
         // 判决可观测（2026-11-01）：verify 拒绝是「链路最后一关」，拒因决定调优方向
         console.warn(`[discovery] verify verdicts run=${run.run_id} `
           + JSON.stringify((envelope.candidateResults ?? []).map((result) => ({
@@ -676,11 +697,166 @@ export function registerDiscoveryRoutes(app, deps) {
       if (preUpstream && stage === "candidates") {
         runStore.releaseUndispatched(run.run_id);
       } else {
-        // dispatch 后失败：本阶段不重复调用，保守终止本批（03 §4.4）
-        runStore.completeRun({ runId: run.run_id, status: "cancelled" });
+        // dispatch 后失败：本阶段不重复调用，终止本批（03 §4.4）。
+        // 1.1.5 S6：这里的失败都发生在闸门全部通过之后（格式三连败/上游错误/超时），属服务端原因——
+        // 标记可重试，当日名额不烧（同日最多 attemptsPerDay 次，成本有上限）
+        runStore.completeRun({ runId: run.run_id, status: "cancelled", retryable: true });
       }
       throw error;
     }
+  }
+
+  // ===== 候选异步作业（1.1.5 S3–S5）=====
+
+  // 进程内在跑的作业（runId → Promise）；进程重启后为空，遗留 running 作业由启动恢复判中断
+  const backgroundJobs = new Map();
+  // 作业运行看门狗：超过此时长仍 running 视为卡死（provider 自身有超时，此为兜底）
+  const MAX_JOB_RUN_MS = 5 * 60_000;
+
+  if (stageJobStore) {
+    // 上一进程遗留的 running 作业已无执行者：判中断，对应 run 关为可重试失败（不烧名额）
+    for (const runId of stageJobStore.recoverInterrupted()) {
+      runStore.completeRun({ runId, status: "cancelled", retryable: true });
+    }
+  }
+
+  function assertJobAccess(job, { subject, deviceId, runToken }) {
+    if (!job || job.subject !== subject || job.device_id !== deviceId) {
+      throw new GatewayError("DISCOVERY_JOB_NOT_FOUND", "Candidate job not found for this account/device", 404);
+    }
+    if (!runToken || hashRunToken(runToken) !== job.token_hash) {
+      throw new GatewayError("DISCOVERY_RUN_TOKEN_INVALID", "Run token is invalid", 403);
+    }
+  }
+
+  function settleStaleJob(job) {
+    if (job.status !== "running" || Date.now() - job.created_at <= MAX_JOB_RUN_MS) return job;
+    if (stageJobStore.fail({ runId: job.run_id, code: "DISCOVERY_JOB_TIMEOUT" })) {
+      runStore.completeRun({ runId: job.run_id, status: "cancelled", retryable: true });
+    }
+    return stageJobStore.get(job.run_id) ?? job;
+  }
+
+  function startCandidateJob({ context, subject, deviceId, runId, body }) {
+    requireFields(body, ["data"]);
+    if (!body.data || typeof body.data !== "object" || Array.isArray(body.data)) {
+      throw new GatewayError("INVALID_REQUEST", "data must be an object", 400);
+    }
+    const stageHash = stageRequestHash("candidates", runId, { dataHash: canonicalSha256(body.data) });
+    stageJobStore.sweepExpired();
+
+    // 同 run 已有作业：同 body 重放返回当前状态（不重调模型），换 body 冲突
+    const existing = stageJobStore.get(runId);
+    if (existing) {
+      assertJobAccess(existing, { subject, deviceId, runToken: body.runToken });
+      if (existing.request_hash !== stageHash) {
+        throw new GatewayError("DISCOVERY_STAGE_CONFLICT", "Stage was already used with a different payload", 409);
+      }
+      return jobStatusResponse({ job: settleStaleJob(existing), subject, replayed: true });
+    }
+
+    // 闸门与同步 runStageInner 一致：归属/token/租约 → 控制/范围代数 → 限流 → runID 一致 → 幂等 → 阶段 hash
+    const control = controlStore.get(subject);
+    const run = runStore.authorizeStage({ runId, subject, deviceId, runToken: body.runToken, stage: "candidates" });
+    runStore.assertControlCurrent(run, control);
+    consumeRateLimit(context, deviceId, DISCOVERY_PURPOSES.candidates);
+    if (body.data.runID !== undefined && body.data.runID !== runId) {
+      throw new GatewayError("INVALID_REQUEST", "data.runID does not match the run", 400);
+    }
+    const requestID = typeof body.requestID === "string" && body.requestID.length > 0 ? body.requestID : null;
+    if (requestID) {
+      controlStore.replayOrThrow({ requestId: requestID, subject, kind: "stage:candidates", requestHash: stageHash });
+    }
+    const { alreadyDispatched } = runStore.claimStageRequest({ run, stage: "candidates", requestHash: stageHash });
+    if (alreadyDispatched) {
+      // 本 run 已走过同步候选端点：两条路径不混用（防双发双计费）
+      throw new GatewayError("DISCOVERY_STAGE_CONFLICT", "Candidates stage already ran on the synchronous endpoint", 409);
+    }
+    if (requestID) {
+      controlStore.recordRequest({
+        requestId: requestID, subject, kind: "stage:candidates", requestHash: stageHash, status: "committed",
+      });
+    }
+
+    const leaseExpiresAt = Date.now() + Number(config.discovery.asyncLeaseSeconds ?? 86_400) * 1000;
+    runStore.extendLease({ runId, leaseExpiresAt });
+    stageJobStore.start({
+      runId, subject, deviceId, tokenHash: hashRunToken(body.runToken),
+      stage: "candidates", requestHash: stageHash, expiresAt: leaseExpiresAt,
+    });
+
+    const sessionId = getSessionId(context);
+    const language = context.req.header("x-holo-language");
+    const task = callModel({
+      subject, deviceId, run: runStore.get(runId), stage: "candidates", purpose: DISCOVERY_PURPOSES.candidates,
+      body, sessionId, language, stageHash,
+    })
+      .then((response) => {
+        stageJobStore.complete({
+          runId,
+          payload: { envelope: response.envelope, usage: response.usage, promptVersion: response.promptVersion },
+        });
+      })
+      .catch((error) => {
+        const code = error instanceof GatewayError ? error.code : "INTERNAL_ERROR";
+        const reason = error instanceof GatewayError && typeof error.details?.reason === "string"
+          ? error.details.reason : null;
+        stageJobStore.fail({ runId, code, reason });
+        if (!(error instanceof GatewayError)) {
+          console.error("[discovery] async candidates job failed", error?.name ?? "Error");
+        }
+      })
+      .finally(() => backgroundJobs.delete(runId));
+    backgroundJobs.set(runId, task);
+
+    return jobStatusResponse({ job: stageJobStore.get(runId), subject, replayed: false });
+  }
+
+  /** CandidateJobStatus：两个异步端点同一形状，字段恒齐全，不适用为 null（跨端契约 §一）。 */
+  function jobStatusResponse({ job, subject, replayed }) {
+    const run = runStore.get(job.run_id);
+    let result = null;
+    if (job.status === "completed") {
+      const payload = stageJobStore.readResult(job.run_id);
+      if (payload) {
+        result = stageResponse({
+          run: { run_id: job.run_id }, stage: "candidates", purpose: DISCOVERY_PURPOSES.candidates,
+          envelope: payload.envelope, usage: payload.usage, replayed: false, promptVersion: payload.promptVersion,
+        });
+      }
+    }
+    const failed = job.status === "failed";
+    return {
+      runID: job.run_id,
+      stage: "candidates",
+      jobStatus: job.status,
+      pollAfterSeconds: job.status === "running" ? Number(config.discovery.pollAfterSeconds ?? 3) : null,
+      leaseExpiresAt: run?.lease_expires_at ?? job.expires_at,
+      result,
+      error: failed ? { code: job.error_code, reason: job.error_reason ?? null } : null,
+      retryAvailable: failed
+        && !NON_RETRYABLE_JOB_ERRORS.has(job.error_code)
+        && runStore.retryAvailableAfter({ runId: job.run_id, subject }),
+      replayed: replayed === true,
+    };
+  }
+
+  /** 核验比对用候选包：先读进程内缓存，未命中（重启/淘汰）再读加密落库的作业结果。 */
+  function readCandidatesStage(current) {
+    try {
+      const cached = runStore.readStageResult({
+        run: current, stage: "candidates", requestHash: current?.candidate_request_hash,
+      });
+      if (cached.hit) return cached;
+    } catch (error) {
+      if (!(error instanceof GatewayError && error.code === "DISCOVERY_STAGE_RESULT_LOST")) throw error;
+    }
+    const job = stageJobStore?.get(current.run_id);
+    if (job && job.status === "completed" && job.request_hash === current.candidate_request_hash) {
+      const payload = stageJobStore.readResult(current.run_id);
+      if (payload) return { hit: true, envelope: payload.envelope };
+    }
+    return { hit: false };
   }
 
   function buildUserContent(run, stage, body, verifyInput) {
@@ -737,6 +913,13 @@ const PRE_UPSTREAM_ERROR_CODES = new Set([
   "BACKGROUND_INPUT_TOO_LARGE",
   "PROMPT_NOT_FOUND",
   "MODEL_UNAVAILABLE",
+]);
+
+// 作业失败后不建议客户端当日重试的错误：预算/配置类（重试必然同样失败，避免客户端循环）
+const NON_RETRYABLE_JOB_ERRORS = new Set([
+  ...PRE_UPSTREAM_ERROR_CODES,
+  "DISCOVERY_CONTROL_CHANGED",
+  "DISCOVERY_CONTROL_DISABLED",
 ]);
 
 function requireFields(body, fields) {

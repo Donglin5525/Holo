@@ -557,14 +557,18 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_DAY ?? 500),
       },
     },
-    // HoloAI「一个发现」两阶段（2026-10-23 实施包 §4 预算初值）：生成输出 ≤3072、核验 ≤2048；
+    // HoloAI「一个发现」两阶段（2026-10-23 实施包 §4 预算初值 生成 ≤3072、核验 ≤2048；1.1.5 S7 起生成 ≤8192 含思考草稿）；
     // 输入 16k 总上限由 backgroundCostGuard.maxInputBytes + 端点 96KiB body 闸共同兜底。
     // 专用控制器调用，通用 chat 端点显式拒绝这两个 purpose（防旁路，见 app.js）。
+    // 1.1.5 S8：provider/model 经 discoveryRouteTarget 选取——显式 env 优先，否则跟随聊天通道（同 HoloAI 其他功能）。
     discovery_candidate_v1: {
-      provider: process.env.HOLO_DISCOVERY_CANDIDATE_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
-      model: process.env.HOLO_DISCOVERY_CANDIDATE_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      ...discoveryRouteTarget(process.env, "CANDIDATE"),
       temperature: Number(process.env.HOLO_DISCOVERY_CANDIDATE_TEMPERATURE ?? 0.3),
-      maxTokens: Number(process.env.HOLO_DISCOVERY_CANDIDATE_MAX_TOKENS ?? 3072),
+      // 1.1.5 S7：3072 → 8192。deepseek-chat 在 reasoning_effort=low 下草稿与正文共用 max_tokens
+      //（qwen3.7-flash 经 DashScope 时 max_tokens 只限正文，生产实测 completion 达 8182 而上限 3072）：
+      // 2026-11-02 真机 20:32 成功 2817（草稿 1913），21:08 顶到 3072 截断（TRUNCATED_MODEL_RESPONSE）；
+      // r17 试评亦有一次恰好 3072。正文本身 p50≈750，8192 给草稿留足余量；异步取件下多出的耗时用户无感。
+      maxTokens: Number(process.env.HOLO_DISCOVERY_CANDIDATE_MAX_TOKENS ?? 8192),
       // 候选生成含跨材料联系判断，low 档保结构化质量（与 cross_domain_fusion 同级）。
       reasoningEffort: process.env.HOLO_DISCOVERY_CANDIDATE_REASONING_EFFORT ?? "low",
       requestLimits: {
@@ -573,8 +577,7 @@ const DEFAULT_CONFIG = {
       },
     },
     discovery_verify_v1: {
-      provider: process.env.HOLO_DISCOVERY_VERIFY_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
-      model: process.env.HOLO_DISCOVERY_VERIFY_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      ...discoveryRouteTarget(process.env, "VERIFY"),
       temperature: Number(process.env.HOLO_DISCOVERY_VERIFY_TEMPERATURE ?? 0),
       // 4096（2026-10-23 试评修复）：上游 deepseek-chat 已路由为推理模型（deepseek-flash），
       // 2048 时 reasoning 可独吃全部输出预算导致 content 空（试评 4/54 判决 finish=length，
@@ -602,6 +605,18 @@ const DEFAULT_CONFIG = {
     leaseSeconds: Number(process.env.HOLO_DISCOVERY_LEASE_SECONDS ?? 600),
     inputBudgetTokens: Number(process.env.HOLO_DISCOVERY_INPUT_BUDGET_TOKENS ?? 16_384),
     responseFormat: process.env.HOLO_DISCOVERY_RESPONSE_FORMAT === "none" ? null : { type: "json_object" },
+    // 1.1.5 S6：服务端原因失败（格式三连败/上游错误/作业中断/核验失败）不烧当天名额，
+    // 同一上海日最多尝试 attemptsPerDay 次（成本上限 ≈ 3×3×¥0.02/人/天，另有全局后台预算兜底）
+    attemptsPerDay: Number(process.env.HOLO_DISCOVERY_ATTEMPTS_PER_DAY ?? 3),
+    // 1.1.5 S3/S4：候选异步作业。启动后 run 租约延长到 asyncLeaseSeconds（客户端在此期间取件+核验），
+    // 结果 AES-256-GCM 落库（密钥默认复用云端分析密钥，经 HKDF 域隔离派生；缺失则异步端点 503、
+    // capabilities.features.asyncCandidates=false，客户端回落同步端点）
+    asyncLeaseSeconds: Number(process.env.HOLO_DISCOVERY_ASYNC_LEASE_SECONDS ?? 24 * 3600),
+    pollAfterSeconds: Number(process.env.HOLO_DISCOVERY_POLL_AFTER_SECONDS ?? 3),
+    pollRequestsPerMinute: Number(process.env.HOLO_DISCOVERY_POLL_REQUESTS_PER_MINUTE ?? 30),
+    pollRequestsPerDay: Number(process.env.HOLO_DISCOVERY_POLL_REQUESTS_PER_DAY ?? 600),
+    jobEncryptionKey: process.env.HOLO_DISCOVERY_JOB_ENCRYPTION_KEY
+      ?? process.env.HOLO_CLOUD_ANALYSIS_ENCRYPTION_KEY ?? "",
   },
   providers: {
     deepseek: {
@@ -785,6 +800,25 @@ export function insightMaxTokensFor(periodType, baseMaxTokens) {
   return Math.max(baseMaxTokens ?? 0, 8192);
 }
 
+/**
+ * 「一个发现」阶段路由的 provider/model 选择（1.1.5 S8，2026-11-02 东林拍板）。
+ * 与 HoloAI 其他功能同口径：显式 HOLO_DISCOVERY_<STAGE>_PROVIDER/MODEL 优先，否则跟随聊天通道
+ * （生产 HOLO_CHAT_PROVIDER/MODEL = qwen/qwen3.7-flash）。
+ * 撤销 S2「有 DeepSeek 钥匙即钉 deepseek-chat」：S2 是同步链路下的止血（qwen 候选 60–71s 超客户端
+ * 60s 超时）；S3/S4 异步取件后客户端轮询 ≈4 分钟/会话、作业上限 5 分钟，慢模型不再阻断。
+ * 显式 env 保留为回滚通道（例：HOLO_DISCOVERY_CANDIDATE_PROVIDER=deepseek + _MODEL=deepseek-chat）。
+ * 函数声明会提升，DEFAULT_CONFIG 在模块顶部即可调用。
+ * @param {Record<string, string|undefined>} env
+ * @param {"CANDIDATE"|"VERIFY"} stage
+ * @returns {{ provider: string, model: string }}
+ */
+export function discoveryRouteTarget(env, stage) {
+  return {
+    provider: env[`HOLO_DISCOVERY_${stage}_PROVIDER`] ?? env.HOLO_CHAT_PROVIDER ?? "mock",
+    model: env[`HOLO_DISCOVERY_${stage}_MODEL`] ?? env.HOLO_CHAT_MODEL ?? "holo-mock",
+  };
+}
+
 export function loadConfig(overrides = {}) {
   return {
     // 后台维护止损预算，采用高于当前 Flash 账单价的保守费率；不是会员展示额度。
@@ -960,6 +994,7 @@ export function loadConfig(overrides = {}) {
     thoughtOrganizeBudgetStore: overrides.thoughtOrganizeBudgetStore,
     discoveryControlStore: overrides.discoveryControlStore,
     discoveryRunStore: overrides.discoveryRunStore,
+    discoveryStageJobStore: overrides.discoveryStageJobStore,
     runtimeEnvironment: overrides.runtimeEnvironment ?? process.env.NODE_ENV ?? "development",
     agentStepIdempotencyTtlSeconds: Number(
       overrides.agentStepIdempotencyTtlSeconds

@@ -38,10 +38,12 @@ const DOMAINS = new Set(["thought", "task", "habit"]);
 /**
  * 校验模型输出。
  * @param {string} rawText 上游 content 原文
- * @param {{ expectedKind: "candidates"|"verification", expectedRunID: string }} expect
+ * @param {{ expectedKind: "candidates"|"verification", expectedRunID: string, timezoneOffset?: string|null }} expect
+ *   timezoneOffset：请求 anchorNow 的时区偏移（如 "+08:00"），供修复层把纯日期补全为完整时刻；
+ *   未知时传 null——修复层不猜测时区，纯日期照常拒绝。
  * @returns {{ ok: true, envelope: object }} 通过；失败抛 GatewayError(DISCOVERY_MODEL_OUTPUT_INVALID, 502, {reason})
  */
-export function validateDiscoveryOutput(rawText, { expectedKind, expectedRunID }) {
+export function validateDiscoveryOutput(rawText, { expectedKind, expectedRunID, timezoneOffset = null }) {
   try {
     return validateDiscoveryOutputInner(rawText, { expectedKind, expectedRunID });
   } catch (error) {
@@ -56,7 +58,7 @@ export function validateDiscoveryOutput(rawText, { expectedKind, expectedRunID }
       let parsed;
       try { parsed = JSON.parse(extractJsonPayload(String(rawText))); } catch { throw enrichRaw(error, rawText); }
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        const repaired = repairEnvelope(parsed);
+        const repaired = repairEnvelope(parsed, { timezoneOffset });
         try {
           return validateDiscoveryOutputInner(JSON.stringify(repaired), { expectedKind, expectedRunID });
         } catch (secondError) {
@@ -70,9 +72,11 @@ export function validateDiscoveryOutput(rawText, { expectedKind, expectedRunID }
 }
 
 function enrichRaw(error, rawText) {
-  if (error.details && error.details.rawTail) return error;
+  // 1.1.5 S7③：只附原文长度（排障够用），不附原文片段——模型输出含用户记录引文，
+  // 此前 rawTail 会进容器日志与 502 响应体
+  if (error.details && error.details.rawLength !== undefined) return error;
   return new GatewayError(error.code, error.message, 502,
-    { ...(error.details ?? {}), rawTail: String(rawText).slice(-300) });
+    { ...(error.details ?? {}), rawLength: String(rawText).length });
 }
 
 /** 可程序化修复的拒因（确定性查表/补默认可修，不涉内容生成）。 */
@@ -82,10 +86,24 @@ const REPAIRABLE = new Set([
   "titleClaimID", "title_claim_id", "body_claim_id",
   "claim_missing", "candidate_missing", "envelope_missing",
   "counter_search_keywords", "counter_search_domains", "counter_search_not_object", "id_list", "id_list_item", "claim_coverage",
+  // 2026-11-02（1.1.5 S1）：deepseek-chat 常把 timeRange 写成纯日期（试评 r13：7/18 全是此因）
+  "time_range_value",
 ]);
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 纯日期 → 完整时刻：开始取当天 00:00:00，结束取当天 23:59:59，偏移取请求 anchorNow。
+ * 落在客户端历史窗 [89 天前 0 点, 明天 0 点) 内，不会因补全被门禁误拒；无偏移不修。
+ */
+function completeDateOnly(range, offset) {
+  if (!offset || !range || typeof range !== "object" || Array.isArray(range)) return;
+  if (typeof range.start === "string" && DATE_ONLY.test(range.start)) range.start = `${range.start}T00:00:00${offset}`;
+  if (typeof range.end === "string" && DATE_ONLY.test(range.end)) range.end = `${range.end}T23:59:59${offset}`;
+}
+
 /** 确定性修复：查表映射+补默认，不生成内容。返回修复后的可变副本。 */
-function repairEnvelope(envelope) {
+function repairEnvelope(envelope, { timezoneOffset = null } = {}) {
   const SCOPE_BY_TYPE = {
     two_episodes: "two_episodes",
     bounded_pattern: "bounded_events",
@@ -93,6 +111,10 @@ function repairEnvelope(envelope) {
   };
   for (const candidate of Array.isArray(envelope.candidates) ? envelope.candidates : []) {
     if (candidate && typeof candidate === "object") {
+      completeDateOnly(candidate.timeRange, timezoneOffset);
+      if (Array.isArray(candidate.comparisonPeriods)) {
+        for (const period of candidate.comparisonPeriods) completeDateOnly(period, timezoneOffset);
+      }
       if (typeof candidate.type === "string" && SCOPE_BY_TYPE[candidate.type]
         && candidate.scopeKind !== SCOPE_BY_TYPE[candidate.type]) {
         candidate.scopeKind = SCOPE_BY_TYPE[candidate.type];

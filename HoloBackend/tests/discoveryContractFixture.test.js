@@ -18,6 +18,8 @@ for (const item of fixture.cases) {
       delivered = validateDiscoveryOutput(JSON.stringify(item.envelope), {
         expectedKind: "candidates",
         expectedRunID: item.envelope.runID,
+        // 1.1.5 S1：夹具可声明请求 anchorNow 的时区偏移（修复层补全纯日期用）；未声明=不修
+        timezoneOffset: item.timezoneOffset ?? null,
       });
     } catch {
       threw = true;
@@ -25,8 +27,10 @@ for (const item of fixture.cases) {
     const serverPass = !threw && !!delivered?.envelope;
     if (item.server === "pass") {
       assert.equal(serverPass, true, `服务端应通过(含修复层)，实际拒绝`);
-      // 交付形状随夹具存档，供 iOS 对拍与人工核对
-      item.deliveredEnvelope = delivered.envelope;
+      // 交付形状随夹具存档（iOS DiscoveryContractTests 读 deliveredEnvelope 做严格解码对拍）：
+      // 存档必须与服务端当前实际交付逐字段一致，否则 iOS 对拍的是过期形状
+      assert.ok(item.deliveredEnvelope, "server=pass 用例必须存档 deliveredEnvelope");
+      assert.deepEqual(delivered.envelope, item.deliveredEnvelope, "存档交付形状与服务端实际交付不一致");
     } else {
       assert.equal(serverPass, false, `服务端应拒绝，实际通过`);
     }
