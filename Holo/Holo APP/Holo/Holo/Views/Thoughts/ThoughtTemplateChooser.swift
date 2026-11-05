@@ -18,7 +18,9 @@ struct ThoughtTemplateChooser: View {
                         ThoughtStyleThumbnail(style: style, date: date)
                             .environment(\.colorScheme, previewsLightPaper ? .light : colorScheme)
                             .frame(height: 60)
-                            .overlay(RoundedRectangle(cornerRadius: ThoughtPaperMetrics.corner).stroke(selected == style ? Color.holoToolAction : style.listBorder, lineWidth: selected == style ? 2 : 0.5))
+                            // 未选中描边用环境分隔线 token：纸面色(listBorder)在浅色弹层上
+                            // 与白纸同色系，浅底白卡轮廓整体消失（11-05 挑刺专项F）
+                            .overlay(RoundedRectangle(cornerRadius: ThoughtPaperMetrics.corner).stroke(selected == style ? Color.holoToolAction : Color.holoToolBorder.opacity(0.55), lineWidth: selected == style ? 2 : 0.5))
                             .overlay(alignment: .bottomTrailing) {
                                 if selected == style {
                                     Image(systemName: "checkmark.circle.fill")

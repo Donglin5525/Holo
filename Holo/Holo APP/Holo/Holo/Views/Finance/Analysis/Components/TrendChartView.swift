@@ -37,25 +37,43 @@ struct TrendChartView: View {
     }
 
     var body: some View {
-        HoloChartFrame(title: showsBalanceLine ? "收支与余额" : "收支趋势", independent: true) {
-            HoloBarChart(buckets: flowBuckets,
-                         series: [.init(id: "expense", title: "支出", color: .holoError),
-                                  .init(id: "income", title: "收入", color: .holoSuccess)],
-                         selection: $selection, height: 160, dualValueAxes: true,
-                         valueText: { NumberFormatter.currency.string(from: NSNumber(value: $0)) ?? "—" },
-                         onInspect: { bucket in
-                             if let date = date(ofBucketID: bucket.id) { onScrubDate?(date) }
-                         })
-            if showsBalanceLine {
-                HoloLineChart(buckets: balanceBuckets, series: [.init(id: "balance", title: "余额", color: .holoChart1)],
-                              selection: $selection, height: 80,
-                              valueText: { NumberFormatter.currency.string(from: NSNumber(value: $0)) ?? "—" })
+        // 零数据空态：不画 0-1 假坐标轴加零柱平线，占位无信息量还像渲染残缺
+        //（11-05 挑刺专项E）
+        if dataPoints.allSatisfy({ !$0.hasTransactions }) {
+            HoloChartFrame(title: showsBalanceLine ? "收支与余额" : "收支趋势", independent: true) {
+                VStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "chart.bar")
+                        .font(.system(size: 22, weight: .light))
+                        .foregroundColor(.holoTextPlaceholder)
+                        .accessibilityHidden(true)
+                    Text("这个期间还没有收支记录")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 160)
             }
-        }
-        .onChange(of: selectedDate) { _, date in
-            if let date, let point = dataPoints.last(where: { $0.date <= date }) {
-                selection = String(point.date.timeIntervalSince1970)
-            } else { selection = nil }
+        } else {
+            HoloChartFrame(title: showsBalanceLine ? "收支与余额" : "收支趋势", independent: true) {
+                HoloBarChart(buckets: flowBuckets,
+                             series: [.init(id: "expense", title: "支出", color: .holoError),
+                                      .init(id: "income", title: "收入", color: .holoSuccess)],
+                             selection: $selection, height: 160, dualValueAxes: true,
+                             valueText: { NumberFormatter.currency.string(from: NSNumber(value: $0)) ?? "—" },
+                             onInspect: { bucket in
+                                 if let date = date(ofBucketID: bucket.id) { onScrubDate?(date) }
+                             })
+                if showsBalanceLine {
+                    HoloLineChart(buckets: balanceBuckets, series: [.init(id: "balance", title: "余额", color: .holoChart1)],
+                                  selection: $selection, height: 80,
+                                  valueText: { NumberFormatter.currency.string(from: NSNumber(value: $0)) ?? "—" })
+                }
+            }
+            .onChange(of: selectedDate) { _, date in
+                if let date, let point = dataPoints.last(where: { $0.date <= date }) {
+                    selection = String(point.date.timeIntervalSince1970)
+                } else { selection = nil }
+            }
         }
     }
 }

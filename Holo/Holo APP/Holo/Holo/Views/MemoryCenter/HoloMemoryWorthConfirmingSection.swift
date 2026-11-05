@@ -359,8 +359,13 @@ struct HoloMemoryEvidenceStatsList: View {
 /// 两行式与记录行同宽：一句陈述 + 一句来源灰字；点陈述区展开完整依据。
 struct HoloMemoryConfirmedKnowledgeRow: View {
     let knowledge: HoloResolvedKnowledge
+    /// 「···」菜单动作（11-05 挑刺 P1#9：已记住条目此前零操作入口，
+    /// 撤销横幅一消失错误记忆就无路可修）
+    var onCorrect: (() -> Void)? = nil
+    var onDisable: (() -> Void)? = nil
 
     @State private var showsFullEvidence = false
+    @State private var showsDisableConfirm = false
 
     var body: some View {
         Button {
@@ -381,6 +386,32 @@ struct HoloMemoryConfirmedKnowledgeRow: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(Color.holoToolTextSecondary.opacity(0.6))
                         .padding(.top, 3)
+                    if onCorrect != nil || onDisable != nil {
+                        Menu {
+                            if let onCorrect {
+                                Button {
+                                    onCorrect()
+                                } label: {
+                                    Label("修改", systemImage: "pencil")
+                                }
+                            }
+                            if let onDisable {
+                                Button(role: .destructive) {
+                                    showsDisableConfirm = true
+                                } label: {
+                                    Label("停用", systemImage: "pause.circle")
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(Color.holoToolTextSecondary)
+                                .frame(width: 32, height: 32)
+                                .contentShape(Rectangle())
+                        }
+                        .padding(.top, -2)
+                        .accessibilityLabel(Text(String(localized: "更多操作")))
+                    }
                     Spacer(minLength: 0)
                 }
                 Text("\(knowledge.formationLabel) · 相关回答会参考")
@@ -400,6 +431,12 @@ struct HoloMemoryConfirmedKnowledgeRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("memoryCenter.confirmedKnowledge.row")
+        .alert("停用这条理解？", isPresented: $showsDisableConfirm) {
+            Button("停用", role: .destructive) { onDisable?() }
+            Button("保留", role: .cancel) {}
+        } message: {
+            Text("停用后不再用于回答；过去的记忆里可以随时重新启用。")
+        }
     }
 }
 

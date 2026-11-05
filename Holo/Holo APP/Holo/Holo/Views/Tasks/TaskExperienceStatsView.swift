@@ -255,7 +255,10 @@ struct TaskExperienceStatsView: View {
                 statBlock(
                     title: String(localized: "完成"),
                     value: "\(analytics.completedCount)",
-                    sub: model.deltaText(analytics.comparison.completedDelta)
+                    sub: deltaSubText(
+                        delta: analytics.comparison.completedDelta,
+                        previous: analytics.comparison.completedPrevious
+                    )
                 ) {
                     drilldown = .completed
                 }
@@ -273,7 +276,10 @@ struct TaskExperienceStatsView: View {
                 statBlock(
                     title: String(localized: "新增"),
                     value: "\(analytics.createdCount)",
-                    sub: model.deltaText(analytics.comparison.createdDelta)
+                    sub: deltaSubText(
+                        delta: analytics.comparison.createdDelta,
+                        previous: analytics.comparison.createdPrevious
+                    )
                 ) {
                     drilldown = .created
                 }
@@ -306,6 +312,13 @@ struct TaskExperienceStatsView: View {
     private func rateText(_ rate: Double?) -> String {
         guard let rate else { return "—" }
         return "\(Int((rate * 100).rounded()))%"
+    }
+
+    /// 数量对比副文案：两期都为 0 时是「暂无记录」不是「持平」——
+    /// 空账号渲染「与上期持平」制造有趋势的错觉（11-05 挑刺专项E）
+    private func deltaSubText(delta: Int, previous: Int) -> String {
+        if delta == 0 && previous == 0 { return String(localized: "暂无记录") }
+        return model.deltaText(delta)
     }
 
     /// 率差文案：上期基线为 0（或无数据）、或本期值本身就是 0 时，涨跌百分比无意义
@@ -861,6 +874,8 @@ struct TaskExperienceStatsView: View {
     }
 
     private func attentionRow(title: String, count: Int, action: String, onTap: @escaping () -> Void) -> some View {
+        // 0 计数时不渲染行动链接：点进去都是空列表，「有事要办」的橙色暗示与事实不符
+        //（11-05 挑刺专项E）
         Button(action: onTap) {
             HStack {
                 Text(title)
@@ -870,13 +885,15 @@ struct TaskExperienceStatsView: View {
                 Text("\(count)")
                     .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundColor(count > 0 ? .holoError : .holoTextSecondary)
-                Text(action)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoPrimary)
-                    .padding(.leading, 6)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10))
-                    .foregroundColor(.holoTextPlaceholder)
+                if count > 0 {
+                    Text(action)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoPrimary)
+                        .padding(.leading, 6)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10))
+                        .foregroundColor(.holoTextPlaceholder)
+                }
             }
             .contentShape(Rectangle())
         }

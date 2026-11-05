@@ -34,8 +34,18 @@ struct CategoryDetailSheet: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: HoloToolbarPlacement.topBarLeading) {
-                    Button("完成") { dismiss() }
-                        .foregroundColor(.holoTextSecondary)
+                    // 只读查看层：关闭钮统一左上 X（§8.8），「完成」暗示有未完成的编辑
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Color.holoToolTextSecondary)
+                            .frame(width: 32, height: 32)
+                            .background(Circle().fill(Color.holoToolSurface))
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel(Text(String(localized: "关闭")))
                 }
             }
         }

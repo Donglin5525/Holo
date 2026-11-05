@@ -355,9 +355,10 @@ struct HabitRowView: View {
             if day.isBeforeCreation {
                 // 创建前：空位，不渲染
             } else if day.isFuture {
-                // 还没走到的日子：极淡小点，弱于漏做针眼（深色下过淡会隐身，最低 0.6）
+                // 还没走到的日子：小点弱于漏做针眼。用 ToolTextSecondary 而非 ToolBorder——
+                // 后者浅色是 0.91 暖灰，米色底上不可见（11-05 挑刺专项F 浅色补弱）
                 Circle()
-                    .fill(Color.holoToolBorder.opacity(0.6))
+                    .fill(Color.holoToolTextSecondary.opacity(0.35))
                     .frame(width: 2, height: 2)
             } else if day.isRecorded {
                 if day.isRetroactive {
@@ -373,11 +374,11 @@ struct HabitRowView: View {
                 }
             } else if day.isPaused {
                 Capsule()
-                    .fill(Color.holoToolBorder)
+                    .fill(Color.holoToolTextSecondary.opacity(0.8))
                     .frame(width: 6, height: 1)
             } else {
                 Circle()
-                    .fill(Color.holoToolBorder.opacity(0.9))
+                    .fill(Color.holoToolTextSecondary.opacity(0.75))
                     .frame(width: 2.5, height: 2.5)
             }
 

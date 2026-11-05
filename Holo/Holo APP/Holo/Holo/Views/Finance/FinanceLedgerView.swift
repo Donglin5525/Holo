@@ -112,12 +112,17 @@ struct FinanceLedgerView: View {
 
     /// 已展开高度（0 = 收起，maxCalendarHeight = 完全展开）
     @State private var calendarRevealHeight: CGFloat = 0
-    
+
     /// 拖拽过程中的增量位移
     @State private var dragTranslation: CGFloat = 0
-    
-    /// 月历完全展开高度
-    private let maxCalendarHeight: CGFloat = 280
+
+    /// 月历完全展开高度：按当月网格行数动态算。写死 280 会把 6 行月的最后
+    /// 一两行永久裁掉且无处可滚（11-05 挑刺专项A「只露一周」的根因）。
+    /// 预算：标题 26 + 间距 16 + 星期行 14 + 行高 40×rows + 行距 2×(rows-1) + 底距 4
+    private var maxCalendarHeight: CGFloat {
+        let rows = CalendarGridGenerator.generateGrid(for: calendarState.currentMonth).count / 7
+        return 26 + 16 + 14 + CGFloat(rows) * 40 + CGFloat(rows - 1) * 2 + 4
+    }
     
     /// 实时生效高度 = 已锁定 + 拖拽增量，限制在 [0, max]，取整避免亚像素抖动
     private var effectiveCalendarHeight: CGFloat {
@@ -531,6 +536,21 @@ struct FinanceLedgerView: View {
                 ExpandedCalendarView(calendarState: calendarState)
                     .frame(height: effectiveCalendarHeight)
                     .clipped()
+                    // 部分展开时底缘渐隐，消除生硬裁切线；完全展开整月可见不渐隐
+                    .mask {
+                        if revealProgress < 1 {
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .black, location: 0),
+                                    .init(color: .black, location: 0.72),
+                                    .init(color: .clear, location: 1)
+                                ],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        } else {
+                            Rectangle().fill(.black)
+                        }
+                    }
                     .allowsHitTesting(effectiveCalendarHeight > 0)
             }
             .frame(height: calendarAreaHeight)

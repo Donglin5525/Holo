@@ -44,6 +44,9 @@ nonisolated struct TaskOnTimeStats: Equatable, Sendable {
 nonisolated struct TaskAnalyticsComparison: Equatable, Sendable {
     let createdDelta: Int
     let completedDelta: Int
+    /// 上期基数（11-05 挑刺专项E：delta=0 且上期也为 0 时是「暂无记录」不是「持平」）
+    let createdPrevious: Int
+    let completedPrevious: Int
     /// 上期较短、对比终点截到上期结束（方案 §7.6-4）
     let truncatedToPreviousEnd: Bool
     /// 上期到期完成率 / 按时率（同等已过窗口口径；上期无到期任务时为 nil）

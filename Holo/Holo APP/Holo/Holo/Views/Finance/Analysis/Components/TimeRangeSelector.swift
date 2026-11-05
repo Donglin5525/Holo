@@ -89,63 +89,67 @@ struct TimeRangeLabel: View {
     }
 
     var body: some View {
-        HStack(spacing: HoloSpacing.sm) {
+        let canGoNext = state.canNavigateToNext
+        return HStack(spacing: HoloSpacing.sm) {
             Spacer()
-            // 上一时间段按钮（历史不设限）
-            Button {
-                state.navigate(.previous)
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(width: 32, height: 32)
-                    .background(Color.holoCardBackground)
-                    .clipShape(Circle())
-            }
-            .buttonStyle(.plain)
-
-            // 日期范围标签：点击直接进入起止日期选择（融合原「自定义」入口；年档口径选项也收在这里）
-            Button {
-                onCustomTap()
-            } label: {
-                HStack(spacing: 4) {
-                    Text(dateRangeText)
-                        .font(.holoCaption)
-                        .lineLimit(1)
-
-                    if let suffix = yearBasisSuffix {
-                        Text(suffix)
-                            .font(.system(size: 10))
-                            .foregroundColor(.holoTextSecondary)
-                            .lineLimit(1)
-                    }
-
-                    Image(systemName: "calendar")
-                        .font(.system(size: 10, weight: .medium))
+            // 翻期+日期一体化胶囊：‹ 日期 ›。此前是独立圆钮，与左上模块返回同形同向
+            // 且垂直相邻——一个退模块一个翻周期，误触率极高（11-05 挑刺专项B）
+            HStack(spacing: 0) {
+                // 上一周期（历史不设限）
+                Button {
+                    state.navigate(.previous)
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 38, height: 34)
+                        .contentShape(Rectangle())
                 }
-                .foregroundColor(.holoPrimary)
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.vertical, HoloSpacing.xs)
-                .background(Color.holoCardBackground)
-                .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(String(localized: "上一周期")))
 
-            // 下一时间段按钮（当前/未来周期禁用：窗口末端已越过现在）
-            let canGoNext = state.canNavigateToNext
-            Button {
-                state.navigate(.next)
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(width: 32, height: 32)
-                    .background(Color.holoCardBackground)
-                    .clipShape(Circle())
+                // 日期范围：点击直接进入起止日期选择（融合原「自定义」入口；年档口径选项也收在这里）
+                Button {
+                    onCustomTap()
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(dateRangeText)
+                            .font(.holoCaption)
+                            .lineLimit(1)
+
+                        if let suffix = yearBasisSuffix {
+                            Text(suffix)
+                                .font(.system(size: 10))
+                                .foregroundColor(.holoTextSecondary)
+                                .lineLimit(1)
+                        }
+
+                        Image(systemName: "calendar")
+                            .font(.system(size: 10, weight: .medium))
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, HoloSpacing.md)
+                    .frame(height: 34)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                // 下一周期（当前/未来周期禁用：窗口末端已越过现在）
+                Button {
+                    state.navigate(.next)
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoTextSecondary.opacity(canGoNext ? 1 : 0.3))
+                        .frame(width: 38, height: 34)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canGoNext)
+                .accessibilityLabel(Text(String(localized: "下一周期")))
             }
-            .buttonStyle(.plain)
-            .opacity(canGoNext ? 1 : 0.3)
-            .disabled(!canGoNext)
+            .background(Color.holoCardBackground)
+            .clipShape(Capsule())
 
             Spacer()
         }

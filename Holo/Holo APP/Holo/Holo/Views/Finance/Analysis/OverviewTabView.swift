@@ -72,9 +72,9 @@ struct OverviewTabView: View {
 
     /// 汇总卡头部的周期描述（与顶部日期选择器口径一致：range.end 是排他上界，减 1 秒显示）
     private var periodSubtitle: String {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate(state.timeRange == .year ? "yMMMd" : "MMMd")
-        return "\(formatter.string(from: state.currentDateRange.start)) - \(formatter.string(from: state.currentDateRange.end.addingTimeInterval(-1)))"
+        // 完整日期已在页顶胶囊，这里逐字重复只差长短格式；改报窗口天数（11-05 挑刺专项E）
+        let days = Calendar.current.dateComponents([.day], from: state.currentDateRange.start, to: state.currentDateRange.end).day ?? 1
+        return String(localized: "共 \(max(1, days)) 天")
     }
 
     // MARK: - 周期汇总卡片

@@ -87,6 +87,8 @@ nonisolated enum TaskAnalyticsAggregator {
         let comparison = TaskAnalyticsComparison(
             createdDelta: created.count - prevCreated,
             completedDelta: completed.count - prevCompleted,
+            createdPrevious: prevCreated,
+            completedPrevious: prevCompleted,
             truncatedToPreviousEnd: compareWindow.truncatedToPreviousEnd,
             previousDueCompletionRate: prevRate(prevDue.onTime + prevDue.late),
             previousOnTimeRate: prevRate(prevDue.onTime)

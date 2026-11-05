@@ -67,7 +67,11 @@ struct ProjectTabView: View {
                     ScopeHeadCell(
                         title: String(localized: "有支出的项目"),
                         value: "\(spentProjectCount) 个",
-                        subtitle: String(localized: "共 \(state.availableFinanceProjects.count) 个项目")
+                        // 主值已说「0 个」时副标题再报「共 0 个」是双零复读（11-05 挑刺专项E），
+                        // 只在有项目可数时补基数
+                        subtitle: state.availableFinanceProjects.isEmpty
+                            ? nil
+                            : String(localized: "共 \(state.availableFinanceProjects.count) 个项目")
                     )
                 }
 
@@ -121,11 +125,10 @@ struct ProjectTabView: View {
     }
 
     private var rangeSubtitle: String {
-        // 三格汇总头里每格宽度有限，用 M.d 短格式避免「10月1日 - 10月…」被截断
+        // 日期范围与页顶胶囊逐字重复（只差长短格式），改报窗口天数不占宽（11-05 挑刺专项E）
         let (start, end) = state.currentDateRange
-        let df = DateFormatter()
-        df.dateFormat = "M.d"
-        return "\(df.string(from: start)) - \(df.string(from: end.addingDays(-1)))"
+        let days = Calendar.current.dateComponents([.day], from: start, to: end).day ?? 1
+        return String(localized: "共 \(max(1, days)) 天")
     }
 
     private func projectRow(_ project: FinanceProject, spent: Decimal?, income: Decimal?) -> some View {
@@ -500,7 +503,7 @@ private struct ProjectInsightView: View {
 struct ScopeHeadCell: View {
     let title: String
     let value: String
-    var subtitle: String = ""
+    var subtitle: String?
     var valueColor: Color = .holoToolText
 
     var body: some View {
@@ -518,7 +521,7 @@ struct ScopeHeadCell: View {
 
             // 副标题行恒占位（空则用空格撑住行高）：三格并列时内容等高，
             // 否则带「29 笔」的格子内容整体居中上浮，三格金额基线错位
-            Text(subtitle.isEmpty ? " " : subtitle)
+            Text((subtitle ?? "").isEmpty ? " " : subtitle ?? " ")
                 .font(.system(size: 9.5))
                 .foregroundColor(.holoTextPlaceholder)
                 .lineLimit(1)

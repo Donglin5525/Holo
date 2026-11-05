@@ -542,8 +542,10 @@ struct AddTransactionSheet: View {
         } label: {
             HStack(spacing: 6) {
                 Text(amountString == "0" ? String(localized: "金额") : String(localized: "¥ \(displayAmountString)"))
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(amountString == "0" ? .holoToolTextSecondary : .holoToolText)
+                    // 占位态降到 placeholder 语言（细字浅灰）：18pt semibold 中灰在浅色下
+                    // 被读成「已输入」（11-05 挑刺专项F）
+                    .font(.system(size: 18, weight: amountString == "0" ? .regular : .semibold))
+                    .foregroundColor(amountString == "0" ? .holoTextPlaceholder : .holoToolText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.65)
                     .accessibilityIdentifier("transactionSheet.amountDisplay")

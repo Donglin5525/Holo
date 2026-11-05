@@ -456,71 +456,53 @@ struct HabitMeasureInputSheet: View {
     @FocusState private var valueFocused: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.lg) {
-            Text(String(localized: "记录\(snapshot.name)"))
-                .font(.holoHeading)
-                .foregroundColor(.holoToolText)
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    TextField(unitPlaceholder, text: $valueText)
-                        #if canImport(UIKit)
-                        .keyboardType(.decimalPad)
-                        #endif
-                        .font(.system(size: 26, weight: .semibold).monospacedDigit())
-                        .foregroundColor(.holoToolText)
-                        .focused($valueFocused)
-                        .accessibilityIdentifier("habit.measure.value")
-                    if !unitText.isEmpty {
-                        Text(unitText)
-                            .font(.system(size: 15))
-                            .foregroundColor(.holoToolTextSecondary)
+        HoloSheetScaffold(
+            title: String(localized: "记录\(snapshot.name)"),
+            onClose: {
+                // 与原「取消」同语义：空内容直接关，动过就先确认（§2.3）
+                if valueText.isEmpty && note.isEmpty { dismiss() } else { showDismissAlert = true }
+            },
+            primaryTitle: isSaving ? String(localized: "保存中…") : String(localized: "保存"),
+            primaryAction: { Task { await save() } },
+            primaryDisabled: isSaving || !isValidInput,
+            primaryHint: inputHint
+        ) {
+            VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        TextField(unitPlaceholder, text: $valueText)
+                            #if canImport(UIKit)
+                            .keyboardType(.decimalPad)
+                            #endif
+                            .font(.system(size: 26, weight: .semibold).monospacedDigit())
+                            .foregroundColor(.holoToolText)
+                            .focused($valueFocused)
+                            .accessibilityIdentifier("habit.measure.value")
+                        if !unitText.isEmpty {
+                            Text(unitText)
+                                .font(.system(size: 15))
+                                .foregroundColor(.holoToolTextSecondary)
+                        }
+                    }
+                    if let errorMessage {
+                        Text(errorMessage)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoToolError)
                     }
                 }
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoToolError)
-                }
-            }
-            .padding()
-            .background(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous).fill(Color.holoToolInset))
-
-            TextField(String(localized: "备注（可选）"), text: $note)
-                .font(.holoBody)
-                .foregroundColor(.holoToolText)
                 .padding()
                 .background(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous).fill(Color.holoToolInset))
 
-            HStack(spacing: HoloSpacing.md) {
-                Button {
-                    if valueText.isEmpty && note.isEmpty { dismiss() } else { showDismissAlert = true }
-                } label: {
-                    Text(String(localized: "取消"))
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.holoToolText)
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                        .background(Capsule().fill(Color.holoToolInset))
-                }
-                .buttonStyle(HoloPressStyle())
-
-                Button {
-                    Task { await save() }
-                } label: {
-                    Text(isSaving ? String(localized: "保存中…") : String(localized: "保存"))
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.holoToolOnAction)
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                        .background(Capsule().fill(Color.holoToolAction))
-                }
-                .buttonStyle(HoloPressStyle())
-                .accessibilityIdentifier("habit.record.save")
+                TextField(String(localized: "备注（可选）"), text: $note)
+                    .font(.holoBody)
+                    .foregroundColor(.holoToolText)
+                    .padding()
+                    .background(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous).fill(Color.holoToolInset))
             }
-
-            Spacer(minLength: 0)
+            .padding(.horizontal, HoloSpacing.page)
+            .padding(.top, HoloSpacing.md)
         }
-        .padding(HoloSpacing.lg)
-        .presentationDetents([.height(320)])
+        .presentationDetents([.height(340)])
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -533,6 +515,31 @@ struct HabitMeasureInputSheet: View {
         .unsavedChangesAlert(isPresented: $showDismissAlert) { dismiss() }
     }
 
+    /// 输入是否可保存（Locale 合法数值且过符号门槛）。无效即置灰主按钮，
+    /// 不再「点了才报错」（11-05 挑刺 P2）
+    private var isValidInput: Bool {
+        parsedValue != nil
+    }
+
+    /// 主按钮置灰时的一行原因
+    private var inputHint: String? {
+        guard !isSaving, !isValidInput else { return nil }
+        return valueText.trimmingCharacters(in: .whitespaces).isEmpty
+            ? String(localized: "输入今天的数值后可保存")
+            : String(localized: "数值格式不对，例如 70.5")
+    }
+
+    /// 当前输入解析结果（save 与置灰判断共用同一套口径）
+    private var parsedValue: Double? {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale.current
+        formatter.numberStyle = .decimal
+        guard let number = formatter.number(from: valueText.trimmingCharacters(in: .whitespaces)),
+              let value = number as? Double, value.isFinite,
+              snapshot.kind == .count ? value > 0 : value >= 0 else { return nil }
+        return value
+    }
+
     private var unitText: String { snapshot.target?.unit ?? "" }
 
     private var unitPlaceholder: String {
@@ -540,15 +547,11 @@ struct HabitMeasureInputSheet: View {
     }
 
     private func save() async {
-        guard !isSaving else { return }
-        // Locale 合法小数 + 有限值（方案 §11.4）；测量允许 0
-        let formatter = NumberFormatter()
-        formatter.locale = Locale.current
-        formatter.numberStyle = .decimal
-        guard let number = formatter.number(from: valueText.trimmingCharacters(in: .whitespaces)),
-              let value = number as? Double, value.isFinite, snapshot.kind == .count ? value > 0 : value >= 0 else {
-            errorMessage = String(localized: "请输入有效的数值（不能为空或负数）")
-            valueFocused = true
+        guard !isSaving, let value = parsedValue else {
+            if parsedValue == nil {
+                errorMessage = String(localized: "请输入有效的数值（不能为空或负数）")
+                valueFocused = true
+            }
             return
         }
         isSaving = true

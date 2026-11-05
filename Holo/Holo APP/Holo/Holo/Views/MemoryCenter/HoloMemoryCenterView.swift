@@ -27,6 +27,9 @@ struct HoloMemoryCenterView: View {
     @State private var showMemorySettings = false
     /// 搜索收进导航：默认不常驻，点放大镜展开（减法原型 ① 注）。
     @State private var showSearch = false
+    /// 已记住条目「···」菜单的「修改」弹层（11-05 挑刺专项D：已记住管理入口）
+    @State private var correctingConfirmed: HoloResolvedKnowledge?
+    @State private var correctionText = ""
 
     init(
         onBack: (() -> Void)? = nil,
@@ -64,6 +67,18 @@ struct HoloMemoryCenterView: View {
             })
         }
         .task { await viewModel.load() }
+        .sheet(item: $correctingConfirmed) { knowledge in
+            HoloMemoryKnowledgeCorrectionSheet(
+                original: knowledge.displayText,
+                text: $correctionText,
+                onSave: {
+                    let statement = correctionText
+                    correctingConfirmed = nil
+                    Task { await viewModel.performKnowledge(.correct(statement: statement), on: knowledge) }
+                },
+                onCancel: { correctingConfirmed = nil }
+            )
+        }
     }
 
     // MARK: - 导航（返回键最左；搜索收进导航，减法原型 ①）
@@ -298,7 +313,16 @@ struct HoloMemoryCenterView: View {
             groupHeader("你确认的理解")
             VStack(spacing: 8) {
                 ForEach(viewModel.confirmedKnowledge) { knowledge in
-                    HoloMemoryConfirmedKnowledgeRow(knowledge: knowledge)
+                    HoloMemoryConfirmedKnowledgeRow(
+                        knowledge: knowledge,
+                        onCorrect: {
+                            correctionText = knowledge.displayText
+                            correctingConfirmed = knowledge
+                        },
+                        onDisable: {
+                            Task { await viewModel.performKnowledge(.disable, on: knowledge) }
+                        }
+                    )
                 }
             }
             .padding(.top, 2)
