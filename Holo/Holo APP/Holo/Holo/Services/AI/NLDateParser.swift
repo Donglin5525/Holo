@@ -43,23 +43,43 @@ enum NLDateParser {
 
     // MARK: - Standard Format
 
-    private static func parseStandardFormat(_ text: String) -> Date? {
+    /// 标准格式解析器全部静态缓存：本解析器在卡片渲染路径被逐帧调用
+    /// （TransactionChatCard.relativeDateText / AnniversaryChatCardData.displayDate），
+    /// 历史上每次 parse 现建 3 个格式化器（DateFormatter 单个即毫秒级），
+    /// 是消息列表首次布局与重绘的隐性主线程开销。
+    /// 两个 DateFormatter 各绑定一种固定格式、初始化后不再改写 dateFormat，
+    /// 无跨线程改写竞态（iOS 7+ NSDateFormatter 并发解析线程安全）。
+    private static let standardDateTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter
+    }()
 
-        let formats = ["yyyy-MM-dd HH:mm", "yyyy-MM-dd"]
-        for format in formats {
-            formatter.dateFormat = format
-            if let date = formatter.date(from: text) { return date }
-        }
+    private static let standardDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static let isoFractionalFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let isoPlainFormatter = ISO8601DateFormatter()
+
+    private static func parseStandardFormat(_ text: String) -> Date? {
+        if let date = standardDateTimeFormatter.date(from: text) { return date }
+        if let date = standardDayFormatter.date(from: text) { return date }
 
         // ISO 8601（LLM 按提示词可能返回，如 2026-08-16T21:00:00+08:00）
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = isoFormatter.date(from: text) { return date }
-        let plainISO = ISO8601DateFormatter()
-        return plainISO.date(from: text)
+        if let date = isoFractionalFormatter.date(from: text) { return date }
+        return isoPlainFormatter.date(from: text)
     }
 
     // MARK: - Chinese Natural Language

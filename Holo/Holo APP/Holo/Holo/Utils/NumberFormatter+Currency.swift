@@ -46,13 +46,10 @@ extension NumberFormatter {
             let value = NSDecimalNumber(decimal: amount / tenThousand).doubleValue
             return String(format: String(localized: "¥%.1f万"), value)
         } else {
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .currency
-            formatter.currencyCode = "CNY"
-            formatter.locale = Locale(identifier: "zh_CN")
-            formatter.minimumFractionDigits = 2
-            formatter.maximumFractionDigits = 2
-            return formatter.string(from: amount as NSDecimalNumber) ?? "¥0.00"
+            // 复用静态缓存的 currency 格式化器：compactCurrency 被分析卡构建
+            // （recomputeDerivedCardCache）高频调用，每次新建 NumberFormatter
+            // 是消息装载期的隐性开销，配置与静态版完全一致。
+            return NumberFormatter.currency.string(from: amount as NSDecimalNumber) ?? "¥0.00"
         }
     }
 

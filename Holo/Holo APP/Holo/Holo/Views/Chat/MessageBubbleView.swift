@@ -8,6 +8,7 @@
 
 import SwiftUI
 import CoreData
+import ImageIO
 
 struct MessageBubbleView: View {
     #if DEBUG || INTERNAL_DIAGNOSTICS
@@ -794,9 +795,36 @@ struct VisionChatThumbnail: View {
                 .stroke(Color.holoToolTextSecondary.opacity(0.12), lineWidth: 1)
         )
         .task {
-            // 压缩图长边 ≤2400，直接整图解码；列表滚动中只解码一次
-            image = UIImage(contentsOfFile: url.path)
+            // 显示窗口仅 128×170pt：按 3x 上限在后台线程用 ImageIO 降采样解码。
+            // 存量压缩图长边 ≤2400，整图解码像素约是所需的 30 倍，既拖慢首屏
+            // 又白占内存；降采样后每张图解码与绘制成本都与窗口尺寸成正比。
+            let fileURL = url
+            image = await Task.detached(priority: .utility) {
+                Self.downsampledImage(at: fileURL, maxPixel: 800)
+            }.value
         }
         .accessibilityLabel(String(localized: "识别的图片"))
+    }
+
+    /// ImageIO 降采样解码：解码即缩到 maxPixel，不再先解整图再缩。
+    private nonisolated static func downsampledImage(at url: URL, maxPixel: CGFloat) -> UIImage? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+            kCGImageSourceShouldCacheImmediately: true
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        #if canImport(UIKit)
+        return UIImage(cgImage: cgImage)
+        #else
+        return NSImage(
+            cgImage: cgImage,
+            size: NSSize(width: cgImage.width, height: cgImage.height)
+        )
+        #endif
     }
 }

@@ -207,7 +207,10 @@ struct ChatView: View {
             )
         }
         .task {
+            // 打开链路分段计时起点（首屏 reveal 处收尾落盘，见 revealInitialConversationIfReady）
+            ChatOpenPerfProbe.shared.beginOpen()
             await viewModel.setup()
+            ChatOpenPerfProbe.shared.mark("setupDone")
             await viewModel.refreshDiscoveryState()
             await loadMemoryInboxNoticeIfNeeded()
             reportViewModel.bind(chatViewModel: viewModel)
@@ -1249,6 +1252,8 @@ private struct ChatContentColumn: View {
         withTransaction(transaction) {
             isInitialConversationVisible = true
         }
+        // 首屏 reveal = 一次「打开」的终点，探针在此落盘本轮分段耗时
+        ChatOpenPerfProbe.shared.endOpen()
     }
 }
 

@@ -512,6 +512,7 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
             // 极端情况（崩溃恢复有孤儿 streaming）首屏可能短暂显示占位，随后自动收敛。
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: self.initialHistoryLimit)
             self.hasLoadedMessages = true
+            ChatOpenPerfProbe.shared.mark("hasLoadedMessages")
             self.reconcileInterruptedPlanningRuns()
             self.syncHasEarlierSessions()
             // 消息加载完成后刷新能力入口（此时 isTrulyEmptyConversation 可靠）

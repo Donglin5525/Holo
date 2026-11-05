@@ -302,6 +302,7 @@ struct ChatMessageListPane: View {
         .equatable()
         .id(message.id)
         .onAppear {
+            ChatOpenPerfProbe.shared.noteFirstRowAppeared()
             viewModel.loadMetadataIfNeeded(for: message.id)
         }
     }

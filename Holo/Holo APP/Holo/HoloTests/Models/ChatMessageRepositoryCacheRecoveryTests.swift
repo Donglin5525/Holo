@@ -130,7 +130,7 @@ final class ChatMessageRepositoryCacheRecoveryTests: XCTestCase {
         withExtendedLifetime(cancellable) {}
     }
 
-    func testPrefillTaskDeletionStatePublishesCardUpdate() throws {
+    func testPrefillTaskDeletionStatePublishesCardUpdate() async throws {
         let repo = ChatMessageRepository.shared
         let messageId = repo.addMessage(role: "assistant", content: "历史任务")
         let batch = makeTaskBatch(
@@ -150,7 +150,7 @@ final class ChatMessageRepositoryCacheRecoveryTests: XCTestCase {
             .sink { _ in publishedCount += 1 }
         let initialPublishedCount = publishedCount
 
-        repo.prefillDeletionStates()
+        await repo.prefillDeletionStates()
 
         let message = try XCTUnwrap(repo.messages.first(where: { $0.id == messageId }))
         XCTAssertTrue(message.isEntityDeleted(for: .task))

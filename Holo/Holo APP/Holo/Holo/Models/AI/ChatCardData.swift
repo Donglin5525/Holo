@@ -543,15 +543,21 @@ nonisolated struct AnniversaryChatCardData: Equatable {
     /// 类型默认 emoji 图标
     var icon: String { type.defaultEmoji }
 
-    /// 友好日期文本：解析成功展示「M月d日（周几）」，解析失败原样展示
+    /// 友好日期文本：解析成功展示「M月d日（周几）」，解析失败原样展示。
+    /// 输出格式化器静态缓存：本属性在卡片渲染期逐次求值（正文与无障碍标签各一次），
+    /// 历史上每次现建 DateFormatter 是首屏多卡时的隐性主线程开销。
     var displayDate: String? {
         guard let raw = dateText?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
         guard let date = NLDateParser.parse(raw) else { return raw }
+        return Self.friendlyDateFormatter.string(from: date)
+    }
+
+    private static let friendlyDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "yyyy年M月d日"
-        return formatter.string(from: date)
-    }
+        return formatter
+    }()
 }
 
 // MARK: - 灵活查询卡片数据

@@ -136,7 +136,7 @@ final class ChatMessageRepository: ObservableObject {
 
         liveMessageCache.removeAll()
         messages = snapshots
-        prefillDeletionStates()
+        await prefillDeletionStates()
     }
 
     /// 轻量加载消息：只读取渲染文本气泡所需的字段，不读取重 JSON 元数据
@@ -191,7 +191,7 @@ final class ChatMessageRepository: ObservableObject {
 
         liveMessageCache.removeAll()
         messages = repairContextPlanDrafts(snapshots)
-        prefillDeletionStates()
+        await prefillDeletionStates()
     }
 
     /// 「就绪但方案缺」的兜底回填（2026-09-20）：轻量装载漏取 contextPlanJSON 曾致
@@ -283,11 +283,46 @@ final class ChatMessageRepository: ObservableObject {
                 return
             }
 
+            // 实体存在性（删除态预填）与缺失元数据在首屏发布前的同一个后台窗口补齐，
+            // 两次取数并行进行：打开路径对 messages 只发布一次、首帧即终态，
+            // 消灭「上屏后再翻转」的二次全页重算与主线程查库
+            // （2026-11-05 打开卡顿治理）。
+            ChatOpenPerfProbe.shared.mark("fetchDone")
+            var snapshots = sessionSnapshots
+            let linked = Self.collectLinkedEntityIDs(from: snapshots, idFilter: nil)
+            let metadataIDs = snapshots.filter { $0.metadataState == .unloaded }.map(\.id)
+            async let existing = Self.fetchExistingEntityIDs(
+                finance: linked.finance,
+                tasks: linked.tasks,
+                anniversaries: linked.anniversaries
+            )
+            async let metadataPayloads = Self.fetchMetadataPayloads(for: metadataIDs)
+            let existingIDs = await existing
+            // 元数据取数失败不阻断首屏：留给行 onAppear 的懒加载通道兜底
+            let metadata = (try? await metadataPayloads) ?? [:]
+
+            Self.applyDeletionStates(to: &snapshots, linked: linked, existing: existingIDs)
+            for index in snapshots.indices {
+                guard let payload = metadata[snapshots[index].id],
+                      snapshots[index].metadataState == .unloaded else { continue }
+                snapshots[index].enrichMetadata(
+                    parsedBatch: payload.parsedBatch,
+                    executionBatch: payload.executionBatch,
+                    analysisContext: payload.analysisContext,
+                    rawLog: payload.rawLog,
+                    agentResult: payload.agentResult,
+                    insightResult: payload.insightResult
+                )
+            }
+            ChatOpenPerfProbe.shared.mark("enrichDone")
+
             liveMessageCache.removeAll()
-            messages = repairContextPlanDrafts(sessionSnapshots)
+            messages = repairContextPlanDrafts(snapshots)
             oldestLoadedTimestamp = sessionSnapshots.first?.timestamp
             hasEarlierSessions = hasEarlier
-            prefillDeletionStates()
+            // 首屏装载走直接赋值（发布契约），不经 publishMessages，探针这里单独计数
+            ChatOpenPerfProbe.shared.noteMessagePublish(count: snapshots.count)
+            ChatOpenPerfProbe.shared.mark("published")
         } catch {
             logger.error("加载当前会话消息失败：\(error.localizedDescription)")
         }
@@ -372,7 +407,7 @@ final class ChatMessageRepository: ObservableObject {
 
             messages = uniqueNew + messages
             oldestLoadedTimestamp = uniqueNew.first?.timestamp
-            prefillDeletionStates(for: uniqueNew.map(\.id))
+            await prefillDeletionStates(for: uniqueNew.map(\.id))
 
             // 检查是否还有更早的消息
             let newEarliest = uniqueNew.first?.timestamp
@@ -1356,6 +1391,64 @@ final class ChatMessageRepository: ObservableObject {
 
     // MARK: - Metadata Lazy Load
 
+    /// 元数据批量载荷：重 JSON 字段的后台解码结果
+    private typealias MetadataPayload = (
+        parsedBatch: AIParseBatch?,
+        executionBatch: AIExecutionBatch?,
+        analysisContext: AnalysisContext?,
+        rawLog: LLMLog?,
+        agentResult: HoloRenderedAgentResult?,
+        insightResult: MemoryInsightPayload?
+    )
+
+    /// 后台批量查询并解码消息的重 JSON 字段。
+    /// 首屏合并装载与行 onAppear 懒加载共用这一条通道（2026-11-05 打开卡顿治理）。
+    nonisolated private static func fetchMetadataPayloads(for ids: [UUID]) async throws -> [UUID: MetadataPayload] {
+        guard !ids.isEmpty else { return [:] }
+        let decoded = try await Task.detached(priority: .utility) {
+            let context = CoreDataStack.shared.newBackgroundContext()
+            return try await context.perform {
+                let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                request.resultType = .dictionaryResultType
+                request.propertiesToFetch = [
+                    "id",
+                    "parsedBatchJSON",
+                    "executionBatchJSON",
+                    "analysisContextJSON",
+                    "rawLogJSON",
+                    "agentResultJSON",
+                    "insightResultJSON"
+                ]
+                request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                    NSPredicate(format: "id IN %@", ids),
+                    NSPredicate(format: "deletedAt == nil")
+                ])
+
+                return try context.fetch(request).compactMap { dict -> (UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?, HoloRenderedAgentResult?, MemoryInsightPayload?)? in
+                    guard let id = dict["id"] as? UUID else { return nil }
+                    let parsedBatch = ChatMessageViewData.decodeParseBatch(dict["parsedBatchJSON"] as? String)
+                    let executionBatch = ChatMessageViewData.decodeExecutionBatch(dict["executionBatchJSON"] as? String)
+                    let analysisContext = ChatMessageViewData.decodeAnalysisContext(dict["analysisContextJSON"] as? String)
+                    let rawLog = ChatMessageViewData.decodeRawLog(dict["rawLogJSON"] as? String)
+                    let agentResult = ChatMessageViewData.decodeAgentResult(dict["agentResultJSON"] as? String)
+                    let insightResult = ChatMessageViewData.decodeInsightResult(dict["insightResultJSON"] as? String)
+                    return (id, parsedBatch, executionBatch, analysisContext, rawLog, agentResult, insightResult)
+                }
+            }
+        }.value
+
+        // 回填按 id 索引。必须 uniquingKeysWith 容重复：聊天表经 iCloud 同步与跨版本
+        // 写入天然可能出现同 id 多行（5b0c0d6b1 实锤过 uniqueKeysWithValues 重复键
+        // fatal 崩溃）。
+        return Dictionary(
+            decoded.map {
+                ($0.0, (parsedBatch: $0.1, executionBatch: $0.2, analysisContext: $0.3,
+                        rawLog: $0.4, agentResult: $0.5, insightResult: $0.6))
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+    }
+
     /// 批量加载消息的重元数据（卡片、日志等），只处理 .unloaded 状态的消息
     func loadMetadataForMessagesIfNeeded(_ ids: [UUID]) async {
         // 主线程过滤出需要加载的消息
@@ -1370,56 +1463,18 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.metadataState = .loading
         }
 
-        // 后台批量查询重 JSON 字段
         do {
-            let decoded: [(UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?, HoloRenderedAgentResult?, MemoryInsightPayload?)] = try await Task.detached(priority: .utility) {
-                let context = CoreDataStack.shared.newBackgroundContext()
-                return try await context.perform {
-                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
-                    request.resultType = .dictionaryResultType
-                    request.propertiesToFetch = [
-                        "id",
-                        "parsedBatchJSON",
-                        "executionBatchJSON",
-                        "analysisContextJSON",
-                        "rawLogJSON",
-                        "agentResultJSON",
-                        "insightResultJSON"
-                    ]
-                    request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-                        NSPredicate(format: "id IN %@", toLoad),
-                        NSPredicate(format: "deletedAt == nil")
-                    ])
-
-                    return try context.fetch(request).compactMap { dict -> (UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?, HoloRenderedAgentResult?, MemoryInsightPayload?)? in
-                        guard let id = dict["id"] as? UUID else { return nil }
-                        let parsedBatch = ChatMessageViewData.decodeParseBatch(dict["parsedBatchJSON"] as? String)
-                        let executionBatch = ChatMessageViewData.decodeExecutionBatch(dict["executionBatchJSON"] as? String)
-                        let analysisContext = ChatMessageViewData.decodeAnalysisContext(dict["analysisContextJSON"] as? String)
-                        let rawLog = ChatMessageViewData.decodeRawLog(dict["rawLogJSON"] as? String)
-                        let agentResult = ChatMessageViewData.decodeAgentResult(dict["agentResultJSON"] as? String)
-                        let insightResult = ChatMessageViewData.decodeInsightResult(dict["insightResultJSON"] as? String)
-                        return (id, parsedBatch, executionBatch, analysisContext, rawLog, agentResult, insightResult)
-                    }
-                }
-            }.value
-
+            let decodedByID = try await Self.fetchMetadataPayloads(for: toLoad)
             // 回到主线程批量回填：全部改完后只发布一次（逐条发布=K 次全页重算）。
-            // 必须 uniquingKeysWith 容重复：聊天表经 iCloud 同步与跨版本写入天然可能
-            // 出现同 id 多行（5b0c0d6b1 实锤过 uniqueKeysWithValues 重复键 fatal 崩溃）。
-            let decodedByID = Dictionary(
-                decoded.map { ($0.0, $0) },
-                uniquingKeysWith: { first, _ in first }
-            )
             updateSnapshots(Array(decodedByID.keys)) { snapshot in
                 guard let payload = decodedByID[snapshot.id] else { return }
                 snapshot.enrichMetadata(
-                    parsedBatch: payload.1,
-                    executionBatch: payload.2,
-                    analysisContext: payload.3,
-                    rawLog: payload.4,
-                    agentResult: payload.5,
-                    insightResult: payload.6
+                    parsedBatch: payload.parsedBatch,
+                    executionBatch: payload.executionBatch,
+                    analysisContext: payload.analysisContext,
+                    rawLog: payload.rawLog,
+                    agentResult: payload.agentResult,
+                    insightResult: payload.insightResult
                 )
             }
         } catch {
@@ -1496,52 +1551,102 @@ final class ChatMessageRepository: ObservableObject {
 
     // MARK: - Deletion State Prefill
 
-    /// 批量预填消息卡片的删除态缓存。
-    /// 收集当前消息里关联的 finance / task 实体 ID，用 2 次查询（不存在的 Transaction、软删除的 TodoTask）
-    /// 一次性算好哪些卡片对应的实体已被删除，回填到各 snapshot，避免渲染期逐条查 Core Data。
-    func prefillDeletionStates(for snapshots: [UUID]? = nil) {
-        let idFilter = snapshots.map(Set.init)
-        var financeIDs: Set<UUID> = []
-        var taskIDs: Set<UUID> = []
-        var anniversaryIDs: Set<UUID> = []
-        for message in messages {
-            if let filter = idFilter, !filter.contains(message.id) { continue }
-            if let id = message.resolveLinkedEntityId(for: .finance) { financeIDs.insert(id) }
-            if let id = message.resolveLinkedEntityId(for: .task) { taskIDs.insert(id) }
-            if let id = message.resolveLinkedEntityId(for: .anniversary) { anniversaryIDs.insert(id) }
+    /// 一次后台往返批量取回三类关联实体的「存在集合」。
+    /// 三个 IN 查询合并进单个 background context.perform：存在性查询历史上
+    /// 走主线程 viewContext，交易表等大表（Moze 融合后 1.2 万行）在打开路径上
+    /// 会拖出可感知卡顿（2026-11-05 打开卡顿治理）。
+    nonisolated private static func fetchExistingEntityIDs(
+        finance: Set<UUID>,
+        tasks: Set<UUID>,
+        anniversaries: Set<UUID>
+    ) async -> (finance: Set<UUID>, tasks: Set<UUID>, anniversaries: Set<UUID>) {
+        guard !finance.isEmpty || !tasks.isEmpty || !anniversaries.isEmpty else {
+            return ([], [], [])
         }
-        guard !financeIDs.isEmpty || !taskIDs.isEmpty || !anniversaryIDs.isEmpty else { return }
+        let context = CoreDataStack.shared.newBackgroundContext()
+        return await context.perform {
+            (
+                fetchExistingTransactionIDs(finance, in: context),
+                fetchExistingNonDeletedTaskIDs(tasks, in: context),
+                fetchExistingAnniversaryIDs(anniversaries, in: context)
+            )
+        }
+    }
 
-        let existingFinanceIDs = Self.fetchExistingTransactionIDs(financeIDs)
-        let existingTaskIDs = Self.fetchExistingNonDeletedTaskIDs(taskIDs)
-        let existingAnniversaryIDs = Self.fetchExistingAnniversaryIDs(anniversaryIDs)
+    /// 从快照数组收集三类关联实体 ID
+    nonisolated private static func collectLinkedEntityIDs(
+        from snapshots: [ChatMessageViewData],
+        idFilter: Set<UUID>?
+    ) -> (finance: Set<UUID>, tasks: Set<UUID>, anniversaries: Set<UUID>) {
+        var finance: Set<UUID> = []
+        var tasks: Set<UUID> = []
+        var anniversaries: Set<UUID> = []
+        for snapshot in snapshots {
+            if let filter = idFilter, !filter.contains(snapshot.id) { continue }
+            if let id = snapshot.resolveLinkedEntityId(for: .finance) { finance.insert(id) }
+            if let id = snapshot.resolveLinkedEntityId(for: .task) { tasks.insert(id) }
+            if let id = snapshot.resolveLinkedEntityId(for: .anniversary) { anniversaries.insert(id) }
+        }
+        return (finance, tasks, anniversaries)
+    }
 
-        var updatedMessages = messages
+    /// 把存在性查询结果套用到快照（存在即未删），返回是否有变化。
+    /// 实体仍在时 isEntityDeleted 恒为 false，不会写入缓存，== 判等不受扰动。
+    @discardableResult
+    nonisolated private static func applyDeletionStates(
+        to snapshots: inout [ChatMessageViewData],
+        linked: (finance: Set<UUID>, tasks: Set<UUID>, anniversaries: Set<UUID>),
+        existing: (finance: Set<UUID>, tasks: Set<UUID>, anniversaries: Set<UUID>),
+        idFilter: Set<UUID>? = nil
+    ) -> Bool {
         var didChange = false
-        for index in updatedMessages.indices {
-            if let filter = idFilter, !filter.contains(updatedMessages[index].id) { continue }
-            if let financeId = updatedMessages[index].resolveLinkedEntityId(for: .finance), financeIDs.contains(financeId) {
-                let isDeleted = !existingFinanceIDs.contains(financeId)
-                if updatedMessages[index].isEntityDeleted(for: .finance) != isDeleted {
-                    updatedMessages[index].setDeletionState(isDeleted, for: .finance)
+        for index in snapshots.indices {
+            if let filter = idFilter, !filter.contains(snapshots[index].id) { continue }
+            if let financeId = snapshots[index].resolveLinkedEntityId(for: .finance), linked.finance.contains(financeId) {
+                let isDeleted = !existing.finance.contains(financeId)
+                if snapshots[index].isEntityDeleted(for: .finance) != isDeleted {
+                    snapshots[index].setDeletionState(isDeleted, for: .finance)
                     didChange = true
                 }
             }
-            if let taskId = updatedMessages[index].resolveLinkedEntityId(for: .task), taskIDs.contains(taskId) {
-                let isDeleted = !existingTaskIDs.contains(taskId)
-                if updatedMessages[index].isEntityDeleted(for: .task) != isDeleted {
-                    updatedMessages[index].setDeletionState(isDeleted, for: .task)
+            if let taskId = snapshots[index].resolveLinkedEntityId(for: .task), linked.tasks.contains(taskId) {
+                let isDeleted = !existing.tasks.contains(taskId)
+                if snapshots[index].isEntityDeleted(for: .task) != isDeleted {
+                    snapshots[index].setDeletionState(isDeleted, for: .task)
                     didChange = true
                 }
             }
-            if let anniversaryId = updatedMessages[index].resolveLinkedEntityId(for: .anniversary), anniversaryIDs.contains(anniversaryId) {
-                let isDeleted = !existingAnniversaryIDs.contains(anniversaryId)
-                if updatedMessages[index].isEntityDeleted(for: .anniversary) != isDeleted {
-                    updatedMessages[index].setDeletionState(isDeleted, for: .anniversary)
+            if let anniversaryId = snapshots[index].resolveLinkedEntityId(for: .anniversary), linked.anniversaries.contains(anniversaryId) {
+                let isDeleted = !existing.anniversaries.contains(anniversaryId)
+                if snapshots[index].isEntityDeleted(for: .anniversary) != isDeleted {
+                    snapshots[index].setDeletionState(isDeleted, for: .anniversary)
                     didChange = true
                 }
             }
         }
+        return didChange
+    }
+
+    /// 批量预填消息卡片的删除态缓存。
+    /// 收集当前消息里关联的 finance / task / anniversary 实体 ID，一次性算好哪些卡片
+    /// 对应的实体已被删除，回填到各 snapshot，避免渲染期逐条查 Core Data。
+    /// 存在性查询在后台 context 完成，不占主线程。
+    func prefillDeletionStates(for snapshots: [UUID]? = nil) async {
+        let idFilter = snapshots.map(Set.init)
+        let linked = Self.collectLinkedEntityIDs(from: messages, idFilter: idFilter)
+        guard !linked.finance.isEmpty || !linked.tasks.isEmpty || !linked.anniversaries.isEmpty else { return }
+
+        let existing = await Self.fetchExistingEntityIDs(
+            finance: linked.finance,
+            tasks: linked.tasks,
+            anniversaries: linked.anniversaries
+        )
+
+        // await 之后重读当前快照：等待期间流式新消息等并发更新不会被旧数组覆盖
+        var updatedMessages = messages
+        let didChange = Self.applyDeletionStates(
+            to: &updatedMessages, linked: linked, existing: existing, idFilter: idFilter
+        )
         // 删除态也属于消息快照的一部分，必须通过整体赋值触发 @Published，
         // 否则 Core Data 已经删除，HoloAI 卡片却不会立即重绘。
         if didChange {
@@ -1559,11 +1664,11 @@ final class ChatMessageRepository: ObservableObject {
             let exists: Bool
             switch category {
             case .finance:
-                exists = Self.fetchExistingTransactionIDs([entityId]).contains(entityId)
+                exists = Self.fetchExistingTransactionIDs([entityId], in: CoreDataStack.shared.viewContext).contains(entityId)
             case .task:
-                exists = Self.fetchExistingNonDeletedTaskIDs([entityId]).contains(entityId)
+                exists = Self.fetchExistingNonDeletedTaskIDs([entityId], in: CoreDataStack.shared.viewContext).contains(entityId)
             case .anniversary:
-                exists = Self.fetchExistingAnniversaryIDs([entityId]).contains(entityId)
+                exists = Self.fetchExistingAnniversaryIDs([entityId], in: CoreDataStack.shared.viewContext).contains(entityId)
             default:
                 exists = true
             }
@@ -1583,9 +1688,10 @@ final class ChatMessageRepository: ObservableObject {
     }
 
     /// 返回给定 Transaction ID 集合中「确实存在」的子集（硬删除判定：不存在即已删除）
-    nonisolated private static func fetchExistingTransactionIDs(_ ids: Set<UUID>) -> Set<UUID> {
+    nonisolated private static func fetchExistingTransactionIDs(
+        _ ids: Set<UUID>, in context: NSManagedObjectContext
+    ) -> Set<UUID> {
         guard !ids.isEmpty else { return [] }
-        let context = CoreDataStack.shared.viewContext
         let request = NSFetchRequest<NSDictionary>(entityName: "Transaction")
         request.resultType = .dictionaryResultType
         request.propertiesToFetch = ["id"]
@@ -1595,9 +1701,10 @@ final class ChatMessageRepository: ObservableObject {
     }
 
     /// 返回给定 TodoTask ID 集合中「存在且未软删除」的子集
-    nonisolated private static func fetchExistingNonDeletedTaskIDs(_ ids: Set<UUID>) -> Set<UUID> {
+    nonisolated private static func fetchExistingNonDeletedTaskIDs(
+        _ ids: Set<UUID>, in context: NSManagedObjectContext
+    ) -> Set<UUID> {
         guard !ids.isEmpty else { return [] }
-        let context = CoreDataStack.shared.viewContext
         let request = NSFetchRequest<NSDictionary>(entityName: "TodoTask")
         request.resultType = .dictionaryResultType
         request.propertiesToFetch = ["id"]
@@ -1607,9 +1714,10 @@ final class ChatMessageRepository: ObservableObject {
     }
 
     /// 返回给定 Anniversary ID 集合中「存在且未软删除」的子集
-    nonisolated private static func fetchExistingAnniversaryIDs(_ ids: Set<UUID>) -> Set<UUID> {
+    nonisolated private static func fetchExistingAnniversaryIDs(
+        _ ids: Set<UUID>, in context: NSManagedObjectContext
+    ) -> Set<UUID> {
         guard !ids.isEmpty else { return [] }
-        let context = CoreDataStack.shared.viewContext
         let request = NSFetchRequest<NSDictionary>(entityName: "Anniversary")
         request.resultType = .dictionaryResultType
         request.propertiesToFetch = ["id"]
@@ -1659,6 +1767,7 @@ final class ChatMessageRepository: ObservableObject {
     /// 驱动 @Published。所有卡片状态、关联 ID 和派生数据的更新都必须走整体赋值。
     private func publishMessages(_ updatedMessages: [ChatMessageViewData]) {
         messages = updatedMessages
+        ChatOpenPerfProbe.shared.noteMessagePublish(count: updatedMessages.count)
     }
 
     private func save() {
