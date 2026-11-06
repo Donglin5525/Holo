@@ -8,8 +8,11 @@ import { injectServerPrompt, buildVisionExtractionMessages } from "../src/prompt
 import {
   extractJsonContent,
   normalizeUnderstanding,
+  resolveVisionCapabilities,
   FOREIGN_MONEY_PATTERN,
+  VISION_CAPABILITY_PERSONAL_TRANSFER,
 } from "../src/vision/understandingContract.js";
+import { VISION_CLOSING_REMINDER, visionCaptionLine } from "../src/vision/visionPromptParts.js";
 
 // 截图识别记账契约（docs/plans/2026-09-09-screenshot-receipt-billing-plan.md §5）
 // 只验证本地网关契约与理解单护栏，不调真实 Provider（模型语义评测见
@@ -192,7 +195,7 @@ test("understandingContract：不可记账图型携带交易被兜底清空", ()
   });
   assert.equal(understanding.transactions.length, 0);
   assert.ok(guards.some((g) => g.reason.includes("forced_clear")));
-  assert.ok(understanding.rejectReason.includes("资金流转"));
+  assert.ok(understanding.rejectReason.includes("资金挪动"), "B 类拒识文案（v4 收窄为自己账户间挪钱）");
 });
 
 test("understandingContract：退款 income 保留；非法条目被钳制不抛错", () => {
@@ -251,7 +254,7 @@ test("v2：完整 v2 输出透传——schemaVersion/paymentStatus/字段级 con
     }],
   });
   assert.deepEqual(guards, []);
-  assert.equal(understanding.schemaVersion, 3, "v3 输出必须带 schemaVersion");
+  assert.equal(understanding.schemaVersion, 4, "v4 输出必须带 schemaVersion");
   assert.equal(understanding.paymentStatus, "completed");
   assert.equal(understanding.paymentStatusOriginalText, "支付成功");
   const tx = understanding.transactions[0];
@@ -276,7 +279,7 @@ test("v2：v1 旧输出（无新字段）兼容透传，旧字段原样保留", 
     transactions: [{ type: "expense", amount: 98.6, note: "盒马鲜生", date: "2026-09-01" }],
   });
   assert.deepEqual(guards, [], "缺省新字段是合法 v1 输入，不算护栏改写");
-  assert.equal(understanding.schemaVersion, 3);
+  assert.equal(understanding.schemaVersion, 4);
   assert.equal(understanding.paymentStatus, "unknown", "v1 无支付状态 → unknown（客户端转复核）");
   assert.equal(understanding.paymentStatusOriginalText, null);
   assert.equal(understanding.transactions[0].amountOriginalText, null);
@@ -403,7 +406,7 @@ test("v3：一图多笔不同渠道各自保留（动机场景：信用卡+零�
     ],
   });
   assert.deepEqual(guards, []);
-  assert.equal(understanding.schemaVersion, 3);
+  assert.equal(understanding.schemaVersion, 4);
   assert.equal(understanding.transactions.length, 2);
   assert.equal(understanding.transactions[0].paymentChannel, "中信银行信用卡7770");
   assert.equal(understanding.transactions[1].paymentChannel, "零钱", "逐笔渠道禁止互相覆盖");
@@ -434,8 +437,8 @@ test("v3：vision_extraction prompt 升 v3——逐笔渠道要求与示例字�
     "prompt 必须要求逐笔渠道",
   );
   assert.ok(
-    prompt.content.includes('"schemaVersion": 3') || prompt.content.includes('"schemaVersion":3'),
-    "prompt 必须声明 schemaVersion 3",
+    prompt.content.includes('"schemaVersion": 4') || prompt.content.includes('"schemaVersion":4'),
+    "prompt 必须声明 schemaVersion 4",
   );
   assert.ok(
     prompt.content.includes('"paymentChannel":"微信支付"'),
@@ -548,4 +551,186 @@ test("一致性：代码默认 provider/model 与生产 DeepSeek 对齐，qwen �
     source.includes('HOLO_VISION_EXTRACTION_REASONING_EFFORT ?? "none"'),
     "思考档位默认 none（与生产 env 对齐）",
   );
+});
+
+// ===== v4 契约（2026-11-06 截图记账开放转账/红包，docs/finance/plans/2026-11-06-截图记账开放转账与红包识别方案.md）=====
+
+const PERSONAL_TRANSFER_OUTPUT = {
+  imageType: "personal_transfer",
+  confidence: 0.94,
+  paymentStatus: "completed",
+  paymentStatusOriginalText: "张三已收款",
+  summary: "微信转账给张三500元，对方已收款",
+  merchant: "张三",
+  paymentChannel: "微信零钱",
+  currency: "CNY",
+  amountOriginalText: "¥500.00",
+  transactions: [
+    {
+      type: "expense",
+      amount: 500,
+      note: "十月房租",
+      date: "2026-11-03",
+      amountOriginalText: "¥500.00",
+      paymentChannel: "微信零钱",
+      confidence: { amount: 0.98, direction: 0.95, paymentStatus: 0.95, date: 0.9, merchant: 0.95, paymentChannel: 0.9 },
+      categoryCandidate: "张三",
+      normalizedCategoryCandidate: "房租",
+      semanticCategoryHint: "居住",
+      transfer: { kind: "transfer", counterparty: "张三", counterpartyAccount: null, awaitingReceipt: false },
+    },
+  ],
+};
+
+test("v4：能力解析——声明数组+总闸开才放行，其余一律降级（安全侧）", () => {
+  const on = { personalTransferEnabled: true };
+  const off = { personalTransferEnabled: false };
+  assert.equal(resolveVisionCapabilities({ capabilities: [VISION_CAPABILITY_PERSONAL_TRANSFER] }, on).allowPersonalTransfer, true);
+  assert.equal(resolveVisionCapabilities({ capabilities: [VISION_CAPABILITY_PERSONAL_TRANSFER] }, off).allowPersonalTransfer, false, "总闸关必须降级");
+  assert.equal(resolveVisionCapabilities({ capabilities: ["personal_transfer", "future"] }, on).allowPersonalTransfer, true, "未知能力忽略");
+  assert.equal(resolveVisionCapabilities({}, on).allowPersonalTransfer, false, "老客户端无 capabilities");
+  assert.equal(resolveVisionCapabilities({ capabilities: [] }, on).allowPersonalTransfer, false);
+  assert.equal(resolveVisionCapabilities({ capabilities: "personal_transfer" }, on).allowPersonalTransfer, false, "字符串不算声明");
+  assert.equal(resolveVisionCapabilities({ capabilities: [null, 42] }, on).allowPersonalTransfer, false, "非字符串元素不算声明");
+  assert.equal(resolveVisionCapabilities(null, on).allowPersonalTransfer, false, "body 为空对象外也不抛错");
+});
+
+test("v4：允许时 personal_transfer 放行——逐笔 transfer 对象完整透传", () => {
+  const { understanding, guards } = normalizeUnderstanding(PERSONAL_TRANSFER_OUTPUT, { allowPersonalTransfer: true });
+  assert.equal(understanding.imageType, "personal_transfer");
+  assert.equal(understanding.transactions.length, 1);
+  assert.deepEqual(guards, [], "正常记账不产生 guard");
+  const tx = understanding.transactions[0];
+  assert.equal(tx.transfer.kind, "transfer");
+  assert.equal(tx.transfer.counterparty, "张三");
+  assert.equal(tx.transfer.awaitingReceipt, false);
+  assert.equal(tx.note, "十月房租");
+  assert.equal(understanding.schemaVersion, 4);
+});
+
+test("v4：不允许（老客户端/总闸关）——降级为 transfer_screenshot 并清空交易，与 v3 老口径一致", () => {
+  const { understanding, guards } = normalizeUnderstanding(PERSONAL_TRANSFER_OUTPUT, { allowPersonalTransfer: false });
+  assert.equal(understanding.imageType, "transfer_screenshot", "老客户端永远看不到 personal_transfer");
+  assert.equal(understanding.transactions.length, 0);
+  assert.ok(understanding.rejectReason.includes("资金挪动"));
+  assert.ok(guards.some((g) => g.reason === "personal_transfer_not_enabled"));
+});
+
+test("v4：待收款照常记账——pending→completed+awaitingReceipt，且不记 guard（领域口径非异常）", () => {
+  const pending = { ...PERSONAL_TRANSFER_OUTPUT, paymentStatus: "pending", paymentStatusOriginalText: "待对方收款" };
+  const { understanding, guards } = normalizeUnderstanding(pending, { allowPersonalTransfer: true });
+  assert.equal(understanding.paymentStatus, "completed", "pending 已被转账块钳制，护栏二不得再清空");
+  assert.equal(understanding.imageType, "personal_transfer", "图型不得被护栏二改成 pending_order");
+  assert.equal(understanding.transactions.length, 1);
+  assert.equal(understanding.transactions[0].transfer.awaitingReceipt, true);
+  assert.ok(!guards.some((g) => g.reason === "payment_status_forced_clear"), "护栏二不得触发");
+});
+
+test("v4：已退回/失败/取消——清空交易但图型保持 personal_transfer（客户端给「已退回」文案）", () => {
+  for (const status of ["refunded", "failed", "cancelled"]) {
+    const { understanding, guards } = normalizeUnderstanding(
+      { ...PERSONAL_TRANSFER_OUTPUT, paymentStatus: status },
+      { allowPersonalTransfer: true },
+    );
+    assert.equal(understanding.imageType, "personal_transfer", `${status} 图型不得被护栏二改成 unrelated`);
+    assert.equal(understanding.transactions.length, 0);
+    assert.ok(understanding.rejectReason.includes("退回"), status);
+    assert.ok(guards.some((g) => g.reason === "transfer_not_completed_cleared"), status);
+  }
+});
+
+test("v4：外币转账照旧被护栏一拦截（转账块不豁免货币红线）", () => {
+  const foreign = JSON.parse(JSON.stringify(PERSONAL_TRANSFER_OUTPUT));
+  foreign.transactions[0].amountOriginalText = "$500.00";
+  const { understanding } = normalizeUnderstanding(foreign, { allowPersonalTransfer: true });
+  assert.equal(understanding.imageType, "foreign_currency");
+  assert.equal(understanding.transactions.length, 0);
+});
+
+test("v4：transfer 对象钳制——kind 非法归 transfer、超长截断、awaitingReceipt 只认真布尔；非转账图型恒 null", () => {
+  const weird = JSON.parse(JSON.stringify(PERSONAL_TRANSFER_OUTPUT));
+  weird.transactions[0].transfer = {
+    kind: "group_hongbao",
+    counterparty: "x".repeat(100),
+    counterpartyAccount: "招商银行(1234)超长" + "y".repeat(60),
+    awaitingReceipt: "yes",
+  };
+  const { understanding } = normalizeUnderstanding(weird, { allowPersonalTransfer: true });
+  const transfer = understanding.transactions[0].transfer;
+  assert.equal(transfer.kind, "transfer", "非法 kind 钳制");
+  assert.equal(transfer.counterparty.length, 60, "截到 60");
+  assert.equal(transfer.counterpartyAccount.length, 40, "截到 40");
+  assert.equal(transfer.awaitingReceipt, false, "非布尔一律 false");
+
+  const receipt = normalizeUnderstanding({
+    imageType: "receipt",
+    transactions: [{ type: "expense", amount: 19.9, transfer: { kind: "transfer", counterparty: "张三" } }],
+  });
+  assert.equal(receipt.understanding.transactions[0].transfer, null, "小票交易不得携带 transfer");
+});
+
+test("v4：B 类自己账户间挪钱（transfer_screenshot）照旧拦截", () => {
+  const { understanding } = normalizeUnderstanding(
+    { imageType: "transfer_screenshot", paymentStatus: "completed", transactions: [{ type: "expense", amount: 3000 }] },
+    { allowPersonalTransfer: true },
+  );
+  assert.equal(understanding.transactions.length, 0);
+  assert.ok(understanding.rejectReason.includes("资金挪动"));
+});
+
+test("v4：personal_transfer 无交易——已退回才说退回；没认出金额不冒充「已退回」", () => {
+  const returned = normalizeUnderstanding(
+    { imageType: "personal_transfer", paymentStatus: "refunded", transactions: [] },
+    { allowPersonalTransfer: true },
+  ).understanding;
+  assert.equal(returned.imageType, "personal_transfer");
+  assert.ok(returned.rejectReason.includes("退回"));
+
+  // 金额没认出来（模型给了 0 元被钳掉）+ 待收款：图型保持、状态钳成 completed、
+  // 默认文案不能是「已退回」（iOS 据状态给「没看清金额」）
+  const unreadable = normalizeUnderstanding(
+    { imageType: "personal_transfer", paymentStatus: "pending", transactions: [{ type: "expense", amount: 0 }] },
+    { allowPersonalTransfer: true },
+  ).understanding;
+  assert.equal(unreadable.imageType, "personal_transfer", "不得被护栏二改成 pending_order");
+  assert.equal(unreadable.paymentStatus, "completed");
+  assert.equal(unreadable.rejectReason, null, "没认出金额不是已退回");
+});
+
+test("v4：总闸 env 默认开，false 关闭；app.js 已接能力解析与总开关", async () => {
+  assert.equal(loadConfig().visionPersonalTransfer.enabled, true, "默认开（一期直接生效）");
+  const prev = process.env.HOLO_VISION_PERSONAL_TRANSFER_ENABLED;
+  process.env.HOLO_VISION_PERSONAL_TRANSFER_ENABLED = "false";
+  try {
+    const fresh = await import("../src/config.js?transfer-toggle-test=1");
+    assert.equal(fresh.loadConfig().visionPersonalTransfer.enabled, false);
+  } finally {
+    if (prev === undefined) delete process.env.HOLO_VISION_PERSONAL_TRANSFER_ENABLED;
+    else process.env.HOLO_VISION_PERSONAL_TRANSFER_ENABLED = prev;
+  }
+  const source = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+  assert.ok(source.includes("resolveVisionCapabilities(request"), "路由必须把请求体交给能力解析");
+  assert.ok(source.includes("allowPersonalTransfer"), "路由必须把放行结果传给 normalizeUnderstanding");
+});
+
+test("v4：prompt 升 v5——图型拆分/规则 14/零钱写法/少样本/schemaVersion 4", () => {
+  const prompt = getPrompt("vision_extraction");
+  assert.ok(prompt.version >= 5, "prompt 必须升到 v5");
+  assert.ok(prompt.content.includes("personal_transfer：和别人之间的转账、红包"), "A 类图型定义");
+  assert.ok(prompt.content.includes("只限「用户自己账户之间挪钱」"), "B 类收窄定义");
+  assert.ok(prompt.content.includes("【转账/红包（personal_transfer）】"), "规则 14");
+  assert.ok(prompt.content.includes("微信零钱一律写「微信零钱」"), "零钱渠道写法（iOS 账户匹配依赖）");
+  assert.ok(prompt.content.includes("【转账示例】"), "转账少样本");
+  assert.ok(prompt.content.includes("【发红包示例】"), "发红包少样本（方向平衡：评测 t03 实锤只有收红包示例时模型把发红包判成收入）");
+  assert.ok(prompt.content.includes("【收红包示例】"), "收红包少样本");
+  assert.ok(prompt.content.includes("「已领取X/Y个」「共X/Y元」是发红包的人查看的领取进度"), "发红包方向线索说明");
+  assert.ok(prompt.content.includes('"schemaVersion":4'), "示例必须声明 schemaVersion 4");
+});
+
+test("v4：提示词拼装片段——收尾提醒与附言行生产/评测共用同源", () => {
+  const source = readFileSync(new URL("../src/app.js", import.meta.url), "utf8");
+  assert.ok(source.includes("VISION_CLOSING_REMINDER"), "app.js 必须用共用常量");
+  assert.ok(VISION_CLOSING_REMINDER.includes("货币符号原文"), "收尾提醒内容不回退");
+  assert.equal(visionCaptionLine("给房东"), "\n\n用户随图附言：「给房东」");
+  assert.equal(visionCaptionLine(""), "\n\n用户没有附言。");
 });

@@ -82,6 +82,13 @@ const DEFAULT_CONFIG = {
     autoCommitAllowed: process.env.HOLO_VISION_AUTO_COMMIT_ALLOWED === "true",
     policyVersion: process.env.HOLO_VISION_AUTO_COMMIT_POLICY_VERSION ?? "v1",
   },
+  // 截图记账 · 个人转账/红包总闸（2026-11-06 东林拍板一期开放 A 类）：客户端在识图请求里声明
+  // capabilities:["personal_transfer"] 且本总闸开着，personal_transfer 才放行记账；否则按老口径
+  // 降级为 transfer_screenshot（老版本 App 恒走降级，行为与此前一致）。
+  // 应急：env 置 HOLO_VISION_PERSONAL_TRANSFER_ENABLED=false 重建容器即全量按老口径拦截，不用发版。
+  visionPersonalTransfer: {
+    enabled: process.env.HOLO_VISION_PERSONAL_TRANSFER_ENABLED !== "false",
+  },
   // 个人档案通道（2026-11-01 东林拍板「档案=通用指令而非备注」）：用户在 App 亲手写的
   // 个人档案（称呼/身份/健康限制/沟通偏好…）作为「用户本人说明」随请求上云，由
   // serverPromptPolicy 在所有产出给用户看的 purpose 统一注入成指令级 system 消息。
@@ -849,6 +856,10 @@ export function loadConfig(overrides = {}) {
     visionAutomation: {
       ...DEFAULT_CONFIG.visionAutomation,
       ...overrides.visionAutomation,
+    },
+    visionPersonalTransfer: {
+      ...DEFAULT_CONFIG.visionPersonalTransfer,
+      ...overrides.visionPersonalTransfer,
     },
     routes: {
       ...DEFAULT_CONFIG.routes,

@@ -53,7 +53,12 @@ const PROMPT_VERSIONS = {
   // v4（2026-10-01 境外人民币结算）：货币红线从「图中出现外币一律拒」精确为
   // 「实付金额本身是外币才拒」——微信境外消费账单（标价日元+实付 ¥）实证被误拒；
   // 新增境外人民币结算少样本示例；护栏同步按逐笔金额原文分档（understandingContract.js）。
-  vision_extraction: 4,
+  // v5（2026-11-06 截图记账开放转账/红包，东林拍板一期 A 类）：图型拆分——personal_transfer
+  // （与他人之间的转账/红包，记账）与收窄后的 transfer_screenshot（自己账户间挪钱，仍拒）；
+  // 新增规则 14（方向判别原文/transfer 对象/待收款照记/已退回不记/分类候选/群红包/边界）；
+  // 渠道写法「微信零钱/支付宝余额」（原「零钱」匹配不到微信账户）；语义大类补人情/人情来往；
+  // schemaVersion 4；新增转账、红包两条少样本。契约同步 UNDERSTANDING_SCHEMA_VERSION=4。
+  vision_extraction: 5,
   // Matter「进行中的事」对账（2026-09-11 完整实施方案 §12）：typed proposal 契约首版
   // v2（2026-09-23 Matter 计划修订）：新增 addTask 提案类型——用户表达计划外新步骤时
   // 建议加入计划（title ≤20字动作短语，一次最多 2 条，planTaskTitles 去重），恒需用户确认。

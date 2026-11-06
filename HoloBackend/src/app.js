@@ -61,7 +61,8 @@ import { TOPIC_NAME_LIMITS, TOPIC_SUMMARY_LIMITS } from "./thoughts/topicInsight
 import { RELATE_LIMITS } from "./thoughts/semanticRelateSchema.js";
 import { BRIEF_LIMITS } from "./thoughts/categoryBriefSchema.js";
 import { ORGANIZE_LIMITS } from "./thoughts/organizeSchema.js";
-import { extractJsonContent, normalizeUnderstanding } from "./vision/understandingContract.js";
+import { extractJsonContent, normalizeUnderstanding, resolveVisionCapabilities } from "./vision/understandingContract.js";
+import { VISION_CLOSING_REMINDER, visionCaptionLine } from "./vision/visionPromptParts.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
@@ -1683,6 +1684,10 @@ export function createApp(overrides = {}) {
       const deviceId = await getDeviceId(context, config);
       const request = await readJson(context);
       const caption = typeof request.text === "string" ? request.text.trim().slice(0, 500) : "";
+      // v4 个人转账/红包：客户端声明能力 + 服务端总闸，两者都满足才放行（老客户端恒降级）
+      const { allowPersonalTransfer } = resolveVisionCapabilities(request, {
+        personalTransferEnabled: config.visionPersonalTransfer.enabled,
+      });
       if (typeof request.image !== "string" || request.image.length === 0) {
         throw new GatewayError("INVALID_REQUEST", "image (base64 JPEG) is required", 400);
       }
@@ -1714,14 +1719,12 @@ export function createApp(overrides = {}) {
         }
       }
 
-      const captionLine = caption
-        ? `\n\n用户随图附言：「${caption}」`
-        : "\n\n用户没有附言。";
+      const captionLine = visionCaptionLine(caption);
       const serverPrompt = buildVisionExtractionMessages([
         {
           type: "text",
           // 图片之后的收尾提醒放在最近位置：货币符号先看原文再输出（外币红线最近一次强提醒）
-          text: "提醒：先核对图中「合计/实付金额」行的货币符号原文，再输出理解单。实付金额本身是外币才 foreign_currency 且 transactions 为空；图中有外币标价但实付人民币的境外账单（如微信境外消费），按人民币实付正常记账。",
+          text: VISION_CLOSING_REMINDER,
         },
         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${request.image}` } },
       ]);
@@ -1781,7 +1784,7 @@ export function createApp(overrides = {}) {
       let understanding;
       let guards;
       try {
-        ({ understanding, guards } = normalizeUnderstanding(extractJsonContent(content)));
+        ({ understanding, guards } = normalizeUnderstanding(extractJsonContent(content), { allowPersonalTransfer }));
       } catch (error) {
         finishLog({ status: "error", error: serializeError(error) });
         throw new GatewayError(

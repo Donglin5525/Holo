@@ -14,7 +14,12 @@ export const FOREIGN_MONEY_PATTERN = /[$€£]|JP¥|USD|EUR|GBP|JPY|HKD|NT\$|美
 // v3（2026-09-19）：一图多笔各笔支付渠道可能不同（微信支付服务通知流实证：
 // 同图两笔分别为信用卡/零钱）——transactions 每笔新增 paymentChannel，
 // 顶层字段保留作整单回落。纯加字段，v2 客户端忽略未知键零破坏。
-export const UNDERSTANDING_SCHEMA_VERSION = 3;
+// v4（2026-11-06 截图记账开放转账/红包，docs/finance/plans/2026-11-06-截图记账开放转账与红包识别方案.md）：
+// 新增可记账图型 personal_transfer（与他人之间的转账/红包，真实收支）；transfer_screenshot
+// 收窄为「自己账户之间挪钱」（还款/提现/充值/理财申赎，仍拒识）。transactions 每笔新增
+// transfer 对象（非转账恒为 null）。personal_transfer 只下发给声明了能力的客户端，
+// 其余一律按老口径降级——老版本 App 行为不变。纯加字段，v3 客户端忽略未知键零破坏。
+export const UNDERSTANDING_SCHEMA_VERSION = 4;
 
 export const PAYMENT_STATUSES = [
   "completed",
@@ -33,6 +38,7 @@ const PAYMENT_STATUS_IMAGE_TYPES = { pending: "pending_order", failed: "unrelate
 export const UNDERSTANDING_IMAGE_TYPES = [
   "receipt",
   "payment_screenshot",
+  "personal_transfer",
   "transfer_screenshot",
   "wealth_screenshot",
   "list_note",
@@ -42,7 +48,8 @@ export const UNDERSTANDING_IMAGE_TYPES = [
 ];
 
 const DEFAULT_REJECT_REASONS = {
-  transfer_screenshot: "这是转账/还款类截图，属于资金流转，不计入收支",
+  personal_transfer: "这笔转账或红包已经退回、过期或没有完成，不用记账",
+  transfer_screenshot: "这是还款、提现或理财这类资金挪动，不计入收支",
   wealth_screenshot: "这是理财/余额页面，不涉及记账",
   list_note: "这是清单类内容，暂不支持转任务",
   foreign_currency: "外币消费暂不支持记账",
@@ -50,7 +57,39 @@ const DEFAULT_REJECT_REASONS = {
   unrelated: "这张图里没有可记账的内容",
 };
 
-const BILLABLE_TYPES = new Set(["receipt", "payment_screenshot"]);
+const BILLABLE_TYPES = new Set(["receipt", "payment_screenshot", "personal_transfer"]);
+
+// ---- 个人转账/红包（v4）----
+// 客户端在识图请求里声明的能力名；只有声明了它且服务端总闸开着，personal_transfer 才放行。
+export const VISION_CAPABILITY_PERSONAL_TRANSFER = "personal_transfer";
+const TRANSFER_KINDS = new Set(["transfer", "red_packet"]);
+// 转账「没成」的状态：已退回/失败/取消——不记账，但图型保持 personal_transfer，
+// 让客户端给出「已退回或没有完成」的准确解释（而不是护栏二映射出的「待付款/无关图」）。
+const TRANSFER_NOT_COMPLETED_STATUSES = new Set(["refunded", "failed", "cancelled"]);
+
+/**
+ * 识图请求的能力解析。capabilities 非数组、元素非字符串、空数组一律视为未声明（安全侧降级）。
+ * @returns {{ allowPersonalTransfer: boolean }}
+ */
+export function resolveVisionCapabilities(body, { personalTransferEnabled }) {
+  const declared = Array.isArray(body?.capabilities)
+    ? body.capabilities.filter((capability) => typeof capability === "string")
+    : [];
+  return {
+    allowPersonalTransfer: personalTransferEnabled === true
+      && declared.includes(VISION_CAPABILITY_PERSONAL_TRANSFER),
+  };
+}
+
+function normalizeTransferInfo(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  return {
+    kind: TRANSFER_KINDS.has(source.kind) ? source.kind : "transfer",
+    counterparty: clampString(source.counterparty, 60),
+    counterpartyAccount: clampString(source.counterpartyAccount, 40),
+    awaitingReceipt: source.awaitingReceipt === true,
+  };
+}
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -107,8 +146,10 @@ export function extractJsonContent(text) {
 /**
  * 归一化 + 护栏。返回 { understanding, guards }；guards 记录被护栏改写的行为，
  * 供客户端提示与日志观测。任何字段异常都被钳制成合法值，绝不抛出半截 schema。
+ * allowPersonalTransfer：调用方用 resolveVisionCapabilities 按「客户端声明 + 服务端总闸」算出；
+ * 缺省 false = 老口径（personal_transfer 降级为 transfer_screenshot 并清空交易）。
  */
-export function normalizeUnderstanding(raw) {
+export function normalizeUnderstanding(raw, { allowPersonalTransfer = false } = {}) {
   const guards = [];
   const source = raw && typeof raw === "object" ? raw : {};
 
@@ -126,12 +167,13 @@ export function normalizeUnderstanding(raw) {
 
   // v2 支付状态：非法值钳制为 unknown 并记录 guard（改写可观测）。
   const paymentStatusRaw = typeof source.paymentStatus === "string" ? source.paymentStatus.trim().toLowerCase() : "";
-  const paymentStatus = PAYMENT_STATUSES.includes(paymentStatusRaw) ? paymentStatusRaw : "unknown";
+  let paymentStatus = PAYMENT_STATUSES.includes(paymentStatusRaw) ? paymentStatusRaw : "unknown";
   if (paymentStatusRaw !== "" && paymentStatusRaw !== paymentStatus) {
     guards.push({ field: "paymentStatus", from: source.paymentStatus, to: paymentStatus });
   }
   const paymentStatusOriginalText = clampString(source.paymentStatusOriginalText, 60);
 
+  const isPersonalTransfer = imageType === "personal_transfer";
   let transactions = (Array.isArray(source.transactions) ? source.transactions : [])
     .slice(0, 10)
     .map((transaction) => {
@@ -151,11 +193,37 @@ export function normalizeUnderstanding(raw) {
         categoryCandidate: clampString(transaction?.categoryCandidate, 120),
         normalizedCategoryCandidate: clampString(transaction?.normalizedCategoryCandidate, 120),
         semanticCategoryHint: clampString(transaction?.semanticCategoryHint, 40),
+        // v4 逐笔新增：转账信息只属于 personal_transfer，其余图型恒为 null（键恒在）。
+        transfer: isPersonalTransfer ? normalizeTransferInfo(transaction?.transfer) : null,
       };
     })
     .filter(Boolean);
   if (Array.isArray(source.transactions) && transactions.length !== Math.min(source.transactions.length, 10)) {
     guards.push({ field: "transactions", reason: "invalid_entries_dropped" });
+  }
+
+  // 转账块（v4）：必须先于下方护栏一至四执行——护栏二会把 pending 的交易清空并把图型
+  // 改成 pending_order、把 failed/cancelled 改成 unrelated；护栏四会清掉非可记账图型的
+  // 交易。不前置，放行结果会被既有护栏静默击败（方案审核 P1）。
+  if (isPersonalTransfer) {
+    if (!allowPersonalTransfer) {
+      // 老客户端 / 总闸关闭：退回老口径，与 v3 时代完全一致
+      guards.push({ field: "imageType", reason: "personal_transfer_not_enabled", from: imageType, to: "transfer_screenshot" });
+      imageType = "transfer_screenshot";
+      transactions = [];
+    } else if (paymentStatus === "pending") {
+      // 「待对方收款/待你收款/红包未领完」：钱已经离开或即将到账，东林拍板照常记账并提示。
+      // 这是领域口径而非数据异常，不记 guard——guard 会让客户端显示「识别结果有异常」。
+      paymentStatus = "completed";
+      transactions = transactions.map((transaction) => ({
+        ...transaction,
+        transfer: { ...transaction.transfer, awaitingReceipt: true },
+      }));
+    } else if (TRANSFER_NOT_COMPLETED_STATUSES.has(paymentStatus) && transactions.length > 0) {
+      // 已退回/失败/取消：不记账，图型保持 personal_transfer（客户端据此说「已退回或没有完成」）
+      guards.push({ field: "transactions", reason: "transfer_not_completed_cleared", paymentStatus });
+      transactions = [];
+    }
   }
 
   // 护栏一（货币红线）：实付金额本身是外币 → 强制拒识。
@@ -253,8 +321,16 @@ export function normalizeUnderstanding(raw) {
       .filter(Boolean),
     transactions,
     rejectReason: transactions.length === 0
-      ? (clampString(source.rejectReason, 200) ?? DEFAULT_REJECT_REASONS[imageType] ?? null)
+      ? (clampString(source.rejectReason, 200) ?? defaultRejectReason(imageType, paymentStatus))
       : null,
   };
   return { understanding, guards };
+}
+
+/** 图型默认拒识文案；personal_transfer 只有「没成」的状态才说已退回，其余空交易=没认出金额（iOS 同口径）。 */
+function defaultRejectReason(imageType, paymentStatus) {
+  if (imageType === "personal_transfer" && !TRANSFER_NOT_COMPLETED_STATUSES.has(paymentStatus)) {
+    return null;
+  }
+  return DEFAULT_REJECT_REASONS[imageType] ?? null;
 }
