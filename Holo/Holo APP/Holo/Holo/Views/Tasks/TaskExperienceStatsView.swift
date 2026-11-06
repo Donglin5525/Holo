@@ -806,7 +806,7 @@ struct TaskExperienceStatsView: View {
                 drilldown = .attentionUnscheduled
             }
             attentionRow(
-                title: String(localized: "待整理"),
+                title: String(localized: "待确认"),
                 count: analytics.attention.unclassifiedIDs.count,
                 action: String(localized: "查看列表")
             ) {

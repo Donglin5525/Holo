@@ -278,7 +278,7 @@ struct TaskDayTimelineView: View {
     private func blockMeta(block: TaskTimelineLayout.Block, member: TaskRecordSnapshot?, placement: TaskTimelineLayout.Placement) -> String {
         var parts = [Self.timeFormatter.string(from: block.start) + "–" + Self.timeFormatter.string(from: block.end)]
         if placement.overlapsAnother { parts.append(String(localized: "时间重叠")) }
-        if member?.importance == .unknown { parts.append(String(localized: "待整理")) }
+        if member?.importance == .unknown { parts.append(String(localized: "待确认")) }
         // 同日已有计划块的截止改附在块内（§5.2-3）
         if let member,
            let dueDay = TaskCalendarProjection.dueDay(of: member, calendar: calendar),

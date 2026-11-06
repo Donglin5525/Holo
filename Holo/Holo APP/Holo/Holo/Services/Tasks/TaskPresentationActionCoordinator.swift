@@ -153,6 +153,48 @@ final class TaskPresentationActionCoordinator: ObservableObject {
         return .applied(message: message)
     }
 
+    // MARK: - 移回待确认（2026-11-05 四验拍板：拖拽竖条与详情「移动到象限」共用的等价路径）
+
+    /// 两轴重置为未判断 → 任务回待确认；同口径 no-op 静默；可撤回（revert=原两轴）
+    @discardableResult
+    func commitReturnToPending(
+        taskID: UUID,
+        repository: TodoRepository
+    ) -> QuadrantMoveOutcome {
+        beginNewAction()
+        guard let task = repository.findTask(by: taskID),
+              !task.archived, !task.completed, task.deletedAt == nil else { return .taskUnavailable }
+
+        let importance = task.importance
+        let urgencyMode = task.urgencyMode
+        guard importance != .unknown || urgencyMode != .unknown else { return .noOp }
+
+        guard !committingTaskIDs.contains(taskID) else { return .noOp }
+        committingTaskIDs.insert(taskID)
+        defer { committingTaskIDs.remove(taskID) }
+
+        do {
+            try repository.updateTaskClassification(
+                taskID: taskID, importance: .unknown, urgencyMode: .unknown
+            )
+        } catch {
+            // 限定字段恢复：只回滚本次写入的两轴与 updatedAt，不动上下文其他编辑
+            task.importance = importance
+            task.urgencyMode = urgencyMode
+            logger.error("移回待确认保存失败：\(error.localizedDescription, privacy: .public)")
+            return .saveFailed
+        }
+
+        let applied = TaskQuadrantMovePolicy.Patch(importance: .unknown, urgencyMode: .unknown)
+        let revert = TaskQuadrantMovePolicy.revertPatch(importance: importance, urgencyMode: urgencyMode)
+        let message = String(localized: "已移回待确认，时间未改变")
+        openUndoWindow(UndoableAction(
+            kind: .quadrantMove(taskID: taskID, applied: applied, revert: revert),
+            message: message
+        ))
+        return .applied(message: message)
+    }
+
     // MARK: - 计划时段（§5.4）
 
     enum PlannedRangeOutcome {

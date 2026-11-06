@@ -3,7 +3,7 @@
 //  Holo
 //
 //  任务首页视图模型（方案 §4/§9）：单一快照源驱动范围过滤、四象限计数/分组、
-//  待整理入口、搜索与新增定位；完成撤回窗口用同一 pending 投影。
+//  待确认入口、搜索与新增定位；完成撤回窗口用同一 pending 投影。
 //  刷新链：todoDataDidChange / Today 计划变化 / 前台恢复 / 日期边界。
 //
 
@@ -251,7 +251,7 @@ final class TaskExperienceViewModel: ObservableObject {
         scope.historicalMembers(from: snapshots, calendar: calendar)
     }
 
-    /// 四象限计数（不含待整理；pending 投影同步减一，§4.3）
+    /// 四象限计数（不含待确认；pending 投影同步减一，§4.3）
     var quadrantCounts: [TaskQuadrant: Int] {
         var counts: [TaskQuadrant: Int] = [:]
         for member in activeMembers {
@@ -260,12 +260,12 @@ final class TaskExperienceViewModel: ObservableObject {
         return counts
     }
 
-    /// 待整理数（当前范围）
+    /// 待确认数（当前范围；口径 = 象限解析器判定 unclassified，2026-11-05）
     var unclassifiedCount: Int {
-        activeMembers.filter { $0.importance == .unknown }.count
+        activeMembers.filter { $0.quadrant(now: now, calendar: calendar) == .unclassified }.count
     }
 
-    /// 计数守恒：四格 + 待整理 = 范围活动任务总数（§4.3）
+    /// 计数守恒：四格 + 待确认 = 范围活动任务总数（§4.3）
     var conservedTotal: Int { activeMembers.count }
 
     /// 四组任务（组内默认排序）
@@ -278,10 +278,10 @@ final class TaskExperienceViewModel: ObservableObject {
         }
     }
 
-    /// 待整理组（按首页组内默认规则排序）
+    /// 待确认组（按首页组内默认规则排序；口径同 unclassifiedCount）
     var unclassifiedMembers: [TaskRecordSnapshot] {
         activeMembers
-            .filter { $0.importance == .unknown }
+            .filter { $0.quadrant(now: now, calendar: calendar) == .unclassified }
             .sorted { TaskRecordSnapshot.defaultOrder($0, $1, now: now, calendar: calendar) }
     }
 
@@ -397,12 +397,6 @@ final class TaskExperienceViewModel: ObservableObject {
     /// 详情打开用的规范任务副本
     func repositoryTask(_ id: UUID) -> TodoTask? {
         repository.findTask(by: id)
-    }
-
-    // MARK: - 整理队列（打开时冻结，§6.1）
-
-    func makeTriageQueue() -> [TaskRecordSnapshot] {
-        unclassifiedMembers
     }
 
     // MARK: - 新增定位（§5.4/§7.2）

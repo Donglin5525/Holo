@@ -192,7 +192,7 @@ struct TasksView: View {
 
     // MARK: - 底部 Tab 栏
 
-    /// 底部导航栏：吸底全宽，右侧为「+」新增
+    /// 底部导航栏（2026-11-05 原型）：白底上边线、图标 22 + 文字 11、选中橙、无指示点
     /// 骨架层（ContentView）已限宽 720：iPad 上整条栏跟随内容列宽，iPhone 撑满
     private var todoTabBar: some View {
         GeometryReader { geo in
@@ -203,15 +203,20 @@ struct TasksView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.top, 8)
+            .padding(.top, 9)
             .padding(.bottom, bottomInset)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(TaskQuadrantPalette.line)
+                    .frame(height: 0.5)
+            }
             .background(
                 Color.holoCardBackground
                     .shadow(color: HoloShadow.card, radius: 10, x: 0, y: -2)
                     .ignoresSafeArea(edges: .bottom)
             )
         }
-        .frame(height: 88)
+        .frame(height: 84)
         .frame(maxWidth: .infinity)
         .background(Color.holoCardBackground.ignoresSafeArea(edges: .bottom))
         .zIndex(40)
@@ -256,26 +261,21 @@ struct TasksView: View {
         .background(Color.holoBackground)
     }
 
-    /// 统一的 Tab 按钮
+    /// 统一的 Tab 按钮（原型：图标 22 / 文字 11，选中橙 #E85D2B）
     private func todoTabButton(_ tab: TodoTab) -> some View {
         Button {
             withAnimation(HoloAnimation.quick) {
                 selectedTab = tab
             }
         } label: {
-            VStack(spacing: 4) {
-                // 顶部指示点
-                Circle()
-                    .fill(selectedTab == tab ? Color.holoPrimary : Color.clear)
-                    .frame(width: 4, height: 4)
-
+            VStack(spacing: 3) {
                 Image(systemName: tab.icon)
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(selectedTab == tab ? TaskQuadrantPalette.accent : TaskQuadrantPalette.inkSecondary)
 
                 Text(tab.displayName)
-                    .font(.holoTinyLabel)
-                    .foregroundColor(selectedTab == tab ? .holoTextPrimary : .holoTextSecondary)
+                    .font(.system(size: 11))
+                    .foregroundColor(selectedTab == tab ? TaskQuadrantPalette.accent : TaskQuadrantPalette.inkSecondary)
             }
             .frame(maxWidth: .infinity)
         }
@@ -299,21 +299,14 @@ struct TasksView: View {
                 .font(.system(size: 22, weight: .medium))
                 .foregroundColor(.white)
                 .frame(width: 54, height: 54)
-                .background(
-                    Circle().fill(
-                        LinearGradient(
-                            colors: [Color.holoPrimary, Color.holoPrimaryDark],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    )
-                )
-                .shadow(color: Color.holoPrimary.opacity(0.35), radius: 14, y: 6)
+                .background(Circle().fill(TaskQuadrantPalette.accent))
+                .shadow(color: TaskQuadrantPalette.accent.opacity(0.30), radius: 14, y: 4)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("todoAddFAB")
         .accessibilityLabel(Text("新增"))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-        .padding(.trailing, HoloSpacing.page)
+        .padding(.trailing, 16)
         .padding(.bottom, isExpandedWidth ? 28 : 16)
     }
 }

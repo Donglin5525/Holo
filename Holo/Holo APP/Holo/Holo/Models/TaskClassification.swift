@@ -3,11 +3,13 @@
 //  Holo
 //
 //  任务轻重缓急两个独立分类维度（2026-10-06 任务重构方案 §3/§8.1）：
-//  重要性由用户判断（未判断进待整理），紧急程度按日期自动折算、可手动锁定。
+//  重要性由用户判断（未判断进待确认），紧急程度按日期自动折算、可手动锁定。
 //  2026-10-07 东林拍板 P 档体系：两轴各 P1/P2/P3 三档，组合出「紧急分」
 //  （重要×2＋紧急，3–9 分）作为列表排序的硬通货。
 //  raw 分配沿用 10-06 两值（1=重要→P1，2=不重要→P3；紧急 1=手动紧急→P1，
 //  2=手动不紧急→P3），新增档一律挂 raw=3——旧数据零迁移直读。
+//  2026-11-05 四象限改版：紧急方式新增 unknown（raw=4，新建默认双未判断）；
+//  两轴任一未判断 → 待确认。存量 auto（按日期折算）行为不动。
 //  与旧 priority 字段并存互不映射；不持久化象限与分数，均随日期实时解析。
 //
 
@@ -16,9 +18,9 @@ import os.log
 
 // MARK: - 重要性
 
-/// 任务重要性：用户对「这件事重不重要」的判断；unknown 表示尚未判断（进待整理）。
+/// 任务重要性：用户对「这件事重不重要」的判断；unknown 表示尚未判断（进待确认）。
 nonisolated enum TaskImportance: Int16, CaseIterable, Equatable, Sendable {
-    /// 暂未判断（进入待整理）
+    /// 暂未判断（进入待确认）
     case unknown = 0
     /// P1：重要
     case p1 = 1
@@ -80,6 +82,8 @@ nonisolated enum TaskImportance: Int16, CaseIterable, Equatable, Sendable {
 
 /// 紧急程度的判断方式：auto 按截止日期自动折算 P 档，其余为用户手动锁定。
 /// 「当前折算到哪一档」随日期变化，不落库（方案 §3.1）。
+/// 2026-11-05 新增 unknown（raw=4）：新建流程默认「双未判断」，任一轴未判断 → 待确认；
+/// 仅新流程产生，存量 auto 折算行为不动。
 nonisolated enum TaskUrgencyMode: Int16, CaseIterable, Equatable, Sendable {
     /// 按截止日期自动折算
     case auto = 0
@@ -89,6 +93,8 @@ nonisolated enum TaskUrgencyMode: Int16, CaseIterable, Equatable, Sendable {
     case p3 = 2
     /// 手动锁定 P2（一般急；10-07 新增档）
     case p2 = 3
+    /// 尚未判断（2026-11-05 新建流程默认；进待确认）
+    case unknown = 4
 
     var displayTitle: String {
         switch self {
@@ -96,15 +102,21 @@ nonisolated enum TaskUrgencyMode: Int16, CaseIterable, Equatable, Sendable {
         case .p1: return "P1"
         case .p2: return "P2"
         case .p3: return "P3"
+        case .unknown: return String(localized: "未判断")
         }
     }
 
-    var isManual: Bool { self != .auto }
+    var isManual: Bool {
+        switch self {
+        case .auto, .unknown: return false
+        case .p1, .p2, .p3: return true
+        }
+    }
 
-    /// 滑杆档位（0=P3 → 1=P2 → 2=P1）；auto 为 nil
+    /// 滑杆档位（0=P3 → 1=P2 → 2=P1）；auto/unknown 为 nil
     var leverIndex: Int? {
         switch self {
-        case .auto: return nil
+        case .auto, .unknown: return nil
         case .p3: return 0
         case .p2: return 1
         case .p1: return 2
@@ -123,7 +135,8 @@ nonisolated enum TaskUrgencyMode: Int16, CaseIterable, Equatable, Sendable {
 
 // MARK: - 象限（只读派生值）
 
-/// 四象限分组结果 + 待整理；由 TaskQuadrantResolver 实时解析，不持久化。
+/// 四象限分组结果 + 待确认；由 TaskQuadrantResolver 实时解析，不持久化。
+/// 2026-11-05 口径：重要性或紧急性任一未判断 → 待确认（原「待整理」）。
 nonisolated enum TaskQuadrant: Equatable, CaseIterable, Sendable {
     /// 重要 × 紧急：优先处理
     case doFirst
@@ -133,7 +146,7 @@ nonisolated enum TaskQuadrant: Equatable, CaseIterable, Sendable {
     case batchHandle
     /// 不重要 × 不紧急：稍后再看
     case reviewLater
-    /// 重要性未判断：待整理
+    /// 重要性或紧急性未判断：待确认
     case unclassified
 
     var displayTitle: String {
@@ -142,7 +155,7 @@ nonisolated enum TaskQuadrant: Equatable, CaseIterable, Sendable {
         case .scheduleTime: return String(localized: "留出时间")
         case .batchHandle: return String(localized: "集中处理")
         case .reviewLater: return String(localized: "稍后再看")
-        case .unclassified: return String(localized: "待整理")
+        case .unclassified: return String(localized: "待确认")
         }
     }
 
@@ -153,7 +166,7 @@ nonisolated enum TaskQuadrant: Equatable, CaseIterable, Sendable {
         case .scheduleTime: return String(localized: "安排具体执行时段")
         case .batchHandle: return String(localized: "合并处理零碎事项")
         case .reviewLater: return String(localized: "按需要保留或归档")
-        case .unclassified: return String(localized: "判断这件事是否重要")
+        case .unclassified: return String(localized: "确认重要与紧急后归入四象限")
         }
     }
 
@@ -164,11 +177,11 @@ nonisolated enum TaskQuadrant: Equatable, CaseIterable, Sendable {
         case .scheduleTime: return String(localized: "重要不紧急程度：重要、不紧急")
         case .batchHandle: return String(localized: "重要不紧急程度：不重要但紧急")
         case .reviewLater: return String(localized: "重要不紧急程度：不重要、不紧急")
-        case .unclassified: return String(localized: "重要性尚未判断")
+        case .unclassified: return String(localized: "重要性与紧急性尚未判断")
         }
     }
 
-    /// 首页四格固定显示顺序（待整理单独一行入口，不在此序内）
+    /// 首页四格固定显示顺序（待确认走右缘把手侧栏，不在此序内）
     static let overviewOrder: [TaskQuadrant] = [.doFirst, .scheduleTime, .batchHandle, .reviewLater]
 }
 

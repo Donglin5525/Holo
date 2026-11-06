@@ -89,6 +89,8 @@
 		5A202607180000000000000009 /* ThoughtRichContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A20260718000000000000000A /* ThoughtRichContentTests.swift */; };
 		5A202607190000000000000011 /* LightweightOnboardingSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607190000000000000012 /* LightweightOnboardingSettingsTests.swift */; };
 		5A9E11A10000000000000001 /* ThoughtAIExclusionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A9E11A10000000000000002 /* ThoughtAIExclusionTests.swift */; };
+		5AD6D2A1000000000000F102 /* TaskQuadrantDragUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AD6D2A1000000000000F101 /* TaskQuadrantDragUITests.swift */; };
+		5AD6D2A1000000000000F101 /* TaskQuadrantDragUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskQuadrantDragUITests.swift; sourceTree = "<group>"; };
 		5D0ECA0000000000000000B1 /* MozeMergeRehearsalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000B2 /* MozeMergeRehearsalTests.swift */; };
 		5D0ECA0000000000000000C1 /* FinanceSemanticsUnificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000C2 /* FinanceSemanticsUnificationTests.swift */; };
 		5D0ECA0000000000000000D1 /* FinanceEvidenceLedgerBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D0ECA0000000000000000D2 /* FinanceEvidenceLedgerBuilderTests.swift */; };
@@ -1885,6 +1887,7 @@
 				B71FE0A12F6A4C1E9D2B0107 /* HabitPauseSmokeUITests.swift */,
 				DDA06C0100000000000000C1 /* HabitTodayRowMenuUITests.swift */,
 				RLSG8T0000000000000001B /* ReleaseGateFiveEntryUITests.swift */,
+				5AD6D2A1000000000000F101 /* TaskQuadrantDragUITests.swift */,
 				D1A1000000000000000000DB /* DiscoverySmokeUITests.swift */,
 				A7C20000000000000000000B /* TodayReliefUITests.swift */,
 				A7C20000000000000000000D /* PolaroidPerfSmokeUITests.swift */,
@@ -2645,6 +2648,7 @@
 				B71FE0A12F6A4C1E9D2B0108 /* HabitPauseSmokeUITests.swift in Sources */,
 				DDA06C0100000000000000C2 /* HabitTodayRowMenuUITests.swift in Sources */,
 				RLSG8T0000000000000002B /* ReleaseGateFiveEntryUITests.swift in Sources */,
+				5AD6D2A1000000000000F102 /* TaskQuadrantDragUITests.swift in Sources */,
 				D1A1000000000000000000DA /* DiscoverySmokeUITests.swift in Sources */,
 				A7C20000000000000000000C /* TodayReliefUITests.swift in Sources */,
 				A7C20000000000000000000E /* PolaroidPerfSmokeUITests.swift in Sources */,

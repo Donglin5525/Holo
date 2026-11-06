@@ -25,7 +25,8 @@ nonisolated enum TaskQuadrantResolver {
         return calendar.date(byAdding: .day, value: 8, to: todayStart) ?? todayStart
     }
 
-    /// auto 模式的日期折算档位（2026-10-07 三档）；手动模式直接返回锁定的档。
+    /// auto 模式的日期折算档位（2026-10-07 三档）；手动模式直接返回锁定的档；
+    /// unknown（新建默认未判断）原样返回，由象限解析归入待确认。
     static func urgencyLevel(
         mode: TaskUrgencyMode,
         effectiveDue: Date?,
@@ -35,6 +36,8 @@ nonisolated enum TaskQuadrantResolver {
         switch mode {
         case .p1, .p2, .p3:
             return mode
+        case .unknown:
+            return .unknown
         case .auto:
             guard let effectiveDue else { return .p3 }
             if effectiveDue < urgentBoundary(now: now, calendar: calendar) { return .p1 }
@@ -53,9 +56,10 @@ nonisolated enum TaskQuadrantResolver {
         urgencyLevel(mode: mode, effectiveDue: effectiveDue, now: now, calendar: calendar) == .p1
     }
 
-    /// 象限解析（2026-10-07 拍板分组口径）：P1 归重要侧（优先处理/留出时间），
-    /// P2/P3 归另一侧（集中处理/稍后再看）——「重要」保持稀缺，组内次序交给紧急分。
-    /// 重要性未判断时恒为待整理（即使已逾期，方案 §3.2 末段）。
+    /// 象限解析（2026-10-07 拍板分组口径 + 2026-11-05 待确认口径）：
+    /// P1 归重要侧（优先处理/留出时间），P2/P3 归另一侧（集中处理/稍后再看）——
+    /// 「重要」保持稀缺，组内次序交给紧急分。重要性或紧急性任一未判断 → 待确认
+    /// （存量 auto=按日期折算视为「已判断」，行为不动；即使已逾期，方案 §3.2 末段）。
     static func quadrant(
         importance: TaskImportance,
         mode: TaskUrgencyMode,
@@ -67,17 +71,20 @@ nonisolated enum TaskQuadrantResolver {
         case .unknown:
             return .unclassified
         case .p1:
+            if mode == .unknown { return .unclassified }
             return isUrgent(mode: mode, effectiveDue: effectiveDue, now: now, calendar: calendar)
                 ? .doFirst
                 : .scheduleTime
         case .p2, .p3:
+            if mode == .unknown { return .unclassified }
             return isUrgent(mode: mode, effectiveDue: effectiveDue, now: now, calendar: calendar)
                 ? .batchHandle
                 : .reviewLater
         }
     }
 
-    /// 紧急分（2026-10-07 东林拍板）：重要×2＋紧急，3–9 分；重要性未判断无分（待整理）。
+    /// 紧急分（2026-10-07 东林拍板）：重要×2＋紧急，3–9 分；
+    /// 重要性或紧急性未判断无分（待确认）。
     /// 分数不落库，排序/展示时实时算。
     static func urgencyScore(
         importance: TaskImportance,
@@ -87,9 +94,11 @@ nonisolated enum TaskQuadrantResolver {
         calendar: Calendar
     ) -> Int? {
         guard let impValue = importance.scoreValue else { return nil }
+        guard mode != .unknown else { return nil }
         let urgValue: Int
         switch urgencyLevel(mode: mode, effectiveDue: effectiveDue, now: now, calendar: calendar) {
         case .auto: urgValue = 1 // 不可达：urgencyLevel 不返回 auto；保守按最低档
+        case .unknown: urgValue = 1 // 不可达：上文已拦截 unknown
         case .p3: urgValue = 1
         case .p2: urgValue = 2
         case .p1: urgValue = 3
@@ -111,6 +120,8 @@ nonisolated enum TaskQuadrantResolver {
             return String(localized: "紧急度已手动锁定为 P2")
         case .p3:
             return String(localized: "紧急度已手动锁定为 P3")
+        case .unknown:
+            return String(localized: "紧急度未判断，任务在待确认")
         case .auto:
             guard let effectiveDue else {
                 return String(localized: "未设截止日期，暂按 P3 判断")

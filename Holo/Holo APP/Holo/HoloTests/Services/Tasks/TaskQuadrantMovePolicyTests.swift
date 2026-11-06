@@ -110,7 +110,7 @@ final class TaskQuadrantMovePolicyTests: XCTestCase {
         XCTAssertEqual(result, TaskQuadrantMovePolicy.Patch(importance: .p2, urgencyMode: .p3))
     }
 
-    // MARK: - 待整理不是移动目标
+    // MARK: - 待确认不是移动目标
 
     func testUnclassifiedTargetReturnsNil() {
         XCTAssertNil(patch(target: .unclassified, importance: .p1, urgencyMode: .auto, effectiveDue: nil))

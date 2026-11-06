@@ -45,11 +45,11 @@ final class TaskPresentationStateTests: XCTestCase {
         super.tearDown()
     }
 
-    // MARK: - V01：新会话默认日历 + 今天
+    // MARK: - V01：新会话默认视图 + 今天（2026-11-05 四象限改版：默认四象限）
 
-    func testNewSessionDefaultsToCalendarAndToday() {
+    func testNewSessionDefaultsToMatrixAndToday() {
         let session = makeSession(2026, 10, 16)
-        XCTAssertEqual(session.viewMode, .calendar)
+        XCTAssertEqual(session.viewMode, .matrix)
         XCTAssertTrue(session.isTodaySelected)
         XCTAssertEqual(calendar.component(.day, from: session.selectedDay), 16)
     }

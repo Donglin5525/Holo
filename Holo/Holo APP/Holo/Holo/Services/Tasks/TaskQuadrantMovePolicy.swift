@@ -45,7 +45,7 @@ nonisolated enum TaskQuadrantMovePolicy {
             // 非重要侧：已有 P2/P3 保留（不硬改成同一档），P1/unknown 落中性 P2
             newImportance = (importance == .p2 || importance == .p3) ? importance : .p2
         case .unclassified:
-            return nil // 待整理不是移动目标
+            return nil // 待确认不是移动目标
         }
 
         let newUrgency: TaskUrgencyMode

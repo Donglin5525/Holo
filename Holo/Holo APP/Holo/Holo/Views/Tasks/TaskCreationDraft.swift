@@ -13,8 +13,8 @@ import Combine
 struct TaskCreationContext: Equatable {
     /// 重要性预填（象限新增时非 unknown）
     var importance: TaskImportance = .unknown
-    /// 紧急方式预填（象限新增为手动；普通新增 auto）
-    var urgencyMode: TaskUrgencyMode = .auto
+    /// 紧急方式预填（象限新增为手动；普通新增双未判断 → 待确认，2026-11-05）
+    var urgencyMode: TaskUrgencyMode = .unknown
     /// 截止预填（今天到期范围新增 = 今天全天）
     var dueDate: Date? = nil
     var dueIsAllDay: Bool = true

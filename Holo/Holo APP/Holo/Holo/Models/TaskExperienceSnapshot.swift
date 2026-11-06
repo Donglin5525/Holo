@@ -134,7 +134,7 @@ extension TaskRecordSnapshot {
         )
     }
 
-    /// 紧急分（2026-10-07）：重要性未判断 → nil（待整理无分）
+    /// 紧急分（2026-10-07）：重要性未判断 → nil（待确认无分）
     func urgencyScore(now: Date, calendar: Calendar) -> Int? {
         TaskQuadrantResolver.urgencyScore(
             importance: importance,

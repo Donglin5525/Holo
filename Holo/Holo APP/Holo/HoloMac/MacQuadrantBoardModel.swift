@@ -52,7 +52,7 @@ extension TaskQuadrant {
 
 // MARK: - 看板模型
 
-/// 看板只读模型：五组解析（四象限 + 待整理）+ 布局动画签名。
+/// 看板只读模型：五组解析（四象限 + 待确认）+ 布局动画签名。
 /// 结构与 MacTasksBrowserModel 同构（NotificationCenter 节流 + repository 单例）。
 final class MacQuadrantBoardModel: ObservableObject {
 
@@ -144,7 +144,7 @@ final class MacQuadrantBoardModel: ObservableObject {
         hasLoadedOnce = true
     }
 
-    /// 活动任务总数（四格 + 待整理，标题计数与侧栏口径一致）
+    /// 活动任务总数（四格 + 待确认，标题计数与侧栏口径一致）
     var activeCount: Int {
         groups.reduce(0) { $0 + $1.tasks.count } + unclassified.count
     }

@@ -234,7 +234,7 @@ struct TaskClassificationLeverEditor: View {
                 TaskPriorityLever(
                     title: String(localized: "重要吗"),
                     chipTitle: "？",
-                    chipAccessibilityLabel: String(localized: "暂不判断，收进待整理"),
+                    chipAccessibilityLabel: String(localized: "暂不判断，收进待确认"),
                     chipActive: importance == .unknown,
                     onChipTap: { importance = .unknown },
                     selectedIndex: Binding(
@@ -249,10 +249,17 @@ struct TaskClassificationLeverEditor: View {
                 )
                 TaskPriorityLever(
                     title: String(localized: "有多急"),
-                    chipTitle: String(localized: "自动"),
-                    chipAccessibilityLabel: String(localized: "按截止日期自动折算"),
-                    chipActive: urgencyMode == .auto,
-                    onChipTap: { urgencyMode = .auto },
+                    chipTitle: urgencyMode == .unknown
+                        ? String(localized: "未判断")
+                        : String(localized: "自动"),
+                    chipAccessibilityLabel: urgencyMode == .unknown
+                        ? String(localized: "紧急度未判断，收进待确认")
+                        : String(localized: "按截止日期自动折算"),
+                    chipActive: !urgencyMode.isManual,
+                    onChipTap: {
+                        // 未判断 ↔ 按日期 互切；点档位则手动锁定
+                        urgencyMode = urgencyMode == .unknown ? .auto : .unknown
+                    },
                     selectedIndex: Binding(
                         get: { urgencyMode.leverIndex },
                         set: { index in
@@ -261,12 +268,14 @@ struct TaskClassificationLeverEditor: View {
                             }
                         }
                     ),
-                    ghostIndex: TaskQuadrantResolver.urgencyLevel(
-                        mode: .auto,
-                        effectiveDue: effectiveDue,
-                        now: now,
-                        calendar: calendar
-                    ).leverIndex
+                    ghostIndex: urgencyMode == .auto
+                        ? TaskQuadrantResolver.urgencyLevel(
+                            mode: .auto,
+                            effectiveDue: effectiveDue,
+                            now: now,
+                            calendar: calendar
+                        ).leverIndex
+                        : nil
                 )
             }
             Text(TaskQuadrantResolver.urgencyExplanation(

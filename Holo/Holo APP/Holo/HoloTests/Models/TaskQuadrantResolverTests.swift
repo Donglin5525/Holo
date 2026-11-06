@@ -97,7 +97,7 @@ final class TaskQuadrantResolverTests: XCTestCase {
         XCTAssertEqual(quadrant, .scheduleTime)
     }
 
-    func test_暂未判断_手动P1_仍待整理() {
+    func test_暂未判断_手动P1_仍待确认() {
         // R05：暂未判断不能落集中处理
         let quadrant = TaskQuadrantResolver.quadrant(
             importance: .unknown, mode: .p1,
@@ -106,12 +106,68 @@ final class TaskQuadrantResolverTests: XCTestCase {
         XCTAssertEqual(quadrant, .unclassified)
     }
 
-    func test_暂未判断已逾期_仍在待整理() {
+    func test_暂未判断已逾期_仍在待确认() {
         let quadrant = TaskQuadrantResolver.quadrant(
             importance: .unknown, mode: .auto,
             effectiveDue: makeDate(2026, 10, 1), now: now, calendar: calendar
         )
         XCTAssertEqual(quadrant, .unclassified)
+    }
+
+    // MARK: - 待确认新口径（2026-11-05：重要性或紧急性任一未判断 → 待确认）
+
+    func test_紧急未判断_重要性已判断_仍归待确认() {
+        // 新建流程默认双未判断；只判断重要性、紧急留空 → 待确认
+        XCTAssertEqual(
+            TaskQuadrantResolver.quadrant(
+                importance: .p1, mode: .unknown,
+                effectiveDue: nil, now: now, calendar: calendar
+            ),
+            .unclassified
+        )
+        // 即使截止已近（存量口径本会折算 P1）也不越权入格
+        XCTAssertEqual(
+            TaskQuadrantResolver.quadrant(
+                importance: .p3, mode: .unknown,
+                effectiveDue: makeDate(2026, 10, 7, 12), now: now, calendar: calendar
+            ),
+            .unclassified
+        )
+    }
+
+    func test_紧急未判断_档位原样返回且不紧急() {
+        XCTAssertEqual(
+            TaskQuadrantResolver.urgencyLevel(mode: .unknown, effectiveDue: makeDate(2026, 10, 7, 12), now: now, calendar: calendar),
+            .unknown
+        )
+        XCTAssertFalse(
+            TaskQuadrantResolver.isUrgent(mode: .unknown, effectiveDue: makeDate(2026, 10, 7, 12), now: now, calendar: calendar)
+        )
+    }
+
+    func test_紧急未判断_无紧急分_解释明示未判断() {
+        XCTAssertNil(TaskQuadrantResolver.urgencyScore(importance: .p1, mode: .unknown, effectiveDue: nil, now: now, calendar: calendar))
+        let explanation = TaskQuadrantResolver.urgencyExplanation(mode: .unknown, effectiveDue: nil, now: now, calendar: calendar)
+        XCTAssertTrue(explanation.contains("未判断"), "未判断解释应明示：\(explanation)")
+    }
+
+    func test_两轴都已判断_新建分段四组合入对应格() {
+        // 新建弹层只有 重要/不重要 × 紧急/不紧急 两档
+        XCTAssertEqual(TaskQuadrantResolver.quadrant(importance: .p1, mode: .p1, effectiveDue: nil, now: now, calendar: calendar), .doFirst)
+        XCTAssertEqual(TaskQuadrantResolver.quadrant(importance: .p1, mode: .p3, effectiveDue: nil, now: now, calendar: calendar), .scheduleTime)
+        XCTAssertEqual(TaskQuadrantResolver.quadrant(importance: .p3, mode: .p1, effectiveDue: nil, now: now, calendar: calendar), .batchHandle)
+        XCTAssertEqual(TaskQuadrantResolver.quadrant(importance: .p3, mode: .p3, effectiveDue: nil, now: now, calendar: calendar), .reviewLater)
+    }
+
+    func test_存量auto折算不动_不因新口径落待确认() {
+        // 存量已判断任务：auto 按日期折算照旧（明天到期 → P1 → 优先处理）
+        XCTAssertEqual(
+            TaskQuadrantResolver.quadrant(
+                importance: .p1, mode: .auto,
+                effectiveDue: makeDate(2026, 10, 7, 12), now: now, calendar: calendar
+            ),
+            .doFirst
+        )
     }
 
     // MARK: - 象限映射（P1 归重要侧，P2/P3 归另一侧——2026-10-07 拍板口径）

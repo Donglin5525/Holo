@@ -264,7 +264,7 @@ final class TaskAnalyticsAggregatorTests: XCTestCase {
         XCTAssertEqual(snapshot.listBreakdown.reduce(0) { $0 + $1.count }, snapshot.completedCount)
     }
 
-    // MARK: - 当前待处理（逾期2 重要未安排2 待整理1，可重叠）
+    // MARK: - 当前待处理（逾期2 重要未安排2 待确认1，可重叠）
 
     func test_当前待处理_三组独立可重叠() {
         let snapshot = aggregate()
@@ -287,9 +287,9 @@ final class TaskAnalyticsAggregatorTests: XCTestCase {
         XCTAssertTrue(snapshot.observation.contains("3"), "观察应含差值 3：\(snapshot.observation)")
     }
 
-    // MARK: - 首页四象限（活动5 象限1/2/1/0 待整理1）
+    // MARK: - 首页四象限（活动5 象限1/2/1/0 待确认1）
 
-    func test_首页四象限计数与待整理() {
+    func test_首页四象限计数与待确认() {
         let members = TaskExperienceScope.allUncompleted.activeMembers(from: fixture(), now: asOf, calendar: calendar)
         XCTAssertEqual(members.count, 5, "当前活动未完成应为 5（T03/T04/T09/T10/T13）")
         let byQuadrant = Dictionary(grouping: members) { $0.quadrant(now: asOf, calendar: calendar) }
@@ -298,7 +298,7 @@ final class TaskAnalyticsAggregatorTests: XCTestCase {
         XCTAssertEqual(byQuadrant[.batchHandle]?.count, 1)   // T04
         XCTAssertEqual(byQuadrant[.reviewLater]?.count ?? 0, 0)
         XCTAssertEqual(byQuadrant[.unclassified]?.count, 1)  // T09
-        // 四格 + 待整理 = 范围活动总数（计数守恒）
+        // 四格 + 待确认 = 范围活动总数（计数守恒）
         let total = TaskQuadrant.overviewOrder.reduce(0) { $0 + (byQuadrant[$1]?.count ?? 0) }
             + (byQuadrant[.unclassified]?.count ?? 0)
         XCTAssertEqual(total, members.count)

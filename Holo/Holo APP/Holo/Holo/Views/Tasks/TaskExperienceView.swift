@@ -30,11 +30,15 @@ struct TaskExperienceView: View {
         HoloAdaptiveLayout.isExpandedWidth(contentWidth)
     }
 
-    @State private var showScopeSheet = false
     @State private var showCreationSheet = false
     @State private var creationContext: TaskCreationContext = TaskCreationContext()
-    @State private var showTriageSheet = false
+    @State private var showRulesSheet = false
+    @State private var showAddListSheet = false
     @State private var showSearchView = false
+    /// 待确认侧栏（浮岛与全屏遮罩在主列 overlay 层渲染，见 sidebarOverlay）
+    @State private var showsTaskSidebar = false
+    /// 侧栏/格内长按拖拽的共享状态（板视图上报格 frame，宿主提交落格）
+    @StateObject private var taskDragContext = TaskQuadrantDragContext()
     @State private var showNotificationSettings = false
     @State private var showArchiveManagement = false
     @State private var detailSelection: UUID? = nil
@@ -144,7 +148,6 @@ struct TaskExperienceView: View {
     private var masterColumn: some View {
         VStack(spacing: 0) {
             headerView
-            viewSwitcher
             if model.loadFailed {
                 failBanner
             }
@@ -159,16 +162,25 @@ struct TaskExperienceView: View {
                     .animation(HoloAnimation.snappy, value: showsCompletionUndoBanner)
             }
         }
-        .sheet(isPresented: $showScopeSheet) {
-            TaskScopeSheet(repository: repository, scope: scopeBinding, scopeCounts: model.scopeCounts)
+        // 待确认侧栏浮层盖全屏（含顶栏；原型 inset:0 遮罩）
+        .overlay {
+            sidebarOverlay
+        }
+        .onChange(of: session.viewMode) { _, _ in
+            closeTaskSidebarIfNeeded()
+        }
+        .onChange(of: model.scope) { _, _ in
+            closeTaskSidebarIfNeeded()
+        }
+        .sheet(isPresented: $showAddListSheet) {
+            AddListSheet(repository: repository, folder: nil)
         }
         .sheet(isPresented: $showCreationSheet) {
             // 创建回执走 .taskExperienceCreated 统一通知（含底部+/统计页入口）
             TaskCreationSheet(repository: repository, context: creationContext)
         }
-        .sheet(isPresented: $showTriageSheet) {
-            TaskTriageSheet(repository: repository, queue: model.makeTriageQueue())
-                .onDisappear { model.reload() }
+        .sheet(isPresented: $showRulesSheet) {
+            TaskQuadrantRulesSheet()
         }
         .sheet(item: Binding(
             get: { classificationTarget.map { ClassificationTarget(snapshot: $0) } },
@@ -312,22 +324,36 @@ struct TaskExperienceView: View {
     }
 
     private var matrixLayer: some View {
-        ScrollView {
-            TaskQuadrantBoardView(
-                model: model,
-                session: session,
-                repository: repository,
-                onOpenDetail: { detailSelection = $0 },
-                onCreateInQuadrant: { openCreation(forQuadrant: $0) },
-                onOpenTriage: { showTriageSheet = true }
-            )
-            .padding(.horizontal, HoloSpacing.page)
-            .padding(.top, HoloSpacing.xs)
-            .padding(.bottom, 100)
-        }
+        // 四格全屏化（2026-11-05 原型）：格内各自滚动，矩阵层不再外包竖向滚动
+        TaskQuadrantBoardView(
+            model: model,
+            dragContext: taskDragContext,
+            repository: repository,
+            onOpenDetail: { detailSelection = $0 },
+            onCreateInQuadrant: { openCreation(forQuadrant: $0) }
+        )
         .opacity(effectiveViewMode == .matrix ? 1 : 0)
         .allowsHitTesting(effectiveViewMode == .matrix)
         .accessibilityHidden(effectiveViewMode != .matrix)
+    }
+
+    /// 待确认侧栏浮层：全屏遮罩连顶栏一起盖住（原型 inset:0）；
+    /// 常驻挂载，开/关由 showsSidebar 驱动（浮岛滑入 + 遮罩淡入）
+    private var sidebarOverlay: some View {
+        TaskQuadrantSidebarOverlay(
+            model: model,
+            dragContext: taskDragContext,
+            repository: repository,
+            showsSidebar: showsTaskSidebar,
+            onOpenDetail: { detailSelection = $0 },
+            onClose: {
+                taskDragContext.clearHover()
+                taskDragContext.endDrag()
+                withAnimation(TaskQuadrantMetrics.sidebarAnimation) {
+                    showsTaskSidebar = false
+                }
+            }
+        )
     }
 
     private var calendarLayer: some View {
@@ -367,10 +393,6 @@ struct TaskExperienceView: View {
                 }
                 .accessibilityLabel(Text("返回"))
                 Spacer()
-                Text("任务")
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
-                Spacer()
                 HStack(spacing: 8) {
                     Button {
                         showSearchView = true
@@ -386,12 +408,22 @@ struct TaskExperienceView: View {
                 }
             }
             .frame(maxWidth: .infinity)
+            // 标题绝对居中（左右按钮数不对称 1:2，overlay 置中不受挤占）
+            .overlay {
+                Text("任务")
+                    .font(.holoHeading)
+                    .foregroundColor(.holoTextPrimary)
+                    .allowsHitTesting(false)
+            }
             .padding(.horizontal, HoloSpacing.page)
             .padding(.vertical, HoloSpacing.sm)
 
-            // 范围菜单：三视图同一份（§3.3）；计数收进统一灰徽章
+            // 范围行（2026-11-05 二轮拍板）：整行点击拉出左侧侧栏（顶部即范围筛选）；
+            // 行内追加浅橙「待确认 N」badge（0 件不显示）
             Button {
-                showScopeSheet = true
+                withAnimation(TaskQuadrantMetrics.sidebarAnimation) {
+                    showsTaskSidebar.toggle()
+                }
             } label: {
                 HStack(spacing: 6) {
                     Text(model.scopeTitle)
@@ -399,6 +431,17 @@ struct TaskExperienceView: View {
                         .lineLimit(1)
                     if !model.scope.isHistorical {
                         HoloCountBadge(count: model.conservedTotal)
+                    }
+                    if model.unclassifiedCount > 0 {
+                        Text(String(localized: "待确认 \(model.unclassifiedCount)"))
+                            .font(.system(size: 11, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundColor(TaskQuadrantPalette.handleText)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule().fill(TaskQuadrantPalette.accent.opacity(0.12))
+                            )
                     }
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .semibold))
@@ -427,65 +470,35 @@ struct TaskExperienceView: View {
         .background(Color.holoBackground)
     }
 
-    // MARK: - 三段切换（§9.2：44 热区 + 3 padding = 50 容器）
-
-    private var viewSwitcher: some View {
-        HStack(spacing: 3) {
-            ForEach(TaskViewMode.allCases) { mode in
-                segmentButton(mode)
-            }
+    /// 切走四象限视图或换范围时收起待确认侧栏（浮岛属于矩阵页）
+    private func closeTaskSidebarIfNeeded() {
+        guard showsTaskSidebar, session.viewMode != .matrix || model.scope.isHistorical else { return }
+        withAnimation(TaskQuadrantMetrics.sidebarAnimation) {
+            showsTaskSidebar = false
         }
-        .padding(3)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(0.05))
-        )
-        .padding(.horizontal, HoloSpacing.page)
-        .padding(.bottom, HoloSpacing.xs)
     }
 
-    private func segmentButton(_ mode: TaskViewMode) -> some View {
-        let isSelected = effectiveViewMode == mode
-        return Button {
-            guard effectiveViewMode != mode else { return }
-            HapticManager.selection()
-            // 历史范围切走：显式切回全部未完成并提示（不禁用按钮，§3.3）
-            if model.scope.isHistorical {
-                model.scope = .allUncompleted
-                HoloToastCenter.shared.show(String(localized: "已切回全部未完成"), type: .info)
-            }
-            withAnimation(HoloAnimation.quick) {
-                session.viewMode = mode
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: mode.iconName)
-                    .font(.system(size: 16, weight: .medium))
-                Text(mode.displayTitle)
-                    .font(.system(size: 14, weight: isSelected ? .semibold : .regular))
-            }
-            .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .background(
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(isSelected ? Color.holoCardBackground : Color.clear)
-                    .shadow(color: isSelected ? HoloShadow.card : .clear, radius: 2, y: 1)
-            )
-            .overlay(
-                // 深色下选中块贴轨道底色：细描边兜出选中边界（浅色下近似隐形）
-                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .strokeBorder(isSelected ? Color.holoToolBorder : Color.clear, lineWidth: 0.5)
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(mode.displayTitle)
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-        .accessibilityIdentifier("tasks.view.\(mode.rawValue)")
-    }
+    // MARK: - 「···」菜单（2026-11-05 顶栏减负：三视图切换与象限规则收进此处）
 
     private var moreMenu: some View {
         Menu {
+            // inline Picker：行左对齐 + 行首勾，与其余菜单项（图标+左对齐）版式一致
+            Picker(String(localized: "查看方式"), selection: viewModeBinding) {
+                ForEach(TaskViewMode.allCases) { mode in
+                    Text(mode.displayTitle).tag(mode)
+                }
+            }
+            .pickerStyle(.inline)
+            Button {
+                showRulesSheet = true
+            } label: {
+                Label(String(localized: "象限规则"), systemImage: "square.grid.2x2")
+            }
+            Button {
+                showAddListSheet = true
+            } label: {
+                Label(String(localized: "新建清单"), systemImage: "folder.badge.plus")
+            }
             if session.viewMode == .calendar && !model.scope.isHistorical {
                 Toggle(String(localized: "显示已完成"), isOn: Binding(
                     get: { session.calendarShowsCompleted },
@@ -513,6 +526,24 @@ struct TaskExperienceView: View {
                 .frame(width: 34, height: 34)
                 .background(Circle().fill(Color.holoNestedCardBackground))
         }
+    }
+
+    /// 菜单内切换三视图：历史范围切走时显式切回全部未完成并提示（§3.3）
+    private var viewModeBinding: Binding<TaskViewMode> {
+        Binding(
+            get: { effectiveViewMode },
+            set: { mode in
+                guard effectiveViewMode != mode else { return }
+                HapticManager.selection()
+                if model.scope.isHistorical {
+                    model.scope = .allUncompleted
+                    HoloToastCenter.shared.show(String(localized: "已切回全部未完成"), type: .info)
+                }
+                withAnimation(HoloAnimation.quick) {
+                    session.viewMode = mode
+                }
+            }
+        )
     }
 
     /// 开发验收开关（§15.1）：关闭只切回旧 UI，不动数据与模型
@@ -713,10 +744,12 @@ struct TaskExperienceView: View {
     /// 键盘高度（真机实报：展开态输「加一步」时完成任务的撤回 toast 被键盘盖住）
     @State private var keyboardHeight: CGFloat = 0
 
-    /// 完成横条只在完成由本页（列表视图）发起时展示；跨页来源由发起页自己出横条
+    /// 完成横条只在完成由本页（列表/四象限视图）发起时展示；跨页来源由发起页自己出横条
+    /// （2026-11-05 真机回归：四象限勾选完成一度无撤回提示——source 门闸漏了 taskMatrix）
     private var showsCompletionUndoBanner: Bool {
-        model.pendingCompletionTaskID != nil
-            && completionCoordinator.pending?.source == .taskList
+        guard let source = completionCoordinator.pending?.source else { return false }
+        return model.pendingCompletionTaskID != nil
+            && (source == .taskList || source == .taskMatrix)
     }
 
     @ViewBuilder
@@ -877,7 +910,7 @@ struct TaskExperienceView: View {
     ) {
         var context = TaskCreationContext()
         if let quadrant = quadrant {
-            // 象限新增：明示并预填该象限（新任务非重要侧默认 P2，§7.1）
+            // 象限新增：预填该象限两轴（新建弹层只有 重要/不重要 + 紧急/不紧急 两档，§7.1）
             context.importance = quadrantImportance(quadrant)
             context.urgencyMode = quadrantUrgencyMode(quadrant)
             context.sourceQuadrant = quadrant
@@ -914,10 +947,11 @@ struct TaskExperienceView: View {
         openCreation(plannedStart: range.start, plannedEnd: range.end)
     }
 
+    /// 象限内新建的两轴预填（2026-11-05 新建弹层只有 重要/不重要、紧急/不紧急 两档）
     private func quadrantImportance(_ quadrant: TaskQuadrant) -> TaskImportance {
         switch quadrant {
         case .doFirst, .scheduleTime: return .p1
-        case .batchHandle, .reviewLater: return .p2
+        case .batchHandle, .reviewLater: return .p3
         case .unclassified: return .unknown
         }
     }
@@ -926,7 +960,7 @@ struct TaskExperienceView: View {
         switch quadrant {
         case .doFirst, .batchHandle: return .p1
         case .scheduleTime, .reviewLater: return .p3
-        case .unclassified: return .auto
+        case .unclassified: return .unknown
         }
     }
 

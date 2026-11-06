@@ -48,6 +48,9 @@ struct TaskQuadrantMoveSheet: View {
                         }
                     }
 
+                    // 2026-11-05 四验拍板：格内任务回待确认的拖拽外等价路径（两轴重置未判断）
+                    pendingChoice
+
                     if let message = errorMessage {
                         HoloInlineState(kind: .failure, message: message, actionTitle: String(localized: "重试")) {
                             errorMessage = nil
@@ -94,6 +97,47 @@ struct TaskQuadrantMoveSheet: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(String(localized: "移动到\(quadrant.displayTitle)"))
+    }
+
+    /// 回待确认（两轴重置未判断）：与拖拽收窄竖条落点同一条提交链（可撤回）
+    private var pendingChoice: some View {
+        Button {
+            switch TaskPresentationActionCoordinator.shared.commitReturnToPending(
+                taskID: snapshot.id,
+                repository: repository
+            ) {
+            case .applied:
+                dismiss()
+                onDone?()
+            case .noOp:
+                dismiss()
+                onDone?()
+            case .taskUnavailable:
+                errorMessage = String(localized: "任务已发生变化，请重新查看")
+            case .saveFailed:
+                errorMessage = String(localized: "移动未保存，请重试")
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Text(TaskQuadrant.unclassified.displayTitle)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(TaskQuadrantPalette.handleText)
+                Text(TaskQuadrant.unclassified.subtitleText)
+                    .font(.system(size: 11))
+                    .foregroundColor(TaskQuadrantPalette.handleText.opacity(0.85))
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(TaskQuadrantPalette.handleText.opacity(0.7))
+            }
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .padding(.horizontal, HoloSpacing.sm + 4)
+            .background(TaskQuadrantPalette.accent.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(localized: "移动到待确认"))
     }
 
     private func commit(to quadrant: TaskQuadrant) {

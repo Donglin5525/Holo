@@ -69,7 +69,8 @@ enum TaskCalendarMode: String {
 @MainActor
 final class TaskPresentationSession: ObservableObject {
 
-    @Published var viewMode: TaskViewMode = .calendar
+    /// 默认四象限（2026-11-05 改版：任务页主面孔是四象限矩阵；日历/列表走右上菜单）
+    @Published var viewMode: TaskViewMode = .matrix
     /// 日历选中日（冷启动今天；同次打开保留）
     @Published private(set) var selectedDay: Date
     /// 展示月份锚点（与选中日所在月保持一致）

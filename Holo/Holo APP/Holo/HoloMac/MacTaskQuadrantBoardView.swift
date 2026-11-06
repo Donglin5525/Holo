@@ -3,7 +3,7 @@
 //  HoloMac
 //
 //  四象限看板根视图（2026-10-30，挂载于 MacTasksWorkspaceView 的 content 列）：
-//  头部（标题/计数 + 快速收集条）→ 教学一行 → 待整理横条 → 2×2 矩阵。
+//  头部（标题/计数 + 快速收集条）→ 教学一行 → 待确认横条 → 2×2 矩阵。
 //  四格同屏全览、跨格拖拽（onDrag + dropDestination，payload 只放任务 UUID）、
 //  落格写入唯一走 TaskPresentationActionCoordinator.commitQuadrantMove；
 //  ⌘⌥1–4 把选中卡片送进对应格（⌘1/⌘2 已被模块切换占用，故加 Option）。
@@ -30,7 +30,7 @@ struct MacQuadrantBoardActions {
     let onSelect: (TodoTask) -> Void
 }
 
-// MARK: - 待整理行右键菜单（卡片菜单由 TaskCardView 内建，池行在此共享同语义）
+// MARK: - 待确认行右键菜单（卡片菜单由 TaskCardView 内建，池行在此共享同语义）
 
 enum MacQuadrantTaskMenu {
     @ViewBuilder
@@ -216,10 +216,10 @@ struct MacTaskQuadrantBoardView: View {
         }
     }
 
-    // MARK: - 建档（收集条 → 待整理；格内联 → 直接建入该格，与拖入同口径）
+    // MARK: - 建档（收集条 → 待确认；格内联 → 直接建入该格，与拖入同口径）
 
     private func captureCreate(title: String, openDetail: Bool) {
-        // 全默认值（importance unknown / urgencyMode auto）→ 解析入待整理
+        // 全默认值（importance unknown / urgencyMode auto）→ 解析入待确认
         let task = try? model.repository.createTask(title: title)
         model.reloadNow()
         if openDetail, let task {

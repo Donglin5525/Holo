@@ -561,16 +561,32 @@ final class HoloMotionInteractionUITests: XCTestCase {
         XCTAssertTrue(tasks.waitForExistence(timeout: 20))
         tasks.tap()
         // 生活故事夹具的任务不一定到期于今天，明确进入全部清单，避免依赖当天日期和上次筛选。
+        // 2026-11-05 拍板：筛选行整行点击拉出左侧侧栏，范围选择在侧栏顶部；选完点 ✕ 关闭。
         let scope = app.buttons["tasks.scope"]
         XCTAssertTrue(scope.waitForExistence(timeout: 10))
         scope.tap()
-        let allTasks = app.buttons.matching(NSPredicate(format: "label BEGINSWITH '全部未完成'")).firstMatch
+        let sidebar = app.otherElements["quadrant.sidebar"]
+        XCTAssertTrue(sidebar.waitForExistence(timeout: 8))
+        let allTasks = sidebar.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH '全部未完成'")
+        ).firstMatch
         XCTAssertTrue(allTasks.waitForExistence(timeout: 8))
         allTasks.tap()
+        let closeButton = app.buttons["quadrant.sidebar.close"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 4))
+        closeButton.tap()
         let scopeClosed = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"),
-                                                   object: app.navigationBars["查看范围"])
+                                                   object: sidebar)
         XCTAssertEqual(XCTWaiter.wait(for: [scopeClosed], timeout: 5), .completed,
-                       "点选整行后必须真正关闭范围弹层，不能继续点击背后的幽灵元素")
+                       "关闭后侧栏必须真正消失，不能继续点击背后的幽灵元素")
+        // 2026-11-05 拍板后默认四象限；本用例验证列表行完成链路，先切到列表视图
+        let more = app.buttons["更多"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 4))
+        more.tap()
+        let listSwitch = app.buttons["列表"].firstMatch
+        XCTAssertTrue(listSwitch.waitForExistence(timeout: 4), "菜单应列出视图切换")
+        listSwitch.tap()
+        sleep(1)
         let completion = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'task.completion.' AND label BEGINSWITH '完成'")).firstMatch
         // 远期任务按产品规则默认折叠，测试通过分组按钮展开真实记录。
         for title in ["本周", "稍后", "未安排"] where !completion.exists {
@@ -586,8 +602,9 @@ final class HoloMotionInteractionUITests: XCTestCase {
             return XCTFail("完成入口应存在")
         }
         let rect = target.frame
-        XCTAssertGreaterThanOrEqual(rect.width, 44)
-        XCTAssertGreaterThanOrEqual(rect.height, 44)
+        // 宿主布局管线会给出 44-1e-13 级的浮点尾差；断言意图是「≥44 热区」，留半点容差
+        XCTAssertGreaterThanOrEqual(rect.width, 43.5)
+        XCTAssertGreaterThanOrEqual(rect.height, 43.5)
         XCTAssertTrue(app.frame.intersects(rect))
         app.coordinate(withNormalizedOffset: CGVector(dx: rect.midX / app.frame.width,
                                                       dy: rect.midY / app.frame.height)).tap()

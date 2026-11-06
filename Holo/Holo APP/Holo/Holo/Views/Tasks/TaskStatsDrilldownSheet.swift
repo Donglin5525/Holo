@@ -40,7 +40,7 @@ struct TaskStatsDrilldownSheet: View {
         case .missingTime: return String(localized: "缺少完成时间的任务")
         case .attentionOverdue: return String(localized: "当前逾期")
         case .attentionUnscheduled: return String(localized: "重要但未安排时段")
-        case .attentionUnclassified: return String(localized: "待整理")
+        case .attentionUnclassified: return String(localized: "待确认")
         }
     }
 

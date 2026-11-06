@@ -13951,6 +13951,22 @@
         }
       }
     },
+    "不紧急" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not urgent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不緊急"
+          }
+        }
+      }
+    },
     "不自动匹配" : {
       "localizations" : {
         "en" : {
@@ -14097,6 +14113,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不重要"
+          }
+        }
+      }
+    },
+    "不重要不紧急" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not important or urgent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不重要不緊急"
+          }
+        }
+      }
+    },
+    "不重要但紧急" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Urgent but not important"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不重要但緊急"
           }
         }
       }
@@ -32971,6 +33019,9 @@
         }
       }
     },
+    "双轴" : {
+
+    },
     "反复出现的主题 / 想法的变化" : {
       "localizations" : {
         "en" : {
@@ -39507,6 +39558,22 @@
         }
       }
     },
+    "安排时间做~" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schedule time for it~"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安排時間做~"
+          }
+        }
+      }
+    },
     "安排暂时读取失败，请到任务模块核对。" : {
 
     },
@@ -45525,6 +45592,9 @@
         }
       }
     },
+    "已移回待确认，时间未改变" : {
+
+    },
     "已移至「%@」" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -48505,6 +48575,22 @@
         }
       }
     },
+    "归入「%@」" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to “%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歸入「%@」"
+          }
+        }
+      }
+    },
     "归并失败，请重试" : {
       "localizations" : {
         "en" : {
@@ -50240,6 +50326,9 @@
         }
       }
     },
+    "待确认 %lld" : {
+
+    },
     "待确认 %lld 条" : {
       "localizations" : {
         "en" : {
@@ -50252,6 +50341,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "待確認 %lld 條"
+          }
+        }
+      }
+    },
+    "待确认，%@项，打开侧栏" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pending Confirmation, %@ items, open panel"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "待確認，%@項，打開側欄"
           }
         }
       }
@@ -53167,6 +53273,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "截止 %@"
+          }
+        }
+      }
+    },
+    "截止%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Due %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截止%@"
+          }
+        }
+      }
+    },
+    "截止:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Due: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截止:"
           }
         }
       }
@@ -63825,6 +63964,22 @@
         }
       }
     },
+    "暂不判断，收进待确认" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip for now; goes to Pending Confirmation"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫不判斷，收進待確認"
+          }
+        }
+      }
+    },
     "暂不可用" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -66040,6 +66195,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "有发生记录的日子"
+          }
+        }
+      }
+    },
+    "有空再做~" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do it when free~"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有空再做~"
           }
         }
       }
@@ -75076,6 +75247,9 @@
         }
       }
     },
+    "没有待确认任务" : {
+
+    },
     "没有截止日时，设置一个具体的提醒时刻" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -76273,6 +76447,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增任務"
+          }
+        }
+      }
+    },
+    "添加到「%@」" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to “%@”"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增至「%@」"
           }
         }
       }
@@ -81925,6 +82115,22 @@
         }
       }
     },
+    "确认重要与紧急后归入四象限" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set importance and urgency to place it"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認重要與緊急後歸入四象限"
+          }
+        }
+      }
+    },
     "磁贴组件预览（需 Habit 数据）" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -82168,6 +82374,9 @@
         }
       }
     },
+    "移到象限" : {
+
+    },
     "移动到" : {
       "localizations" : {
         "en" : {
@@ -82199,6 +82408,9 @@
           }
         }
       }
+    },
+    "移动到待确认" : {
+
     },
     "移动到清单" : {
 
@@ -82266,6 +82478,9 @@
           }
         }
       }
+    },
+    "移回待确认" : {
+
     },
     "移除" : {
       "localizations" : {
@@ -82686,6 +82901,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "立為主題"
+          }
+        }
+      }
+    },
+    "立即去做~" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Do it now~"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "立即去做~"
           }
         }
       }
@@ -84428,6 +84659,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "緊急度已手動鎖定為 P3"
+          }
+        }
+      }
+    },
+    "紧急度未判断，任务在待确认" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Urgency not set; task in Pending Confirmation"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "緊急度未判斷，任務在待確認"
+          }
+        }
+      }
+    },
+    "紧急度未判断，收进待确认" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Urgency not set; goes to Pending Confirmation"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "緊急度未判斷，收進待確認"
           }
         }
       }
@@ -87987,6 +88250,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要麼做了，要麼沒做，一下就行 · 例：冥想、跑步、吃維生素"
+          }
+        }
+      }
+    },
+    "要做点什么?" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What needs doing?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要做點什麼?"
           }
         }
       }
@@ -104249,6 +104528,9 @@
         }
       }
     },
+    "重要性 P1 在重要侧，P2 / P3 在非重要侧。\n紧急性 P1 为紧急，P2 / P3 为非紧急。\n按日期自动折算：逾期、今天 / 明天 / 后天截止 → P1；3–7 天 → P2；更远或无截止 → P3。\n重要性或紧急性未判断的任务在待确认（点左上筛选行打开侧栏），长按拖到对应格归位；拖回侧栏即重置为待确认。" : {
+
+    },
     "重要性 P1 在重要侧，P2 / P3 在非重要侧。\n紧急性 P1 为紧急，P2 / P3 为非紧急。\n自动：逾期、今天 / 明天 / 后天截止 → P1；3–7 天 → P2；更远或无截止 → P3。\n重要性未判断的任务在待整理，仍保留逾期提示。" : {
       "localizations" : {
         "en" : {
@@ -104261,6 +104543,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重要性 P1 在重要側，P2 / P3 在非重要側。\n緊急性 P1 為緊急，P2 / P3 為非緊急。\n自動：逾期、今天 / 明天 / 後天截止 → P1；3–7 天 → P2；更遠或無截止 → P3。\n重要性未判斷的任務在待整理，仍保留逾期提示。"
+          }
+        }
+      }
+    },
+    "重要性与紧急性尚未判断" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importance and urgency not yet set"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重要性與緊急性尚未判斷"
           }
         }
       }
@@ -104293,6 +104591,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重要性尚未判斷"
+          }
+        }
+      }
+    },
+    "重要性或紧急性未判断" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importance or urgency not set"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重要性或緊急性未判斷"
           }
         }
       }
@@ -106256,6 +106570,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "順序保存沒有成功，已恢復原順序。請重試。"
+          }
+        }
+      }
+    },
+    "顺手集中做~" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch it up~"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "順手集中做~"
           }
         }
       }

@@ -8,6 +8,22 @@
 
 import SwiftUI
 
+// MARK: - 任务行动作句柄（多视图共用）
+
+/// 任务行动作句柄：多视图各 surface 共用同一套行回调（由 TaskExperienceView 组装）
+struct TaskRowActionHandlers {
+    let onToggleCompletion: (TaskRecordSnapshot) -> Void
+    let onOpenDetail: (TaskRecordSnapshot) -> Void
+    let onClassify: (TaskRecordSnapshot) -> Void
+    let onChangeDue: (TaskRecordSnapshot) -> Void
+    let onPlanRange: (TaskRecordSnapshot) -> Void
+    let onToggleToday: (TaskRecordSnapshot) -> Void
+    let onArchive: (TaskRecordSnapshot) -> Void
+    let onDelete: (TaskRecordSnapshot) -> Void
+    let onToggleCheckItem: (TaskRecordSnapshot, CheckItemSnapshot) -> Void
+    let onAddCheckItem: (TaskRecordSnapshot, String) -> Bool
+}
+
 // MARK: - 任务行
 
 enum TaskExperienceRowLayout {

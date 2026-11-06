@@ -2,8 +2,8 @@
 //  MacQuadrantPoolView.swift
 //  HoloMac
 //
-//  待整理横条：条头（tray + 计数徽章 + 引导语）+ 紧凑行卡横向滚动。
-//  池是分类入口不是拖入目标（政策禁止移入待整理），整条不挂 dropDestination。
+//  待确认横条：条头（tray + 计数徽章 + 引导语）+ 紧凑行卡横向滚动。
+//  池是分类入口不是拖入目标（政策禁止移入待确认），整条不挂 dropDestination。
 //
 
 import SwiftUI
@@ -21,7 +21,7 @@ struct MacQuadrantPoolView: View {
                 Image(systemName: "tray")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.holoToolTextSecondary)
-                Text(String(localized: "待整理"))
+                Text(String(localized: "待确认"))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.holoToolText)
                 HoloCountBadge(count: tasks.count)
@@ -30,7 +30,7 @@ struct MacQuadrantPoolView: View {
                     .foregroundColor(.holoToolTextSecondary)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(String(localized: "待整理，\(tasks.count)项"))
+            .accessibilityLabel(String(localized: "待确认，\(tasks.count)项"))
 
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 8) {

@@ -10,7 +10,7 @@ import SwiftUI
 
 struct MacQuadrantDragPreview: View {
     let title: String
-    /// 原格象限色（待整理池用次级文字色）
+    /// 原格象限色（待确认池用次级文字色）
     let sourceTint: Color
 
     var body: some View {

@@ -2,7 +2,7 @@
 //  MacQuadrantCaptureBar.swift
 //  HoloMac
 //
-//  看板快速收集条：输入标题回车落待整理（importance unknown），可连发；
+//  看板快速收集条：输入标题回车落待确认（importance unknown），可连发；
 //  Tab 建档并选中新卡滑出详情；Esc 清空失焦。样式与中栏搜索框同构
 //  （holoToolInset 填充 + HoloRadius.md 圆角），键盘优先、全程不弹窗。
 //
@@ -25,7 +25,7 @@ struct MacQuadrantCaptureBar: View {
                 .font(.system(size: 12))
                 .foregroundColor(.holoToolTextSecondary)
 
-            TextField(String(localized: "记一件事，回车收进待整理"), text: $text)
+            TextField(String(localized: "记一件事，回车收进待确认"), text: $text)
                 .textFieldStyle(.plain)
                 .holoText(.supporting)
                 .foregroundColor(.holoToolText)

@@ -4,7 +4,7 @@
 //
 //  四象限单格：象限色头（标题/计数/副标题/＋）+ 复用 TaskCardView 的卡片流
 //  + 格内就地新建（回车建入本格，与拖入同口径）+ dropDestination 落格高亮。
-//  格内独立滚动、内容顶对齐；空格按「待整理有货/无货」切换引导文案。
+//  格内独立滚动、内容顶对齐；空格按「待确认有货/无货」切换引导文案。
 //
 
 import SwiftUI
@@ -13,7 +13,7 @@ struct MacQuadrantCellView: View {
 
     let quadrant: TaskQuadrant
     let tasks: [TodoTask]
-    /// 待整理池数量（空格引导切换依据）
+    /// 待确认池数量（空格引导切换依据）
     let poolCount: Int
     /// 完成撤回窗口中的任务（卡片投影态）
     let pendingTaskID: UUID?
@@ -204,14 +204,14 @@ struct MacQuadrantCellView: View {
         withAnimation(.easeOut(duration: 0.15)) { inlineVisible = false }
     }
 
-    // MARK: - 空格引导（待整理有货 → 归位引导；无货 → 各自文案）
+    // MARK: - 空格引导（待确认有货 → 归位引导；无货 → 各自文案）
 
     private var emptyGuidanceText: String {
         guard poolCount > 0 else { return quadrant.emptyGuidance }
         if quadrant == .doFirst {
-            return String(localized: "有 \(poolCount) 件事等着归位\n从待整理拖一件进来")
+            return String(localized: "有 \(poolCount) 件事等着归位\n从待确认拖一件进来")
         }
-        return String(localized: "从待整理拖一件进来\n或点 ＋ 添加任务")
+        return String(localized: "从待确认拖一件进来\n或点 ＋ 添加任务")
     }
 
     private var emptyGuidanceView: some View {

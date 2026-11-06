@@ -158,7 +158,7 @@ struct TaskDetailPropertiesSection: View {
 
             Divider().padding(.horizontal, 12)
 
-            // 轻重缓急（§6.2-2）：当前象限/待整理 + 判断方式；点击编辑两个维度
+            // 轻重缓急（§6.2-2）：当前象限/待确认 + 判断方式；点击编辑两个维度
             Button {
                 showClassificationSheet = true
             } label: {
@@ -245,7 +245,7 @@ struct TaskDetailPropertiesSection: View {
         return Calendar.current.isDateInToday(dueDate) ? .holoPrimary : .holoTextPrimary
     }
 
-    /// 移动到象限行摘要：当前实时解析格（未判断=待整理，多视图 §7）
+    /// 移动到象限行摘要：当前实时解析格（未判断=待确认，多视图 §7）
     private var currentQuadrantLabel: String {
         let effectiveDue = TodoTaskDatePolicy.effectiveDueDate(
             dueDate: hasDueDate ? dueDate : nil,
@@ -260,7 +260,7 @@ struct TaskDetailPropertiesSection: View {
         ).displayTitle
     }
 
-    /// 轻重缓急行摘要：P 档 · 紧急分 · 去向（未判断=待整理）（2026-10-07 紧急分体系）
+    /// 轻重缓急行摘要：P 档 · 紧急分 · 去向（未判断=待确认）（2026-10-07 紧急分体系）
     private var classificationSummaryText: String {        let effectiveDue = TodoTaskDatePolicy.effectiveDueDate(
             dueDate: hasDueDate ? dueDate : nil,
             isAllDay: !hasTime
