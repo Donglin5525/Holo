@@ -41,6 +41,7 @@ export function createOpenAICompatibleProvider(config) {
       const response = await callUpstream(config, {
         ...buildUpstreamBody(request),
         stream: false,
+        ...(request.timeoutMs ? { timeoutMs: request.timeoutMs } : {}),
       }, request.clientSignal);
 
       return response.json();
@@ -359,7 +360,8 @@ async function callUpstream(config, body, clientSignal) {  if (!config.apiKey) {
       clientSignal.addEventListener("abort", () => controller.abort(), { once: true });
     }
   }
-  const timeout = setTimeout(() => controller.abort(), body.stream ? 120_000 : 60_000);
+  // 深度报告 writer 单调用 20-60s 贴默认线（2026-11-07 设计 §4.1）：允许调用方按次放宽
+  const timeout = setTimeout(() => controller.abort(), body.timeoutMs ?? (body.stream ? 120_000 : 60_000));
 
   try {
     const response = await fetch(`${config.baseURL.replace(/\/$/, "")}/chat/completions`, {

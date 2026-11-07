@@ -285,6 +285,11 @@ export function createApp(overrides = {}) {
         aiCallLogger: config.aiCallLogs?.enabled ? adminLogStore : null,
         // 预算端到端修复（报告理解方案）：replay_digest worker 显式预算主体
         backgroundBudget: { guard: backgroundCostGuard, entitlementStore },
+        // 深度报告 C 方案（2026-11-07 设计）：writer/checker 路由注入执行器
+        deepReportRoutes: {
+          writer: config.routes.deep_report_writer ?? null,
+          checker: config.routes.deep_report_checker ?? null,
+        },
         // 个人档案通道总闸与体积上限（snapshot.profileBrief 注入深度分析/回放/规划）
         profileChannelEnabled: config.profileChannel?.enabled,
         profileBriefMaxBytes: config.limits?.profileBriefMaxBytes,
@@ -1939,7 +1944,8 @@ export function createApp(overrides = {}) {
         throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
       }
 
-      const task = store.create({ deviceId, question, taskType });
+      const routedTaskType = resolveRoutedTaskType(config, deviceId, taskType);
+      const task = store.create({ deviceId, question, taskType: routedTaskType });
       context.header("Cache-Control", "no-store");
       return context.json({ taskId: task.id, status: "uploading", expiresAt: task.expiresAt });
     } catch (error) {
@@ -2674,7 +2680,7 @@ const AGENT_TELEMETRY_EVENT_NAMES = new Set([
   "agent_lease_changed",
 ]);
 
-/** 与 iOS HoloProductEventName 一一对应（2026-10-19 埋点字典 v1 + 2026-10-25 v2）；新增事件先加这里再发 iOS。 */
+/** 与 iOS HoloProductEventName 一一对应（2026-10-19 埋点字典 v1 + 2026-10-25 v2 + 2026-11-07 v2.1）；新增事件先加这里再发 iOS。 */
 const PRODUCT_EVENT_NAMES = new Set([
   // v1（2026-10-19）
   "app_first_launch",
@@ -2695,6 +2701,9 @@ const PRODUCT_EVENT_NAMES = new Set([
   "account_created",
   "receipt_booking_started",
   "export_performed",
+  // v2.1（2026-11-07）：第二周留存钩子实验漏斗（推送点开 + 周回顾查看）
+  "notification_opened",
+  "weekly_review_viewed",
 ]);
 
 /** 产品埋点事件归一：白名单事件名 + 扁平短字符串参数；隐私契约 = 不收用户内容。 */
@@ -3067,4 +3076,16 @@ function startAgentStepCleanupTimer(store, intervalMs) {
       clearInterval(timer);
     },
   };
+}
+
+/** 深度报告 C 方案灰度（2026-11-07 设计 §六）：开关开且设备在白名单（空=全部）时，
+ * deep_analysis 改写为 deep_report 任务类型（新引擎在 executor 分支执行）；回滚=env 关闸。
+ * 导出供单测锁定矩阵。 */
+export function resolveRoutedTaskType(config, deviceId, taskType) {
+  const gate = config.deepReportEngine;
+  return gate?.enabled
+    && taskType === "deep_analysis"
+    && (!gate.deviceIds || gate.deviceIds.length === 0 || gate.deviceIds.includes(deviceId))
+    ? "deep_report"
+    : taskType;
 }

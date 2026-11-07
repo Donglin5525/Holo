@@ -149,6 +149,27 @@ export function buildProfileChannelMessage(purpose, profileBrief, options = {}) 
   };
 }
 
+/** 内部引擎用（不暴露为网关 purpose）：按 promptType 直接组装主 system + 档案 system。
+ * 深度报告 writer 需要 persona/档案/语言指令，但不新增 PURPOSE_PROMPT_TYPES 条目
+ * （避免 /v1/ai/chat/completions 出现可白嫖的新 purpose）。 */
+export function injectPromptTypeMessages(promptType, messages, options = {}) {
+  const prompt = getPrompt(promptType);
+  if (!prompt?.content) {
+    throw new GatewayError("PROMPT_NOT_FOUND", `Server prompt is unavailable: ${promptType}`, 503);
+  }
+  let finalSystemContent = PERSONA_PREAMBLE ? `${PERSONA_PREAMBLE}\n\n${renderPromptVariables(prompt.content, options.now)}` : renderPromptVariables(prompt.content, options.now);
+  const languageDirective = LANGUAGE_DIRECTIVES[options.language];
+  if (languageDirective) finalSystemContent += languageDirective;
+  const profileMessage = buildProfileChannelMessage("agent_loop", options.profileBrief, {
+    enabled: options.profileChannelEnabled,
+    maxBytes: options.profileBriefMaxBytes,
+  });
+  const finalMessages = [{ role: "system", content: finalSystemContent }];
+  if (profileMessage) finalMessages.push(profileMessage);
+  finalMessages.push(...messages);
+  return finalMessages;
+}
+
 export function injectServerPrompt(purpose, messages, options = {}) {
   const promptType = PURPOSE_PROMPT_TYPES[purpose];
   if (!promptType) {

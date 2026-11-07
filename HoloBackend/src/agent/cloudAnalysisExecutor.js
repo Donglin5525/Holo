@@ -10,7 +10,9 @@
  *   增强上下文在 M2b 对齐。
  */
 
-import { injectServerPrompt } from "../prompts/serverPromptPolicy.js";
+import { injectServerPrompt, injectPromptTypeMessages } from "../prompts/serverPromptPolicy.js";
+import { getPrompt } from "../prompts/promptRegistry.js";
+import { generateDeepReport, DeepReportError } from "./deepReport/engine.js";
 import { insightMaxTokensFor } from "../config.js";
 import { backgroundSubject } from "../usage/backgroundCostGuard.js";
 import { validateAgentLoopContent } from "../agentResponseValidator.js";
@@ -529,6 +531,9 @@ export function createCloudAnalysisExecutor({
   // 个人档案通道（2026-11-01）：任务流不经过 /v1/ai/chat/completions 网关，
   // 档案随加密快照上行（snapshot.profileBrief），执行器自行注入同一套边界文案
   profileChannelEnabled = true,
+  // 深度报告 C 方案（2026-11-07 设计）：task_type=deep_report 走新引擎；
+  // writer/checker 两条路由由 app.js 注入，缺省时该分支直接失败（不静默降级旧引擎）
+  deepReportRoutes = null,
   profileBriefMaxBytes = 12 * 1024,
   log = (...args) => console.log("[cloud-analysis]", ...args),
 } = {}) {
@@ -1050,6 +1055,134 @@ export function createCloudAnalysisExecutor({
    * 执行一个任务（queued → running → completed/failed）。
    * 返回最终状态；所有异常落 fail() 不上抛（fire-and-forget 调用安全）。
    */
+  /** 深度报告引擎任务（task_type=deep_report）：额度/终态/推送与旧路径同壳 */
+  async function runDeepReport(taskId, task, snapshot) {
+    let reservation = null;
+    try {
+      const writerRoute = deepReportRoutes?.writer;
+      const checkerRoute = deepReportRoutes?.checker;
+      if (!writerRoute || !checkerRoute) throw new Error("DEEP_REPORT_ROUTES_MISSING");
+      if (snapshot.goalScope) {
+        taskStore.fail({ id: taskId, reason: "目标回顾暂不支持深度报告引擎" });
+        return "failed";
+      }
+      if (!taskStore.transition(taskId, "running")) {
+        return taskStore.get(taskId)?.status ?? "conflict";
+      }
+      // 与旧路径同一额度池（deepAnalysis，免费 2/天、plus 10/天），预订-提交语义一致
+      if (quotaLedger && entitlementResolver) {
+        const entitlement = entitlementResolver.resolve(task.device_id);
+        const attempt = quotaLedger.reserve({
+          subjectId: entitlement.usageSubjectId,
+          tier: entitlement.tier,
+          quotaType: "deepAnalysis",
+          actionId: `cloud-deep-report-${taskId}`,
+        });
+        if (!attempt.allowed) {
+          taskStore.fail({ id: taskId, reason: attempt.userMessage ?? "今日深度分析额度已用完" });
+          return "failed";
+        }
+        reservation = attempt;
+      }
+      // 模型调用封装：重试 + ai_call_logs（purpose 按环节区分）+ 路由级超时透传
+      const callModel = async (messages, { purpose, route, responseFormat }) => {
+        const provider = providers.get(route.provider);
+        if (!provider) throw new Error(`DEEP_REPORT_PROVIDER_MISSING: ${route.provider}`);
+        const logId = aiCallLogger
+          ? aiCallLogger.startAiCall({
+            deviceId: task.device_id,
+            purpose,
+            provider: route.provider,
+            model: route.model,
+            stream: false,
+            request: { taskId, messageCount: messages.length },
+          })
+          : null;
+        let lastError = null;
+        try {
+          for (let attempt = 1; attempt <= providerRetries; attempt += 1) {
+            try {
+              const upstream = {
+                purpose: "agent_loop",
+                messages,
+                stream: false,
+                model: route.model,
+                temperature: route.temperature,
+                maxTokens: route.maxTokens,
+                reasoningEffort: route.reasoningEffort,
+                ...(route.timeoutMs ? { timeoutMs: route.timeoutMs } : {}),
+                ...(responseFormat ? { responseFormat } : {}),
+              };
+              const response = await provider.complete(upstream);
+              if (logId) {
+                aiCallLogger.finishAiCall(logId, { status: "success", response: null, usage: response?.usage ?? null });
+              }
+              const content = response?.choices?.[0]?.message?.content;
+              if (typeof content !== "string" || !content.trim()) throw new Error("EMPTY_MODEL_OUTPUT");
+              return content;
+            } catch (error) {
+              lastError = error;
+              log(`provider 调用失败(${purpose}) attempt=${attempt}: ${error?.message ?? error}`);
+              await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+            }
+          }
+          throw lastError ?? new Error("PROVIDER_FAILED");
+        } catch (error) {
+          if (logId) {
+            aiCallLogger.finishAiCall(logId, {
+              status: "error",
+              response: null,
+              error: { code: error?.code ?? "UPSTREAM_ERROR", message: String(error?.message ?? error) },
+            });
+          }
+          throw error;
+        }
+      };
+      const buildWriterMessages = (userContent) => injectPromptTypeMessages("deep_report_writer", [
+        { role: "user", content: userContent },
+      ], {
+        // 档案由 engine 拼进用户消息（贴问题、末位，评测验证的最强位置）；
+        // 这里显式关闭 system 通道，避免同一段档案出现两次
+        profileBrief: undefined,
+        profileChannelEnabled: false,
+        profileBriefMaxBytes,
+      });
+      const checkerPrompt = getPrompt("deep_report_checker");
+      const { result, stats } = await generateDeepReport({
+        snapshot,
+        question: task.question,
+        callModel,
+        buildWriterMessages,
+        checkerSystemPrompt: checkerPrompt?.content ?? "",
+        routes: deepReportRoutes,
+        log,
+      });
+      result.snapshotCoverage = snapshotCoverage(snapshot);
+      const completed = taskStore.complete({ id: taskId, result: JSON.stringify(result) });
+      if (!completed) {
+        if (reservation) quotaLedger.release(reservation);
+        log(`任务完成落库未生效（已被取消或删除）taskId=${taskId}`);
+        return "cancelled";
+      }
+      if (reservation) quotaLedger.commit(reservation);
+      pushTaskCompleted(task.device_id, { title: "深度分析完成", body: "结果已就绪，点按查看", taskId, taskType: "deep_analysis" });
+      log(`任务完成(深度报告) taskId=${taskId} claims=${result.claims.length} 核对: 数字不符=${stats.flaggedNumbers} 语义点名=${stats.semanticProblems} 复核=${stats.secondCheckProblems} 删句=${stats.deleted.length}`);
+      return "completed";
+    } catch (error) {
+      if (reservation) quotaLedger.release(reservation);
+      const reason = error instanceof DeepReportError
+        ? "报告生成失败，请换个问法或稍后重试"
+        : `云端执行失败：${error?.message ?? error}`;
+      try {
+        taskStore.fail({ id: taskId, reason });
+      } catch (failError) {
+        log(`fail 落库也失败 taskId=${taskId}: ${failError?.message ?? failError}`);
+      }
+      log(`任务失败(深度报告) taskId=${taskId}: ${error?.message ?? error}`);
+      return "failed";
+    }
+  }
+
   async function run(taskId) {
     let reservation = null;
     try {
@@ -1083,6 +1216,11 @@ export function createCloudAnalysisExecutor({
       if (!snapshot || typeof snapshot !== "object") {
         taskStore.fail({ id: taskId, reason: "快照缺失或格式非法" });
         return "failed";
+      }
+      // 深度报告 C 方案：事实清单 + 自由写作 + 双道核对（设计 2026-11-07）。
+      // 与旧路径共享任务外壳（额度/推送/完成即焚），报告生成逻辑在 deepReport/engine.js
+      if (task.task_type === "deep_report") {
+        return await runDeepReport(taskId, task, snapshot);
       }
       // 目标闭环（§6.4）：goalScope 防御性二次校验（app.js 上传时已拒绝非法值）；
       // 非法即降级为普通深度分析并留痕，不中断任务

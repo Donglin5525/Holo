@@ -92,6 +92,12 @@ const DEFAULT_CONFIG = {
   // 个人档案通道（2026-11-01 东林拍板「档案=通用指令而非备注」）：用户在 App 亲手写的
   // 个人档案（称呼/身份/健康限制/沟通偏好…）作为「用户本人说明」随请求上云，由
   // serverPromptPolicy 在所有产出给用户看的 purpose 统一注入成指令级 system 消息。
+  // 深度报告 C 方案总闸（2026-11-07 设计）：enabled 且（deviceIds 为空=全部 或 含该设备）时，
+  // start 路由把 deep_analysis 任务改写为 deep_report（新引擎）；回滚=env 改回 agent_loop 重启
+  deepReportEngine: {
+    enabled: process.env.HOLO_DEEP_REPORT_ENGINE === "deep_report",
+    deviceIds: (process.env.HOLO_DEEP_REPORT_DEVICE_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+  },
   // 总闸：env 置 HOLO_PROFILE_CHANNEL_ENABLED=false 重启即全链关闭（不出指令、不收字段），不用发版。
   profileChannel: {
     enabled: process.env.HOLO_PROFILE_CHANNEL_ENABLED !== "false",
@@ -545,6 +551,32 @@ const DEFAULT_CONFIG = {
       requestLimits: {
         perMinute: Number(process.env.HOLO_VISION_REQUESTS_PER_MINUTE ?? 5),
         perDay: Number(process.env.HOLO_VISION_REQUESTS_PER_DAY ?? 20),
+      },
+    },
+    // 深度报告 C 方案（2026-11-07 设计）：writer/checker 与 agent_loop 同档；
+    // writer 单次输出约 1-2 千字、实测 20-60s，默认超时放宽到 120s（provider 支持按调用覆盖）
+    deep_report_writer: {
+      provider: process.env.HOLO_DEEP_REPORT_WRITER_PROVIDER ?? process.env.HOLO_AGENT_LOOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_DEEP_REPORT_WRITER_MODEL ?? process.env.HOLO_AGENT_LOOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_DEEP_REPORT_WRITER_TEMPERATURE ?? 0.2),
+      maxTokens: Number(process.env.HOLO_DEEP_REPORT_WRITER_MAX_TOKENS ?? 4096),
+      reasoningEffort: process.env.HOLO_DEEP_REPORT_WRITER_REASONING_EFFORT ?? "medium",
+      timeoutMs: Number(process.env.HOLO_DEEP_REPORT_WRITER_TIMEOUT_MS ?? 120_000),
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_MINUTE ?? 60),
+        perDay: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_DAY ?? 500),
+      },
+    },
+    deep_report_checker: {
+      provider: process.env.HOLO_DEEP_REPORT_CHECKER_PROVIDER ?? process.env.HOLO_AGENT_LOOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_DEEP_REPORT_CHECKER_MODEL ?? process.env.HOLO_AGENT_LOOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_DEEP_REPORT_CHECKER_TEMPERATURE ?? 0),
+      maxTokens: Number(process.env.HOLO_DEEP_REPORT_CHECKER_MAX_TOKENS ?? 4096),
+      reasoningEffort: process.env.HOLO_DEEP_REPORT_CHECKER_REASONING_EFFORT ?? "medium",
+      timeoutMs: Number(process.env.HOLO_DEEP_REPORT_CHECKER_TIMEOUT_MS ?? 120_000),
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_MINUTE ?? 60),
+        perDay: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_DAY ?? 500),
       },
     },
     agent_loop: {
