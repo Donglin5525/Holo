@@ -715,7 +715,12 @@ test("v4：总闸 env 默认开，false 关闭；app.js 已接能力解析与总
 
 test("v4：prompt 升 v5——图型拆分/规则 14/零钱写法/少样本/schemaVersion 4", () => {
   const prompt = getPrompt("vision_extraction");
-  assert.ok(prompt.version >= 5, "prompt 必须升到 v5");
+  assert.ok(prompt.version >= 6, "prompt 必须升到 v6（聊天双卡配对）");
+  assert.ok(prompt.content.includes("先配对再清点"), "聊天卡配对规则（v6：同一笔转账两张卡只记一笔）");
+  assert.ok(prompt.content.includes("已被接收↔已收款"), "状态互补判据");
+  assert.ok(prompt.content.includes("聊天记录里出现转账/红包卡片时不是 unrelated"), "规则 9 例外（v6：防聊天记录规则抢跑误拒）");
+  assert.ok(prompt.content.includes("【聊天双卡示例】"), "聊天双卡少样本（v6）");
+  assert.ok(prompt.content.includes("方向看卡片贴在哪一侧"), "无确认卡时按卡片所在侧判方向（v6.1：t11 双发送卡两轮方向错）");
   assert.ok(prompt.content.includes("personal_transfer：和别人之间的转账、红包"), "A 类图型定义");
   assert.ok(prompt.content.includes("只限「用户自己账户之间挪钱」"), "B 类收窄定义");
   assert.ok(prompt.content.includes("【转账/红包（personal_transfer）】"), "规则 14");
