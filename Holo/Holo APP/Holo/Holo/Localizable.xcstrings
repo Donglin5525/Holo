@@ -616,6 +616,22 @@
         }
       }
     },
+    "，发给「%@」的红包" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", red packet sent to \"%@\""
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "，發給「%@」的紅包"
+          }
+        }
+      }
+    },
     "，商户「%@」" : {
       "localizations" : {
         "en" : {
@@ -648,6 +664,38 @@
         }
       }
     },
+    "，收到「%@」的红包" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", red packet received from \"%@\""
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "，收到「%@」的紅包"
+          }
+        }
+      }
+    },
+    "，收到「%@」的转账" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", transfer received from \"%@\""
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "，收到「%@」的轉賬"
+          }
+        }
+      }
+    },
     "，日期 %@" : {
       "localizations" : {
         "en" : {
@@ -660,6 +708,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "，日期 %@"
+          }
+        }
+      }
+    },
+    "，说明「%@」" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", note \"%@\""
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "，說明「%@」"
           }
         }
       }
@@ -679,6 +743,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "，跳過 %lld 條重複"
+          }
+        }
+      }
+    },
+    "，转账给「%@」" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", transfer to \"%@\""
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "，轉賬給「%@」"
           }
         }
       }
@@ -21787,6 +21867,22 @@
         }
       }
     },
+    "你还没收款，过期退回的话记得删掉这笔。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You haven't accepted it yet. If it expires and is returned, remember to delete this entry."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你還沒收款，過期退回的話記得刪掉這筆。"
+          }
+        }
+      }
+    },
     "你重新打开了这件事" : {
       "localizations" : {
         "en" : {
@@ -33119,6 +33215,22 @@
         }
       }
     },
+    "发出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "發出"
+          }
+        }
+      }
+    },
     "发工资" : {
       "localizations" : {
         "en" : {
@@ -40659,6 +40771,38 @@
     },
     "对折看变化" : {
 
+    },
+    "对方" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the other person"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對方"
+          }
+        }
+      }
+    },
+    "对方还没收款，被退回的话记得删掉这笔。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They haven't accepted it yet. If it comes back, remember to delete this entry."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對方還沒收款，被退回的話記得刪掉這筆。"
+          }
+        }
+      }
     },
     "对比" : {
       "localizations" : {
@@ -59119,6 +59263,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "收入對映"
+          }
+        }
+      }
+    },
+    "收到" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Received"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收到"
           }
         }
       }
@@ -84352,6 +84512,22 @@
         }
       }
     },
+    "红包" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Red packet"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "紅包"
+          }
+        }
+      }
+    },
     "约定" : {
 
         },
@@ -90846,6 +91022,38 @@
         }
       }
     },
+    "识别到 %lld 笔收入，共 ¥%@，未自动入账。打开 Holo 逐笔确认。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld income items totaling ¥%@ were not logged. Open Holo to confirm each one."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "識別到 %lld 筆收入，共 ¥%@，未自動入賬。打開 Holo 逐筆確認。"
+          }
+        }
+      }
+    },
+    "识别到 %lld 笔收入，共 ¥%@，点按逐笔确认。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld income items totaling ¥%@. Tap to confirm each one."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "識別到 %lld 筆收入，共 ¥%@，點按逐筆確認。"
+          }
+        }
+      }
+    },
     "识别到 %lld 笔收支，未自动入账。打开 Holo 逐笔确认。" : {
       "localizations" : {
         "en" : {
@@ -90890,6 +91098,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "識別到 %lld 項，待你確認"
+          }
+        }
+      }
+    },
+    "识别到一笔转账或红包，未入账。打开 Holo 核对。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Found a transfer or red packet — not logged yet. Open Holo to check."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "識別到一筆轉賬或紅包，未入賬。打開 Holo 核對。"
           }
         }
       }
@@ -92356,6 +92580,22 @@
         }
       }
     },
+    "请核对方向和对方。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the direction and the other person."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請核對方向和對方。"
+          }
+        }
+      }
+    },
     "请求中..." : {
       "localizations" : {
         "en" : {
@@ -93793,6 +94033,22 @@
         }
       }
     },
+    "资金挪动，不计入收支" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Money moved between your own accounts — not counted"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資金挪動，不計入收支"
+          }
+        }
+      }
+    },
     "资金期次" : {
       "localizations" : {
         "en" : {
@@ -93826,22 +94082,6 @@
     },
     "资金账户查询失败" : {
 
-    },
-    "资金转账，不计入收支" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Funds transfer — not counted as income or spending"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "資金轉賬，不計入收支"
-          }
-        }
-      }
     },
     "赤红" : {
       "localizations" : {
@@ -94998,6 +95238,22 @@
         }
       }
     },
+    "转出" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轉出"
+          }
+        }
+      }
+    },
     "转成任务" : {
       "localizations" : {
         "en" : {
@@ -95090,6 +95346,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "轉移後刪除分類"
+          }
+        }
+      }
+    },
+    "转账" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轉賬"
+          }
+        }
+      }
+    },
+    "转账已退回或未完成，没有记账" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer returned or not completed — nothing booked"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轉賬已退回或未完成，沒有記賬"
           }
         }
       }
@@ -99884,34 +100172,34 @@
         }
       }
     },
-    "这是转账/还款，属于资金流转，不计入收支。" : {
+    "这是还款、提现或理财这类资金挪动，不算收入也不算支出，我就不记了。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This is a transfer/repayment — money movement, not income or expense."
+            "value" : "This is a repayment, withdrawal, or investment move between your own accounts. It's neither income nor spending, so I won't log it."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這是轉賬/還款，屬於資金流轉，不計入收支。"
+            "value" : "這是還款、提現或理財這類資金挪動，不算收入也不算支出，我就不記了。"
           }
         }
       }
     },
-    "这是转账/还款类截图，属于资金流转，我不把它记成消费。" : {
+    "这是还款、提现或理财这类资金挪动，不计入收支。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This is a transfer/repayment screenshot — money movement, not spending. I won't log it as an expense."
+            "value" : "This is a repayment, withdrawal, or investment move between your own accounts, so it isn't counted as income or spending."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這是轉帳/還款類截圖，屬於資金流轉，我不把它記成消費。"
+            "value" : "這是還款、提現或理財這類資金挪動，不計入收支。"
           }
         }
       }
@@ -100949,6 +101237,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這筆賬需要你確認。"
+          }
+        }
+      }
+    },
+    "这笔转账或红包已经退回、过期或没有完成，不用记账。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This transfer or red packet was returned, expired, or never completed, so there's nothing to log."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這筆轉賬或紅包已經退回、過期或沒有完成，不用記賬。"
           }
         }
       }

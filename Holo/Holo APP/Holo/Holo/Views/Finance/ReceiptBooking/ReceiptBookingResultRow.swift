@@ -103,7 +103,8 @@ struct ReceiptBookingResultRow: View {
             return result.summaryText ?? fallback
         }
         switch reason {
-        case .rejectTransfer: return String(localized: "资金转账，不计入收支")
+        case .rejectTransfer: return String(localized: "资金挪动，不计入收支")
+        case .rejectTransferNotCompleted: return String(localized: "转账已退回或未完成，没有记账")
         case .rejectWealth: return String(localized: "理财或余额页面，没有记账")
         case .rejectPending: return String(localized: "订单尚未支付，没有记账")
         case .rejectFailedPayment: return String(localized: "支付未完成，没有记账")

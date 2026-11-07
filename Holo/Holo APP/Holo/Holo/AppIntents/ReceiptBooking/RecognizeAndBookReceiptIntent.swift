@@ -187,6 +187,10 @@ struct RecognizeAndBookReceiptIntent: AppIntent {
             // 只说笔数+合计，不逐笔展开
             if snapshot.items.count > 1 {
                 if let total = snapshot.uniformTotalAmountText {
+                    // 合计只在全部同向时有值；方向跟着笔走——收转账/收红包也会多笔，不能写死「支出」
+                    if snapshot.items.first?.typeIsIncome == true {
+                        return String(localized: "识别到 \(snapshot.items.count) 笔收入，共 ¥\(total)，未自动入账。打开 Holo 逐笔确认。")
+                    }
                     return String(localized: "识别到 \(snapshot.items.count) 笔支出，共 ¥\(total)，未自动入账。打开 Holo 逐笔确认。")
                 }
                 return String(localized: "识别到 \(snapshot.items.count) 笔收支，未自动入账。打开 Holo 逐笔确认。")
@@ -230,6 +234,8 @@ struct RecognizeAndBookReceiptIntent: AppIntent {
             return String(localized: "识别结果有异常，未入账。打开 Holo 确认。")
         case .reviewLegacyContract:
             return String(localized: "识别服务需要更新，未自动入账。打开 Holo 手动确认这笔。")
+        case .reviewTransferConfirm:
+            return String(localized: "识别到一笔转账或红包，未入账。打开 Holo 核对。")
         default:
             return String(localized: "这笔需要确认，未自动入账。打开 Holo 复核。")
         }

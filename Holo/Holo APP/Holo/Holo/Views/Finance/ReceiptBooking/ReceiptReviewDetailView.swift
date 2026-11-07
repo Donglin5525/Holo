@@ -192,6 +192,15 @@ struct ReceiptReviewDetailView: View {
                 }
 
                 if state.wrappedValue.included {
+                // 转账/红包：方向+对方放笔卡最上方，跟随下方收支切换实时变化（2026-11-06）
+                if let kind = state.wrappedValue.item.transferKind {
+                    ReceiptReviewTransferLine(
+                        isRedPacket: kind == HoloVisionTransferInfo.redPacketKind,
+                        isIncome: state.wrappedValue.typeIsIncome,
+                        counterparty: state.wrappedValue.item.transferCounterparty,
+                        awaitingReceipt: state.wrappedValue.item.transferAwaitingReceipt == true
+                    )
+                }
                 if let notes = state.wrappedValue.item.reviewNotes, !notes.isEmpty {
                     HStack(spacing: 6) {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -581,6 +590,7 @@ struct ReceiptReviewDetailView: View {
         case .reviewContractGuarded: return String(localized: "识别结果有异常，请人工核对。")
         // 人话文案（2026-09-15 东林反馈）：旧契约灰度提示不该说「服务需要更新」
         case .reviewLegacyContract: return String(localized: "识别信息不完整，请核对后保存。")
+        case .reviewTransferConfirm: return String(localized: "请核对方向和对方。")
         default: return nil
         }
     }
@@ -622,9 +632,14 @@ struct ReceiptReviewDetailView: View {
                     state.date = parsed
                 }
             }
-            // 名称预填：商户名优先（它就是这笔账在账本里的名字），无商户回退 AI 备注原文
+            // 名称预填：转账/红包用该笔自己的对方名（一图多笔各笔对方不同），
+            // 其余商户名优先（它就是这笔账在账本里的名字），无商户回退 AI 备注原文
             let merchant = draft.merchant?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            state.note = merchant.isEmpty ? (item.note ?? "") : merchant
+            if let counterparty = item.transferCounterparty, !counterparty.isEmpty {
+                state.note = counterparty
+            } else {
+                state.note = merchant.isEmpty ? (item.note ?? "") : merchant
+            }
             // 账户建议（§25.2）：固定账户仍有效则整单预填；否则按该笔自己的渠道解析；再落默认
             if state.selectedAccountID == nil {
                 var suggested: UUID?
@@ -693,7 +708,8 @@ struct ReceiptReviewDetailView: View {
                 normalizedCategoryCandidate: state.item.normalizedCategoryCandidate,
                 semanticCategoryHint: state.item.semanticCategoryHint,
                 note: state.note.isEmpty ? (state.item.note ?? draft.merchant ?? "") : state.note,
-                type: type
+                type: type,
+                transferKind: state.item.transferKind
             )
             guard !Task.isCancelled, let index = itemIndex(of: state.id) else { return }
             itemStates[index].suggestedCategoryTitle = category?.name ?? String(localized: "待分类")
@@ -739,7 +755,8 @@ struct ReceiptReviewDetailView: View {
                             normalizedCategoryCandidate: item.item.normalizedCategoryCandidate,
                             semanticCategoryHint: item.item.semanticCategoryHint,
                             note: item.note.isEmpty ? (item.item.note ?? draft.merchant ?? "") : item.note,
-                            type: item.typeIsIncome ? .income : .expense
+                            type: item.typeIsIncome ? .income : .expense,
+                            transferKind: item.item.transferKind
                         )
                     } catch {
                         category = nil

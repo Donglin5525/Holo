@@ -210,7 +210,7 @@ extension Category {
         ]),
         // ━━━━━━━━━━ 8. 人情（琥珀色系 #F59E0B）━━━━━━━━━━
         (term: FinanceSeedVocabulary.socialGifts, color: "#F59E0B", children: [
-            (term: SeedTerm(hans: "红包礼金", hant: "紅包禮金", english: "Cash Gifts"), icon: "finance_red_env"),
+            (term: FinanceSeedVocabulary.cashGifts, icon: "finance_red_env"),
             (term: SeedTerm(hans: "请客", hant: "請客", english: "Treats"), icon: "finance_treat"),
             (term: SeedTerm(hans: "送礼", hant: "送禮", english: "Gift Giving"), icon: "finance_present"),
             (term: SeedTerm(hans: "探望", hant: "探望", english: "Visits"), icon: "finance_visit"),
@@ -282,7 +282,7 @@ extension Category {
             (term: FinanceSeedVocabulary.redEnvelope, icon: "income_red_packet"),
             (term: SeedTerm(hans: "礼物", hant: "禮物", english: "Gifts"), icon: "income_gift_in"),
             (term: SeedTerm(hans: "中奖", hant: "中獎", english: "Lottery"), icon: "income_lottery"),
-            (term: SeedTerm(hans: "转入", hant: "轉入", english: "Transfer In"), icon: "income_transfer_in"),
+            (term: FinanceSeedVocabulary.transferIn, icon: "income_transfer_in"),
             (term: SeedTerm(hans: "众筹", hant: "眾籌", english: "Crowdfunding"), icon: "income_crowd"),
             (term: SeedTerm(hans: "赞助", hant: "贊助", english: "Sponsorship"), icon: "income_sponsor"),
         ]),

@@ -154,6 +154,7 @@ struct ReceiptReviewListView: View {
         case .reviewDateOutsideProjectRange: return "日期不在项目周期内"
         case .reviewContractGuarded: return "识别结果有异常"
         case .reviewLegacyContract: return "识别信息不完整"
+        case .reviewTransferConfirm: return "转账待核对"
         default: return "需要确认"
         }
     }

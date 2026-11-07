@@ -65,11 +65,8 @@ final class FinanceTransactionDraftResolver {
             guard !accounts.isEmpty else { return .noAccountAvailable }
 
             // 1. 尾号优先：支付通道含 4 位数字时按账户名包含尾号匹配
-            if let channel, !channel.isEmpty,
-               let tail = channel.firstMatch(of: /\d{4}/)?.output {
-                if let hit = accounts.first(where: { $0.name.contains(String(tail)) == true }) {
-                    return .resolved(id: hit.id, name: hit.name, usedDefault: false)
-                }
+            if let hit = Self.account(matchingCardTailIn: channel, among: accounts) {
+                return .resolved(id: hit.id, name: hit.name, usedDefault: false)
             }
             // 2. 通道名关键词：账户名含「微信」「支付宝」「现金」等
             if let channel, !channel.isEmpty {
@@ -86,6 +83,18 @@ final class FinanceTransactionDraftResolver {
             }
             return .resolved(id: fallback.id, name: fallback.name, usedDefault: true)
         }
+    }
+
+    /// 卡尾号规则（账户解析第 1 步与「转给自己名下的卡」判定共用一处）：
+    /// 文本里第一段 4 位数字作尾号，命中「账户名包含该尾号」的首个账户
+    static func account(matchingCardTailIn text: String?, among accounts: [Account]) -> Account? {
+        guard let text, !text.isEmpty, let tail = text.firstMatch(of: /\d{4}/)?.output else { return nil }
+        return accounts.first { $0.name.contains(String(tail)) }
+    }
+
+    /// 转账对象（「招商银行(1234)」）是不是用户自己名下的卡：是 = 自己账户之间挪钱（B 类），不该记收支
+    func isOwnAccount(cardText: String?) -> Bool {
+        Self.account(matchingCardTailIn: cardText, among: FinanceRepository.shared.getAccounts(includeArchived: false)) != nil
     }
 
     // MARK: 项目解析（方案 §21.3 优先级；2026-10-04 起收支同权，收入挂项目不再是冲突）
@@ -181,7 +190,8 @@ final class FinanceTransactionDraftResolver {
         normalizedCategoryCandidate: String?,
         semanticCategoryHint: String?,
         note: String,
-        type: TransactionType
+        type: TransactionType,
+        transferKind: String? = nil
     ) async throws -> Category? {
         let categories = try await FinanceRepository.shared.getCategories(by: type)
         return await matchCategory(
@@ -192,11 +202,13 @@ final class FinanceTransactionDraftResolver {
             semanticCategoryHint: semanticCategoryHint,
             note: note,
             type: type,
-            categories: categories
+            categories: categories,
+            transferKind: transferKind
         )
     }
 
     /// 分类解析主体。孤儿分类不参与新入账，一级同名副本只在完整父级范围内兼容。
+    /// transferKind：截图记账 v4 转账/红包（"transfer" | "red_packet"），非转账为 nil。
     func matchCategory(
         primaryCategory: String?,
         subCategory: String?,
@@ -205,7 +217,8 @@ final class FinanceTransactionDraftResolver {
         semanticCategoryHint: String?,
         note: String,
         type: TransactionType,
-        categories: [Category]
+        categories: [Category],
+        transferKind: String? = nil
     ) async -> Category? {
         let categories = FinanceCategoryIntegrity.selectableCategories(in: categories, type: type.rawValue)
         let candidates = CategoryCandidateResolver.orderedCandidates(
@@ -341,11 +354,38 @@ final class FinanceTransactionDraftResolver {
             return rawMatched
         }
 
+        // 6. 转账/红包兜底（2026-11-06 转账开放方案 §2.3）：候选全落空时按「方向×类型」落种子科目。
+        //    按种子三语名（SeedTerm.allValues）父子同时匹配——繁中/英文种子库对上简体候选也能命中；
+        //    用户改名或删掉了这些科目则仍交调用方落「待分类」。
+        if let transferKind,
+           let seeded = Self.transferSeedCategory(kind: transferKind, type: type, in: categories) {
+            return seeded
+        }
+
         // 无法可靠匹配，返回 nil，由调用方使用「待分类」兜底
         return nil
     }
 
     /// 一级同名时允许在同名、同类型的有效父级之间查找，不跨父级语义猜测归属。
+    /// 转账/红包的默认科目（方向×类型）：支出转账→其他/转账、支出红包→人情/红包礼金、
+    /// 收入转账→人情来往/转入、收入红包→人情来往/红包。父子都按种子三语名匹配。
+    static func transferSeedCategory(kind: String, type: TransactionType, in categories: [Category]) -> Category? {
+        let isRedPacket = kind == "red_packet"
+        let parentTerm: SeedTerm
+        let childTerm: SeedTerm
+        switch (type, isRedPacket) {
+        case (.expense, false): (parentTerm, childTerm) = (FinanceSeedVocabulary.other, FinanceSeedVocabulary.transfer)
+        case (.expense, true): (parentTerm, childTerm) = (FinanceSeedVocabulary.socialGifts, FinanceSeedVocabulary.cashGifts)
+        case (.income, false): (parentTerm, childTerm) = (FinanceSeedVocabulary.socialIncome, FinanceSeedVocabulary.transferIn)
+        case (.income, true): (parentTerm, childTerm) = (FinanceSeedVocabulary.socialIncome, FinanceSeedVocabulary.redEnvelope)
+        }
+        let categories = FinanceCategoryIntegrity.selectableCategories(in: categories, type: type.rawValue)
+        let parentIDs = Set(categories.filter { $0.isTopLevel && parentTerm.allValues.contains($0.name) }.map(\.id))
+        return categories.first {
+            $0.parentId.map { parentIDs.contains($0) } == true && childTerm.allValues.contains($0.name)
+        }
+    }
+
     static func subCategory(named name: String, under parent: Category, in categories: [Category]) -> Category? {
         let categories = FinanceCategoryIntegrity.selectableCategories(in: categories, type: parent.type)
         let parentIDs = Set(categories.filter {

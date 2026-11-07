@@ -1,6 +1,7 @@
 // 截图识别记账 · 评测样张生成器
 // 用法: swift tools/render_corpus.swift corpus   （在 docs/holoai-audit/vision-eval/ 下执行）
-// 生成 24 张合成样张，期望结果见 corpus/manifest.json，两者数字必须保持一致。
+// 生成 35 张合成样张，期望结果见 corpus/manifest.json，两者数字必须保持一致。
+// 2026-11-06 新增 t01-t09（转账开放方案 §7.3）；11-07 新增 t10-t11（聊天卡配对，v6）：与他人之间的转账/红包可记账、已退回不记、零钱提现仍拦、话费充值属消费。
 
 import AppKit
 import CoreImage
@@ -208,6 +209,61 @@ func chatScreenshot() -> NSImage {
     }
 }
 
+// 聊天会话里的转账卡（v6 配对场景）：发送方一侧发送卡 + 收款方一侧「已收款」确认卡
+func chatTransferCards(pairs: [(amount: String, sendStatus: String, receiptStatus: String?, mineSends: Bool, time: String)]) -> NSImage {
+    let w: CGFloat = 900, h: CGFloat = 1360
+    func avatar(_ x: CGFloat, _ yTop: CGFloat, mine: Bool) {
+        let d: CGFloat = 56
+        let rect = NSRect(x: x, y: yTop - d, width: d, height: d)
+        (mine ? color(0x7BBF6A) : color(0x9AA5B1)).setFill()
+        NSBezierPath(ovalIn: rect).fill()
+        text(mine ? "我" : "吴", NSRect(x: x, y: yTop - d + 12, width: d, height: 32),
+             size: 24, weight: .medium, mono: false, color: .white, align: .center)
+    }
+    func card(_ amount: String, _ status: String, _ yTop: CGFloat, mine: Bool) {
+        let cw: CGFloat = 420, ch: CGFloat = 150
+        let rect = mine ? NSRect(x: w - 40 - 56 - 14 - cw, y: yTop - ch, width: cw, height: ch)
+                        : NSRect(x: 40 + 56 + 14, y: yTop - ch, width: cw, height: ch)
+        color(0xE8A24B).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 14, yRadius: 14).fill()
+        text("¥" + amount, NSRect(x: rect.minX + 26, y: rect.midY - 6, width: 240, height: 52),
+             size: 40, weight: .semibold, mono: false)
+        text(status, NSRect(x: rect.minX + 26, y: rect.minY + 14, width: 240, height: 34),
+             size: 24, mono: false, color: NSColor.white.withAlphaComponent(0.9))
+        text("转账", NSRect(x: rect.maxX - 96, y: rect.minY + 14, width: 76, height: 34),
+             size: 24, mono: false, color: .white, align: .right)
+        avatar(mine ? w - 40 - 56 : 40, yTop, mine: mine)
+    }
+    func bubble(_ s: String, _ x: CGFloat, _ yTop: CGFloat, _ bw: CGFloat, mine: Bool) {
+        let bh: CGFloat = 74
+        let rect = NSRect(x: x, y: yTop - bh, width: bw, height: bh)
+        (mine ? color(0x95EC69) : NSColor.white).setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 14, yRadius: 14).fill()
+        text(s, NSRect(x: rect.minX + 18, y: rect.midY - 15, width: bw - 36, height: 34), size: 26, mono: false)
+    }
+    return render(NSSize(width: w, height: h), bg: color(0xEDEDED)) {
+        color(0xF7F7F7).setFill()
+        NSRect(x: 0, y: h - 210, width: w, height: 140).fill()
+        text("吴敏", NSRect(x: 40, y: h - 194, width: w - 80, height: 44),
+             size: 34, weight: .semibold, mono: false, align: .center)
+        var y = h - 300
+        for (i, pair) in pairs.enumerated() {
+            if i > 0 { y -= 54 }
+            text(pair.time, NSRect(x: 0, y: y - 30, width: w, height: 30), size: 22, mono: false,
+                 color: .gray, align: .center)
+            y -= 46
+            card(pair.amount, pair.sendStatus, y, mine: pair.mineSends)
+            y -= 150
+            if let receipt = pair.receiptStatus {
+                y -= 18
+                card(pair.amount, receipt, y, mine: !pair.mineSends)
+                y -= 150
+            }
+        }
+        bubble("明天见~", 40, y - 10, 220, mine: false)
+    }
+}
+
 func listNote() -> NSImage {
     let w: CGFloat = 820, h: CGFloat = 1000
     return render(NSSize(width: w, height: h), bg: color(0xF6F0DC)) {
@@ -237,7 +293,7 @@ func plainTest() -> NSImage {
     }
 }
 
-// MARK: - 生成全部 24 张（期望结果与 manifest.json 一一对应）
+// MARK: - 生成全部 35 张（期望结果与 manifest.json 一一对应）
 
 // —— 可记账：纸质小票/发票（10 张）——
 save(receipt(name: "瑞幸咖啡 LUCKIN", addr: "星海广场店 0412", dateLine: "2026-08-28 12:35  单号 202608281235001",
@@ -330,9 +386,62 @@ save(chatScreenshot(), "x03_chat_records.png")
 save(listNote(), "x05_shopping_list.png")
 save(plainTest(), "x04_test_plain.png")
 
+// —— 可记账：与他人之间的转账/红包（v4 personal_transfer，2026-11-06）——
+// 人名刻意避开提示词少样本里的「张三/李四」，防模型回显示例占位
+save(phone(app: "微信", tint: 0x07C160, nav: "转账", big: "¥200.00",
+           cards: [[("收款方", "王小明"), ("转账时间", "2026-11-02 09:15"), ("转账说明", "生活费")]],
+           statusText: "待王小明确认收款", statusColor: 0xE07800), "t01_wechat_transfer_pending.png")
+
+save(phone(app: "微信", tint: 0x07C160, nav: "转账", big: "¥888.00",
+           cards: [[("付款方", "陈阿姨"), ("转账时间", "2026-11-01 20:30"), ("收款时间", "2026-11-01 20:31")]],
+           statusText: "你已收款，已存入零钱"), "t02_wechat_transfer_received.png")
+
+save(phone(app: "微信", tint: 0xD84E43, nav: "红包详情", big: "¥66.00",
+           cards: [[("红包", "发给 刘洋"), ("祝福语", "生日快乐"), ("发送时间", "2026-10-30 12:00")]],
+           statusText: "已领取1/1个，共66.00元"), "t03_wechat_redpacket_sent.png")
+
+save(phone(app: "微信", tint: 0xD84E43, nav: "红包", big: "18.80元",
+           cards: [[("红包", "周婷的红包"), ("祝福语", "恭喜发财，大吉大利"), ("领取时间", "2026-10-29 21:06")]],
+           statusText: "已存入零钱，可直接消费"), "t04_wechat_redpacket_received.png")
+
+save(phone(app: "支付宝", tint: 0x1677FF, nav: "转账", big: "¥1,200.00",
+           cards: [[("收款方", "赵磊 138****5678"), ("付款方式", "账户余额"), ("转账时间", "2026-10-28 16:40"), ("转账备注", "还你上次的机票钱")]],
+           statusText: "转账成功"), "t05_alipay_transfer_out.png")
+
+// —— v6 聊天卡配对：同一笔转账的两张卡只记一笔（东林 11-07 真机实锤场景的合成重制）——
+save(chatTransferCards(pairs: [
+    (amount: "1550.00", sendStatus: "已被接收", receiptStatus: "已收款", mineSends: false, time: "10月2日 20:09"),
+]), "t10_chat_transfer_paired_cards.png")
+
+// —— v6 聊天卡清点：两笔不同金额的独立转账（各一张发送卡），才是两笔 ——
+save(chatTransferCards(pairs: [
+    (amount: "300.00", sendStatus: "已被接收", receiptStatus: nil, mineSends: false, time: "10月2日 20:09"),
+    (amount: "500.00", sendStatus: "已被接收", receiptStatus: nil, mineSends: true, time: "10月2日 20:31"),
+]), "t11_chat_two_transfers.png")
+
+// 泛化样本：措辞与提示词「发红包示例」不同的群红包（发出方，记总额支出）
+save(phone(app: "微信", tint: 0xD84E43, nav: "红包详情", big: "¥100.00",
+           cards: [[("红包", "拼手气红包 · 发到「家人群」"), ("祝福语", "周末快乐"), ("发送时间", "2026-10-22 18:00")]],
+           statusText: "已领取3/5个，共40.00/100.00元"), "t09_wechat_group_redpacket_sent.png")
+
+// —— 必须拒识：转账已退回（personal_transfer 无交易，客户端说「已退回或没有完成」）——
+save(phone(app: "微信", tint: 0x07C160, nav: "转账", big: "¥300.00",
+           cards: [[("收款方", "孙浩"), ("转账时间", "2026-10-25 10:00"), ("退还时间", "2026-10-26 10:01")]],
+           statusText: "已退还（对方24小时内未收款）", statusColor: 0x888888), "t06_wechat_transfer_returned.png")
+
+// —— 必须拦截：零钱提现（B 类自己账户之间挪钱）——
+save(phone(app: "微信", tint: 0x07C160, nav: "零钱提现", big: "¥1,000.00",
+           cards: [[("提现到", "招商银行储蓄卡(尾号1234)"), ("服务费", "¥1.00"), ("提现时间", "2026-10-24 08:30")]],
+           statusText: "提现成功"), "t07_wechat_withdraw.png")
+
+// —— 可记账：话费充值属于消费（与「给零钱充值」区分）——
+save(phone(app: "微信", tint: 0x07C160, nav: "话费充值",
+           cards: [[("充值号码", "139****8888"), ("充值金额", "¥100.00"), ("实付", "¥99.50"), ("支付方式", "零钱"), ("支付时间", "2026-10-23 19:12")]],
+           statusText: "充值成功"), "t08_phone_topup.png")
+
 // —— 外币 ——
 save(receipt(name: "Whole Foods Market", addr: "Store #102 · Portland OR", dateLine: "09/02/2026 18:40  Reg 03",
              items: [("Organic Bananas", 3.99), ("Whole Milk 1Gal", 4.49), ("Sourdough Bread", 5.99)],
              payLabel: "VISA ****8821  PAID $14.47", footer: "THANK YOU"), "f01_usd_visa.png")
 
-print("\n完成：24 张样张已写入 \(outDir)/")
+print("\n完成：35 张样张已写入 \(outDir)/")

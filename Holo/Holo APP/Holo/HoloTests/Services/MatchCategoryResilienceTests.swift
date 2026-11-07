@@ -193,4 +193,64 @@ final class MatchCategoryResilienceTests: XCTestCase {
             hierarchies: FinanceCategoryRepairCatalog.standardHierarchies(), receiptDirectory: auditDirectory).repairedCategories, 0)
     }
 
+    // MARK: - 截图记账转账/红包默认科目（2026-11-06 转账开放方案 §2.3）
+
+    private func makeTransferSeedTree() -> [Category] {
+        let other = makeCategory(name: "其他")
+        let social = makeCategory(name: "人情")
+        let socialIncome = makeCategory(name: "人情来往", type: "income")
+        return [
+            other, social, socialIncome,
+            makeCategory(name: "转账", parentId: other.id),
+            makeCategory(name: "红包礼金", parentId: social.id),
+            makeCategory(name: "转入", type: "income", parentId: socialIncome.id),
+            makeCategory(name: "红包", type: "income", parentId: socialIncome.id),
+        ]
+    }
+
+    /// 对方名是唯一线索（没有说明、没有语义大类）：只剩转账兜底能接住
+    private func matchTransfer(kind: String?, type: TransactionType, categories: [Category]) async -> Category? {
+        await FinanceTransactionDraftResolver.shared.matchCategory(
+            primaryCategory: nil, subCategory: nil,
+            categoryCandidate: "王小明", normalizedCategoryCandidate: nil, semanticCategoryHint: nil,
+            note: "王小明", type: type, categories: categories, transferKind: kind
+        )
+    }
+
+    func test转账兜底_方向乘类型落种子科目() async throws {
+        let categories = makeTransferSeedTree()
+        try context.save()
+        let sentTransfer = await matchTransfer(kind: "transfer", type: .expense, categories: categories)
+        let sentRedPacket = await matchTransfer(kind: "red_packet", type: .expense, categories: categories)
+        let receivedTransfer = await matchTransfer(kind: "transfer", type: .income, categories: categories)
+        let receivedRedPacket = await matchTransfer(kind: "red_packet", type: .income, categories: categories)
+        let notTransfer = await matchTransfer(kind: nil, type: .expense, categories: categories)
+        XCTAssertEqual(sentTransfer?.name, "转账")
+        XCTAssertEqual(sentRedPacket?.name, "红包礼金")
+        XCTAssertEqual(receivedTransfer?.name, "转入")
+        XCTAssertEqual(receivedRedPacket?.name, "红包")
+        XCTAssertNil(notTransfer, "非转账交易不走转账兜底，仍交调用方落待分类")
+    }
+
+    func test转账兜底_英文种子库按三语名命中() async throws {
+        let socialIncome = makeCategory(name: "Social Income", type: "income")
+        let transferIn = makeCategory(name: "Transfer In", type: "income", parentId: socialIncome.id)
+        try context.save()
+        let matched = await matchTransfer(kind: "transfer", type: .income, categories: [socialIncome, transferIn])
+        XCTAssertEqual(matched?.id, transferIn.id, "英文种子语言的库也要落到「转入」")
+    }
+
+    func test转账兜底_转账说明看得出用途时用途优先() async throws {
+        let housing = makeCategory(name: "居住")
+        let rent = makeCategory(name: "房租", parentId: housing.id)
+        let categories = makeTransferSeedTree() + [housing, rent]
+        try context.save()
+        let matched = await FinanceTransactionDraftResolver.shared.matchCategory(
+            primaryCategory: nil, subCategory: nil,
+            categoryCandidate: "王小明", normalizedCategoryCandidate: "房租", semanticCategoryHint: "居住",
+            note: "王小明", type: .expense, categories: categories, transferKind: "transfer"
+        )
+        XCTAssertEqual(matched?.id, rent.id, "兜底只在全部线索落空时生效，不抢用途科目")
+    }
+
 }

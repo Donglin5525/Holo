@@ -61,6 +61,12 @@ actor ReceiptBookingResultStore {
         let semanticCategoryHint: String?
         /// 逐笔警示原因码（金额/方向低置信），确认页该笔卡片提示
         let reviewNotes: [String]?
+        // ---- v4 转账/红包（2026-11-06）：非转账为 nil。必须 var + 默认值才参与解码
+        //      （质量红线 §3-4），旧草案文件无这些键解码为 nil ----
+        /// "transfer" | "red_packet"
+        var transferKind: String? = nil
+        var transferCounterparty: String? = nil
+        var transferAwaitingReceipt: Bool? = nil
     }
 
     /// 待复核草案：只存必要纯值字段（方案 §25.1）
@@ -175,7 +181,10 @@ actor ReceiptBookingResultStore {
                 categoryCandidate: item.categoryCandidate,
                 normalizedCategoryCandidate: item.normalizedCategoryCandidate,
                 semanticCategoryHint: item.semanticCategoryHint,
-                reviewNotes: item.reviewNotes.map(\.rawValue)
+                reviewNotes: item.reviewNotes.map(\.rawValue),
+                transferKind: item.transferKind,
+                transferCounterparty: item.transferCounterparty,
+                transferAwaitingReceipt: item.transferKind == nil ? nil : item.transferAwaitingReceipt
             )
         }
         let primary = items.first
@@ -208,6 +217,16 @@ actor ReceiptBookingResultStore {
            let evidence = evidenceURL(snapshot.draftID) {
             try? evidenceJPEG.write(to: evidence, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
         }
+        Self.notifyDraftsDidChange()
+    }
+
+    /// 草案目录发生变化（新增/确认删除/过期清理）——账本角标等 UI 靠它刷新。
+    /// 确认记账走的是财务模块层自动弹出的复核页，账本页自己的 onDismiss/onAppear
+    /// 全都错过，角标会残留（2026-11-07 东林实锤：确认完红点还在）。
+    static let draftsDidChange = Notification.Name("receiptBookingDraftsDidChange")
+
+    nonisolated static func notifyDraftsDidChange() {
+        NotificationCenter.default.post(name: draftsDidChange, object: nil)
     }
 
     /// 撤销完成后把结果置为 undone（重复点击幂等返回，方案 §25.4）
@@ -325,6 +344,7 @@ actor ReceiptBookingResultStore {
             // 草案已过期删除，通知栏里对应的待复核提醒一并撤下，不让通知指向不存在的草案
             ReceiptBookingNotificationService.cancelReviewReminders(for: draft.id)
         }
+        Self.notifyDraftsDidChange()
         // 无主孤儿证据文件一并清理
         if let evidenceDir = try? fileManager.contentsOfDirectory(
             at: root.appendingPathComponent("evidence", isDirectory: true),

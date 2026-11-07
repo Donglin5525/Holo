@@ -28,6 +28,11 @@ struct HoloVisionExtractionRequest: Encodable {
     let image: String
     /// 用户随图附言（可空）
     let text: String?
+    /// 客户端能力声明（契约 v4，2026-11-06）：声明 personal_transfer 才会收到可记账的转账/红包；
+    /// 老后端忽略未知字段，不声明的老客户端恒按旧口径拦截
+    var capabilities: [String] = HoloVisionExtractionRequest.supportedCapabilities
+
+    static let supportedCapabilities = [HoloVisionUnderstanding.personalTransfer]
 }
 
 struct HoloVisionExtractionResponse: Decodable {
@@ -45,7 +50,8 @@ struct HoloVisionAutomationPolicy: Decodable {
 }
 
 struct HoloVisionUnderstanding: Decodable {
-    let imageType: String
+    /// var：客户端护栏（转给自己名下的卡）可把整单改判为 B 类，见 removeOwnAccountTransfers
+    var imageType: String
     let confidence: Double
     // ---- v2 契约字段（2026-09-14 完整方案 §26.2）：全部可选，旧服务端缺字段 → 自动写资格由门禁判定 ----
     let schemaVersion: Int?
@@ -59,16 +65,35 @@ struct HoloVisionUnderstanding: Decodable {
     let paymentChannel: String?
     let amountOriginalText: String?
     let items: [HoloVisionItem]?
-    let transactions: [HoloVisionTransaction]
+    var transactions: [HoloVisionTransaction]
     let rejectReason: String?
 
     /// 可记账图型（其余图型一律拒识，与后端 BILLABLE_TYPES 对齐）
     var isBillable: Bool {
-        imageType == HoloVisionUnderstanding.receipt || imageType == HoloVisionUnderstanding.paymentScreenshot
+        imageType == HoloVisionUnderstanding.receipt
+            || imageType == HoloVisionUnderstanding.paymentScreenshot
+            || imageType == HoloVisionUnderstanding.personalTransfer
     }
 
     static let receipt = "receipt"
     static let paymentScreenshot = "payment_screenshot"
+    /// v4（2026-11-06）：与他人之间的转账/红包（真实收支，可记账）
+    static let personalTransfer = "personal_transfer"
+    /// v4 收窄：自己账户之间挪钱（还款/提现/充值/理财申赎），仍拒识
+    static let transferScreenshot = "transfer_screenshot"
+
+    /// 客户端护栏（v4）：转账对象是用户自己名下的卡 = 自己账户之间挪钱（B 类），剔除该笔；
+    /// 全部剔除则整单改判 transfer_screenshot 走 B 类拒识。返回剔除笔数。
+    mutating func removeOwnAccountTransfers(isOwnAccount: (String?) -> Bool) -> Int {
+        guard imageType == Self.personalTransfer else { return 0 }
+        let before = transactions.count
+        transactions.removeAll { isOwnAccount($0.transfer?.counterpartyAccount) }
+        let removed = before - transactions.count
+        if removed > 0, transactions.isEmpty {
+            imageType = Self.transferScreenshot
+        }
+        return removed
+    }
 }
 
 struct HoloVisionItem: Decodable {
@@ -102,12 +127,37 @@ struct HoloVisionTransaction: Decodable {
     // ---- v3 逐笔新增：该笔自己的支付渠道（契约 2026-09-19，一图多笔渠道可能不同）----
     /// 旧服务端无此字段 → nil，账户解析回落整单顶层渠道
     let paymentChannel: String?
+    // ---- v4 逐笔新增：转账/红包信息（契约 2026-11-06）----
+    /// 仅 personal_transfer 的交易非 nil（后端恒输出该键；旧服务端缺键 → nil）
+    let transfer: HoloVisionTransferInfo?
 
     var isIncome: Bool { type == "income" }
 
     /// 逐笔渠道优先，回落整单顶层渠道（v3 前的旧行为）
     func effectivePaymentChannel(fallback: String?) -> String? {
         paymentChannel ?? fallback
+    }
+}
+
+/// 转账/红包信息（契约 v4，形状真源 HoloBackend/src/vision/understandingContract.js normalizeTransferInfo）
+struct HoloVisionTransferInfo: Decodable, Equatable {
+    /// "transfer" | "red_packet"（后端钳制）。与 imageType 同用 String：后端新增类型不致老包整包解码失败
+    let kind: String
+    /// 对方名称（群红包为群名）
+    let counterparty: String?
+    /// 转到/来自的银行卡原文（如「招商银行(1234)」），用于判定是不是转给自己名下的卡
+    let counterpartyAccount: String?
+    /// 待对方收款/待你收款/红包未领完：照常记账，确认页提示「被退回记得删掉」
+    let awaitingReceipt: Bool
+
+    static let redPacketKind = "red_packet"
+    var isRedPacket: Bool { kind == Self.redPacketKind }
+
+    /// 待收款提示（确认页方向行与聊天提示共用一份文案）。东林 11-06 拍板：待收款照常记，被退回自己删
+    static func awaitingReceiptHint(isIncome: Bool) -> String {
+        isIncome
+            ? String(localized: "你还没收款，过期退回的话记得删掉这笔。")
+            : String(localized: "对方还没收款，被退回的话记得删掉这笔。")
     }
 }
 
@@ -369,7 +419,17 @@ final class HoloVisionExtractionService {
             )
         )
         let response: HoloVisionExtractionResponse = try await apiClient.send(request)
-        let understanding = response.understanding
+        var understanding = response.understanding
+        var guards = response.guards
+        // 客户端护栏（v4）：「转账」的对象是自己名下的卡 → 自己账户间挪钱，不记收支。
+        // 剔除必须可观测：追加 guard，部分剔除时快捷指令门禁据此转「识别结果有异常，请人工核对」
+        let removedOwnTransfers = understanding.removeOwnAccountTransfers {
+            FinanceTransactionDraftResolver.shared.isOwnAccount(cardText: $0)
+        }
+        if removedOwnTransfers > 0 {
+            guards = (guards ?? []) + [HoloVisionGuard(field: "transactions", reason: "own_account_transfer_removed")]
+            logger.info("Removed \(removedOwnTransfers) transfer(s) to the user's own card; imageType now \(understanding.imageType, privacy: .public)")
+        }
 
         let rejection = rejectionText(for: understanding)
         let hints = rejection == nil ? await duplicateHints(for: understanding) : []
@@ -380,7 +440,7 @@ final class HoloVisionExtractionService {
             rejectionText: rejection,
             duplicateHints: hints,
             matchedAccount: account,
-            guards: response.guards,
+            guards: guards,
             automationPolicy: response.automationPolicy
         )
     }
@@ -400,8 +460,15 @@ final class HoloVisionExtractionService {
         case HoloVisionUnderstanding.receipt, HoloVisionUnderstanding.paymentScreenshot:
             // 可记账图型但没有可解析的交易
             return String(localized: "图里像是消费凭证，但我没能可靠地认出金额。重新拍一张，或手动记一笔？")
-        case "transfer_screenshot":
-            return String(localized: "这是转账/还款类截图，属于资金流转，我不把它记成消费。")
+        case HoloVisionUnderstanding.personalTransfer:
+            // 转账/红包没有可记的交易（v4）：已退回/失败/取消说明原因；其余是没认出金额
+            if ReceiptBookingPolicy.transferNotCompletedStatuses.contains(understanding.paymentStatus ?? "") {
+                return String(localized: "这笔转账或红包已经退回、过期或没有完成，不用记账。")
+            }
+            return String(localized: "这张图我不太看得清金额，不敢替你记。重新拍一张清楚的，或者手动记一笔？")
+        case HoloVisionUnderstanding.transferScreenshot:
+            // v4 收窄为 B 类：自己账户之间挪钱（与他人之间的转账/红包已放行记账）
+            return String(localized: "这是还款、提现或理财这类资金挪动，不算收入也不算支出，我就不记了。")
         case "wealth_screenshot":
             return String(localized: "这是理财/余额页面，没有需要记的账。")
         case "list_note":
@@ -423,10 +490,18 @@ final class HoloVisionExtractionService {
             let direction = transaction.isIncome
                 ? String(localized: "收入")
                 : String(localized: "支出")
-            let merchant = transaction.note ?? understanding.merchant ?? understanding.summary
             var line = "\(index + 1). \(direction)¥\(formatAmount(transaction.amount))"
-            if let merchant, !merchant.isEmpty {
-                line += String(localized: "，商户「\(merchant)」")
+            if let transfer = transaction.transfer {
+                // 转账/红包：说清对方与方向，记账管道才会落到 转账/转入/红包 科目（而不是把人名当商户）
+                line += Self.transferPhrase(transfer, isIncome: transaction.isIncome, fallbackName: understanding.merchant)
+                if let note = transaction.note, !note.isEmpty {
+                    line += String(localized: "，说明「\(note)」")
+                }
+            } else {
+                let merchant = transaction.note ?? understanding.merchant ?? understanding.summary
+                if let merchant, !merchant.isEmpty {
+                    line += String(localized: "，商户「\(merchant)」")
+                }
             }
             if let date = transaction.date {
                 line += String(localized: "，日期 \(date)")
@@ -447,6 +522,17 @@ final class HoloVisionExtractionService {
             lines.append(String(localized: "用户附言：「\(caption)」"))
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// 转账/红包短语（第二段文字）：方向×类型四种说法；对方缺失时回落整单商户，再回落「对方」
+    static func transferPhrase(_ transfer: HoloVisionTransferInfo, isIncome: Bool, fallbackName: String?) -> String {
+        let name = transfer.counterparty ?? fallbackName ?? String(localized: "对方")
+        switch (transfer.isRedPacket, isIncome) {
+        case (false, false): return String(localized: "，转账给「\(name)」")
+        case (false, true): return String(localized: "，收到「\(name)」的转账")
+        case (true, false): return String(localized: "，发给「\(name)」的红包")
+        case (true, true): return String(localized: "，收到「\(name)」的红包")
+        }
     }
 
     private func formatAmount(_ amount: Double) -> String {

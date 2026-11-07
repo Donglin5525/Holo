@@ -455,6 +455,7 @@ final class ReceiptBookingCoordinator {
         guard let root = base?.appendingPathComponent("ReceiptBooking", isDirectory: true) else { return }
         try? fm.removeItem(at: root.appendingPathComponent("drafts/\(draftID.uuidString).json"))
         try? fm.removeItem(at: root.appendingPathComponent("evidence/\(draftID.uuidString).jpg"))
+        ReceiptBookingResultStore.notifyDraftsDidChange()
     }
 
     /// 文本金额 → Decimal（复核确认用；容忍「19.90」「¥19.90」「1,234.50」）
@@ -570,7 +571,10 @@ final class ReceiptBookingCoordinator {
                 categoryCandidate: tx.categoryCandidate,
                 normalizedCategoryCandidate: tx.normalizedCategoryCandidate,
                 semanticCategoryHint: tx.semanticCategoryHint,
-                reviewNotes: notes
+                reviewNotes: notes,
+                transferKind: tx.transfer?.kind,
+                transferCounterparty: tx.transfer?.counterparty,
+                transferAwaitingReceipt: tx.transfer?.awaitingReceipt ?? false
             )
         }
         return ReceiptReviewSnapshot(

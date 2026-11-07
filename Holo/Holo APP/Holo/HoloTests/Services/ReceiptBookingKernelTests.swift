@@ -135,6 +135,66 @@ final class ReceiptBookingKernelTests: XCTestCase {
         XCTAssertEqual(decision, .reject(.rejectForeignCurrency))
     }
 
+    // MARK: - 转账/红包（2026-11-06 截图记账开放转账与红包识别方案 §5.2）
+
+    func testPersonalTransferAlwaysNeedsReviewEvenWhenClean() {
+        // 方向认反账面差两倍金额：置信度再高也不自动写，两种模式都转确认页
+        let clean = makeInput(imageType: "personal_transfer")
+        XCTAssertEqual(ReceiptBookingPolicy.evaluate(input: clean, mode: .autoWhenSafe), .needsReview([.reviewTransferConfirm]))
+        XCTAssertEqual(ReceiptBookingPolicy.evaluate(input: clean, mode: .alwaysReview), .needsReview([.reviewTransferConfirm]),
+                       "干净转账也不能落进协调器「空原因→识别信息不完整」的注入")
+    }
+
+    func testTransferConfirmReasonGoesAfterSpecificReasons() {
+        XCTAssertEqual(
+            ReceiptBookingPolicy.evaluate(input: makeInput(imageType: "personal_transfer", guardsPresent: true), mode: .autoWhenSafe),
+            .needsReview([.reviewContractGuarded, .reviewTransferConfirm]),
+            "更具体的原因排前面，页面首条提示显示它"
+        )
+        let sentAndReceived = [
+            ReceiptBookingPolicyTransaction(amount: 200, typeIsIncome: false, confidenceAmount: 0.99, confidenceDirection: 0.99, confidencePaymentStatus: 0.99),
+            ReceiptBookingPolicyTransaction(amount: Decimal(string: "18.80")!, typeIsIncome: true, confidenceAmount: 0.99, confidenceDirection: 0.99, confidencePaymentStatus: 0.99),
+        ]
+        XCTAssertEqual(
+            ReceiptBookingPolicy.evaluate(input: makeInput(imageType: "personal_transfer", transactions: sentAndReceived), mode: .autoWhenSafe),
+            .needsReview([.reviewMultipleTransactions, .reviewTransferConfirm]),
+            "多笔转账同样带转账确认原因"
+        )
+    }
+
+    func testEmptyPersonalTransferRejectsByStatus() {
+        // 已退回/失败/取消：不得落成订单口径的「支付没有完成或已取消」
+        for status in ["refunded", "failed", "cancelled"] {
+            XCTAssertEqual(
+                ReceiptBookingPolicy.evaluate(input: makeInput(imageType: "personal_transfer", paymentStatus: status, transactions: []), mode: .autoWhenSafe),
+                .reject(.rejectTransferNotCompleted),
+                status
+            )
+        }
+        // 没退回却没交易 = 没认出金额（与小票同口径）
+        XCTAssertEqual(
+            ReceiptBookingPolicy.evaluate(input: makeInput(imageType: "personal_transfer", paymentStatus: "completed", transactions: []), mode: .autoWhenSafe),
+            .reject(.rejectInvalidImage)
+        )
+        // 自己账户间挪钱仍拦截
+        XCTAssertEqual(
+            ReceiptBookingPolicy.evaluate(input: makeInput(imageType: "transfer_screenshot", transactions: []), mode: .autoWhenSafe),
+            .reject(.rejectTransfer)
+        )
+    }
+
+    func testCardTailMatchingSharedRule() {
+        let context = CoreDataTestSupport.sharedTestContainer.viewContext
+        let merchantsCard = Account.create(in: context, name: "招商银行储蓄卡1234", type: AccountType.bank.rawValue)
+        let wechat = Account.create(in: context, name: "微信", type: AccountType.digital.rawValue)
+        let accounts = [wechat, merchantsCard]
+        XCTAssertEqual(FinanceTransactionDraftResolver.account(matchingCardTailIn: "招商银行(1234)", among: accounts)?.id, merchantsCard.id,
+                       "转给尾号命中自己账户的卡 = 自己账户间挪钱")
+        XCTAssertNil(FinanceTransactionDraftResolver.account(matchingCardTailIn: "工商银行(9999)", among: accounts))
+        XCTAssertNil(FinanceTransactionDraftResolver.account(matchingCardTailIn: "微信零钱", among: accounts), "无 4 位数字不按尾号匹配")
+        XCTAssertNil(FinanceTransactionDraftResolver.account(matchingCardTailIn: nil, among: accounts))
+    }
+
     func testBillableWithNoTransactionRejectsAsInvalidImage() {
         let decision = ReceiptBookingPolicy.evaluate(input: makeInput(transactions: []), mode: .autoWhenSafe)
         XCTAssertEqual(decision, .reject(.rejectInvalidImage))
@@ -357,7 +417,7 @@ final class ReceiptBookingKernelTests: XCTestCase {
         XCTAssertTrue(RecognizeAndBookReceiptIntent.text(for: booked).contains("已记"))
 
         let transfer = RecognizeAndBookReceiptIntent.text(for: .rejected(.rejectTransfer))
-        XCTAssertTrue(transfer.contains("转账"), "转账拦截必须说明资金流转")
+        XCTAssertTrue(transfer.contains("资金挪动"), "自己账户间挪钱的拦截必须说明不计收支")
 
         let failure = RecognizeAndBookReceiptIntent.text(for: .failed(ReceiptBookingFailure(
             reason: .failureNetwork, retryable: true, userMessage: "")))
@@ -416,6 +476,37 @@ final class ReceiptBookingKernelTests: XCTestCase {
         XCTAssertTrue(text.contains("254.77"), "同向多笔回执必须给合计")
     }
 
+    func testTransferReviewAndIncomeBatchTexts() {
+        // 转账确认原因的快捷指令回执不能落「这笔需要确认」兜底
+        let transferItem = ReceiptReviewItemSnapshot(
+            itemKey: "transaction:0", amountText: "200.00", typeIsIncome: false,
+            dateText: nil, note: "生活费", paymentChannel: "微信零钱", amountOriginalText: "¥200.00",
+            categoryCandidate: "王小明", normalizedCategoryCandidate: "生活费", semanticCategoryHint: "其他",
+            reviewNotes: [], transferKind: "transfer", transferCounterparty: "王小明", transferAwaitingReceipt: true
+        )
+        let single = RecognizeAndBookReceiptIntent.text(for: .needsReview(ReceiptReviewSnapshot(
+            draftID: UUID(), reasons: [.reviewTransferConfirm], items: [transferItem],
+            merchant: "王小明", paymentStatusOriginalText: nil, sourceKey: "k", createdAt: Date())))
+        XCTAssertTrue(single.contains("转账或红包"), "转账回执必须点明是转账/红包")
+
+        // 收红包也会多笔：合计文案方向跟着笔走，不能写死「支出」
+        let incomes = (0..<2).map { index in
+            ReceiptReviewItemSnapshot(
+                itemKey: "transaction:\(index)", amountText: index == 0 ? "8.88" : "10.00",
+                typeIsIncome: true, dateText: nil, note: nil, paymentChannel: nil,
+                amountOriginalText: nil, categoryCandidate: nil,
+                normalizedCategoryCandidate: nil, semanticCategoryHint: nil, reviewNotes: [],
+                transferKind: "red_packet"
+            )
+        }
+        let batch = RecognizeAndBookReceiptIntent.text(for: .needsReview(ReceiptReviewSnapshot(
+            draftID: UUID(), reasons: [.reviewMultipleTransactions, .reviewTransferConfirm], items: incomes,
+            merchant: nil, paymentStatusOriginalText: nil, sourceKey: "k", createdAt: Date())))
+        XCTAssertTrue(batch.contains("笔收入"), "全是收入时回执说收入")
+        XCTAssertTrue(batch.contains("18.88"))
+        XCTAssertFalse(batch.contains("支出"))
+    }
+
     // MARK: - 结果存储往返（§25.1）
 
     func testResultStoreDraftRoundtrip() async {
@@ -453,6 +544,92 @@ final class ReceiptBookingKernelTests: XCTestCase {
         ReceiptBookingResultStore.shared.purgeExpired(now: Date().addingTimeInterval(8 * 24 * 3600))
         let after = store.loadDrafts().first(where: { $0.id == draftID })
         XCTAssertNil(after, "过期清理必须移除草案")
+    }
+
+    func testResultStoreDraftKeepsTransferFields() async {
+        // 转账信息必须随草案落盘读回，确认页才能显示方向行与待收款提示
+        let store = ReceiptBookingResultStore.shared
+        let draftID = UUID()
+        let snapshot = ReceiptReviewSnapshot(
+            draftID: draftID, reasons: [.reviewTransferConfirm],
+            items: [
+                ReceiptReviewItemSnapshot(
+                    itemKey: "transaction:0", amountText: "200.00", typeIsIncome: false,
+                    dateText: "2026-11-02", note: "生活费", paymentChannel: "微信零钱",
+                    amountOriginalText: "¥200.00", categoryCandidate: "王小明",
+                    normalizedCategoryCandidate: "生活费", semanticCategoryHint: "其他", reviewNotes: [],
+                    transferKind: "transfer", transferCounterparty: "王小明", transferAwaitingReceipt: true
+                ),
+                ReceiptReviewItemSnapshot(
+                    itemKey: "transaction:1", amountText: "19.90", typeIsIncome: false,
+                    dateText: nil, note: nil, paymentChannel: nil, amountOriginalText: nil,
+                    categoryCandidate: nil, normalizedCategoryCandidate: nil, semanticCategoryHint: nil,
+                    reviewNotes: []
+                ),
+            ],
+            merchant: "王小明", paymentStatusOriginalText: "待王小明确认收款",
+            sourceKey: "vision:v2:transfer-test", createdAt: Date()
+        )
+        await store.saveReviewDraft(
+            snapshot: snapshot,
+            choices: (accountRaw: "account:auto", projectRaw: "project:none", modeRaw: "alwaysReview"),
+            sourceKey: "vision:v2:transfer-test",
+            itemKey: "transaction:0",
+            evidenceJPEG: nil
+        )
+        let items = store.loadDrafts().first(where: { $0.id == draftID })?.effectiveItems
+        XCTAssertEqual(items?.first?.transferKind, "transfer")
+        XCTAssertEqual(items?.first?.transferCounterparty, "王小明")
+        XCTAssertEqual(items?.first?.transferAwaitingReceipt, true)
+        XCTAssertNil(items?.last?.transferKind, "非转账笔不带转账信息")
+        XCTAssertNil(items?.last?.transferAwaitingReceipt)
+
+        ReceiptBookingResultStore.shared.purgeExpired(now: Date().addingTimeInterval(8 * 24 * 3600))
+    }
+
+    func testPreTransferDraftItemsDecodeWithoutTransferKeys() throws {
+        // 升级前存下的逐笔草案（v3 格式，items 无转账键）必须照常读出，转账字段为空
+        let json = """
+        {"itemKey":"transaction:0","amountText":"19.90","typeIsIncome":false,"dateText":null,"note":null,
+        "paymentChannel":"微信支付","amountOriginalText":"¥19.90","categoryCandidate":"瑞幸咖啡",
+        "normalizedCategoryCandidate":"咖啡","semanticCategoryHint":"餐饮","reviewNotes":[]}
+        """
+        let item = try JSONDecoder().decode(ReceiptBookingResultStore.StoredDraftItem.self, from: Data(json.utf8))
+        XCTAssertEqual(item.amountText, "19.90")
+        XCTAssertNil(item.transferKind)
+        XCTAssertNil(item.transferCounterparty)
+        XCTAssertNil(item.transferAwaitingReceipt)
+    }
+
+    func testDraftMutationsPostDraftsDidChangeForLedgerBadge() async {
+        // 红点残留根治（2026-11-07 东林实锤）：确认/删除可发生在财务模块层的复核页，
+        // 账本角标只能靠 draftsDidChange 通知刷新——草案增删必须发通知
+        let name = ReceiptBookingResultStore.draftsDidChange
+        let draftID = UUID()
+        let snapshot = ReceiptReviewSnapshot(
+            draftID: draftID, reasons: [],
+            items: [ReceiptReviewItemSnapshot(
+                itemKey: "transaction:0", amountText: "19.90", typeIsIncome: false,
+                dateText: nil, note: nil, paymentChannel: nil, amountOriginalText: nil,
+                categoryCandidate: nil, normalizedCategoryCandidate: nil, semanticCategoryHint: nil,
+                reviewNotes: []
+            )],
+            merchant: nil, paymentStatusOriginalText: nil,
+            sourceKey: "vision:v2:notify-test", createdAt: Date()
+        )
+        let saveExpectation = XCTNSNotificationExpectation(name: name)
+        await ReceiptBookingResultStore.shared.saveReviewDraft(
+            snapshot: snapshot,
+            choices: (accountRaw: "account:auto", projectRaw: "project:none", modeRaw: "alwaysReview"),
+            sourceKey: "vision:v2:notify-test",
+            itemKey: "transaction:0",
+            evidenceJPEG: nil
+        )
+        await fulfillment(of: [saveExpectation], timeout: 2, enforceOrder: false)
+
+        let discardExpectation = XCTNSNotificationExpectation(name: name)
+        ReceiptBookingCoordinator.discardDraftFiles(draftID: draftID)
+        await fulfillment(of: [discardExpectation], timeout: 2, enforceOrder: false)
     }
 
     // MARK: - 一图多笔（2026-09-19）

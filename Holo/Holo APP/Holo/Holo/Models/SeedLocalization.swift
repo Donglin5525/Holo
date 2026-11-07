@@ -119,6 +119,10 @@ nonisolated enum FinanceSeedVocabulary {
     static let investment = SeedTerm(hans: "投资", hant: "投資", english: "Investment")
     static let redEnvelope = SeedTerm(hans: "红包", hant: "紅包", english: "Red Envelope")
     static let transfer = SeedTerm(hans: "转账", hant: "轉帳", english: "Transfer")
+    /// 支出「人情」下的红包礼金 / 收入「人情来往」下的转入：截图记账转账/红包的默认科目
+    /// 按三语名兜底匹配（2026-11-06 转账开放方案 §2.3），故提为共享静态词
+    static let cashGifts = SeedTerm(hans: "红包礼金", hant: "紅包禮金", english: "Cash Gifts")
+    static let transferIn = SeedTerm(hans: "转入", hant: "轉入", english: "Transfer In")
 
     // ━━━━━━━━━━ 内置 catalog / 快速记账模板共用的二级科目 ━━━━━━━━━━
     static let breakfast = SeedTerm(hans: "早餐", hant: "早餐", english: "Breakfast")

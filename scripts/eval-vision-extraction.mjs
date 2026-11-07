@@ -2,12 +2,17 @@
 // 截图识别记账 · vision_extraction 模型选型评测（M0）
 // 用法（仓库根）: node scripts/eval-vision-extraction.mjs [--limit 6] [--models qwen,zhipu]
 //   [--model-qwen qwen-vl-max-latest] [--model-zhipu glm-4v-plus]
-// key/baseURL 从 HoloBackend/.env 读（QWEN_*/ZHIPU_*），不打印任何 key。
+// key/baseURL 从 HoloBackend/.env 读（QWEN_*/ZHIPU_*），缺文件时读进程环境变量（生产容器内运行），不打印任何 key。
 // 口径与期望结果: docs/holoai-audit/vision-eval/README.md + corpus/manifest.json
+// 2026-11-06 对齐生产（转账开放方案 §7.3）：消息拼装与护栏直接引用后端源码
+// （visionPromptParts 收尾提醒+附言行、understandingContract.normalizeUnderstanding），
+// 不再维护脚本内的护栏副本；以新版 App 口径评测（声明 personal_transfer 能力）。
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizeUnderstanding, UNDERSTANDING_SCHEMA_VERSION } from '../HoloBackend/src/vision/understandingContract.js';
+import { VISION_CLOSING_REMINDER, visionCaptionLine } from '../HoloBackend/src/vision/visionPromptParts.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const evalDir = path.join(repoRoot, 'docs/holoai-audit/vision-eval');
@@ -24,8 +29,10 @@ const limit = parseInt(arg('--limit', '0'), 10) || Infinity;
 const modelKeys = arg('--models', 'qwen,qwen-flash').split(',');
 
 function loadEnv() {
-  const out = {};
-  for (const line of fs.readFileSync(path.join(repoRoot, 'HoloBackend', '.env'), 'utf8').split('\n')) {
+  const envFile = path.join(repoRoot, 'HoloBackend', '.env');
+  if (!fs.existsSync(envFile)) return { ...process.env };
+  const out = { ...process.env };
+  for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
     const m = line.match(/^([A-Za-z0-9_]+)=(.*)$/);
     if (m) out[m[1]] = m[2].replace(/^["']|["']$/g, '').trim();
   }
@@ -42,12 +49,16 @@ const MODELS = {
     baseURL: qwenBase,
     key: qwenKey,
     model: arg('--model-qwen', 'qwen3-vl-plus'),
+    // 生产 2026-10-15 起识图走 qwen 通道（env HOLO_VISION_EXTRACTION_PROVIDER=qwen、MODEL=qwen3.7-flash、
+    // REASONING_EFFORT=none），provider 原样透传 reasoning_effort；评测同口径须带 --reasoning-effort none
+    reasoningEffort: arg('--reasoning-effort'),
   },
   'qwen-flash': {
     label: '通义千问 qwen-vl(普惠)',
     baseURL: qwenBase,
     key: qwenKey,
     model: arg('--model-flash', 'qwen3-vl-flash'),
+    reasoningEffort: arg('--reasoning-effort'),
   },
   zhipu: {
     label: '智谱 glm-4v',
@@ -56,12 +67,12 @@ const MODELS = {
     model: arg('--model-zhipu', 'glm-4v-plus'),
   },
   deepseek: {
-    label: 'DeepSeek v4 视觉',
+    label: 'DeepSeek 视觉（生产通道）',
     baseURL: env.DEEPSEEK_VISION_BASE_URL || env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
-    // 2026-09-09 生产换 deepseek-v4-flash-vision-exp 走独立钥匙通道（与主聊天隔离），
-    // 评测同口径优先读 DEEPSEEK_VISION_API_KEY
+    // 生产 deepseek-vision 通道走独立钥匙（与主聊天隔离），评测同口径优先读 DEEPSEEK_VISION_API_KEY
     key: process.env.DEEPSEEK_API_KEY_EVAL || env.DEEPSEEK_VISION_API_KEY || env.DEEPSEEK_API_KEY,
-    model: arg('--model-deepseek', 'deepseek-v4-flash-vision-exp'),
+    // 默认与生产 config.routes.vision_extraction.model 对齐（2026-10-09 正名 deepseek-flash）
+    model: arg('--model-deepseek', 'deepseek-flash'),
     reasoningEffort: arg('--reasoning-effort'),
   },
 };
@@ -136,8 +147,10 @@ async function callVision(cfg, b64) {
         ...(cfg.reasoningEffort ? { reasoning_effort: cfg.reasoningEffort } : {}),
         messages: [{
           role: 'user',
+          // 与生产 app.js 识图路由逐项同构：提示词+附言行 → 图后收尾提醒 → 图片
           content: [
-            { type: 'text', text: PROMPT },
+            { type: 'text', text: PROMPT + visionCaptionLine('') },
+            { type: 'text', text: VISION_CLOSING_REMINDER },
             { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } },
           ],
         }],
@@ -162,28 +175,13 @@ function extractJSON(text) {
 
 // ---------- 打分 ----------
 const near = (a, b) => Math.abs(a - b) < 0.005;
-// 生产管线同款确定性护栏：模型口头承诺 CNY 不可信，以「逐字抄录的金额原文」为准
-const FOREIGN_MONEY = /[$€£]|USD|EUR|GBP|JPY|HKD|NT\$/i;
-// 生产 understandingContract.js 同款 v2 支付状态护栏（pending/failed/cancelled 强制清空）
-const AUTO_INELIGIBLE_STATUS = new Set(['pending', 'failed', 'cancelled']);
-const STATUS_IMAGE_TYPE = { pending: 'pending_order', failed: 'unrelated', cancelled: 'unrelated' };
-function applyProductionGuard(p) {
-  const txt = String(p.amountOriginalText || '');
-  if ((p.transactions || []).length > 0 && FOREIGN_MONEY.test(txt)) {
-    p.transactions = [];
-    p.imageType = 'foreign_currency';
-    p.rejectReason = p.rejectReason || '检测到外币金额，暂不支持外币记账';
-    p.__guardApplied = true;
-    return p;
-  }
-  const status = typeof p.paymentStatus === 'string' ? p.paymentStatus.trim().toLowerCase() : '';
-  if ((p.transactions || []).length > 0 && AUTO_INELIGIBLE_STATUS.has(status)) {
-    p.transactions = [];
-    p.imageType = STATUS_IMAGE_TYPE[status];
-    p.rejectReason = p.rejectReason || `支付状态为 ${status}，不记账`;
-    p.__statusGuardApplied = true;
-  }
-  return p;
+// 生产护栏：直接用后端 normalizeUnderstanding（新版 App 口径：声明 personal_transfer 能力），
+// 打分对象就是客户端实际收到的理解单。guards 非空 = 护栏改写过（门禁仿真只能复核）。
+function applyProductionContract(raw) {
+  const { understanding, guards } = normalizeUnderstanding(raw, { allowPersonalTransfer: true });
+  understanding.__guardApplied = guards.length > 0;
+  understanding.__guards = guards;
+  return understanding;
 }
 function amountsMatch(exp, act) {
   if (exp.length !== act.length) return false;
@@ -199,13 +197,14 @@ function scoreOne(exp, p) {
   const txs = Array.isArray(p.transactions) ? p.transactions : [];
   const amounts = txs.map((t) => Math.abs(Number(t.amount) || 0));
   const notes = txs.map((t) => String(t.note || ''));
-  const merchantHay = [p.merchant, p.summary, ...notes].filter(Boolean).join(' | ');
-  const channelHay = [p.paymentChannel, p.summary, ...notes].filter(Boolean).join(' | ');
+  const counterparties = txs.map((t) => String(t.transfer?.counterparty || ''));
+  const merchantHay = [p.merchant, p.summary, ...notes, ...counterparties].filter(Boolean).join(' | ');
+  const channelHay = [p.paymentChannel, p.summary, ...notes, ...txs.map((t) => t.paymentChannel)].filter(Boolean).join(' | ');
   const it = String(p.imageType || '');
   const typeOK = exp.typeAnyOf ? exp.typeAnyOf.includes(it) : it === exp.type;
   const rejected = txs.length === 0;
 
-  const checks = { type: typeOK, reject: true, amounts: true, types: true, date: true, merchant: true, channel: true, paymentStatus: true };
+  const checks = { type: typeOK, reject: true, amounts: true, types: true, date: true, merchant: true, channel: true, paymentStatus: true, transfer: true };
   if (exp.reject) {
     checks.reject = rejected;
   } else if (rejected && exp.acceptRejectToo) {
@@ -224,6 +223,11 @@ function scoreOne(exp, p) {
     if (exp.paymentStatus) {
       checks.paymentStatus = String(p.paymentStatus || 'unknown') === exp.paymentStatus;
     }
+    // v4 转账：类型（transfer/red_packet）与待收款标记逐笔核对
+    if (exp.transferKind) {
+      checks.transfer = txs.length > 0 && txs.every((t) => t.transfer?.kind === exp.transferKind
+        && (exp.awaitingReceipt === undefined || t.transfer?.awaitingReceipt === exp.awaitingReceipt));
+    }
   }
   return { pass: Object.values(checks).every(Boolean), lenient: false, checks };
 }
@@ -238,7 +242,8 @@ function simulateGate(exp, p, threshold) {
   if (exp.acceptRejectToo && (p.transactions || []).length === 0) return 'rejected-lenient';
   const txs = Array.isArray(p.transactions) ? p.transactions : [];
   if (txs.length !== 1) return 'review'; // 多笔/零笔 → 复核或拒识
-  if (p.__guardApplied || p.__statusGuardApplied) return 'review'; // 护栏改写 → 只能复核
+  if (p.imageType === 'personal_transfer') return 'review'; // v4：转账/红包一律人工确认（ReceiptBookingPolicy）
+  if (p.__guardApplied) return 'review'; // 护栏改写 → 只能复核
   if (!['completed', 'refunded'].includes(String(p.paymentStatus || 'unknown'))) return 'review';
   const c = txs[0]?.confidence || {};
   const required = ['amount', 'direction', 'paymentStatus'];
@@ -326,7 +331,8 @@ for (const mk of modelKeys) {
     }
     const result = { file: item.file, usage, raw, parsed, error: err };
     if (parsed) {
-      applyProductionGuard(parsed);
+      parsed = applyProductionContract(parsed);
+      result.parsed = parsed;
       const s = scoreOne(item.expect, parsed);
       result.checks = s.checks;
       result.pass = s.pass;
@@ -359,12 +365,16 @@ for (const mk of modelKeys) {
   console.log(`商户准确: ${billableRows.filter((r) => r.checks?.merchant).length}/${billable.length}  通道准确: ${billableRows.filter((r) => r.checks?.channel).length}/${billable.length}`);
   console.log(`支付状态准确: ${billableRows.filter((r) => r.checks?.paymentStatus).length}/${billable.length}`);
   console.log(`【安全红线】资金流转拦截召回: ${interceptHit.length}/${interceptItems.length}  误拒(该记没记): ${falseRejects.length}/${billable.length}`);
+  // v4 转账红线：方向错一笔=账面差两倍金额，方向必须全对
+  const transferItems = manifest.filter((m) => m.expect.transferKind);
+  const transferRows = rows.filter((r) => transferItems.some((m) => m.file === r.file));
+  console.log(`【转账红线】方向全对: ${transferRows.filter((r) => r.checks?.types).length}/${transferItems.length}  类型+待收款标记: ${transferRows.filter((r) => r.checks?.transfer).length}/${transferItems.length}`);
   console.log(`tokens: prompt合计 ${promptTokens}, 单均 ${(promptTokens / Math.max(rows.length, 1)).toFixed(0)}, 总 ${tokens}`);
 
   // v2 门禁仿真：按候选阈值输出自动落账命中率与红线指标，供选阈值用（§28-M0.4）
   const gateSim = runGateSim(rows, manifest);
   printGateSim(gateSim);
 
-  fs.writeFileSync(path.join(resultsDir, `${cfg.model}.json`), JSON.stringify({ model: cfg.model, ranAt: new Date().toISOString(), promptSchemaVersion: 2, summary: { pass: scored.filter((r) => r.pass).length, total: manifest.length }, gateSim, rows }, null, 2));
+  fs.writeFileSync(path.join(resultsDir, `${cfg.model}.json`), JSON.stringify({ model: cfg.model, ranAt: new Date().toISOString(), promptSchemaVersion: UNDERSTANDING_SCHEMA_VERSION, summary: { pass: scored.filter((r) => r.pass).length, total: manifest.length }, gateSim, rows }, null, 2));
   console.log(`结果已写 results/${cfg.model}.json`);
 }

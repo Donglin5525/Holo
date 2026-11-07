@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 import os.log
 
 struct FinanceLedgerView: View {
@@ -267,6 +268,14 @@ struct FinanceLedgerView: View {
         .onAppear { refreshReceiptDraftCount() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { refreshReceiptDraftCount() }
+        }
+        // 草案目录一变就刷新：确认/删除可发生在财务模块层自动弹出的复核页，
+        // 本页没消失、自己的 sheet 也没动，onAppear/onDismiss 全错过（红点残留根治）
+        .onReceive(
+            NotificationCenter.default.publisher(for: ReceiptBookingResultStore.draftsDidChange)
+                .receive(on: RunLoop.main)
+        ) { _ in
+            refreshReceiptDraftCount()
         }
         // 复制交易日期选择
         .sheet(item: $copyingTransaction) { tx in

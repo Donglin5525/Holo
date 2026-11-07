@@ -77,8 +77,13 @@ enum ReceiptBookingReason: String, Sendable, Equatable, CaseIterable {
     case reviewContractGuarded = "review.contractGuarded"
     /// 旧契约（schemaVersion<2 或缺字段级置信度）：缺字段一律复核，不用整体 confidence 冒充
     case reviewLegacyContract = "review.legacyContract"
+    /// 转账/红包一律人工确认（2026-11-06 转账开放）：方向认反账面差两倍金额，必须过目
+    case reviewTransferConfirm = "review.transferConfirm"
     // ---- 拒绝类 ----
+    /// 自己账户之间挪钱（还款/提现/充值/理财申赎；v4 起与他人之间的转账/红包已放行）
     case rejectTransfer = "reject.transfer"
+    /// 转账/红包没成：已退回/已过期/失败（v4 personal_transfer 无可记交易）
+    case rejectTransferNotCompleted = "reject.transferNotCompleted"
     case rejectWealth = "reject.wealth"
     case rejectPending = "reject.pending"
     case rejectFailedPayment = "reject.failedPayment"
@@ -102,7 +107,9 @@ enum ReceiptBookingReason: String, Sendable, Equatable, CaseIterable {
     nonisolated var rejectionUserText: String {
         switch self {
         case .rejectTransfer:
-            return String(localized: "这是转账/还款，属于资金流转，不计入收支。")
+            return String(localized: "这是还款、提现或理财这类资金挪动，不计入收支。")
+        case .rejectTransferNotCompleted:
+            return String(localized: "这笔转账或红包已经退回、过期或没有完成，不用记账。")
         case .rejectWealth:
             return String(localized: "这是理财/余额页面，没有需要记的账。")
         case .rejectPending:
@@ -206,6 +213,10 @@ struct ReceiptReviewItemSnapshot: Sendable, Equatable {
     let semanticCategoryHint: String?
     /// 逐笔警示（金额/方向低置信等），确认页在该笔卡片上提示
     let reviewNotes: [ReceiptBookingReason]
+    // ---- v4 转账/红包（2026-11-06）：非转账为 nil/false；确认页据此显示方向行与待收款提示 ----
+    var transferKind: String? = nil
+    var transferCounterparty: String? = nil
+    var transferAwaitingReceipt = false
 }
 
 /// 待复核快照：一张图一个草案，内含全部待确认笔；只存必要纯值字段，

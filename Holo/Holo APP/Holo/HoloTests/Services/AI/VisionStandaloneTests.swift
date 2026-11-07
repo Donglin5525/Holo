@@ -107,7 +107,8 @@ final class VisionStandaloneTests: XCTestCase {
         """
         let rejection = HoloVisionExtractionService.shared.rejectionText(for: try decode(transfer).understanding)
         XCTAssertNotNil(rejection)
-        XCTAssertTrue(rejection?.contains("转账") == true, "转账截图必须拒识并说明资金流转")
+        // v4 起 transfer_screenshot 收窄为自己账户间挪钱（与他人之间的转账/红包另走 personal_transfer 记账）
+        XCTAssertTrue(rejection?.contains("资金挪动") == true, "自己账户间挪钱必须拒识并说明不算收支")
 
         let foreign = """
         {"ok":true,"understanding":{"imageType":"foreign_currency","confidence":0.9,"summary":null,"merchant":null,"paidAt":null,"paymentChannel":null,"amountOriginalText":"$14.47","items":[],"transactions":[],"rejectReason":null},"guards":[]}
@@ -130,6 +131,64 @@ final class VisionStandaloneTests: XCTestCase {
         """
         let rejection = HoloVisionExtractionService.shared.rejectionText(for: try decode(json).understanding)
         XCTAssertNotNil(rejection, "低置信红线：金额不确定必须拒识引导重拍")
+    }
+
+    // MARK: - 转账/红包（契约 v4，2026-11-06 开放 A 类）
+
+    private func makeTransfer(paymentStatus: String = "completed", transactionsJSON: String) throws -> HoloVisionUnderstanding {
+        let json = """
+        {"ok":true,"understanding":{"schemaVersion":4,"imageType":"personal_transfer","confidence":0.94,"paymentStatus":"\(paymentStatus)","summary":null,"merchant":"王小明","paidAt":"2026-11-02","paymentChannel":"微信零钱","currency":"CNY","amountOriginalText":"¥200.00","items":[],"transactions":\(transactionsJSON),"rejectReason":null},"guards":[]}
+        """
+        return try decode(json).understanding
+    }
+
+    @MainActor
+    func testStage2TextDescribesTransferCounterpartyAndNote() throws {
+        let understanding = try makeTransfer(transactionsJSON: """
+        [{"type":"expense","amount":200,"note":"生活费","date":"2026-11-02","transfer":{"kind":"transfer","counterparty":"王小明","counterpartyAccount":null,"awaitingReceipt":true}},
+         {"type":"income","amount":18.8,"note":null,"date":null,"transfer":{"kind":"red_packet","counterparty":"周婷","counterpartyAccount":null,"awaitingReceipt":false}}]
+        """)
+        XCTAssertTrue(understanding.isBillable)
+        let text = HoloVisionExtractionService.shared.stage2Text(for: understanding, caption: nil)
+        XCTAssertTrue(text.contains("转账给「王小明」"), "转出必须说清对方，记账管道才会落到转账科目")
+        XCTAssertTrue(text.contains("说明「生活费」"), "转账说明单独给出")
+        XCTAssertFalse(text.contains("商户「生活费」"), "旧拼法会把转账说明当商户、丢掉对方名")
+        XCTAssertTrue(text.contains("收到「周婷」的红包"), "收红包的方向与对方必须出现")
+    }
+
+    @MainActor
+    func testPersonalTransferWithoutTransactionsExplainsByStatus() throws {
+        let service = HoloVisionExtractionService.shared
+        let returned = try makeTransfer(paymentStatus: "refunded", transactionsJSON: "[]")
+        XCTAssertTrue(service.rejectionText(for: returned)?.contains("退回") == true, "已退回要说清楚，而不是「没找到能记的账」")
+        let unreadable = try makeTransfer(paymentStatus: "completed", transactionsJSON: "[]")
+        XCTAssertTrue(service.rejectionText(for: unreadable)?.contains("看得清金额") == true, "没退回却没交易 = 没认出金额")
+    }
+
+    @MainActor
+    func testOwnAccountTransfersAreRemovedAndAllOwnBecomesFundMove() throws {
+        let ownCard = #"{"type":"expense","amount":1000,"note":null,"date":null,"transfer":{"kind":"transfer","counterparty":"我","counterpartyAccount":"招商银行(1234)","awaitingReceipt":false}}"#
+        let toFriend = #"{"type":"expense","amount":200,"note":null,"date":null,"transfer":{"kind":"transfer","counterparty":"王小明","counterpartyAccount":null,"awaitingReceipt":false}}"#
+        let isOwn: (String?) -> Bool = { $0?.contains("1234") == true }
+
+        var mixed = try makeTransfer(transactionsJSON: "[\(ownCard),\(toFriend)]")
+        XCTAssertEqual(mixed.removeOwnAccountTransfers(isOwnAccount: isOwn), 1)
+        XCTAssertEqual(mixed.imageType, "personal_transfer", "还有真实转账时图型不变")
+        XCTAssertEqual(mixed.transactions.map(\.amount), [200])
+
+        var ownOnly = try makeTransfer(transactionsJSON: "[\(ownCard)]")
+        XCTAssertEqual(ownOnly.removeOwnAccountTransfers(isOwnAccount: isOwn), 1)
+        XCTAssertEqual(ownOnly.imageType, "transfer_screenshot", "全是转给自己 = 自己账户之间挪钱")
+        XCTAssertTrue(HoloVisionExtractionService.shared.rejectionText(for: ownOnly)?.contains("资金挪动") == true)
+
+        var receipt = try makeReceipt()
+        XCTAssertEqual(receipt.removeOwnAccountTransfers(isOwnAccount: { _ in true }), 0, "非转账图型不受影响")
+        XCTAssertEqual(receipt.transactions.count, 1)
+    }
+
+    func testAwaitingReceiptHintFollowsDirection() {
+        XCTAssertTrue(HoloVisionTransferInfo.awaitingReceiptHint(isIncome: false).contains("对方还没收款"))
+        XCTAssertTrue(HoloVisionTransferInfo.awaitingReceiptHint(isIncome: true).contains("你还没收款"))
     }
 }
 

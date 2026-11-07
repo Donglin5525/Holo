@@ -82,7 +82,10 @@ enum ReceiptBookingPolicy {
             if input.transactions.isEmpty {
                 return .reject(decideRejectForEmptyTransactions(input: input))
             }
-            return .needsReview([.reviewMultipleTransactions])
+            // 多笔转账/红包同样追加转账确认原因（排在多笔原因之后，页面首条仍是「多笔」说明）
+            return .needsReview(input.imageType == Self.personalTransferImageType
+                ? [.reviewMultipleTransactions, .reviewTransferConfirm]
+                : [.reviewMultipleTransactions])
         }
 
         // ---- 复核类（风险场景一律不自动写）----
@@ -162,6 +165,13 @@ enum ReceiptBookingPolicy {
             reasons.append(.reviewPossibleDuplicate)
         }
 
+        // 转账/红包一律人工确认（2026-11-06 转账开放方案 §5.2）：方向认反账面差两倍金额，
+        // 不论置信度多高都不自动写。原因排最后：页面首条优先显示更具体的原因（重复/方向不确定等）；
+        // 也让干净转账不落进协调器「空原因→识别信息不完整」的注入。
+        if input.imageType == Self.personalTransferImageType {
+            return .needsReview(reasons + [.reviewTransferConfirm])
+        }
+
         if reasons.isEmpty {
             return mode == .alwaysReview ? .needsReview([]) : .autoCommit
         }
@@ -170,10 +180,16 @@ enum ReceiptBookingPolicy {
 
     // MARK: - 图型与空交易的拒绝判定
 
+    /// 与他人之间的转账/红包（契约 v4，HoloVisionUnderstanding.personalTransfer 同值；本文件保持纯值不引服务层）
+    static let personalTransferImageType = "personal_transfer"
+    /// 转账/红包「没成」的支付状态（已退回/失败/取消）：后端清空交易并保留图型；
+    /// 聊天拒识文案与本门禁共用这一份口径
+    static let transferNotCompletedStatuses: Set<String> = ["refunded", "failed", "cancelled"]
+
     /// 可记账图型返回 nil；其余映射到稳定拒绝码
     private static func decideRejectForImageType(_ imageType: String) -> ReceiptBookingReason? {
         switch imageType {
-        case "receipt", "payment_screenshot":
+        case "receipt", "payment_screenshot", personalTransferImageType:
             return nil
         case "transfer_screenshot":
             return .rejectTransfer
@@ -192,6 +208,13 @@ enum ReceiptBookingPolicy {
 
     /// 交易数组为空：优先按支付状态给精确原因，其次按图型，兜底无法确认金额
     private static func decideRejectForEmptyTransactions(input: ReceiptBookingPolicyInput) -> ReceiptBookingReason {
+        // 转账/红包没成（已退回/过期/失败）：后端清空交易但保留图型，必须先于支付状态分支，
+        // 否则 cancelled/failed 会落成「支付没有完成或已取消」——那是订单的说法，不是转账的。
+        // 其余状态的空转账 = 没认出金额，走下方既有的「无法确认金额」口径
+        if input.imageType == personalTransferImageType,
+           transferNotCompletedStatuses.contains(input.paymentStatus ?? "") {
+            return .rejectTransferNotCompleted
+        }
         switch input.paymentStatus {
         case "pending":
             return .rejectPending

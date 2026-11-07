@@ -115,7 +115,12 @@ final class ReceiptBookingNotificationService {
             // 2026-09-19 一图多笔：一张确认卡承载全部笔，聚合一条通知不按笔轰炸
             if snapshot.items.count > 1 {
                 if let total = snapshot.uniformTotalAmountText {
-                    content.body = String(localized: "识别到 \(snapshot.items.count) 笔支出，共 ¥\(total)，点按逐笔确认。")
+                    // 合计只在全部同向时有值；收转账/收红包也会多笔，方向跟着笔走
+                    if snapshot.items.first?.typeIsIncome == true {
+                        content.body = String(localized: "识别到 \(snapshot.items.count) 笔收入，共 ¥\(total)，点按逐笔确认。")
+                    } else {
+                        content.body = String(localized: "识别到 \(snapshot.items.count) 笔支出，共 ¥\(total)，点按逐笔确认。")
+                    }
                 } else {
                     content.body = String(localized: "识别到 \(snapshot.items.count) 笔收支，点按逐笔确认。")
                 }

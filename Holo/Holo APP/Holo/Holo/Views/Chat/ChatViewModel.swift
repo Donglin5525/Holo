@@ -904,7 +904,13 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                 }
 
                 // 防重软提示（拍板 9：只提示不阻断），独立消息不入卡片流
-                for hint in preparation.duplicateHints {
+                // 待收款转账/红包（2026-11-06 东林拍板照常记，被退回自己删）同样走独立提示，同一说法只提示一次
+                var awaitingReceiptHints: [String] = []
+                for transaction in preparation.understanding.transactions where transaction.transfer?.awaitingReceipt == true {
+                    let hint = HoloVisionTransferInfo.awaitingReceiptHint(isIncome: transaction.isIncome)
+                    if !awaitingReceiptHints.contains(hint) { awaitingReceiptHints.append(hint) }
+                }
+                for hint in preparation.duplicateHints + awaitingReceiptHints {
                     _ = chatRepo.addMessage(role: "assistant", content: hint)
                 }
                 if let accountID = preparation.matchedAccountID {
