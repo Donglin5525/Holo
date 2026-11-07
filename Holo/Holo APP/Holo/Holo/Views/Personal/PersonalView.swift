@@ -21,6 +21,8 @@ struct PersonalView: View {
     let onOpenMemoryGallery: () -> Void
     let onOpenLinkedEntity: (DeepLinkTarget) -> Void
     @Binding var pendingGoalDetailId: UUID?
+    /// 每周回顾深链信号：置 true 时在个人页内 push 回顾页（推送点击进来时由 HomeView 驱动）
+    @Binding var pushWeeklyReviewOpen: Bool
 
     /// 自定义关闭动作（iPad v2 页面层传入：关层并把侧边栏切回「今天」）。
     /// 未传入（sheet / 主 tab 场景）时走系统 dismiss。
@@ -52,12 +54,14 @@ struct PersonalView: View {
         onOpenMemoryGallery: @escaping () -> Void,
         onOpenLinkedEntity: @escaping (DeepLinkTarget) -> Void,
         pendingGoalDetailId: Binding<UUID?> = .constant(nil),
+        pushWeeklyReviewOpen: Binding<Bool> = .constant(false),
         onClose: (() -> Void)? = nil
     ) {
         self.onPlanGoal = onPlanGoal
         self.onOpenMemoryGallery = onOpenMemoryGallery
         self.onOpenLinkedEntity = onOpenLinkedEntity
         self._pendingGoalDetailId = pendingGoalDetailId
+        self._pushWeeklyReviewOpen = pushWeeklyReviewOpen
         self.onClose = onClose
     }
 
@@ -137,6 +141,10 @@ struct PersonalView: View {
                     onOpenLinkedEntity: onOpenLinkedEntity,
                     pendingGoalDetailId: $pendingGoalDetailId
                 )
+            }
+            // 每周回顾深链：周四晚回顾推送点击 → 打开个人页并直达回顾页
+            .navigationDestination(isPresented: $pushWeeklyReviewOpen) {
+                WeeklyReviewView()
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -256,6 +264,17 @@ struct PersonalView: View {
                     entryLabel(icon: "leaf", title: "我的积累", subtitle: growthSummary)
                 }
                 .accessibilityIdentifier("personal.growth")
+
+                SettingsRowDivider()
+
+                // 每周回顾（2026-11-07 拍板）：本周足迹与上周同期对比，入口固定在
+                // 「我的内容」末行，不挤 Holo Plus 卡（恒最顶）也不动前三行顺序
+                NavigationLink {
+                    WeeklyReviewView()
+                } label: {
+                    entryLabel(icon: "calendar", title: "每周回顾", subtitle: String(localized: "本周足迹与上周对比"))
+                }
+                .accessibilityIdentifier("personal.weeklyReview")
             }
             .buttonStyle(.plain)
             .holoSurface()

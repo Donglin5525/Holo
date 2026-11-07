@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>每周回顾 · 交互原型 v1 定稿（拍板版）</title>
+</head>
+<body style="margin:0;">
+<div id="wr-proto" class="viz-dotted-background">
+<style>
+  #wr-proto, #wr-proto * { box-sizing:border-box; }
+  #wr-proto h1, #wr-proto ul, #wr-proto ol { margin:0; }
+  #wr-proto {
+    --bg:#FDFCF8; --card:#FFFFFF; --border:#E9E4DA; --border2:#D8CDBE;
+    --text:#333333; --sub:#6E6E6E; --faint:#9B9B9B;
+    --orange:#F46D38; --orange-deep:#C2410C; --orange-tint:rgba(244,109,56,.12);
+    --up:#166534; --up-bg:#DCFCE7;
+    --canvas:#EFEDE8; --cap-bg:#FFFFFF; --cap-border:#DDD8CC; --note:#D96A2B; --ab-bg:#F0EAE2; --ab-border:transparent;
+    --nav-line:rgba(0,0,0,.06); --hero-tint:#FFF8F2;
+    --pill-edge:#D8CDBE; --phone-edge:#E2DCD0; --ring-dash:#C9BFAE; --lock-card:#1C1C1E; --lock-line:#2E2E32;
+    font-family:-apple-system,"PingFang SC",sans-serif;
+    background:var(--canvas); border-radius:14px; padding:22px; color:var(--text);
+    transition:background .25s;
+  }
+  #wr-proto.dark {
+    --bg:#0E0E10; --card:#1A1A1C; --border:#2A2A2C; --border2:#4A4A50;
+    --text:#F5F5F4; --sub:#9B9B9B; --faint:#8A8A8E;
+    --orange:#F46D38; --orange-deep:#FFB38A; --orange-tint:rgba(244,109,56,.16);
+    --up:#86EFAC; --up-bg:rgba(34,197,94,.15);
+    --canvas:#17171A; --cap-bg:#232326; --cap-border:#343438; --note:#FFB38A; --ab-bg:#2E2E33; --ab-border:#3C3C42;
+    --nav-line:rgba(255,255,255,.07); --hero-tint:rgba(244,109,56,.09);
+    --pill-edge:#55555C; --phone-edge:#44444A; --ring-dash:#5A5A62; --lock-card:#1F1F22; --lock-line:#2E2E32;
+  }
+
+  /* 画布顶栏 */
+  .wr-top { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:20px; }
+  .wr-top h1 { font-size:17px; font-weight:600; }
+  .wr-top .hint { font-size:12px; color:var(--sub); margin-top:4px; }
+  .wr-theme-btn {
+    font:inherit; font-size:13px; font-weight:500; padding:7px 16px; border-radius:20px;
+    border:1px solid var(--cap-border); background:var(--cap-bg); color:var(--text);
+    display:flex; align-items:center; gap:6px;
+  }
+  .wr-theme-btn:hover { border-color:var(--orange); }
+  #wr-proto.dark .wr-theme-btn .on-light { display:none; }
+  #wr-proto:not(.dark) .wr-theme-btn .on-dark { display:none; }
+  #wr-proto .cursor-interaction { cursor:pointer; }
+
+  /* 行布局：手机 + 说明卡 */
+  .unit { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start; margin-bottom:30px; }
+  .phone {
+    width:390px; min-height:560px; flex-shrink:0; background:var(--bg); border-radius:30px; overflow:hidden;
+    box-shadow:0 10px 30px rgba(0,0,0,.25), 0 0 0 1.5px var(--phone-edge);
+    transition:background .25s;
+  }
+  .cap {
+    flex:1; min-width:270px; background:var(--cap-bg); border:1px solid var(--cap-border);
+    border-radius:14px; padding:14px 16px; font-size:12.5px; line-height:1.7; color:var(--sub);
+  }
+  .cap b { color:var(--note); font-weight:600; white-space:nowrap; }
+  .cap .cap-title { font-size:13.5px; font-weight:600; color:var(--text); margin-bottom:6px; }
+  .cap .ab { background:var(--ab-bg); border:.5px solid var(--ab-border); border-radius:9px; padding:9px 11px; margin-top:9px; }
+  .cap .ab .t { font-weight:600; color:var(--text); }
+  .cap ul { padding-left:16px; }
+
+  /* 手机屏内通用 */
+  .screen { padding:0 0 26px; }
+  .statusbar { height:46px; display:flex; align-items:flex-end; justify-content:space-between; padding:0 26px 5px; font-size:13px; font-weight:600; color:var(--text); }
+  .batt { display:flex; align-items:center; gap:4px; }
+  .batt .shell { display:inline-block; position:relative; width:23px; height:11px; border:1px solid var(--sub); border-radius:3px; padding:1.5px; }
+  .batt .shell::after { content:""; position:absolute; right:-3.5px; top:50%; transform:translateY(-50%); width:1.5px; height:4px; background:var(--sub); border-radius:0 1px 1px 0; }
+  .batt .core { display:block; width:70%; height:100%; background:var(--text); border-radius:1px; }
+  .navbar { display:flex; align-items:center; justify-content:space-between; padding:6px 14px 10px; border-bottom:.5px solid var(--nav-line); }
+  .navbar .back { font-size:24px; color:var(--orange); line-height:1; width:44px; }
+  .navbar .title { font-size:16px; font-weight:600; }
+  .navbar .spacer { width:44px; }
+  .screen-body { padding:16px 20px 6px; }
+
+  .card { background:var(--card); border:.5px solid var(--border); border-radius:16px; margin:0 0 14px; }
+
+  /* 主角卡 */
+  .hero { padding:18px 18px 16px; background:linear-gradient(160deg, var(--card) 55%, var(--hero-tint)); }
+  .hero .kicker { font-size:12px; color:var(--sub); letter-spacing:.3px; }
+  .hero .bignum-row { display:flex; align-items:baseline; gap:8px; margin-top:6px; }
+  .hero .bignum { font-size:46px; font-weight:700; letter-spacing:-1px; color:var(--text); font-variant-numeric:tabular-nums; }
+  .hero .unitword { font-size:15px; color:var(--sub); }
+  .hero .delta-line { margin-top:8px; font-size:13px; color:var(--sub); }
+  .pill-up { display:inline-block; background:var(--up-bg); color:var(--up); font-weight:600; border-radius:10px; padding:1px 8px; font-size:12px; }
+  .pill-flat, .pill-down { display:inline-block; color:var(--faint); border-radius:10px; padding:1px 8px; font-size:12px; border:.5px solid var(--pill-edge); }
+
+  /* 首周条幅 */
+  .firstweek { display:flex; align-items:center; gap:8px; margin-top:10px; background:var(--orange-tint); border-radius:10px; padding:8px 12px; font-size:12.5px; color:var(--orange-deep); font-weight:500; }
+
+  /* 足迹列表 */
+  .foot-rows { padding:4px 0; }
+  .frow { display:flex; align-items:center; gap:12px; padding:11px 16px; }
+  .frow + .frow { border-top:.5px solid var(--nav-line); }
+  .iconbox { width:38px; height:38px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; }
+  .frow .fl { flex:1; min-width:0; }
+  .frow .fl .t { font-size:15px; font-weight:500; color:var(--text); }
+  .frow .fl .s { font-size:12px; color:var(--faint); margin-top:1px; }
+  .frow .num { font-size:20px; font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; }
+  .frow .num small { font-size:12px; font-weight:400; color:var(--sub); margin-left:2px; }
+  .frow .mini-delta { margin-left:8px; min-width:36px; text-align:center; }
+  .frow .go { color:var(--faint); font-size:18px; margin-left:2px; }
+
+  /* 对比卡（B版） */
+  .cmp-head { display:flex; justify-content:space-between; align-items:baseline; padding:14px 16px 6px; }
+  .cmp-head .t { font-size:14px; font-weight:600; }
+  .cmp-head .r { font-size:12px; color:var(--faint); }
+  .crow { display:flex; align-items:center; gap:10px; padding:10px 16px; }
+  .crow + .crow { border-top:.5px solid var(--nav-line); }
+  .crow .lbl { flex:1; font-size:14px; color:var(--text); }
+  .crow .nums { display:flex; justify-content:flex-end; align-items:baseline; gap:4px; font-size:13px; color:var(--faint); font-variant-numeric:tabular-nums; min-width:104px; }
+  .crow .n-prev { display:inline-block; min-width:16px; text-align:right; }
+  .crow .n-cur { color:var(--text); font-size:14px; display:inline-block; min-width:22px; text-align:right; }
+  .pill-up, .pill-flat, .pill-down { min-width:36px; text-align:center; }
+  .crow .nums b { color:var(--text); font-size:14px; }
+  .crow .arrow { color:var(--faint); margin:0 3px; }
+  .crow .u { font-size:12px; color:var(--sub); }
+
+  /* 收尾文案 */
+  .closing { text-align:center; font-size:13px; color:var(--faint); padding:8px 24px 14px; line-height:1.7; }
+
+  /* 空态 */
+  .empty-wrap { text-align:center; padding:52px 30px 44px; }
+  .empty-ring { width:110px; height:110px; margin:0 auto 22px; border-radius:50%; border:1.5px dashed var(--ring-dash); display:flex; align-items:center; justify-content:center; position:relative; }
+  .empty-ring::after { content:""; position:absolute; width:10px; height:10px; border-radius:50%; background:var(--orange); box-shadow:0 0 18px 4px var(--orange-tint); }
+  .empty-title { font-size:17px; font-weight:600; color:var(--text); }
+  .empty-sub { font-size:13px; color:var(--sub); margin-top:8px; line-height:1.7; }
+  .empty-btn { margin-top:24px; display:inline-block; background:var(--orange); color:#fff; font-size:15px; font-weight:600; border-radius:24px; padding:12px 36px; }
+
+  /* 锁屏段（恒深色，不随主题） */
+  .lock { background:#000; color:#fff; padding-bottom:24px; }
+  .lock .statusbar { color:#fff; }
+  .lock .batt .shell { border-color:#fff; } .lock .batt .shell::after { background:#fff; } .lock .batt .core { background:#fff; }
+  .lock-date { text-align:center; margin-top:8px; font-size:14px; color:rgba(255,255,255,.75); }
+  .lock-time { text-align:center; font-size:62px; font-weight:600; letter-spacing:-1px; margin:0 0 26px; }
+  .notif { margin:0 12px; background:rgba(38,38,42,.92); border-radius:20px; padding:12px 14px; display:flex; gap:11px; }
+  .notif .appicon { width:38px; height:38px; border-radius:9px; flex-shrink:0; background:radial-gradient(circle at 35% 30%, #FFB38A 0%, #F46D38 45%, #C2410C 100%); box-shadow:0 0 12px rgba(244,109,56,.5); }
+  .notif .nc { flex:1; min-width:0; }
+  .notif .nhead { display:flex; justify-content:space-between; font-size:12px; color:rgba(255,255,255,.6); margin-bottom:3px; }
+  .notif .ntitle { font-size:14.5px; font-weight:600; }
+  .notif .nbody { font-size:13.5px; color:rgba(255,255,255,.85); margin-top:2px; line-height:1.5; }
+  .lock-hint { text-align:center; font-size:12px; color:rgba(255,255,255,.55); margin-top:14px; padding:0 24px; }
+  .sig { display:inline-flex; gap:2px; align-items:flex-end; height:10px; }
+  .sig i { width:3px; display:block; background:#fff; border-radius:1px; opacity:.95; }
+
+  /* 设置段（跟主题） */
+  .set-label { font-size:12px; color:var(--sub); padding:16px 22px 8px; }
+  .set-card { margin:0 20px; background:var(--card); border:.5px solid var(--border); border-radius:14px; overflow:hidden; }
+  .srow { display:flex; align-items:center; gap:12px; padding:12px 14px; }
+  .srow + .srow { border-top:.5px solid var(--nav-line); }
+  .srow .st { flex:1; } .srow .st .t { font-size:14.5px; font-weight:500; color:var(--text); } .srow .st .s { font-size:12px; color:var(--faint); margin-top:1px; }
+  .switch { width:48px; height:29px; border-radius:15px; background:var(--orange); position:relative; flex-shrink:0; }
+  .switch::after { content:""; position:absolute; right:2px; top:2px; width:25px; height:25px; border-radius:50%; background:#fff; }
+
+  /* 个人页 */
+  .p-avatar-row { display:flex; align-items:center; gap:14px; padding:14px 20px 16px; }
+  .p-avatar { width:56px; height:56px; border-radius:50%; background:linear-gradient(135deg,#FFD9C2,#F46D38); display:flex; align-items:center; justify-content:center; font-size:24px; }
+  .p-name { font-size:19px; font-weight:700; }
+  .p-sub { font-size:12px; color:var(--faint); margin-top:2px; }
+  .plus-card { margin:0 20px 18px; border-radius:16px; padding:14px 16px; background:linear-gradient(120deg, rgba(212,175,55,.16), rgba(212,175,55,.05)); border:1px solid rgba(212,175,55,.65); display:flex; align-items:center; gap:12px; }
+  .plus-card .emblem { font-size:24px; }
+  .plus-card .pt { font-size:15px; font-weight:700; letter-spacing:.4px; }
+  .plus-card .ps { font-size:11.5px; color:var(--sub); margin-top:2px; }
+  .plus-card .chev { margin-left:auto; color:var(--faint); font-size:18px; }
+  .sec-label { font-size:12px; color:var(--sub); padding:2px 22px 8px; }
+  .p-list { margin:0 20px 18px; background:var(--card); border:.5px solid var(--border); border-radius:14px; overflow:hidden; }
+  .new-badge { background:var(--orange); color:#fff; font-size:10px; font-weight:700; border-radius:8px; padding:2px 7px; margin-left:8px; letter-spacing:.5px; vertical-align:2px; }
+  .p-list .frow.is-new { background:var(--orange-tint); }
+  .p-more { text-align:center; color:var(--faint); font-size:12px; padding:2px 0 4px; }
+
+  /* 底部拍板汇总 */
+  .verdict { background:var(--cap-bg); border:1px solid var(--cap-border); border-radius:14px; padding:16px 20px; font-size:13px; line-height:1.9; color:var(--sub); max-width:820px; }
+  .verdict .cap-title { font-size:14px; font-weight:600; color:var(--text); margin-bottom:6px; }
+  .verdict ol { padding-left:22px; }
+  .verdict b { color:var(--note); }
+</style>
+
+<div class="wr-top">
+  <div>
+    <h1>每周回顾 · 交互原型 v1（待拍板）</h1>
+    <div class="hint">定稿 v2（已拍板）· 四屏状态 + 通知 + 入口 · 识图已并入记账 · 右上角切换深浅色</div>
+  </div>
+  <button class="wr-theme-btn cursor-interaction" id="wr-theme-btn" type="button"><span class="on-light">🌙 切深色</span><span class="on-dark">☀️ 切浅色</span></button>
+</div>
+
+<!-- 屏 1A：标准态 · 融合版 -->
+<div class="unit">
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>9:41</span><span class="batt"><span class="shell"><span class="core"></span></span></span></div>
+    <div class="navbar"><span class="back">‹</span><span class="title">每周回顾</span><span class="spacer"></span></div>
+    <div class="screen-body">
+      <div class="card hero">
+        <div class="kicker">本周足迹 · 11.02 – 11.08</div>
+        <div class="bignum-row"><span class="bignum">25</span><span class="unitword">条</span></div>
+        <div class="delta-line">记账·想法·任务合计，比上周多 <span class="pill-up">+4</span></div>
+      </div>
+      <div class="card foot-rows">
+        <div class="frow"><div class="iconbox" style="background:var(--orange-tint);">💰</div><div class="fl"><div class="t">记账</div><div class="s">本周新增流水 · 含识图</div></div><span class="num">12<small>笔</small></span><span class="pill-up mini-delta">+3</span></div>
+        <div class="frow"><div class="iconbox" style="background:rgba(234,179,8,.22);">💡</div><div class="fl"><div class="t">想法</div><div class="s">本周新建</div></div><span class="num">5<small>条</small></span><span class="pill-down mini-delta">−1</span></div>
+        <div class="frow"><div class="iconbox" style="background:rgba(34,197,94,.13);">✅</div><div class="fl"><div class="t">完成任务</div><div class="s">本周完成</div></div><span class="num">8<small>个</small></span><span class="pill-up mini-delta">+2</span></div>
+        <div class="frow"><div class="iconbox" style="background:rgba(239,68,68,.12);">🔥</div><div class="fl"><div class="t">习惯打卡</div><div class="s">本周打卡天数</div></div><span class="num">5<small>天</small></span><span class="pill-up mini-delta">+1</span></div>
+      </div>
+      <div class="closing">你写下的一笔一画，Holo 都替你收着</div>
+    </div>
+  </div></div>
+  <div class="cap">
+    <div class="cap-title">屏 1A · 标准态「融合版」（已拍板）</div>
+    四项足迹一行一项，涨跌胶囊直接跟在数字后面；<b>总量做成主角卡</b>，口径直接写在副句里，用户看得懂。一屏走完。
+    <div class="ab">总量口径 = 记账（含识图）+ 想法 + 任务（12+5+8=25）：<b>打卡天数</b>不是记录，不计入；识图入账即流水，天然并入记账。数字为 0 的行照常显示，骨架稳定。降与持平的副句：比上周少 N 条 / 与上周持平。对比口径用<b>同期比</b>（上周同一时刻 vs 现在，周四看 4 天比 4 天）。</div>
+  </div>
+</div>
+</div>
+
+<!-- 屏 1B：标准态 · 分卡版 -->
+<div class="unit">
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>9:41</span><span class="batt"><span class="shell"><span class="core"></span></span></span></div>
+    <div class="navbar"><span class="back">‹</span><span class="title">每周回顾</span><span class="spacer"></span></div>
+    <div class="screen-body">
+      <div class="card hero">
+        <div class="kicker">本周足迹 · 11.02 – 11.08</div>
+        <div class="bignum-row"><span class="bignum">25</span><span class="unitword">条</span></div>
+        <div class="delta-line">记账·想法·任务合计，比上周多 <span class="pill-up">+4</span></div>
+      </div>
+      <div class="card foot-rows">
+        <div class="frow"><div class="iconbox" style="background:var(--orange-tint);">💰</div><div class="fl"><div class="t">记账</div></div><span class="num">12<small>笔</small></span></div>
+        <div class="frow"><div class="iconbox" style="background:rgba(234,179,8,.22);">💡</div><div class="fl"><div class="t">想法</div></div><span class="num">5<small>条</small></span></div>
+        <div class="frow"><div class="iconbox" style="background:rgba(34,197,94,.13);">✅</div><div class="fl"><div class="t">完成任务</div></div><span class="num">8<small>个</small></span></div>
+        <div class="frow"><div class="iconbox" style="background:rgba(239,68,68,.12);">🔥</div><div class="fl"><div class="t">习惯打卡</div></div><span class="num">5<small>天</small></span></div>
+      </div>
+      <div class="card">
+        <div class="cmp-head"><span class="t">与上周</span><span class="r">10.26 – 11.01</span></div>
+        <div class="crow"><span class="lbl">记账</span><span class="nums"><span class="n-prev">9</span><span class="arrow">→</span><b class="n-cur">12</b><span class="u">笔</span></span><span class="pill-up">+3</span></div>
+        <div class="crow"><span class="lbl">想法</span><span class="nums"><span class="n-prev">6</span><span class="arrow">→</span><b class="n-cur">5</b><span class="u">条</span></span><span class="pill-down">−1</span></div>
+        <div class="crow"><span class="lbl">完成任务</span><span class="nums"><span class="n-prev">6</span><span class="arrow">→</span><b class="n-cur">8</b><span class="u">个</span></span><span class="pill-up">+2</span></div>
+        <div class="crow"><span class="lbl">习惯打卡</span><span class="nums"><span class="n-prev">4</span><span class="arrow">→</span><b class="n-cur">5</b><span class="u">天</span></span><span class="pill-up">+1</span></div>
+      </div>
+      <div class="closing">你写下的一笔一画，Holo 都替你收着</div>
+    </div>
+  </div></div>
+  <div class="cap">
+    <div class="cap-title">屏 1B · 标准态「分卡版」</div>
+    足迹卡只放本周数字，「与上周」独立成卡：逐项 <b>上周 → 本周</b>，涨绿、降灰（降不惩罚，只陈述）。
+    <div class="ab">涨跌只在<b>有上周数据</b>时出现，持平与下降<span style="white-space:nowrap">为灰色。</span></div>
+  </div>
+</div>
+
+<!-- 屏 2：首周态 -->
+<div class="unit">
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>9:41</span><span class="batt"><span class="shell"><span class="core"></span></span></span></div>
+    <div class="navbar"><span class="back">‹</span><span class="title">每周回顾</span><span class="spacer"></span></div>
+    <div class="screen-body">
+      <div class="card hero">
+        <div class="kicker">本周足迹 · 11.02 – 11.08</div>
+        <div class="bignum-row"><span class="bignum">6</span><span class="unitword">条</span></div>
+        <div class="firstweek">🌱 这是你的第一份周回顾</div>
+      </div>
+      <div class="card foot-rows">
+        <div class="frow"><div class="iconbox" style="background:var(--orange-tint);">💰</div><div class="fl"><div class="t">记账</div></div><span class="num">3<small>笔</small></span></div>
+        <div class="frow"><div class="iconbox" style="background:rgba(234,179,8,.22);">💡</div><div class="fl"><div class="t">想法</div></div><span class="num">2<small>条</small></span></div>
+        <div class="frow"><div class="iconbox" style="background:rgba(34,197,94,.13);">✅</div><div class="fl"><div class="t">完成任务</div></div><span class="num">1<small>个</small></span></div>
+        <div class="frow"><div class="iconbox" style="background:rgba(239,68,68,.12);">🔥</div><div class="fl"><div class="t">习惯打卡</div></div><span class="num">2<small>天</small></span></div>
+      </div>
+      <div class="closing">下一周，这里会再长出一页</div>
+    </div>
+  </div></div>
+  <div class="cap">
+    <div class="cap-title">屏 2 · 新用户首周（没有上周数据）</div>
+    对比整体不出现，主角卡换上 <b>🌱 首周条幅</b>「这是你的第一份周回顾」；数字样例换小（新用户真实量级）。收尾换成「下一页」的期待感文案。
+    <div class="ab">两条文案均为<b>采用案</b>（不是二选一）：条幅用于主角卡，收尾句用于页底。</div>
+  </div>
+</div>
+
+<!-- 屏 3：空态召唤页 -->
+<div class="unit">
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>9:41</span><span class="batt"><span class="shell"><span class="core"></span></span></span></div>
+    <div class="navbar"><span class="back">‹</span><span class="title">每周回顾</span><span class="spacer"></span></div>
+    <div class="empty-wrap">
+      <div class="empty-ring"></div>
+      <div class="empty-title">本周还没有足迹</div>
+      <div class="empty-sub">现在开始记录，积攒属于你的人生数据库。<br>本周一以来的记录，都会出现在这里。</div>
+    </div>
+  </div></div>
+  <div class="cap">
+    <div class="cap-title">屏 3 · 本周零记录（主动点进来，已拍板）</div>
+    做成<b>召唤页</b>而不是空白页：不设行动按钮——此刻用户不知道该记财务还是想法，按钮反而替他做了错决定；让文案完成柔性引导。副句文案待东林定稿（候选见交付说明）。
+    <div class="ab">按拍板口径：零记录用户<b>不会收到周四推送</b>，只有主动进来才会看到这页。</div>
+  </div>
+</div>
+
+<!-- 屏 4：周四晚通知 + 通知设置 -->
+<div class="unit">
+  <div class="phone"><div class="screen">
+    <div class="lock">
+      <div class="statusbar"><span class="sig"><i style="height:4px"></i><i style="height:6px"></i><i style="height:8px"></i><i style="height:10px"></i></span><span class="batt"><span class="shell"><span class="core"></span></span></span></div>
+      <div class="lock-date">11月5日 星期四</div>
+      <div class="lock-time">20:30</div>
+      <div class="notif">
+        <div class="appicon"></div>
+        <div class="nc">
+          <div class="nhead"><span>HOLO</span><span>现在</span></div>
+          <div class="ntitle">你的本周回顾已生成</div>
+          <div class="nbody">这一周你留下的痕迹，都帮你整理好了</div>
+        </div>
+      </div>
+      <div class="lock-hint">点击通知 → 冷启动直达回顾页（屏 1）</div>
+    </div>
+    <div class="set-label">设置 · 通知（解锁后，跟深浅色）</div>
+    <div class="set-card">
+      <div class="srow"><div class="iconbox" style="background:rgba(244,109,56,.14);">🏁</div><div class="st"><div class="t">周一晨报</div><div class="s">周一 8:30 · 已有</div></div><span class="switch"></span></div>
+      <div class="srow"><div class="iconbox" style="background:rgba(244,109,56,.14);">🗓️</div><div class="st"><div class="t">每周回顾</div><div class="s">周四 20:30 · 新增</div></div><span class="switch"></span></div>
+    </div>
+  </div></div>
+  <div class="cap">
+    <div class="cap-title">屏 4 · 周四晚通知 + 通知设置</div>
+    上半段锁屏（通知恒为系统深色样式）；下半段是解锁后的通知设置页：与「周一晨报」并排、<b>独立开关</b>（默认开，可关可改时间）。
+    <div class="ab"><span class="t">文案甲（本屏）</span>：你的本周回顾已生成 / 这一周你留下的痕迹，都帮你整理好了<br><span class="t">文案乙</span>：本周回顾 · 还有 3 天 / 这一周记下的，都在这里了<br><span class="t">时间</span>：20:30（默认）/ 21:00 / 21:30，待拍板<br>通知文案<b>不带具体数字</b>（内容在最后一次打开 App 时定死，数字会失真）。</div>
+  </div>
+</div>
+
+<!-- 屏 5：个人页入口 -->
+<div class="unit">
+  <div class="phone"><div class="screen">
+    <div class="statusbar"><span>9:41</span><span class="batt"><span class="shell"><span class="core"></span></span></span></div>
+    <div class="p-avatar-row">
+      <div class="p-avatar">🙂</div>
+      <div><div class="p-name">东林</div><div class="p-sub">已记录 128 天</div></div>
+    </div>
+    <div class="plus-card">
+      <span class="emblem">👑</span>
+      <div><div class="pt">Holo Plus</div><div class="ps">会员中心 · 专属能力</div></div>
+      <span class="chev">›</span>
+    </div>
+    <div class="sec-label">我的内容</div>
+    <div class="p-list">
+      <div class="frow"><div class="iconbox" style="background:rgba(59,130,246,.13);">🎯</div><div class="fl"><div class="t">我的目标</div><div class="s">查看目标与进展</div></div><span class="go">›</span></div>
+      <div class="frow"><div class="iconbox" style="background:rgba(147,197,253,.14);">🧠</div><div class="fl"><div class="t">Holo 记住的你</div><div class="s">记忆中心</div></div><span class="go">›</span></div>
+      <div class="frow"><div class="iconbox" style="background:rgba(34,197,94,.13);">🍃</div><div class="fl"><div class="t">我的积累</div><div class="s">已记录 128 天 · 查看里程碑</div></div><span class="go">›</span></div>
+      <div class="frow is-new"><div class="iconbox" style="background:rgba(244,109,56,.2);">🗓️</div><div class="fl"><div class="t">每周回顾<span class="new-badge">NEW</span></div><div class="s">本周足迹与上周对比</div></div><span class="go">›</span></div>
+    </div>
+    <div class="sec-label">让 Holo 了解你</div>
+    <div class="p-list" style="margin-bottom:8px;">
+      <div class="frow"><div class="iconbox" style="background:rgba(29,78,216,.12);">🪪</div><div class="fl"><div class="t">个人档案</div></div><span class="go">›</span></div>
+    </div>
+    <div class="p-more">⋯ 以下原有区块保持不动</div>
+  </div></div>
+  <div class="cap">
+    <div class="cap-title">屏 5 · 入口位置（个人页）</div>
+    首页一根毫毛不动。Holo Plus 卡<b>恒最顶</b>（现有金色会员卡，样式不动，此处示意）；新入口加在「我的内容」区内，现有三行顺序不动，新行以浅橙底 + NEW 标识。
+    <div class="ab"><span class="t">位置 A（本屏）</span>：「我的内容」<b>末行</b>——最保守，不打扰现有动线<br><span class="t">位置 B</span>：「我的内容」<b>首行</b>——更醒目，钩子价值更大<br>两案都不碰 Plus 卡与「让 Holo 了解你」区。</div>
+  </div>
+</div>
+
+<!-- 拍板汇总 -->
+<div class="verdict">
+  <div class="cap-title">拍板结果（11-07 东林已定，屏 1B 仅留作对照不再实施）</div>
+  <ol>
+    <li><b>版式</b>：A 融合版（屏 1A）</li>
+    <li><b>入口</b>：个人页「我的内容」末行</li>
+    <li><b>推送</b>：周四 20:30 · 文案甲</li>
+    <li><b>首周条幅 + 收尾文案</b>：可用</li>
+    <li><b>与周一晨报</b>：一期并存</li>
+    <li><b>识图</b>：并入记账，不再单列（足迹四项）</li>
+    <li><b>空态</b>：不设行动按钮，文案走「人生数据库」方向（文案待定稿）</li>
+    <li><b>对比口径</b>：同期比（上周同一时刻 vs 现在，成本与整周比相同、更公平）</li>
+    <li><b>只打卡用户</b>：接受主数字为 0，打卡天数在列表可见</li>
+  </ol>
+</div>
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('wr-proto');
+  if (!root) return;
+  var btn = root.querySelector('#wr-theme-btn');
+  function apply(theme) {
+    root.classList.toggle('dark', theme === 'dark');
+    if (btn) btn.textContent = theme === 'dark' ? '☀️ 切浅色' : '🌙 切深色';
+  }
+  var saved = 'light';
+  try {
+    var ws = window.zcode && window.zcode.widgetState;
+    if (ws && ws.privateContent && ws.privateContent.theme) saved = ws.privateContent.theme;
+  } catch (e) {}
+  apply(saved);
+  if (btn) btn.addEventListener('click', function () {
+    var next = root.classList.contains('dark') ? 'light' : 'dark';
+    apply(next);
+    try {
+      if (window.zcode && window.zcode.setWidgetState) {
+        window.zcode.setWidgetState({ privateContent: { theme: next } }).catch(function () {});
+      }
+    } catch (e) {}
+  });
+})();
+</script>
+
+</body>
+</html>

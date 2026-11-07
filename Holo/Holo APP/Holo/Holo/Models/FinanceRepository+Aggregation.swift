@@ -97,6 +97,17 @@ extension FinanceRepository {
         return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
 
+    /// 统计口径基础谓词（半开区间 + 已发生 + 排对账调整 + 排软删）：
+    /// getStatisticsTransactions 与 getStatisticsTransactionCount 共用，改口径只动这一处。
+    private static func statisticsBasePredicate(from startDate: Date, to endDate: Date) -> [NSPredicate] {
+        [
+            NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(),
+            FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate(),
+            NSPredicate(format: "deletedAt == nil")
+        ]
+    }
+
     /// 获取指定时间范围内的统计交易——收支统计口径，排除对账调整流水
     /// （调整流水参与余额计算但不属于真实消费；所有汇总/聚合/预算/AI 统计取数必须走这个入口，
     ///  详见 docs/finance/plans/余额对账功能方案.md §2.2/§4.4）
@@ -106,15 +117,20 @@ extension FinanceRepository {
         scope: StatisticsScope = .all
     ) async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate),
-            FinanceTransactionOccurrencePolicy.occurredPredicate(),
-            FinanceTransactionOccurrencePolicy.reconciliationExclusionPredicate(),
-            NSPredicate(format: "deletedAt == nil")
-        ] + scope.predicates)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates:
+            Self.statisticsBasePredicate(from: startDate, to: endDate) + scope.predicates)
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
         request.relationshipKeyPathsForPrefetching = ["category", "account"]
         return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
+    }
+
+    /// 统计口径交易计数（同步轻量版，与 getStatisticsTransactions 同谓词同去重）：
+    /// 周回顾足迹聚合等「只要条数不要实体」的调用方用，不预取关系、不拉对象图。
+    func getStatisticsTransactionCount(from startDate: Date, to endDate: Date) -> Int {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates:
+            Self.statisticsBasePredicate(from: startDate, to: endDate))
+        return DuplicateRowFilter.deduplicatingCopies((try? context.fetch(request)) ?? []).count
     }
 
     /// 获取某月的统计交易（getStatisticsTransactions(from:to:) 的自然月便捷版）

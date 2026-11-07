@@ -88,6 +88,8 @@ struct HomeView: View {
     @State private var showDailyKanban: Bool = false
     /// 周一晨报入口信号：点通知打开看板时置 true，让看板顶部展示上周小结卡
     @State private var showWeeklyBriefCard: Bool = false
+    /// 每周回顾入口信号：点通知打开个人页并 push 回顾页
+    @State private var pushWeeklyReviewOpen: Bool = false
 
     /// AI 对话页面的预填文本
     @State private var chatPrefillText: String?
@@ -255,6 +257,7 @@ struct HomeView: View {
                         }
                     },
                     pendingGoalDetailId: $pendingGoalDetailId,
+                    pushWeeklyReviewOpen: $pushWeeklyReviewOpen,
                     onClose: { sidebarSelection = .today }
                 )
                 .holoContentColumn(paintsBackground: false)
@@ -523,7 +526,7 @@ struct HomeView: View {
                     DispatchQueue.main.async {
                         DeepLinkState.shared.navigate(to: target)
                     }
-                }, pendingGoalDetailId: $pendingGoalDetailId)
+                }, pendingGoalDetailId: $pendingGoalDetailId, pushWeeklyReviewOpen: $pushWeeklyReviewOpen)
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
             }
         }
@@ -1469,6 +1472,11 @@ struct HomeView: View {
             // 晨报点开直达今日看板：顶部展示上周小结卡（拍板：复用看板，不新建晨报页）
             showWeeklyBriefCard = true
             showDailyKanban = true
+            deepLinkState.pendingTarget = nil
+        case .weeklyReview:
+            // 周回顾点开直达个人页 → 每周回顾页（push 信号由 PersonalView 的 navigationDestination 消费）
+            pushWeeklyReviewOpen = true
+            showPersonalView = true
             deepLinkState.pendingTarget = nil
         case .finance:
             pendingFinanceAnalysisDeepLink = nil

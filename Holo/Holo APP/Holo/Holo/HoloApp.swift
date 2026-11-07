@@ -232,6 +232,8 @@ struct HoloApp: App {
                 // 习惯打卡提醒 + 周一晨报：滚动重排
                 await HabitReminderScheduler.shared.handleAppActivity()
                 await WeeklyBriefScheduler.shared.handleAppActivity()
+                // 每周回顾：周四晚本地通知（有本周足迹才排）
+                await WeeklyReviewScheduler.shared.handleAppActivity()
                 // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
                 await BillDueReminderScheduler.shared.handleAppActivity()
                 await BudgetOverrunNotificationService.shared.handleAppActivity()
@@ -406,6 +408,7 @@ struct HoloApp: App {
                         await DailyBriefScheduler.shared.handleAppActivity()
                         await HabitReminderScheduler.shared.handleAppActivity()
                         await WeeklyBriefScheduler.shared.handleAppActivity()
+                        await WeeklyReviewScheduler.shared.handleAppActivity()
                         // 财务提醒：周期账单到期（Plus）+ 预算超支检查 + 严格模式结转回执排期
                         await BillDueReminderScheduler.shared.handleAppActivity()
                         await BudgetOverrunNotificationService.shared.handleAppActivity()

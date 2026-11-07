@@ -45,6 +45,7 @@ struct NotificationSettingsView: View {
     @State private var dailyEnabled = false
     @State private var habitEnabled = false
     @State private var weeklyEnabled = false
+    @State private var weeklyReviewEnabled = false
     @State private var billEnabled = false
     @State private var budgetEnabled = false
 
@@ -80,6 +81,7 @@ struct NotificationSettingsView: View {
                             dailyRow
                             habitRow
                             weeklyRow
+                            weeklyReviewRow
                             insightRow
                         }
 
@@ -239,6 +241,7 @@ struct NotificationSettingsView: View {
                 DailyBriefScheduler.shared.refresh()
                 HabitReminderScheduler.shared.refresh()
                 WeeklyBriefScheduler.shared.refresh()
+                WeeklyReviewScheduler.shared.refresh()
                 BillDueReminderScheduler.shared.refresh()
                 BudgetOverrunNotificationService.shared.refresh()
             } catch {
@@ -294,6 +297,20 @@ struct NotificationSettingsView: View {
         ) {
             toggle(isOn: $weeklyEnabled) { newValue in
                 WeeklyBriefScheduler.shared.isEnabled = newValue
+            }
+        }
+    }
+
+    /// 每周回顾（2026-11-07 拍板：周四 20:30 固定，一期无详情页，仅独立开关）
+    private var weeklyReviewRow: some View {
+        settingRow(
+            icon: "calendar",
+            title: String(localized: "每周回顾"),
+            summary: weeklyReviewEnabled ? String(localized: "周四 20:30") : String(localized: "已关闭"),
+            action: {}
+        ) {
+            toggle(isOn: $weeklyReviewEnabled) { newValue in
+                WeeklyReviewScheduler.shared.isEnabled = newValue
             }
         }
     }
@@ -547,6 +564,7 @@ struct NotificationSettingsView: View {
         dailyEnabled = DailyBriefScheduler.shared.isEnabled
         habitEnabled = HabitReminderScheduler.shared.isEnabled
         weeklyEnabled = WeeklyBriefScheduler.shared.isEnabled
+        weeklyReviewEnabled = WeeklyReviewScheduler.shared.isEnabled
         billEnabled = BillDueReminderScheduler.shared.isEnabled
         budgetEnabled = BudgetOverrunNotificationService.shared.isEnabled
     }

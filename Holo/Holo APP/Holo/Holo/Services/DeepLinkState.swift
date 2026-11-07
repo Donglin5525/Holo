@@ -65,6 +65,8 @@ enum DeepLinkTarget: Equatable {
     case habits
     /// 周一晨报：打开今日看板并展示上周小结卡
     case weeklyBrief
+    /// 每周回顾：打开个人页并直达每周回顾页（周四晚回顾推送点击进入）
+    case weeklyReview
     /// 从 AI Chat 卡片跳转到对应模块
     case finance
     /// 预算详情页（结转回执通知点击进入；FinanceView 消费弹层）

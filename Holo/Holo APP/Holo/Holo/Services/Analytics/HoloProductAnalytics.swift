@@ -2,9 +2,10 @@
 //  HoloProductAnalytics.swift
 //  Holo
 //
-//  产品埋点（2026-10-19 自建方案，2026-10-25 字典 v2）：匿名使用事件本地队列 + 批量上报。
+//  产品埋点（2026-10-19 自建方案，2026-11-07 字典 v2.1）：匿名使用事件本地队列 + 批量上报。
 //  事件域 = 会话/模块曝光/记账/打卡/建任务/付费墙漏斗（v1）+ AI 交互/想法·习惯·账户创建/
-//  识图记账漏斗/数据导出（v2），字典与后端 PRODUCT_EVENT_NAMES 白名单一一对应
+//  识图记账漏斗/数据导出（v2）+ 通知打开/周回顾查看（v2.1，第二周留存钩子实验漏斗），
+//  字典与后端 PRODUCT_EVENT_NAMES 白名单一一对应
 //  （docs/_common/plans/2026-10-19-产品埋点自建方案/README.md）。
 //  隐私契约：不收任何用户内容（金额/标题/备注/习惯名/消息正文一律不进事件），仅枚举参数。
 //  管线复刻 HoloAgentTelemetryUploader：冷启动/前台化/进后台批量上报，服务端按
@@ -46,6 +47,13 @@ enum HoloProductEventName: String, CaseIterable {
     case receiptBookingStarted = "receipt_booking_started"
     /// 完成一次数据导出；format=csv/json
     case exportPerformed = "export_performed"
+    // v2.1（2026-11-07）：第二周留存钩子实验漏斗（推送点开 + 周回顾查看）
+    /// 点开一条推送通知进入 App；source=推送来源标识（payload source 或通知
+    /// category，取不到 system），target=深链落地面（无路由 none）
+    case notificationOpened = "notification_opened"
+    /// 查看周回顾内容（upcoming 功能预留：本期仅字典占位，未接调用点）；
+    /// weekStart=周一日期 yyyy-MM-dd
+    case weeklyReviewViewed = "weekly_review_viewed"
 }
 
 /// 待上报事件（字段与后端 normalizeProductEvent 一一对应）
