@@ -36,9 +36,12 @@ test("区间约数：600多 匹配 611.44", () => {
 });
 
 test("逐句核对只挑数字对不上的句子", () => {
-  const allowed = [15321.96, 19162.93, 121];
+  // 白名单与 factComputator 同构：普通数值 + 计数（counted）两类
+  const allowed = [{ value: 15321.96 }, { value: 19162.93 }, { value: 121, counted: true }];
   const flagged = flagSentenceNumbers("支出 15322 元，环比少了将近 1.9 万。戒烟累计 121 支。任务少了 14 个。", allowed);
-  assert.equal(flagged.length, 1);
+  assert.equal(flagged.length, 1, "14 无据（「个」不在计数集、≥10 走普通核对）仍要拦");
   assert.match(flagged[0].sentence, /任务少了 14 个/);
-  assert.deepEqual(flagged[0].numbers, ["14"]);
+  const flagged2 = flagSentenceNumbers("戒烟累计 110 支。", allowed);
+  assert.equal(flagged2.length, 1);
+  assert.match(flagged2[0].sentence, /110/);
 });

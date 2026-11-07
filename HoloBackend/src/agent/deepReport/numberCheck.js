@@ -120,14 +120,50 @@ export function numberMatchesAllowed(value, allowed) {
   return false;
 }
 
+// 白名单元素两种形态：纯数字（评审脚本等旧用法）或 {value, counted?}（factComputator）
+const num = (a) => (typeof a === "number" ? a : a.value);
 export function statMatches(stat, allowed) {
-  if (stat.range) return allowed.some((a) => Math.abs(a) >= stat.range[0] && Math.abs(a) < stat.range[1]);
+  if (stat.range) return allowed.some((a) => Math.abs(num(a)) >= stat.range[0] && Math.abs(num(a)) < stat.range[1]);
+  // 计数（三天/5 次）只与计数白名单精确匹配：差 1 就是错，不吃 2% 容差
+  if (stat.counted) return allowed.some((a) => typeof a !== "number" && a.counted && Math.abs(stat.value - a.value) < 0.01);
   // 只做同量级 ±2% 匹配；刻意不做生产 verifyDelivery 的「×100 百分比桥接」——
   // 白名单本身已同时给出原值与百分数，桥接会让 99999 逃过 1000 的匹配（2026-11-07 实测）
-  if (allowed.some((a) => Math.abs(Math.abs(stat.value) - Math.abs(a)) <= Math.max(0.05, Math.abs(a) * 0.02))) return true;
+  if (allowed.some((a) => Math.abs(Math.abs(stat.value) - Math.abs(num(a))) <= Math.max(0.05, Math.abs(num(a)) * 0.02))) return true;
   // 「约 1.5 万」这类换单位的约数：放宽到 5%（只对带万/千/k 的约数）
-  if (stat.scaled) return allowed.some((a) => Math.abs(stat.value - Math.abs(a)) <= Math.abs(a) * 0.05);
+  if (stat.scaled) return allowed.some((a) => Math.abs(stat.value - Math.abs(num(a))) <= Math.abs(num(a)) * 0.05);
   return false;
+}
+
+// ── 修复 2（2026-11-07 东林拍板）：个位数计数核对 ─────────────────────────────
+// 只核对「数字 + 计数单位」（三天/3 天/两条/五次/两周/三个月/8 小时），值 <10 也查、
+// 精确匹配（差 1 即错）。泛指与日期治理：
+// - 中文值为一（一天/一次）不查；前缀 这/那/每/前/后/近/头/某/上/下/半 不查（这两天/每周）
+// - 量词后紧跟 前/后/内 不查（两天前/三天内）；「周」后跟 一~日/末 不查（周日/周末）
+// - 「月」「日」等日期数字已由日期规则处理；计数提取跑在原文上（strip 会误伤「三个月」）
+const COUNT_UNITS = "天|次|条|笔|支|顿|周|个小时|个月|晚|小时|分钟|回";
+const COUNT_ARABIC = new RegExp("(\\d+(?:\\.\\d+)?)\\s*(" + COUNT_UNITS + ")(?![a-zA-Z])", "g");
+const COUNT_CJK = new RegExp("([一二两三四五六七八九十百]+)\\s*(" + COUNT_UNITS + ")", "g");
+const COUNT_PREFIX_SKIP = /(这|那|每|前|后|近|头|某|上|下|半|末|次|初)$/;
+const COUNT_AFTER_SKIP = /^[前后内一二三四五六日末]/;
+
+export function extractCountedStats(text) {
+  const out = [];
+  const t = String(text);
+  for (const re of [COUNT_ARABIC, COUNT_CJK]) {
+    for (const m of t.matchAll(re)) {
+      const value = re === COUNT_ARABIC ? Number(m[1]) : cnToNumber(m[1]).value;
+      if (!Number.isFinite(value) || value <= 0) continue;
+      const before = t.slice(Math.max(0, m.index - 1), m.index);
+      const after = t.slice(m.index + m[0].length, m.index + m[0].length + 1);
+      if (COUNT_AFTER_SKIP.test(after)) continue; // 两天前 / 周日
+      if (re === COUNT_CJK && value === 1) continue; // 一天/一次 泛指
+      if (COUNT_PREFIX_SKIP.test(before)) continue; // 这两天/每周/近三月
+      out.push({ raw: m[0].replace(/\s+/g, ""), value, scaled: false, counted: true });
+    }
+  }
+  // 同位去重（阿拉伯与中文不会重叠，防御重复匹配）
+  const seen = new Set();
+  return out.filter((x) => (seen.has(x.raw) ? false : (seen.add(x.raw), true)));
 }
 
 export function splitSentences(text) {
@@ -146,7 +182,8 @@ export function splitSentences(text) {
 export function flagSentenceNumbers(text, allowed) {
   const flagged = [];
   for (const sentence of splitSentences(text)) {
-    const bad = extractStats(sentence, { decimals: true }).filter((x) => !statMatches(x, allowed));
+    const stats = [...extractStats(sentence, { decimals: true }), ...extractCountedStats(sentence)];
+    const bad = stats.filter((x) => !statMatches(x, allowed));
     if (bad.length) flagged.push({ sentence, numbers: bad.map((b) => b.raw) });
   }
   return flagged;

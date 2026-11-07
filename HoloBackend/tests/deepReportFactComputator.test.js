@@ -110,7 +110,7 @@ test("任务/想法按月与本期对比", () => {
 
 test("白名单含关键数值，供核对器使用", () => {
   const sheet = computeFactSheet(buildSnapshot());
-  const near = (v) => sheet.whitelist.some((x) => Math.abs(x - v) <= Math.max(0.05, Math.abs(v) * 0.02));
+  const near = (v) => sheet.whitelist.some((x) => Math.abs(x.value - v) <= Math.max(0.05, Math.abs(v) * 0.02));
   assert.equal(near(5711), true);
   assert.equal(near(1951), true);
   assert.equal(near(22772), true);

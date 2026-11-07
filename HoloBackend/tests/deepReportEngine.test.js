@@ -81,6 +81,11 @@ function makeExecutor(responses, records) {
   const provider = {
     async complete(request) {
       records.push({ messages: request.messages, timeoutMs: request.timeoutMs ?? null });
+      // 档案指令化调用自动应答（不占响应序列）：system 带「逐条执行指令」特征
+      const sys = request.messages?.[0]?.content ?? "";
+      if (sys.includes("逐条执行指令")) {
+        return { choices: [{ index: 0, message: { role: "assistant", content: JSON.stringify({ directives: ["称呼我为东林"] }) } }], usage: { prompt_tokens: 10, completion_tokens: 5 } };
+      }
       const next = responses[i++];
       if (next === undefined) throw new Error("PROVIDER_EXHAUSTED");
       if (typeof next === "function") return next(request);
@@ -136,7 +141,7 @@ test("引擎全链：写作 → 数字修复 → 语义修复 → 映射旧契�
   assert.equal(result.claims.some((c) => c.displayText.includes("主要来自")), true, "说过头被修复");
   assert.equal(result.taskRange.label, "最近30天");
   // ai_call_logs purpose 序列：writer → repair(数字) → checker → repair(语义) → checker
-  const expected = ["cloud_deep_report_writer", "cloud_deep_report_repair", "cloud_deep_report_checker", "cloud_deep_report_repair", "cloud_deep_report_checker"];
+  const expected = ["cloud_deep_report_profile", "cloud_deep_report_writer", "cloud_deep_report_repair", "cloud_deep_report_checker", "cloud_deep_report_repair", "cloud_deep_report_checker"];
   assert.deepEqual(executorPack.purposes.filter((p) => p.startsWith("cloud_")), expected);
   // 路由级超时透传（writer 120s）
   assert.equal(records[0].timeoutMs, 120_000);
@@ -209,7 +214,12 @@ test("generateDeepReport 纯管线：checker 不点头也不修时直接删并�
     () => ({ choices: [{ message: { content: JSON.stringify({ problems: [] }) } }] }),
   ];
   let i = 0;
-  const callModel = async () => { const r = responses[i++](); return typeof r === "string" ? r : r.choices[0].message.content; };
+  const callModel = async (messages) => {
+    // 档案指令化调用自动应答，不占响应序列
+    if ((messages?.[0]?.content ?? "").includes("逐条执行指令")) return JSON.stringify({ directives: ["称呼我为东林"] });
+    const r = responses[i++]();
+    return typeof r === "string" ? r : r.choices[0].message.content;
+  };
   const { result, stats } = await generateDeepReport({
     snapshot: snapshot(),
     question: "q",

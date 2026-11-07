@@ -5,7 +5,7 @@
 // 一起变化检查与 iOS 生活体检台账同口径（对齐≥10 天、|r|≥0.35、Top3）。
 // 快照自带的 financeEvidenceLedger / crossDomainCheckup 台账文本原文收录（不重算），
 // 且 crossDomainCheckup 在场时跳过本文件的习惯本期对比行（台账带每周目标口径更准）。
-import { extractStats } from "./numberCheck.js";
+import { extractStats, extractCountedStats } from "./numberCheck.js";
 
 const TZ_OFFSET_MS = 8 * 3600 * 1000;
 const WD = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -106,22 +106,24 @@ class Sheet {
     const seen = new Set();
     for (const h of this.headers) {
       // 头部含窗口天数等「背景数字」，报告可能引用，一并进白名单
-      for (const v of extractStats(h).map((x) => x.value)) {
+      for (const v of [...extractStats(h), ...extractCountedStats(h)].map((x) => x.value)) {
         const k = v.toFixed(2);
         if (!seen.has(k)) { seen.add(k); whitelist.push(v); }
       }
     }
     for (const e of this.entries) {
-      e.values = extractStats(e.text).map((s) => s.value);
-      for (const v of e.values) {
-        const k = v.toFixed(2);
+      // 计数白名单保留 counted 标记（与报告侧精确匹配）；普通数值沿用 ±2%
+      const stats = [...extractStats(e.text), ...extractCountedStats(e.text)];
+      e.values = stats.map((s) => s.value);
+      for (const stat of stats) {
+        const k = stat.counted ? `c:${stat.raw}` : stat.value.toFixed(2);
         if (!seen.has(k)) {
           seen.add(k);
-          whitelist.push(v);
+          whitelist.push(stat);
         }
       }
     }
-    return { text: `${this.lines.join("\n").trim()}\n`, entries: this.entries, whitelist };
+    return { text: `${this.lines.join("\n").trim()}\n`, entries: this.entries, whitelist }; // whitelist 元素为 {value, counted?}
   }
 }
 

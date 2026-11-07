@@ -5,6 +5,7 @@
 import { computeFactSheet } from "./factComputator.js";
 import { flagSentenceNumbers, extractStats } from "./numberCheck.js";
 import { mapReportToResult, parseReport } from "./mapper.js";
+import { ProfileCompiler } from "./profileCompiler.js";
 
 export class DeepReportError extends Error {
   constructor(code, message) {
@@ -15,11 +16,9 @@ export class DeepReportError extends Error {
 
 const WRITER_FORMAT_REMINDER = `再提醒一次格式：第一行「# 标题」；正文空行分段；分节用「## 小节标题」；最后一段以「数据说明：」开头；不用任何 markdown 记号、列表符号、下划线、「=」或带点的数据集名。`;
 
-function writerUserContent(sheet, question, profileBrief) {
-  const profile = typeof profileBrief === "string" && profileBrief.trim()
-    ? `\n\n【我的个人档案（我亲手写的，请照做）】\n${profileBrief.trim()}`
-    : "";
-  return `【事实清单（程序从你的数据里算好并核对过，是你唯一的数字来源；每条以 F 编号）】\n${sheet.text}\n【我的问题】\n${question}${profile}\n\n${WRITER_FORMAT_REMINDER}`;
+function writerUserContent(sheet, question, profileBlock) {
+  const profile = profileBlock ? `${profileBlock}\n\n` : "";
+  return `${profile}【事实清单（程序从你的数据里算好并核对过，是你唯一的数字来源；每条以 F 编号）】\n${sheet.text}\n【我的问题】\n${question}\n\n${WRITER_FORMAT_REMINDER}`;
 }
 
 function parseJSONLoose(text) {
@@ -71,9 +70,14 @@ export async function generateDeepReport({ snapshot, question, callModel, buildW
   const sheet = computeFactSheet(snapshot);
   const window = sheet.window;
 
-  // 1) 写作
-  // 档案贴着问题放在用户消息末尾（评测实锤：放 system 消息对 qwen 几乎无效）
-  const messages = buildWriterMessages(writerUserContent(sheet, question, snapshot.profileBrief));
+  // 0) 档案指令化（修复 1，2026-11-07 东林拍板）：任意写法的档案（一句话/模板字段/
+  // 清单/表格/英文）先转成逐条自包含指令——writer 照办、checker 逐条审计；
+  // 转写失败回退原文单条，行为不劣于修复前
+  const compiler = new ProfileCompiler(callModel, { route: routes.checker, log });
+  const compiledProfile = await compiler.compile(snapshot.profileBrief);
+
+  // 1) 写作（档案指令块放开头：对 qwen，明确指令清单比塞在长事实清单后面的原文执行力强）
+  const messages = buildWriterMessages(writerUserContent(sheet, question, ProfileCompiler.writerBlock(compiledProfile, snapshot.profileBrief)));
   let report = await callModel(messages, { purpose: "cloud_deep_report_writer", route: routes.writer });
   let parsed = (() => { try { return assertReportShape(report); } catch (error) { throw error; } })();
   if (!parsed.title) {
@@ -82,7 +86,7 @@ export async function generateDeepReport({ snapshot, question, callModel, buildW
     parsed = assertReportShape(report);
   }
 
-  const stats = { flaggedNumbers: 0, semanticProblems: 0, deleted: [], secondCheckProblems: 0 };
+  const stats = { profileSource: compiledProfile.source, profileDirectives: compiledProfile.directives.length, flaggedNumbers: 0, semanticProblems: 0, deleted: [], secondCheckProblems: 0 };
   // 已删句子永不复活：修复轮若原样吐回旧稿（实测会发生），把删过的句子再剥一次
   const stripDeleted = (text) => stats.deleted.reduce((acc, d) => (acc.includes(d) ? acc.replace(d, "") : acc), text);
 
@@ -103,9 +107,11 @@ export async function generateDeepReport({ snapshot, question, callModel, buildW
   }
 
   // 3) 语义核对（模型）→ 修复 → 复核；两次都点名且修复未改掉的句子保守删除
+  //    档案以「指令清单」形态参与审计（v4 用原文审计 0 次触发的根因即输入形态）
+  const profileBlock = ProfileCompiler.checkerBlock(compiledProfile);
   const checkMessages = [
     { role: "system", content: checkerSystemPrompt },
-    { role: "user", content: `【事实清单】\n${sheet.text}\n【报告】\n${report}` },
+    { role: "user", content: `${profileBlock}【事实清单】\n${sheet.text}\n【报告】\n${report}` },
   ];
   const first = parseJSONLoose(await callModel(checkMessages, { purpose: "cloud_deep_report_checker", route: routes.checker, responseFormat: { type: "json_object" } }));
   const problems1 = semanticProblemsOf(first);
