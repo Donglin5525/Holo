@@ -506,12 +506,14 @@ struct MessageBubbleView: View {
     @ViewBuilder
     private var bubbleContent: some View {
         if isUser {
+            // 2026-11-07 东林拍板「舒展」：行距 +4 拉开、内边距加宽，治长问题字墙感（密密麻麻）
             StreamingTextView(
                 text: displayText,
-                isStreaming: message.isStreaming && streamingText != nil
+                isStreaming: message.isStreaming && streamingText != nil,
+                lineSpacing: 4
             )
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
             .background(Color.holoDivider.opacity(0.5))
             .clipShape(BubbleShape(isUser: true))
         } else {

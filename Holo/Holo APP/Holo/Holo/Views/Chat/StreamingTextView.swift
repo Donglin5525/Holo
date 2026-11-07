@@ -12,6 +12,8 @@ struct StreamingTextView: View {
 
     let text: String
     let isStreaming: Bool
+    /// 行距加成（pt）：聊天气泡舒展排印用，默认 0 = 系统默认紧排
+    var lineSpacing: CGFloat = 0
     @State private var renderedMarkdown: AttributedString?
 
     var body: some View {
@@ -21,6 +23,7 @@ struct StreamingTextView: View {
                 Text(text)
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
+                    .lineSpacing(lineSpacing)
 
                 // 闪烁光标
                 Text("|")
@@ -33,6 +36,7 @@ struct StreamingTextView: View {
             Text(renderedMarkdown ?? AttributedString(text))
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
+                .lineSpacing(lineSpacing)
                 .textSelection(.enabled)
                 .task(id: renderKey) {
                     renderedMarkdown = nil

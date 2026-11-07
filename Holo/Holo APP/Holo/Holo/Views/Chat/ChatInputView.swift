@@ -6,6 +6,8 @@
 //  承接条 / 输入框 / 工具行（图片·语音·发送）收进同一个浮起容器，
 //  多行时工具行始终锚在舱底；发送键空态置灰��有字亮橙、生成中变停止键。
 //  图片入口：截图识别记账（docs/plans/2026-09-09-screenshot-receipt-billing-plan.md §4）
+//  2026-11-07 放大定稿：可见行数 5→6、按钮热区 44、上下留白对称
+//  （docs/_common/plans/2026-11-07-聊天输入舱放大重设计/01-设计方案.md）
 //
 
 import SwiftUI
@@ -101,12 +103,12 @@ struct ChatInputView: View {
 
             TextField(String(localized: "告诉 Holo 发生了什么…"), text: $viewModel.inputText, axis: .vertical)
                 .focused($isInputFocused)
-                .lineLimit(1...5)
+                .lineLimit(1...6)
                 .textFieldStyle(.plain)
                 .holoText(.body)
                 .tint(Color.holoPrimary)
-                .padding(.top, 9)
-                .padding(.bottom, 7)
+                .padding(.top, 10)
+                .padding(.bottom, 10)
                 .padding(.trailing, 6)
                 .simultaneousGesture(
                     TapGesture().onEnded {
@@ -127,12 +129,12 @@ struct ChatInputView: View {
                 } label: {
                     if isLoadingPick {
                         ProgressView()
-                            .frame(width: 36, height: 36)
+                            .frame(width: 44, height: 44)
                     } else {
                         Image(systemName: "photo")
-                            .font(.system(size: 19, weight: .medium))
+                            .font(.system(size: 20, weight: .medium))
                             .foregroundColor(imageButtonColor)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 44, height: 44)
                     }
                 }
                 .disabled(viewModel.isStreaming || isLoadingPick)
@@ -142,9 +144,9 @@ struct ChatInputView: View {
                     onVoiceInputTap()
                 } label: {
                     Image(systemName: "mic")
-                        .font(.system(size: 19, weight: .medium))
+                        .font(.system(size: 20, weight: .medium))
                         .foregroundColor(voiceButtonColor)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                 }
                 .disabled(viewModel.isStreaming)
                 .accessibilityLabel(String(localized: "语音输入"))
@@ -161,12 +163,13 @@ struct ChatInputView: View {
                         Image(systemName: "square.fill")
                             .font(.system(size: 11, weight: .bold))
                             .foregroundColor(.holoToolAction)
-                            .frame(width: 36, height: 36)
+                            .frame(width: 40, height: 40)
                             .background(Color.holoPrimary.opacity(0.09))
                             .clipShape(Circle())
                             .overlay {
                                 Circle().strokeBorder(Color.holoToolAction.opacity(0.28), lineWidth: 1)
                             }
+                            .frame(width: 44, height: 44)
                     }
                     .keyboardShortcut(".", modifiers: .command)
                     .accessibilityLabel(String(localized: "停止生成"))
@@ -177,10 +180,11 @@ struct ChatInputView: View {
                         Image(systemName: "arrow.up")
                             .font(.system(size: 17, weight: .bold))
                             .foregroundColor(canSend ? .holoToolOnAction : .holoToolTextSecondary.opacity(0.4))
-                            .frame(width: 36, height: 36)
+                            .frame(width: 40, height: 40)
                             .background(canSend ? Color.holoPrimary : Color.holoToolInset)
                             .clipShape(Circle())
                             .shadow(color: canSend ? Color.holoPrimary.opacity(0.38) : .clear, radius: 7, y: 3)
+                            .frame(width: 44, height: 44)
                     }
                     .disabled(!canSend)
                     .animation(HoloAnimation.quick, value: canSend)
@@ -191,10 +195,10 @@ struct ChatInputView: View {
                 }
             }
         }
-        .padding(.top, 4)
-        .padding(.leading, 14)
-        .padding(.trailing, 8)
-        .padding(.bottom, 8)
+        .padding(.top, 6)
+        .padding(.leading, 16)
+        .padding(.trailing, 10)
+        .padding(.bottom, 10)
         .contentShape(Rectangle())
         .onTapGesture {
             // 舱体空白处（如输入框右侧留白）也能唤起输入，避免点击死区
