@@ -55,6 +55,14 @@ enum HoloProductEventName: String, CaseIterable {
     case notificationOpened = "notification_opened"
     /// 查看周回顾内容；weekStart=周一日期 yyyy-MM-dd
     case weeklyReviewViewed = "weekly_review_viewed"
+
+    // 「一个发现」v3（2026-11-08 发版批）：开关/曝光/三键动作
+    case discoveryEnabled = "discovery_enabled"
+    case discoveryDisabled = "discovery_disabled"
+    case discoveryReviewOpened = "discovery_review_opened"
+    case discoveryTodayShown = "discovery_today_shown"
+    case discoveryTodayAction = "discovery_today_action"
+    case discoveryPendingAction = "discovery_pending_action"
     // v2.2（2026-11-08）：留存漏斗第一环 + 付费转化终点
     /// 推送权限状态快照；status=granted/provisional/denied/notDetermined。
     /// 冷启动与授权弹窗返回各查一次，本地按「状态变化才上报」去重（每设备仅几条）

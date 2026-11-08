@@ -38,12 +38,14 @@ final class DiscoveryLocalService: DiscoveryService {
         } catch {
             return .noDomainSelected
         }
+        HoloProductAnalytics.shared.track(.discoveryEnabled)
         await refresh()
         return .enabled
     }
 
     func disable() async {
         DiscoverySettings.shared.disable()
+        HoloProductAnalytics.shared.track(.discoveryDisabled)
         await refresh()
     }
 

@@ -39,9 +39,11 @@ struct WeeklyReviewView: View {
         .background(Color.holoBackground)
         .navigationTitle(String(localized: "每周回顾"))
         .navigationBarTitleDisplayMode(.inline)
+        confirmedInsightsSection
         .task {
             guard snapshot == nil else { return }
-            let made = aggregator.makeSnapshot(calendar: calendar)
+            let insights = await Self.confirmedInsightsThisWeek(calendar: calendar)
+            let made = aggregator.makeSnapshot(calendar: calendar, confirmedInsights: insights)
             snapshot = made
             HoloProductAnalytics.shared.track(
                 .weeklyReviewViewed,
@@ -270,6 +272,48 @@ struct WeeklyReviewView: View {
     }
 
     /// 埋点参数：周一日期 yyyy-MM-dd（与后端白名单约定一致）
+    @ViewBuilder
+    private var confirmedInsightsSection: some View {
+        // 本周你确认过的理解（东林 2026-11-08 拍板接入）：一个发现的确认结果进入周报
+        if let snapshot, !snapshot.confirmedInsights.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("这段时间你确认过的理解")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                ForEach(snapshot.confirmedInsights, id: \.self) { text in
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.footnote)
+                            .foregroundStyle(Color.holoSuccess)
+                        Text(text)
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(Color.holoCardBackground, in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityIdentifier("weeklyReview.confirmedInsights")
+        }
+    }
+
+    /// 本周（周一零点起）在「一个发现」确认的理解；空数组=本周无确认。
+    private static func confirmedInsightsThisWeek(calendar: Calendar) async -> [String] {
+        guard let repository = try? await HoloMemoryRuntime.shared.repository() else { return [] }
+        let resolved = (try? await repository.resolvedKnowledgeAll(now: Date())) ?? []
+        guard let weekStart = calendar.dateInterval(of: .weekOfYear, for: Date())?.start else { return [] }
+        var texts: [String] = []
+        for knowledge in resolved where knowledge.decision == .confirmedValid {
+            if knowledge.lastUpdatedAt >= weekStart {
+                texts.append(knowledge.displayText)
+                if texts.count >= 5 { break }
+            }
+        }
+        return texts
+    }
+
     private static func analyticsDayKey(_ date: Date, calendar: Calendar) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")

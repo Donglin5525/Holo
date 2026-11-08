@@ -35,6 +35,8 @@ struct WeeklyReviewSnapshot: Equatable {
     let current: PeriodCounts
     /// 上周同期（上周一 ~ 上周同一时刻）；上周同期完全无记录时为 nil（首周形态）
     let previous: PeriodCounts?
+    /// 本周在「一个发现」里确认过的理解（东林 2026-11-08 拍板接入；空数组不展示）
+    let confirmedInsights: [String]
 }
 
 // MARK: - 周区间纯函数（可单测）
@@ -88,7 +90,11 @@ final class WeeklyReviewAggregator {
     }
 
     /// 生成周回顾快照。now 仅作区间右端点与首周判定基准，同一周内任意时刻结论一致。
-    func makeSnapshot(now: Date = Date(), calendar: Calendar = .current) -> WeeklyReviewSnapshot {
+    func makeSnapshot(
+        now: Date = Date(),
+        calendar: Calendar = .current,
+        confirmedInsights: [String] = []
+    ) -> WeeklyReviewSnapshot {
         let ranges = WeeklyReviewMath.comparisonRanges(now: now, calendar: calendar)
         let current = countPeriod(ranges.current, calendar: calendar)
         let previousCounts = countPeriod(ranges.previous, calendar: calendar)
@@ -96,7 +102,8 @@ final class WeeklyReviewAggregator {
             weekStart: ranges.current.start,
             referenceDate: now,
             current: current,
-            previous: previousCounts.hasAnyActivity ? previousCounts : nil
+            previous: previousCounts.hasAnyActivity ? previousCounts : nil,
+            confirmedInsights: confirmedInsights
         )
     }
 

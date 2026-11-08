@@ -84,6 +84,7 @@ struct DiscoveryReviewSheet: View {
             }
         }
         .presentationDetents([.large])
+        .onAppear { HoloProductAnalytics.shared.track(.discoveryReviewOpened, ["source": "capsule"]) }
         .task(id: refreshID) { await reload(force: forceRefresh) ; forceRefresh = false }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { forceRefresh = true; requestRefresh() }
@@ -172,6 +173,15 @@ struct DiscoveryReviewSheet: View {
         }
     }
 
+    private func actionName(_ action: HoloKnowledgeControlAction) -> String {
+        switch action {
+        case .confirm: return "confirm"
+        case .markInaccurate: return "inaccurate"
+        case .deferCooldown: return "defer"
+        default: return "other"
+        }
+    }
+
     // MARK: - 健康提示
 
     private func healthNotice(_ notice: DiscoveryMemoryReviewService.HealthNotice) -> some View {
@@ -220,6 +230,9 @@ struct DiscoveryReviewSheet: View {
             await DiscoveryTopicService.refreshIfNeeded(proposals: value.items.compactMap(\.proposal))
             try Task.checkCancellation()
             todayCard = DiscoveryTopicStore.shared.todayCard()
+            if let card = todayCard {
+                HoloProductAnalytics.shared.track(.discoveryTodayShown, ["is_model_copy": card.isModelCopy ? "1" : "0"])
+            }
             if case .some(let items) = result.map({ $0.items.filter { item in
                 guard let card = todayCard else { return true }
                 return item.proposal?.propositionID != card.topicKey && item.proposal?.topicID != card.topicKey
@@ -242,6 +255,7 @@ struct DiscoveryReviewSheet: View {
 
     private func applyToday(_ action: HoloKnowledgeControlAction, card: DiscoveryTopicStore.QueuedCard) {
         guard actionTask == nil else { return }
+        HoloProductAnalytics.shared.track(.discoveryTodayAction, ["action": actionName(action)])
         guard let item = matchedItem(for: card) else {
             DiscoveryTopicStore.shared.consumeToday()
             withAnimation(HoloAnimation.replayReveal) { todayCard = nil }
@@ -293,6 +307,7 @@ struct DiscoveryReviewSheet: View {
 
     private func apply(_ action: HoloKnowledgeControlAction, to item: DiscoveryMemoryReviewService.Item) {
         guard actionTask == nil else { return }
+        HoloProductAnalytics.shared.track(.discoveryPendingAction, ["action": actionName(action)])
         receipt = nil
         actionTask = Task {
             defer { actionTask = nil }

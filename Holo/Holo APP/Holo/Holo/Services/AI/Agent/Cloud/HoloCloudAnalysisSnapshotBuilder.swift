@@ -81,6 +81,8 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         /// 用户亲写档案原文（≤8KB）随快照上行，后端注入指令级 system 消息——
         /// 报告的称呼/身份视角/健康行动限制由此生效。旧后端忽略；nil 时不编码该键。
         var profileBrief: String? = nil
+        /// 用户在「一个发现」确认过的理解（高信度背景，东林 2026-11-08 拍板接入）。
+        var confirmedKnowledgeBrief: String? = nil
     }
 
     enum JSONValue: Encodable {
@@ -275,6 +277,9 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             let raw = HoloProfileService.shared.loadProfile()
             return raw.isEmpty ? nil : raw
         }
+        // 确认理解通道：取用户在「一个发现」确认过的规律（最多 12 条，纯本机拼装，
+        // 与档案通道同模式随快照上行）。
+        let confirmedBrief: String? = await confirmedKnowledgeBrief()
         let snapshot = Snapshot(
             version: 1,
             generatedAt: now,
@@ -287,7 +292,8 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             personalSituationBrief: situationBrief.isEmpty ? nil : situationBrief,
             goalScope: goalScope,
             goalReview: goalReview,
-            profileBrief: profileBrief
+            profileBrief: profileBrief,
+            confirmedKnowledgeBrief: confirmedBrief
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
@@ -320,5 +326,20 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             names.insert("task.daily")
         }
         return names
+    }
+}
+
+extension HoloCloudAnalysisSnapshotBuilder {
+    /// 用户确认过的理解清单（displayText 逐条；无确认返回 nil）。
+    static func confirmedKnowledgeBrief(limit: Int = 12) async -> String? {
+        guard let repository = try? await HoloMemoryRuntime.shared.repository() else { return nil }
+        let resolved = (try? await repository.resolvedKnowledgeAll(now: Date())) ?? []
+        var texts: [String] = []
+        for knowledge in resolved where knowledge.decision == .confirmedValid {
+            texts.append(knowledge.displayText)
+            if texts.count >= limit { break }
+        }
+        guard !texts.isEmpty else { return nil }
+        return texts.joined(separator: "\n")
     }
 }
