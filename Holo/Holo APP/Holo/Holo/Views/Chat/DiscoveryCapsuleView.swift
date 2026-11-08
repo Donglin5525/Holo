@@ -18,46 +18,12 @@ struct DiscoveryCapsuleView: View {
     @AppStorage(DiscoverySettings.localFinanceKey) private var includesFinance = false
     @AppStorage(DiscoverySettings.localHealthKey) private var includesHealth = false
     @ObservedObject private var consent = HoloAIDataProcessingConsent.shared
-    @State private var hasPatternToConfirm = false
-    @State private var hintRevision = 0
-
-    private struct HintKey: Hashable {
-        let enabled: Bool
-        let finance: Bool
-        let health: Bool
-        let revision: Int
-    }
 
     var body: some View {
         if isEnabled && consent.isGranted {
-            capsule(viewed: !hasPatternToConfirm && !hasUnreadFinding)
-                .task(id: HintKey(enabled: scenePhase == .active, finance: includesFinance,
-                                  health: includesHealth, revision: hintRevision)) {
-                    await refreshHint()
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .holoKnowledgeControlDidApply)) { _ in
-                    hintRevision += 1
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .holoDiscoverySettingsDidChange)) { _ in
-                    hintRevision += 1
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
-                    if includesFinance { hintRevision += 1 }
-                }
-        }
-    }
-
-    private func refreshHint() async {
-        hasPatternToConfirm = false
-        guard scenePhase == .active else { return }
-        do {
-            // 先让聊天首屏完成，再做只读的本机整理。
-            try await Task.sleep(for: .seconds(1))
-            let result = try await DiscoveryMemoryReviewService().review()
-            try Task.checkCancellation()
-            hasPatternToConfirm = !result.items.isEmpty
-        } catch {
-            // 正式入口呈现可恢复的读取状态；胶囊保持可点击。
+            // 亮起语义=「今天有一条待看的卡」（state 由 LocalService.refresh 驱动），
+            // 列表里另有待确认条目不再触发淡橙（设计检查 #10：旧轮询导致常亮）。
+            capsule(viewed: !hasUnreadFinding)
         }
     }
 
@@ -75,6 +41,9 @@ struct DiscoveryCapsuleView: View {
                     .font(.system(size: 12))
                 Text("一个发现")
                     .font(.system(size: 13))
+                if !viewed {
+                    Circle().fill(Color.holoToolAction).frame(width: 6, height: 6)
+                }
             }
             .foregroundColor(foregroundColor(viewed: viewed))
             .padding(.horizontal, 12)
@@ -85,7 +54,7 @@ struct DiscoveryCapsuleView: View {
             .fixedSize(horizontal: true, vertical: false)
         }
         .accessibilityIdentifier("chat.discovery.capsule")
-        .accessibilityLabel(Text(hasPatternToConfirm ? "一个发现，有规律待确认" : (viewed ? "一个发现" : "一个发现，有新内容")))
+        .accessibilityLabel(Text(viewed ? "一个发现" : "一个发现，今天有一条"))
         .accessibilityHint(Text("查看记录里的规律和整理状态"))
     }
 

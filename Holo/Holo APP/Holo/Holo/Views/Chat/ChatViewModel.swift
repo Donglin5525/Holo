@@ -159,7 +159,8 @@ final class ChatViewModel: ObservableObject {
     func closeDiscoveryDetail() {
         showsDiscoveryDetail = false
         discoveryFinding = nil
-        discoveryPresentationState = discoveryService.presentationState
+        // 关闭即刷新（设计检查 #11）：处理完今日卡后胶囊状态立即回真，不等下次回前台。
+        Task { await refreshDiscoveryState() }
     }
 
     /// 「一个发现」依据「打开原记录」路由：sourceRef canonical 串（thought:<uuid> /

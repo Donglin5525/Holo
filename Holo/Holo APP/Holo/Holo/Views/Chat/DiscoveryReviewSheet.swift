@@ -41,7 +41,7 @@ struct DiscoveryReviewSheet: View {
             ScrollView {
                     VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                         intro
-                        if let card = todayCard {
+                        if let card = todayCard, result != nil {
                             todayCardSection(card)
                         }
                         if consent.isGranted && !service.domains.isEmpty {
@@ -105,19 +105,25 @@ struct DiscoveryReviewSheet: View {
                 .accessibilityIdentifier("chat.discovery.review.receipt")
         }
         if let result {
-            if result.items.indices.contains(itemIndex) {
-                let item = result.items[itemIndex]
+            // 今日一条与列表不重复：今日卡对应的条目从列表过滤（#6）
+            let listedItems = result.items.filter { item in
+                guard let card = todayCard else { return true }
+                return item.proposal?.propositionID != card.topicKey && item.proposal?.topicID != card.topicKey
+            }
+            if listedItems.indices.contains(itemIndex) {
+                let item = listedItems[itemIndex]
                 DiscoveryReviewCard(
                     knowledge: item.knowledge, showsEvidence: $showsEvidence,
                     isApplying: actionTask != nil, onAction: { apply($0, to: item) }
                 )
-                if result.items.count > 1 {
+                if listedItems.count > 1 {
                     Button {
                         showsEvidence = false
-                        itemIndex = (itemIndex + 1) % result.items.count
+                        itemIndex = (itemIndex + 1) % listedItems.count
                     } label: {
-                        Text("看下一条 · \(itemIndex + 1) / \(result.items.count)")
+                        Text("看下一条 · \(itemIndex + 1) / \(listedItems.count)")
                             .frame(maxWidth: .infinity, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(Color.holoToolAction)
@@ -198,70 +204,68 @@ struct DiscoveryReviewSheet: View {
 
     @ViewBuilder
     private func todayCardSection(_ card: DiscoveryTopicStore.QueuedCard) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        // 与列表卡共用同一套骨架：holoSurface 白卡 + 主按钮整行 + 次按钮半行
+        //（设计检查 #1/#3/#4：三键横排在 375pt 及以下必折行；旧米色底与徽标/按钮撞色）。
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack(spacing: HoloSpacing.xs) {
                 Text("今日一条")
                     .holoText(.metadata)
-                    .foregroundStyle(Color.holoToolTextSecondary)
-                Text(card.isModelCopy ? "AI 精选" : "本机整理")
-                    .holoText(.metadata)
-                    .foregroundStyle(Color.holoToolTextSecondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.holoToolInset, in: Capsule())
+                    .foregroundStyle(Color.holoToolAction)
+                if card.isModelCopy {
+                    Text("AI 精选")
+                        .holoText(.metadata)
+                        .foregroundStyle(Color.holoToolAction)
+                        .padding(.horizontal, HoloSpacing.sm)
+                        .padding(.vertical, 2)
+                        .lineLimit(1)
+                        .background(Color.holoPrimary.opacity(0.1), in: Capsule())
+                }
             }
             Text(card.title)
                 .holoText(.sectionTitle)
                 .foregroundStyle(Color.holoToolText)
+                .fixedSize(horizontal: false, vertical: true)
             Text(card.body)
                 .holoText(.body)
                 .foregroundStyle(Color.holoToolText)
-            if showsTodayEvidence, let item = matchedItem(for: card),
+                .fixedSize(horizontal: false, vertical: true)
+            if let item = matchedItem(for: card),
                let evidence = item.knowledge.latestEvidenceSnapshot ?? item.proposal?.initialEvidenceSnapshot {
-                DiscoveryReviewEvidence(evidence: evidence)
+                Button(showsTodayEvidence ? "收起依据" : "查看依据") { showsTodayEvidence.toggle() }
+                    .buttonStyle(HoloActionStyle(role: .secondary))
+                    .accessibilityIdentifier("chat.discovery.today.evidence")
+                if showsTodayEvidence {
+                    DiscoveryReviewEvidence(evidence: evidence)
+                        .lineLimit(6)
+                }
             }
-            Button(showsTodayEvidence ? "收起依据" : "查看依据") {
-                showsTodayEvidence.toggle()
-            }
-            .buttonStyle(HoloActionStyle(role: .secondary))
-            .accessibilityIdentifier("chat.discovery.today.evidence")
-            HStack(spacing: HoloSpacing.sm) {
+            VStack(spacing: HoloSpacing.xs) {
                 Button("对，记住") { applyToday(.confirm, card: card) }
                     .buttonStyle(HoloActionStyle(role: .primary))
-                Button("不太准确") { applyToday(.markInaccurate(reason: nil, scope: .understanding), card: card) }
-                    .buttonStyle(HoloActionStyle(role: .secondary))
-                Button("先放一放") { applyToday(.deferCooldown, card: card) }
-                    .buttonStyle(HoloActionStyle(role: .secondary))
+                    .accessibilityIdentifier("chat.discovery.today.confirm")
+                HStack {
+                    Button("不太准确") { applyToday(.markInaccurate(reason: nil, scope: .understanding), card: card) }
+                        .accessibilityIdentifier("chat.discovery.today.inaccurate")
+                    Spacer(minLength: HoloSpacing.sm)
+                    Button("先放一放") { applyToday(.deferCooldown, card: card) }
+                        .accessibilityIdentifier("chat.discovery.today.defer")
+                }
+                .buttonStyle(HoloActionStyle(role: .secondary))
             }
-            .disabled(actionTask != nil)
+            .disabled(actionTask != nil || result == nil)
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoToolInset, in: RoundedRectangle(cornerRadius: HoloRadius.md))
+        .holoSurface()
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("chat.discovery.today.card")
     }
 
     private func applyToday(_ action: HoloKnowledgeControlAction, card: DiscoveryTopicStore.QueuedCard) {
-        let store = DiscoveryTopicStore.shared
-        // 否定/暂缓直接落命题记忆并消费今日卡；确认走对应提案的知识事务。
-        switch action {
-        case .markInaccurate:
-            store.markRejected(card.topicKey)
-            store.consumeToday()
-            actionNotice = String(localized: "已标记不准确。")
-            todayCard = nil
-            return
-        case .deferCooldown:
-            store.markDeferred(card.topicKey)
-            store.consumeToday()
-            actionNotice = String(localized: "已暂缓提示这条规律。")
-            todayCard = nil
-            return
-        default:
-            break
-        }
+        guard actionTask == nil else { return }
+        // 三键统一走知识事务（与列表卡同一 apply，动作互通）；今日卡消费与命题记忆
+        // 在成功后落。提案已变（matchedItem 为 nil）时退化为仅本机标记。
         guard let item = matchedItem(for: card) else {
-            // 提案已变化：消费今日卡，用户到下方列表核对新版。
-            store.consumeToday()
+            DiscoveryTopicStore.shared.consumeToday()
             actionNotice = String(localized: "这条规律或它的依据有变化，请核对更新后的内容。")
             todayCard = nil
             return
@@ -274,8 +278,18 @@ struct DiscoveryReviewSheet: View {
                 guard !Task.isCancelled else { return }
                 switch outcome {
                 case .applied, .alreadyApplied:
-                    DiscoveryTopicStore.shared.consumeToday()
-                    actionNotice = String(localized: "已记住，可以在记忆中心查看。")
+                    let store = DiscoveryTopicStore.shared
+                    switch action {
+                    case .markInaccurate: store.markRejected(card.topicKey)
+                    case .deferCooldown: store.markDeferred(card.topicKey)
+                    default: break
+                    }
+                    store.consumeToday()
+                    switch action {
+                    case .confirm: actionNotice = String(localized: "已记住，可以在记忆中心查看。")
+                    case .markInaccurate: actionNotice = String(localized: "已标记不准确。")
+                    default: actionNotice = String(localized: "已暂缓提示这条规律。")
+                    }
                     todayCard = nil
                 case .notAllowed, .notFound, .conflict:
                     actionNotice = String(localized: "这条规律或它的依据有变化，请核对更新后的内容。")

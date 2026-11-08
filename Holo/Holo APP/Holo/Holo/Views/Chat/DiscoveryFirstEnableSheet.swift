@@ -4,7 +4,7 @@
 //
 //  「一个发现」首次开启流程（01 §5）：
 //  说明卡（必要片段经 Holo 后端交第三方 AI、不承诺只在本地推理、不承诺每日/实时/一定有发现）
-//  → 来源多选（想法/任务/习惯，默认全不选，至少选一）→ 同意勾选 → 「同意并开启」。
+//  → 来源多选（想法/任务/习惯，默认全不选，至少选一）→ 同意开关 → 同意并开启。
 //  处理 needsTakeoverConfirmation（他设备占用：接管后旧设备停）／needsGlobalConsent
 //  （引导跳全局授权）／serverUnsupported（解释暂不可用）；任一步取消/失败保持关闭。
 //
@@ -108,7 +108,7 @@ struct DiscoveryFirstEnableSheet: View {
     private var submitHint: String? {
         guard !canSubmit, outcomeMessage == nil else { return nil }
         if selectedDomains.isEmpty { return "至少选择一类来源" }
-        if !agreed { return "勾选下方的同意说明后即可开启" }
+        if !agreed { return "打开下方的同意开关后即可开启" }
         return nil
     }
 
@@ -197,7 +197,7 @@ struct DiscoveryFirstEnableSheet: View {
                 .holoText(.body)
                 .fontWeight(.semibold)
                 .foregroundStyle(Color.holoToolText)
-            Text("请选择至少一类云端观察来源。已设为「不参与 AI」的想法始终排除。")
+            Text("至少选一类，Holo 会从这些记录里找规律。已设为「不参与 AI」的想法始终排除。")
                 .holoText(.metadata)
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)

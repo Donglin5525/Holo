@@ -117,7 +117,7 @@ enum DiscoveryTopicService {
         // 终审①：不允许残留空位（模型用了白名单外写法或缺失值 → 降级）。
         guard !title.contains("{"), !body.contains("{") else { throw TopicError.unfilledSlot }
         // 终审②：长度红线（回填真值后的最终限制，卡片版式定死）。
-        guard title.count <= 16, body.count <= 90 else { throw TopicError.length }
+        guard title.count <= 14, body.count <= 80 else { throw TopicError.length }
         // 终审③：文案中的数字必须能在槽位值里找到（数字纪律客户端版）。
         let digitsInCopy = extractNumbers(from: title + body)
         let allowed = Set(slotValues.values.flatMap { extractNumbers(from: $0) })
@@ -158,9 +158,9 @@ enum DiscoveryTopicService {
             return $0.slots.count > $1.slots.count
         }).first else { return nil }
         let proposal = proposals.first { topicKey(of: $0) == (best.topicKey ?? best.id) }
-        // 文案：挖掘器现成 displayText（朴素模板，无「精选」标识）。
+        // 文案：挖掘器现成 displayText；标题用主题名（设计检查 #7：前 16 字截断断词中间）。
         guard let text = proposal?.semantic.displayText else { return nil }
-        let title = String(text.prefix(16))
+        let title = String((best.label ?? proposal?.topicLabel ?? "").prefix(14))
         let windowEnd = proposal?.initialEvidenceSnapshot.observationWindowTo
             ?? now.addingTimeInterval(6 * 7 * 86_400)
         return DiscoveryTopicStore.QueuedCard(
