@@ -6,7 +6,7 @@
 
 这份文档用于 App Store Connect 的版本信息、审核备注和截图文案准备。
 
-## 1.1.7 提审材料包（2026-11-09 起草，待东林定稿）
+## 1.1.7 提审材料包（2026-11-09 起草；What's New 简中已由东林定稿，推广文本与 Review Notes 待定）
 
 > 版本口径：1.1.7 / 构建 52（已归档 `Holo-1.1.7-52.xcarchive`，2026-11-08 23:45）。更新说明覆盖 1.1.5/37 上架（2026-11-05）之后的全部用户可感变化（1.1.6 跳版未占用）。
 > 本版重点：「一个发现」v3 全新版本、每周回顾与周四晚推送、深度分析新引擎、截图记账支持转账红包、任务四象限重做、聊天输入舱放大、习惯一句话描述。
@@ -14,42 +14,36 @@
 
 ### 更新说明草稿（What's New，三语）
 
-**简体中文（草稿，待东林定稿）：**
+**简体中文（东林 11-09 定稿）：**
 
 Holo 1.1.7 来了。「一个发现」彻底重来，还带来了每周回顾。
-【一个发现·全新版本】Holo 会从你的记录里找出值得留意的现象（比如常在深夜下单），每天最多提醒一张。金额这些数字全部在你的手机上算好、不上传，Holo 只负责把观察写成一句人话。说得不对就点「不太准确」，它不会再追问；「先放一放」的观察七天之内不来烦你。
+【一个发现·全新版本】Holo 会从你的记录里找出值得留意的现象（比如常在深夜下单），每天最多提醒一张。
 【每周回顾】个人页新增「每周回顾」：这周记了多少账、写了多少想法、完成了多少任务、坚持了几天习惯，和上周同期比一比。每周四晚上一条推送，给你一个回来看看的理由。
-【报告更像人写的】深度分析换了新引擎：先从你的数据里把每个数字核实清楚，再动笔写；还会按你设置的档案调整称呼和语气。
+【报告更像人写的】深度分析换了新引擎：先从你的数据里把每个数字核实清楚，再动笔写。
 【截图记账·转账红包】截图记账认识转账和红包了：转出去记支出、收进来记收入，红包也是真金白银；还信用卡、提现这类资金挪动仍然不会混进收支。
 【任务四象限·重做】四象限页整页重来：进来就是四格，待确认的任务收进左侧栏，拖进哪个格子就归到哪个格子。
-【聊天更透气】你自己打的长问题排印更舒展，打字舱一次能看六行，按钮也加大了更好按。
-【习惯一句话】每个习惯可以写一句「为什么坚持、怎么做」，只给自己看。
 【更稳定】修复多处问题，细节打磨。
 谢谢每一位反馈的朋友，Holo 因你而更懂你。
 
-**繁體中文（草稿）：**
+**繁體中文（按东林定稿版翻译）：**
 
 Holo 1.1.7 來了。「一個發現」徹底重來，還帶來了每週回顧。
-【一個發現·全新版本】Holo 會從你的紀錄裡找出值得留意的現象（比如常在深夜下單），每天最多提醒一張。金額這些數字全部在你的手機上算好、不上傳，Holo 只負責把觀察寫成一句人話。說得不對就點「不太準確」，它不會再追問；「先放一放」的觀察七天之內不來煩你。
+【一個發現·全新版本】Holo 會從你的紀錄裡找出值得留意的現象（比如常在深夜下單），每天最多提醒一張。
 【每週回顧】個人頁新增「每週回顧」：這週記了多少帳、寫了多少想法、完成了多少任務、堅持了幾天習慣，和上週同期比一比。每週四晚上一則推播，給你一個回來看看的理由。
-【報告更像人寫的】深度分析換了新引擎：先從你的資料裡把每個數字核實清楚，再動筆寫；還會按你設定的檔案調整稱呼與語氣。
+【報告更像人寫的】深度分析換了新引擎：先從你的資料裡把每個數字核實清楚，再動筆寫。
 【截圖記帳·轉帳紅包】截圖記帳認得轉帳和紅包了：轉出去記支出、收進來記收入，紅包也是真金白銀；還信用卡、提現這類資金挪動仍然不會混進收支。
 【任務四象限·重做】四象限頁整頁重來：進來就是四格，待確認的任務收進左側欄，拖進哪個格子就歸到哪個格子。
-【聊天更透氣】你自己打的長問題排印更舒展，打字艙一次能看六行，按鈕也加大了更好按。
-【習慣一句話】每個習慣可以寫一句「為什麼堅持、怎麼做」，只給自己看。
 【更穩定】修復多處問題，細節打磨。
 謝謝每一位回饋的朋友，Holo 因你而更懂你。
 
-**English（draft）：**
+**English（translated from 东林's final zh-Hans）：**
 
 Holo 1.1.7 is here. "A Discovery" has been rebuilt from the ground up, and Weekly Review arrives with it.
-[A Discovery · Rebuilt] Holo now surfaces one noteworthy pattern a day at most (say, late-night orders). Amounts and figures are computed entirely on your phone and never uploaded — Holo only turns the observation into a plain sentence. If it gets something wrong, tap "Not accurate" and it won't ask again; snoozed observations stay quiet for seven days.
+[A Discovery · Rebuilt] Holo now surfaces noteworthy patterns from your records (say, frequent late-night orders) — one card a day, at most.
 [Weekly Review] A new "Weekly Review" page on your profile: what you logged this week — expenses, thoughts, completed tasks, habit streaks — side by side with the same period last week. A gentle push every Thursday evening gives you a reason to come back.
-[Reports That Read Like a Person] Deep Analysis runs on a new engine: every number is verified against your data before writing begins, and the tone follows the personal profile you set.
+[Reports That Read Like a Person] Deep Analysis runs on a new engine: every number is verified against your data before writing begins.
 [Screenshot Booking · Transfers & Red Packets] Screenshot booking now understands transfers and red packets: money sent is an expense, money received is income. Credit-card payments and withdrawals still stay out of your income and expenses.
-[Task Quadrants · Redesigned] The quadrant page is rebuilt: four full-screen quadrants, tasks pending confirmation tucked into a side rail, drag one into a quadrant and it stays.
-[Roomier Chat] Your own long messages breathe easier, the typing dock shows six lines at once, and buttons are bigger and easier to tap.
-[One Line per Habit] Each habit can carry a one-line note — why you keep it, how you do it — visible only to you.
+[Task Quadrants · Redesigned] The quadrant page is rebuilt: four full-screen quadrants, tasks pending confirmation tucked into a side rail — drag one into a quadrant and it stays.
 [Stability] Plenty of fixes and polish throughout.
 Thanks to everyone who shared feedback — Holo understands you better because of you.
 
