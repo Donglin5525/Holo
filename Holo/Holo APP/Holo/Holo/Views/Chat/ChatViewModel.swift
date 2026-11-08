@@ -123,7 +123,7 @@ final class ChatViewModel: ObservableObject {
     /// 详情被服务侧强制关闭时的失效说明（撤权/来源失效）。
     @Published var discoveryInvalidationText: String?
 
-    var discoveryService: any DiscoveryService { DiscoveryCoordinator.shared }
+    var discoveryService: any DiscoveryService { DiscoveryLocalService.shared }
 
     /// 拉取发现状态（onAppear / 回前台 / 关键动作后调用）。
     @MainActor

@@ -436,8 +436,8 @@ struct SettingsView: View {
                 }
                 .sheet(isPresented: $showHoloAIUserSettings) {
                     HoloAIUserSettingsView(
-                        discoveryState: DiscoveryCoordinator.shared.settingsDetailState,
-                        discoveryService: DiscoveryCoordinator.shared,
+                        discoveryState: DiscoveryLocalService.shared.settingsDetailState,
+                        discoveryService: DiscoveryLocalService.shared,
                         onOpenMemoryGallery: {
                             showHoloAIUserSettings = false
                             DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false))

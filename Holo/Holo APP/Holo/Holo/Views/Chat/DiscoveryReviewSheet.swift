@@ -6,25 +6,12 @@ struct DiscoverySheetContent: View {
     let onOpenSettings: () -> Void
 
     var body: some View {
-        if let finding = viewModel.discoveryFinding {
-            DiscoveryDetailSheet(
-                finding: finding, invalidationText: viewModel.discoveryInvalidationText,
-                service: viewModel.discoveryService,
-                onOpenSource: { viewModel.openRecord(sourceRef: $0) },
-                onOpenSettings: {
-                    viewModel.closeDiscoveryDetail()
-                    onOpenSettings()
-                },
-                onStartConversation: { _ in viewModel.closeDiscoveryDetail() },
-                onDismiss: { viewModel.closeDiscoveryDetail() }
-            )
-        } else {
-            DiscoveryReviewSheet(
-                showsEarlierFinding: viewModel.discoveryService.currentFinding != nil,
-                onOpenEarlierFinding: { viewModel.openEarlierDiscoveryFinding() },
-                onClose: { viewModel.closeDiscoveryDetail() }
-            )
-        }
+        // v3：旧「服务端发布发现卡」阅读面板已退役，统一进入本机规律评审页。
+        DiscoveryReviewSheet(
+            showsEarlierFinding: viewModel.discoveryService.currentFinding != nil,
+            onOpenEarlierFinding: { viewModel.openEarlierDiscoveryFinding() },
+            onClose: { viewModel.closeDiscoveryDetail() }
+        )
     }
 }
 

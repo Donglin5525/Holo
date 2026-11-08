@@ -294,8 +294,6 @@ struct HoloApp: App {
                 if !appStoreScreenshotModeActive {
                     MemoryInsightBackgroundService.shared.scheduleBackgroundTask()
                     await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
-                    // 「一个发现」：启动轻量检查（内部按调度决策排 utility 批次，不阻塞首屏）
-                    await DiscoveryCoordinator.shared.refresh()
                 }
 
                 // 启动时轻量聚合未消费反馈（更新 rerank 用的偏好）
@@ -414,8 +412,6 @@ struct HoloApp: App {
                         await BudgetOverrunNotificationService.shared.handleAppActivity()
                         await BudgetCarryoverNotificationService.shared.handleAppActivity()
                         await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
-                        // 「一个发现」：前台激活轻量检查（资源让位决策在调度器内做）
-                        await DiscoveryCoordinator.shared.refresh()
                         await HoloReplayDigestService.shared.backfillIfNeeded(
                             historyRepo: MemoryInsightRepository()
                         )

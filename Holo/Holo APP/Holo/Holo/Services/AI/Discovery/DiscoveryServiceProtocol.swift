@@ -79,12 +79,11 @@ enum DiscoveryInaccurateReason: String, Sendable, Equatable {
     case notInterested              // 不想看这类：持续抑制该类别，可恢复
 }
 
-/// UI 消费的发现内容（payload + 依据可跳转信息）。
+/// UI 消费的发现内容（旧服务端发现卡遗留形状；v3 起恒为 nil，仅供协议签名兼容）。
 struct DiscoveryFindingPresentation: Sendable, Equatable {
     let findingID: String
     let title: String
     let body: [String]
-    let citations: [DiscoveryPublishedPayload.Citation]
     /// 展示引用（对齐回原文的精确子串；evidenceID → 展示文本）。
     let displayQuotes: [String: String]
     let coverageNote: String

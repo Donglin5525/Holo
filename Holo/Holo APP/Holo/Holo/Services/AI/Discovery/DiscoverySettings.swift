@@ -2,23 +2,22 @@
 //  DiscoverySettings.swift
 //  Holo
 //
-//  「HoloAI 一个发现」功能开关与许可状态（01 设置迁移 / 02 §9.2 localGrantEpoch）。
+//  「HoloAI 一个发现」功能开关与许可状态（v3：本机权威，01 设置迁移 / 02 §9.2 localGrantEpoch）。
 //
 //  单设备本地一份（无账号体系，不做按账号隔离命名）；切换账号/注销通过
-//  handleSignOut() 钩子清理（store 侧数据清理由调用方配合 DiscoveryStore.clearAllForAccount 完成）。
-//  运行期 UI 状态（waitingForMaterial/scheduled/preparing/ready/noFinding/backoff）
-//  存 DiscoveryRunStateMO，不在这里；本文件只存用户决定的原始值。
+//  handleSignOut() 钩子清理。v3 起无服务端批链路与本地运行态库，
+//  本文件即用户决定的唯一持久层（评审结果走知识库）。
 //
 
 import Foundation
 
 extension Notification.Name {
     /// 「一个发现」设置变化（开启/关闭/范围调整）。userInfo: enabled: Bool。
-    /// 调度器据此重新排队或取消在途批次（G6 接入）。
+    /// 宿主据此刷新胶囊与设置页状态。
     static let holoDiscoverySettingsDidChange = Notification.Name("holoDiscoverySettingsDidChange")
 }
 
-/// 设置快照（纯值，供 DiscoveryAccessPolicy 注入判定）
+/// 设置快照（纯值，供本机服务与评审范围判定）
 struct DiscoverySettingsSnapshot: Equatable, Sendable {
     var isEnabled: Bool = false
     var allowedDomains: Set<DiscoverySourceDomain> = []
@@ -124,9 +123,8 @@ final class DiscoverySettings {
     // MARK: - 账号/注销清理钩子
 
     /// 注销、切换账号或撤回总授权时调用：关闭开关、清空范围并递增 epoch
-    /// （作废旧代数结果）。注意本方法**只管设置**；候选、摘录、索引、在途数据
-    /// 与否定指纹的清理由调用方执行 DiscoveryStore.clearAllForAccount /
-    /// resetNegativeFeedback（02 §9.3：注销清候选与摘录、保留按账号隔离的否定指纹）。
+    /// （作废旧代数结果）。注意本方法**只管设置**；v3 起旧批链路的本地派生库
+    /// 已随链路退役（历史库文件留档不清理），无需调用方配合清库。
     func handleSignOut() {
         let wasEnabled = defaults.bool(forKey: Keys.enabled)
         defaults.set(false, forKey: Keys.enabled)
@@ -141,7 +139,7 @@ final class DiscoverySettings {
     // MARK: - 重置
 
     /// 显式重置本功能设置（回到默认关闭、无范围；epoch 归零）。
-    /// 供「重置本功能」入口使用；否定指纹的重置走 DiscoveryStore.resetNegativeFeedback。
+    /// 供「重置本功能」入口使用。
     func resetAll() {
         let wasEnabled = defaults.bool(forKey: Keys.enabled)
         defaults.removeObject(forKey: Keys.enabled)
