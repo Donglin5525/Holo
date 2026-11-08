@@ -198,6 +198,24 @@ enum DiscoveryTopicService {
                 slots: ["weeks", "recordDays", "txCount", "label"]
             )
         }
+        if key.hasPrefix("finance-lateNight:") {
+            return Shape(
+                observationId: key,
+                kind: "lateNightPattern",
+                direction: "divergent",
+                label: proposal.topicLabel,
+                slots: ["weeks", "label", "latePct", "lateCount", "totalCount", "latestHour"]
+            )
+        }
+        if key.hasPrefix("finance-trend:") {
+            return Shape(
+                observationId: key,
+                kind: "windowChange",
+                direction: directionOf(proposal),
+                label: proposal.topicLabel,
+                slots: ["weeks", "label", "recentCount", "previousCount", "absDelta"]
+            )
+        }
         if key.hasPrefix("health-metric:") {
             return Shape(
                 observationId: key,
@@ -248,6 +266,19 @@ enum DiscoveryTopicService {
             values["recordDays"] = parts[0]
             values["weeks"] = parts[1]
             values["txCount"] = parts[2]
+        } else if candidate.kind == "lateNightPattern", parts.count >= 4 {
+            // total|late|pct|latestHour
+            values["totalCount"] = parts[0]
+            values["lateCount"] = parts[1]
+            values["latePct"] = parts[2]
+            values["latestHour"] = parts[3]
+            values["weeks"] = "4"
+        } else if candidate.kind == "windowChange", parts.count >= 3 {
+            // recent|previous|delta
+            values["recentCount"] = parts[0]
+            values["previousCount"] = parts[1]
+            values["absDelta"] = String(abs(Int(parts[2]) ?? 0))
+            values["weeks"] = "4"
         } else if candidate.kind == "weekendCompare", parts.count >= 2 {
             // matching|weeks|days（挖掘器 "higher|lower|total" 之外的展示口径
             // 由 statsSummary 提供天数；这里按 measured 前两段+事件数兜底）
