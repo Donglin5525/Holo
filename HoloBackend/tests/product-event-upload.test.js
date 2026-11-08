@@ -145,6 +145,30 @@ test("v2.2 字典 2 个新事件名全部在白名单内（留存漏斗第一环
   assert.equal(JSON.parse(byName.get("paywall_purchase_completed").params).result, "purchased");
 });
 
+test("v2.3 字典 6 个「一个发现」事件名全部在白名单内（iOS 已随 1.1.7 包带上；双端契约：iOS 枚举同步变更）", async () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = createProductEventStore(database.db);
+  const app = createTestApp({ productEventStore: store });
+
+  const events = [
+    makeEvent({ name: "discovery_enabled", params: { scope: "all" } }),
+    makeEvent({ name: "discovery_disabled", params: { reason: "settings" } }),
+    makeEvent({ name: "discovery_review_opened", params: { surface: "card" } }),
+    makeEvent({ name: "discovery_today_shown", params: { surface: "card" } }),
+    makeEvent({ name: "discovery_today_action", params: { action: "confirm" } }),
+    makeEvent({ name: "discovery_pending_action", params: { action: "snooze" } }),
+  ];
+  const response = await sendEvents(app, events);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).accepted, 6);
+  assert.equal(store.count(), 6);
+
+  const byName = new Map(store.listByDevice("device-a").map((row) => [row.name, row]));
+  assert.equal(JSON.parse(byName.get("discovery_enabled").params).scope, "all");
+  assert.equal(JSON.parse(byName.get("discovery_today_action").params).action, "confirm");
+  assert.equal(JSON.parse(byName.get("discovery_pending_action").params).action, "snooze");
+});
+
 test("空数组、超 100 条批次、params 非对象拒绝 400", async () => {
   const app = createTestApp();
   assert.equal((await sendEvents(app, [])).status, 400);

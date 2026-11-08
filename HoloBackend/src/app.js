@@ -2717,6 +2717,13 @@ const PRODUCT_EVENT_NAMES = new Set([
   // v2.2（2026-11-08）：留存漏斗第一环 + 付费转化终点
   "notification_permission",
   "paywall_purchase_completed",
+  // v2.3（2026-11-09）：「一个发现」v3 漏斗——iOS 已随 1.1.7 包带上，白名单补登记
+  "discovery_enabled",
+  "discovery_disabled",
+  "discovery_review_opened",
+  "discovery_today_shown",
+  "discovery_today_action",
+  "discovery_pending_action",
 ]);
 
 /** 产品埋点事件归一：白名单事件名 + 扁平短字符串参数；隐私契约 = 不收用户内容。 */

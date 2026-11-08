@@ -120,6 +120,13 @@ final class HoloProductAnalyticsTests: XCTestCase {
             // v2.2（2026-11-08）：留存漏斗第一环 + 付费转化终点
             "notification_permission",
             "paywall_purchase_completed",
+            // v2.3（2026-11-09）：「一个发现」v3 漏斗六事件（随 1.1.7 包上线，后端白名单同步补登记）
+            "discovery_enabled",
+            "discovery_disabled",
+            "discovery_review_opened",
+            "discovery_today_shown",
+            "discovery_today_action",
+            "discovery_pending_action",
         ]
         let actual = Set(HoloProductEventName.allCases.map(\.rawValue))
         XCTAssertEqual(actual, expected)
