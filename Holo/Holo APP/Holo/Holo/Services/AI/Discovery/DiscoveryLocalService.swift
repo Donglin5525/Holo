@@ -82,10 +82,10 @@ final class DiscoveryLocalService: DiscoveryService {
             settingsDetailState = .disabled
             return
         }
-        // 一期：开启即常驻入口；「正在整理」为设置页稳态文案，实际有无待确认
-        // 由评审页内 DiscoveryMemoryReviewService 的真实结果呈现。
-        presentationState = .available(findingID: Self.reviewEntryID, viewed: true)
-        settingsDetailState = .preparing
+        // v3：有待展示的今日卡 → 淡橙胶囊（未看态）；无卡常驻普通胶囊随时可进评审页。
+        let hasCard = DiscoveryTopicStore.shared.todayCard() != nil
+        presentationState = .available(findingID: Self.reviewEntryID, viewed: !hasCard)
+        settingsDetailState = hasCard ? .hasFinding(viewed: false) : .preparing
     }
 
     /// 评审页入口标识（胶囊点击统一打开评审页，不指向具体发现卡）。

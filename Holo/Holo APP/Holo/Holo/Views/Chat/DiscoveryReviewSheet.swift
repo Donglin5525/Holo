@@ -31,15 +31,20 @@ struct DiscoveryReviewSheet: View {
     @State private var actionNotice: String?
     @State private var actionTask: Task<Void, Never>?
     @State private var showsEvidence = false
+    @State private var todayCard: DiscoveryTopicStore.QueuedCard?
+    @State private var showsTodayEvidence = false
 
     private let service = DiscoveryMemoryReviewService()
 
     var body: some View {
         HoloSheetScaffold(title: "一个发现", onClose: onClose) {
             ScrollView {
-                VStack(alignment: .leading, spacing: HoloSpacing.lg) {
-                    intro
-                    if consent.isGranted && !service.domains.isEmpty {
+                    VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+                        intro
+                        if let card = todayCard {
+                            todayCardSection(card)
+                        }
+                        if consent.isGranted && !service.domains.isEmpty {
                         reviewContent
                         sources
                         if showsEarlierFinding {
@@ -172,10 +177,116 @@ struct DiscoveryReviewSheet: View {
             let value = try await service.review()
             try Task.checkCancellation()
             result = value
+            // v3 选题：队列空时补一张（服务端模型文案，失败自动降级本机规则）。
+            await DiscoveryTopicService.refreshIfNeeded(proposals: value.items.compactMap(\.proposal))
+            try Task.checkCancellation()
+            todayCard = DiscoveryTopicStore.shared.todayCard()
         } catch is CancellationError {
             // 来源或页面切换后由新一轮读取接管。
         } catch {
             if !Task.isCancelled { failed = true }
+        }
+    }
+
+    // MARK: - 今日一条（v3 每日一卡）
+
+    private func matchedItem(for card: DiscoveryTopicStore.QueuedCard) -> DiscoveryMemoryReviewService.Item? {
+        result?.items.first {
+            $0.proposal?.propositionID == card.topicKey || $0.proposal?.topicID == card.topicKey
+        }
+    }
+
+    @ViewBuilder
+    private func todayCardSection(_ card: DiscoveryTopicStore.QueuedCard) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(spacing: HoloSpacing.xs) {
+                Text("今日一条")
+                    .holoText(.metadata)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                Text(card.isModelCopy ? "AI 精选" : "本机整理")
+                    .holoText(.metadata)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.holoToolInset, in: Capsule())
+            }
+            Text(card.title)
+                .holoText(.sectionTitle)
+                .foregroundStyle(Color.holoToolText)
+            Text(card.body)
+                .holoText(.body)
+                .foregroundStyle(Color.holoToolText)
+            if showsTodayEvidence, let item = matchedItem(for: card),
+               let evidence = item.knowledge.latestEvidenceSnapshot ?? item.proposal?.initialEvidenceSnapshot {
+                DiscoveryReviewEvidence(evidence: evidence)
+            }
+            Button(showsTodayEvidence ? "收起依据" : "查看依据") {
+                showsTodayEvidence.toggle()
+            }
+            .buttonStyle(HoloActionStyle(role: .secondary))
+            .accessibilityIdentifier("chat.discovery.today.evidence")
+            HStack(spacing: HoloSpacing.sm) {
+                Button("对，记住") { applyToday(.confirm, card: card) }
+                    .buttonStyle(HoloActionStyle(role: .primary))
+                Button("不太准确") { applyToday(.markInaccurate(reason: nil, scope: .understanding), card: card) }
+                    .buttonStyle(HoloActionStyle(role: .secondary))
+                Button("先放一放") { applyToday(.deferCooldown, card: card) }
+                    .buttonStyle(HoloActionStyle(role: .secondary))
+            }
+            .disabled(actionTask != nil)
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoToolInset, in: RoundedRectangle(cornerRadius: HoloRadius.md))
+        .accessibilityIdentifier("chat.discovery.today.card")
+    }
+
+    private func applyToday(_ action: HoloKnowledgeControlAction, card: DiscoveryTopicStore.QueuedCard) {
+        let store = DiscoveryTopicStore.shared
+        // 否定/暂缓直接落命题记忆并消费今日卡；确认走对应提案的知识事务。
+        switch action {
+        case .markInaccurate:
+            store.markRejected(card.topicKey)
+            store.consumeToday()
+            actionNotice = String(localized: "已标记不准确。")
+            todayCard = nil
+            return
+        case .deferCooldown:
+            store.markDeferred(card.topicKey)
+            store.consumeToday()
+            actionNotice = String(localized: "已暂缓提示这条规律。")
+            todayCard = nil
+            return
+        default:
+            break
+        }
+        guard let item = matchedItem(for: card) else {
+            // 提案已变化：消费今日卡，用户到下方列表核对新版。
+            store.consumeToday()
+            actionNotice = String(localized: "这条规律或它的依据有变化，请核对更新后的内容。")
+            todayCard = nil
+            return
+        }
+        actionNotice = nil
+        actionTask = Task {
+            defer { actionTask = nil }
+            do {
+                let outcome = try await service.apply(action, to: item)
+                guard !Task.isCancelled else { return }
+                switch outcome {
+                case .applied, .alreadyApplied:
+                    DiscoveryTopicStore.shared.consumeToday()
+                    actionNotice = String(localized: "已记住，可以在记忆中心查看。")
+                    todayCard = nil
+                case .notAllowed, .notFound, .conflict:
+                    actionNotice = String(localized: "这条规律或它的依据有变化，请核对更新后的内容。")
+                case .persistenceFailed:
+                    actionNotice = String(localized: "这次没保存成功，可以再试一次。")
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                actionNotice = String(localized: "这次没保存成功，可以再试一次。")
+            }
         }
     }
 
