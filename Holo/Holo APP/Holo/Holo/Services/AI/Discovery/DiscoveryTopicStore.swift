@@ -60,8 +60,10 @@ nonisolated final class DiscoveryTopicStore {
         writeQueue(cards)
     }
 
-    /// 展示当日时效复核：过期或已否定的队首卡直接跳过取下一张。
+    /// 展示当日时效复核：今天已消费过一张就不再出（东林拍板「每天最多一张」，
+    /// 存量卡留给后面的日子）；未消费时跳过已否定与过期卡取下一张。
     func todayCard(now: Date = Date(), calendar: Calendar = .current) -> QueuedCard? {
+        if consumedToday(now: now, calendar: calendar) { return nil }
         let rejected = rejectedTopics
         for card in readQueue() {
             if rejected.contains(card.topicKey) { continue }

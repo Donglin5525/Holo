@@ -133,6 +133,22 @@ final class DiscoveryTopicServiceTests: XCTestCase {
         XCTAssertTrue(store.shownTopics.contains("k1"))
     }
 
+    func test_todayCardGatedPerNaturalDay() {
+        // 东林拍板「每天最多一张」：队列有存量时，当天消费后 todayCard 必须为 nil
+        //（胶囊不再亮、评审页不再换下一张），次日自然日才放行下一张。
+        let cal = Calendar(identifier: .gregorian)
+        let day1 = cal.date(bySettingHour: 10, minute: 0, second: 0, of: Date())!
+        store.enqueue(card("k1"))
+        store.enqueue(card("k2"))
+        XCTAssertEqual(store.todayCard(now: day1, calendar: cal)?.topicKey, "k1")
+        store.consumeToday(now: day1, calendar: cal)
+        XCTAssertNil(store.todayCard(now: day1.addingTimeInterval(3600), calendar: cal),
+                     "当天消费过：即使队列还有下一张也不出")
+        let day2 = day1.addingTimeInterval(86_400)
+        XCTAssertEqual(store.todayCard(now: day2, calendar: cal)?.topicKey, "k2",
+                       "次日放行下一张")
+    }
+
     func test_queueSkipsRejectedAndExpired() {
         store.enqueue(card("rejected-key"))
         store.markRejected("rejected-key")
