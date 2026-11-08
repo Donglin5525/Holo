@@ -539,8 +539,11 @@ private struct DiscoveryReviewEvidence: View {
     let evidence: HoloKnowledgeEvidenceSnapshot
     @State private var showsAll = false
 
+    /// 依据明细日期：M/d（如 11/3）——中文 locale 的 formatted 会输出「11月3日」
+    /// 导致 34pt 日期列折行（东林真机实报 2026-11-08），必须手动拼。
     private func dayText(_ date: Date) -> String {
-        date.formatted(.dateTime.month(.defaultDigits).day())
+        let c = Calendar.current.dateComponents([.month, .day], from: date)
+        return "\(c.month ?? 0)/\(c.day ?? 0)"
     }
     private func weekdayText(_ date: Date) -> String {
         date.formatted(.dateTime.weekday(.abbreviated))
