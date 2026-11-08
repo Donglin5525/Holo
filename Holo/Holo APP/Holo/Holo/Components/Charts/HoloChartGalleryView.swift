@@ -93,10 +93,20 @@ struct HoloChartGalleryView: View {
                 heatID = "heat-\(calendar.dateComponents([.day], from: origin, to: day.date).day ?? -1)"
             }
         case 3:
-            HoloDonutChart(segments: [
-                .init(id: "large", name: "主要分类", weight: 999, valueText: "999", color: .holoChart1),
-                .init(id: "tiny", name: "极小分类", weight: 1, valueText: "1", color: .holoChart2)
-            ], selectedID: selection, centerText: "1000", onSelect: { selection = $0 })
+            VStack(spacing: 24) {
+                HoloDonutChart(segments: [
+                    .init(id: "large", name: "主要分类", weight: 999, valueText: "999", color: .holoChart1),
+                    .init(id: "tiny", name: "极小分类", weight: 1, valueText: "1", color: .holoChart2)
+                ], selectedID: selection, centerText: "1000", onSelect: { selection = $0 })
+                // 回归场景 2026-11-08：50/50 双清单长名（任务统计实录）——
+                // 长名塞不进环带，须整体挪行末且不与引导线/占比叠字；短名走环带内。
+                // 横向内边距补齐任务统计卡片的卡内边距，宽度与实页一致（窄宽下长名走截断）
+                HoloDonutChart(segments: [
+                    .init(id: "task-long", name: "Holo 开发任务", weight: 1, valueText: "1 件", color: .holoChart1),
+                    .init(id: "task-inbox", name: "收件箱", weight: 1, valueText: "1 件", color: .holoChart2)
+                ], selectedID: selection, centerText: "2 件", onSelect: { selection = $0 })
+                .padding(.horizontal, HoloSpacing.md)
+            }
         case 5:
             HoloBarChart(buckets: dualBuckets,
                          series: [.init(id: "expense", title: "支出", color: .holoError),
