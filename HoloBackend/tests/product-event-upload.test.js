@@ -126,6 +126,25 @@ test("v2.1 字典 2 个新事件名全部在白名单内（第二周留存钩子
   assert.equal(JSON.parse(byName.get("weekly_review_viewed").params).weekStart, "2026-11-02");
 });
 
+test("v2.2 字典 2 个新事件名全部在白名单内（留存漏斗第一环 + 付费转化终点；双端契约：iOS 枚举同步变更）", async () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = createProductEventStore(database.db);
+  const app = createTestApp({ productEventStore: store });
+
+  const events = [
+    makeEvent({ name: "notification_permission", params: { status: "granted" } }),
+    makeEvent({ name: "paywall_purchase_completed", params: { result: "purchased" } }),
+  ];
+  const response = await sendEvents(app, events);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).accepted, 2);
+  assert.equal(store.count(), 2);
+
+  const byName = new Map(store.listByDevice("device-a").map((row) => [row.name, row]));
+  assert.equal(JSON.parse(byName.get("notification_permission").params).status, "granted");
+  assert.equal(JSON.parse(byName.get("paywall_purchase_completed").params).result, "purchased");
+});
+
 test("空数组、超 100 条批次、params 非对象拒绝 400", async () => {
   const app = createTestApp();
   assert.equal((await sendEvents(app, [])).status, 400);

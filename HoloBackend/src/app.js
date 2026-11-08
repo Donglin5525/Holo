@@ -2690,7 +2690,7 @@ const AGENT_TELEMETRY_EVENT_NAMES = new Set([
   "agent_lease_changed",
 ]);
 
-/** 与 iOS HoloProductEventName 一一对应（2026-10-19 埋点字典 v1 + 2026-10-25 v2 + 2026-11-07 v2.1）；新增事件先加这里再发 iOS。 */
+/** 与 iOS HoloProductEventName 一一对应（2026-10-19 埋点字典 v1 + 2026-10-25 v2 + 2026-11-07 v2.1 + 2026-11-08 v2.2）；新增事件先加这里再发 iOS。 */
 const PRODUCT_EVENT_NAMES = new Set([
   // v1（2026-10-19）
   "app_first_launch",
@@ -2714,6 +2714,9 @@ const PRODUCT_EVENT_NAMES = new Set([
   // v2.1（2026-11-07）：第二周留存钩子实验漏斗（推送点开 + 周回顾查看）
   "notification_opened",
   "weekly_review_viewed",
+  // v2.2（2026-11-08）：留存漏斗第一环 + 付费转化终点
+  "notification_permission",
+  "paywall_purchase_completed",
 ]);
 
 /** 产品埋点事件归一：白名单事件名 + 扁平短字符串参数；隐私契约 = 不收用户内容。 */
