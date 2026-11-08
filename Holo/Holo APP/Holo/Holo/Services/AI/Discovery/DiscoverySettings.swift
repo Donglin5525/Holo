@@ -35,12 +35,15 @@ enum DiscoverySettingsError: Error, Equatable, Sendable {
 final class DiscoverySettings {
 
     static let shared = DiscoverySettings()
+    static let localFinanceKey = "holo.discovery.localFinanceReview"
+    static let localHealthKey = "holo.discovery.localHealthReview"
+    static let enabledKey = "holo.discovery.enabled"
 
     private let defaults: UserDefaults
 
     private enum Keys {
         static let prefix = "holo.discovery."
-        static let enabled = "holo.discovery.enabled"
+        static let enabled = DiscoverySettings.enabledKey
         static let allowedDomains = "holo.discovery.allowedDomains"
         static let localGrantEpoch = "holo.discovery.localGrantEpoch"
         /// 首次明确同意开启的时间戳（说明文案「开启即同意必要片段交外部 AI 处理」的依据记录）
@@ -67,6 +70,21 @@ final class DiscoverySettings {
         defaults.integer(forKey: Keys.localGrantEpoch)
     }
 
+    /// 新来源仅在当前设备用于规律整理，不加入旧云端批次的授权范围。
+    func memoryReviewDomains() -> Set<HoloMemoryDomain> {
+        let state = snapshot()
+        guard state.isEnabled else { return [] }
+        var domains = Set(state.allowedDomains.compactMap { HoloMemoryDomain(rawValue: $0.rawValue) })
+        if defaults.bool(forKey: Self.localFinanceKey) { domains.insert(.finance) }
+        if defaults.bool(forKey: Self.localHealthKey) { domains.insert(.health) }
+        return domains
+    }
+
+    private func clearLocalReviewScope() {
+        defaults.removeObject(forKey: Self.localFinanceKey)
+        defaults.removeObject(forKey: Self.localHealthKey)
+    }
+
     // MARK: - 写入
 
     /// 开启（首次或再次开启）。至少一类来源；关闭→开启时 localGrantEpoch 递增，
@@ -89,6 +107,7 @@ final class DiscoverySettings {
     /// 关闭。epoch 不清零（保持单调递增），停新请求/拒绝采纳迟到结果由门控与调度负责。
     func disable() {
         guard defaults.bool(forKey: Keys.enabled) else { return }
+        clearLocalReviewScope()
         defaults.set(false, forKey: Keys.enabled)
         postChange(enabled: false)
     }
@@ -112,6 +131,7 @@ final class DiscoverySettings {
         let wasEnabled = defaults.bool(forKey: Keys.enabled)
         defaults.set(false, forKey: Keys.enabled)
         defaults.removeObject(forKey: Keys.allowedDomains)
+        clearLocalReviewScope()
         defaults.set(defaults.integer(forKey: Keys.localGrantEpoch) + 1, forKey: Keys.localGrantEpoch)
         if wasEnabled {
             postChange(enabled: false)
@@ -128,6 +148,7 @@ final class DiscoverySettings {
         defaults.removeObject(forKey: Keys.allowedDomains)
         defaults.removeObject(forKey: Keys.localGrantEpoch)
         defaults.removeObject(forKey: Keys.consentRecordedAt)
+        clearLocalReviewScope()
         if wasEnabled {
             postChange(enabled: false)
         }

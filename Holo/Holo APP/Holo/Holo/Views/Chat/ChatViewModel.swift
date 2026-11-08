@@ -130,16 +130,23 @@ final class ChatViewModel: ObservableObject {
     func refreshDiscoveryState() async {
         await discoveryService.refresh()
         discoveryPresentationState = discoveryService.presentationState
-        if !discoveryService.isDetailPresented, showsDiscoveryDetail {
+        if !discoveryService.isDetailPresented, showsDiscoveryDetail, discoveryFinding != nil {
             // 撤权/失效：服务侧已关闭阅读，带上失效说明
             discoveryInvalidationText = "这条发现已失效或授权已撤回"
             showsDiscoveryDetail = false
         }
     }
 
-    /// 胶囊点击：打开当前有效发现（过期/失效返回 nil 则不呈现）。
+    /// 胶囊打开规律确认页，允许用户查看整理中、无结果和有结果。
     @MainActor
     func openDiscoveryFinding() {
+        discoveryFinding = nil
+        discoveryInvalidationText = nil
+        showsDiscoveryDetail = true
+    }
+
+    @MainActor
+    func openEarlierDiscoveryFinding() {
         if let finding = discoveryService.openFinding() {
             discoveryFinding = finding
             discoveryInvalidationText = nil
@@ -151,6 +158,7 @@ final class ChatViewModel: ObservableObject {
     @MainActor
     func closeDiscoveryDetail() {
         showsDiscoveryDetail = false
+        discoveryFinding = nil
         discoveryPresentationState = discoveryService.presentationState
     }
 

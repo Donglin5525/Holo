@@ -168,6 +168,8 @@ nonisolated enum HoloKnowledgeTemplateID: String, Codable, Equatable, Sendable, 
     case comparableWindowChange
     /// 周内重复节奏
     case weeklyRhythm
+    /// 已结束的观察窗内确实重复出现，可请用户核对历史记录。
+    case boundedRecurrence
     /// 开放条件/跨域关联（只表达关联，不表达因果）
     case openConditionalAssociation
 }
@@ -221,6 +223,16 @@ nonisolated enum HoloKnowledgeTemplateRegistry {
             minCompletePeriods: 4,
             minCoverage: 0.7,
             requiresCounterexampleSearch: true,
+            holdoutPeriods: 0,
+            allowedEvidenceForms: [.independentEventSet, .sampledNumericSeries]
+        ),
+        .boundedRecurrence: HoloKnowledgeTemplateParameters(
+            id: .boundedRecurrence,
+            minIndependentEvents: 3,
+            minSpanDays: 7,
+            minCompletePeriods: 2,
+            minCoverage: 0,
+            requiresCounterexampleSearch: false,
             holdoutPeriods: 0,
             allowedEvidenceForms: [.independentEventSet, .sampledNumericSeries]
         ),

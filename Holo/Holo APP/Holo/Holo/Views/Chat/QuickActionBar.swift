@@ -17,7 +17,7 @@ struct QuickActionBar: View {
             HStack(spacing: 8) {
                 ForEach(viewModel.persistentCapabilities) { capability in
                     // 「一个发现」胶囊插在「周期回放」之前（常驻行顺序：深度分析/一个发现/周期回放/规划目标）；
-                    // 仅有效发现时渲染，无数字无红点无闪烁（01 §1）
+                    // 开启后可随时查看整理状态。
                     if capability.id == .periodReplay {
                         DiscoveryCapsuleView(state: viewModel.discoveryPresentationState) {
                             viewModel.openDiscoveryFinding()

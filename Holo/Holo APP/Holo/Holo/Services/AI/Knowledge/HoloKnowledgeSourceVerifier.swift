@@ -71,28 +71,7 @@ final class HoloKnowledgeCoreDataSourceVerifier: HoloKnowledgeSourceVerifying, @
     }
 
     func verify(_ ref: HoloMemoryEvidenceRef) async -> HoloKnowledgeSourceStatus {
-        // 用户原话的证据是独立来源，不依赖业务行存活。
-        if ref.kind == .explicitUserStatement { return .verified }
-        switch ref.sourceDomain {
-        case .profile:
-            // 档案由原模块拥有当前状态；记忆只持有引用，查询实时解析 → 视为可核验。
-            return .verified
-        case .health:
-            return healthAccessProvider()
-        case .thought:
-            return await verifyThought(ref)
-        case .task:
-            return await verifyRow(entity: "TodoTask", ref: ref, softDeleteKey: "deletedAt")
-        case .habit:
-            return await verifyRow(entity: "HabitRecord", ref: ref, softDeleteKey: nil)
-        case .finance:
-            if ref.lineageKey.hasPrefix("finance:budget:") { return .verified }
-            return await verifyRow(entity: "Transaction", ref: ref, softDeleteKey: "deletedAt")
-        case .goal:
-            return await verifyRow(entity: "Goal", ref: ref, softDeleteKey: "deletedAt")
-        case .conversation:
-            return await verifyRow(entity: "ChatMessage", ref: ref, softDeleteKey: "deletedAt")
-        }
+        await verifyBatch([ref])[ref.id] ?? .unknown
     }
 
     /// 批量核验：与逐条 verify 同一判定口径，但按实体分批（IN 查询、单上下文）
@@ -102,7 +81,6 @@ final class HoloKnowledgeCoreDataSourceVerifier: HoloKnowledgeSourceVerifying, @
         var results: [String: HoloKnowledgeSourceStatus] = [:]
         results.reserveCapacity(refs.count)
         var rowsByEntity: [String: [(refID: String, uuid: UUID)]] = [:]
-        var thoughtRefIDs: Set<String> = []
 
         // 1. 分流：免查库的先出结果；要查行的按实体分组。
         for ref in refs {
@@ -117,7 +95,6 @@ final class HoloKnowledgeCoreDataSourceVerifier: HoloKnowledgeSourceVerifying, @
             case .thought:
                 guard let id = Self.uuid(from: ref) else { results[ref.id] = .unknown; continue }
                 rowsByEntity["Thought", default: []].append((ref.id, id))
-                thoughtRefIDs.insert(ref.id)
             case .task:
                 guard let id = Self.uuid(from: ref) else { results[ref.id] = .unknown; continue }
                 rowsByEntity["TodoTask", default: []].append((ref.id, id))
@@ -138,14 +115,6 @@ final class HoloKnowledgeCoreDataSourceVerifier: HoloKnowledgeSourceVerifying, @
         guard !rowsByEntity.isEmpty else { return results }
 
         // 2. 每实体分块 IN 查询，一个后台上下文跑完全部（不再每证据新建上下文）。
-        let softDeleteKeys: [String: String?] = [
-            "Thought": "deletedAt",
-            "TodoTask": "deletedAt",
-            "HabitRecord": nil,
-            "Transaction": "deletedAt",
-            "Goal": "deletedAt",
-            "ChatMessage": "deletedAt",
-        ]
         let context = businessContainer.newBackgroundContext()
         let chunkLimit = 400
         for (entity, rows) in rowsByEntity {
@@ -155,73 +124,37 @@ final class HoloKnowledgeCoreDataSourceVerifier: HoloKnowledgeSourceVerifying, @
                 index += chunkLimit
                 let chunkArray = Array(chunk)
                 let uuidArguments = chunkArray.map { $0.uuid as NSUUID } as NSArray
-                let foundByUUID: [UUID: NSManagedObject] = await context.perform {
+                let checked: [String: HoloKnowledgeSourceStatus] = await context.perform {
                     let request = NSFetchRequest<NSManagedObject>(entityName: entity)
                     request.predicate = NSPredicate(format: "id IN %@", uuidArguments)
-                    var map: [UUID: NSManagedObject] = [:]
-                    for object in (try? context.fetch(request)) ?? [] {
-                        if let id = object.value(forKey: "id") as? UUID { map[id] = object }
+                    do {
+                        let fetched = try context.fetch(request)
+                        let copies = Dictionary(grouping: fetched) { $0.value(forKey: "id") as? UUID }
+                        return Dictionary(chunkArray.map { refID, uuid in
+                            let observedAt = refByID[refID]?.observedAt ?? .distantPast
+                            let matching = copies[uuid] ?? []
+                            let status = matching.reduce(HoloKnowledgeSourceStatus.verified) { worst, object in
+                                HoloKnowledgeSourceSeverity.worse(worst, Self.rowStatus(object, observedAt: observedAt))
+                            }
+                            return (refID, matching.isEmpty ? .deleted : status)
+                        }, uniquingKeysWith: HoloKnowledgeSourceSeverity.worse)
+                    } catch {
+                        return Dictionary(chunkArray.map { ($0.refID, .unknown) }, uniquingKeysWith: { first, _ in first })
                     }
-                    return map
                 }
-                let softDeleteKey = softDeleteKeys[entity] ?? nil
-                for (refID, uuid) in chunkArray {
-                    guard let object = foundByUUID[uuid] else {
-                        results[refID] = .deleted
-                        continue
-                    }
-                    if let softDeleteKey,
-                       object.entity.attributesByName[softDeleteKey] != nil,
-                       (object.value(forKey: softDeleteKey) as? Date) != nil {
-                        results[refID] = .deleted
-                        continue
-                    }
-                    if thoughtRefIDs.contains(refID), let thought = object as? Thought,
-                       ThoughtAIAudience.isExcluded(thought) {
-                        results[refID] = .excluded
-                        continue
-                    }
-                    let observedAt = refByID[refID]?.observedAt ?? .distantPast
-                    results[refID] = Self.revisionStatus(object: object, observedAt: observedAt)
-                }
+                results.merge(checked, uniquingKeysWith: HoloKnowledgeSourceSeverity.worse)
             }
         }
         return results
     }
 
-    private func verifyThought(_ ref: HoloMemoryEvidenceRef) async -> HoloKnowledgeSourceStatus {
-        guard let id = Self.uuid(from: ref) else { return .unknown }
-        let context = businessContainer.newBackgroundContext()
-        return await context.perform {
-            let request = NSFetchRequest<Thought>(entityName: "Thought")
-            request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-            request.fetchLimit = 1
-            guard let thought = try? context.fetch(request).first else { return .deleted }
-            if (thought.value(forKey: "deletedAt") as? Date) != nil { return .deleted }
-            if ThoughtAIAudience.isExcluded(thought) { return .excluded }
-            return Self.revisionStatus(object: thought, observedAt: ref.observedAt)
-        }
-    }
-
-    private func verifyRow(
-        entity: String,
-        ref: HoloMemoryEvidenceRef,
-        softDeleteKey: String?
-    ) async -> HoloKnowledgeSourceStatus {
-        guard let id = Self.uuid(from: ref) else { return .unknown }
-        let context = businessContainer.newBackgroundContext()
-        return await context.perform {
-            let request = NSFetchRequest<NSManagedObject>(entityName: entity)
-            request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-            request.fetchLimit = 1
-            guard let object = try? context.fetch(request).first else { return .deleted }
-            if let softDeleteKey,
-               object.entity.attributesByName[softDeleteKey] != nil,
-               (object.value(forKey: softDeleteKey) as? Date) != nil {
-                return .deleted
-            }
-            return Self.revisionStatus(object: object, observedAt: ref.observedAt)
-        }
+    private static func rowStatus(_ object: NSManagedObject, observedAt: Date) -> HoloKnowledgeSourceStatus {
+        if object.entity.attributesByName["deletedAt"] != nil,
+           object.value(forKey: "deletedAt") as? Date != nil { return .deleted }
+        if let thought = object as? Thought,
+           thought.isSoftDeleted || thought.isArchived || ThoughtAIAudience.isExcluded(thought) { return .excluded }
+        if let task = object as? TodoTask, task.deletedFlag || task.archived { return .excluded }
+        return revisionStatus(object: object, observedAt: observedAt)
     }
 
     /// 修订判定：实体有 updatedAt 且晚于证据观察时刻 → revised（需重核，不等于失效）。

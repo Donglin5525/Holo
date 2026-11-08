@@ -548,6 +548,74 @@ final class DiscoveryCoordinatorTests: XCTestCase {
         return ""
     }
 
+    func testRecordedFinancePreviewAndConfirmationShareOneKnowledgeRevision() async throws {
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_794_012_000)
+        let window = try XCTUnwrap(HoloRecordedPatternMiner.window(at: now, calendar: calendar))
+        func expense(_ id: String, _ day: Int, expense: Bool = true) -> FinanceMemoryTransactionInput {
+            .init(id: id, amount: 20, isExpense: expense, categoryID: "lunch", categoryName: "午餐", merchant: nil,
+                  occurredAt: window.start.addingTimeInterval(Double(day) * 86_400), revisionDigest: "r-\(id)")
+        }
+        let sparse = [expense("one", 2), expense("two", 2), expense("three", 9)]
+        XCTAssertTrue(HoloRecordedPatternMiner.finance(sparse, window: window, calendar: calendar).isEmpty)
+        let proposal = try XCTUnwrap(HoloRecordedPatternMiner.finance(
+            sparse + [expense("four", 10), expense("four", 10), expense("income", 12, expense: false), expense("outside", 28)],
+            window: window, calendar: calendar
+        ).first)
+        let evidence = proposal.initialEvidenceSnapshot
+        XCTAssertEqual(evidence.independentEventCount, 3)
+        XCTAssertEqual(evidence.supportRefs.count, 4)
+        XCTAssertEqual(evidence.completePeriods, 2)
+        XCTAssertEqual(proposal.partition, .sensitiveLocal)
+
+        let repository = try makeKnowledgeRepository()
+        let snapshot = try await repository.knowledgeStoreSnapshot(propositionID: proposal.propositionID)
+        XCTAssertTrue(snapshot.revisions.isEmpty, "预览不能提前写入记忆")
+        let projected = try XCTUnwrap(snapshot.includingProposal(proposal, controlGeneration: 0, now: now).resolve(
+            propositionID: proposal.propositionID, controlGeneration: 0, learningBaselineAt: nil, now: now
+        ))
+        XCTAssertTrue(DiscoveryMemoryReviewService.isReviewable(projected, allowed: [.finance], now: now))
+        XCTAssertFalse(DiscoveryMemoryReviewService.isReviewable(projected, allowed: [.health], now: now))
+        XCTAssertFalse(projected.decision.isUsableForAnswering)
+        let request = HoloKnowledgeControlRequest(
+            propositionID: proposal.propositionID, expectedSemanticDigest: proposal.semanticDigest,
+            knownOperationIDs: [], action: .confirm, entry: "discovery", issuedAt: now
+        )
+        let control = HoloKnowledgeControlService(repository: repository)
+        let rejected = try await control.apply(request, proposal: proposal, expectedEvidenceID: "stale")
+        guard case .notAllowed = rejected else { return XCTFail("旧依据不可确认：\(rejected)") }
+        let applied = try await control.apply(request, proposal: proposal, expectedEvidenceID: evidence.id)
+        guard case .applied = applied else { return XCTFail("确认应当保存：\(applied)") }
+        let loaded = try await repository.resolvedKnowledge(propositionID: proposal.propositionID, now: now)
+        let remembered = try XCTUnwrap(loaded)
+        XCTAssertEqual(remembered.decision, .confirmedValid)
+        XCTAssertEqual(remembered.latestEvidenceSnapshot?.id, evidence.id)
+        XCTAssertEqual(remembered.allowedUses, [.sourceLinkForPreciseQuery], "历史观察不提升为长期建议")
+        XCTAssertFalse(DiscoveryMemoryReviewService.isReviewable(remembered, allowed: [.finance], now: now))
+    }
+
+    func testRecordedHealthUsesOnlyComparableWeeksAndShowsExceptionsInCount() throws {
+        var calendar = Calendar(identifier: .iso8601)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let window = try XCTUnwrap(HoloRecordedPatternMiner.window(
+            at: Date(timeIntervalSince1970: 1_794_012_000), calendar: calendar
+        ))
+        let samples = (0..<27).map { offset in
+            let day = window.start.addingTimeInterval(Double(offset) * 86_400)
+            let value: Double = calendar.isDateInWeekend(day) ? (offset < 14 ? 3000 : 9500) : 6500
+            return HoloRecordedPatternMiner.HealthDay(day: day, value: value)
+        }
+        let proposal = try XCTUnwrap(HoloRecordedPatternMiner.health(samples, metric: .steps, window: window, calendar: calendar))
+        let evidence = proposal.initialEvidenceSnapshot
+        XCTAssertEqual(proposal.partition, .sensitiveLocal)
+        XCTAssertEqual(evidence.completePeriods, 3)
+        XCTAssertEqual(evidence.independentEventCount, 21)
+        XCTAssertTrue(evidence.statsSummary?.contains("2 / 3") == true)
+        XCTAssertFalse(evidence.supportRefs.contains { $0.observedAt >= window.end.addingTimeInterval(-7 * 86_400) })
+        XCTAssertNil(HoloRecordedPatternMiner.health(Array(samples.prefix(14)), metric: .steps, window: window, calendar: calendar))
+    }
+
     /// 触发一次批次：登记一条已过静默窗的变更并等待批次结束
     private func runOneBatch(_ coordinator: DiscoveryCoordinator, digest: String = "digest-1") async {
         coordinator.markDirty(

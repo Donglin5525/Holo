@@ -299,7 +299,8 @@ nonisolated enum HoloKnowledgeResolver {
         // 8h. 已确认且仍有效。
         if let confirmedRevision {
             var uses = baseUses
-            if confirmedRevision.semantic.formation == .behavioralInference {
+            if confirmedRevision.semantic.formation == .behavioralInference,
+               confirmedRevision.initialEvidenceSnapshot.templateID != HoloKnowledgeTemplateID.boundedRecurrence.rawValue {
                 uses.formUnion([.backgroundUnderstanding, .qualifiedAdvice])
             }
             return finish(.confirmedValid, uses, ["confirmed"])

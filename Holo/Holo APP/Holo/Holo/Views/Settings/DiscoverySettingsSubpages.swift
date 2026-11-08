@@ -20,6 +20,9 @@ struct DiscoveryScopeView: View {
 
     /// 当前允许范围（本机设置真源快照，进入时由父页传入）
     let allowedDomains: Set<DiscoverySourceDomain>
+    @AppStorage(DiscoverySettings.enabledKey) private var isEnabled = false
+    @AppStorage(DiscoverySettings.localFinanceKey) private var includesFinance = false
+    @AppStorage(DiscoverySettings.localHealthKey) private var includesHealth = false
 
     var body: some View {
         ScrollView {
@@ -42,6 +45,11 @@ struct DiscoveryScopeView: View {
                     }
                 }
 
+                if isEnabled {
+                    DiscoveryReviewSourceControls(includesFinance: $includesFinance, includesHealth: $includesHealth)
+                        .padding(.horizontal, HoloSpacing.lg)
+                }
+
                 Text(scopeNote)
                     .holoText(.metadata)
                     .foregroundColor(.holoToolTextSecondary)
@@ -58,7 +66,7 @@ struct DiscoveryScopeView: View {
     }
 
     private var scopeNote: String {
-        "健康与财务记录不参与；已设为「不参与 AI」的想法始终排除。"
+        "健康与财务的规律由此设备整理。已设为「不参与 AI」的想法始终排除。"
     }
 
     private func domainRow(_ meta: DiscoveryDomainMeta) -> some View {
@@ -96,13 +104,13 @@ struct DiscoveryProcessingNoteView: View {
                     HoloSettingsRow(
                         icon: "cloud",
                         title: "理解发生在云端",
-                        subtitle: "相关片段会经 Holo 的服务器交给第三方 AI 分析，不是只在手机本地处理。"
+                        subtitle: "想法、任务和习惯的相关片段会经 Holo 的服务器交给第三方 AI 分析。"
                     )
                     HoloSettingsDivider()
                     HoloSettingsRow(
                         icon: "line.3.horizontal.decrease.circle",
                         title: "只取允许的材料",
-                        subtitle: "只读取你勾选范围内的想法、任务、习惯；不读健康与财务，不读长期记忆，也不会往记忆里写。"
+                        subtitle: "规律确认页可读取你允许查看的待确认记忆。健康与财务各自开启后，在本机整理并核对依据。"
                     )
                     HoloSettingsDivider()
                     HoloSettingsRow(

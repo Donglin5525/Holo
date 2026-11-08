@@ -184,27 +184,11 @@ struct ChatView: View {
         .sheet(item: $activeSheet, onDismiss: handleSheetDismiss) { sheet in
             sheetContent(sheet)
         }
-        // 「一个发现」阅读面板（01 §2）：打开期间不被新结果替换；撤权/失效由
-        // refreshDiscoveryState 强制关闭并显示失效说明
+        // 共用既有弹层通道，承载规律确认和旧观察阅读。
         .sheet(isPresented: $viewModel.showsDiscoveryDetail) {
-            DiscoveryDetailSheet(
-                finding: viewModel.discoveryFinding,
-                invalidationText: viewModel.discoveryInvalidationText,
-                service: viewModel.discoveryService,
-                onOpenSource: { sourceRef in
-                    viewModel.openRecord(sourceRef: sourceRef)
-                },
-                onOpenSettings: {
-                    viewModel.closeDiscoveryDetail()
-                    activeSheet = .holoAIUserSettings
-                },
-                onStartConversation: { _ in
-                    viewModel.closeDiscoveryDetail()
-                },
-                onDismiss: {
-                    viewModel.closeDiscoveryDetail()
-                }
-            )
+            DiscoverySheetContent(viewModel: viewModel) {
+                activeSheet = .holoAIUserSettings
+            }
         }
         .task {
             // 打开链路分段计时起点（首屏 reveal 处收尾落盘，见 revealInitialConversationIfReady）

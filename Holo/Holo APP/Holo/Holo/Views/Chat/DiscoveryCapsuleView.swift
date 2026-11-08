@@ -3,22 +3,67 @@
 //  Holo
 //
 //  「一个发现」常驻行胶囊（01 §1）：与 QuickActionBar 其余胶囊同排同规格，
-//  仅在 presentationState == .available 时渲染；未看=淡橙轻品牌色、已看=普通样式。
-//  无数字、无红点、无闪烁、无催看；其余状态（含 disabled 占位）一律不渲染。
+//  开启后常驻，可查看本机整理进度；有未读云端观察时用轻品牌色。
 //
 
 import SwiftUI
+import Combine
 
 struct DiscoveryCapsuleView: View {
 
     let state: DiscoveryPresentationState
     let onTap: () -> Void
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(DiscoverySettings.enabledKey) private var isEnabled = false
+    @AppStorage(DiscoverySettings.localFinanceKey) private var includesFinance = false
+    @AppStorage(DiscoverySettings.localHealthKey) private var includesHealth = false
+    @ObservedObject private var consent = HoloAIDataProcessingConsent.shared
+    @State private var hasPatternToConfirm = false
+    @State private var hintRevision = 0
+
+    private struct HintKey: Hashable {
+        let enabled: Bool
+        let finance: Bool
+        let health: Bool
+        let revision: Int
+    }
 
     var body: some View {
-        // 只有有效发现才有胶囊；disabled/preparing/waiting/stale 等一律不渲染占位
-        if case .available(_, let viewed) = state {
-            capsule(viewed: viewed)
+        if isEnabled && consent.isGranted {
+            capsule(viewed: !hasPatternToConfirm && !hasUnreadFinding)
+                .task(id: HintKey(enabled: scenePhase == .active, finance: includesFinance,
+                                  health: includesHealth, revision: hintRevision)) {
+                    await refreshHint()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .holoKnowledgeControlDidApply)) { _ in
+                    hintRevision += 1
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .holoDiscoverySettingsDidChange)) { _ in
+                    hintRevision += 1
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
+                    if includesFinance { hintRevision += 1 }
+                }
         }
+    }
+
+    private func refreshHint() async {
+        hasPatternToConfirm = false
+        guard scenePhase == .active else { return }
+        do {
+            // 先让聊天首屏完成，再做只读的本机整理。
+            try await Task.sleep(for: .seconds(1))
+            let result = try await DiscoveryMemoryReviewService().review()
+            try Task.checkCancellation()
+            hasPatternToConfirm = !result.items.isEmpty
+        } catch {
+            // 正式入口呈现可恢复的读取状态；胶囊保持可点击。
+        }
+    }
+
+    private var hasUnreadFinding: Bool {
+        if case .available(_, viewed: false) = state { return true }
+        return false
     }
 
     // MARK: - 胶囊
@@ -40,8 +85,8 @@ struct DiscoveryCapsuleView: View {
             .fixedSize(horizontal: true, vertical: false)
         }
         .accessibilityIdentifier("chat.discovery.capsule")
-        .accessibilityLabel(Text(viewed ? "一个发现" : "一个发现，有新内容"))
-        .accessibilityHint(Text("打开这条发现的阅读面板"))
+        .accessibilityLabel(Text(hasPatternToConfirm ? "一个发现，有规律待确认" : (viewed ? "一个发现" : "一个发现，有新内容")))
+        .accessibilityHint(Text("查看记录里的规律和整理状态"))
     }
 
     /// 未看=淡橙轻品牌底（亮暗模式都用品牌橙低透明，避免深色下出实心亮块）；

@@ -60,6 +60,15 @@
 
 **v2 实施顺带根治的回归**（2026-10-25 冒烟实锤）：`sendMessage` 先清 `inputText` 再消费场景意图，而 4764ad2849（09-23）给 `inputText` 加了「清空即解除场景绑定」didSet——显式场景发送自 09-23 起全部退回常规意图识别。修法=场景意图在 `inputText = ""` 之前捕获。
 
+## 埋点字典 v2.1（2026-11-07 增补，第二周留存钩子实验前置漏斗度量）
+
+新增 2 个事件，白名单 17 → 19。用途：为「第二周留存钩子」（周回顾 + 推送实验）前置度量「推送触达 → 点开 → 周回顾查看」漏斗。
+
+| 事件名 | 触发时机 | 参数 | 回答的问题 |
+|---|---|---|---|
+| `notification_opened` | 用户点开一条推送通知进入 App（`TodoNotificationService` 通知 default action 分发点；complete/snooze 快捷按钮不打开 App 不计） | `source`: 推送来源标识（通知 payload `source` 键优先，取不到用 category，再取不到 `system`，如 `weekly_review`）；`target`: 落地面标识（深链路由结果，如 `taskDetail`/`replay`，无路由 `none`） | 推送点开率、各来源拉活效果（漏斗起点） |
+| `weekly_review_viewed` | 用户查看周回顾内容（**upcoming 功能预留：本期仅加后端白名单 + iOS 枚举占位，未接 UI 调用点**） | `weekStart`: 周一日期，格式 `yyyy-MM-dd` | 周回顾内容触达率（÷ `notification_opened source=weekly_review` = 点开→查看转化） |
+
 ## 技术设计
 
 ### 后端（HoloBackend）

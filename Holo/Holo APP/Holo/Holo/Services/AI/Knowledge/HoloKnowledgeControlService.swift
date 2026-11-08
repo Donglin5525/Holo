@@ -114,13 +114,28 @@ final class HoloKnowledgeControlService: Sendable {
         self.repository = repository
     }
 
-    func apply(_ request: HoloKnowledgeControlRequest) async throws -> HoloKnowledgeControlOutcome {
+    func apply(
+        _ request: HoloKnowledgeControlRequest,
+        proposal: HoloKnowledgeRevision? = nil,
+        expectedEvidenceID: String? = nil
+    ) async throws -> HoloKnowledgeControlOutcome {
         guard !request.operationID.isEmpty, !request.propositionID.isEmpty else {
             return .notAllowed(reason: "structuralInvalid")
         }
         if case .correct(let statement) = request.action,
            statement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .notAllowed(reason: "emptyCorrection")
+        }
+        if let proposal {
+            guard [.confirm, .markInaccurate, .deferCooldown].contains(request.action.operationKind),
+                  proposal.propositionID == request.propositionID,
+                  proposal.semanticDigest == request.expectedSemanticDigest,
+                  proposal.initialEvidenceSnapshot.id == expectedEvidenceID,
+                  proposal.initialEvidenceSnapshot.templateID == HoloKnowledgeTemplateID.boundedRecurrence.rawValue,
+                  HoloKnowledgeAdmission.assess(
+                    semantic: proposal.semantic, evidence: proposal.initialEvidenceSnapshot,
+                    authorizedSourceDomains: Set(proposal.domains)
+                  ) == .worthConfirming else { return .notAllowed(reason: "invalidProposal") }
         }
 
         // 幂等：同 operationID 已存在 = 重试成功。但重试路径也要补齐此前可能
@@ -146,11 +161,15 @@ final class HoloKnowledgeControlService: Sendable {
                 action: request.action,
                 entry: request.entry,
                 issuedAt: request.issuedAt
-            ))
+            ), proposal: proposal, expectedEvidenceID: expectedEvidenceID)
         }
 
         let now = request.issuedAt
-        let snapshot = try await repository.knowledgeStoreSnapshot(propositionID: request.propositionID)
+        let stored = try await repository.knowledgeStoreSnapshot(propositionID: request.propositionID)
+        let control = try await repository.loadControlState()
+        let snapshot = proposal.map {
+            stored.includingProposal($0, controlGeneration: control.userDecisionVersion, now: now)
+        } ?? stored
         guard let latest = snapshot.revisions.max(by: { $0.createdAt < $1.createdAt }) else {
             // 没有修订的命题（如发现里尚未保存的 claim）：限制/暂缓类操作可独立落库——
             // 用户的明确否定与「暂不处理」是权威控制事实，不依赖正文存在（融合契约 §5；D05/D18）。
@@ -174,10 +193,15 @@ final class HoloKnowledgeControlService: Sendable {
                 return .notFound
             }
         }
-        guard let resolved = try await repository.resolvedKnowledge(propositionID: request.propositionID, now: now) else {
+        guard let resolved = snapshot.resolve(
+            propositionID: request.propositionID, controlGeneration: control.userDecisionVersion,
+            learningBaselineAt: control.learningBaselineAt, now: now
+        ) else {
             return .notFound
         }
-        let control = try await repository.loadControlState()
+        if let expectedEvidenceID, resolved.latestEvidenceSnapshot?.id != expectedEvidenceID {
+            return .conflict(currentSemanticDigest: latest.semanticDigest, reason: "evidenceChanged")
+        }
         let partition = latest.partition
 
         // 因果校验：发起方必须见过全部当前限制，否则不得放宽（限制优先）。
@@ -312,7 +336,8 @@ final class HoloKnowledgeControlService: Sendable {
         )
 
         // 共同提示记录：确认/暂缓在哪个入口完成（避免同版本跨入口重复询问）。
-        var operations = [operation]
+        let storedOperationIDs = Set(stored.operations.map(\.operationID))
+        var operations = snapshot.operations.filter { !storedOperationIDs.contains($0.operationID) } + [operation]
         if request.action.operationKind == .confirm || request.action.operationKind == .deferCooldown {
             operations.append(HoloKnowledgeOperation(
                 operationID: "prompt-\(request.operationID)",
@@ -332,7 +357,10 @@ final class HoloKnowledgeControlService: Sendable {
         }
 
         do {
-            try await repository.saveKnowledgeRevisionAndOperation(revision: newRevision, operations: operations)
+            let addedProposal = proposal.flatMap { draft in
+                stored.revisions.contains(where: { $0.id == draft.id }) ? nil : snapshot.revisions.first(where: { $0.id == draft.id })
+            }
+            try await repository.saveKnowledgeRevisionAndOperation(revision: newRevision ?? addedProposal, operations: operations)
         } catch {
             return .persistenceFailed(description: String(describing: error))
         }

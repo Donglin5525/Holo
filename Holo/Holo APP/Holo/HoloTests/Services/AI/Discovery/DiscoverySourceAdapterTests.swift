@@ -124,6 +124,37 @@ final class DiscoverySourceAdapterTests: XCTestCase {
         XCTAssertFalse(predicate.evaluate(with: ["deletedAt": Date()]), "软删记录必须排除")
     }
 
+    func test_记忆回源拒绝已删除打卡和重复副本中的删除状态() async throws {
+        let model = try makeShellModel()
+        let entity = try XCTUnwrap(model.entitiesByName["G2HabitRecordShell"])
+        entity.name = "HabitRecord"
+        let container = NSPersistentContainer(name: "DiscoverySourceReview", managedObjectModel: model)
+        let store = NSPersistentStoreDescription()
+        store.type = NSInMemoryStoreType
+        container.persistentStoreDescriptions = [store]
+        var loadError: Error?
+        container.loadPersistentStores { _, error in loadError = error }
+        if let loadError { throw loadError }
+        Self.pinnedInstances.append(container)
+        let now = Date()
+        let id = UUID()
+        for deleted in [false, true] {
+            let record = NSManagedObject(entity: entity, insertInto: container.viewContext)
+            record.setValue(id, forKey: "id")
+            record.setValue(deleted ? now : nil, forKey: "deletedAt")
+        }
+        try container.viewContext.save()
+        let ref = HoloMemoryEvidenceRef(
+            id: "review-checkin", kind: .entityRef, sourceDomain: .habit,
+            lineageKey: "habit:\(id)", sourceID: id.uuidString, revisionDigest: "v1", observedAt: now
+        )
+        let verifier = HoloKnowledgeCoreDataSourceVerifier(businessContainer: container)
+        let single = await verifier.verify(ref)
+        let batch = await verifier.verifyBatch([ref])
+        XCTAssertEqual(single, .deleted)
+        XCTAssertEqual(batch[ref.id], .deleted)
+    }
+
     // MARK: - 想法域谓词结构（AI 可见性求交断言）
 
     func test_想法域basePredicate_必含AI可见性子谓词与软删归档排除() throws {

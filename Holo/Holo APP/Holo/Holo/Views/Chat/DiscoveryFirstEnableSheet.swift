@@ -125,9 +125,9 @@ struct DiscoveryFirstEnableSheet: View {
                 .foregroundStyle(Color.holoToolText)
 
             bullet("开启后，有新材料时 Holo 会自动把你选择范围内的必要片段，通过 Holo 后端交给第三方 AI 理解与核验——不承诺只在本地推理。", icon: "arrow.triangle.branch")
-            bullet("不承诺每日、实时或一定有发现；记录不足或解释不可靠时不呈现。", icon: "calendar.badge.minus")
+            bullet("开启后可随时查看整理状态。有可核对的规律时，Holo 会请你确认。", icon: "calendar.badge.minus")
             bullet("只在对话页呈现，不发通知；可随时关闭，关闭不删除你的原始记录。", icon: "bell.slash")
-            bullet("不读取长期记忆，无需为此开启自动记忆。", icon: "brain")
+            bullet("待确认的规律可以从记忆中读取。健康与财务可在开启后单独选择，在此设备整理。", icon: "brain")
         }
         .padding(HoloSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -197,7 +197,7 @@ struct DiscoveryFirstEnableSheet: View {
                 .holoText(.body)
                 .fontWeight(.semibold)
                 .foregroundStyle(Color.holoToolText)
-            Text("至少选择一类；已设为「不参与 AI」的想法始终排除。不读取健康与财务记录。")
+            Text("请选择至少一类云端观察来源。已设为「不参与 AI」的想法始终排除。")
                 .holoText(.metadata)
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)

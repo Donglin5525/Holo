@@ -105,7 +105,7 @@ struct DiscoverySettingsView: View {
             Text("一个发现")
                 .holoText(.sectionTitle)
                 .foregroundStyle(Color.holoToolText)
-            Text("从你允许的记录里，整理值得留意的变化与联系。")
+            Text("从你允许的记录里找规律，请你核对依据。开启后可随时在 HoloAI 打开。")
                 .holoText(.supporting)
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -160,7 +160,7 @@ struct DiscoverySettingsView: View {
     // MARK: - 当前状态（纯文字两行，与原型一致）
 
     private var statusSection: some View {
-        HoloSettingsSection(title: "当前状态") {
+        HoloSettingsSection(title: "云端观察状态") {
             VStack(alignment: .leading, spacing: 2) {
                 Text(DiscoverySettingsCopy.statusText(for: state))
                     .holoText(.body)
@@ -213,7 +213,7 @@ struct DiscoverySettingsView: View {
     }
 
     private var scopeNote: some View {
-        Text("不会自动开启长期记忆。发现不是对你的定论——你可以查看依据、纠正或忽略。")
+        Text("在 HoloAI 打开「一个发现」可以查看本机整理状态。点「对，记住」才会把规律保存为你确认过的记忆。")
             .holoText(.metadata)
             .foregroundColor(.holoToolTextSecondary)
             .fixedSize(horizontal: false, vertical: true)

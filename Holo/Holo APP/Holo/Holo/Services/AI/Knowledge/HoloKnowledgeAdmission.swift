@@ -88,6 +88,14 @@ nonisolated enum HoloKnowledgeAdmission {
             return .internalOnly(reason: .templateNotRegistered)
         }
         let template = HoloKnowledgeTemplateRegistry.parameters(for: templateID)
+        if templateID == .boundedRecurrence {
+            guard case .absolute(let from, let to) = semantic.applicability.windowRule,
+                  let from, let to, from < to, to <= evidence.capturedAt,
+                  from == evidence.observationWindowFrom, to == evidence.observationWindowTo,
+                  Set(semantic.allowedUses).isSubset(of: [.sourceLinkForPreciseQuery]) else {
+                return .reject(reason: .structureInvalid)
+            }
+        }
         guard template.allowedEvidenceForms.contains(semantic.evidenceForm) else {
             return .internalOnly(reason: .templateNotRegistered)
         }

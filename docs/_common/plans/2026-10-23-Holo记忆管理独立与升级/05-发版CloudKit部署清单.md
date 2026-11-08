@@ -30,9 +30,15 @@ CloudKit 无本机凭证（~/.holo-secrets/ 只有 ASC key），cktool 未存 to
 - 教训入档：真机 bundle id=com.tangyuxuan.holo-app（模拟器=com.holo.Holo，坑档已有）；initializeCloudKitSchema 是同步阻塞调用禁挂主线程；「先写标记后执行」会在被杀时残留假完成标记。
 - 2026-10-27 真机补证：1.1.3 (35) 在 08:46 被 watchdog 结束，主线程停在 `initializeCloudKitSchema`。工程默认隔离为 MainActor，原 `Task.detached { await run() }` 仍会因 `run` 的隐式隔离跳回主线程；工具类型必须显式 `nonisolated`，同步 API 交独立 DispatchQueue，不能只凭「用了 detached」认定已离开主线程。
 
-## ⏳ 待办（2026-10-31 记，1.1.4 发版前必须做）
+## ✅ 已闭环（2026-11-02 核实：两新表早已在生产库，待办前提有误）
 
-本批新增两张同步实体（发现×知识联动，2026-10-31 随机漫步审计 S4 挂账）：
-- `HoloMemoryKnowledgeRevisionMO` / `HoloMemoryOperationMO` → CloudKit 类型名 `CD_HoloMemoryKnowledgeRevisionMO` / `CD_HoloMemoryKnowledgeOperationMO`
+~~本批新增两张同步实体（发现×知识联动，2026-10-31 随机漫步审计 S4 挂账）~~：
+- `HoloMemoryKnowledgeRevisionMO` / `HoloMemoryKnowledgeOperationMO` → CloudKit 类型名 `CD_HoloMemoryKnowledgeRevisionMO` / `CD_HoloMemoryKnowledgeOperationMO`（2026-11-02 更正：原文误写 `HoloMemoryOperationMO`，真实类名见 CoreDataStack+HoloMemoryEntities.swift:209）
 
-**不跑 = 这两类记录的云同步持续保存失败（本地不丢，只是不上云）。** 步骤同上：任一 DEBUG 构建设置 `HOLO_INITIALIZE_CLOUDKIT_SCHEMA=1` 启动一次（完成标记键仍为 `holo_cloudkit_schema_initialized_v2`，已是 v2 则需临时改键或清 UserDefaults 强制重跑）→ Development 复核两类型在列 → 网页 Deploy Schema Changes → Production 复核。
+**2026-11-02 核实结论（CloudKit Console 网页实证）**：
+- 两类型**已于 2026-10-28 20:30 由东林本人部署到 Production**（Schema History 实录：created CD_HoloMemoryKnowledgeRevisionMO type + 31 indexes / created CD_HoloMemoryKnowledgeOperationMO type + 38 indexes，与 CD_Thought 10 字段修改同批）——即 Knowledge v2.2 那次「64→66 类型」部署，多出的 2 个类型就是它们。
+- Production 复核：68 类型与 Development 完全一致，两类型字段数 25/29 两端相同；Deploy Schema Changes 弹窗 Record Types (0) / Indexes (0) / Security Roles (0)。
+- 10-31 审计 S4 把它们当作「未部署的新表」挂账，**未先查控制台**；该错误前提经 11-02 凌晨收尾台账（方案 A）传递至今，导致一轮不必要的真机上报（上报本身无害，为空差异）。
+- 本次顺带：`CloudKitSchemaInitializer.doneKey` v2→v3（DEBUG-only，已随真机验证可越过旧标记）；真机 `[SchemaInit] ✅` 16:46:17。
+
+**教训入档**：凡 CloudKit 部署类待办，**动工前先上控制台 Production → Record Types / Schema History 核对**，5 分钟读页面优先于任何构建装包动作；跨文档传递的待办必须在执行时重新验证前提。

@@ -24,7 +24,9 @@ import Foundation
 // 仍会跳回主线程执行同步网络调用（2026-10-27 真机 watchdog 堆栈实证）。
 nonisolated enum CloudKitSchemaInitializer {
     /// 本机构建跑成过一次的标记（失败/被杀不写，下次显式请求时重试）。
-    static let doneKey = "holo_cloudkit_schema_initialized_v2"
+    /// 每批新增同步实体需上报时递增版本号，否则被旧标记静默拦截
+    /// （v3：1.1.4 发现×知识联动两新表 KnowledgeRevision/KnowledgeOperation）。
+    static let doneKey = "holo_cloudkit_schema_initialized_v3"
     private static let queue = DispatchQueue(label: "com.holo.cloudkit.schema-initializer", qos: .utility)
 
     /// store 就绪后仅接收显式开发请求；日常启动不触碰 schema 和网络。

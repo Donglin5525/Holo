@@ -48,6 +48,40 @@ nonisolated struct HoloKnowledgeStoreSnapshot: Sendable {
         unreadablePropositionIDs.contains(propositionID)
             || conflictedPropositionIDs.contains(propositionID)
     }
+
+    /// 把刚重读的本机记录作为待确认稿纳入同一投影。预览不落库，反馈时与操作一起写入。
+    func includingProposal(
+        _ proposal: HoloKnowledgeRevision, controlGeneration: Int64, now: Date
+    ) -> Self {
+        var snapshot = self
+        if !revisions.contains(where: { $0.id == proposal.id }) {
+            var revision = proposal
+            revision.createdAt = now
+            snapshot.revisions.append(revision)
+        }
+        let evidence = proposal.initialEvidenceSnapshot
+        let operationID = "proposal-evidence-\(proposal.id)-\(evidence.id)"
+        if !operations.contains(where: { $0.operationID == operationID }) {
+            snapshot.operations.append(HoloKnowledgeOperation(
+                operationID: operationID, kind: .evidenceSnapshot,
+                propositionID: proposal.propositionID, targetSemanticRevisionID: proposal.id,
+                targetSemanticDigest: proposal.semanticDigest, controlGeneration: controlGeneration,
+                payload: .evidenceSnapshot(evidence), partition: proposal.partition, issuedAt: now
+            ))
+        }
+        return snapshot
+    }
+
+    func resolve(
+        propositionID: String, controlGeneration: Int64, learningBaselineAt: Date?, now: Date
+    ) -> HoloResolvedKnowledge? {
+        HoloKnowledgeResolver.resolve(.init(
+            propositionID: propositionID, revisions: revisions, operations: operations,
+            sourceStatus: HoloKnowledgeResolver.persistedSourceStatus(operations: operations),
+            controlGeneration: controlGeneration, learningBaselineAt: learningBaselineAt,
+            hasUnreadableData: isUnreadableOrConflicted(propositionID: propositionID), now: now
+        ))
+    }
 }
 
 // MARK: - 仓库扩展
@@ -338,17 +372,10 @@ extension CoreDataHoloMemoryRepository {
     func resolvedKnowledge(propositionID: String, now: Date) async throws -> HoloResolvedKnowledge? {
         let snapshot = try await knowledgeStoreSnapshot(propositionID: propositionID)
         let control = try await loadControlState()
-        let resolution = HoloKnowledgeResolutionSnapshot(
-            propositionID: propositionID,
-            revisions: snapshot.revisions,
-            operations: snapshot.operations,
-            sourceStatus: HoloKnowledgeResolver.persistedSourceStatus(operations: snapshot.operations),
-            controlGeneration: control.userDecisionVersion,
-            learningBaselineAt: control.learningBaselineAt,
-            hasUnreadableData: snapshot.isUnreadableOrConflicted(propositionID: propositionID),
-            now: now
+        return snapshot.resolve(
+            propositionID: propositionID, controlGeneration: control.userDecisionVersion,
+            learningBaselineAt: control.learningBaselineAt, now: now
         )
-        return HoloKnowledgeResolver.resolve(resolution)
     }
 
     /// 全部命题的权威投影（query(.active) 门闸与管理页共用同一判定）。

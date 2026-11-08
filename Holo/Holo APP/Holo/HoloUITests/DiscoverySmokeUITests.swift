@@ -93,6 +93,30 @@ final class DiscoverySmokeUITests: XCTestCase {
 
     // MARK: - Helpers
 
+    func test_发现打开可核对财务规律并记住() {
+        app.terminate()
+        app.launchEnvironment["HOLO_APP_STORE_SCREENSHOT_ROUTE"] = "ai-actions"
+        app.launchArguments += [
+            "-holo.discovery.enabled", "YES",
+            "-holo_ai_dataProcessingConsentGranted", "YES",
+            "-holo.discovery.localFinanceReview", "YES"
+        ]
+        app.launch()
+        skipOnboardingIfNeeded()
+        let capsule = app.buttons["chat.discovery.capsule"]
+        XCTAssertTrue(capsule.waitForExistence(timeout: 20), "开启后无需等待云端候选就能进入")
+        capsule.tap()
+        let pattern = app.staticTexts["chat.discovery.review.pattern"]
+        XCTAssertTrue(pattern.waitForExistence(timeout: 20), "真实财务取数应在整理后形成观察")
+        XCTAssertTrue(pattern.label.contains("支出"))
+        app.buttons["chat.discovery.review.evidenceToggle"].tap()
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "个记账日")).firstMatch.exists)
+        app.buttons["chat.discovery.review.evidenceToggle"].tap()
+        app.buttons["chat.discovery.review.confirm"].tap()
+        XCTAssertTrue(app.staticTexts["chat.discovery.review.receipt"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts["chat.discovery.review.receipt"].label.contains("已记住"))
+    }
+
     func test_聊天页可输入并发送_覆盖旧走查漏掉的TextField() {
         skipOnboardingIfNeeded()
         // ChatInputView 使用纵向 TextField；只找 textViews 会把真实发送路径静默跳过。

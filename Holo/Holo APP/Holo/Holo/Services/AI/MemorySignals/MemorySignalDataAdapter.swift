@@ -39,6 +39,23 @@ enum MemorySignalDataAdapter {
 
     // MARK: - Finance → FinanceMemorySnapshotInput
 
+    /// 发现与记忆共用财务统计口径，限期读取真实消费，保留可回源的分类和交易 ID。
+    static func buildRecordedExpenseInputs(window: DateInterval) async throws -> [FinanceMemoryTransactionInput] {
+        let repository = FinanceRepository.shared
+        let transactions = try await repository.getStatisticsTransactions(from: window.start, to: window.end)
+        return transactions.compactMap { transaction in
+            guard transaction.transactionType == .expense, !transaction.isRefund,
+                  let category = transaction.category, category.deletedAt == nil else { return nil }
+            let names = repository.resolveCategoryNames(from: category)
+            return FinanceMemoryTransactionInput(
+                id: transaction.id.uuidString, amount: transaction.amount.doubleValue, isExpense: true,
+                categoryID: category.id.uuidString, categoryName: names.sub ?? names.primary,
+                merchant: nil, occurredAt: transaction.date,
+                revisionDigest: "\(transaction.updatedAt.timeIntervalSince1970)-\(transaction.amount.stringValue)-\(category.id.uuidString)-\(stableDigest(names.sub ?? names.primary))"
+            )
+        }
+    }
+
     static func buildFinanceMemorySnapshotInput(
         now: Date = Date()
     ) async -> FinanceMemorySnapshotInput {
