@@ -47,14 +47,12 @@ nonisolated enum HoloRecordedPatternMiner {
         let recentStart = calendar.date(byAdding: .weekOfYear, value: 4, to: window.start)!
         var proposals: [HoloKnowledgeRevision] = []
         for group in Dictionary(grouping: unique.values, by: \.categoryID).values {
-            // 优先级：时段模式（最有洞察）> 前后窗变化 > 频次（兜底，且门槛提高）。
+            // 东林 2026-11-08 拍板「记数字没有意义」：频次兜底退役——
+            // 只有深夜时段与前后窗变化这类能回答「所以呢」的观察才出卡，宁缺毋滥。
             if let p = lateNightProposal(group, window: window, recentStart: recentStart, calendar: calendar) {
                 proposals.append(p); continue
             }
             if let p = trendProposal(group, window: window, recentStart: recentStart, calendar: calendar) {
-                proposals.append(p); continue
-            }
-            if let p = frequencyProposal(group, window: window, recentStart: recentStart, calendar: calendar) {
                 proposals.append(p)
             }
         }

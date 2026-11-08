@@ -29,7 +29,26 @@ struct DiscoveryMemoryReviewService {
         return DiscoverySettings.shared.memoryReviewDomains()
     }
 
-    func review() async throws -> Result {
+    /// 打开秒显：上次整理结果短缓存（东林实报「每次点击都要加载」——每次全量重算
+    /// 读库+HealthKit+逐源校验，数百毫秒起）。TTL 内直接复用；数据变更/主动刷新传
+    /// ignoresCache 强制重算。
+    @MainActor private static var cachedResult: Result?
+    @MainActor private static var cachedAt: Date?
+
+    static let cacheTTL: TimeInterval = 300
+
+    func review(ignoresCache: Bool = false) async throws -> Result {
+        if !ignoresCache, let cached = Self.cachedResult,
+           Date().timeIntervalSince(Self.cachedAt ?? .distantPast) < Self.cacheTTL {
+            return cached
+        }
+        let value = try await reviewFresh()
+        Self.cachedResult = value
+        Self.cachedAt = Date()
+        return value
+    }
+
+    private func reviewFresh() async throws -> Result {
         let allowed = domains
         let epoch = DiscoverySettings.shared.localGrantEpoch
         let now = Date()

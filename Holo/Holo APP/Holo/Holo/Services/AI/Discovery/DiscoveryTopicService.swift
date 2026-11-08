@@ -138,11 +138,15 @@ enum DiscoveryTopicService {
 
     enum TopicError: Error { case unknownObservation, unfilledSlot, length, foreignNumber }
 
-    /// 数字纪律：从文案提取全部数字串本身（阿拉伯/全角/中文数字连续段），
-    /// 用于「数字⊆槽位值」比对——中文无空格分词，比对对象必须是数字串而非整词。
+    /// 数字纪律：只提取阿拉伯/全角数字串，用于「数字⊆槽位值」比对。
+    /// 中文数字豁免——按字符抓「一/两」必误杀自然语序（「比上一个4周」的「一个」
+    /// 被当计数拒卡，2026-11-08 真机实证）；中文计数风险由服务端 prompt 双禁令+
+    /// 修复层把关，客户端终审守住「回填数字全部来自真实数据」这一条即可。
     nonisolated static func extractNumbers(from text: String) -> Set<String> {
+        // 必须限 ASCII：Character.isNumber 对 CJK 数字（一二三十两…）返回 true
+        //（Unicode Numeric_Type=Numeric），「十一天」会被整段当数字（连续三轮实踩）。
         var out = Set<String>()
-        for run in text.runs(where: { $0.isNumber || "零一二两三四五六七八九十百千万亿".contains($0) }) {
+        for run in text.runs(where: { $0.isASCII && $0.isNumber }) {
             out.insert(String(run))
         }
         return out
@@ -292,7 +296,7 @@ enum DiscoveryTopicService {
     }
 }
 
-private extension String {
+nonisolated private extension String {
     /// 连续满足条件的字符段（等价 NSRegularExpression 提取，零正则开销）。
     func runs(where predicate: (Character) -> Bool) -> [SubSequence] {
         var result: [SubSequence] = []

@@ -28,6 +28,7 @@ struct DiscoveryReviewSheet: View {
     @State private var showsEvidence = false
     @State private var todayCard: DiscoveryTopicStore.QueuedCard?
     @State private var showsTodayEvidence = false
+    @State private var forceRefresh = false
 
     private let service = DiscoveryMemoryReviewService()
 
@@ -83,9 +84,9 @@ struct DiscoveryReviewSheet: View {
             }
         }
         .presentationDetents([.large])
-        .task(id: refreshID) { await reload() }
+        .task(id: refreshID) { await reload(force: forceRefresh) ; forceRefresh = false }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { requestRefresh() }
+            if phase == .active { forceRefresh = true; requestRefresh() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .holoDiscoverySettingsDidChange)) { _ in requestRefresh() }
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in requestRefresh() }
@@ -134,7 +135,11 @@ struct DiscoveryReviewSheet: View {
 
         if !listedItems.isEmpty {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                DiscoverySectionHeader(title: "等你确认", count: listedItems.count)
+                DiscoverySectionHeader(
+                    title: "等你确认",
+                    count: listedItems.count,
+                    trailing: result.checkedAt.formatted(.relative(presentation: .named))
+                )
                 if listedItems.indices.contains(itemIndex) {
                     let item = listedItems[itemIndex]
                     DiscoveryPendingCard(
@@ -207,9 +212,9 @@ struct DiscoveryReviewSheet: View {
         refreshID += 1
     }
 
-    private func reload() async {
+    private func reload(force: Bool = false) async {
         do {
-            let value = try await service.review()
+            let value = try await service.review(ignoresCache: force)
             try Task.checkCancellation()
             result = value
             await DiscoveryTopicService.refreshIfNeeded(proposals: value.items.compactMap(\.proposal))

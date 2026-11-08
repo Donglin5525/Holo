@@ -21,13 +21,14 @@ final class DiscoveryTopicServiceTests: XCTestCase {
     private func financeProposals(dayOffsets: [Int]) -> [HoloKnowledgeRevision] {
         let cal = Calendar(identifier: .gregorian)
         let now = Date()
-        let window = DateInterval(start: cal.date(byAdding: .day, value: -28, to: now)!, end: now)
+        // 挖掘器取数窗为 8 周（前 4 周做变化对照基线），测试窗须与之一致。
+        let window = DateInterval(start: cal.date(byAdding: .day, value: -56, to: now)!, end: now)
         let input = dayOffsets.enumerated().map { idx, off in
             FinanceMemoryTransactionInput(
                 id: "tx-\(idx)", amount: 25, isExpense: true,
                 categoryID: "cat-dinner", categoryName: "晚餐",
                 merchant: nil,
-                occurredAt: cal.date(byAdding: .day, value: -off, to: now)!,
+                occurredAt: cal.date(bySettingHour: 12, minute: 0, second: 0, of: cal.date(byAdding: .day, value: -off, to: now)!)!,
                 revisionDigest: "rev-\(idx)"
             )
         }
@@ -37,16 +38,16 @@ final class DiscoveryTopicServiceTests: XCTestCase {
     // MARK: - 形状组装
 
     func test_candidatesAssembleFromMinerProposals() {
-        let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26])
+        let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26, 31, 35])
         let pool = DiscoveryTopicService.candidates(from: proposals)
         guard let c = pool.first else {
             return XCTFail("挖掘器合格提案应组装出候选")
         }
         XCTAssertEqual(c.domain, "finance")
-        XCTAssertEqual(c.kind, "categoryFrequency")
+        XCTAssertEqual(c.kind, "windowChange")
         XCTAssertEqual(c.label, "晚餐")
         XCTAssertTrue(c.slots.contains("weeks"))
-        XCTAssertTrue(c.slots.contains("recordDays"))
+        XCTAssertTrue(c.slots.contains("recentCount"))
         XCTAssertFalse(c.id.contains("|"), "形状摘要不得携带 measured 真值")
     }
 
@@ -61,33 +62,33 @@ final class DiscoveryTopicServiceTests: XCTestCase {
     }
 
     func test_buildCardFillsSlotsWithRealValues() throws {
-        let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26])
+        let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26, 31, 35])
         let pool = DiscoveryTopicService.candidates(from: proposals)
         // 8 周窗数据命中 windowChange（变化类优先于频次），槽位按该类型可用集合写。
         let selection = makeSelection(
             title: "你的{label}，变多了",
-            body: "最近{weeks}周记了{recentCount}笔，前一个四周是{previousCount}笔。",
+            body: "最近{weeks}周记了{recentCount}笔，比上一个{weeks}周多了{absDelta}笔。",
             pool: pool
         )
         let card = try DiscoveryTopicService.buildCard(selection: selection, pool: pool, proposals: proposals)
         XCTAssertFalse(card.title.contains("{"))
         XCTAssertFalse(card.body.contains("{"))
-        XCTAssertTrue(card.body.contains("晚餐"))
+        XCTAssertTrue(card.body.contains("8"), "回填真实 recentCount")
         XCTAssertTrue(card.isModelCopy)
     }
 
     func test_buildCardRejectsResidualSlot() {
-        let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26])
+        let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26, 31, 35])
         let pool = DiscoveryTopicService.candidates(from: proposals)
         let selection = makeSelection(title: "未知值{nonexistent}", body: "最近{weeks}周有记录。", pool: pool)
         XCTAssertThrowsError(try DiscoveryTopicService.buildCard(selection: selection, pool: pool, proposals: proposals))
     }
 
     func test_buildCardRejectsForeignNumber() {
-        let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26])
+        let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26, 31, 35])
         let pool = DiscoveryTopicService.candidates(from: proposals)
-        // 「两倍」是模型自己估的比例——槽位值里没有，必须拒。
-        let selection = makeSelection(title: "晚餐开销变多", body: "最近{weeks}周里这类支出差不多翻了两倍。", pool: pool)
+        // 「2倍」是模型自己估的比例——槽位值里没有，必须拒（阿拉伯数字严格校验）。
+        let selection = makeSelection(title: "晚餐开销变多", body: "最近{weeks}周里这类支出差不多翻了3倍。", pool: pool)
         XCTAssertThrowsError(try DiscoveryTopicService.buildCard(selection: selection, pool: pool, proposals: proposals)) { error in
             XCTAssertEqual(error as? DiscoveryTopicService.TopicError, .foreignNumber)
         }
@@ -95,17 +96,18 @@ final class DiscoveryTopicServiceTests: XCTestCase {
 
     // MARK: - 数字纪律提取
 
-    func test_extractNumbersCatchesChineseAndArabic() {
-        let nums = DiscoveryTopicService.extractNumbers(from: "最近4周里 共十一天 两次")
-        XCTAssertTrue(nums.contains(where: { $0.contains("4") }))
-        XCTAssertTrue(nums.contains(where: { $0.contains("十一") }))
-        XCTAssertTrue(nums.contains(where: { $0.contains("两") }))
+    func test_extractNumbersCatchesArabicOnly() {
+        // 中文数字豁免（「一个」误杀真机实证）：只抓阿拉伯数字。
+        let nums = DiscoveryTopicService.extractNumbers(from: "最近4周里 共十一天 两次翻2倍")
+        XCTAssertTrue(nums.contains("4"))
+        XCTAssertTrue(nums.contains("2"))
+        XCTAssertFalse(nums.contains { $0.contains("十") || $0.contains("两") || $0.contains("一") })
     }
 
     // MARK: - 本机降级
 
     func test_localFallbackUsesMinerTextWithoutModelBadge() {
-        let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26])
+        let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26, 31, 35])
         let pool = DiscoveryTopicService.candidates(from: proposals)
         let card = DiscoveryTopicService.localFallback(pool: pool, proposals: proposals, now: Date())
         XCTAssertNotNil(card)
