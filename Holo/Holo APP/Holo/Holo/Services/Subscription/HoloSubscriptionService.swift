@@ -127,23 +127,28 @@ final class HoloSubscriptionService: ObservableObject {
                     await verified.transaction.finish()
                     await refreshStatus()
                     await HoloPlusActionCoordinator.shared.resumeAfterSuccessfulPurchase()
+                    HoloProductAnalytics.shared.track(.paywallPurchaseCompleted, ["result": "purchased"])
                 } catch {
                     // 扣款已发生：交易保持未 finish，等 Transaction.updates 重发补偿；
                     // 文案必须与「未扣款失败」区分，否则用户以为被骗
                     entitlementState.setError(String(localized: "购买已成功，会员状态同步中，可能需要几分钟生效"))
+                    HoloProductAnalytics.shared.track(.paywallPurchaseCompleted, ["result": "purchased"])
                 }
 
             case .userCancelled:
+                HoloProductAnalytics.shared.track(.paywallPurchaseCompleted, ["result": "cancelled"])
                 break
 
             case .pending:
                 entitlementState.setError(String(localized: "购买正在等待确认"))
+                HoloProductAnalytics.shared.track(.paywallPurchaseCompleted, ["result": "pending"])
 
             @unknown default:
                 break
             }
         } catch {
             entitlementState.setError(String(localized: "购买未完成，请稍后重试"))
+            HoloProductAnalytics.shared.track(.paywallPurchaseCompleted, ["result": "failed"])
         }
     }
 

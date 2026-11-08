@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-11-08] 埋点 v2.2 补齐——打卡断线根治 + 留存漏斗第一环 + 当日数据收口
+
+留存数据体检发现三处硬伤一起根治：①每日看板打卡走了新的带回执写入路径、不经过埋点通知总线，生产库 habit_checkin 半年零记录（习惯黏性完全盲区）；②推送权限状态不可见，11-12 首个周四推送的漏斗断在第一环之前；③App 只在切后台时批量上报，晚间活跃用户当天数据 21 点报告时传不上来（DAU 低报/D 悬崖夸大的根源）。
+
+- **打卡断线修复（habit_checkin）**：带回执路径（`performCheckInReceipt`/`performAddNumericReceipt`，每日看板新 UI 主通道）与补签（`retroactiveCheckIn`）统一补发打卡埋点通知，语义与老 API 对齐（仅成功完成记、撤销不记）；埋点收在仓库写入点，今后新入口天然覆盖。
+- **打卡来源区分（source=manual/ai）**：仓库层打卡函数新增 `analyticsSource` 参数（默认 manual，存量调用点零改动），AI 对话记打卡 5 处传 ai；kind 除 check/numeric 外新增 retroactive（补签）。从此「AI 帮记打卡」这个核心差异化行为可单独观测。
+- **识图入账口径修正（bill_created source=receipt）**：识图自动入账与复核确认两处原先错标为 ai，改为 receipt——「识图发起（receipt_booking_started）→ 入账成功」漏斗可测，与聊天 AI 记账不再混算。
+- **新事件 notification_permission**（留存漏斗第一环）：冷启动快照 + 授权弹窗返回各查一次系统权限状态（granted/provisional/denied/notDetermined），本地按「状态变化才上报」去重，每设备全生命周期仅几条。老用户现状也能拿到（不必等新用户首次授权）。
+- **新事件 paywall_purchase_completed**（付费转化终点）：购买流程四分支 result=purchased/cancelled/pending/failed；「扣款已发生但同步中」计 purchased（钱已扣，同步问题不是转化失败）；Xcode 沙盒交易不记。付费墙漏斗从「看过→点过」补全到「→买成」。
+- **前台定时上报（收口时间差根治）**：前台会话期间每 5 分钟增量上报一次（scenePhase 驱动启停），晚间持续使用的事件当天到达服务端。
+- **每日留存报告改 23:30**：自动化顺延至 23:30 跑（App 侧定时上报 + 报告时间双保险收口），报告 prompt 带上 v2.2 口径变更说明（含「1.1.6 前 habit_checkin 恒为零是断线不是没人打卡」防误读）。
+- **后端白名单 v2.2 已先行发版**（commit d7a492a0ebb3，2026-11-08 18:55 上产，公网 probe 验证新事件名收/假事件名拒）。埋点字典 v2.2 共 22 个事件，iOS 侧字典↔白名单契约测试同步更新。
+- **验证**：后端 732/732 全绿 + 生产 verify（health/release/probe）；iOS 构建绿 + 定向测试 17/17（Analytics 契约 7 + 补签策略 10）。全部随 1.1.6 包生效；11-12 首推漏斗 = notification_permission granted → notification_opened → weekly_review_viewed 三环齐备。
+
 ## [2026-11-07] 每周回顾 + 周四晚留存推送——给「用完一波就走」的用户第二周回来的理由
 
 埋点实证新用户 D3~D4 集体流失（功能试完一波就走）。每周回顾把用户本周留下的数据自动整理成一页，周四 20:30 仅对「本周有足迹」的用户推一条本地通知直达——用沉没成本和「下一页」的期待感做留存钩子。东林拍板：版式融合版、入口个人页末行、识图并入记账、空态不设行动按钮、对比用同期比。

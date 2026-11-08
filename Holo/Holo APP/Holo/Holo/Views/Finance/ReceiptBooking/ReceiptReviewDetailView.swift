@@ -700,7 +700,6 @@ struct ReceiptReviewDetailView: View {
         state.suggestedCategoryTask?.cancel()
         let type: TransactionType = state.typeIsIncome ? .income : .expense
         let task = Task { @MainActor in
-            let repo = FinanceRepository.shared
             let category = try? await FinanceTransactionDraftResolver.shared.matchCategory(
                 primaryCategory: nil,
                 subCategory: nil,
@@ -742,7 +741,6 @@ struct ReceiptReviewDetailView: View {
                 }
 
                 // 科目：用户改选 > 完整分类链重解析 > 待分类
-                let categories = item.typeIsIncome ? incomeCategories : expenseCategories
                 let category: HoloFinanceCategory?
                 if let selectedCategoryID = item.selectedCategoryID {
                     category = repo.findCategory(by: selectedCategoryID)
@@ -816,7 +814,7 @@ struct ReceiptReviewDetailView: View {
                         committedIDs.append(result.transactionID)
                         // 产品埋点：识图复核确认入账成功（此路径不经过 FinanceRepository 的手动/聊天汇聚点；
                         // 一图多笔逐笔上报，与字典「记账一笔落库成功」口径一致；不收金额内容）
-                        HoloProductAnalytics.shared.track(.billCreated, ["source": "ai"])
+                        HoloProductAnalytics.shared.track(.billCreated, ["source": "receipt"])
                         // 一图多笔：每笔都挂证据票根（开关关时方法内直接返回；
                         // await 保证读证据文件先于循环后的草案删除）
                         await FinanceTransactionCommandService.shared.archiveEvidenceIfNeeded(

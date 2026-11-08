@@ -37,6 +37,8 @@ final class HoloCloudPushTokenService {
     func requestAuthorizationAndRegister() {
         Task { @MainActor in
             _ = try? await TodoNotificationService.shared.requestAuthorization()
+            // 产品埋点：授权弹窗返回瞬间记一次权限状态（冷启动另有快照，共用去重闸）
+            await HoloProductAnalytics.shared.trackNotificationPermissionSnapshot()
             UIApplication.shared.registerForRemoteNotifications()
         }
     }

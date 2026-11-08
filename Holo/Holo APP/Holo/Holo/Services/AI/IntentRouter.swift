@@ -776,7 +776,7 @@ final class IntentRouter {
                 habitNames: [habit.name, "体重"],
                 removableTokens: [weightStr, "\(weight)kg", "\(weight) kg", "kg", "公斤"]
             )
-            try habitRepo.addNumericRecord(for: habit, value: weight, note: note)
+            try habitRepo.addNumericRecord(for: habit, value: weight, note: note, analyticsSource: "ai")
             logger.info("体重已记录：\(weight) kg")
             return RouteResult(
                 text: "已记录体重：\(weight) kg",
@@ -801,7 +801,7 @@ final class IntentRouter {
                     return try handleNumericHabitRecord(habit, result: result, originalInput: originalInput)
                 }
                 let note = Self.habitRecordNote(originalInput: originalInput, habitNames: [habit.name], removableTokens: [])
-                let completed = try habitRepo.toggleCheckIn(for: habit, note: note)
+                let completed = try habitRepo.toggleCheckIn(for: habit, note: note, analyticsSource: "ai")
                 return RouteResult(
                     text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
                     habitId: habit.id,
@@ -817,7 +817,7 @@ final class IntentRouter {
                 return try handleNumericHabitRecord(habit, result: result, originalInput: originalInput)
             }
             let note = Self.habitRecordNote(originalInput: originalInput, habitNames: [habit.name], removableTokens: [])
-            let completed = try habitRepo.toggleCheckIn(for: habit, note: note)
+            let completed = try habitRepo.toggleCheckIn(for: habit, note: note, analyticsSource: "ai")
             return RouteResult(
                 text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
                 habitId: habit.id,
@@ -1112,7 +1112,7 @@ final class IntentRouter {
             habitNames: [habit.name],
             removableTokens: [String(value), "\(value)\(habit.unitText)", habit.unitText].filter { !$0.isEmpty }
         )
-        let record = try HabitRepository.shared.addNumericRecord(for: habit, value: value, note: note)
+        let record = try HabitRepository.shared.addNumericRecord(for: habit, value: value, note: note, analyticsSource: "ai")
         return RouteResult(
             text: "已记录「\(habit.name)」\(habit.formatValue(value))\(habit.unitText)",
             habitId: habit.id,
@@ -1195,7 +1195,7 @@ final class IntentRouter {
             habitNames: [habit.name],
             removableTokens: [String(value), "\(value)\(habit.unitText)", habit.unitText].filter { !$0.isEmpty }
         )
-        let record = try HabitRepository.shared.addNumericRecord(for: habit, value: value, note: note)
+        let record = try HabitRepository.shared.addNumericRecord(for: habit, value: value, note: note, analyticsSource: "ai")
         let formattedValue = habit.formatValue(value)
         let unit = habit.unitText
         let verb = habit.isBadHabit ? "已记录" : "已更新"

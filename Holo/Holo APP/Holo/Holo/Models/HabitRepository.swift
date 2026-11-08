@@ -569,9 +569,10 @@ class HabitRepository: ObservableObject {
     /// - Parameters:
     ///   - habit: 习惯
     ///   - note: 本次打卡备注（取消打卡时忽略；AI/手动补备注传入）
+    ///   - analyticsSource: 埋点来源标识（manual=手动 UI，ai=AI 对话记打卡）
     /// - Returns: 当前完成状态
     @discardableResult
-    func toggleCheckIn(for habit: Habit, note: String? = nil) throws -> Bool {
+    func toggleCheckIn(for habit: Habit, note: String? = nil, analyticsSource: String = "manual") throws -> Bool {
         if !isReady { setup() }
         guard habit.isCheckInType else { return false }
         // 暂停期不打卡（详情页/磁贴/AI 工具/小组件共用此闸）；想打卡先恢复
@@ -593,7 +594,7 @@ class HabitRepository: ObservableObject {
                 NotificationCenter.default.post(
                     name: .holoHabitCheckinDidRecord,
                     object: nil,
-                    userInfo: ["kind": "check"]
+                    userInfo: ["kind": "check", "source": analyticsSource]
                 )
             }
             return existingRecord.isCompleted
@@ -606,7 +607,7 @@ class HabitRepository: ObservableObject {
             NotificationCenter.default.post(
                 name: .holoHabitCheckinDidRecord,
                 object: nil,
-                userInfo: ["kind": "check"]
+                userInfo: ["kind": "check", "source": analyticsSource]
             )
             return true
         }
@@ -619,7 +620,7 @@ class HabitRepository: ObservableObject {
     ///   - note: 备注
     /// - Returns: 新建的记录
     @discardableResult
-    func addNumericRecord(for habit: Habit, value: Double, note: String? = nil) throws -> HabitRecord {
+    func addNumericRecord(for habit: Habit, value: Double, note: String? = nil, analyticsSource: String = "manual") throws -> HabitRecord {
         // 暂停期不记数，与打卡型同一道闸
         guard !habit.isPaused else { throw HabitError.habitIsPaused }
         let record = HabitRecord.createNumeric(in: context, habit: habit, value: value, note: note)
@@ -631,16 +632,16 @@ class HabitRepository: ObservableObject {
         NotificationCenter.default.post(
             name: .holoHabitCheckinDidRecord,
             object: nil,
-            userInfo: ["kind": "numeric"]
+            userInfo: ["kind": "numeric", "source": analyticsSource]
         )
 
         return record
     }
-    
+
     /// 快捷 +1（计数类数值型习惯）
     @discardableResult
-    func incrementCount(for habit: Habit, by amount: Int = 1) throws -> HabitRecord {
-        return try addNumericRecord(for: habit, value: Double(amount))
+    func incrementCount(for habit: Habit, by amount: Int = 1, analyticsSource: String = "manual") throws -> HabitRecord {
+        return try addNumericRecord(for: habit, value: Double(amount), analyticsSource: analyticsSource)
     }
     
     /// 删除记录
@@ -819,6 +820,12 @@ class HabitRepository: ObservableObject {
         try context.save()
         if !isPlus { HabitRetroactiveQuota.consume() }
         notifyDataChange(habitId: habit.id)
+        // 产品埋点：补签成功也是一次有效完成（kind=retroactive 与当日打卡区分开）
+        NotificationCenter.default.post(
+            name: .holoHabitCheckinDidRecord,
+            object: nil,
+            userInfo: ["kind": "retroactive", "source": "manual"]
+        )
 
         let streakAfter = habit.isCheckInType ? calculateStreakInfo(for: habit).value : 0
         return .success(streakBefore: streakBefore, streakAfter: streakAfter)

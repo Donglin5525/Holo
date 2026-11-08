@@ -216,6 +216,8 @@ struct HoloApp: App {
 
                 // 检查通知权限状态
                 TodoNotificationService.shared.checkAuthorizationStatus()
+                // 产品埋点：推送权限状态快照（变化才上报，覆盖老用户现状与设置回流）
+                await HoloProductAnalytics.shared.trackNotificationPermissionSnapshot()
 
                 // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
                 await CoreDataStack.shared.waitUntilReady()
@@ -366,7 +368,8 @@ struct HoloApp: App {
                 #endif
                 switch phase {
                 case .background:
-                    // 产品埋点：退后台兜底冲刷一次，缩短事件到达服务端的延迟
+                    // 产品埋点：停前台定时上报 + 退后台兜底冲刷一次
+                    HoloProductAnalytics.shared.endForegroundFlushLoop()
                     Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
                     Task {
                         await HoloMemoryObservationScheduler.shared.lightweightCheck(
@@ -382,6 +385,7 @@ struct HoloApp: App {
                         HoloProductAnalytics.shared.trackSessionStart(cold: !hasLoggedSession)
                         hasLoggedSession = true
                     }
+                    HoloProductAnalytics.shared.beginForegroundFlushLoop()
                     Task { await HoloProductAnalytics.shared.uploadIfNeeded() }
                     HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
                     #if DEBUG

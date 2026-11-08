@@ -2,9 +2,10 @@
 //  HoloProductAnalytics.swift
 //  Holo
 //
-//  产品埋点（2026-10-19 自建方案，2026-11-07 字典 v2.1）：匿名使用事件本地队列 + 批量上报。
+//  产品埋点（2026-10-19 自建方案，2026-11-08 字典 v2.2）：匿名使用事件本地队列 + 批量上报。
 //  事件域 = 会话/模块曝光/记账/打卡/建任务/付费墙漏斗（v1）+ AI 交互/想法·习惯·账户创建/
-//  识图记账漏斗/数据导出（v2）+ 通知打开/周回顾查看（v2.1，第二周留存钩子实验漏斗），
+//  识图记账漏斗/数据导出（v2）+ 通知打开/周回顾查看（v2.1，第二周留存钩子实验漏斗）+
+//  推送权限状态/购买结果（v2.2，留存漏斗第一环与付费转化终点），
 //  字典与后端 PRODUCT_EVENT_NAMES 白名单一一对应
 //  （docs/_common/plans/2026-10-19-产品埋点自建方案/README.md）。
 //  隐私契约：不收任何用户内容（金额/标题/备注/习惯名/消息正文一律不进事件），仅枚举参数。
@@ -15,6 +16,7 @@
 
 import Foundation
 import os.log
+import UserNotifications
 
 /// 埋点事件名（与后端 PRODUCT_EVENT_NAMES 一一对应；新增事件先发后端白名单再发 iOS）
 enum HoloProductEventName: String, CaseIterable {
@@ -51,9 +53,15 @@ enum HoloProductEventName: String, CaseIterable {
     /// 点开一条推送通知进入 App；source=推送来源标识（payload source 或通知
     /// category，取不到 system），target=深链落地面（无路由 none）
     case notificationOpened = "notification_opened"
-    /// 查看周回顾内容（upcoming 功能预留：本期仅字典占位，未接调用点）；
-    /// weekStart=周一日期 yyyy-MM-dd
+    /// 查看周回顾内容；weekStart=周一日期 yyyy-MM-dd
     case weeklyReviewViewed = "weekly_review_viewed"
+    // v2.2（2026-11-08）：留存漏斗第一环 + 付费转化终点
+    /// 推送权限状态快照；status=granted/provisional/denied/notDetermined。
+    /// 冷启动与授权弹窗返回各查一次，本地按「状态变化才上报」去重（每设备仅几条）
+    case notificationPermission = "notification_permission"
+    /// 购买流程终点（paywall_purchase_tapped 的下游）；result=purchased/cancelled/pending/failed。
+    /// Xcode 沙盒交易不记（与播种模式同理，测试流量不污染漏斗）
+    case paywallPurchaseCompleted = "paywall_purchase_completed"
 }
 
 /// 待上报事件（字段与后端 normalizeProductEvent 一一对应）
@@ -186,7 +194,8 @@ nonisolated final class HoloProductAnalytics {
             queue: nil
         ) { [weak self] notification in
             let kind = (notification.userInfo?["kind"] as? String) ?? "check"
-            self?.track(.habitCheckin, ["kind": kind])
+            let source = (notification.userInfo?["source"] as? String) ?? "manual"
+            self?.track(.habitCheckin, ["kind": kind, "source": source])
         }
         NotificationCenter.default.addObserver(
             forName: .holoHabitDidCreate,
@@ -257,6 +266,53 @@ nonisolated final class HoloProductAnalytics {
     func trackSessionStart(cold: Bool) {
         _ = HoloAnalyticsSession.beginNew()
         track(.appSessionStart, ["trigger": cold ? "cold" : "foreground"])
+    }
+
+    // MARK: - 推送权限状态快照（v2.2）
+
+    private let lastPermissionStatusKey = "holo.analytics.lastPermissionStatus"
+    private let statusMapping: [UNAuthorizationStatus: String] = [
+        .authorized: "granted",
+        .provisional: "provisional",
+        .denied: "denied",
+        .notDetermined: "notDetermined",
+    ]
+
+    /// 查一次系统通知权限并按「状态变化才上报」去重记录 notification_permission。
+    /// 挂点：冷启动 task（覆盖老用户现状与从系统设置改权限的回流）+
+    /// 授权弹窗返回处（即时捕捉授权瞬间）；两处共用本闸，每设备全生命周期仅几条。
+    func trackNotificationPermissionSnapshot() async {
+        guard Self.isCollecting else { return }
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        let status = statusMapping[settings.authorizationStatus] ?? "notDetermined"
+        let last = UserDefaults.standard.string(forKey: lastPermissionStatusKey)
+        guard last != status else { return }
+        UserDefaults.standard.set(status, forKey: lastPermissionStatusKey)
+        track(.notificationPermission, ["status": status])
+    }
+
+    // MARK: - 前台定时上报（收口时间差根治，2026-11-08）
+
+    /// 前台会话期间每 5 分钟增量上报一次：此前只在冷启动/回前台/进后台冲刷，
+    /// 晚间持续使用的用户当天事件要到进后台才到达服务端，21 点产出的留存报告
+    /// 看到的是缺了当晚数据的假象（DAU 低报/D 悬崖夸大）。scenePhase 驱动启停。
+    @MainActor private var foregroundFlushTask: Task<Void, Never>?
+    private let foregroundFlushInterval: TimeInterval = 300
+
+    @MainActor func beginForegroundFlushLoop() {
+        endForegroundFlushLoop()
+        foregroundFlushTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(foregroundFlushInterval))
+                guard !Task.isCancelled else { return }
+                await self?.uploadIfNeeded()
+            }
+        }
+    }
+
+    @MainActor func endForegroundFlushLoop() {
+        foregroundFlushTask?.cancel()
+        foregroundFlushTask = nil
     }
 
     /// 增量上报（冷启动/前台化/进后台调用）；无新事件/失败均静默，下次再试。

@@ -24,8 +24,20 @@ extension HabitRepository {
         let newState: Bool
     }
 
+    /// 带回执路径的打卡埋点（2026-11-08 断线修复）：本文件写入路径不走主文件老 API，
+    /// 此前漏发埋点通知导致每日看板等新 UI 的打卡全部漏记（生产库 habit_checkin 为零）。
+    /// 语义与老 API 对齐：仅成功完成记事件，撤销打卡不记
+    private func postCheckinAnalytics(kind: String, to completed: Bool, source: String) {
+        guard completed else { return }
+        NotificationCenter.default.post(
+            name: .holoHabitCheckinDidRecord,
+            object: nil,
+            userInfo: ["kind": kind, "source": source]
+        )
+    }
+
     /// 打卡（返回回执；幂等复用既有取消态行，保持一天一条数据形态）
-    func performCheckInReceipt(habitId: UUID, note: String? = nil) throws -> CheckInReceiptData {
+    func performCheckInReceipt(habitId: UUID, note: String? = nil, analyticsSource: String = "manual") throws -> CheckInReceiptData {
         if !isReady { setup() }
         guard let habit = findHabit(by: habitId) else { throw HabitError.notFound }
         guard habit.isCheckInType else { throw HabitError.invalidData }
@@ -44,6 +56,7 @@ extension HabitRepository {
                 throw error
             }
             notifyDataChange(habitId: habit.id)
+            postCheckinAnalytics(kind: "check", to: existing.isCompleted, source: analyticsSource)
             return CheckInReceiptData(recordId: existing.id, previousState: previous, newState: existing.isCompleted)
         }
 
@@ -55,11 +68,12 @@ extension HabitRepository {
             throw error
         }
         notifyDataChange(habitId: habit.id)
+        postCheckinAnalytics(kind: "check", to: true, source: analyticsSource)
         return CheckInReceiptData(recordId: record.id, previousState: false, newState: true)
     }
 
     /// 新增数值记录（调用方负责值合法性校验）
-    func performAddNumericReceipt(habitId: UUID, value: Double, note: String? = nil) throws -> UUID {
+    func performAddNumericReceipt(habitId: UUID, value: Double, note: String? = nil, analyticsSource: String = "manual") throws -> UUID {
         if !isReady { setup() }
         guard let habit = findHabit(by: habitId) else { throw HabitError.notFound }
         guard habit.isNumericType else { throw HabitError.invalidData }
@@ -74,6 +88,7 @@ extension HabitRepository {
             throw error
         }
         notifyDataChange(habitId: habit.id)
+        postCheckinAnalytics(kind: "numeric", to: true, source: analyticsSource)
         return record.id
     }
 
