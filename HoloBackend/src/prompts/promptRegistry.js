@@ -90,6 +90,8 @@ const PROMPT_VERSIONS = {
   // 实锤；deepseek 无此问题、verify 侧 qwen 合格不动）。升为独立硬性规则句+空数组拒绝警告。
   discovery_candidate_v1: 6,
   discovery_verify_v1: 3,
+  // v3 选题+文案填空（2026-11-08 方案 §5.2）：模型只做选择题与措辞，数字一律空位。
+  discovery_topic_v1: 1,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],

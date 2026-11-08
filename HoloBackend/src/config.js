@@ -631,11 +631,29 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_DISCOVERY_REQUESTS_PER_DAY ?? 40),
       },
     },
+    // v3 选题+文案填空（2026-11-08）：一次调用，输入 ≤30 条形状摘要（无金额无数值），
+    // 输出选中观察 + 带空位模板。跟随聊天通道路由（显式 env 优先）。
+    discovery_topic_v1: {
+      ...discoveryRouteTarget(process.env, "TOPIC"),
+      temperature: Number(process.env.HOLO_DISCOVERY_TOPIC_TEMPERATURE ?? 0.5),
+      // 输出=一个选择+两段短模板，2048 富余（含 qwen dashscope 正文与草稿分离口径）。
+      maxTokens: Number(process.env.HOLO_DISCOVERY_TOPIC_MAX_TOKENS ?? 2048),
+      // 选择+短文案不需要长思考；none 档把预算全留给 JSON（同 verify 教训）。
+      reasoningEffort: process.env.HOLO_DISCOVERY_TOPIC_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_DISCOVERY_TOPIC_REQUESTS_PER_MINUTE ?? 2),
+        perDay: Number(process.env.HOLO_DISCOVERY_TOPIC_REQUESTS_PER_DAY ?? 5),
+      },
+    },
   },
   // HoloAI「一个发现」服务端总开关与预算初值（2026-10-23 实施包 §3/§4）。
   // enabled 默认 false：kill switch——质量或成本问题时改 env 重启即全量停新调用（T49）。
   discovery: {
     enabled: process.env.HOLO_DISCOVERY_ENABLED === "true",
+    // v3 选题端点独立灰度闸（2026-11-08 方案）：与旧批链路开关互不影响；
+    // 旧 enabled 已关闸退役，新端点单独放量。回退=env 改 false 重启。
+    topicEnabled: process.env.HOLO_DISCOVERY_TOPIC_ENABLED === "true",
+    topicMaxCandidates: Number(process.env.HOLO_DISCOVERY_TOPIC_MAX_CANDIDATES ?? 30),
     policyVersion: process.env.HOLO_DISCOVERY_POLICY_VERSION ?? "v1",
     allowedDomains: ["thought", "task", "habit"],
     runsPerDay: Number(process.env.HOLO_DISCOVERY_RUNS_PER_DAY ?? 1),

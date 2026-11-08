@@ -56,6 +56,8 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   // HoloAI「一个发现」两阶段（2026-10-23）：专用控制器调用，通用 chat 显式拒绝
   discovery_candidate_v1: "discovery_candidate_v1",
   discovery_verify_v1: "discovery_verify_v1",
+  // v3 选题+文案填空（2026-11-08）：模板回填后用户直接阅读
+  discovery_topic_v1: "discovery_topic_v1",
 });
 
 // 多语言输出指令（一期繁体/二期英文）：客户端随请求传 x-holo-language，
@@ -89,6 +91,8 @@ const LANGUAGE_ALLOWED_PURPOSES = new Set([
   // 一个发现：claim 标题/正文用户直接阅读（quote 保持原文原样，由 prompt 约束）
   "discovery_candidate_v1",
   "discovery_verify_v1",
+  // v3 选题模板（2026-11-08）：按请求 language 生成对应语言文案
+  "discovery_topic_v1",
 ]);
 
 // 个人档案通道（2026-11-01 东林拍板「档案=通用指令而非备注」）：

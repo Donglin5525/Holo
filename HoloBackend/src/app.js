@@ -52,6 +52,7 @@ import { createDiscoveryControlStore } from "./discovery/discoveryControlStore.j
 import { createDiscoveryRunStore } from "./discovery/discoveryRunStore.js";
 import { createDiscoveryStageJobStore } from "./discovery/discoveryStageJobStore.js";
 import { registerDiscoveryRoutes, DISCOVERY_PURPOSES } from "./discovery/discoveryController.js";
+import { registerTopicSelectionRoutes } from "./discovery/discoveryTopicController.js";
 import { createThoughtOrganizeService } from "./thoughts/organizeService.js";
 import { createThoughtSemanticRelateService } from "./thoughts/semanticRelateService.js";
 import { createThoughtCategoryBriefService } from "./thoughts/categoryBriefService.js";
@@ -457,6 +458,15 @@ export function createApp(overrides = {}) {
     stageJobStore: discoveryStageJobStore,
     backgroundCostGuard,
     captureAiCallLogs,
+  });
+  // v3 选题端点（2026-11-08 方案）：独立灰度闸 config.discovery.topicEnabled，默认关。
+  registerTopicSelectionRoutes(app, {
+    config,
+    providers,
+    database,
+    getDeviceId,
+    entitlementStore,
+    backgroundCostGuard,
   });
 
   const runAdminTestChat = createAdminTestChatRunner({

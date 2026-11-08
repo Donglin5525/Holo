@@ -17,6 +17,8 @@ export const BACKGROUND_PURPOSES = new Set([
   "thought_topic_name_v1", "thought_topic_summary_v1",
   "replayDigest",
   "discovery_candidate_v1", "discovery_verify_v1",
+  // v3 选题（2026-11-08）：一次调用级厘级成本，与旧发现两阶段共发现池。
+  "discovery_topic_v1",
 ]);
 
 export const BACKGROUND_PATHS = {
@@ -34,6 +36,8 @@ const BACKGROUND_PATH_PREFIXES = [
   // 取件端点 /candidates/result 不调用模型，不归入后台 purpose
   { prefix: "/v1/discovery/runs/", suffix: "/candidates/async", purpose: "discovery_candidate_v1" },
   { prefix: "/v1/discovery/runs/", suffix: "/verify", purpose: "discovery_verify_v1" },
+  // v3 选题端点（静态路径，2026-11-08）
+  { prefix: "/v1/discovery/topic", suffix: "/topic", purpose: "discovery_topic_v1" },
 ];
 
 /** 入口守卫的路径→purpose 解析：静态表精确匹配 + 发现阶段路径前缀匹配。 */
@@ -51,7 +55,7 @@ const micro = (cny) => Math.ceil(cny * 1_000_000);
 const validTokens = (value) => Number.isSafeInteger(value) && value >= 0;
 
 /** 发现专用池的 purpose 集合（subject 级限额按此拆池；global 级不受影响）。 */
-const DISCOVERY_POOL_PURPOSES = new Set(["discovery_candidate_v1", "discovery_verify_v1"]);
+const DISCOVERY_POOL_PURPOSES = new Set(["discovery_candidate_v1", "discovery_verify_v1", "discovery_topic_v1"]);
 
 export function backgroundSubject(deviceId, entitlement) {
   // 只采用服务端已验证的原始交易号；验收模式切换不重置预算。
@@ -103,8 +107,8 @@ export function createBackgroundCostGuard(db, config, now = Date.now) {
     WHERE (day = @period OR month = @period)
     AND (@subject IS NULL OR subject = @subject)
     AND (@discoveryOnly < 0
-      OR (@discoveryOnly = 1 AND purpose IN ('discovery_candidate_v1','discovery_verify_v1'))
-      OR (@discoveryOnly = 0 AND purpose NOT IN ('discovery_candidate_v1','discovery_verify_v1')))`);
+      OR (@discoveryOnly = 1 AND purpose IN ('discovery_candidate_v1','discovery_verify_v1','discovery_topic_v1'))
+      OR (@discoveryOnly = 0 AND purpose NOT IN ('discovery_candidate_v1','discovery_verify_v1','discovery_topic_v1')))`);
   const insert = db.prepare(`INSERT INTO background_cost_calls
     (id, subject, day, month, purpose, reserved_micro, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`);
   const settle = db.prepare(`UPDATE background_cost_calls SET charged_micro = ? WHERE id = ? AND charged_micro IS NULL`);
