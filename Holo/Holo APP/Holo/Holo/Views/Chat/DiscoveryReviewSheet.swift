@@ -609,12 +609,18 @@ private struct DiscoveryReviewEvidence: View {
         VStack(spacing: HoloSpacing.sm) {
             ForEach(refs) { ref in
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    // 两位数日（10/12）5 字符 ≈38pt：列宽 40 + 禁折行
+                    //（东林真机实报 10/12 被断成「10/1」+孤行「2」；折行绝不允许，宁可截断）。
                     Text(dayText(ref.observedAt))
                         .holoText(.metadata)
                         .monospacedDigit()
-                        .frame(width: 34, alignment: .trailing)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .frame(width: 40, alignment: .trailing)
                     Text(weekdayText(ref.observedAt))
                         .holoText(.metadata)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
                         .frame(width: 36, alignment: .leading)
                     Text(ref.summary ?? HoloMemoryCenterViewModel.domainTitle(ref.sourceDomain))
                         .holoText(.supporting)
