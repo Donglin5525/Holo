@@ -123,8 +123,9 @@ struct HoloDonutChart: View {
 // MARK: - 引导线标注层
 
 /// 环形图引导线：扇区外缘 → 折点 → 水平段 → 末端「名称+占比」。
-/// 布线策略沿用 10-17 之前自绘版：跨度足够的扇区名称画进环带（末端只标占比），
-/// 小扇区名称并入末端文本；末端标签按左右分列，列内按锚点 Y 排序防碰撞。
+/// 布线策略沿用 10-17 之前自绘版：跨度足够且名字整个落得进环带的扇区，名称画进环带（末端只标占比）；
+/// 长名（如任务清单名）落不进环带则并入末端文本，末端再放不下按宽截断加省略号；
+/// 末端标签按左右分列，列内按锚点 Y 排序防碰撞。
 private struct DonutLeaderLabelCanvas: View {
     let segments: [HoloDonutSegment]
     let focused: String?
@@ -156,7 +157,8 @@ private struct DonutLeaderLabelCanvas: View {
                 let anchor: CGPoint      // 扇区外缘锚点
                 let side: Int            // +1 右列 / -1 左列
                 let fraction: Double
-                var nameInRing: Bool { span >= DonutLeaderLabelCanvas.inRingNameSpan && !segment.name.isEmpty }
+                let nameFitsRing: Bool   // 名字整个落在环带内；长名硬塞会横穿环带，与引导线、行末占比叠成一团
+                var nameInRing: Bool { span >= DonutLeaderLabelCanvas.inRingNameSpan && nameFitsRing && !segment.name.isEmpty }
             }
 
             var items: [Item] = []
@@ -164,13 +166,20 @@ private struct DonutLeaderLabelCanvas: View {
             for segment in segments where segment.weight > 0 {
                 let span = segment.weight / total * .pi * 2
                 let mid = cumulative + span / 2
+                // 按选中加粗后的宽度测，选中/取消时名字不在环内外之间跳位
+                let nameSize = segment.name.isEmpty ? .zero : context.resolve(
+                    Text(segment.name).font(.system(size: 11, weight: .semibold))
+                ).measure(in: CGSize(width: 400, height: 20))
                 items.append(Item(
                     segment: segment,
                     mid: mid,
                     span: span,
                     anchor: CGPoint(x: center.x + sin(mid) * radius, y: center.y - cos(mid) * radius),
                     side: sin(mid) >= 0 ? 1 : -1,
-                    fraction: segment.weight / total
+                    fraction: segment.weight / total,
+                    // 0.68 与 SectorMark innerRadius 对应
+                    nameFitsRing: Self.textFitsRing(nameSize, mid: mid, ringMid: ringMid,
+                                                    inner: radius * 0.68, outer: radius)
                 ))
                 cumulative += span
             }
@@ -227,14 +236,23 @@ private struct DonutLeaderLabelCanvas: View {
                             + Text(" \(percent)").font(.system(size: 9.5, weight: weight)).monospacedDigit()
                     }
                     let styled = text.foregroundColor(textColor)
-                    // 侧栏宽度兜底：标签放不下时保名字（颜色对应关系的刚需）、弃占比。
+                    // 侧栏宽度兜底：标签放不下时保名字（颜色对应关系的刚需）、弃占比；
+                    // 纯名字也放不下则按宽截断加省略号，不再画出界压到环上（全名在图例行）。
                     // measure 须传有限宽度（无限宽下返回值异常，会让兜底被全部误触发）
                     let measured = context.resolve(styled)
                         .measure(in: CGSize(width: 400, height: 20)).width
                     let available = side == 1 ? size.width - textPointX - 2 : textPointX - 2
                     if measured > available && !item.nameInRing && !item.segment.name.isEmpty {
+                        let nameFont = Font.system(size: 11, weight: weight)
+                        let nameOnly = Text(item.segment.name).font(nameFont)
+                        let nameOnlyWidth = context.resolve(nameOnly)
+                            .measure(in: CGSize(width: 400, height: 20)).width
+                        let nameText = nameOnlyWidth <= available
+                            ? nameOnly
+                            : Text(Self.ellipsized(item.segment.name, font: nameFont,
+                                                   maxWidth: available, context: context)).font(nameFont)
                         context.draw(
-                            Text(item.segment.name).font(.system(size: 11, weight: weight)).foregroundColor(textColor),
+                            nameText.foregroundColor(textColor),
                             at: CGPoint(x: textPointX, y: y),
                             anchor: side == 1 ? .leading : .trailing
                         )
@@ -261,6 +279,31 @@ private struct DonutLeaderLabelCanvas: View {
             ys = ys.enumerated().map { index, _ in top + CGFloat(index) * compressed }
         }
         return ys
+    }
+
+    /// 以环带中线点为中心的名字文本框是否整个落在环带内：最远角不出外缘、最近点不进内圈（各留 1pt）。
+    /// 按真实几何算——同一个名字在环顶/环底（环带横向）放得下，在左右两侧（环带竖向）可能放不下
+    private static func textFitsRing(_ size: CGSize, mid: Double, ringMid: CGFloat, inner: CGFloat, outer: CGFloat) -> Bool {
+        let px = abs(sin(mid)) * ringMid, py = abs(cos(mid)) * ringMid
+        let halfWidth = size.width / 2, halfHeight = size.height / 2
+        let farthest = hypot(px + halfWidth, py + halfHeight)
+        let nearest = hypot(max(0, px - halfWidth), max(0, py - halfHeight))
+        return farthest <= outer - 1 && nearest >= inner + 1
+    }
+
+    /// 名字超宽时逐字截断补「…」直到塞进 maxWidth；全名始终可从图例行读到
+    private static func ellipsized(_ name: String, font: Font, maxWidth: CGFloat, context: GraphicsContext) -> String {
+        var chars = Array(name)
+        while chars.count > 1 {
+            chars.removeLast()
+            var candidate = String(chars)
+            if candidate.hasSuffix("…") { candidate.removeLast() }
+            candidate += "…"
+            let width = context.resolve(Text(candidate).font(font))
+                .measure(in: CGSize(width: 400, height: 20)).width
+            if width <= maxWidth { return candidate }
+        }
+        return String(chars)
     }
 
     /// 扇区名称在彩色底上的可读色：按底色亮度取深/浅
