@@ -52,9 +52,9 @@ final class DiscoveryTopicServiceTests: XCTestCase {
 
     // MARK: - 回填终审
 
-    private func makeSelection(title: String, body: String) -> DiscoveryTopicSelection {
+    private func makeSelection(title: String, body: String, pool: [DiscoveryTopicCandidate]) -> DiscoveryTopicSelection {
         DiscoveryTopicSelection(
-            observationId: "finance-category:cat-dinner",
+            observationId: pool.first!.id,
             angle: "contrast", reasonCode: "recent_change",
             titleTemplate: title, bodyTemplate: body
         )
@@ -63,9 +63,11 @@ final class DiscoveryTopicServiceTests: XCTestCase {
     func test_buildCardFillsSlotsWithRealValues() throws {
         let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26])
         let pool = DiscoveryTopicService.candidates(from: proposals)
+        // 8 周窗数据命中 windowChange（变化类优先于频次），槽位按该类型可用集合写。
         let selection = makeSelection(
-            title: "工作日的{label}，常常出现",
-            body: "最近{weeks}周里，你在{recordDays}个不同的日子记了「{label}」支出。"
+            title: "你的{label}，变多了",
+            body: "最近{weeks}周记了{recentCount}笔，前一个四周是{previousCount}笔。",
+            pool: pool
         )
         let card = try DiscoveryTopicService.buildCard(selection: selection, pool: pool, proposals: proposals)
         XCTAssertFalse(card.title.contains("{"))
@@ -77,7 +79,7 @@ final class DiscoveryTopicServiceTests: XCTestCase {
     func test_buildCardRejectsResidualSlot() {
         let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26])
         let pool = DiscoveryTopicService.candidates(from: proposals)
-        let selection = makeSelection(title: "未知值{nonexistent}", body: "最近{weeks}周有记录。")
+        let selection = makeSelection(title: "未知值{nonexistent}", body: "最近{weeks}周有记录。", pool: pool)
         XCTAssertThrowsError(try DiscoveryTopicService.buildCard(selection: selection, pool: pool, proposals: proposals))
     }
 
@@ -85,7 +87,7 @@ final class DiscoveryTopicServiceTests: XCTestCase {
         let proposals = financeProposals(dayOffsets: [1, 2, 3, 5, 8, 12, 20, 26])
         let pool = DiscoveryTopicService.candidates(from: proposals)
         // 「两倍」是模型自己估的比例——槽位值里没有，必须拒。
-        let selection = makeSelection(title: "晚餐开销变多", body: "最近{weeks}周里这类支出差不多翻了两倍。")
+        let selection = makeSelection(title: "晚餐开销变多", body: "最近{weeks}周里这类支出差不多翻了两倍。", pool: pool)
         XCTAssertThrowsError(try DiscoveryTopicService.buildCard(selection: selection, pool: pool, proposals: proposals)) { error in
             XCTAssertEqual(error as? DiscoveryTopicService.TopicError, .foreignNumber)
         }

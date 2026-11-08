@@ -1,11 +1,15 @@
 import SwiftUI
 import Combine
 
+// 「一个发现」评审页（v3 · 2026-11-08 版式重设计，东林选型 iOS 分组调型）。
+// 版式规格真源：设计代理 2026-11-08 交付稿——
+// 一个主角（今日卡 22pt holoTitle2）/ iOS 分组节奏（组标题+卡片）/ 橙色只给主操作
+//（一屏一个实心橙）/ 依据账本化（日期列右对齐+例外分节+超 5 行折叠）。
+
 struct DiscoverySheetContent: View {
     @ObservedObject var viewModel: ChatViewModel
 
     var body: some View {
-        // v3：旧「服务端发布发现卡」阅读面板已退役，统一进入本机规律评审页。
         DiscoveryReviewSheet(onClose: { viewModel.closeDiscoveryDetail() })
     }
 }
@@ -19,7 +23,7 @@ struct DiscoveryReviewSheet: View {
     @State private var refreshID = 0
     @State private var itemIndex = 0
     @State private var failed = false
-    @State private var actionNotice: String?
+    @State private var receipt: Receipt?
     @State private var actionTask: Task<Void, Never>?
     @State private var showsEvidence = false
     @State private var todayCard: DiscoveryTopicStore.QueuedCard?
@@ -27,27 +31,59 @@ struct DiscoveryReviewSheet: View {
 
     private let service = DiscoveryMemoryReviewService()
 
+    struct Receipt: Equatable {
+        enum Kind { case success, warning }
+        var kind: Kind
+        var text: String
+    }
+
     var body: some View {
         HoloSheetScaffold(title: "一个发现", onClose: onClose) {
             ScrollView {
-                    VStack(alignment: .leading, spacing: HoloSpacing.lg) {
-                        intro
-                        if let card = todayCard, result != nil {
-                            todayCardSection(card)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Holo 每天从你的记录里挑一件反复出现的事来问你，你确认了才会记住。")
+                        .holoText(.supporting)
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, HoloSpacing.page)
+                        .accessibilityIdentifier("chat.discovery.review.intro")
+
+                    if !consent.isGranted || service.domains.isEmpty {
+                        DiscoveryEmptyCard(style: .notEnabled, onOpenMemory: nil)
+                            .padding(.horizontal, HoloSpacing.page)
+                            .padding(.top, HoloSpacing.lg)
+                    } else if let result {
+                        loadedContent(result)
+                    } else if failed {
+                        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                            HoloInlineState(kind: .failure, message: "这次没读完你的记录。")
+                                .accessibilityIdentifier("chat.discovery.review.error")
+                            Button("再试一次") { requestRefresh() }
+                                .buttonStyle(HoloActionStyle(role: .secondary))
+                                .accessibilityIdentifier("chat.discovery.review.retry")
                         }
-                        if consent.isGranted && !service.domains.isEmpty {
-                            reviewContent
+                        .padding(.horizontal, HoloSpacing.page)
+                        .padding(.top, HoloSpacing.lg)
                     } else {
-                        HoloInlineState(kind: .empty, message: "开启「一个发现」并允许使用记录后，这里会显示可以核对的规律。")
+                        HoloInlineState(kind: .loading, message: "正在翻你最近的记录…")
+                            .padding(.horizontal, HoloSpacing.page)
+                            .padding(.top, HoloSpacing.lg)
+                            .accessibilityIdentifier("chat.discovery.review.loading")
+                    }
+
+                    if let notice = result?.healthNotice {
+                        healthNotice(notice)
+                            .padding(.horizontal, HoloSpacing.page)
+                            .padding(.top, HoloSpacing.lg)
                     }
                 }
                 .padding(.horizontal, HoloSpacing.page)
-                .padding(.vertical, HoloSpacing.md)
+                .padding(.top, HoloSpacing.md)
+                .padding(.bottom, HoloSpacing.xl)
             }
         }
         .presentationDetents([.large])
         .task(id: refreshID) { await reload() }
-        .onChange(of: consent.isGranted) { _, _ in requestRefresh() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { requestRefresh() }
         }
@@ -61,106 +97,112 @@ struct DiscoveryReviewSheet: View {
         .onDisappear { actionTask?.cancel() }
     }
 
-    private var intro: some View {
-        // B 风格定稿：引导区保留但降一档（18pt），不与发现句抢标题位。
-        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
-            Image(systemName: "sparkle")
-                .font(.body)
-                .foregroundStyle(Color.holoPrimary)
-                .accessibilityHidden(true)
-            Text("记录里，藏着一些规律")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Color.holoToolText)
-            Text("Holo 找到反复出现的记录时，会请你核对一次。")
-                .holoText(.supporting)
-                .foregroundStyle(Color.holoToolTextSecondary)
-        }
-        .accessibilityIdentifier("chat.discovery.review.intro")
-    }
+    // MARK: - 加载完成的内容（今日区 → 回执 → 列表区 → 空态）
 
     @ViewBuilder
-    private var reviewContent: some View {
-        if let actionNotice {
-            Text(actionNotice)
-                .holoText(.supporting)
-                .foregroundStyle(Color.holoToolText)
-                .accessibilityIdentifier("chat.discovery.review.receipt")
+    private func loadedContent(_ result: DiscoveryMemoryReviewService.Result) -> some View {
+        let listedItems = result.items.filter { item in
+            guard let card = todayCard else { return true }
+            return item.proposal?.propositionID != card.topicKey && item.proposal?.topicID != card.topicKey
         }
-        if let result {
-            // 今日一条与列表不重复：今日卡对应的条目从列表过滤（#6）
-            let listedItems = result.items.filter { item in
-                guard let card = todayCard else { return true }
-                return item.proposal?.propositionID != card.topicKey && item.proposal?.topicID != card.topicKey
-            }
-            if listedItems.indices.contains(itemIndex) {
-                let item = listedItems[itemIndex]
-                DiscoveryReviewCard(
-                    knowledge: item.knowledge, showsEvidence: $showsEvidence,
-                    isApplying: actionTask != nil,
-                    // 一屏一个主操作（§8.8-2）：有今日卡时列表的「对，记住」降为描边次级。
-                    elevatesPrimary: todayCard == nil,
-                    onAction: { apply($0, to: item) }
+
+        if let card = todayCard {
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                DiscoverySectionHeader(
+                    title: "今日一条",
+                    trailing: Date().formatted(.dateTime.month().day().weekday(.wide))
                 )
+                DiscoveryTodayCard(
+                    card: card,
+                    evidence: matchedItem(for: card).flatMap { item in
+                        item.knowledge.latestEvidenceSnapshot ?? item.proposal?.initialEvidenceSnapshot
+                    },
+                    showsEvidence: $showsTodayEvidence,
+                    isDisabled: actionTask != nil,
+                    onConfirm: { applyToday(.confirm, card: card) },
+                    onInaccurate: { applyToday(.markInaccurate(reason: nil, scope: .understanding), card: card) },
+                    onDefer: { applyToday(.deferCooldown, card: card) }
+                )
+            }
+            .padding(.top, HoloSpacing.lg)
+        }
+
+        if let receipt {
+            DiscoveryReceiptBanner(receipt: receipt)
+                .padding(.top, HoloSpacing.xl)
+        }
+
+        if !listedItems.isEmpty {
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                DiscoverySectionHeader(title: "等你确认", count: listedItems.count)
+                if listedItems.indices.contains(itemIndex) {
+                    let item = listedItems[itemIndex]
+                    DiscoveryPendingCard(
+                        item: item,
+                        showsEvidence: $showsEvidence,
+                        isDisabled: actionTask != nil,
+                        elevatesPrimary: todayCard == nil,
+                        onAction: { apply($0, to: item) }
+                    )
+                    .id(item.knowledge.propositionID)
+                    .transition(.opacity)
+                }
                 if listedItems.count > 1 {
-                    Button {
-                        showsEvidence = false
-                        itemIndex = (itemIndex + 1) % listedItems.count
-                    } label: {
-                        Text("看下一条 · \(itemIndex + 1) / \(listedItems.count)")
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .contentShape(Rectangle())
+                    DiscoveryPagerRow(index: itemIndex, count: listedItems.count) {
+                        withAnimation(HoloAnimation.replayReveal) {
+                            showsEvidence = false
+                            itemIndex = (itemIndex + 1) % listedItems.count
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Color.holoToolAction)
-                    .disabled(actionTask != nil)
-                    .accessibilityIdentifier("chat.discovery.review.next")
-                }
-            } else if todayCard == nil {
-                // 空态四件套：图标+标题+说明+动作（无今日卡且列表空才算真空态）。
-                VStack(spacing: HoloSpacing.sm) {
-                    HoloInlineState(kind: .empty, message: "今天没有新发现。同一件事在不同的日子反复出现，Holo 就会拿来问你一句。")
-                        .accessibilityIdentifier("chat.discovery.review.empty")
-                    Button("看看已经记住的") { DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false)) }
-                        .buttonStyle(HoloActionStyle(role: .secondary))
-                        .accessibilityIdentifier("chat.discovery.review.openMemory")
                 }
             }
-            if let notice = result.healthNotice {
-                healthNotice(notice)
-                    .holoText(.metadata)
-                    .foregroundStyle(Color.holoToolTextSecondary)
-            }
-        } else if failed {
-            // 失败必须可重试（§12）：不再指向已删除的「重新整理」。
-            VStack(spacing: HoloSpacing.sm) {
-                HoloInlineState(kind: .failure, message: "这次没读完你的记录。")
-                    .accessibilityIdentifier("chat.discovery.review.error")
-                Button("再试一次") { requestRefresh() }
-                    .buttonStyle(HoloActionStyle(role: .secondary))
-                    .accessibilityIdentifier("chat.discovery.review.retry")
-            }
-        } else {
-            HoloInlineState(kind: .loading, message: "正在翻你最近的记录…")
-                .accessibilityIdentifier("chat.discovery.review.loading")
+            .padding(.top, HoloSpacing.xl)
+        } else if todayCard == nil {
+            // 空态：刚做完最后一个决定 →「看完了」；本来就没有 →「今天没有」。
+            DiscoveryEmptyCard(
+                style: receipt != nil ? .doneToday : .noneToday,
+                onOpenMemory: { DeepLinkState.shared.navigate(to: .memoryGallery(focusNewMemories: false)) }
+            )
+            .padding(.top, HoloSpacing.xl)
         }
     }
 
-    private func healthNotice(_ notice: DiscoveryMemoryReviewService.HealthNotice) -> Text {
-        switch notice {
-        case .noReadings:
-            // 单开关口径：没授权过健康=用户自己的选择，不再常驻提醒；
-            // 已授权但无读数才提示（一次性邀请语义由内容自然表达）。
-            HealthRepository.shared.hasRequestedPermission
-                ? Text("最近没读到步数和睡眠，可以去 iPhone 自带的「健康」App 看看权限。")
-                : Text("连上健康数据，能多发现睡眠和步数的规律。")
-        case .waitingForUnlock: Text("有几条健康数据要等手机解锁才能读，解锁后这里会自动更新。")
-        case .unavailable: Text("健康数据这次没读到，过会儿再打开看看。")
+    // MARK: - 健康提示
+
+    private func healthNotice(_ notice: DiscoveryMemoryReviewService.HealthNotice) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: HoloSpacing.sm) {
+            Image(systemName: "heart")
+                .font(.footnote)
+                .foregroundStyle(Color.holoToolTextSecondary)
+            healthText(for: notice)
         }
+        .accessibilityIdentifier("chat.discovery.review.health")
     }
+
+    private func healthText(for notice: DiscoveryMemoryReviewService.HealthNotice) -> some View {
+        Group {
+            switch notice {
+            case .noReadings:
+                if HealthRepository.shared.hasRequestedPermission {
+                    Text("最近没读到步数和睡眠，可以去 iPhone 自带的「健康」App 看看权限。")
+                } else {
+                    Text("连上健康数据，能多发现睡眠和步数的规律。")
+                }
+            case .waitingForUnlock:
+                Text("有几条健康数据要等手机解锁才能读，解锁后这里会自动更新。")
+            case .unavailable:
+                Text("健康数据这次没读到，过会儿再打开看看。")
+            }
+        }
+        .holoText(.metadata)
+        .foregroundStyle(Color.holoToolTextSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    // MARK: - 刷新与加载
 
     private func requestRefresh() {
-        // 刷新不闪屏：保留旧内容与浏览位置，新结果到达后整体替换
-        //（今日卡/列表闪空、翻页被重置的问题来自这里的旧清空逻辑）。
+        // 刷新不闪屏：保留旧内容与浏览位置，新结果到达后整体替换。
         failed = false
         refreshID += 1
     }
@@ -170,7 +212,6 @@ struct DiscoveryReviewSheet: View {
             let value = try await service.review()
             try Task.checkCancellation()
             result = value
-            // v3 选题：队列空时补一张（服务端模型文案，失败自动降级本机规则）。
             await DiscoveryTopicService.refreshIfNeeded(proposals: value.items.compactMap(\.proposal))
             try Task.checkCancellation()
             todayCard = DiscoveryTopicStore.shared.todayCard()
@@ -181,7 +222,6 @@ struct DiscoveryReviewSheet: View {
                 itemIndex = 0
             }
         } catch is CancellationError {
-            // 来源或页面切换后由新一轮读取接管。
         } catch {
             if !Task.isCancelled { failed = true }
         }
@@ -195,68 +235,15 @@ struct DiscoveryReviewSheet: View {
         }
     }
 
-    @ViewBuilder
-    private func todayCardSection(_ card: DiscoveryTopicStore.QueuedCard) -> some View {
-        // 与列表卡共用同一套骨架：holoSurface 白卡 + 主按钮整行 + 次按钮半行
-        //（设计检查 #1/#3/#4：三键横排在 375pt 及以下必折行；旧米色底与徽标/按钮撞色）。
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.xs) {
-                Text("今日一条")
-                    .holoText(.metadata)
-                    .foregroundStyle(Color.holoToolAction)
-                if card.isModelCopy {
-                    // 合规披露口径：标明这条文案由 AI 撰写（本机模板文案不标，诚实且不暴露降级）。
-                    Text("AI 撰写")
-                        .holoText(.metadata)
-                        .foregroundStyle(Color.holoToolAction)
-                        .padding(.horizontal, HoloSpacing.sm)
-                        .padding(.vertical, HoloSpacing.xs)
-                        .lineLimit(1)
-                        .background(Color.holoToolAction.opacity(0.1), in: Capsule())
-                }
-            }
-            Text(card.title)
-                .holoText(.sectionTitle)
-                .foregroundStyle(Color.holoToolText)
-                .fixedSize(horizontal: false, vertical: true)
-            Text(card.body)
-                .holoText(.body)
-                .foregroundStyle(Color.holoToolText)
-                .fixedSize(horizontal: false, vertical: true)
-            if let item = matchedItem(for: card),
-               let evidence = item.knowledge.latestEvidenceSnapshot ?? item.proposal?.initialEvidenceSnapshot {
-                DiscoveryEvidenceToggle(showsEvidence: $showsTodayEvidence)
-                    .accessibilityIdentifier("chat.discovery.today.evidence")
-                if showsTodayEvidence {
-                    DiscoveryReviewEvidence(evidence: evidence)
-                }
-            }
-            DiscoveryDecisionControls(
-                elevated: true,
-                isDisabled: actionTask != nil || result == nil,
-                idPrefix: "chat.discovery.today",
-                onConfirm: { applyToday(.confirm, card: card) },
-                onInaccurate: { applyToday(.markInaccurate(reason: nil, scope: .understanding), card: card) },
-                onDefer: { applyToday(.deferCooldown, card: card) }
-            )
-        }
-        .padding(HoloSpacing.md)
-        .holoSurface()
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("chat.discovery.today.card")
-    }
-
     private func applyToday(_ action: HoloKnowledgeControlAction, card: DiscoveryTopicStore.QueuedCard) {
         guard actionTask == nil else { return }
-        // 三键统一走知识事务（与列表卡同一 apply，动作互通）；今日卡消费与命题记忆
-        // 在成功后落。提案已变（matchedItem 为 nil）时退化为仅本机标记。
         guard let item = matchedItem(for: card) else {
             DiscoveryTopicStore.shared.consumeToday()
-            actionNotice = String(localized: "这条规律或它的依据有变化，请核对更新后的内容。")
-            todayCard = nil
+            withAnimation(HoloAnimation.replayReveal) { todayCard = nil }
+            receipt = Receipt(kind: .warning, text: "这条规律的依据刚有变化，已换成最新内容，请再看一眼。")
             return
         }
-        actionNotice = nil
+        receipt = nil
         actionTask = Task {
             defer { actionTask = nil }
             do {
@@ -272,27 +259,36 @@ struct DiscoveryReviewSheet: View {
                     }
                     store.consumeToday()
                     switch action {
-                    case .confirm: actionNotice = String(localized: "已记住，可以在记忆中心查看。")
-                    case .markInaccurate: actionNotice = String(localized: "已标记不准确。")
-                    default: actionNotice = String(localized: "已暂缓提示这条规律。")
+                    case .confirm:
+                        receipt = Receipt(kind: .success, text: "已记住，可以在「Holo 记忆」里找到。")
+                        HapticManager.success()
+                    case .markInaccurate:
+                        receipt = Receipt(kind: .success, text: "这条以后不会再拿来问你。")
+                        HapticManager.light()
+                    default:
+                        receipt = Receipt(kind: .success, text: "先放着，这几天不再问这条。")
+                        HapticManager.light()
                     }
-                    todayCard = nil
+                    withAnimation(HoloAnimation.replayReveal) { todayCard = nil }
                 case .notAllowed, .notFound, .conflict:
-                    actionNotice = String(localized: "这条规律或它的依据有变化，请核对更新后的内容。")
+                    receipt = Receipt(kind: .warning, text: "这条规律的依据刚有变化，已换成最新内容，请再看一眼。")
+                    HapticManager.error()
                 case .persistenceFailed:
-                    actionNotice = String(localized: "这次没保存成功，可以再试一次。")
+                    receipt = Receipt(kind: .warning, text: "这次没保存成功，可以再试一次。")
+                    HapticManager.error()
                 }
             } catch is CancellationError {
                 return
             } catch {
-                actionNotice = String(localized: "这次没保存成功，可以再试一次。")
+                receipt = Receipt(kind: .warning, text: "这次没保存成功，可以再试一次。")
+                HapticManager.error()
             }
         }
     }
 
     private func apply(_ action: HoloKnowledgeControlAction, to item: DiscoveryMemoryReviewService.Item) {
         guard actionTask == nil else { return }
-        actionNotice = nil
+        receipt = nil
         actionTask = Task {
             defer { actionTask = nil }
             do {
@@ -301,97 +297,168 @@ struct DiscoveryReviewSheet: View {
                 switch outcome {
                 case .applied, .alreadyApplied:
                     switch action {
-                    case .confirm: actionNotice = String(localized: "已记住，可以在记忆中心查看。")
-                    case .markInaccurate: actionNotice = String(localized: "已标记不准确。")
-                    default: actionNotice = String(localized: "已暂缓提示这条规律。")
+                    case .confirm:
+                        receipt = Receipt(kind: .success, text: "已记住，可以在「Holo 记忆」里找到。")
+                        HapticManager.success()
+                    case .markInaccurate:
+                        receipt = Receipt(kind: .success, text: "这条以后不会再拿来问你。")
+                        HapticManager.light()
+                    default:
+                        receipt = Receipt(kind: .success, text: "先放着，这几天不再问这条。")
+                        HapticManager.light()
                     }
                     requestRefresh()
                 case .notAllowed, .notFound, .conflict:
-                    actionNotice = String(localized: "这条规律或它的依据有变化，请核对更新后的内容。")
+                    receipt = Receipt(kind: .warning, text: "这条规律的依据刚有变化，已换成最新内容，请再看一眼。")
+                    HapticManager.error()
                     requestRefresh()
                 case .persistenceFailed:
-                    actionNotice = String(localized: "这次没保存成功，可以再试一次。")
+                    receipt = Receipt(kind: .warning, text: "这次没保存成功，可以再试一次。")
+                    HapticManager.error()
                 }
             } catch is CancellationError {
                 return
             } catch {
-                actionNotice = String(localized: "这次没保存成功，可以再试一次。")
+                receipt = Receipt(kind: .warning, text: "这次没保存成功，可以再试一次。")
+                HapticManager.error()
             }
         }
     }
 }
 
-private struct DiscoveryReviewCard: View {
-    let knowledge: HoloResolvedKnowledge
-    @Binding var showsEvidence: Bool
-    let isApplying: Bool
-    var elevatesPrimary: Bool
-    let onAction: (HoloKnowledgeControlAction) -> Void
+// MARK: - 组标题（iOS 分组节奏：灰标题 + 计数徽章 + 右侧文字）
 
-    init(knowledge: HoloResolvedKnowledge, showsEvidence: Binding<Bool>, isApplying: Bool,
-         elevatesPrimary: Bool = true, onAction: @escaping (HoloKnowledgeControlAction) -> Void) {
-        self.knowledge = knowledge
-        self._showsEvidence = showsEvidence
-        self.isApplying = isApplying
-        self.elevatesPrimary = elevatesPrimary
-        self.onAction = onAction
-    }
+private struct DiscoverySectionHeader: View {
+    let title: String
+    var count: Int?
+    var trailing: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            Text(knowledge.domains.map(HoloMemoryCenterViewModel.domainTitle).joined(separator: " · "))
+        HStack(spacing: HoloSpacing.sm) {
+            Text(title)
                 .holoText(.metadata)
-                .foregroundStyle(Color.holoToolAction)
-            Text(knowledge.displayText)
-                .holoText(.sectionTitle)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .lineLimit(1)
+            if let count {
+                HoloCountBadge(count: count)
+            }
+            Spacer(minLength: HoloSpacing.sm)
+            if let trailing {
+                Text(trailing)
+                    .holoText(.metadata)
+                    .monospacedDigit()
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(count.map { "\(title)，共 \($0) 条" } ?? title))
+    }
+}
+
+// MARK: - 今日卡（页面主角：22pt 标题）
+
+private struct DiscoveryTodayCard: View {
+    let card: DiscoveryTopicStore.QueuedCard
+    var evidence: HoloKnowledgeEvidenceSnapshot?
+    @Binding var showsEvidence: Bool
+    let isDisabled: Bool
+    let onConfirm: () -> Void
+    let onInaccurate: () -> Void
+    let onDefer: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            if card.isModelCopy {
+                // 合规披露：标明文案由 AI 撰写（本机模板不标）。
+                CardBadge(text: "AI 撰写", color: .holoToolTextSecondary)
+            }
+            Text(card.title)
+                .font(.holoTitle2)
                 .foregroundStyle(Color.holoToolText)
+                .lineSpacing(HoloSpacing.xs)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(card.body)
+                .holoText(.body)
+                .foregroundStyle(Color.holoToolText)
+                .lineSpacing(HoloSpacing.xs)
+                .fixedSize(horizontal: false, vertical: true)
+            if let evidence {
+                DiscoveryEvidenceToggle(showsEvidence: $showsEvidence, count: evidence.supportRefs.count + evidence.counterRefs.count)
+                    .accessibilityIdentifier("chat.discovery.today.evidence")
+                if showsEvidence {
+                    DiscoveryReviewEvidence(evidence: evidence)
+                }
+            }
+            DiscoveryDecisionControls(
+                elevated: true,
+                isDisabled: isDisabled,
+                idPrefix: "chat.discovery.today",
+                onConfirm: onConfirm,
+                onInaccurate: onInaccurate,
+                onDefer: onDefer
+            )
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.top, HoloSpacing.md)
+        .padding(.bottom, HoloSpacing.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .holoSurface()
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("chat.discovery.today.card")
+    }
+}
+
+// MARK: - 列表卡（配角：17pt 半粗陈述句）
+
+private struct DiscoveryPendingCard: View {
+    let item: DiscoveryMemoryReviewService.Item
+    @Binding var showsEvidence: Bool
+    let isDisabled: Bool
+    let elevatesPrimary: Bool
+    let onAction: (HoloKnowledgeControlAction) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Text(item.knowledge.domains.map(HoloMemoryCenterViewModel.domainTitle).joined(separator: " · "))
+                .holoText(.metadata)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .lineLimit(1)
+            Text(item.knowledge.displayText)
+                .holoText(.body)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.holoToolText)
+                .lineSpacing(HoloSpacing.xs)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("chat.discovery.review.pattern")
-            if let evidence = knowledge.latestEvidenceSnapshot {
-                DiscoveryEvidenceToggle(showsEvidence: $showsEvidence)
+            if let evidence = item.knowledge.latestEvidenceSnapshot ?? item.proposal?.initialEvidenceSnapshot {
+                DiscoveryEvidenceToggle(showsEvidence: $showsEvidence, count: evidence.supportRefs.count + evidence.counterRefs.count)
                     .accessibilityIdentifier("chat.discovery.review.evidenceToggle")
-                if showsEvidence { DiscoveryReviewEvidence(evidence: evidence) }
+                if showsEvidence {
+                    DiscoveryReviewEvidence(evidence: evidence)
+                }
             }
             DiscoveryDecisionControls(
                 elevated: elevatesPrimary,
-                isDisabled: isApplying,
+                isDisabled: isDisabled,
                 idPrefix: "chat.discovery.review",
                 onConfirm: { onAction(.confirm) },
                 onInaccurate: { onAction(.markInaccurate(reason: nil, scope: .understanding)) },
                 onDefer: { onAction(.deferCooldown) }
             )
         }
-        .padding(HoloSpacing.md)
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.top, HoloSpacing.md)
+        .padding(.bottom, HoloSpacing.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .holoSurface()
     }
 }
 
-/// 依据入口：灰色文字链（不再是按钮样式，避免与三个决定并列成第四个选项）。
-private struct DiscoveryEvidenceToggle: View {
-    @Binding var showsEvidence: Bool
+// MARK: - 决定区（一行两键 + 文字按钮「先放一放」）
 
-    var body: some View {
-        Button {
-            withAnimation(HoloAnimation.quick) { showsEvidence.toggle() }
-        } label: {
-            HStack(spacing: 4) {
-                Text(showsEvidence ? "收起依据" : "查看依据")
-                Image(systemName: showsEvidence ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 11, weight: .medium))
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(Color.holoToolTextSecondary)
-            .frame(minHeight: 32, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-/// 决定区共用组件（今日卡与列表卡同一份，防两处走样）：
-/// 主按钮撑满整行（elevated=false 时降为描边，保证一屏一个橙色主操作）；
-/// 两个次按钮等宽半行；大字号下自动改竖排（§8.1 修正：样式组件只包文字宽度，
-/// 需在 label 上显式撑满——2026-11-08 设计检查 P0 实锤的根因）。
 private struct DiscoveryDecisionControls: View {
     var elevated: Bool
     var isDisabled: Bool
@@ -401,81 +468,287 @@ private struct DiscoveryDecisionControls: View {
     var onDefer: () -> Void
 
     var body: some View {
-        VStack(spacing: HoloSpacing.sm) {
-            Button(action: onConfirm) {
-                Text("对，记住")
-                    .frame(maxWidth: .infinity)
-                    .lineLimit(1)
-            }
-            .buttonStyle(HoloActionStyle(role: elevated ? .primary : .secondary))
-            .accessibilityIdentifier("\(idPrefix).confirm")
+        VStack(spacing: 4) {
             ViewThatFits(in: .horizontal) {
-                HStack(spacing: HoloSpacing.sm) { secondaryRow }
-                VStack(spacing: HoloSpacing.sm) { secondaryColumn }
+                HStack(spacing: HoloSpacing.sm) { pair }
+                VStack(spacing: HoloSpacing.sm) { pair }
             }
+            Button(action: onDefer) {
+                Text("先放一放")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(HoloPressStyle())
+            .disabled(isDisabled)
+            .padding(.bottom, HoloSpacing.sm)
         }
         .disabled(isDisabled)
+        .accessibilityElement(children: .contain)
     }
 
-    @ViewBuilder private var secondaryRow: some View {
+    @ViewBuilder private var pair: some View {
+        Button(action: onConfirm) {
+            Text("对，记住").frame(maxWidth: .infinity).lineLimit(1)
+        }
+        .buttonStyle(HoloActionStyle(role: elevated ? .primary : .secondary))
+        .accessibilityIdentifier("\(idPrefix).confirm")
         Button(action: onInaccurate) {
             Text("不太准确").frame(maxWidth: .infinity).lineLimit(1)
         }
+        .buttonStyle(HoloActionStyle(role: .secondary))
         .accessibilityIdentifier("\(idPrefix).inaccurate")
-        Button(action: onDefer) {
-            Text("先放一放").frame(maxWidth: .infinity).lineLimit(1)
-        }
-        .accessibilityIdentifier("\(idPrefix).defer")
-    }
-
-    @ViewBuilder private var secondaryColumn: some View {
-        Button(action: onInaccurate) {
-            Text("不太准确").frame(maxWidth: .infinity).lineLimit(1)
-        }
-        .accessibilityIdentifier("\(idPrefix).inaccurate")
-        Button(action: onDefer) {
-            Text("先放一放").frame(maxWidth: .infinity).lineLimit(1)
-        }
-        .accessibilityIdentifier("\(idPrefix).defer")
     }
 }
 
-private struct DiscoveryReviewEvidence: View {
-    let evidence: HoloKnowledgeEvidenceSnapshot
+// MARK: - 依据开关（灰色文字链 + 条数，整行 44 可点）
 
-    /// 用户能看懂的日期：11/03 周二（§8.8 列表日期口径 M/d + 星期辅助定位）。
-    private func dayText(_ date: Date) -> String {
-        date.formatted(.dateTime.month(.defaultDigits).day().weekday(.abbreviated))
+private struct DiscoveryEvidenceToggle: View {
+    @Binding var showsEvidence: Bool
+    var count: Int
+
+    private var label: String {
+        let base = showsEvidence ? "收起依据" : "查看依据"
+        return count > 0 ? "\(base) · \(count) 条记录" : base
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
-            if let from = evidence.observationWindowFrom, let to = evidence.observationWindowTo {
-                let end = evidence.templateID == HoloKnowledgeTemplateID.boundedRecurrence.rawValue
-                    ? to.addingTimeInterval(-1) : to
-                Text("\(dayText(from)) – \(dayText(end))")
-                    .holoText(.supporting)
+        Button {
+            withAnimation(HoloAnimation.replayReveal) { showsEvidence.toggle() }
+        } label: {
+            HStack(spacing: 4) {
+                Text(label)
+                    .font(.subheadline.weight(.medium))
+                Image(systemName: showsEvidence ? "chevron.up" : "chevron.down")
+                    .font(.footnote.weight(.semibold))
             }
-            if let summary = evidence.statsSummary {
-                Text(summary).holoText(.metadata)
-            }
-            // 明细行：每条原始记录一行（日期 + 内容摘要，如「晚餐 ¥32」/「步数」）。
-            ForEach(evidence.supportRefs + evidence.counterRefs) { ref in
-                HStack(alignment: .firstTextBaseline) {
-                    Text(dayText(ref.observedAt))
-                        .lineLimit(1)
-                    Spacer(minLength: HoloSpacing.sm)
-                    Text(ref.summary ?? HoloMemoryCenterViewModel.domainTitle(ref.sourceDomain))
-                        .multilineTextAlignment(.trailing)
-                }
-                .holoText(.metadata)
-            }
+            .foregroundStyle(Color.holoToolTextSecondary)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .foregroundStyle(Color.holoToolTextSecondary)
-        .padding(HoloSpacing.sm)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoToolInset, in: RoundedRectangle(cornerRadius: HoloRadius.md))
-        .accessibilityIdentifier("chat.discovery.review.evidence")
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text("依据"))
+        .accessibilityValue(Text(showsEvidence ? "已展开" : "已收起"))
     }
 }
 
+// MARK: - 依据明细（账本式：日期列右对齐 + 星期列 + 内容列；例外分节；超 5 行折叠）
+
+private struct DiscoveryReviewEvidence: View {
+    let evidence: HoloKnowledgeEvidenceSnapshot
+    @State private var showsAll = false
+
+    private func dayText(_ date: Date) -> String {
+        date.formatted(.dateTime.month(.defaultDigits).day())
+    }
+    private func weekdayText(_ date: Date) -> String {
+        date.formatted(.dateTime.weekday(.abbreviated))
+    }
+
+    var body: some View {
+        let supports = evidence.supportRefs
+        let counters = evidence.counterRefs
+        let total = supports.count + counters.count
+        let visibleSupports = showsAll ? supports : Array(supports.prefix(5))
+        return VStack(alignment: .leading, spacing: 4) {
+            if let from = evidence.observationWindowFrom, let to = evidence.observationWindowTo {
+                let end = evidence.templateID == HoloKnowledgeTemplateID.boundedRecurrence.rawValue
+                    ? to.addingTimeInterval(-1) : to
+                Text("\(dayText(from)) \(weekdayText(from)) – \(dayText(end)) \(weekdayText(end))")
+                    .holoText(.metadata)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .monospacedDigit()
+            }
+            if let summary = evidence.statsSummary {
+                Text(summary)
+                    .holoText(.supporting)
+                    .foregroundStyle(Color.holoToolText)
+            }
+            if !visibleSupports.isEmpty {
+                evidenceTable(visibleSupports, dimmed: false)
+                    .padding(.top, HoloSpacing.md)
+            }
+            if total > 5 && !showsAll {
+                Button {
+                    withAnimation(HoloAnimation.replayReveal) { showsAll = true }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("显示全部 \(total) 条")
+                            .font(.subheadline.weight(.medium))
+                        Image(systemName: "chevron.down").font(.footnote.weight(.semibold))
+                    }
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .frame(minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            if !counters.isEmpty && (showsAll || supports.count <= 5) {
+                Text("例外 · \(counters.count) 次")
+                    .holoText(.metadata)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .padding(.top, HoloSpacing.md)
+                evidenceTable(counters, dimmed: true)
+                    .padding(.top, HoloSpacing.sm)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoToolInset, in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityIdentifier("chat.discovery.review.evidence")
+    }
+
+    @ViewBuilder
+    private func evidenceTable(_ refs: [HoloMemoryEvidenceRef], dimmed: Bool) -> some View {
+        VStack(spacing: HoloSpacing.sm) {
+            ForEach(refs) { ref in
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(dayText(ref.observedAt))
+                        .holoText(.metadata)
+                        .monospacedDigit()
+                        .frame(width: 34, alignment: .trailing)
+                    Text(weekdayText(ref.observedAt))
+                        .holoText(.metadata)
+                        .frame(width: 36, alignment: .leading)
+                    Text(ref.summary ?? HoloMemoryCenterViewModel.domainTitle(ref.sourceDomain))
+                        .holoText(.supporting)
+                        .foregroundStyle(dimmed ? Color.holoToolTextSecondary : Color.holoToolText)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .foregroundStyle(Color.holoToolTextSecondary)
+            }
+        }
+    }
+}
+
+// MARK: - 翻页行（1 / N + 看下一条›）
+
+private struct DiscoveryPagerRow: View {
+    let index: Int
+    let count: Int
+    let onNext: () -> Void
+
+    var body: some View {
+        Button(action: onNext) {
+            HStack(spacing: HoloSpacing.sm) {
+                Text("\(index + 1) / \(count)")
+                    .holoText(.metadata)
+                    .monospacedDigit()
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                Spacer(minLength: HoloSpacing.sm)
+                HStack(spacing: 4) {
+                    Text("看下一条").font(.subheadline.weight(.medium))
+                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold))
+                }
+                .foregroundStyle(Color.holoToolAction)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(HoloPressStyle())
+        .accessibilityLabel(Text("看下一条"))
+        .accessibilityValue(Text("第 \(index + 1) 条，共 \(count) 条"))
+        .accessibilityIdentifier("chat.discovery.review.next")
+    }
+}
+
+// MARK: - 回执条（淡底状态条：成功绿 / 异常琥珀）
+
+private struct DiscoveryReceiptBanner: View {
+    let receipt: DiscoveryReviewSheet.Receipt
+
+    private var tint: Color {
+        receipt.kind == .success ? Color.holoToolSuccess : Color.holoToolWarning
+    }
+
+    var body: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: receipt.kind == .success ? "checkmark.circle.fill" : "exclamationmark.circle")
+                .font(.body)
+            Text(receipt.text)
+                .holoText(.supporting)
+                .fontWeight(.medium)
+                .foregroundStyle(Color.holoToolText)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, HoloSpacing.xs)
+        .frame(minHeight: 44, alignment: .leading)
+        .foregroundStyle(tint)
+        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(tint.opacity(0.25), lineWidth: 1)
+        )
+        .accessibilityIdentifier("chat.discovery.review.receipt")
+    }
+}
+
+// MARK: - 空态卡（四件套左对齐：图标/标题/说明/动作）
+
+private struct DiscoveryEmptyCard: View {
+    enum Style {
+        case noneToday, doneToday, notEnabled
+    }
+
+    let style: Style
+    let onOpenMemory: (() -> Void)?
+
+    private var icon: String {
+        switch style {
+        case .noneToday: return "text.magnifyingglass"
+        case .doneToday: return "checkmark.circle"
+        case .notEnabled: return "pause.circle"
+        }
+    }
+
+    private var title: String {
+        switch style {
+        case .noneToday: return "今天没有新发现"
+        case .doneToday: return "今天的都看完了"
+        case .notEnabled: return "「一个发现」还没开启"
+        }
+    }
+
+    private var subtitle: String {
+        switch style {
+        case .noneToday: return "同一件事在不同的日子反复出现，Holo 就会拿来问你一句。"
+        case .doneToday: return "有新的规律时，Holo 会再来问你。"
+        case .notEnabled: return "开启并允许使用记录后，Holo 会从里面找反复出现的事来问你。"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .frame(width: 44, height: 44, alignment: .leading)
+            Text(title)
+                .holoText(.body)
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.holoToolText)
+            Text(subtitle)
+                .holoText(.supporting)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, HoloSpacing.xs)
+            if style != .notEnabled, let onOpenMemory {
+                Button("看看已经记住的", action: onOpenMemory)
+                    .buttonStyle(HoloActionStyle(role: .secondary))
+                    .padding(.top, HoloSpacing.md)
+                    .accessibilityIdentifier("chat.discovery.review.openMemory")
+            }
+        }
+        .padding(HoloSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .holoSurface()
+        .accessibilityIdentifier("chat.discovery.review.empty")
+    }
+}
