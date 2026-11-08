@@ -186,9 +186,7 @@ struct ChatView: View {
         }
         // 共用既有弹层通道，承载规律确认和旧观察阅读。
         .sheet(isPresented: $viewModel.showsDiscoveryDetail) {
-            DiscoverySheetContent(viewModel: viewModel) {
-                activeSheet = .holoAIUserSettings
-            }
+            DiscoverySheetContent(viewModel: viewModel)
         }
         .task {
             // 打开链路分段计时起点（首屏 reveal 处收尾落盘，见 revealInitialConversationIfReady）

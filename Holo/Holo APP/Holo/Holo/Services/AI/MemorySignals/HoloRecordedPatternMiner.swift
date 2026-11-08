@@ -45,12 +45,18 @@ nonisolated enum HoloRecordedPatternMiner {
                   days.count >= gate.minIndependentEvents, weeks.count >= gate.minCompletePeriods,
                   (calendar.dateComponents([.day], from: firstDay, to: lastDay).day ?? 0) >= gate.minSpanDays else { return nil }
             let title = first.categoryName
+            // 依据明细行要「用户能看懂的具体明细」（东林 2026-11-08 拍板）：
+            // summary 带金额与笔内容摘要（仅存本机，选题上送只有形状摘要不含 refs）。
+            let amountFormatter = NumberFormatter()
+            amountFormatter.numberStyle = .decimal
+            amountFormatter.maximumFractionDigits = 0
             let refs = items.map { item in
                 let key = "finance:\(item.id)"
+                let amount = amountFormatter.string(from: NSNumber(value: item.amount)) ?? String(item.amount)
                 return HoloMemoryEvidenceRef(
                     id: "pattern-\(key)", kind: .entityRef, sourceDomain: .finance,
                     lineageKey: key, sourceID: item.id, revisionDigest: item.revisionDigest,
-                    observedAt: item.occurredAt, summary: title
+                    observedAt: item.occurredAt, summary: "\(item.merchant ?? title) · ¥\(amount)"
                 )
             }
             return revision(
