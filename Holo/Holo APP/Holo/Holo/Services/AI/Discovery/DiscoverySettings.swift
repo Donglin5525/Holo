@@ -69,14 +69,12 @@ final class DiscoverySettings {
         defaults.integer(forKey: Keys.localGrantEpoch)
     }
 
-    /// 新来源仅在当前设备用于规律整理，不加入旧云端批次的授权范围。
+    /// v3 域口径（东林 2026-11-08 拍板「一个开关管所有域」）：发现=记忆萃取的一个
+    /// 功能，域范围不再由分域开关决定——开启即全七域参与，具体能读到什么由各数据
+    /// 源的授权自然决定（全局 AI 数据授权、HealthKit 系统权限），不增加理解成本。
     func memoryReviewDomains() -> Set<HoloMemoryDomain> {
-        let state = snapshot()
-        guard state.isEnabled else { return [] }
-        var domains = Set(state.allowedDomains.compactMap { HoloMemoryDomain(rawValue: $0.rawValue) })
-        if defaults.bool(forKey: Self.localFinanceKey) { domains.insert(.finance) }
-        if defaults.bool(forKey: Self.localHealthKey) { domains.insert(.health) }
-        return domains
+        guard snapshot().isEnabled else { return [] }
+        return Set(HoloMemoryDomain.allCases)
     }
 
     private func clearLocalReviewScope() {

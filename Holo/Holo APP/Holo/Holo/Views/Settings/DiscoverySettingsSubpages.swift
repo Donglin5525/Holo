@@ -31,24 +31,12 @@ struct DiscoveryScopeView: View {
                     Text("可以理解哪些记录。")
                         .holoText(.sectionTitle)
                         .foregroundStyle(Color.holoToolText)
-                    Text("范围在开启时选择；想更改，先关闭再重新开启，已生成的发现会清除。")
+                    Text("开启后，你允许 AI 使用的记录都会参与找规律（想法、任务、习惯、目标、对话、财务、健康）。「不参与 AI」的想法始终排除。")
                         .holoText(.supporting)
                         .foregroundStyle(Color.holoToolTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, HoloSpacing.lg)
-
-                HoloSettingsSection {
-                    ForEach(Array(DiscoveryDomainMeta.all.enumerated()), id: \.element.id) { index, meta in
-                        if index > 0 { HoloSettingsDivider() }
-                        domainRow(meta)
-                    }
-                }
-
-                if isEnabled {
-                    DiscoveryReviewSourceControls(includesFinance: $includesFinance, includesHealth: $includesHealth)
-                        .padding(.horizontal, HoloSpacing.lg)
-                }
 
                 Text(scopeNote)
                     .holoText(.metadata)
@@ -66,7 +54,7 @@ struct DiscoveryScopeView: View {
     }
 
     private var scopeNote: String {
-        "健康与财务的规律由此设备整理。已设为「不参与 AI」的想法始终排除。"
+        "规律由这台设备上的统计算出；写文案时会有少量统计特征（如分类名、指标名、变化方向）经 Holo 后端交给第三方 AI，金额、健康原始数值和记录原文不会发送。"
     }
 
     private func domainRow(_ meta: DiscoveryDomainMeta) -> some View {

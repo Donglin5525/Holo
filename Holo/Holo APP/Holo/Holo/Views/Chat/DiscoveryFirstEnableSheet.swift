@@ -4,7 +4,7 @@
 //
 //  「一个发现」首次开启流程（01 §5）：
 //  说明卡（必要片段经 Holo 后端交第三方 AI、不承诺只在本地推理、不承诺每日/实时/一定有发现）
-//  → 来源多选（想法/任务/习惯，默认全不选，至少选一）→ 同意开关 → 同意并开启。
+//  v3 单开关（2026-11-08 东林拍板）：不再选来源——开启即全七域，授权由全局 AI 授权决定。
 //  处理 needsTakeoverConfirmation（他设备占用：接管后旧设备停）／needsGlobalConsent
 //  （引导跳全局授权）／serverUnsupported（解释暂不可用）；任一步取消/失败保持关闭。
 //
@@ -20,7 +20,8 @@ struct DiscoveryFirstEnableSheet: View {
     /// 流程结束统一收口：enabled=是否成功开启；主会话据此关闭本 sheet
     var onFinished: (Bool) -> Void
 
-    @State private var selectedDomains: Set<DiscoverySourceDomain> = []
+    /// v3 单开关口径：开启即全七域参与（域授权由全局 AI 授权与系统权限决定）。
+    private let selectedDomains: Set<DiscoverySourceDomain> = Set(DiscoverySourceDomain.allCases)
     @State private var agreed = false
     @State private var isProcessing = false
     @State private var enableTask: Task<Void, Never>?
@@ -35,7 +36,7 @@ struct DiscoveryFirstEnableSheet: View {
     }
 
     private var canSubmit: Bool {
-        !selectedDomains.isEmpty && agreed && !isProcessing && globalConsentGranted
+        agreed && !isProcessing && globalConsentGranted
     }
 
     var body: some View {
@@ -67,8 +68,6 @@ struct DiscoveryFirstEnableSheet: View {
                         explanationCard
 
                         consentStatusCard
-
-                        domainCard.disabled(isProcessing)
 
                         if isProcessing {
                             HoloInlineState(kind: .loading, message: "正在开启…")
@@ -107,7 +106,6 @@ struct DiscoveryFirstEnableSheet: View {
     /// 两处重复反而模糊主引导（§4.5 同屏不重复同一指引）。
     private var submitHint: String? {
         guard !canSubmit, outcomeMessage == nil else { return nil }
-        if selectedDomains.isEmpty { return "至少选择一类来源" }
         if !agreed { return "打开下方的同意开关后即可开启" }
         return nil
     }
@@ -124,10 +122,10 @@ struct DiscoveryFirstEnableSheet: View {
                 .holoText(.sectionTitle)
                 .foregroundStyle(Color.holoToolText)
 
-            bullet("开启后，有新材料时 Holo 会自动把你选择范围内的必要片段，通过 Holo 后端交给第三方 AI 理解与核验——不承诺只在本地推理。", icon: "arrow.triangle.branch")
-            bullet("开启后可随时查看整理状态。有可核对的规律时，Holo 会请你确认。", icon: "calendar.badge.minus")
-            bullet("只在对话页呈现，不发通知；可随时关闭，关闭不删除你的原始记录。", icon: "bell.slash")
-            bullet("待确认的规律可以从记忆中读取。健康与财务可在开启后单独选择，在此设备整理。", icon: "brain")
+            bullet("你允许 AI 使用的记录都会参与找规律：想法、任务、习惯、目标、对话、财务、健康。已设为「不参与 AI」的想法始终排除。", icon: "scope")
+            bullet("规律由这台设备上的统计算出。为了让文案自然，少量统计特征（如分类名、指标名、变化方向）会经 Holo 后端交给第三方 AI 撰写；金额、健康原始数值和记录原文不会发送。", icon: "arrow.triangle.branch")
+            bullet("每天至多一条，可先展开核对依据再确认；不发通知。", icon: "calendar")
+            bullet("可随时关闭，关闭即停，不删除你的原始记录。确认过的规律保存在记忆里，随 iCloud 同步。", icon: "icloud")
         }
         .padding(HoloSpacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -187,77 +185,6 @@ struct DiscoveryFirstEnableSheet: View {
                 .fill(Color.holoToolInset.opacity(0.5))
         )
         .accessibilityIdentifier("chat.discovery.enable.consentStatus")
-    }
-
-    // MARK: 来源多选（默认全不选）
-
-    private var domainCard: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("允许理解的范围")
-                .holoText(.body)
-                .fontWeight(.semibold)
-                .foregroundStyle(Color.holoToolText)
-            Text("至少选一类，Holo 会从这些记录里找规律。已设为「不参与 AI」的想法始终排除。")
-                .holoText(.metadata)
-                .foregroundStyle(Color.holoToolTextSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            VStack(spacing: 0) {
-                ForEach(Array(DiscoveryDomainMeta.all.enumerated()), id: \.element.id) { index, meta in
-                    if index > 0 { Divider() }
-                    domainRow(meta)
-                }
-            }
-        }
-        .padding(HoloSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .holoSurface()
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("chat.discovery.enable.domains")
-    }
-
-    private func domainRow(_ meta: DiscoveryDomainMeta) -> some View {
-        let isSelected = selectedDomains.contains(meta.domain)
-        return Button {
-            withAnimation(HoloAnimation.quick) {
-                if isSelected {
-                    selectedDomains.remove(meta.domain)
-                } else {
-                    selectedDomains.insert(meta.domain)
-                }
-            }
-        } label: {
-            HStack(spacing: HoloSpacing.md) {
-                Image(systemName: meta.icon)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Color.holoPrimary)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Color.holoPrimary.opacity(0.12)))
-                    .accessibilityHidden(true)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(meta.title)
-                        .holoText(.body)
-                        .foregroundStyle(Color.holoToolText)
-                    Text(meta.subtitle)
-                        .holoText(.metadata)
-                        .foregroundStyle(Color.holoToolTextSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(isSelected ? Color.holoPrimary : Color.holoToolTextSecondary.opacity(0.5))
-            }
-            .padding(.vertical, HoloSpacing.sm)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("chat.discovery.enable.domain.\(meta.domain.rawValue)")
-        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
-        .accessibilityLabel(Text("允许理解\(meta.title)"))
     }
 
     // MARK: 同意勾选

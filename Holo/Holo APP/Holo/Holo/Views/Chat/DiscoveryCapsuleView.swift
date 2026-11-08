@@ -15,8 +15,6 @@ struct DiscoveryCapsuleView: View {
     let onTap: () -> Void
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage(DiscoverySettings.enabledKey) private var isEnabled = false
-    @AppStorage(DiscoverySettings.localFinanceKey) private var includesFinance = false
-    @AppStorage(DiscoverySettings.localHealthKey) private var includesHealth = false
     @ObservedObject private var consent = HoloAIDataProcessingConsent.shared
 
     var body: some View {

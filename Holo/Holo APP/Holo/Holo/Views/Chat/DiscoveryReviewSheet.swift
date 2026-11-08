@@ -22,8 +22,6 @@ struct DiscoveryReviewSheet: View {
 
     @Environment(\.scenePhase) private var scenePhase
     @ObservedObject private var consent = HoloAIDataProcessingConsent.shared
-    @AppStorage(DiscoverySettings.localFinanceKey) private var includesFinance = false
-    @AppStorage(DiscoverySettings.localHealthKey) private var includesHealth = false
     @State private var result: DiscoveryMemoryReviewService.Result?
     @State private var refreshID = 0
     @State private var itemIndex = 0
@@ -46,8 +44,7 @@ struct DiscoveryReviewSheet: View {
                         }
                         if consent.isGranted && !service.domains.isEmpty {
                         reviewContent
-                        sources
-                        if showsEarlierFinding {
+                                    if showsEarlierFinding {
                             Button("查看另一条记录观察", action: onOpenEarlierFinding)
                                 .buttonStyle(HoloActionStyle(role: .secondary))
                         }
@@ -61,16 +58,11 @@ struct DiscoveryReviewSheet: View {
         }
         .presentationDetents([.large])
         .task(id: refreshID) { await reload() }
-        .onChange(of: includesFinance) { _, _ in requestRefresh() }
-        .onChange(of: includesHealth) { _, _ in requestRefresh() }
         .onChange(of: consent.isGranted) { _, _ in requestRefresh() }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { requestRefresh() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .holoDiscoverySettingsDidChange)) { _ in requestRefresh() }
-        .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
-            if includesFinance { requestRefresh() }
-        }
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in requestRefresh() }
         .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in requestRefresh() }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in requestRefresh() }
@@ -134,9 +126,6 @@ struct DiscoveryReviewSheet: View {
                 HoloInlineState(kind: .empty, message: "整理完成，暂时没有可以请你确认的规律。")
                     .accessibilityIdentifier("chat.discovery.review.empty")
             }
-            Text("上次整理 · \(result.checkedAt.formatted(date: .abbreviated, time: .shortened))")
-                .holoText(.metadata)
-                .foregroundStyle(Color.holoToolTextSecondary)
             if let notice = result.healthNotice {
                 healthNotice(notice)
                     .holoText(.metadata)
@@ -149,12 +138,6 @@ struct DiscoveryReviewSheet: View {
             HoloInlineState(kind: .loading, message: "正在核对你允许的记录…")
                 .accessibilityIdentifier("chat.discovery.review.loading")
         }
-        if result != nil || failed {
-            Button("重新整理") { requestRefresh() }
-                .buttonStyle(HoloActionStyle(role: .secondary))
-                .disabled(actionTask != nil)
-                .accessibilityIdentifier("chat.discovery.review.refresh")
-        }
     }
 
     private func healthNotice(_ notice: DiscoveryMemoryReviewService.HealthNotice) -> Text {
@@ -163,11 +146,6 @@ struct DiscoveryReviewSheet: View {
         case .waitingForUnlock: Text("部分健康记录需要解锁设备后读取。解锁后可重新整理。")
         case .unavailable: Text("部分健康记录暂时无法读取，可以重新整理。")
         }
-    }
-
-    private var sources: some View {
-        DiscoveryReviewSourceControls(includesFinance: $includesFinance, includesHealth: $includesHealth)
-            .disabled(actionTask != nil)
     }
 
     private func requestRefresh() {
@@ -408,26 +386,3 @@ private struct DiscoveryReviewEvidence: View {
     }
 }
 
-struct DiscoveryReviewSourceControls: View {
-    @Binding var includesFinance: Bool
-    @Binding var includesHealth: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("一起整理这些记录")
-                .holoText(.body)
-                .fontWeight(.semibold)
-            Toggle("财务支出", isOn: $includesFinance)
-                .accessibilityIdentifier("discovery.review.source.finance")
-            Toggle("健康步数与睡眠", isOn: $includesHealth)
-                .accessibilityIdentifier("discovery.review.source.health")
-            Text("这两类规律在此设备整理。点「对，记住」才会保存为你确认过的记忆。")
-                .holoText(.metadata)
-                .foregroundStyle(Color.holoToolTextSecondary)
-        }
-        .tint(.holoPrimary)
-        .foregroundStyle(Color.holoToolText)
-        .padding(HoloSpacing.md)
-        .holoSurface()
-    }
-}
