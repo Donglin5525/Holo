@@ -1203,6 +1203,158 @@ test("交付核验派生放行：差值形式（总支出比餐饮多 217 元）
   assert.equal(result.claims.length, 1, "已核底数的差值必须交付");
 });
 
+// —— 口径对账通用化（2026-11-09 恩格尔后续）：问句窗口超出数据实际覆盖时，
+// 引擎信封携带 coverage 缺口、开局注入事实通知、结果载荷如实记录——结论
+// 必须按真实覆盖口径表述，不再把半年数冒充一年数。全数据集生效，无特判。
+
+function windowedToolRequest(startSec, endSec) {
+  return {
+    id: "t1",
+    tool: "finance",
+    query: "dynamic_query",
+    parameters: {
+      dynamicPlan: {
+        source: "finance.transactions",
+        filters: [],
+        groupBy: [],
+        aggregations: [{ id: "total", operation: "sum", field: "amount", unit: "元" }],
+        derivations: [],
+        timeRange: { label: "问句窗口", start: startSec, end: endSec },
+      },
+    },
+  };
+}
+
+test("口径对账：查询窗口实质早于数据起点 → coverage.shortfall=true 且 note 写明实际覆盖段", async () => {
+  // 数据行 2026-08-01~05；查询窗 2026-01-01~12-31：缺口 212 天 > 宽限 → 必须标缺口
+  const provider = makeProvider([
+    agentJson("need_tools", { toolRequests: [windowedToolRequest(1767225600, 1798761600)] }),
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "数据自 2026-08-01 起，该段总支出 319 元",
+        metricAssertions: [{ metricKey: "dynamic.finance_transactions.total.all", value: -319, baselineValue: null, unit: "元", comparison: null, evidenceIDs: [] }],
+        evidenceIDs: ["dynamic-finance_transactions.total.all"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-coverage-gap", question: "算一下近一年" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+
+  const toolTurn = provider.calls[1].messages.find((m) => m.content?.startsWith("toolResults:"));
+  const coverage = JSON.parse(toolTurn.content.slice("toolResults: ".length))[0].coverage;
+  assert.ok(coverage, "聚合结果必须携带 coverage");
+  assert.equal(coverage.shortfall, true, "缺口实质：shortfall 必须为真");
+  assert.ok(coverage.note.includes("2026-08-01"), `note 必须写明数据实际覆盖起点，实际：${coverage.note}`);
+  // 诚实表述（自 X 起 + 覆盖段金额）必须过核验交付
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 1, "如实口径表述必须交付");
+});
+
+test("口径对账：窗口在数据覆盖内（缺口 4 天 < 宽限）→ coverage 如实回填但不标缺口", async () => {
+  // 查询窗 2026-07-28 起：缺口 4 天，宽限 max(3天, 窗口 5%)≈7.8 天 → 不触发
+  const provider = makeProvider([
+    agentJson("need_tools", { toolRequests: [windowedToolRequest(1785168000, 1798761600)] }),
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "该段总支出 319 元",
+        metricAssertions: [{ metricKey: "dynamic.finance_transactions.total.all", value: -319, baselineValue: null, unit: "元", comparison: null, evidenceIDs: [] }],
+        evidenceIDs: ["dynamic-finance_transactions.total.all"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-coverage-ok", question: "近四个月" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+
+  const toolTurn = provider.calls[1].messages.find((m) => m.content?.startsWith("toolResults:"));
+  const coverage = JSON.parse(toolTurn.content.slice("toolResults: ".length))[0].coverage;
+  assert.ok(coverage, "coverage 始终携带实际覆盖区间");
+  assert.equal(coverage.shortfall, false, "噪声级缺口不得触发");
+  assert.equal(coverage.note, null);
+});
+
+test("口径对账：问句窗口超出数据 → 开局注入 window_coverage_notice + 结果载荷记录缺口", async () => {
+  const snapshotWithTask = {
+    ...SNAPSHOT,
+    answerTask: {
+      scenarioID: "",
+      userQuestion: "算一下历史近一年的恩格尔系数",
+      questionKind: "general",
+      primaryTimeRange: { label: "近1年", start: 1767225600, end: 1798761600 },
+    },
+  };
+  const provider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [{
+        ...engelToolRequest(),
+        parameters: {
+          ...engelToolRequest().parameters,
+          dynamicPlan: {
+            ...engelToolRequest().parameters.dynamicPlan,
+            timeRange: { label: "近1年", start: 1767225600, end: 1798761600 },
+          },
+        },
+      }],
+    }),
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "数据自 2026-08-01 起：该段食品占比约 32%（食品 102 元 / 总支出 319 元）",
+        metricAssertions: ENGEL_METRIC_ASSERTIONS,
+        evidenceIDs: ["dynamic-finance_transactions.food.all", "dynamic-finance_transactions.total.all"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-coverage-notice", question: "算一下历史近一年的恩格尔系数" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(snapshotWithTask) });
+  assert.equal(await executor.run(task.id), "completed");
+
+  // 开局通知：第一轮 system 里就声明数据覆盖事实，不依赖模型自己发现
+  const systemContent = provider.calls[0].messages.find((m) => m.role === "system").content;
+  assert.ok(systemContent.includes("<window_coverage_notice>"), "开局通知必须注入");
+  assert.ok(systemContent.includes("finance.transactions"), "通知点名具体数据集");
+  assert.ok(systemContent.includes("2026-08-01"), "通知写明数据实际起点");
+  // 结果载荷：客户端可见的确定性事实（iOS DatasetCoverage 解码忽略未知字段，向后兼容）
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  const dsCoverage = result.snapshotCoverage["finance.transactions"];
+  assert.equal(dsCoverage.questionStart, "2026-01-01");
+  assert.ok(dsCoverage.windowShortfallDays >= 200, `缺口天数必须如实记录，实际：${dsCoverage.windowShortfallDays}`);
+  assert.equal(result.claims.length, 1, "诚实口径 + 派生比例组合必须交付");
+});
+
+test("口径对账：问句窗口在数据内 → 不注入开局通知（零提示词开销）", async () => {
+  const snapshotWithTask = {
+    ...SNAPSHOT,
+    answerTask: {
+      scenarioID: "",
+      userQuestion: "最近一周花了多少",
+      questionKind: "fact",
+      primaryTimeRange: { label: "近7天", start: 1785196800, end: 1798761600 },
+    },
+  };
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "本周账务记录若干，无异常口径问题",
+        metricAssertions: [],
+        evidenceIDs: ["finance.transactions#0"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-coverage-none", question: "最近一周花了多少" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(snapshotWithTask) });
+  assert.equal(await executor.run(task.id), "completed");
+
+  const systemContent = provider.calls[0].messages.find((m) => m.role === "system").content;
+  assert.ok(!systemContent.includes("<window_coverage_notice>"), "无缺口时不得注入通知");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.snapshotCoverage["finance.transactions"].windowShortfallDays, null);
+});
+
 test("交付核验 R03：断言对不上且修复轮仍编造 → 诚实 failed（不再剥断言留正文）", async () => {
   const toolRequest = {
     id: "t1",

@@ -16,7 +16,7 @@ import { generateDeepReport, DeepReportError } from "./deepReport/engine.js";
 import { insightMaxTokensFor } from "../config.js";
 import { backgroundSubject } from "../usage/backgroundCostGuard.js";
 import { validateAgentLoopContent } from "../agentResponseValidator.js";
-import { createCloudAnalysisQueryEngine, buildCloudToolCatalog } from "./cloudAnalysisQueryEngine.js";
+import { createCloudAnalysisQueryEngine, buildCloudToolCatalog, datasetCoveredFromMs, windowGapMaterial } from "./cloudAnalysisQueryEngine.js";
 import { createQuestionTimeResolver } from "./questionTimeResolver.js";
 import {
   normalizeGoalScope,
@@ -43,18 +43,53 @@ function sanitizeToken(value) {
 // S03（2026-10-04 体检）：快照覆盖完整性提取——iOS 快照每个数据集携带
 // totalRows（截断前总量）与 coveredFrom（快照内最老一行）；此处原样回显进
 // 结果，客户端据此在报告范围行标注截断。旧快照无元数据时 total=provided。
-function snapshotCoverage(snapshot) {
+/** 问句窗口 vs 数据覆盖的对账（2026-11-09 口径通用化，全数据集生效）：
+ * 任一数据集实际覆盖起点实质晚于冻结问句窗口起点时，开局就把这一事实
+ * 告知模型、并如实记进结果载荷——结论口径的确定性依据由代码算出，
+ * 不依赖模型自己发现「查出来的数没有问句说的那么长」。 */
+function windowCoverageShortfalls(snapshot, answerTask) {
+  const range = answerTask?.primaryTimeRange;
+  if (!range) return [];
+  const out = [];
+  for (const [name, dataset] of Object.entries(snapshot?.datasets ?? {})) {
+    const coveredFromMs = datasetCoveredFromMs(dataset);
+    if (coveredFromMs == null) continue;
+    const gapMs = coveredFromMs - range.startMs;
+    if (!windowGapMaterial(gapMs, range.startMs, range.endMs)) continue;
+    out.push({ dataset: name, coveredFromMs, shortfallDays: Math.round(gapMs / 86_400_000) });
+  }
+  return out;
+}
+
+function windowCoverageNotice(shortfalls, range) {
+  if (shortfalls.length === 0 || !range) return "";
+  const fmtDay = (ms) => new Date(ms).toISOString().slice(0, 10);
+  const list = shortfalls
+    .map((s) => `${s.dataset}（自 ${fmtDay(s.coveredFromMs)} 起，缺口约 ${s.shortfallDays} 天）`)
+    .join("、");
+  return `\n<window_coverage_notice>\n问句时间范围「${range.label}」自 ${fmtDay(range.startMs)} 起，但以下数据实际覆盖晚于它：${list}。\n结论必须如实按数据实际覆盖口径表述（如「自 ${fmtDay(shortfalls[0].coveredFromMs)} 以来的…」并注明数据起点），不得沿用问句的更大时间窗；缺口区间内没有任何记录，不得推断。\n</window_coverage_notice>\n`;
+}
+
+function snapshotCoverage(snapshot, answerTask = null) {
   const datasets = snapshot?.datasets;
   if (!datasets || typeof datasets !== "object") return null;
+  const shortfalls = windowCoverageShortfalls(snapshot, answerTask);
+  const shortfallByDataset = new Map(shortfalls.map((s) => [s.dataset, s]));
   const coverage = {};
   for (const [name, dataset] of Object.entries(datasets)) {
     const provided = Array.isArray(dataset?.rows) ? dataset.rows.length : 0;
     const total = Number.isInteger(dataset?.totalRows) ? dataset.totalRows : provided;
+    const shortfall = shortfallByDataset.get(name) ?? null;
     coverage[name] = {
       totalRows: total,
       providedRows: provided,
       truncated: provided < total,
       coveredFrom: typeof dataset?.coveredFrom === "string" ? dataset.coveredFrom : null,
+      // 口径缺口（2026-11-09 通用化）：问句窗口起点 vs 数据实际覆盖起点
+      questionStart: answerTask?.primaryTimeRange
+        ? new Date(answerTask.primaryTimeRange.startMs).toISOString().slice(0, 10)
+        : null,
+      windowShortfallDays: shortfall ? shortfall.shortfallDays : null,
     };
   }
   return coverage;
@@ -1345,13 +1380,16 @@ export function createCloudAnalysisExecutor({
         : "";
       // 目标闭环（§6.4）：冻结块 + 统一事实快照；模型不得改写范围，数字以快照为准
       const goalBlock = goalScope ? buildGoalScopeBlock(goalScope, goalReview) : "";
+      // 口径对账开局通知：问句窗口超出数据实际覆盖时，冻结窗之后紧跟事实说明
+      const coverageShortfalls = windowCoverageShortfalls(snapshot, answerTask);
+      const coverageNoticeBlock = windowCoverageNotice(coverageShortfalls, answerTask?.primaryTimeRange);
       messages.push({
         role: "system",
         content: [
           agentMessages.main,
           // 个人档案通道：紧跟主 system（任务指令），先于工具目录与冻结任务块
           agentMessages.profile,
-          `${buildCloudToolCatalog(snapshot)}${financeLedgerBlock}${checkupBlock}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}${goalBlock ? `\n\n${goalBlock}` : ""}`,
+          `${buildCloudToolCatalog(snapshot)}${financeLedgerBlock}${checkupBlock}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}${coverageNoticeBlock}${goalBlock ? `\n\n${goalBlock}` : ""}`,
         ].filter(Boolean).join("\n\n"),
       });
       messages.push({ role: "user", content: task.question });
@@ -1546,7 +1584,7 @@ export function createCloudAnalysisExecutor({
             goalAdjustmentDraft: sanitizedDraft.draft,
             // S03（2026-10-04 体检）：快照覆盖完整性回显——截断发生时客户端
             // 在报告范围行如实标注，截断明细不再冒充全量
-            snapshotCoverage: snapshotCoverage(snapshot),
+            snapshotCoverage: snapshotCoverage(snapshot, answerTask),
             snapshotCutoffAt: answerTask.snapshotCutoffAt,
             taskRange: answerTask.primaryTimeRange
               ? {

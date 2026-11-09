@@ -53,6 +53,51 @@ function timestampToMs(value) {
   return null;
 }
 
+/** 口径缺口是否「实质」：缺口天数超过 max(3 天, 窗口跨度 5%) 才算——
+ * 近 30 天窗缺 1 天这类噪声不触发，近一年窗只有半年数据这类必触发。 */
+export function windowGapMaterial(gapMs, windowStartMs, windowEndMs) {
+  if (gapMs == null || gapMs <= 0) return false;
+  const spanMs = Math.max(windowEndMs - windowStartMs, 86_400_000);
+  return gapMs > Math.max(3 * 86_400_000, spanMs * 0.05);
+}
+
+/** 数据集覆盖起点（毫秒）：优先快照元数据 coveredFrom（iOS 在 2000 行截断时
+ * = 最旧包含行的日期，如实描述快照内容），缺省按行集最早时间兜底。 */
+export function datasetCoveredFromMs(dataset) {
+  const meta = Date.parse(String(dataset?.coveredFrom ?? ""));
+  if (Number.isFinite(meta)) return meta;
+  let min = null;
+  for (const row of dataset?.rows ?? []) {
+    const t = rowTimeMs(row);
+    if (t != null && (min == null || t < min)) min = t;
+  }
+  return min;
+}
+
+const fmtCoverageDay = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+/** 聚合结果覆盖对账（2026-11-09 口径通用化）：查询窗口起点实质早于数据实际
+ * 覆盖起点时，聚合值只代表覆盖段。信封 coverage 如实携带实际覆盖区间与
+ * 人话 note，模型据此在结论里写明真实口径（「自 X 以来的…」），不再把
+ * 半年数冒充一年数。数据起点取「过滤后、时间过滤前」的行集——同一数据集
+ * 换过滤器（如仅餐饮）时覆盖起点跟着变，对账忠实于本次查询的实际依据。 */
+function coveragePayload({ window, coveredFromMs, coveredToMs, cutoffMs }) {
+  if (coveredFromMs == null && coveredToMs == null) return null;
+  let note = null;
+  if (window && coveredFromMs != null && windowGapMaterial(coveredFromMs - window.startMs, window.startMs, window.endMs)) {
+    const to = coveredToMs ?? cutoffMs ?? window.endMs;
+    note = `查询窗口起点 ${fmtCoverageDay(window.startMs)} 早于数据覆盖起点 ${fmtCoverageDay(coveredFromMs)}：本结果实际覆盖 ${fmtCoverageDay(coveredFromMs)} ~ ${fmtCoverageDay(to)}，结论必须按此口径表述（如「自 ${fmtCoverageDay(coveredFromMs)} 以来的…」），不得沿用问句的更大时间窗。`;
+  }
+  return {
+    coveredFromMs,
+    coveredToMs,
+    windowStartMs: window?.startMs ?? null,
+    windowEndMs: window?.endMs ?? null,
+    shortfall: note != null,
+    note,
+  };
+}
+
 /** ISO 周键 yyyy-Www（与 iOS calendar.dateComponents([yearForWeekOfYear, weekOfYear]) 同构）。 */
 function isoWeekKey(date) {
   const d = new Date(date);
@@ -222,8 +267,8 @@ export function createCloudAnalysisQueryEngine() {
     }
   }
 
-  function toolResultEnvelope(toolRequestID, tool, { status, metrics = [], events = [], warnings = [], error = null }) {
-    return { toolRequestID, tool, status, coverage: null, metrics, events, warnings, error };
+  function toolResultEnvelope(toolRequestID, tool, { status, metrics = [], events = [], warnings = [], error = null, coverage = null }) {
+    return { toolRequestID, tool, status, coverage, metrics, events, warnings, error };
   }
 
   /**
@@ -447,6 +492,18 @@ export function createCloudAnalysisQueryEngine() {
     const cutoffMs = snapshotCutoffMs(snapshot);
     const currentWindow = windowOf(plan.timeRange);
     const baseSource = rows;
+    // 覆盖对账底数：字段过滤后、时间过滤前的行集（见 coveragePayload 注释）
+    const coveredTimes = [];
+    for (const row of baseSource) {
+      const t = rowTimeMs(row);
+      if (t != null) coveredTimes.push(t);
+    }
+    const coverage = coveragePayload({
+      window: currentWindow,
+      coveredFromMs: coveredTimes.length > 0 ? Math.min(...coveredTimes) : null,
+      coveredToMs: coveredTimes.length > 0 ? Math.max(...coveredTimes) : null,
+      cutoffMs,
+    });
     if (currentWindow) {
       const effectiveEnd = cutoffMs != null ? Math.min(currentWindow.endMs, cutoffMs) : currentWindow.endMs;
       rows = rows.filter((row) => {
@@ -621,6 +678,7 @@ export function createCloudAnalysisQueryEngine() {
       return toolResultEnvelope(toolRequestID, tool, {
         status: "empty",
         warnings: [{ code: "NO_MATCHING_DATA", message: `过滤后没有匹配的数据行${windowNote}` }],
+        coverage,
       });
     }
 
@@ -636,6 +694,7 @@ export function createCloudAnalysisQueryEngine() {
         status: "success",
         metrics: pool.slice(0, plan.limit ?? 20),
         events: events.filter((e) => pool.slice(0, plan.limit ?? 20).some((m) => m.metricKey === e.metricKey)),
+        coverage,
       });
     }
 
@@ -644,6 +703,7 @@ export function createCloudAnalysisQueryEngine() {
       status: "success",
       metrics: limited,
       events: events.slice(0, plan.limit ?? 20),
+      coverage,
     });
   }
 
@@ -708,6 +768,7 @@ export function buildCloudToolCatalog(snapshot) {
   lines.push(
     "云端能力（已支持）：dynamicPlan 基础聚合 count/sum/average/min/max/distinctCount；字段过滤（含 _search 跨字段关键词）；分组 groupBy 单维 type=field/day/week/month/weekend/hour（hour=按用户本地时刻的 0-23 小时桶，付款时段/夜间消费分析用；若该桶大量返回 unknown 说明快照时间值仅到日、无时刻成分，时段分析不可做，改用其他维度）；timeRange 时间过滤（先过滤再聚合，未来数据不进历史结论）；baseline 对照窗口与派生 difference/ratio/percentageChange/rate/perDay（需要对比而未填 baseline 时系统自动取同长度前移窗口）。占比/系数类答案（如食品占总支出比例）用 rate/ratio 派生让系统算成指标，不要自己换算百分比。",
     "云端能力（未支持，请求即报错换路）：expression/linearTrend/coverage 派生；cross_domain.aligned_analysis；未预取的固定 query；快照窗口外的时间段。跨域问题请分别查询两个数据集的同期分组指标后并列对照，只能表述「同一段时间都变化/并发」，不得表述因果或已对齐的统计关联。",
+    "口径对账：聚合结果的 coverage 字段携带查询窗口与数据实际覆盖的对账；coverage.note 标出口径缺口时，结论必须按 note 写明实际覆盖起点（如「自 2026-05-13 以来的…」），不得沿用问句的更大时间窗。",
     "行明细工具 snapshot_rows：聚合统计回答「有多少」，看不到记录原文；归因「这笔钱是什么/为什么大」时必须取样明细——",
     'tool="snapshot_rows", query="rows_sample", parameters={source, filters:[{field,operation,value}], sortBy, sortDirection:"descending"|"ascending", limit}（limit≤10）。',
     "返回匹配行的人话摘录（含备注、内容原文）。例：查音乐分类最大 3 笔支出 → filters:[{field:\"category\",operation:\"equal\",value:{text:\"音乐\"}}], sortBy:\"amount\", sortDirection:\"descending\", limit:3。",
