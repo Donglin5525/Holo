@@ -24,6 +24,8 @@ enum TodoNotificationCategory {
     /// 每周回顾（周四晚本地通知，点击直达回顾页）
     static let weeklyReview = "WEEKLY_REVIEW"
     static let billDue = "TODO_BILL_DUE"
+    /// 信用卡还款提醒（每卡独立排程，点击直达该卡详情页）
+    static let ccDue = "TODO_CC_DUE"
     static let budgetOverrun = "TODO_BUDGET_OVERRUN"
     /// 严格预算模式 · 月初结转回执（点击直达预算详情页）
     static let budgetCarryover = "TODO_BUDGET_CARRYOVER"
@@ -196,6 +198,14 @@ class TodoNotificationService: NSObject, ObservableObject {
             options: []
         )
 
+        // 信用卡还款提醒（无操作按钮，点击直达该卡详情页）
+        let ccDueCategory = UNNotificationCategory(
+            identifier: TodoNotificationCategory.ccDue,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
         // 严格预算模式 · 月初结转回执（无操作按钮，点击直达预算详情页）
         let budgetCarryoverCategory = UNNotificationCategory(
             identifier: BudgetCarryoverNotificationService.categoryIdentifier,
@@ -216,7 +226,8 @@ class TodoNotificationService: NSObject, ObservableObject {
             taskCategory, dailyCategory, memoryInsightCategory,
             anniversaryCategory, goalRiskCategory, habitReminderCategory, weeklyBriefCategory,
             weeklyReviewCategory,
-            billDueCategory, budgetOverrunCategory, receiptBookingCategory, budgetCarryoverCategory
+            billDueCategory, budgetOverrunCategory, receiptBookingCategory, budgetCarryoverCategory,
+            ccDueCategory
         ])
         Self.logger.info("已注册通知分类")
     }
@@ -632,6 +643,14 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
             Self.logger.info("账单到期通知 Deep Link")
             DeepLinkState.shared.navigate(to: .addTransaction)
             return "addTransaction"
+        case TodoNotificationCategory.ccDue:
+            if let accountIdString = userInfo["accountId"] as? String,
+               let accountId = UUID(uuidString: accountIdString) {
+                Self.logger.info("信用卡还款提醒 Deep Link：\(accountIdString, privacy: .public)")
+                DeepLinkState.shared.navigate(to: .accountDetail(accountId: accountId))
+                return "accountDetail"
+            }
+            return nil
         case TodoNotificationCategory.budgetOverrun:
             Self.logger.info("预算超支通知 Deep Link")
             DeepLinkState.shared.navigate(to: .finance)

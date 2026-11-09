@@ -86,6 +86,8 @@ struct FinanceView: View {
     @State private var showReceiptBookingSettings = false
     /// 结转回执通知 Deep Link → 预算详情页
     @State private var showBudgetDetail = false
+    /// 信用卡还款提醒 Deep Link 落点：该卡详情页（sheet 弹出）
+    @State private var deepLinkedAccount: Account?
     @State private var analysisDeepLink: FinanceAnalysisDeepLink?
     @State private var evidenceReviewDeepLink: FinanceEvidenceReviewDeepLink?
     @ObservedObject private var deepLinkState = DeepLinkState.shared
@@ -247,6 +249,12 @@ struct FinanceView: View {
         .sheet(isPresented: $showBudgetDetail) {
             BudgetDetailView(anchoredAccountId: nil)
         }
+        // 信用卡还款提醒 Deep Link 落点：该卡详情页
+        .sheet(item: $deepLinkedAccount) { account in
+            NavigationStack {
+                AccountDetailView(account: account)
+            }
+        }
         .onAppear {
             handleDeepLink(deepLinkState.pendingTarget)
         }
@@ -260,6 +268,15 @@ struct FinanceView: View {
         case .budgetDetail:
             selectedTab = .ledger
             showBudgetDetail = true
+            deepLinkState.pendingTarget = nil
+        case .accountDetail(let accountId):
+            // 还款提醒点开：账户可能已被删除，不存在时明确提示不开空页
+            selectedTab = .ledger
+            if let account = FinanceRepository.shared.findAccount(by: accountId) {
+                deepLinkedAccount = account
+            } else {
+                HoloToastCenter.shared.show(String(localized: "该账户已被删除"), type: .info)
+            }
             deepLinkState.pendingTarget = nil
         case .transactionDetail(let transactionId):
             selectedTab = .ledger
@@ -314,6 +331,7 @@ struct FinanceView: View {
         if deepLinkedTransaction != nil { deepLinkedTransaction = nil; hadConflict = true }
         if showBudgetDetail { showBudgetDetail = false; hadConflict = true }
         if showReceiptBookingSettings { showReceiptBookingSettings = false; hadConflict = true }
+        if deepLinkedAccount != nil { deepLinkedAccount = nil; hadConflict = true }
         if hadConflict {
             // 先清空旧 item（可能残留上次被挡未呈现的值），落定后再设回
             receiptReviewDeepLink = nil
@@ -338,6 +356,7 @@ struct FinanceView: View {
         if showAddTransaction { showAddTransaction = false; hadConflict = true }
         if deepLinkedTransaction != nil { deepLinkedTransaction = nil; hadConflict = true }
         if showBudgetDetail { showBudgetDetail = false; hadConflict = true }
+        if deepLinkedAccount != nil { deepLinkedAccount = nil; hadConflict = true }
         if receiptReviewDeepLink != nil { receiptReviewDeepLink = nil; hadConflict = true }
         if hadConflict {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { showReceiptBookingSettings = true }

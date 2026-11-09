@@ -19,6 +19,8 @@ struct AddAccountSheet: View {
     let onComplete: (Account) -> Void
 
     @Environment(\.dismiss) var dismiss
+    /// 名额判定含会员状态：购买成功/过期即时刷新锁定态
+    @ObservedObject private var entitlementState = HoloEntitlementState.shared
 
     // 表单状态
     @State private var name: String = ""
@@ -31,8 +33,16 @@ struct AddAccountSheet: View {
     @State private var billingDay: Int = 5
     @State private var dueDay: Int = 25
     @State private var creditLimit: String = ""
+    /// 还款提醒（区域的钥匙：开着才能编辑账单日/还款日；免费档限 3 张卡）
+    @State private var dueReminderEnabled: Bool = false
+    @State private var dueReminderLeadDays: Int = 1
+    /// 免费档名额判定（不含会员短路），onAppear 算一次：弹层开着期间名额只会被本页改动，
+    /// 不在 body 里每次重画都查库
+    @State private var freeQuotaAllows: Bool = true
 
     // UI 状态
+    /// 免费名额已满的说明弹窗（先解释再让用户选，不直接甩付费墙）
+    @State private var showDueQuotaAlert = false
     @State private var showError = false
     @State private var errorMessage = ""
     /// 编辑模式改期初的余额跳变确认
@@ -108,6 +118,12 @@ struct AddAccountSheet: View {
             } message: {
                 Text(errorMessage)
             }
+            .holoQuotaNotice(isPresented: $showDueQuotaAlert) {
+                HoloPlusActionCoordinator.shared.requirePlus(
+                    context: .creditCardReminder,
+                    resume: { dueReminderEnabled = true }
+                )
+            }
             .alert("修改期初余额", isPresented: $showInitialBalanceConfirm) {
                 Button("取消", role: .cancel) {}
                 Button("确认修改") { performSave() }
@@ -115,6 +131,7 @@ struct AddAccountSheet: View {
                 Text("当前余额 \(AccountCardFormat.prefixed(currentBalance)) 将变为 \(AccountCardFormat.prefixed(currentBalance - originalInitialBalance + newInitialBalance))\(hasReconciliationAnchor ? "；已对过账的基准会失效，建议保存后再对一次账" : "")")
             }
             .onAppear {
+                freeQuotaAllows = CreditCardDueReminderScheduler.freeQuotaAllows(for: editingAccount)
                 if let account = editingAccount {
                     name = account.name
                     selectedType = account.accountType
@@ -127,6 +144,8 @@ struct AddAccountSheet: View {
                     // 加载信用卡账单信息
                     billingDay = account.billingDayInt ?? 5
                     dueDay = account.dueDayInt ?? 25
+                    dueReminderEnabled = account.dueReminderEnabled
+                    dueReminderLeadDays = account.dueReminderLeadDaysInt
                     if let limit = account.creditLimitDecimal, limit > 0 {
                         creditLimit = String(describing: limit)
                     }
@@ -317,6 +336,24 @@ struct AddAccountSheet: View {
 
     // MARK: - Credit Card Info
 
+    /// 免费档名额判定：能否在这张卡上开还款提醒（会员短路 + onAppear 算好的名额快照）。
+    /// 与排程器共用同一口径，勿在视图里另写计数。
+    private var canEditBillingInfo: Bool {
+        entitlementState.isPlusActive || freeQuotaAllows
+    }
+
+    /// 账单日/还款日可编辑：Plus 恒可编辑（2026-11-09 东林拍板解绑，只看账单也要能设日期）；
+    /// 免费跟随提醒开关与名额（编辑权随提醒走，共 3 张）
+    private var canEditDates: Bool {
+        if entitlementState.isPlusActive { return true }
+        return dueReminderEnabled && canEditBillingInfo
+    }
+
+    /// 提前量行属于提醒配置本身：提醒开着且名额内才出现
+    private var showsLeadDaysRow: Bool {
+        dueReminderEnabled && canEditBillingInfo
+    }
+
     private var creditCardInfoSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("账单信息")
@@ -324,27 +361,80 @@ struct AddAccountSheet: View {
                 .foregroundColor(.holoToolTextSecondary)
 
             VStack(spacing: 0) {
-                // 账单日
+                // 还款提醒（区域的钥匙：前 3 张静默可用，免费开第 4 张拨动即弹付费墙并回弹）
                 HStack {
-                    Text("账单日")
+                    Text("还款提醒")
                         .font(.holoBody)
                         .foregroundColor(.holoToolText)
                     Spacer()
-                    dayStepperControl(value: $billingDay)
+                    Toggle("", isOn: $dueReminderEnabled)
+                        .labelsHidden()
+                        .tint(.holoPrimary)
+                        .onChange(of: dueReminderEnabled) { _, enabled in
+                            guard enabled else { return }
+                            if !canEditBillingInfo {
+                                // 免费名额已满：回弹并先说明场景，升级由用户在弹窗里主动选择
+                                dueReminderEnabled = false
+                                showDueQuotaAlert = true
+                            } else {
+                                CreditCardDueReminderScheduler.requestAuthorizationIfNeeded()
+                            }
+                        }
                 }
                 .padding(.vertical, HoloSpacing.sm)
 
                 Divider()
 
-                // 还款日
+                // 账单日（开启提醒后可编辑）
+                HStack {
+                    Text("账单日")
+                        .font(.holoBody)
+                        .foregroundColor(.holoToolText)
+                    Spacer()
+                    dayStepperControl(value: $billingDay, storedDay: editingAccount?.billingDayInt)
+                }
+                .padding(.vertical, HoloSpacing.sm)
+
+                Divider()
+
+                // 还款日（开启提醒后可编辑）
                 HStack {
                     Text("还款日")
                         .font(.holoBody)
                         .foregroundColor(.holoToolText)
                     Spacer()
-                    dayStepperControl(value: $dueDay)
+                    dayStepperControl(value: $dueDay, storedDay: editingAccount?.dueDayInt)
                 }
                 .padding(.vertical, HoloSpacing.sm)
+
+                if showsLeadDaysRow {
+                    Divider()
+
+                    // 提前提醒量
+                    HStack {
+                        Text("提前提醒")
+                            .font(.holoBody)
+                            .foregroundColor(.holoToolText)
+                        Spacer()
+                        Menu {
+                            Picker("提前提醒", selection: $dueReminderLeadDays) {
+                                ForEach([0, 1, 2, 3, 5, 7], id: \.self) { days in
+                                    Text(leadDaysText(days)).tag(days)
+                                }
+                            }
+                        } label: {
+                            HStack(spacing: HoloSpacing.xs) {
+                                Text(leadDaysText(dueReminderLeadDays))
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.holoToolTextSecondary)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.holoTextPlaceholder)
+                            }
+                        }
+                    }
+                    .padding(.vertical, HoloSpacing.sm)
+                }
 
                 Divider()
 
@@ -368,34 +458,25 @@ struct AddAccountSheet: View {
                 .padding(.vertical, HoloSpacing.sm)
             }
             .padding(.horizontal, HoloSpacing.md)
-
-            Text("账单日和还款日用于信用卡「本期账单」统计。若还款日早于账单日（如账单日 25 号、还款日 5 号），系统会自动算到次月。")
-                .font(.system(size: 11))
-                .foregroundColor(.holoTextPlaceholder)
         }
     }
 
+    /// 提前量选项文案（与 Picker tag 值一致）
+    private func leadDaysText(_ days: Int) -> String {
+        days == 0 ? String(localized: "当天") : String(localized: "提前 \(days) 天")
+    }
+
     /// 统一账单日/还款日的操作区宽度，避免日期文字长度变化造成按钮错位。
-    private func dayStepperControl(value: Binding<Int>) -> some View {
+    /// 不可编辑时只读展示已存的值；从没配过显示「未设置」，不拿默认值冒充。
+    private func dayStepperControl(value: Binding<Int>, storedDay: Int?) -> some View {
         HStack(spacing: HoloSpacing.sm) {
-            // 周期账单为 Plus 权益：非 Plus 只读展示存量值，点击升级
-            if HoloEntitlementState.shared.isPlusActive {
+            if canEditDates {
                 Stepper("每月 \(value.wrappedValue) 号", value: value, in: 1...31)
                     .labelsHidden()
                     .frame(width: 92, height: 36)
-            } else {
-                Button {
-                    HoloPlusActionCoordinator.shared.requirePlus(context: .billingCycle)
-                } label: {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoToolTextSecondary.opacity(0.6))
-                }
-                .buttonStyle(.plain)
-                .frame(width: 92, height: 36)
             }
 
-            Text("每月 \(value.wrappedValue) 号")
+            Text(canEditDates || storedDay != nil ? "每月 \(value.wrappedValue) 号" : "未设置")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.holoToolTextSecondary)
                 .monospacedDigit()
@@ -430,31 +511,46 @@ struct AddAccountSheet: View {
             switch mode {
             case .create:
                 let balance = Decimal(string: initialBalance) ?? 0
+                // 日期落库条件：开了提醒 / Plus（编辑权解绑，所见即所存）/ 存量本就配过。
+                // 免费未开提醒的卡不写默认账单日/还款日（修历史假默认值：详情页凭空显示假倒计时）
+                let reminderOn = selectedType.isCreditCard && dueReminderEnabled
+                let datesPersistable = selectedType.isCreditCard && (
+                    reminderOn || entitlementState.isPlusActive || editingAccount?.billingDayInt != nil
+                )
                 let account = try FinanceRepository.shared.addAccount(
                     name: trimmedName,
                     type: selectedType,
                     color: selectedColor,
                     initialBalance: balance,
                     notes: notes.isEmpty ? nil : notes,
-                    billingDay: selectedType.isCreditCard ? billingDay : nil,
-                    dueDay: selectedType.isCreditCard ? dueDay : nil,
-                    creditLimit: selectedType.isCreditCard ? limitDecimal : nil
+                    billingDay: datesPersistable ? billingDay : nil,
+                    dueDay: datesPersistable ? dueDay : nil,
+                    creditLimit: selectedType.isCreditCard ? limitDecimal : nil,
+                    dueReminderEnabled: reminderOn,
+                    dueReminderLeadDays: reminderOn ? dueReminderLeadDays : nil
                 )
                 onComplete(account)
                 dismiss()
 
             case .edit(let account):
+                // 日期落库条件同创建：关掉提醒时若日期本就没配过则传 nil = 维持未配置
+                let reminderOn = selectedType.isCreditCard && dueReminderEnabled
+                let datesPersistable = selectedType.isCreditCard && (
+                    reminderOn || entitlementState.isPlusActive || editingAccount?.billingDayInt != nil
+                )
                 try FinanceRepository.shared.updateAccount(
                     account,
                     name: trimmedName,
                     color: selectedColor,
                     notes: notes.isEmpty ? nil : notes,
-                    billingDay: selectedType.isCreditCard ? billingDay : nil,
-                    dueDay: selectedType.isCreditCard ? dueDay : nil,
+                    billingDay: datesPersistable ? billingDay : nil,
+                    dueDay: datesPersistable ? dueDay : nil,
                     creditLimit: selectedType.isCreditCard ? limitDecimal : nil,
                     initialBalance: initialBalanceChanged
                         ? .some(.some(newInitialBalance))
-                        : nil
+                        : nil,
+                    dueReminderEnabled: reminderOn,
+                    dueReminderLeadDays: reminderOn ? dueReminderLeadDays : nil
                 )
                 onComplete(account)
                 dismiss()

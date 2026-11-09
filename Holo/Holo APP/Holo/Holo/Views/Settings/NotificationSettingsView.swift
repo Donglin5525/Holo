@@ -49,11 +49,13 @@ struct NotificationSettingsView: View {
     @State private var billEnabled = false
     @State private var budgetEnabled = false
 
-    // 摘要计数（Core Data 查询，加载/回前台/数据变化时刷新，不在 body 中执行）
+    /// 摘要计数（Core Data 查询，加载/回前台/数据变化时刷新，不在 body 中执行）
     @State private var soloHabitCount = 0
     @State private var taskReminderCount = 0
     @State private var anniversaryReminderCount = 0
     @State private var goalNudgeCount = 0
+    /// 已开启还款提醒的信用卡数
+    @State private var ccDueReminderCount = 0
 
     /// 入口行（任务/纪念日/目标）展开的说明。
     /// 主导航栈耦合在 HomeView 内、无法从设置 sheet 全局切 tab，跳转退化为行内展开说明
@@ -63,6 +65,7 @@ struct NotificationSettingsView: View {
         case tasks
         case anniversary
         case goal
+        case creditCard
 
         var id: String { rawValue }
     }
@@ -87,6 +90,7 @@ struct NotificationSettingsView: View {
 
                         group(String(localized: "财务提醒")) {
                             billRow
+                            creditCardEntryRow
                             budgetRow
                         }
 
@@ -244,6 +248,7 @@ struct NotificationSettingsView: View {
                 WeeklyReviewScheduler.shared.refresh()
                 BillDueReminderScheduler.shared.refresh()
                 BudgetOverrunNotificationService.shared.refresh()
+                CreditCardDueReminderScheduler.shared.refresh()
             } catch {
                 showPermissionAlert = true
             }
@@ -398,6 +403,25 @@ struct NotificationSettingsView: View {
     }
 
     // MARK: - 按条设置的提醒（入口行：就地展开说明）
+
+    /// 信用卡还款提醒入口行：每张卡独立开关，统一挂进通知管理（2026-11-09 东林拍板）
+    private var creditCardEntryRow: some View {
+        entryRow(
+            icon: "creditcard.fill",
+            title: String(localized: "信用卡还款提醒"),
+            summary: ccDueSummary,
+            note: .creditCard,
+            noteText: String(localized: "在财务 → 账户里点开信用卡，打开「还款提醒」即可，每张卡单独设置。")
+        )
+    }
+
+    /// 摘要：开了提醒的卡数；免费档带上名额说明（第 4 张被锁的原因要让用户在这里看得见）
+    private var ccDueSummary: String {
+        if entitlementState.isPlusActive {
+            return ccDueReminderCount == 0 ? String(localized: "未设置") : String(localized: "\(ccDueReminderCount) 张已开启")
+        }
+        return String(localized: "\(ccDueReminderCount)/3 张已开启")
+    }
 
     private var taskEntryRow: some View {
         entryRow(
@@ -589,6 +613,8 @@ struct NotificationSettingsView: View {
         let goalRequest = Goal.fetchRequest()
         goalRequest.predicate = NSPredicate(format: "proactiveNudge == YES AND allowAIContext == YES")
         goalNudgeCount = (try? CoreDataStack.shared.viewContext.count(for: goalRequest)) ?? 0
+
+        ccDueReminderCount = CreditCardDueReminderScheduler.enabledReminderAccounts().count
     }
 
     // MARK: - 动作与文案辅助

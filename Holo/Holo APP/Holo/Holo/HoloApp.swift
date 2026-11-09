@@ -240,6 +240,8 @@ struct HoloApp: App {
                 await BillDueReminderScheduler.shared.handleAppActivity()
                 await BudgetOverrunNotificationService.shared.handleAppActivity()
                 await BudgetCarryoverNotificationService.shared.handleAppActivity()
+                // 信用卡还款提醒（免费 3 张 / Plus 不限）
+                await CreditCardDueReminderScheduler.shared.handleAppActivity()
 
                 #if DEBUG
                 let appStoreScreenshotModeActive =
@@ -415,6 +417,8 @@ struct HoloApp: App {
                         await BillDueReminderScheduler.shared.handleAppActivity()
                         await BudgetOverrunNotificationService.shared.handleAppActivity()
                         await BudgetCarryoverNotificationService.shared.handleAppActivity()
+                        // 信用卡还款提醒：权益可能在后台变化（续费恢复超额卡 / 过期降级到前 3 张）
+                        await CreditCardDueReminderScheduler.shared.handleAppActivity()
                         await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
                         await HoloReplayDigestService.shared.backfillIfNeeded(
                             historyRepo: MemoryInsightRepository()

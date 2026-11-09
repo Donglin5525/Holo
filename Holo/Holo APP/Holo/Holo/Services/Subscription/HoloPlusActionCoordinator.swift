@@ -56,6 +56,8 @@ enum HoloPlusGateContext: Equatable {
     case memoryGallery
     case financeInstallment
     case billingCycle
+    /// 信用卡还款提醒超出免费 3 张
+    case creditCardReminder
     case budget
     case desktopWidget
     case asrQuota
@@ -79,6 +81,8 @@ enum HoloPlusGateContext: Equatable {
             return String(localized: "升级 Holo Plus，使用财务分期")
         case .billingCycle:
             return String(localized: "升级 Holo Plus，使用周期账单")
+        case .creditCardReminder:
+            return String(localized: "升级 Holo Plus，解锁更多信用卡还款提醒")
         case .budget:
             return String(localized: "升级 Holo Plus，使用预算管理")
         case .desktopWidget:

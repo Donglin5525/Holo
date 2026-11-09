@@ -19,6 +19,11 @@ struct AccountDetailView: View {
     @State private var creditCycleRange: (start: Date, end: Date)?
     @State private var creditStatement: (income: Decimal, expense: Decimal, net: Decimal) = (0, 0, 0)
     @State private var creditDaysToDue: Int?
+    /// 还款提醒快捷开关（loadData 里取一次；名额判定要查库，不放 body）
+    @State private var dueReminderOn = false
+    @State private var dueReminderQuotaAllows = true
+    /// 名额判定含会员状态：购买成功/过期即时刷新锁定态
+    @ObservedObject private var entitlementState = HoloEntitlementState.shared
     @State private var budgetStatus: BudgetStatus?
     @State private var showEditSheet = false
     @State private var showAdjustBalance = false
@@ -28,6 +33,8 @@ struct AccountDetailView: View {
     @State private var editingFromReconcile: Account?
     @State private var showBudgetSettings = false
     @State private var showDeleteConfirm = false
+    /// 免费名额已满的说明弹窗（先解释再让用户选，不直接甩付费墙）
+    @State private var showDueQuotaAlert = false
     @State private var errorMessage: String?
     @State private var showError = false
     @Environment(\.dismiss) private var dismiss
@@ -230,6 +237,12 @@ struct AccountDetailView: View {
             Button("确定", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "未知错误")
+        }
+        .holoQuotaNotice(isPresented: $showDueQuotaAlert) {
+            HoloPlusActionCoordinator.shared.requirePlus(
+                context: .creditCardReminder,
+                resume: { setDueReminder(true) }
+            )
         }
         // 编辑交易
         .sheet(item: $editingTransaction) { transaction in
@@ -789,12 +802,61 @@ struct AccountDetailView: View {
                 }
 
                 Spacer()
+
+                dueReminderQuickControl
             }
         }
         .padding(HoloSpacing.md)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+    }
+
+    /// 还款提醒快捷入口：日期没配过 → 铃铛进编辑页先设置；配过 → 开关（免费开第 4 张拨动即弹付费墙）
+    private var dueReminderQuickControl: some View {
+        HStack(spacing: HoloSpacing.xs) {
+            Text("还款提醒")
+                .font(.system(size: 11))
+                .foregroundColor(.holoTextSecondary)
+
+            if account.billingDayInt == nil || account.dueDayInt == nil {
+                Button {
+                    showEditSheet = true
+                } label: {
+                    Image(systemName: "bell.badge")
+                        .font(.system(size: 14))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 44, height: 44, alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("设置还款提醒"))
+            } else {
+                Toggle("还款提醒", isOn: Binding(
+                    get: { dueReminderOn },
+                    set: { setDueReminder($0) }
+                ))
+                .labelsHidden()
+                .tint(.holoPrimary)
+            }
+        }
+    }
+
+    /// 快捷开关落库（走 Repository 通道，保存后自动重排提醒）。
+    /// 免费名额已满时不落库，先弹说明（升级由用户主动选择），购买成功后自动开回
+    private func setDueReminder(_ enabled: Bool) {
+        if enabled && !(entitlementState.isPlusActive || dueReminderQuotaAllows) {
+            showDueQuotaAlert = true
+            return
+        }
+        do {
+            try FinanceRepository.shared.updateAccount(account, dueReminderEnabled: enabled)
+            dueReminderOn = enabled
+            if enabled { CreditCardDueReminderScheduler.requestAuthorizationIfNeeded() }
+        } catch {
+            errorMessage = String(localized: "保存失败：\(error.localizedDescription)")
+            showError = true
+        }
     }
 
     /// 展示信用卡的固定账单日期。
@@ -999,6 +1061,8 @@ struct AccountDetailView: View {
                 to: range.end
             )
             creditDaysToDue = daysUntilRepayment(cycleRange: range)
+            dueReminderOn = account.dueReminderEnabled
+            dueReminderQuotaAllows = CreditCardDueReminderScheduler.freeQuotaAllows(for: account)
         } else {
             creditCycleRange = nil
             creditDaysToDue = nil

@@ -31,6 +31,10 @@ public class Account: NSManagedObject {
     @NSManaged public var dueDay: NSNumber?
     /// 信用卡额度，仅信用卡（可选）
     @NSManaged public var creditLimit: NSDecimalNumber?
+    /// 信用卡还款提醒开关（免费档限 3 张，判定收敛在 CreditCardDueReminderScheduler.reminderQuota）
+    @NSManaged public var dueReminderEnabled: Bool
+    /// 信用卡还款提醒提前天数（0-7，0=当天）
+    @NSManaged public var dueReminderLeadDays: Int16
     /// 导入批次 ID：标记由某次导入自动创建的账户，撤回时据此判断可否删除
     @NSManaged public var importBatchId: UUID?
     @NSManaged public var createdAt: Date
@@ -65,6 +69,12 @@ public class Account: NSManagedObject {
     /// 信用卡额度（Decimal），未设置时为 nil
     var creditLimitDecimal: Decimal? {
         creditLimit?.decimalValue
+    }
+
+    /// 还款提醒提前天数（Int，0-7 clamp，0=当天）
+    var dueReminderLeadDaysInt: Int {
+        get { min(max(Int(dueReminderLeadDays), 0), 7) }
+        set { dueReminderLeadDays = Int16(min(max(newValue, 0), 7)) }
     }
 
     /// 是否已配置账单周期信息

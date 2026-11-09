@@ -1,6 +1,198 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "%@%@是还款日" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Payment Due %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@%2$@是還款日"
+          }
+        }
+      }
+    },
+    "%lld 张已开启" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Enabled"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 張已開啟"
+          }
+        }
+      }
+    },
+    "%lld/3 张已开启" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/3 Enabled"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld/3 張已開啟"
+          }
+        }
+      }
+    },
+    "信用卡还款提醒" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Credit Card Payment Reminder"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "信用卡還款提醒"
+          }
+        }
+      }
+    },
+    "免费名额已用满" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free Slots All Used"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免費名額已用滿"
+          }
+        }
+      }
+    },
+    "免费版最多同时开 3 张卡的还款提醒，你的 3 个名额都已开启。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The free plan covers payment reminders for 3 credit cards at once, and all 3 of yours are in use."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免費版最多同時開 3 張卡的還款提醒，你的 3 個名額都已開啟。"
+          }
+        }
+      }
+    },
+    "升级 Holo Plus，解锁更多信用卡还款提醒" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upgrade to Holo Plus for More Payment Reminders"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升級 Holo Plus，解鎖更多信用卡還款提醒"
+          }
+        }
+      }
+    },
+    "升级后不限张数" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlimited Cards with Plus"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升級後不限張數"
+          }
+        }
+      }
+    },
+    "在财务 → 账户里点开信用卡，打开「还款提醒」即可，每张卡单独设置。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a credit card under Finance → Accounts and turn on Payment Reminder. Each card is set separately."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在財務 → 帳戶裡點開信用卡，打開「還款提醒」即可，每張卡單獨設定。"
+          }
+        }
+      }
+    },
+    "开通后会自动打开这张卡的提醒" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The reminder turns on automatically after upgrading"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開通後會自動打開這張卡的提醒"
+          }
+        }
+      }
+    },
+    "提前 %lld 天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld day(s) before"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提前 %lld 天"
+          }
+        }
+      }
+    },
+    "提前提醒" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remind Me"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提前提醒"
+          }
+        }
+      }
+    },
     "每周回顾" : {
       "localizations" : {
         "en" : {
@@ -77,6 +269,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "記帳·想法·任務合計，與上週持平"
+          }
+        }
+      }
+    },
+    "设置还款提醒" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Payment Reminder"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定還款提醒"
+          }
+        }
+      }
+    },
+    "该账户已被删除" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This account has been deleted"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "該帳戶已被刪除"
+          }
+        }
+      }
+    },
+    "还款提醒" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Payment Reminder"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還款提醒"
+          }
+        }
+      }
+    },
+    "还款日 %@，记得按时还款" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Due %@. Remember to pay on time."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還款日 %@，記得按時還款"
           }
         }
       }
@@ -945,6 +1201,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "—"
+          }
+        }
+      }
+    },
+    "通知权限已关闭，请在系统设置中开启后才能收到还款提醒" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications are off. Turn them on in Settings to receive payment reminders."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通知權限已關閉，請在系統設定中開啟後才能收到還款提醒"
           }
         }
       }

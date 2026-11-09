@@ -1486,6 +1486,9 @@ struct HomeView: View {
         case .budgetDetail:
             // 结转回执通知：切到财务模块，pendingTarget 由 FinanceView 消费弹预算详情页
             navigateToScreen(.finance)
+        case .accountDetail:
+            // 信用卡还款提醒：切到财务模块，pendingTarget 由 FinanceView 消费弹账户详情页
+            navigateToScreen(.finance)
         case .transactionDetail:
             navigateToScreen(.finance)
         case .financeAnalysis(let link):

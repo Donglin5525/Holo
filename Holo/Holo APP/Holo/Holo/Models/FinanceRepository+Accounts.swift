@@ -85,7 +85,9 @@ extension FinanceRepository {
         notes: String? = nil,
         billingDay: Int? = nil,
         dueDay: Int? = nil,
-        creditLimit: Decimal? = nil
+        creditLimit: Decimal? = nil,
+        dueReminderEnabled: Bool? = nil,
+        dueReminderLeadDays: Int? = nil
     ) throws -> Account {
         let accountColor = color ?? type.defaultColor
         let sortOrder = Int16(getAccounts(includeArchived: true).count)
@@ -105,8 +107,12 @@ extension FinanceRepository {
             if let billingDay = billingDay { account.billingDay = NSNumber(value: billingDay) }
             if let dueDay = dueDay { account.dueDay = NSNumber(value: dueDay) }
             if let creditLimit = creditLimit { account.creditLimit = NSDecimalNumber(decimal: creditLimit) }
+            account.dueReminderEnabled = dueReminderEnabled ?? false
+            if let leadDays = dueReminderLeadDays { account.dueReminderLeadDays = Int16(leadDays) }
         }
         try context.save()
+        // 账户写入不广播 financeDataDidChange，还款提醒在此显式重排（下同）
+        CreditCardDueReminderScheduler.shared.refresh()
         // 产品埋点：新建账户（唯一调用方=添加账户页，种子不走此函数）
         HoloProductAnalytics.shared.track(.accountCreated, ["type": type.rawValue])
         return account
@@ -124,7 +130,9 @@ extension FinanceRepository {
         billingDay: Int? = nil,
         dueDay: Int? = nil,
         creditLimit: Decimal?? = nil,
-        initialBalance: Decimal?? = nil
+        initialBalance: Decimal?? = nil,
+        dueReminderEnabled: Bool? = nil,
+        dueReminderLeadDays: Int? = nil
     ) throws {
         if let name = name { account.name = name }
         if let icon = icon { account.customIcon = icon }
@@ -134,9 +142,13 @@ extension FinanceRepository {
         if let billingDay = billingDay { account.billingDay = NSNumber(value: billingDay) }
         if let dueDay = dueDay { account.dueDay = NSNumber(value: dueDay) }
         if case .some(let limit) = creditLimit { account.creditLimit = limit.map { NSDecimalNumber(decimal: $0) } }
+        // 还款提醒（nil = 不改）
+        if let enabled = dueReminderEnabled { account.dueReminderEnabled = enabled }
+        if let leadDays = dueReminderLeadDays { account.dueReminderLeadDays = Int16(leadDays) }
         if case .some(.some(let balance)) = initialBalance { account.initialBalance = NSDecimalNumber(decimal: balance) }
         account.updatedAt = Date()
         try context.save()
+        CreditCardDueReminderScheduler.shared.refresh()
     }
 
     /// 删除账户前的业务守卫（有交易的账户不可删除、默认账户不可删除）。
@@ -158,6 +170,7 @@ extension FinanceRepository {
         Budget.deleteAllForAccount(account.id, in: context)
         context.delete(account)
         try context.save()
+        CreditCardDueReminderScheduler.shared.refresh()
     }
 
     /// 归档账户（默认账户不可归档）
@@ -168,6 +181,7 @@ extension FinanceRepository {
         account.isArchived = true
         account.updatedAt = Date()
         try context.save()
+        CreditCardDueReminderScheduler.shared.refresh()
     }
 
     /// 取消归档
@@ -175,6 +189,7 @@ extension FinanceRepository {
         account.isArchived = false
         account.updatedAt = Date()
         try? context.save()
+        CreditCardDueReminderScheduler.shared.refresh()
     }
 
     // MARK: 默认账户管理

@@ -355,7 +355,7 @@ final class CoreDataSchemaHistoryTests: XCTestCase {
 
     // MARK: 当前模型快照（1.1.6，65 实体；Habit 含习惯描述，其余取自 1.1.4 构建写下的真实库）
     static let currentEntityHashes: [String: String] = [
-        "Account": "ovMHcXG4YxhTNgKPpW8eLMO0cUcZWllBCcle/nWSGkI=",
+        "Account": "2x54m/FMsSkocs81CnrvmpFy1rsAH0PrLI0lR7ds+ek=",
         "Anniversary": "CsOU1vM24WP4iciccGy3T9+iiqEqRk1dwgfd7Vy8Ecc=",
         "Budget": "hdkln9Baf0drjJZw054cMs0Gtigdoci+V3WZykA58Oc=",
         "Category": "ZYvOYKKZXU45rtHC2nOFDvl5Km6D8UYs41PAeB3lNr8=",
@@ -424,6 +424,9 @@ final class CoreDataSchemaHistoryTests: XCTestCase {
 
     // MARK: 历史形态锚点（真实旧库中与当前不同的实体指纹）
     static let legacyAnchors: [(release: String, note: String, hashes: [String: String])] = [
+        ("1.1.8（信用卡还款提醒）", "11-09 模拟器库 · 还款提醒落地前形态", [
+            "Account": "ovMHcXG4YxhTNgKPpW8eLMO0cUcZWllBCcle/nWSGkI=",
+        ]),
         ("1.1.6（习惯描述）", "11-02 库 · 1.1.3/1.1.4 正式版形态", [
             "Habit": "3MlFS2KW4u3JuzCrbYywWg/yVWOEFWXTPjG7wQ6VmUM=",
         ]),

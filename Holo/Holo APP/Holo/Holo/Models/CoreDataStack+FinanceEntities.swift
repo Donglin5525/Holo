@@ -440,6 +440,23 @@ extension CoreDataStack {
         accountCreditLimit.isOptional = true
         accountAttributes.append(accountCreditLimit)
 
+        // 信用卡还款提醒开关（2026-11-09 还款提醒：免费档限 3 张，额度判定在排程器/UI 层）
+        // 给已有实体加字段：已在 CoreDataStoreUpgrade.propertyHistory 登记「1.1.8（信用卡还款提醒）」
+        let accountDueReminderEnabled = NSAttributeDescription()
+        accountDueReminderEnabled.name = "dueReminderEnabled"
+        accountDueReminderEnabled.attributeType = .booleanAttributeType
+        accountDueReminderEnabled.isOptional = false
+        accountDueReminderEnabled.defaultValue = false
+        accountAttributes.append(accountDueReminderEnabled)
+
+        // 信用卡还款提醒提前天数（0-7，0=当天），默认提前 1 天
+        let accountDueReminderLeadDays = NSAttributeDescription()
+        accountDueReminderLeadDays.name = "dueReminderLeadDays"
+        accountDueReminderLeadDays.attributeType = .integer16AttributeType
+        accountDueReminderLeadDays.isOptional = false
+        accountDueReminderLeadDays.defaultValue = Int16(1)
+        accountAttributes.append(accountDueReminderLeadDays)
+
         // 导入批次 ID：标记由某次导入自动创建的账户，撤回时据此判断可否删除
         let accountImportBatchId = NSAttributeDescription()
         accountImportBatchId.name = "importBatchId"

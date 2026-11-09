@@ -71,6 +71,8 @@ enum DeepLinkTarget: Equatable {
     case finance
     /// 预算详情页（结转回执通知点击进入；FinanceView 消费弹层）
     case budgetDetail
+    /// 账户详情页（信用卡还款提醒点击进入；FinanceView 消费弹层）
+    case accountDetail(accountId: UUID)
     case transactionDetail(transactionId: UUID)
     case financeAnalysis(FinanceAnalysisDeepLink)
     case financeEvidenceReview(FinanceEvidenceReviewDeepLink)
