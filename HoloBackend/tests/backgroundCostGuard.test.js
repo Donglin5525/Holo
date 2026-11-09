@@ -278,3 +278,14 @@ test("HTTP 回归：上报过调试埋点的设备，后台调用记入开发池
   assert.equal((await post(s.app, request)).status, 200);
   assert.equal(s.db.prepare("SELECT pool FROM background_cost_calls").get().pool, "dev");
 });
+
+test("开发设备池：env 回退单池后，当月已记入开发池的花费重新计入全局闸（与拆池前严格一致）", async () => {
+  const db = new Database(":memory:");
+  const pooled = setupPools({ dev: DEV_CAPS }, undefined, db);
+  const devProvider = wrap(pooled.guard, { async complete() { return result; } });
+  await pooled.guard.run("dev1", () => devProvider.complete(request));
+  await pooled.guard.run("dev1", () => devProvider.complete(request));
+  const rolledBack = setupPools({ globalDailyCNY: 0.002, devPoolEnabled: false }, undefined, db);
+  const provider = wrap(rolledBack.guard, { async complete() { return result; } });
+  await assert.rejects(rolledBack.guard.run("u1", () => provider.complete(request)), code("BACKGROUND_BUDGET_EXCEEDED"));
+});

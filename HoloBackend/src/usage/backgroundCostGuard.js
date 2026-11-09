@@ -139,12 +139,13 @@ export function createBackgroundCostGuard(db, config, now = Date.now, { isDevSub
   // candidate 必 429）。subject 级日/月限额按池独立；global 级仍聚合全部调用兜底。
   // discoveryOnly 参数：1=只聚合发现池，0=只聚合后台池，-1=全部（global 检查用）。
   // global 检查只聚合同一账本池（@pool）：开发设备流量不占真实用户的全局止损闸，反之亦然。
+  // 开发池关闭（env 回退）时 @pool 传 NULL＝聚合全部账本池：当月已记入 dev 池的花费重新计入总闸，与拆池前严格一致。
   // subject 级不分账本池：一个主体的历史花费始终算它自己的。
   const sum = db.prepare(`SELECT COALESCE(SUM(COALESCE(charged_micro, reserved_micro)), 0) AS spent
     FROM background_cost_calls
     WHERE (day = @period OR month = @period)
     AND (@subject IS NULL OR subject = @subject)
-    AND (@subject IS NOT NULL OR pool = @pool)
+    AND (@subject IS NOT NULL OR @pool IS NULL OR pool = @pool)
     AND (@discoveryOnly < 0
       OR (@discoveryOnly = 1 AND purpose IN ('discovery_candidate_v1','discovery_verify_v1','discovery_topic_v1'))
       OR (@discoveryOnly = 0 AND purpose NOT IN ('discovery_candidate_v1','discovery_verify_v1','discovery_topic_v1')))`);
@@ -167,7 +168,7 @@ export function createBackgroundCostGuard(db, config, now = Date.now, { isDevSub
 
   function checkBudget(subject, amount, isDiscovery, pool) {
     for (const [owner, period, cny, reset, discoveryOnly] of limits(subject, isDiscovery, pool)) {
-      const spent = sum.get({ subject: owner, period, discoveryOnly, pool }).spent;
+      const spent = sum.get({ subject: owner, period, discoveryOnly, pool: devPoolEnabled ? pool : null }).spent;
       if (spent + amount > micro(cny)) {
         throw new GatewayError("BACKGROUND_BUDGET_EXCEEDED", "Background budget exceeded", 429, {
           resetAt: new Date(reset).toISOString(),
