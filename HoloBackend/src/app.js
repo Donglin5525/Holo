@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { createErrorResponse, GatewayError, publicMessage } from "./errors.js";
 import { createInMemoryUsageStore } from "./usage/inMemoryUsageStore.js";
 import { createSqliteUsageStore } from "./usage/sqliteUsageStore.js";
-import { createBackgroundCostGuard, backgroundSubject, BACKGROUND_PURPOSES, backgroundPathPurpose } from "./usage/backgroundCostGuard.js";
+import { createBackgroundCostGuard, createDevSubjectResolver, backgroundSubject, BACKGROUND_PURPOSES, backgroundPathPurpose } from "./usage/backgroundCostGuard.js";
 import { createMockChatProvider } from "./providers/mockChatProvider.js";
 import { createOpenAICompatibleProvider } from "./providers/openAICompatibleProvider.js";
 import { createMockAsrProvider } from "./providers/mockAsrProvider.js";
@@ -217,7 +217,11 @@ export function createApp(overrides = {}) {
       config.agentStepIdempotencyCleanupIntervalMs,
     );
   }
-  const backgroundCostGuard = createBackgroundCostGuard(database.db, config.backgroundCost);
+  const backgroundCostGuard = createBackgroundCostGuard(database.db, config.backgroundCost, Date.now, {
+    isDevSubject: config.backgroundCost.devPoolEnabled
+      ? createDevSubjectResolver({ db: database.db, entitlementStore })
+      : undefined,
+  });
   const providers = backgroundCostGuard.wrapProviders(createProviders(config));
   const asrProvider = createAsrProvider(config);
   // 云端执行器（M2a）：store 启用且 agent_loop route 可用时创建；

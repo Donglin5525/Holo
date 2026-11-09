@@ -64,6 +64,28 @@ export function backgroundSubject(deviceId, entitlement) {
     : `device:${deviceId}`);
 }
 
+/**
+ * 开发设备池判定（2026-11-09）：上报过 build_channel=debug 产品埋点的设备视为开发设备。
+ * 同时登记设备主体与已验证购买主体（开发机若有沙盒订阅，主体按交易号计）。
+ * 每 10 分钟刷新；新装模拟器在首条埋点到达前按真实用户池记账（保守方向）。
+ * 埋点由客户端上报、可被伪造——伪造者只能挤占开发池，开发全局闸封顶，真实用户池不受影响。
+ */
+export function createDevSubjectResolver({ db, entitlementStore, now = Date.now, ttlMs = 10 * 60_000 }) {
+  const debugDevices = db.prepare("SELECT DISTINCT device_id FROM product_events WHERE build_channel = 'debug'");
+  let subjects = new Set();
+  let loadedAt = -Infinity;
+  return (subject) => {
+    if (now() - loadedAt >= ttlMs) {
+      subjects = new Set(debugDevices.all().flatMap(({ device_id: deviceId }) => [
+        backgroundSubject(deviceId),
+        backgroundSubject(deviceId, entitlementStore.get(deviceId)),
+      ]));
+      loadedAt = now();
+    }
+    return subjects.has(subject);
+  };
+}
+
 function periods(now) {
   const local = new Date(now + 8 * 3600_000).toISOString();
   const day = local.slice(0, 10);
@@ -74,12 +96,21 @@ function periods(now) {
   return { day, month, resetDay, resetMonth };
 }
 
-export function createBackgroundCostGuard(db, config, now = Date.now) {
+export function createBackgroundCostGuard(db, config, now = Date.now, { isDevSubject } = {}) {
   for (const key of ["dailyCNY", "monthlyCNY", "discoveryDailyCNY", "discoveryMonthlyCNY",
     "globalDailyCNY", "globalMonthlyCNY",
     "inputPerMillionCNY", "outputPerMillionCNY", "cachedPerMillionCNY", "maxInputBytes", "minBuild"]) {
     if (!Number.isFinite(config[key]) || config[key] <= 0) {
       throw new Error(`Invalid background cost guard setting: ${key}`);
+    }
+  }
+  // 开发设备池：注入判定函数且未被 env 关闭时启用；否则全部按真实用户池（prod）记账，行为与拆池前一致。
+  const devPoolEnabled = Boolean(isDevSubject) && config.devPoolEnabled !== false;
+  if (devPoolEnabled) {
+    for (const key of ["dailyCNY", "monthlyCNY", "discoveryDailyCNY", "discoveryMonthlyCNY", "globalDailyCNY", "globalMonthlyCNY"]) {
+      if (!Number.isFinite(config.dev?.[key]) || config.dev[key] <= 0) {
+        throw new Error(`Invalid background cost guard setting: dev.${key}`);
+      }
     }
   }
   db.exec(`
@@ -94,6 +125,11 @@ export function createBackgroundCostGuard(db, config, now = Date.now) {
       fingerprint TEXT PRIMARY KEY, retry_at INTEGER NOT NULL
     );
   `);
+  // 2026-11-09 开发设备池：账本按池记账（prod=真实用户，dev=开发设备）；拆池前的旧行默认 prod。
+  const ledgerColumns = new Set(db.prepare("PRAGMA table_info(background_cost_calls)").all().map((column) => column.name));
+  if (!ledgerColumns.has("pool")) {
+    db.exec("ALTER TABLE background_cost_calls ADD COLUMN pool TEXT NOT NULL DEFAULT 'prod'");
+  }
   // 只保留核账所需的近 90 天元数据；当前月预算与在途预留不会被清理。
   db.prepare("DELETE FROM background_cost_calls WHERE created_at < ?").run(now() - 90 * 86400_000);
   db.prepare("DELETE FROM background_brief_attempts WHERE retry_at <= ?").run(now());
@@ -102,30 +138,36 @@ export function createBackgroundCostGuard(db, config, now = Date.now) {
   // 连坐饿死「一个发现」的首次体验（10-28 东林真机事故：月池 ¥2 已耗 ¥200，首跑
   // candidate 必 429）。subject 级日/月限额按池独立；global 级仍聚合全部调用兜底。
   // discoveryOnly 参数：1=只聚合发现池，0=只聚合后台池，-1=全部（global 检查用）。
+  // global 检查只聚合同一账本池（@pool）：开发设备流量不占真实用户的全局止损闸，反之亦然。
+  // subject 级不分账本池：一个主体的历史花费始终算它自己的。
   const sum = db.prepare(`SELECT COALESCE(SUM(COALESCE(charged_micro, reserved_micro)), 0) AS spent
     FROM background_cost_calls
     WHERE (day = @period OR month = @period)
     AND (@subject IS NULL OR subject = @subject)
+    AND (@subject IS NOT NULL OR pool = @pool)
     AND (@discoveryOnly < 0
       OR (@discoveryOnly = 1 AND purpose IN ('discovery_candidate_v1','discovery_verify_v1','discovery_topic_v1'))
       OR (@discoveryOnly = 0 AND purpose NOT IN ('discovery_candidate_v1','discovery_verify_v1','discovery_topic_v1')))`);
   const insert = db.prepare(`INSERT INTO background_cost_calls
-    (id, subject, day, month, purpose, reserved_micro, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+    (id, subject, day, month, purpose, reserved_micro, created_at, pool) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
   const settle = db.prepare(`UPDATE background_cost_calls SET charged_micro = ? WHERE id = ? AND charged_micro IS NULL`);
 
-  function limits(subject, isDiscovery) {
+  const poolOf = (subject) => (devPoolEnabled && isDevSubject(subject) ? "dev" : "prod");
+
+  function limits(subject, isDiscovery, pool) {
     const p = periods(now());
+    const caps = pool === "dev" ? config.dev : config;
     return [
-      [subject, p.day, isDiscovery ? config.discoveryDailyCNY : config.dailyCNY, p.resetDay, isDiscovery ? 1 : 0],
-      [subject, p.month, isDiscovery ? config.discoveryMonthlyCNY : config.monthlyCNY, p.resetMonth, isDiscovery ? 1 : 0],
-      [null, p.day, config.globalDailyCNY, p.resetDay, -1],
-      [null, p.month, config.globalMonthlyCNY, p.resetMonth, -1],
+      [subject, p.day, isDiscovery ? caps.discoveryDailyCNY : caps.dailyCNY, p.resetDay, isDiscovery ? 1 : 0],
+      [subject, p.month, isDiscovery ? caps.discoveryMonthlyCNY : caps.monthlyCNY, p.resetMonth, isDiscovery ? 1 : 0],
+      [null, p.day, caps.globalDailyCNY, p.resetDay, -1],
+      [null, p.month, caps.globalMonthlyCNY, p.resetMonth, -1],
     ];
   }
 
-  function checkBudget(subject, amount, isDiscovery) {
-    for (const [owner, period, cny, reset, pool] of limits(subject, isDiscovery)) {
-      const spent = sum.get({ subject: owner, period, discoveryOnly: pool }).spent;
+  function checkBudget(subject, amount, isDiscovery, pool) {
+    for (const [owner, period, cny, reset, discoveryOnly] of limits(subject, isDiscovery, pool)) {
+      const spent = sum.get({ subject: owner, period, discoveryOnly, pool }).spent;
       if (spent + amount > micro(cny)) {
         throw new GatewayError("BACKGROUND_BUDGET_EXCEEDED", "Background budget exceeded", 429, {
           resetAt: new Date(reset).toISOString(),
@@ -147,10 +189,11 @@ export function createBackgroundCostGuard(db, config, now = Date.now) {
     // UTF-8 字节数是文本 token 的保守上界；另留消息协议开销，不依赖中文字符估算。
     const reserved = Math.ceil((bytes + 64 * ((request.messages?.length ?? 0) + 1))
       * config.inputPerMillionCNY + request.maxTokens * config.outputPerMillionCNY);
-    checkBudget(subject, reserved, DISCOVERY_POOL_PURPOSES.has(request.purpose));
+    const pool = poolOf(subject);
+    checkBudget(subject, reserved, DISCOVERY_POOL_PURPOSES.has(request.purpose), pool);
     const id = randomUUID();
     const p = periods(now());
-    insert.run(id, subject, p.day, p.month, request.purpose, reserved, now());
+    insert.run(id, subject, p.day, p.month, request.purpose, reserved, now(), pool);
     return id;
   });
 
@@ -232,7 +275,7 @@ export function createBackgroundCostGuard(db, config, now = Date.now) {
       if (Buffer.byteLength(JSON.stringify(body)) > config.maxInputBytes) {
         throw new GatewayError("BACKGROUND_INPUT_TOO_LARGE", "Background context exceeds limit", 413);
       }
-      checkBudget(subject, 1);
+      checkBudget(subject, 1, false, poolOf(subject));
     },
     async briefAttempt(key, action) {
       const fingerprint = hash(JSON.stringify([scope.getStore() ?? key[0], ...key.slice(1)]));

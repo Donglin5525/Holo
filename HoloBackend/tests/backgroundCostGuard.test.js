@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import Database from "better-sqlite3";
-import { createBackgroundCostGuard, backgroundSubject } from "../src/usage/backgroundCostGuard.js";
+import { createBackgroundCostGuard, createDevSubjectResolver, backgroundSubject } from "../src/usage/backgroundCostGuard.js";
 import { loadConfig } from "../src/config.js";
 import { createApp } from "../src/app.js";
 import { createDatabase } from "../src/db/database.js";
@@ -199,4 +199,82 @@ test("HTTP 类别回归：换 operationId 重试伪造引用，不再付费；�
     assert.equal(s.moderationCalls(), 1);
     assert.equal(s.db.prepare("SELECT charged_micro FROM background_cost_calls").get().charged_micro, 390);
   }
+});
+
+// 2026-11-09 开发设备池：debug 构建设备单独记账——不占真实用户的全局止损闸、单设备额度放宽、开发全局闸兜底；
+// env 关闭或未注入判定时与拆池前完全一致。
+const DEV_CAPS = { dailyCNY: 1, monthlyCNY: 20, discoveryDailyCNY: 1, discoveryMonthlyCNY: 5, globalDailyCNY: 3, globalMonthlyCNY: 40 };
+function setupPools(overrides = {}, isDevSubject = (subject) => subject.startsWith("dev"), db = new Database(":memory:")) {
+  const config = loadConfig({ backgroundCost: overrides }).backgroundCost;
+  return { guard: createBackgroundCostGuard(db, config, Date.now, { isDevSubject }), db };
+}
+
+test("开发设备池：开发设备用放宽额度，花费不占真实用户的全局闸", async () => {
+  const { guard, db } = setupPools({ dailyCNY: 0.002, globalDailyCNY: 0.002, dev: DEV_CAPS });
+  const provider = wrap(guard, { async complete() { return result; } });
+  // 单池时第 3 笔会撞真实用户单设备日额度，且这 3 笔会把全局闸占到容不下下一笔
+  for (let i = 0; i < 3; i++) await guard.run("dev1", () => provider.complete(request));
+  await guard.run("u1", () => provider.complete(request));
+  const pools = db.prepare("SELECT subject, pool FROM background_cost_calls ORDER BY rowid").all()
+    .map((row) => `${row.subject}:${row.pool}`);
+  assert.deepEqual(pools, ["dev1:dev", "dev1:dev", "dev1:dev", "u1:prod"]);
+});
+
+test("开发设备池：开发全局闸兜底开发版失控，真实用户池不受影响", async () => {
+  const { guard } = setupPools({ dev: { ...DEV_CAPS, globalDailyCNY: 0.002 } });
+  const provider = wrap(guard, { async complete() { return result; } });
+  await guard.run("dev1", () => provider.complete(request));
+  await guard.run("dev2", () => provider.complete(request));
+  await assert.rejects(guard.run("dev3", () => provider.complete(request)), code("BACKGROUND_BUDGET_EXCEEDED"));
+  await guard.run("u1", () => provider.complete(request));
+});
+
+test("开发设备池：env 关闭或未注入判定时全部按真实用户池，行为与拆池前一致", async () => {
+  for (const { guard, db } of [setupPools({ dailyCNY: 0.002, devPoolEnabled: false }), setup({ dailyCNY: 0.002 })]) {
+    const provider = wrap(guard, { async complete() { return result; } });
+    await guard.run("dev1", () => provider.complete(request));
+    await guard.run("dev1", () => provider.complete(request));
+    await assert.rejects(guard.run("dev1", () => provider.complete(request)), code("BACKGROUND_BUDGET_EXCEEDED"));
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM background_cost_calls WHERE pool = 'dev'").get().n, 0);
+  }
+});
+
+test("开发设备池：旧账本无 pool 列时启动补列，旧行按真实用户池计入全局闸", async () => {
+  const db = new Database(":memory:");
+  db.exec(`CREATE TABLE background_cost_calls (
+    id TEXT PRIMARY KEY, subject TEXT NOT NULL, day TEXT NOT NULL, month TEXT NOT NULL,
+    purpose TEXT NOT NULL, reserved_micro INTEGER NOT NULL, charged_micro INTEGER, created_at INTEGER NOT NULL)`);
+  const local = new Date(Date.now() + 8 * 3600_000).toISOString();
+  db.prepare("INSERT INTO background_cost_calls VALUES ('old', 'legacy', ?, ?, 'personal_context_extraction', 1500, 1500, ?)")
+    .run(local.slice(0, 10), local.slice(0, 7), Date.now());
+  const { guard } = setupPools({ globalDailyCNY: 0.002, dev: DEV_CAPS }, undefined, db);
+  const provider = wrap(guard, { async complete() { return result; } });
+  await assert.rejects(guard.run("u1", () => provider.complete(request)), code("BACKGROUND_BUDGET_EXCEEDED"));
+  await guard.run("dev1", () => provider.complete(request));
+  assert.equal(db.prepare("SELECT pool FROM background_cost_calls WHERE id = 'old'").get().pool, "prod");
+});
+
+test("开发设备判定：上报过调试埋点的设备（含其购买主体）判为开发设备，十分钟刷新", () => {
+  const db = new Database(":memory:");
+  db.exec("CREATE TABLE product_events (device_id TEXT NOT NULL, build_channel TEXT)");
+  const insert = db.prepare("INSERT INTO product_events VALUES (?, ?)");
+  insert.run("devA", "debug"); insert.run("devB", "debug"); insert.run("userC", "release");
+  const purchase = { originalTransactionId: "tx-dev", environment: "Sandbox" };
+  let time = 0;
+  const isDev = createDevSubjectResolver({ db, entitlementStore: { get: (id) => (id === "devB" ? purchase : null) }, now: () => time });
+  assert.equal(isDev(backgroundSubject("devA")), true);
+  assert.equal(isDev(backgroundSubject("devB", purchase)), true);
+  assert.equal(isDev(backgroundSubject("userC")), false);
+  insert.run("devD", "debug");
+  assert.equal(isDev(backgroundSubject("devD")), false);
+  time += 10 * 60_000;
+  assert.equal(isDev(backgroundSubject("devD")), true);
+});
+
+test("HTTP 回归：上报过调试埋点的设备，后台调用记入开发池", async () => {
+  const s = makeApp();
+  s.db.prepare(`INSERT INTO product_events (id, device_id, name, timestamp_ms, build_channel, received_at_ms)
+    VALUES ('evt-dev', 'cost-test', 'app_open', ?, 'debug', ?)`).run(Date.now(), Date.now());
+  assert.equal((await post(s.app, request)).status, 200);
+  assert.equal(s.db.prepare("SELECT pool FROM background_cost_calls").get().pool, "dev");
 });

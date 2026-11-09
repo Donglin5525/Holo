@@ -201,12 +201,14 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_THOUGHT_VOICE_SUMMARY_PROVIDER
         ?? process.env.HOLO_CHAT_PROVIDER
         ?? "mock",
-      // §model-v4-flash: v4 系（理解力强于 deepseek-chat，能更好识别自我纠正/废话/情绪信号）。
-      // 仍允许 env 覆盖，但默认不再 fallback 到 HOLO_CHAT_MODEL，避免被旧配置拖回 deepseek-chat。
-      // §model-rename（2026-10-09）：deepseek-v4-flash 旧名已被官方路由到 V4.1 Flash 且仅「暂时」
-      // 维持——正名 deepseek-flash 防路由停止断线（v4-flash-vision-exp 同批下线）。
+      // §provider-model-pairing（2026-11-09 事故）：model 必须与 provider 走同一条回退链。
+      // 此前为防被旧 HOLO_CHAT_MODEL 拖回 deepseek-chat 而写死 "deepseek-flash"；10-15 全量切 qwen 后
+      // provider 随 HOLO_CHAT_PROVIDER 变成 qwen、model 仍是 deepseek-flash → 上游 MODEL_UNAVAILABLE，
+      // 语音智能总结 100% 失败 25 天（生产 env 已补 HOLO_THOUGHT_VOICE_SUMMARY_MODEL 止血）。
+      // 防回归：tests/routes-provider-model-pairing.test.js。
       model: process.env.HOLO_THOUGHT_VOICE_SUMMARY_MODEL
-        ?? "deepseek-flash",
+        ?? process.env.HOLO_CHAT_MODEL
+        ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_MAX_TOKENS ?? 1024),
       // §reasoning-off: 语音总结是轻量文本整理任务，不需要推理模型先思考再输出。
@@ -893,6 +895,19 @@ export function loadConfig(overrides = {}) {
       inputPerMillionCNY: Number(process.env.HOLO_BACKGROUND_INPUT_PRICE ?? 3),
       outputPerMillionCNY: Number(process.env.HOLO_BACKGROUND_OUTPUT_PRICE ?? 9),
       cachedPerMillionCNY: Number(process.env.HOLO_BACKGROUND_CACHED_PRICE ?? 0.1),
+      // 开发设备池（2026-11-09）：上报过 build_channel=debug 埋点的设备，其后台调用单独记账——
+      // 不占真实用户的全局止损闸；单设备额度放宽（东林日用机跑内部灰度的个人档案链路，
+      // ¥2/月池 10 天见底）；另设开发全局闸兜底开发版失控。默认值按东林真机 11 月实测峰值/日均留约 3 倍余量。
+      // env 置 HOLO_BACKGROUND_DEV_POOL_ENABLED=false 即回退单池（全部按真实用户池记账）。
+      devPoolEnabled: process.env.HOLO_BACKGROUND_DEV_POOL_ENABLED !== "false",
+      dev: {
+        dailyCNY: Number(process.env.HOLO_BACKGROUND_DEV_DAILY_CNY ?? 1),
+        monthlyCNY: Number(process.env.HOLO_BACKGROUND_DEV_MONTHLY_CNY ?? 20),
+        discoveryDailyCNY: Number(process.env.HOLO_BACKGROUND_DEV_DISCOVERY_DAILY_CNY ?? 1),
+        discoveryMonthlyCNY: Number(process.env.HOLO_BACKGROUND_DEV_DISCOVERY_MONTHLY_CNY ?? 5),
+        globalDailyCNY: Number(process.env.HOLO_BACKGROUND_DEV_GLOBAL_DAILY_CNY ?? 3),
+        globalMonthlyCNY: Number(process.env.HOLO_BACKGROUND_DEV_GLOBAL_MONTHLY_CNY ?? 40),
+      },
       ...overrides.backgroundCost,
     },
     auth: {
