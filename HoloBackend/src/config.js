@@ -598,6 +598,25 @@ const DEFAULT_CONFIG = {
         perDay: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_DAY ?? 500),
       },
     },
+    // 深度分析专用模型通道（2026-11-10 东林拍板：只把云端深度分析切 deepseek-flash，
+    // 聊天/本地 Agent 等其他 agent_loop 消费者不跟随）。未配置
+    // HOLO_CLOUD_DEEP_ANALYSIS_PROVIDER 时为 null，执行器回退 agent_loop 路由，
+    // 行为与旧版完全一致；回滚=删 env 两行重建容器，不用发版。
+    // 未配置时整个键不存在（值 null 会打崩遍历 routes 的既有测试与管理端序列化）
+    ...(process.env.HOLO_CLOUD_DEEP_ANALYSIS_PROVIDER
+      ? {
+        cloudDeepAnalysis: {
+          provider: process.env.HOLO_CLOUD_DEEP_ANALYSIS_PROVIDER,
+          model: process.env.HOLO_CLOUD_DEEP_ANALYSIS_MODEL ?? "deepseek-flash",
+          temperature: Number(process.env.HOLO_CLOUD_DEEP_ANALYSIS_TEMPERATURE
+            ?? process.env.HOLO_AGENT_LOOP_TEMPERATURE ?? 0.2),
+          maxTokens: Number(process.env.HOLO_CLOUD_DEEP_ANALYSIS_MAX_TOKENS
+            ?? process.env.HOLO_AGENT_LOOP_MAX_TOKENS ?? 16384),
+          reasoningEffort: process.env.HOLO_CLOUD_DEEP_ANALYSIS_REASONING_EFFORT
+            ?? process.env.HOLO_AGENT_LOOP_REASONING_EFFORT ?? "medium",
+        },
+      }
+      : {}),
     // HoloAI「一个发现」两阶段（2026-10-23 实施包 §4 预算初值 生成 ≤3072、核验 ≤2048；1.1.5 S7 起生成 ≤8192 含思考草稿）；
     // 输入 16k 总上限由 backgroundCostGuard.maxInputBytes + 端点 96KiB body 闸共同兜底。
     // 专用控制器调用，通用 chat 端点显式拒绝这两个 purpose（防旁路，见 app.js）。

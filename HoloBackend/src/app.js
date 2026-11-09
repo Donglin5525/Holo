@@ -279,7 +279,9 @@ export function createApp(overrides = {}) {
       cloudAnalysisExecutor = createCloudAnalysisExecutor({
         taskStore: cloudAnalysisTaskStore,
         providers,
-        route: config.routes.agent_loop,
+        // 深度分析专用模型通道（2026-11-10）：配置 HOLO_CLOUD_DEEP_ANALYSIS_* 才生效，
+        // 未配置回退 agent_loop——聊天/本地 Agent 等其他 agent_loop 消费者不跟随
+        route: config.routes.cloudDeepAnalysis ?? config.routes.agent_loop,
         insightRoute: config.routes.insight ?? null,
         digestRoute: config.routes.replayDigest ?? null,
         contextPlanRoute: config.routes.personal_context_planning ?? null,

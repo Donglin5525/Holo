@@ -239,3 +239,50 @@ test("normalizeAgentLoopContent：无 label 的 timeRange/baseline 保留不丢�
   assert.equal(plan.timeRange.end, 1_800_000_000);
   assert.equal(plan.timeRange.label, "");
 });
+
+// —— 深度分析专用模型通道（2026-11-10 东林拍板只切深度分析，其他不跟随）——
+// config.js 在模块加载时读 env（routes-provider-model-pairing 同款范式：动态 import 拿独立实例）
+
+async function routesWithCloudDeepAnalysis(extraEnv = {}) {
+  const saved = { ...process.env };
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith("HOLO_CLOUD_DEEP_ANALYSIS_")) delete process.env[key];
+  }
+  Object.assign(process.env, extraEnv);
+  try {
+    const { loadConfig } = await import(`../src/config.js?cda=${Object.values(extraEnv).join("_")}`);
+    return loadConfig().routes;
+  } finally {
+    for (const key of Object.keys(process.env)) {
+      if (!(key in saved)) delete process.env[key];
+    }
+    Object.assign(process.env, saved);
+  }
+}
+
+test("cloudDeepAnalysis 路由：未配置为 null（回退 agent_loop），配置后独立成路且继承预算默认", async () => {
+  const unset = await routesWithCloudDeepAnalysis();
+  assert.ok(unset.cloudDeepAnalysis == null, "未配置 HOLO_CLOUD_DEEP_ANALYSIS_PROVIDER 时必须缺席或为 null");
+  assert.equal("cloudDeepAnalysis" in unset, false, "键整个缺席，不打崩遍历 routes 的消费者");
+
+  const configured = await routesWithCloudDeepAnalysis({
+    HOLO_CLOUD_DEEP_ANALYSIS_PROVIDER: "deepseek",
+    HOLO_CLOUD_DEEP_ANALYSIS_MODEL: "deepseek-flash",
+  });
+  const route = configured.cloudDeepAnalysis;
+  assert.equal(route.provider, "deepseek");
+  assert.equal(route.model, "deepseek-flash");
+  assert.equal(route.maxTokens, configured.agent_loop.maxTokens, "预算默认继承 agent_loop");
+  assert.equal(route.reasoningEffort, configured.agent_loop.reasoningEffort);
+  // 只切深度分析：agent_loop/chat 不得被牵连
+  assert.equal(configured.agent_loop.provider, unset.agent_loop.provider);
+  assert.equal(configured.chat.provider, unset.chat.provider);
+
+  const customized = (await routesWithCloudDeepAnalysis({
+    HOLO_CLOUD_DEEP_ANALYSIS_PROVIDER: "deepseek",
+    HOLO_CLOUD_DEEP_ANALYSIS_MODEL: "custom-model",
+    HOLO_CLOUD_DEEP_ANALYSIS_MAX_TOKENS: "32768",
+  })).cloudDeepAnalysis;
+  assert.equal(customized.model, "custom-model");
+  assert.equal(customized.maxTokens, 32768);
+});
