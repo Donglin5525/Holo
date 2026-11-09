@@ -297,6 +297,14 @@ function normalizeFilter(filter, path) {
 }
 
 function isQueryValue(value) {
+  // oneOf（2026-11-09 恩格尔二连事故定谳）：引擎 filterPasses 支持
+  // value:{oneOf:[{type:"text",text:"餐饮"},…]} 的多值匹配（一组食品类目这类
+  // 集合过滤的正解），但本校验器只认 {type:…} 标量形状——oneOf 落地即死，
+  // 模型按正确语义写必被判 invalid_json，且重发不告知原因 → 12 轮烧完
+  //（11-09 14:04 生产事故实录）。此处与引擎对齐：oneOf 值=非空查询值数组。
+  if (Array.isArray(value?.oneOf)) {
+    return value.oneOf.length > 0 && value.oneOf.every((item) => isQueryValue(item));
+  }
   if (!isObject(value) || !FIELD_TYPES.has(value.type)) return false;
   switch (value.type) {
   case "number": return Number.isFinite(Number(value.number));

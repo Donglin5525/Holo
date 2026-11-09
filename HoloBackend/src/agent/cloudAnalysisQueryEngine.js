@@ -770,6 +770,7 @@ export function buildCloudToolCatalog(snapshot) {
     "云端能力（未支持，请求即报错换路）：expression/linearTrend/coverage 派生；cross_domain.aligned_analysis；未预取的固定 query；快照窗口外的时间段。跨域问题请分别查询两个数据集的同期分组指标后并列对照，只能表述「同一段时间都变化/并发」，不得表述因果或已对齐的统计关联。",
     "口径对账：聚合结果的 coverage 字段携带查询窗口与数据实际覆盖的对账；coverage.note 标出口径缺口时，结论必须按 note 写明实际覆盖起点（如「自 2026-05-13 以来的…」），不得沿用问句的更大时间窗。",
     "占比/系数类答案（如各月恩格尔系数）的标准做法是一次查询完成：groupBy:[{type:\"month\"}] + aggregations 两个 sum(amount)（一个带品类过滤、一个不带，各自有 id）+ derivations:[{id:\"coef\", operation:\"rate\", metricID:\"品类聚合的id\", denominatorMetricID:\"总额聚合的id\"}]；派生指标由系统算出。结论必须引用派生指标证据并原样转述其数值，禁止自己换算百分比或重算合计。",
+    "多值匹配（字段值属于一组，如食品类目=餐饮/早餐/午餐/晚餐/夜宵/饮品/超市/水果/咖啡/啤酒 任一）用 operation:\"oneOf\"，value:{oneOf:[{type:\"text\",text:\"餐饮\"},{type:\"text\",text:\"早餐\"},…]}，不要传数组或逗号串。",
     "行明细工具 snapshot_rows：聚合统计回答「有多少」，看不到记录原文；归因「这笔钱是什么/为什么大」时必须取样明细——",
     'tool="snapshot_rows", query="rows_sample", parameters={source, filters:[{field,operation,value}], sortBy, sortDirection:"descending"|"ascending", limit}（limit≤10）。',
     "返回匹配行的人话摘录（含备注、内容原文）。例：查音乐分类最大 3 笔支出 → filters:[{field:\"category\",operation:\"equal\",value:{text:\"音乐\"}}], sortBy:\"amount\", sortDirection:\"descending\", limit:3。",

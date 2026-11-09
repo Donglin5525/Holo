@@ -164,14 +164,16 @@ function buildFrozenTaskBlock(task, availableSources, taskType) {
 }
 
 /** 数值一致性核验用的数字提取：忽略个位数与年份（1900-2099），其余须能在
- * 已核验数字集合中找到（±2% 或 ×100/÷100 的百分比换算），否则视为叙事编数。 */
+ * 已核验数字集合中找到（±2% 或 ×100/÷100 的百分比换算），否则视为叙事编数。
+ * 带百分号的个位数例外（2026-11-09 恩格尔复现实锤）：「5.3%」是比例断言，
+ * 不是序数/月份噪声——跳过它等于给 10% 以下的比例数字开了免检通道。 */
 function extractCheckableNumbers(text) {
-  const matches = String(text ?? "").match(/\d+(?:\.\d+)?/g) ?? [];
+  const matches = String(text ?? "").match(/\d+(?:\.\d+)?%?/g) ?? [];
   const numbers = [];
   for (const match of matches) {
-    const value = Number(match);
+    const value = Number(match.replace(/%$/, ""));
     if (!Number.isFinite(value)) continue;
-    if (value < 10) continue;
+    if (value < 10 && !match.endsWith("%")) continue;
     const asInt = Math.round(value);
     if (Number.isInteger(value) && asInt >= 1900 && asInt <= 2099 && match.length === 4) continue;
     numbers.push(value);
@@ -1495,7 +1497,7 @@ export function createCloudAnalysisExecutor({
           messages.push({ role: "assistant", content });
           messages.push({
             role: "user",
-            content: "上一轮输出未通过协议校验，请丢弃坏结构并重新输出完整 JSON（status 只能是 need_tools/need_more_analysis/final_claims）。",
+            content: `上一轮输出未通过协议校验，请丢弃坏结构并重新输出完整 JSON（status 只能是 need_tools/need_more_analysis/final_claims）。具体错误：${validation.error ?? "未知"}。按错误位置修正字段形状，不要原样重发。`,
           });
           continue;
         }

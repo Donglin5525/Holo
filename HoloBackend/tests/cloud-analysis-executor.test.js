@@ -1355,6 +1355,149 @@ test("口径对账：问句窗口在数据内 → 不注入开局通知（零提
   assert.equal(result.snapshotCoverage["finance.transactions"].windowShortfallDays, null);
 });
 
+// —— oneOf 协议对齐（2026-11-09 恩格尔二连事故根因）：引擎支持多值匹配但
+// 校验器不认其值形状 → 模型按正确语义写必被判 invalid_json 且重发无原因
+// → 12 轮烧完。三件套：oneOf 值合法化、重发带具体错误、个位数百分比入核验。
+
+test("oneOf 多值过滤：校验器与引擎对齐 → 集合过滤查询+结论全链交付", async () => {
+  const provider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [{
+        id: "t1",
+        tool: "finance",
+        query: "dynamic_query",
+        parameters: {
+          dynamicPlan: {
+            source: "finance.transactions",
+            filters: [],
+            groupBy: [],
+            aggregations: [{
+              id: "mixed",
+              operation: "sum",
+              field: "amount",
+              unit: "元",
+              filters: [{ field: "category", operation: "oneOf", value: { oneOf: [{ type: "text", text: "餐饮" }, { type: "text", text: "交通" }] } }],
+            }],
+            derivations: [],
+          },
+        },
+      }],
+    }),
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "餐饮与交通合计 120 元",
+        metricAssertions: [{ metricKey: "dynamic.finance_transactions.mixed.all", value: -120, baselineValue: null, unit: "元", comparison: null, evidenceIDs: [] }],
+        evidenceIDs: ["dynamic-finance_transactions.mixed.all"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-oneof", question: "餐饮加交通花了多少" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "completed", "oneOf 查询不得再被判 invalid_json");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 1, "oneOf 聚合结论必须交付");
+});
+
+test("invalid_json 重发必须携带具体错误原因（模型自我纠正的前提）", async () => {
+  const provider = makeProvider([
+    '{"status":"bogus","reasoning":"r"}',
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "本月餐饮支出多发生在工作日",
+        metricAssertions: [],
+        evidenceIDs: ["finance.transactions#0"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-invalid-feedback", question: "q" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await executor.run(task.id), "completed");
+  const resend = provider.calls[1].messages.find((m) => m.role === "user" && m.content.includes("具体错误"));
+  assert.ok(resend, "重发消息必须包含具体错误原因");
+  assert.ok(resend.content.includes("status"), "原因须指向具体字段");
+});
+
+test("个位数百分比入核验：正确小比例放行（派生），编造小比例撤回", async () => {
+  // 正例：交通 18 / 总 319 → 5.6%，由两个已核底数派生 → 交付
+  const okProvider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [{
+        id: "t1",
+        tool: "finance",
+        query: "dynamic_query",
+        parameters: {
+          dynamicPlan: {
+            source: "finance.transactions",
+            filters: [],
+            groupBy: [],
+            aggregations: [
+              { id: "traffic", operation: "sum", field: "amount", unit: "元", filters: [{ field: "category", operation: "equal", value: { type: "text", text: "交通" } }] },
+              { id: "total", operation: "sum", field: "amount", unit: "元" },
+            ],
+            derivations: [],
+          },
+        },
+      }],
+    }),
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "交通支出 18 元 / 总支出 319 元，占比约 5.6%",
+        metricAssertions: [
+          { metricKey: "dynamic.finance_transactions.traffic.all", value: -18, baselineValue: null, unit: "元", comparison: null, evidenceIDs: [] },
+          { metricKey: "dynamic.finance_transactions.total.all", value: -319, baselineValue: null, unit: "元", comparison: null, evidenceIDs: [] },
+        ],
+        evidenceIDs: ["dynamic-finance_transactions.traffic.all", "dynamic-finance_transactions.total.all"],
+      }],
+    }),
+  ]);
+  const okExecutor = makeExecutor(okProvider);
+  const okTask = okExecutor.store.create({ deviceId: "d-pct-ok", question: "交通占比" });
+  okExecutor.store.attachSnapshot({ id: okTask.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await okExecutor.executor.run(okTask.id), "completed");
+  const okResult = JSON.parse(okExecutor.store.getDecrypted(okTask.id, ["result"]).result);
+  assert.equal(okResult.claims.length, 1, "真实的个位数百分比必须交付");
+
+  // 反例：底数全部已核，但「5.3%」与底数对不上（102/319≈32%）→ 个位数百分比
+  // 不再免检 → 撤回；修复轮仍编 → 诚实 failed
+  const badPct = () => agentJson("final_claims", {
+    claims: [{
+      displayText: "食品占总支出 319 元的 5.3%",
+      metricAssertions: [
+        { metricKey: "dynamic.finance_transactions.traffic.all", value: -319, baselineValue: null, unit: "元", comparison: null, evidenceIDs: [] },
+        { metricKey: "dynamic.finance_transactions.total.all", value: -319, baselineValue: null, unit: "元", comparison: null, evidenceIDs: [] },
+      ],
+      evidenceIDs: [],
+    }],
+  });
+  const badProvider = makeProvider([
+    agentJson("need_tools", {
+      toolRequests: [{
+        id: "t1",
+        tool: "finance",
+        query: "dynamic_query",
+        parameters: {
+          dynamicPlan: {
+            source: "finance.transactions",
+            filters: [],
+            groupBy: [],
+            aggregations: [{ id: "traffic", operation: "sum", field: "amount", unit: "元" }, { id: "total", operation: "sum", field: "amount", unit: "元" }],
+            derivations: [],
+          },
+        },
+      }],
+    }),
+    badPct(),
+    badPct(),
+  ]);
+  const badExecutor = makeExecutor(badProvider);
+  const badTask = badExecutor.store.create({ deviceId: "d-pct-bad", question: "占比" });
+  badExecutor.store.attachSnapshot({ id: badTask.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await badExecutor.executor.run(badTask.id), "failed", "编造的个位数百分比不得再免检交付");
+});
+
 test("交付核验 R03：断言对不上且修复轮仍编造 → 诚实 failed（不再剥断言留正文）", async () => {
   const toolRequest = {
     id: "t1",
