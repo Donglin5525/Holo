@@ -1485,8 +1485,13 @@ export function createCloudAnalysisExecutor({
         const content = response?.choices?.[0]?.message?.content ?? "";
         const validation = validateAgentLoopContent(content);
         if (!validation.valid) {
-          // 契约故障按一轮消耗处理后继续（与网关侧同策略：不提前终止任务）
-          log(`轮次 ${round}/${maxRounds} taskId=${taskId} status=invalid_json（已请求重发）`);
+          // 契约故障按一轮消耗处理后继续（与网关侧同策略：不提前终止任务）。
+          // 观察性（2026-11-09 恩格尔二连事故）：只记 invalid_json 不记原因，
+          // 日志一被容器重建抹掉就完全失明——带上校验错误与内容首尾，截断/空
+          // 内容（推理撑爆 maxTokens 的典型形态）当场可辨。
+          const head = String(content).slice(0, 80).replace(/\s+/g, " ");
+          const tail = String(content).slice(-40).replace(/\s+/g, " ");
+          log(`轮次 ${round}/${maxRounds} taskId=${taskId} status=invalid_json（已请求重发）原因=${validation.error ?? "?"} 内容头=${head}…尾=${tail}`);
           messages.push({ role: "assistant", content });
           messages.push({
             role: "user",
@@ -1539,7 +1544,7 @@ export function createCloudAnalysisExecutor({
           if ((verified.emptyClaims || verified.droppedClaims.length > 0 || missingDomains.length > 0) && !deliveryRepairUsed) {
             deliveryRepairUsed = true;
             const baseDetail = verified.droppedClaims.length > 0
-              ? `final_claims 未通过交付核验，以下结论被撤回：\n${verified.droppedClaims.map((d) => `· ${d.excerpt ? `${d.excerpt} ` : ""}（${d.reason}）`).join("\n")}\n请重新输出完整 final_claims：金额/数量等数字必须与工具查得结果一致，对不上就去掉具体数字；比例/系数/差值类派生数字不能凭空给——要么用 dynamicPlan 的 derivations（ratio/rate/percentageChange）让系统把它算成可核验指标，要么在同一条正文里同时写出算出它的两个工具查得底数（如「食品支出 28584 元 / 总支出 166236 元，占比约 17.2%」）；没有任何数据支持时不得输出「主要/最多/持续上升」这类定性规律，改为说明缺少什么数据、哪部分不能判断。`
+              ? `final_claims 未通过交付核验，以下结论被撤回：\n${verified.droppedClaims.map((d) => `· ${d.excerpt ? `${d.excerpt} ` : ""}（${d.reason}）`).join("\n")}\n请重新输出完整 final_claims：金额/数量等数字必须与工具查得结果一致，对不上就去掉具体数字；断言值与正文数字必须从 toolResults 或证据摘要逐字复制（含派生指标的值），禁止自己换算百分比或重算合计；比例/系数/差值类派生数字不能凭空给——要么用 dynamicPlan 的 derivations（ratio/rate/percentageChange）让系统把它算成可核验指标，要么在同一条正文里同时写出算出它的两个工具查得底数（如「食品支出 28584 元 / 总支出 166236 元，占比约 17.2%」）；没有任何数据支持时不得输出「主要/最多/持续上升」这类定性规律，改为说明缺少什么数据、哪部分不能判断。`
               : "final_claims 不允许为空：请基于已查到的证据输出至少一条 claim 直接回答用户问题；关键证据不存在时，输出一条说明「缺什么数据、因此哪部分不能判断」的 observation claim，而不是空数组。";
             const repairDetail = missingDomains.length > 0
               ? `${baseDetail}\n全景体检必须逐域覆盖：以下领域在时间窗内有数据但报告未覆盖——${missingDomains.join("、")}。请为每个缺失领域补一条 claim，并在 claim 上带 "domain" 字段（finance/health/habit/task/thought/goal 之一）。`
