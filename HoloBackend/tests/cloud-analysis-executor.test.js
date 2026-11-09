@@ -1073,6 +1073,136 @@ test("交付核验：断言对账失败 → 正文数字同撤回进修复轮，
   assert.ok(!result.warnings.some((w) => w.startsWith("METRIC_MISMATCH")), "修复轮后不再有对账失败警告");
 });
 
+// —— 派生数字放行（2026-11-09 恩格尔系数事故）：比例/系数类答案的数字本身
+// 不在台账里（台账只有底数），原规则必然整条撤回→诚实失败。见 verifyDelivery
+// derivedNumberAllowed。以下四例同时锁定「放行边界」：底数必须已核，编错的
+// 比例照样毙（999/9999/99999 系列防编数用例在下方各自独立锁定空台账场景）。
+
+function engelToolRequest() {
+  return {
+    id: "t1",
+    tool: "finance",
+    query: "dynamic_query",
+    parameters: {
+      dynamicPlan: {
+        source: "finance.transactions",
+        filters: [],
+        groupBy: [],
+        aggregations: [
+          { id: "food", operation: "sum", field: "amount", unit: "元", filters: [{ field: "category", operation: "equal", value: { type: "text", text: "餐饮" } }] },
+          { id: "total", operation: "sum", field: "amount", unit: "元" },
+        ],
+        derivations: [],
+      },
+    },
+  };
+}
+// 快照口径：餐饮 -32-42-28=-102，总支出 -319；102/319≈31.98%
+const ENGEL_METRIC_ASSERTIONS = [
+  { metricKey: "dynamic.finance_transactions.food.all", value: -102, baselineValue: null, unit: "元", comparison: null, evidenceIDs: [] },
+  { metricKey: "dynamic.finance_transactions.total.all", value: -319, baselineValue: null, unit: "元", comparison: null, evidenceIDs: [] },
+];
+
+test("交付核验派生放行：正文写出两个已核底数 → 恩格尔系数百分比不再误杀", async () => {
+  const provider = makeProvider([
+    agentJson("need_tools", { toolRequests: [engelToolRequest()] }),
+    agentJson("final_claims", {
+      claims: [{
+        summary: "近一年食品支出 102 元 / 总支出 319 元，恩格尔系数约 32.0%",
+        displayText: "近一年食品支出 102 元，总支出 319 元，恩格尔系数约 32.0%",
+        metricAssertions: ENGEL_METRIC_ASSERTIONS,
+        evidenceIDs: ["dynamic-finance_transactions.food.all", "dynamic-finance_transactions.total.all"],
+        type: "observation",
+        confidence: 0.9,
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-engel-ok", question: "算一下历史近一年的恩格尔系数" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  assert.equal(provider.calls.length, 2, "两个底数已核：一次过核验，不进修复轮");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 1, "含正确派生比例的 claim 必须交付");
+  assert.ok(result.claims[0].displayText.includes("32.0"));
+  assert.ok(!result.warnings.some((w) => w.startsWith("CLAIM_NUMBERS_UNVERIFIED")), "派生比例不再是未核验数字");
+});
+
+test("交付核验派生放行：比例无底数且断言不足 → 先撤回，修复轮写出底数后 completed", async () => {
+  // 只挂了一个底数断言、正文只给比例：单操作数派生不出 → 撤回进修复轮；
+  // 修复轮教学（写出两个工具查得底数）被采纳后交付——修复轮反馈是根治闭环的一半
+  const provider = makeProvider([
+    agentJson("need_tools", { toolRequests: [engelToolRequest()] }),
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "恩格尔系数约 32%",
+        metricAssertions: [ENGEL_METRIC_ASSERTIONS[0]],
+        evidenceIDs: ["dynamic-finance_transactions.food.all"],
+      }],
+    }),
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "近一年食品支出 102 元 / 总支出 319 元，恩格尔系数约 32%",
+        metricAssertions: ENGEL_METRIC_ASSERTIONS,
+        evidenceIDs: ["dynamic-finance_transactions.food.all", "dynamic-finance_transactions.total.all"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-engel-repair", question: "算一下恩格尔系数" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  assert.equal(provider.calls.length, 3, "原始 + 修复轮各一次");
+  const repairTurn = provider.calls[2].messages.find((m) => m.role === "user" && m.content.includes("派生"));
+  assert.ok(repairTurn, "修复轮反馈必须教派生数字的正确写法（derivations 或两个底数）");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 1, "修复轮写出底数后必须交付");
+});
+
+test("交付核验派生放行：底数真实但比例编错（102/319 写 55%）→ 仍撤回，修复轮不改 → 诚实 failed", async () => {
+  const badEngel = () => agentJson("final_claims", {
+    claims: [{
+      displayText: "食品支出 102 元 / 总支出 319 元，恩格尔系数约 55%",
+      metricAssertions: ENGEL_METRIC_ASSERTIONS,
+      evidenceIDs: ["dynamic-finance_transactions.food.all", "dynamic.finance_transactions.total.all"],
+    }],
+  });
+  const provider = makeProvider([
+    agentJson("need_tools", { toolRequests: [engelToolRequest()] }),
+    badEngel(),
+    badEngel(),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-engel-fake", question: "恩格尔系数" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "failed");
+  const failure = store.getDecrypted(task.id, ["failureReason"]).failureReason;
+  assert.ok(failure.includes("可核验"), `编错比例不得借派生放行交付，实际：${failure}`);
+});
+
+test("交付核验派生放行：差值形式（总支出比餐饮多 217 元）→ 由两个已核底数算出 → 交付", async () => {
+  const provider = makeProvider([
+    agentJson("need_tools", { toolRequests: [engelToolRequest()] }),
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "总支出 319 元，比餐饮 102 元多花 217 元",
+        metricAssertions: ENGEL_METRIC_ASSERTIONS,
+        evidenceIDs: ["dynamic-finance_transactions.food.all", "dynamic-finance_transactions.total.all"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-engel-diff", question: "支出结构差多少" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(SNAPSHOT) });
+
+  assert.equal(await executor.run(task.id), "completed");
+  const result = JSON.parse(store.getDecrypted(task.id, ["result"]).result);
+  assert.equal(result.claims.length, 1, "已核底数的差值必须交付");
+});
+
 test("交付核验 R03：断言对不上且修复轮仍编造 → 诚实 failed（不再剥断言留正文）", async () => {
   const toolRequest = {
     id: "t1",

@@ -706,7 +706,7 @@ export function buildCloudToolCatalog(snapshot) {
     );
   }
   lines.push(
-    "云端能力（已支持）：dynamicPlan 基础聚合 count/sum/average/min/max/distinctCount；字段过滤（含 _search 跨字段关键词）；分组 groupBy 单维 type=field/day/week/month/weekend/hour（hour=按用户本地时刻的 0-23 小时桶，付款时段/夜间消费分析用；若该桶大量返回 unknown 说明快照时间值仅到日、无时刻成分，时段分析不可做，改用其他维度）；timeRange 时间过滤（先过滤再聚合，未来数据不进历史结论）；baseline 对照窗口与派生 difference/ratio/percentageChange/rate/perDay（需要对比而未填 baseline 时系统自动取同长度前移窗口）。",
+    "云端能力（已支持）：dynamicPlan 基础聚合 count/sum/average/min/max/distinctCount；字段过滤（含 _search 跨字段关键词）；分组 groupBy 单维 type=field/day/week/month/weekend/hour（hour=按用户本地时刻的 0-23 小时桶，付款时段/夜间消费分析用；若该桶大量返回 unknown 说明快照时间值仅到日、无时刻成分，时段分析不可做，改用其他维度）；timeRange 时间过滤（先过滤再聚合，未来数据不进历史结论）；baseline 对照窗口与派生 difference/ratio/percentageChange/rate/perDay（需要对比而未填 baseline 时系统自动取同长度前移窗口）。占比/系数类答案（如食品占总支出比例）用 rate/ratio 派生让系统算成指标，不要自己换算百分比。",
     "云端能力（未支持，请求即报错换路）：expression/linearTrend/coverage 派生；cross_domain.aligned_analysis；未预取的固定 query；快照窗口外的时间段。跨域问题请分别查询两个数据集的同期分组指标后并列对照，只能表述「同一段时间都变化/并发」，不得表述因果或已对齐的统计关联。",
     "行明细工具 snapshot_rows：聚合统计回答「有多少」，看不到记录原文；归因「这笔钱是什么/为什么大」时必须取样明细——",
     'tool="snapshot_rows", query="rows_sample", parameters={source, filters:[{field,operation,value}], sortBy, sortDirection:"descending"|"ascending", limit}（limit≤10）。',

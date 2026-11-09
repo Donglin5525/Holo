@@ -153,6 +153,31 @@ function numberMatchesAllowed(value, allowed) {
   return false;
 }
 
+/** 派生数字放行（2026-11-09 恩格尔系数事故根治）：比例/系数/差值类答案的
+ * 数字本身不在任何台账里（台账只有底数），原规则必然整条撤回→诚实失败。
+ * 放行边界与引擎 sanctioned 派生算子（difference/ratio/percentageChange）同族：
+ * 数字必须能由**本条 claim 已核数字**（保留断言值/所引证据原文数字/正文里
+ * 单独过了白名单的数字）两两经 差/和/商/商×100/环比 算出。防编数闸门不放松：
+ * ①底数池是 claim 局部的小集合，不是全台账两两组合；②空台账（S02 编 99999
+ * 穿透事故）无已核底数，派生路径同样不可达；③编造数字要借道，必须同时给出
+ * 能精确算出它的两个真实底数——那已不是编数，读者可直接复算。 */
+function derivedNumberAllowed(value, verifiedOperands) {
+  const close = (candidate) => candidate != null
+    && Math.abs(value - candidate) <= Math.max(0.05, Math.abs(candidate) * 0.02);
+  for (let i = 0; i < verifiedOperands.length; i += 1) {
+    for (let j = 0; j < verifiedOperands.length; j += 1) {
+      if (i === j) continue;
+      const a = verifiedOperands[i];
+      const b = verifiedOperands[j];
+      if (close(a - b) || close(a + b)) return true;
+      if (b === 0) continue;
+      if (close(a / b) || close((a / b) * 100)) return true;
+      if (close(((a - b) / b) * 100)) return true;
+    }
+  }
+  return false;
+}
+
 // 空台账定性拦截（2026-10-04 体检 AI02-C / R01）词表：整场没有任何指标入账时，
 // 含定性规律表述且不带诚实降级说明的 claim 不可能有数据支持。只收窄用于
 // ledgerHasMetrics === false 的实锤场景；有台账时的逐条定性-证据绑定属
@@ -340,16 +365,32 @@ function verifyDelivery(output, { metricLedger, validEvidenceIDs, evidenceTexts,
     // 聚合值都能过；凭空编造或心算差值（未查派生指标）对不上 → 整条撤回。
     // 数值与口径交给确定性计算，模型负责解释——与报告 AI02 产品决策一致。
     const claimNumbersAllowed = [...ledgerNumbers];
+    // 派生放行底数池（claim 局部）：保留断言值 + 所引证据原文数字 +
+    // 正文里单独过了白名单的数字。见 derivedNumberAllowed 注释。
+    const claimOperands = new Set();
     for (const assertion of sanitized.metricAssertions ?? []) {
-      if (assertion.value != null) claimNumbersAllowed.push(assertion.value);
-      if (assertion.baselineValue != null) claimNumbersAllowed.push(assertion.baselineValue);
+      if (assertion.value != null) {
+        claimNumbersAllowed.push(assertion.value);
+        claimOperands.add(assertion.value);
+      }
+      if (assertion.baselineValue != null) {
+        claimNumbersAllowed.push(assertion.baselineValue);
+        claimOperands.add(assertion.baselineValue);
+      }
     }
     for (const id of sanitized.evidenceIDs ?? []) {
       const excerpt = evidenceTexts.get(id);
-      if (excerpt) claimNumbersAllowed.push(...extractCheckableNumbers(excerpt));
+      if (!excerpt) continue;
+      const excerptNumbers = extractCheckableNumbers(excerpt);
+      claimNumbersAllowed.push(...excerptNumbers);
+      for (const n of excerptNumbers) claimOperands.add(n);
+    }
+    for (const n of extractCheckableNumbers(text)) {
+      if (numberMatchesAllowed(n, claimNumbersAllowed)) claimOperands.add(n);
     }
     const badBodyNumbers = extractCheckableNumbers(text)
-      .filter((n) => !numberMatchesAllowed(n, claimNumbersAllowed));
+      .filter((n) => !numberMatchesAllowed(n, claimNumbersAllowed)
+        && !derivedNumberAllowed(n, [...claimOperands]));
     if (badBodyNumbers.length > 0) {
       warnings.push(`CLAIM_NUMBERS_UNVERIFIED:${sanitized.id ?? "claim"}:${badBodyNumbers.join("/")}`);
       dropped.push({ id: sanitized.id ?? null, reason: `数字与工具结果不一致（${badBodyNumbers.join("/")}）`, excerpt: text.slice(0, 60) });
@@ -1460,7 +1501,7 @@ export function createCloudAnalysisExecutor({
           if ((verified.emptyClaims || verified.droppedClaims.length > 0 || missingDomains.length > 0) && !deliveryRepairUsed) {
             deliveryRepairUsed = true;
             const baseDetail = verified.droppedClaims.length > 0
-              ? `final_claims 未通过交付核验，以下结论被撤回：\n${verified.droppedClaims.map((d) => `· ${d.excerpt ? `${d.excerpt} ` : ""}（${d.reason}）`).join("\n")}\n请重新输出完整 final_claims：金额/数量等数字必须与工具查得结果一致，对不上就去掉具体数字；没有任何数据支持时不得输出「主要/最多/持续上升」这类定性规律，改为说明缺少什么数据、哪部分不能判断。`
+              ? `final_claims 未通过交付核验，以下结论被撤回：\n${verified.droppedClaims.map((d) => `· ${d.excerpt ? `${d.excerpt} ` : ""}（${d.reason}）`).join("\n")}\n请重新输出完整 final_claims：金额/数量等数字必须与工具查得结果一致，对不上就去掉具体数字；比例/系数/差值类派生数字不能凭空给——要么用 dynamicPlan 的 derivations（ratio/rate/percentageChange）让系统把它算成可核验指标，要么在同一条正文里同时写出算出它的两个工具查得底数（如「食品支出 28584 元 / 总支出 166236 元，占比约 17.2%」）；没有任何数据支持时不得输出「主要/最多/持续上升」这类定性规律，改为说明缺少什么数据、哪部分不能判断。`
               : "final_claims 不允许为空：请基于已查到的证据输出至少一条 claim 直接回答用户问题；关键证据不存在时，输出一条说明「缺什么数据、因此哪部分不能判断」的 observation claim，而不是空数组。";
             const repairDetail = missingDomains.length > 0
               ? `${baseDetail}\n全景体检必须逐域覆盖：以下领域在时间窗内有数据但报告未覆盖——${missingDomains.join("、")}。请为每个缺失领域补一条 claim，并在 claim 上带 "domain" 字段（finance/health/habit/task/thought/goal 之一）。`
