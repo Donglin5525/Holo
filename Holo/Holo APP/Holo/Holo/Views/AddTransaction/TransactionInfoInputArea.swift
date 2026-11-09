@@ -53,6 +53,7 @@ extension AddTransactionSheet {
     /// 账户选择行（点击弹窗）
     private var accountRow: some View {
         Button {
+            showNumericKeypad = false
             withAnimation(HoloAnimation.enter) {
                 showAccountPicker = true
             }
@@ -91,6 +92,7 @@ extension AddTransactionSheet {
     /// 票根行：唯一常驻入口（点击弹来源选择覆盖弹窗）。满 3 张时点击给 toast 提示撕掉通道
     private var receiptRow: some View {
         Button {
+            showNumericKeypad = false
             if receiptItems.count >= Transaction.maxReceiptCount {
                 HoloToastCenter.shared.show(
                     String(localized: "已贴满 \(Transaction.maxReceiptCount) 张 · 长按票根可撕掉"),
@@ -145,6 +147,7 @@ extension AddTransactionSheet {
     /// 财务项目选择行（点击弹窗；仅支出类型显示）
     private var financeProjectRow: some View {
         Button {
+            showNumericKeypad = false
             withAnimation(HoloAnimation.enter) {
                 showProjectPicker = true
             }
@@ -185,6 +188,7 @@ extension AddTransactionSheet {
     /// 日期选择行（点击弹窗）
     private var dateRow: some View {
         Button {
+            showNumericKeypad = false
             withAnimation(HoloAnimation.enter) {
                 showDatePicker = true
             }
@@ -223,6 +227,7 @@ extension AddTransactionSheet {
     /// 分期设置行（点击弹窗）
     private var installmentRow: some View {
         Button {
+            showNumericKeypad = false
             // 分期为 Plus 权益：非 Plus 弹付费墙，购买成功后回开分期设置
             guard HoloEntitlementState.shared.isPlusActive else {
                 HoloPlusActionCoordinator.shared.requirePlus(context: .financeInstallment) {

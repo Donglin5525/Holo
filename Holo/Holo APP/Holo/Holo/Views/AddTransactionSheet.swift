@@ -80,8 +80,9 @@ struct AddTransactionSheet: View {
     /// 是否显示未保存修改确认弹窗
     @State var showDismissAlert: Bool = false
 
-    /// 是否显示数字键盘（默认显示，新开页面时弹出；UITest 直通模式可不弹以排除键盘遮挡变量）
-    @State var showNumericKeypad: Bool = !ProcessInfo.processInfo.arguments.contains("UITEST_NO_KEYPAD")
+    /// 是否显示数字键盘（2026-11-09 空间优化：打开弹层默认收起，分类宫格全量可见；
+    /// 只有点金额框或托盘快捷金额 chip 才弹出，其他交互自动收起——键盘状态机见各交互点）
+    @State var showNumericKeypad: Bool = false
 
     /// 备注输入框是否获得焦点（用于控制键盘切换）
     @FocusState var isNoteFocused: Bool
@@ -157,6 +158,8 @@ struct AddTransactionSheet: View {
     @State var showAddCategory = false
     /// 快速新增分类的父级，nil 表示新增一级分类
     @State var addCategoryParentId: UUID?
+    /// 宫格长按拖拽排序会话（一级/二级共用；长按原地松手=打开分类管理）
+    @StateObject var categoryReorder = CategoryGridReorderModel()
 
     // 下拉保存相关
     /// 下拉偏移量
@@ -231,7 +234,7 @@ struct AddTransactionSheet: View {
                     // 1. 顶部操作栏
                     topBar
 
-                    // 2. 类型 Tab（支出/收入下划线样式）
+                    // 2. 类型 Tab（支出/收入分段控件）
                     typeTabBar
 
                     // 3. 固定输入区：浏览和选择科目时始终保留金额与名称
@@ -241,6 +244,7 @@ struct AddTransactionSheet: View {
                         .modifier(ShakeEffect(animatableData: CGFloat(saveBlockShake)))
 
                     // 4. 中间滚动区（分类 + 信息）
+                    // 排序会话激活时锁滚动：拖拽跟手位移不再与垂直滚动争抢
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 12) {
                             categoryGrid
@@ -269,6 +273,7 @@ struct AddTransactionSheet: View {
                             isRemarkFocused = false
                         }
                     }
+                    .scrollDisabled(categoryReorder.isSessionActive)
                     .refreshable {
                         if canSave && !isSaving {
                             await MainActor.run {
@@ -608,19 +613,20 @@ struct AddTransactionSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
-    /// 数字键盘托盘：统一承载快捷标签栏和键盘圆角
+    /// 数字键盘托盘（240pt）：顶排条（运算符 chip + 快捷金额）36 + 主键盘 4 行 204
+    /// 圆角以背景形状绘制而不裁剪内容——运算符 chip 的外扩命中区要越过托盘上沿
     private var numericKeypadTray: some View {
         VStack(spacing: 0) {
-            QuickTagBar(
-                tags: amountTags,
-                onTagTap: handleQuickTagTap
-            )
+            keypadTopRow
 
             numericKeypad
         }
-        .background(Color.transactionKeypadTrayBackground)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 18, topTrailingRadius: 18))
-        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: -4)
+        .background(
+            UnevenRoundedRectangle(topLeadingRadius: HoloRadius.xl, topTrailingRadius: HoloRadius.xl)
+                .fill(Color.transactionKeypadTrayBackground)
+                .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: -4)
+                .ignoresSafeArea(edges: .bottom)
+        )
     }
 
     /// 是否可以保存

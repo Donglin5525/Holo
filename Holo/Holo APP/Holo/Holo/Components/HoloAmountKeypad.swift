@@ -14,36 +14,64 @@ import SwiftUI
 /// - onConfirm：✓ 键两段式——输入是算式时第一次点只求值回填结果（如 "3+4"→"7"），
 ///   已是纯数字时才回调确认（由调用方保存）；求值失败（如除零）保留原式不回调
 /// - onNext：↩︎ 键（记账页=跳名称输入；退款层=收起键盘）
+/// - operatorsInTray：记一笔弹层瘦身态（2026-11-09 空间优化）——运算符行从键身
+///   移到托盘顶排条的小 chip（由调用方渲染，经 appendOperator 共用同一套输入规则），
+///   主键盘 4 行 × 46pt；默认 false 保持原 5 行 × 56pt 布局（退款层等不瘦身）
 struct HoloAmountKeypad: View {
     @Binding var amountText: String
     var onConfirm: () -> Void
     var onNext: () -> Void
+    var operatorsInTray: Bool = false
 
-    /// 键盘布局（5行4列，支持四则运算）
-    static let layout: [[String]] = [
-        ["÷", "×", "-", "+"],
+    /// 主键盘布局（4 行：789⌫ / 456AC / 123↩︎ / .000✓）
+    static let keypadLayout: [[String]] = [
         ["7", "8", "9", "⌫"],
         ["4", "5", "6", "AC"],
         ["1", "2", "3", "↩︎"],
         [".", "0", "00", "✓"]
     ]
 
+    /// 运算符独占行（仅非瘦身态拼在主键盘上方）
+    static let operatorRow: [String] = ["÷", "×", "-", "+"]
+
+    /// 键帽高度：瘦身态 46（托盘总高 240 预算内），默认态 56 保持原样
+    private var keyHeight: CGFloat { operatorsInTray ? 46 : 56 }
+
     var body: some View {
+        let layout = operatorsInTray
+            ? Self.keypadLayout
+            : [Self.operatorRow] + Self.keypadLayout
         VStack(spacing: 4) {
-            ForEach(Self.layout, id: \.self) { row in
+            ForEach(layout, id: \.self) { row in
                 HStack(spacing: 4) {
                     ForEach(row, id: \.self) { key in
-                        KeypadButton(key: key) {
+                        KeypadButton(key: key, keyHeight: keyHeight) {
                             handlePress(key)
                         }
                     }
                 }
             }
         }
-        .padding(8)
+        .padding(.horizontal, 8)
+        // 瘦身态上下 4：托盘 = 顶排条 36 + 4×46 + 3×4 键距 + 8 = 240pt；
+        // 默认态保持原上下 8
+        .padding(.vertical, operatorsInTray ? 4 : 8)
     }
 
     // MARK: - 按键处理
+
+    /// 运算符追加规则（托盘顶排条 chip 与键身运算符行共用，单一来源）
+    /// 与键身行为一致：空值 "0" 不输入、末位已是运算符则替换
+    static func appendOperator(_ op: String, to text: String) -> String {
+        if text == "0" {
+            return text
+        }
+        var result = text
+        if let lastChar = result.last, AmountMath.operators.contains(String(lastChar)) {
+            result.removeLast()
+        }
+        return result + op
+    }
 
     private func handlePress(_ key: String) {
         // 每次按键即时触觉反馈，确保明确的交互震动
@@ -94,18 +122,9 @@ struct HoloAmountKeypad: View {
         }
     }
 
-    /// 处理运算符输入
+    /// 处理运算符输入（规则见 appendOperator）
     private func handleOperator(_ op: String) {
-        if amountText == "0" {
-            return
-        }
-
-        let lastChar = amountText.last
-        if ["+", "-", "×", "÷"].contains(lastChar) {
-            amountText.removeLast()
-        }
-
-        amountText += op
+        amountText = Self.appendOperator(op, to: amountText)
     }
 
     /// 处理小数点输入

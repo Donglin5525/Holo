@@ -12,6 +12,8 @@ import SwiftUI
 /// 键盘按钮
 struct KeypadButton: View {
     let key: String
+    /// 键帽高度：默认 56（原布局），记一笔瘦身态传 46
+    var keyHeight: CGFloat = 56
     let action: () -> Void
 
     var body: some View {
@@ -50,12 +52,13 @@ struct KeypadButton: View {
 
                 default:
                     Text(key)
-                        .font(.system(size: 24, weight: .semibold))
+                        // 瘦身态（46 高）配 22pt（原型 key 字阶），默认 56 高保持 24
+                        .font(.system(size: keyHeight < 50 ? 22 : 24, weight: .semibold))
                         .foregroundColor(.holoTextPrimary)
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(height: keyHeight)
             .background(buttonBackgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
