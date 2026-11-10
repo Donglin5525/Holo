@@ -246,12 +246,14 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
     private static func keywordSummary(_ txs: [Transaction], keyword: String) -> (count: Int, amount: Double, samples: [String]) {
         guard !keyword.isEmpty else { return (0, 0, []) }
         let matches = txs.filter { tx in
-            guard tx.transactionType == .expense else { return false }
+            guard tx.statisticsType == .expense else { return false }
             return searchableText(for: tx).localizedCaseInsensitiveContains(keyword)
         }
-        let amount = matches.reduce(0.0) { $0 + $1.amount.doubleValue }
+        // 统计口径：退款笔按负支出冲减（statisticsAmount 取负），命中同一关键词时自然抵扣
+        let amount = matches.reduce(0.0) { $0 + NSDecimalNumber(decimal: $1.statisticsAmount).doubleValue }
         let samples = matches.prefix(5).map(sampleExcerpt)
-        return (matches.count, amount, samples)
+        // 笔数只数真实消费行：退款负冲行不是一笔新消费
+        return (matches.filter { !$0.isRefund }.count, amount, samples)
     }
 
     private static func topExpenseSamples(_ txs: [Transaction]) -> [String] {

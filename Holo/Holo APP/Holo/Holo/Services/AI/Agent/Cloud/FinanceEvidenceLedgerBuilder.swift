@@ -69,11 +69,15 @@ enum FinanceEvidenceLedgerBuilder {
         df.dateFormat = "yyyy-MM-dd"
 
         // —— 总览（方向箭头式行文：方向由程序写死，模型不判方向）——
+        // 统计口径：退款笔按负支出冲减（statisticsAmount 取负），不进收入侧；冲减行不计消费笔数
         func stats(_ rows: [Transaction]) -> (expense: Double, income: Double, count: Int) {
             var e = 0.0, i = 0.0, c = 0
             for r in rows {
-                if r.transactionType == .expense { e += r.amount.doubleValue; c += 1 }
-                else if r.transactionType == .income { i += r.amount.doubleValue }
+                if r.statisticsType == .expense {
+                    e += NSDecimalNumber(decimal: r.statisticsAmount).doubleValue
+                    if !r.isRefund { c += 1 }
+                }
+                else if r.statisticsType == .income { i += NSDecimalNumber(decimal: r.statisticsAmount).doubleValue }
             }
             return (e, i, c)
         }
@@ -93,12 +97,12 @@ enum FinanceEvidenceLedgerBuilder {
         lines.append(deltaLine("总支出", cs.expense, bs.expense) + "；支出笔数从 \(bs.count) 笔变为 \(cs.count) 笔。")
         lines.append(deltaLine("总收入", cs.income, bs.income))
 
-        // —— 分类贡献（家族归并，差额绝对值 top8）——
+        // —— 分类贡献（家族归并，差额绝对值 top8；退款笔负冲原分类家族）——
         func familyStats(_ rows: [Transaction]) -> [String: Double] {
             var m: [String: Double] = [:]
-            for r in rows where r.transactionType == .expense {
+            for r in rows where r.statisticsType == .expense {
                 let k = familyName(r.category?.name ?? "未分类")
-                m[k, default: 0] += r.amount.doubleValue
+                m[k, default: 0] += NSDecimalNumber(decimal: r.statisticsAmount).doubleValue
             }
             return m
         }
@@ -113,16 +117,24 @@ enum FinanceEvidenceLedgerBuilder {
             lines.append("  \(k)：从 \(fmt(b)) 元变为 \(fmt(c)) 元（\(d >= 0 ? "增加" : "减少") \(fmt(abs(d))) 元）")
         }
 
-        // —— 本期单笔大额（一次性事件候选）——
-        let big = current
-            .filter { $0.transactionType == .expense && $0.amount.doubleValue >= 2000 }
+        // —— 本期单笔大额（一次性事件候选；全额退掉的剔除，部分退款保留并注明）——
+        let bigCandidates = current
+            .filter { $0.transactionType == .expense && !$0.isRefund && $0.amount.doubleValue >= 2000 }
             .sorted { $0.amount.doubleValue > $1.amount.doubleValue }
-            .prefix(6)
+        var big: [(t: Transaction, refunded: Decimal)] = []
+        for t in bigCandidates {
+            let refunded = (try? await FinanceRepository.shared.totalRefunded(for: t)) ?? 0
+            if refunded < t.amountAsDecimal {
+                big.append((t, refunded))
+                if big.count >= 6 { break }
+            }
+        }
         if !big.isEmpty {
             lines.append("【本期单笔≥2000元】（一次性事件候选，与日常结构分开看）")
-            for t in big {
+            for (t, refunded) in big {
                 let note = (t.note ?? t.remark ?? "").prefix(20)
-                lines.append("  \(df.string(from: t.date)) \(fmt(t.amount.doubleValue)) 元 \(t.category?.name ?? "未分类") \(note)")
+                let refundNote = refunded > 0 ? "（已退\(fmt(NSDecimalNumber(decimal: refunded).doubleValue))元）" : ""
+                lines.append("  \(df.string(from: t.date)) \(fmt(t.amount.doubleValue)) 元 \(t.category?.name ?? "未分类") \(note)\(refundNote)")
             }
         }
 

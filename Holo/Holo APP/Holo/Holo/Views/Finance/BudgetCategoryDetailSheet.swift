@@ -221,10 +221,11 @@ struct BudgetCategoryDetailSheet: View {
     private func dateHeader(date: Date, dayTxns: [Transaction]) -> some View {
         let df = DateFormatter()
         df.setLocalizedDateFormatFromTemplate("MMMdEEEE")
+        // 统计口径：退款笔按负支出冲减当日净额（与头部「已花」对齐，避免收入侧双倍减）
         let net = dayTxns.reduce(Decimal(0)) { sum, tx in
-            tx.transactionType == .expense
-                ? sum + tx.amount.decimalValue
-                : sum - tx.amount.decimalValue
+            tx.statisticsType == .expense
+                ? sum + tx.statisticsAmount
+                : sum - tx.statisticsAmount
         }
 
         return HStack {
@@ -244,7 +245,7 @@ struct BudgetCategoryDetailSheet: View {
     /// 对账行：列表净额合计 = 头部已花，用户可逐日对账
     private var totalFooter: some View {
         HStack {
-            Text(String(localized: "本月合计 · \(transactions.filter { $0.transactionType == .expense }.count) 笔"))
+            Text(String(localized: "本月合计 · \(transactions.filter { $0.statisticsType == .expense }.count) 笔"))
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
             Spacer()

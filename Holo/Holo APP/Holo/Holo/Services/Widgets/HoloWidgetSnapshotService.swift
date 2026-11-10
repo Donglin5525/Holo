@@ -490,9 +490,10 @@ enum HoloWidgetPrivacySettings {
 }
 
 private extension Array where Element == Transaction {
+    /// 统计口径金额合计：退款笔按负支出冲减，与收支统计/日历同口径
     func amountSum(for type: TransactionType) -> Double {
-        filter { $0.transactionType == type }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        filter { $0.statisticsType == type }
+            .reduce(Decimal(0)) { $0 + $1.statisticsAmount }
             .doubleValue
     }
 }
