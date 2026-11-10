@@ -90,6 +90,9 @@ struct FinanceView: View {
     @State private var deepLinkedAccount: Account?
     @State private var analysisDeepLink: FinanceAnalysisDeepLink?
     @State private var evidenceReviewDeepLink: FinanceEvidenceReviewDeepLink?
+    /// HomeView ZStack 常驻下的活性标记（2026-11-10）：隐藏时不消费全局深链，
+    /// 由 HomeView 统一路由；旧调用缺省 true 保持行为兼容
+    private let isScreenActive: Bool
     @ObservedObject private var deepLinkState = DeepLinkState.shared
 
     /// 日历状态提升到此层级，避免切换 Tab 时被销毁
@@ -100,11 +103,13 @@ struct FinanceView: View {
 
     init(
         initialAnalysisDeepLink: FinanceAnalysisDeepLink? = nil,
-        initialEvidenceReviewDeepLink: FinanceEvidenceReviewDeepLink? = nil
+        initialEvidenceReviewDeepLink: FinanceEvidenceReviewDeepLink? = nil,
+        isScreenActive: Bool = true
     ) {
         _selectedTab = State(initialValue: initialAnalysisDeepLink == nil ? .ledger : .analysis)
         _analysisDeepLink = State(initialValue: initialAnalysisDeepLink)
         _evidenceReviewDeepLink = State(initialValue: initialEvidenceReviewDeepLink)
+        self.isScreenActive = isScreenActive
     }
 
     // MARK: - Body
@@ -125,7 +130,10 @@ struct FinanceView: View {
                             onBack: { close() },
                             onBackToAI: {
                                 // ZStack 常驻：navigate 触发 HomeView 切换 activeScreen 到 .ai，
-                                // FinanceView 自动隐藏，无需手动 close()。
+                                // FinanceView 自动隐藏。但复核页状态必须一并退出（2026-11-10
+                                // 东林实报循环卡死：只切屏不清状态，下次进财务又弹数据依据，
+                                // 「回到AI→进财务」死循环）——「回到AI」语义=用完离开。
+                                self.evidenceReviewDeepLink = nil
                                 DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
                             },
                             onOpenAnalysis: { link in
@@ -264,6 +272,12 @@ struct FinanceView: View {
     }
 
     private func handleDeepLink(_ target: DeepLinkTarget?) {
+        // 竞态根治（2026-11-10 东林实报「点核对点不进去、进财务即弹数据依据循环」）：
+        // 财务页在 HomeView 的 ZStack 里常驻——隐藏时也收得到 pendingTarget 变更，
+        // 会抢先消费「点按核对」类跳转（只存状态不切屏），用户看到「没反应」，
+        // 状态却已埋下，之后每次进财务都先弹复核页。隐藏时一律不消费，
+        // 交给 HomeView 统一路由（切屏 + 经 initial 参数传入）。
+        guard isScreenActive else { return }
         switch target {
         case .budgetDetail:
             selectedTab = .ledger

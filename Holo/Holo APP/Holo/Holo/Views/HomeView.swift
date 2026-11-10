@@ -790,21 +790,21 @@ struct HomeView: View {
                 showSettingsPage = false
                 showPersonalPage = false
                 if activeScreen != nil {
-                    _ = residentNavigation.dismissAll()
+                    residentNavigation.dismissAll()
                 }
 
             case .profile:
                 showSettingsPage = false
                 showPersonalPage = true
                 if activeScreen != nil {
-                    _ = residentNavigation.dismissAll()
+                    residentNavigation.dismissAll()
                 }
 
             case .settings:
                 showPersonalPage = false
                 showSettingsPage = true
                 if activeScreen != nil {
-                    _ = residentNavigation.dismissAll()
+                    residentNavigation.dismissAll()
                 }
 
             default:
@@ -834,7 +834,9 @@ struct HomeView: View {
         case .finance:
             FinanceView(
                 initialAnalysisDeepLink: pendingFinanceAnalysisDeepLink,
-                initialEvidenceReviewDeepLink: pendingFinanceEvidenceReviewDeepLink
+                initialEvidenceReviewDeepLink: pendingFinanceEvidenceReviewDeepLink,
+                // ZStack 常驻活性标记（2026-11-10）：隐藏时不得消费全局深链
+                isScreenActive: activeScreen == .finance
             )
             .preferredColorScheme(DarkModeManager.shared.colorScheme)
 
@@ -1189,9 +1191,10 @@ struct HomeView: View {
                 .coachMarkTarget(HomeCoachTour.featureButtonsID)
 
             // 中央「今天」入口按钮（置于顶层，确保真机触摸事件不被 GeometryReader 拦截）
-            DailyKanbanEntryButton(todayViewModel: todayViewModel) {
-                showDailyKanban = true
-            }
+            DailyKanbanEntryButton(
+                action: { showDailyKanban = true },
+                todayViewModel: todayViewModel
+            )
             .coachMarkTarget(HomeCoachTour.kanbanEntryID)
         }
         .padding(.horizontal, HoloSpacing.lg)
