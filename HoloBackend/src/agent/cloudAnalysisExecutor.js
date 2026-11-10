@@ -1382,6 +1382,13 @@ export function createCloudAnalysisExecutor({
         : "";
       // 目标闭环（§6.4）：冻结块 + 统一事实快照；模型不得改写范围，数字以快照为准
       const goalBlock = goalScope ? buildGoalScopeBlock(goalScope, goalReview) : "";
+      // 追问上云（2026-11-10 东林拍板：追问与深度分析同通道）：父报告结论摘要
+      // 由 iOS 从消息库 canonical 重读后随快照上行——追问的指代（「为什么5月…」）
+      // 由此可解；旧快照无此字段=行为不变。父报告数字只是背景指代，本轮结论
+      // 仍须自己查工具取证，不得直接沿用父报告数字当本轮断言。
+      const parentReportBlock = typeof snapshot.parentReportBrief === "string" && snapshot.parentReportBrief.trim()
+        ? `\n<parent_report_context>\n${snapshot.parentReportBrief}\n</parent_report_context>\n`
+        : "";
       // 口径对账开局通知：问句窗口超出数据实际覆盖时，冻结窗之后紧跟事实说明
       const coverageShortfalls = windowCoverageShortfalls(snapshot, answerTask);
       const coverageNoticeBlock = windowCoverageNotice(coverageShortfalls, answerTask?.primaryTimeRange);
@@ -1391,7 +1398,7 @@ export function createCloudAnalysisExecutor({
           agentMessages.main,
           // 个人档案通道：紧跟主 system（任务指令），先于工具目录与冻结任务块
           agentMessages.profile,
-          `${buildCloudToolCatalog(snapshot)}${financeLedgerBlock}${checkupBlock}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}${coverageNoticeBlock}${goalBlock ? `\n\n${goalBlock}` : ""}`,
+          `${buildCloudToolCatalog(snapshot)}${financeLedgerBlock}${checkupBlock}${parentReportBlock}\n\n${buildFrozenTaskBlock(answerTask, datasetNames, task.task_type)}${coverageNoticeBlock}${goalBlock ? `\n\n${goalBlock}` : ""}`,
         ].filter(Boolean).join("\n\n"),
       });
       messages.push({ role: "user", content: task.question });
