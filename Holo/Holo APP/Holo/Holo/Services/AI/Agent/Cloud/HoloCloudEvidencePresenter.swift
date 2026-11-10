@@ -177,7 +177,23 @@ nonisolated enum HoloCloudEvidencePresenter {
             value: -HoloCloudAnalysisSnapshotBuilder.defaultHistoryDays,
             to: end
         ) ?? end
-        let groupKeyword = group?.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 时间桶分组下钻（2026-11-10 恩格尔报告实锤「点进去什么数据都没有」）：
+        // 按月/日/周分组的 metric，分组名（如「2026-05」）不是分类关键词——拿它搜
+        // 账单必然空页。改为下钻到该时间桶的账单窗口（keyword 置空），用户看到的
+        // 就是这条指标实际统计的那一段；小时桶等无窗可算的保持默认窗口。
+        let trimmedGroup = group?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let bucket = trimmedGroup, !bucket.isEmpty, Self.isTimeBucketKey(bucket) {
+            return HoloRenderedFinanceDrilldown(
+                sourceEvidenceID: evidenceID,
+                label: datasetLabels[dataset ?? ""] ?? "交易明细",
+                keyword: nil,
+                start: Self.timeBucketStart(of: bucket) ?? start,
+                end: min(Self.timeBucketEnd(of: bucket) ?? end, end),
+                baselineStart: nil,
+                baselineEnd: nil
+            )
+        }
+        let groupKeyword = trimmedGroup
         let keyword = groupKeyword?.isEmpty == false
             ? groupKeyword
             : drilldownKeyword(fromExcerpts: excerpts ?? [])
@@ -190,6 +206,47 @@ nonisolated enum HoloCloudEvidencePresenter {
             baselineStart: nil,
             baselineEnd: nil
         )
+    }
+
+    /// 时间桶分组键：引擎 groupBy day/month/week/hour 的键形状与字面量。
+    /// 这类分组名不是分类关键词，下钻不得拿它当搜索词。
+    static func isTimeBucketKey(_ group: String) -> Bool {
+        if group.range(of: "^\\d{4}-\\d{2}(-\\d{2})?$", options: .regularExpression) != nil { return true }
+        if group.range(of: "^\\d{4}-W\\d{2}$", options: .regularExpression) != nil { return true }
+        if group.range(of: "^\\d{1,2}$", options: .regularExpression) != nil { return true }
+        return ["weekend", "weekday", "unknown"].contains(group.lowercased())
+    }
+
+    /// 时间桶 → 起止日期（本地日历口径，与引擎分桶一致）。非桶形状返回 nil。
+    static func timeBucketStart(of bucket: String) -> Date? {
+        let cal = Calendar.current
+        if bucket.count == 10 {
+            let parts = bucket.split(separator: "-").compactMap { Int($0) }
+            guard parts.count == 3 else { return nil }
+            return cal.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
+        }
+        if bucket.count == 7 {
+            let parts = bucket.split(separator: "-").compactMap { Int($0) }
+            guard parts.count == 2 else { return nil }
+            return cal.date(from: DateComponents(year: parts[0], month: parts[1], day: 1))
+        }
+        if bucket.contains("W") {
+            let comps = bucket.split(separator: "-W")
+            guard comps.count == 2, let year = Int(comps[0]), let week = Int(comps[1]) else { return nil }
+            var iso = Calendar(identifier: .iso8601)
+            return iso.date(from: DateComponents(weekday: 2, weekOfYear: week, yearForWeekOfYear: year))
+        }
+        return nil
+    }
+
+    /// 时间桶终点 = 起点 + 1 天/1 月/1 周（半开区间）。
+    static func timeBucketEnd(of bucket: String) -> Date? {
+        guard let start = timeBucketStart(of: bucket) else { return nil }
+        let cal = Calendar.current
+        if bucket.count == 10 { return cal.date(byAdding: .day, value: 1, to: start) }
+        if bucket.count == 7 { return cal.date(byAdding: .month, value: 1, to: start) }
+        if bucket.contains("W") { return cal.date(byAdding: .day, value: 7, to: start) }
+        return nil
     }
 
     /// 行样本摘录 → 下钻分类关键词：摘录是执行器的人话行记录

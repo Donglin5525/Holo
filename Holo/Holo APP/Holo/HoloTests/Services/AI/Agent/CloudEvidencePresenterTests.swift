@@ -160,6 +160,53 @@ final class CloudEvidencePresenterTests: XCTestCase {
         )
     }
 
+    // MARK: - 时间桶分组下钻（2026-11-10 恩格尔报告实锤：月份组名当关键词 → 空页）
+
+    func test_月份分组下钻到该月窗口且不带关键词() {
+        let references = HoloCloudEvidencePresenter.evidenceReferences(
+            from: [metric(group: "2026-05", metricKey: "dynamic.finance_transactions.engel_percent.2026_05")]
+        )
+        let drilldown = references.first?.financeDrilldown
+        XCTAssertNotNil(drilldown)
+        XCTAssertNil(drilldown?.keyword, "月份桶不是分类关键词，不得作为搜索词")
+        let cal = Calendar.current
+        XCTAssertEqual(cal.component(.year, from: drilldown!.start), 2026)
+        XCTAssertEqual(cal.component(.month, from: drilldown!.start), 5)
+        XCTAssertEqual(cal.component(.day, from: drilldown!.start), 1)
+        XCTAssertEqual(cal.component(.month, from: drilldown!.end), 6, "终点=次月一日（半开区间，截到当下）")
+    }
+
+    func test_日分组下钻到当日窗口() {
+        let references = HoloCloudEvidencePresenter.evidenceReferences(
+            from: [metric(group: "2026-11-08", metricKey: "dynamic.finance_transactions.spend.day")]
+        )
+        let drilldown = references.first?.financeDrilldown
+        XCTAssertNil(drilldown?.keyword)
+        let cal = Calendar.current
+        XCTAssertEqual(cal.component(.day, from: drilldown!.start), 8)
+        XCTAssertEqual(cal.component(.day, from: drilldown!.end), 9)
+    }
+
+    func test_小时桶与字面量分组不带关键词保持默认窗口() {
+        for group in ["21", "weekend", "unknown"] {
+            let references = HoloCloudEvidencePresenter.evidenceReferences(
+                from: [metric(group: group, metricKey: "dynamic.finance_transactions.x.\(group)")]
+            )
+            let drilldown = references.first?.financeDrilldown
+            XCTAssertNil(drilldown?.keyword, "\(group) 不得作为关键词")
+            XCTAssertEqual(
+                Calendar.current.dateComponents([.day], from: drilldown!.start, to: drilldown!.end).day,
+                180,
+                "\(group) 无窗可算，保持快照窗口"
+            )
+        }
+    }
+
+    func test_分类分组下钻行为不变() {
+        let references = HoloCloudEvidencePresenter.evidenceReferences(from: [metric(group: "餐饮")])
+        XCTAssertEqual(references.first?.financeDrilldown?.keyword, "餐饮", "分类组仍按关键词预过滤")
+    }
+
     func test_非财务数据集证据保持静态() {
         let references = HoloCloudEvidencePresenter.evidenceReferences(
             from: [metric(dataset: "habit.daily", group: nil)]

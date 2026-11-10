@@ -1096,8 +1096,14 @@ struct AgentDeepAnalysisDetailSheet: View {
 
                             if let drilldown = item.drilldown, let onFinanceDrilldown {
                                 Button {
+                                    // 「点按核对」必达（2026-11-10 东林实报「点不进去直接退回」）：
+                                    // 报告页是全屏弹层，dismiss 动画未落定时深链要开的新页会被
+                                    // SwiftUI 静默丢弃（同窗单呈现规则，2026-10-14 识图复核同款
+                                    // 事故）——先收弹层，落定后再派发深链
                                     dismiss()
-                                    onFinanceDrilldown(drilldown)
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                                        onFinanceDrilldown(drilldown)
+                                    }
                                 } label: {
                                     evidenceCard(item)
                                 }

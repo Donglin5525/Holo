@@ -36,14 +36,24 @@ extension DeepLinkState {
     /// 报告证据「点按核对」→ 账单复核页的统一跳转入口。
     /// 聊天页 / 收藏夹等所有报告入口共用，避免 DeepLink 构造漂移。
     static func openFinanceEvidenceReview(_ drilldown: HoloRenderedFinanceDrilldown) {
-        let keyword = drilldown.keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var keyword = drilldown.keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var start = drilldown.start
+        var end = drilldown.end
+        // 存量报告治愈（2026-11-10 恩格尔报告实锤）：修复前落库的按月/日分组证据
+        // 把「2026-05」这类时间桶当关键词存了，点进去是空页。派发口统一转正：
+        // 时间桶形状 → 不带关键词、下钻到该桶时间窗（新报告已在渲染侧根治）
+        if let bucket = keyword, !bucket.isEmpty, HoloCloudEvidencePresenter.isTimeBucketKey(bucket) {
+            if let bucketStart = HoloCloudEvidencePresenter.timeBucketStart(of: bucket) { start = bucketStart }
+            if let bucketEnd = HoloCloudEvidencePresenter.timeBucketEnd(of: bucket) { end = min(bucketEnd, Date()) }
+            keyword = nil
+        }
         let normalizedKeyword = keyword?.isEmpty == false ? keyword : nil
         DeepLinkState.shared.navigate(to: .financeEvidenceReview(FinanceEvidenceReviewDeepLink(
             title: normalizedKeyword.map { String(localized: "\($0)数据依据") } ?? String(localized: "财务数据依据"),
             label: drilldown.label,
             keyword: normalizedKeyword,
-            start: drilldown.start,
-            end: drilldown.end,
+            start: start,
+            end: end,
             baselineStart: drilldown.baselineStart,
             baselineEnd: drilldown.baselineEnd,
             sourceEvidenceID: drilldown.sourceEvidenceID
