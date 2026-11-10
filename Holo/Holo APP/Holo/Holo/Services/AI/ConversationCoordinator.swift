@@ -975,15 +975,11 @@ final class ConversationCoordinator {
 
     // MARK: 退款语义识别（iOS 侧，零后端依赖）
 
-    /// 退款词表：不含「返还」（运营商充值返还等营销语义会误触发）
-    private static let refundKeywords = ["退款", "退货", "退费", "退了款", "退回"]
-
-    /// 收入话术是否带退款语义（原话/分类候选/名称 任一命中即算）
+    /// 收入话术是否带退款语义（原话/分类候选/名称 任一命中即算）。
+    /// 词表见 RefundSemantics（与手动「记一笔」退款引导共用）
     static func looksLikeRefund(text: String, data: [String: String]?) -> Bool {
         let haystacks = [text, data?["categoryCandidate"] ?? "", data?["note"] ?? ""]
-        return haystacks.contains { hay in
-            refundKeywords.contains { hay.localizedCaseInsensitiveContains($0) }
-        }
+        return haystacks.contains(where: RefundSemantics.matches)
     }
 
     /// 候选原交易的日期短文案（如「9月23日」），确认卡展示用

@@ -209,4 +209,154 @@ final class RefundEntryWalkthroughUITests: XCTestCase {
             .matching(NSPredicate(format: "label CONTAINS '¥7'")).firstMatch
         XCTAssertTrue(savedRow.waitForExistence(timeout: 8), "第二次 ✓ 完成记账：账本出现 ¥7 交易行")
     }
+
+    // MARK: - 手动记收入退款引导（11-10 拍板批次，原型 docs/design/2026-11-10-记一笔退款引导-原型.html）
+
+    /// 唯一名称串：候选匹配只认本测试造的原支出，防历史数据误命中
+    private var uniqueName: String {
+        "RGU" + String(Int(Date().timeIntervalSince1970) % 100_000)
+    }
+
+    /// 记一笔支出（键盘唤起 → 金额 → 名称 → 餐饮/午餐 → 保存），返回唯一名称
+    @discardableResult
+    private func recordExpense(name: String, amountKeys: [String]) throws {
+        let fab = app.buttons["finance.fab.addTransaction"].firstMatch
+        XCTAssertTrue(fab.waitForExistence(timeout: 8), "记账 FAB 存在")
+        fab.tap()
+
+        let amountDisplayEl = amountDisplay("transactionSheet.amountDisplay")
+        XCTAssertTrue(amountDisplayEl.waitForExistence(timeout: 6), "金额显示控件存在")
+        amountDisplayEl.tap()  // 11-09 改版：打开默认收起，点金额行唤起键盘
+        for k in amountKeys { key(k).tap() }
+
+        let nameField = app.textFields["名称"].firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 6), "名称输入框存在")
+        nameField.tap()
+        nameField.typeText(name)
+
+        let dining = app.buttons["餐饮"].firstMatch
+        XCTAssertTrue(dining.waitForExistence(timeout: 6), "一级分类「餐饮」存在")
+        dining.tap()
+        let lunch = app.buttons["午餐"].firstMatch
+        XCTAssertTrue(lunch.waitForExistence(timeout: 6), "二级分类「午餐」存在")
+        lunch.tap()
+
+        app.buttons["transactionSheet.saveButton"].firstMatch.tap()
+        sleep(2)
+    }
+
+    /// 全链：原支出 → 记收入名称带「退货」→ 提示条 → 弹层选候选 → 确认卡+金额带出 →
+    /// 保存 → 原支出带「已退」徽章
+    func test_manualIncomeRefundGuide_pick_link_save() throws {
+        let name = uniqueName
+        try enterFinance()
+        try recordExpense(name: name, amountKeys: ["8", "8"])
+
+        // 记收入：名称 = 原支出名 + 「退货」触发退款语义
+        let fab = app.buttons["finance.fab.addTransaction"].firstMatch
+        XCTAssertTrue(fab.waitForExistence(timeout: 8), "FAB 再次可用")
+        fab.tap()
+
+        let incomeSegment = app.buttons["transactionSheet.incomeSegment"].firstMatch
+        XCTAssertTrue(incomeSegment.waitForExistence(timeout: 6), "收入分段存在")
+        incomeSegment.tap()
+        // 收入域标志：宫格切到收入分类（防「收入」label 误中被遮元素、段没切过去）
+        XCTAssertTrue(app.buttons["工资收入"].firstMatch.waitForExistence(timeout: 6),
+                      "切收入后宫格出现收入分类")
+
+        let nameField = app.textFields["名称"].firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 6), "名称输入框存在")
+        nameField.tap()
+        nameField.typeText("\(name)退货")
+
+        // ── 提示条出现 ──
+        let pickButton = app.descendants(matching: .any)
+            .matching(identifier: "refundGuide.pickButton").firstMatch
+        if !pickButton.waitForExistence(timeout: 5) {
+            dumpHierarchy("afterRefundNameTyped")
+        }
+        XCTAssertTrue(pickButton.exists, "名称带退款词后提示条出现（选择原支出按钮）")
+
+        // ── 弹层：搜索框 + 候选行 + 降级出口 ──
+        pickButton.tap()
+        let searchField = app.textFields.matching(identifier: "refundPicker.searchField").firstMatch
+        if !searchField.waitForExistence(timeout: 8) {
+            dumpHierarchy("afterPickButtonTap")
+        }
+        XCTAssertTrue(searchField.exists, "候选弹层打开（搜索框）")
+        XCTAssertTrue(app.buttons["refundPicker.declineButton"].firstMatch.exists, "降级出口存在")
+
+        let candidateRow = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier == 'refundPicker.row' AND label CONTAINS %@", name))
+            .firstMatch
+        if !candidateRow.waitForExistence(timeout: 8) {
+            dumpHierarchy("candidateList")
+        }
+        XCTAssertTrue(candidateRow.exists, "推荐候选出现原支出（\(name)）")
+        candidateRow.tap()
+
+        // ── 确认卡 + 金额带出（金额未填时自动填可退余额 88）──
+        let linkedCard = element(labelContains: "将关联原支出")
+        XCTAssertTrue(linkedCard.waitForExistence(timeout: 6), "确认卡出现（将关联原支出）")
+        let incomeAmount = amountDisplay("transactionSheet.amountDisplay")
+        XCTAssertTrue(incomeAmount.waitForExistence(timeout: 4), "金额显示存在")
+        XCTAssertTrue(incomeAmount.label.hasSuffix("88"), "金额自动带出可退余额 88（实际 label=\(incomeAmount.label)）")
+
+        // ── 保存：退款笔落库，原支出带「已退」徽章 ──
+        app.buttons["transactionSheet.saveButton"].firstMatch.tap()
+        let refundedBadge = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS '已退'")).firstMatch
+        XCTAssertTrue(refundedBadge.waitForExistence(timeout: 10), "原支出出现「已退」徽章（退款笔落库）")
+    }
+
+    /// 降级出口：弹层点「没找到，直接按普通收入记录」→ 提示条收起不再骚扰
+    func test_manualIncomeRefundGuide_declineHidesHint() throws {
+        try enterFinance()
+
+        let fab = app.buttons["finance.fab.addTransaction"].firstMatch
+        XCTAssertTrue(fab.waitForExistence(timeout: 8), "记账 FAB 存在")
+        fab.tap()
+
+        let incomeSegment = app.buttons["transactionSheet.incomeSegment"].firstMatch
+        XCTAssertTrue(incomeSegment.waitForExistence(timeout: 6), "收入分段存在")
+        incomeSegment.tap()
+        // 收入域标志：宫格切到收入分类（防「收入」label 误中被遮元素、段没切过去）
+        XCTAssertTrue(app.buttons["工资收入"].firstMatch.waitForExistence(timeout: 6),
+                      "切收入后宫格出现收入分类")
+
+        let nameField = app.textFields["名称"].firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 6), "名称输入框存在")
+        nameField.tap()
+        nameField.typeText("退货")
+        XCTAssertEqual(nameField.value as? String ?? "", "退货", "名称框已输入触发词（实际=\(nameField.value ?? "nil")）")
+
+        // 提示条查询用 any 兜底（SwiftUI identifier 在 AX 树提升后元素类型不一定是 button，存量同坑）
+        let pickButton = app.descendants(matching: .any)
+            .matching(identifier: "refundGuide.pickButton").firstMatch
+        if !pickButton.waitForExistence(timeout: 5) {
+            XCTAssertTrue(element(labelContains: "看起来是退款").exists,
+                          "提示条存在但按钮标识不可见")
+            dumpHierarchy("hintBarButNoButtonID")
+        }
+        XCTAssertTrue(pickButton.exists, "提示条出现")
+        pickButton.tap()
+
+        let decline = app.buttons["refundPicker.declineButton"].firstMatch
+        XCTAssertTrue(decline.waitForExistence(timeout: 8), "候选弹层打开（降级出口存在）")
+        decline.tap()
+
+        let hintGone = NSPredicate(format: "exists == 0")
+        expectation(for: hintGone, evaluatedWith: pickButton)
+        waitForExpectations(timeout: 6)
+        XCTAssertFalse(pickButton.exists, "降级后提示条收起")
+    }
+
+    /// 进财务模块（首页→财务 tab，球体动画期间等待可命中）
+    private func enterFinance() throws {
+        let financeTab = app.buttons["财务"].firstMatch
+        XCTAssertTrue(financeTab.waitForExistence(timeout: 10), "财务入口存在")
+        for _ in 0..<4 where !financeTab.isHittable { sleep(2) }
+        financeTab.tap()
+        sleep(3)
+    }
 }

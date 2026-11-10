@@ -18,10 +18,12 @@ extension AddTransactionSheet {
     /// 支出/收入切换 Tab（分段控件：灰轨道 + 白色浮起选中块）
     var typeTabBar: some View {
         HStack(spacing: 0) {
-            typeSegmentButton(title: String(localized: "支出"), isSelected: transactionType == .expense) {
+            typeSegmentButton(title: String(localized: "支出"), isSelected: transactionType == .expense,
+                              accessibilityID: "transactionSheet.expenseSegment") {
                 switchType(to: .expense)
             }
-            typeSegmentButton(title: String(localized: "收入"), isSelected: transactionType == .income) {
+            typeSegmentButton(title: String(localized: "收入"), isSelected: transactionType == .income,
+                              accessibilityID: "transactionSheet.incomeSegment") {
                 switchType(to: .income)
             }
         }
@@ -38,7 +40,9 @@ extension AddTransactionSheet {
     }
 
     /// 分段按钮：选中=白块浮起（圆角 6 轻投影）+ 橙字 15pt；未选中=灰字
-    private func typeSegmentButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    private func typeSegmentButton(title: String, isSelected: Bool,
+                                   accessibilityID: String,
+                                   action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 15, weight: isSelected ? .medium : .regular))
@@ -52,6 +56,7 @@ extension AddTransactionSheet {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityID)
     }
 
     /// 分类网格区域（标题行已删：一级态「最近使用」直接顶卡头；下钻态仅留返回小胶囊）

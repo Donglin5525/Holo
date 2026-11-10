@@ -150,3 +150,20 @@ public class Transaction: NSManagedObject {
 // MARK: - Identifiable
 /// 用于 SwiftUI sheet(item:) 等
 extension Transaction: Identifiable {}
+
+/// 退款语义识别：AI 聊天与手动「记一笔」引导共用一套关键词，防两处漂移
+enum RefundSemantics {
+    /// 不含「返还」（运营商充值返还等营销语义会误触发）
+    static let keywords = ["退款", "退货", "退费", "退了款", "退回"]
+
+    /// 文本是否带退款语义
+    static func matches(_ text: String) -> Bool {
+        !text.isEmpty && keywords.contains { text.localizedCaseInsensitiveContains($0) }
+    }
+
+    /// 剔除退款词后的剩余文本（「优衣库退货」→「优衣库」），作原支出候选的匹配关键词
+    static func strippingKeywords(from text: String) -> String {
+        keywords.reduce(text) { $0.replacingOccurrences(of: $1, with: "") }
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "了的")))
+    }
+}

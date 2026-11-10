@@ -54,6 +54,12 @@ extension AddTransactionSheet {
             return
         }
 
+        // 退款关联态走独立保存路径（分类沿用原支出，不要求本单选分类）
+        if editingTransaction == nil, let link = refundLink {
+            Task { await saveLinkedRefundAsync(link, amount: amount) }
+            return
+        }
+
         guard let category = selectedCategory, category.isSubCategory else {
             signalSaveBlocked(reason: String(localized: "请先选择具体分类"))
             return
@@ -210,7 +216,7 @@ extension AddTransactionSheet {
 
             } catch {
                 logger.error("保存失败：\(error.localizedDescription)")
-                HoloToastCenter.shared.show(String(localized: "保存失败，请重试"), type: .error)
+                HoloToastCenter.shared.show(saveFailureMessage(for: error), type: .error)
             }
 
             // 编辑对象已删（转分期/取消分期）时不复位：复位会触发表单 body 重读已删对象而闪退
@@ -228,6 +234,12 @@ extension AddTransactionSheet {
         guard let amount = Decimal(string: absoluteAmountString), amount > 0,
               absoluteAmountString != "0" else {
             await MainActor.run { signalSaveBlocked(reason: String(localized: "请先输入金额")) }
+            return
+        }
+
+        // 退款关联态走独立保存路径（分类沿用原支出，不要求本单选分类）
+        if editingTransaction == nil, let link = refundLink {
+            await saveLinkedRefundAsync(link, amount: amount)
             return
         }
 
@@ -392,7 +404,7 @@ extension AddTransactionSheet {
         } catch {
             logger.error("保存失败：\(error.localizedDescription)")
             await MainActor.run {
-                HoloToastCenter.shared.show(String(localized: "保存失败，请重试"), type: .error)
+                HoloToastCenter.shared.show(saveFailureMessage(for: error), type: .error)
             }
         }
 
@@ -402,6 +414,76 @@ extension AddTransactionSheet {
                 isSaving = false
             }
         }
+    }
+
+    /// 退款关联态保存：落退款笔冲减原支出。原支出按 id 重新取回——
+    /// 弹层开着期间它可能被其他设备同步删除
+    func saveLinkedRefundAsync(_ link: RefundLink, amount: Decimal) async {
+        guard !isSaving else { return }
+        guard amount <= link.refundable else {
+            signalSaveBlocked(reason: String(localized: "超过可退余额 ¥\(link.refundable.formattedAsCurrency())"))
+            return
+        }
+        guard let original = repository.findTransaction(by: link.originalId) else {
+            unlinkRefund()
+            HoloToastCenter.shared.show(String(localized: "原支出已不存在，已取消关联"), type: .warning)
+            return
+        }
+
+        isSaving = true
+        let motionOperationID = UUID()
+
+        do {
+            let account: Account
+            if let selected = selectedAccount {
+                account = selected
+            } else if let defaultAcc = try await repository.getDefaultAccount() {
+                account = defaultAcc
+            } else {
+                isSaving = false
+                return
+            }
+
+            // 退款笔名称固定沿用原支出（列表里能对上原消费）；本单填的名称与补充备注并入备注，
+            // 名称只是「退款」「退货」这类触发词时不并入（纯噪音）
+            let nameForRemark = RefundSemantics.strippingKeywords(from: note).isEmpty ? "" : note
+            let remarkParts = [nameForRemark, remark]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+
+            let saved = try await repository.addRefundTransaction(
+                original: original,
+                amount: amount,
+                date: selectedDate,
+                account: account,
+                remark: remarkParts.isEmpty ? nil : remarkParts.joined(separator: " · ")
+            )
+
+            await attachPendingReceipts(to: saved)
+
+            HoloMotionFeedbackCenter.shared.saved(saved.id, domain: .finance, operationID: motionOperationID)
+            HapticManager.success()
+            onSave(saved)
+            dismiss()
+        } catch {
+            logger.error("退款保存失败：\(error.localizedDescription)")
+            HoloToastCenter.shared.show(saveFailureMessage(for: error), type: .error)
+        }
+
+        isSaving = false
+    }
+
+    /// 保存失败文案：金额护栏类业务错误如实说明原因（重试无用），其余统一兜底
+    func saveFailureMessage(for error: Error) -> String {
+        if let financeError = error as? FinanceError {
+            switch financeError {
+            case .refundExceedsOriginal, .originalBelowRefunded:
+                return financeError.localizedDescription
+            default:
+                break
+            }
+        }
+        return String(localized: "保存失败，请重试")
     }
 
     /// 删除交易（仅编辑模式）

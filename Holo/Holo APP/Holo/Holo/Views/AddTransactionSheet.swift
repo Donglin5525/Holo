@@ -139,6 +139,12 @@ struct AddTransactionSheet: View {
     @State var showCustomPeriods: Bool = false
     @State var customPeriodsText: String = ""
 
+    // 退款关联（手动记收入时的引导：关联原支出后落成退款笔，统计冲减其分类支出）
+    /// 已关联的原支出快照（nil=未关联，按普通收入保存）
+    @State var refundLink: RefundLink?
+    /// 用户已明确不关联（选了「直接按普通收入记录」/ 取消关联 / 改选分类）：本次不再提示
+    @State var refundHintDeclined: Bool = false
+
     /// 分期设置弹窗
     @State var showInstallmentSheet: Bool = false
 
@@ -242,6 +248,17 @@ struct AddTransactionSheet: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
                         .modifier(ShakeEffect(animatableData: CGFloat(saveBlockShake)))
+
+                    // 3.5 退款引导：紧贴名称输入框下方（触发源就在上面，分类宫格再高也不会把它挤出视野）。
+                    // 独立 struct 自带弹层，不往本视图的视图树与修饰链上叠体量
+                    RefundGuideSection(
+                        link: refundLink,
+                        showsHint: showsRefundHint,
+                        amount: refundGuideAmount,
+                        nameHint: note,
+                        onPick: linkRefund,
+                        onUnlink: unlinkRefund
+                    )
 
                     // 4. 中间滚动区（分类 + 信息）
                     // 排序会话激活时锁滚动：拖拽跟手位移不再与垂直滚动争抢
@@ -368,8 +385,17 @@ struct AddTransactionSheet: View {
         }
         .onChange(of: selectedCategory) { _, newValue in
             loadQuickTags(for: newValue)
+            // 关联态下改选分类（含切类型时被清空）= 改按普通收入记到这个分类 → 解除关联
+            // （关联本身不动 selectedCategory，这里触发必是用户操作）
+            if refundLink != nil {
+                unlinkRefund()
+            }
         }
         .onChange(of: transactionType) { _, newValue in
+            // 退款引导只属于收入域：切走后「已拒绝」不跨类型记忆
+            if newValue != .income {
+                refundHintDeclined = false
+            }
             // 挂靠记忆只在支出域生效（防「上次项目」误挂到收入——2026-10 bug 根源）：
             // 新增流程切收入清掉预选值；编辑流程切型保留（正在编辑的这笔归属用户最清楚）。
             // 切回支出时编辑模式回原交易挂靠、新增模式恢复上次记忆（preset 优先）
@@ -636,6 +662,8 @@ struct AddTransactionSheet: View {
               absoluteAmountString != "0" else {
             return false
         }
+        // 退款关联态：分类沿用原支出，不要求本单选分类
+        if refundLink != nil { return true }
         return selectedCategory?.isSubCategory == true
     }
 

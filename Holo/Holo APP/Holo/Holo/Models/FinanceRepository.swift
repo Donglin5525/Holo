@@ -1000,6 +1000,21 @@ class FinanceRepository {
         return refunds.reduce(Decimal(0)) { $0 + $1.amountAsDecimal }
     }
 
+    /// 全部原交易的累计已退金额（一次查询聚合）：候选列表批量算可退余额用，避免逐笔查库
+    func refundedTotalsByOriginal() async throws -> [UUID: Decimal] {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "refundOfTransactionId != nil"),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        var totals: [UUID: Decimal] = [:]
+        for refund in DuplicateRowFilter.deduplicatingCopies(try context.fetch(request)) {
+            guard let originalId = refund.refundOfTransactionId else { continue }
+            totals[originalId, default: 0] += refund.amountAsDecimal
+        }
+        return totals
+    }
+
     /// AI 退款识别的候选原交易匹配：近 90 天支出（非分期、有余量）按
     /// 金额吻合 > 名称/分类含关键词 > 时间近 排序，取前几条供确认卡选择。
     func findRefundCandidates(
@@ -1047,6 +1062,26 @@ class FinanceRepository {
             scored.append((tx, score))
         }
         return scored.sorted { $0.score > $1.score }.prefix(limit).map(\.tx)
+    }
+
+    /// 手动记退款的全量搜索：不限时间窗，支出（非分期、非退款笔、未删）按
+    /// 名称/分类名模糊匹配，时间近优先。推荐候选找不到时的兜底通道。
+    func searchRefundableExpenses(keyword: String, limit: Int = 20) async throws -> [Transaction] {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "note CONTAINS[cd] %@ OR remark CONTAINS[cd] %@ OR category.name CONTAINS[cd] %@",
+                keyword, keyword, keyword
+            ),
+            NSPredicate(format: "type == %@", TransactionType.expense.rawValue),
+            NSPredicate(format: "refundOfTransactionId == nil"),
+            NSPredicate(format: "installmentGroupId == nil"),
+            NSPredicate(format: "deletedAt == nil")
+        ])
+        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+        request.fetchLimit = limit
+        request.relationshipKeyPathsForPrefetching = ["category", "account"]
+        return DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
     }
 
     // MARK: - 搜索
