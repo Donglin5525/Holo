@@ -1054,8 +1054,9 @@ struct AgentDeepAnalysisDetailSheet: View {
                                     .font(.system(size: 13, weight: .bold))
                                     .foregroundColor(.holoTextPrimary.opacity(0.82))
 
+                                // 橙点=来源条数预览（封顶 8），与下方「N 条可核对来源」一致，免得像卡住的加载圈
                                 HStack(spacing: 4) {
-                                    ForEach(0..<min(evidence.count, 4), id: \.self) { _ in
+                                    ForEach(0..<min(evidence.count, 8), id: \.self) { _ in
                                         Circle()
                                             .fill(Color.holoPrimary.opacity(0.55))
                                             .frame(width: 5, height: 5)

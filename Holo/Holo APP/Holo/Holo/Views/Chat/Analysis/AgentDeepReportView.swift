@@ -57,6 +57,8 @@ struct AgentDeepReportView: View {
                 .fill(dark ? Color.white : Color.black)
                 .frame(height: 2.5)
         }
+        // 研报黑线为通栏（原型 .masthead border-bottom），不能缩成文字宽
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var titleBlock: some View {
@@ -98,6 +100,8 @@ struct AgentDeepReportView: View {
                     .foregroundColor(dark ? .white : .holoTextPrimary)
             }
             .padding(.bottom, 12)
+            // 章节细线为通栏（原型 .sec-h border-bottom），不能缩成标题文字宽
+            .frame(maxWidth: .infinity, alignment: .leading)
             .overlay(alignment: .bottom) {
                 Rectangle().fill(Color.holoTextSecondary.opacity(0.18)).frame(height: 1)
             }
@@ -221,18 +225,40 @@ struct AgentDeepReportView: View {
                 .font(.system(size: 12, weight: .bold))
                 .tracking(2)
                 .foregroundColor(.holoTextSecondary)
-                .padding(.top, 44)
+                // 原型 .disclosure 顺序：外间距44 → 通栏细线 → 内间距18 → 标题。
+                // 顺序反了线会贴进上一段正文末行、又被标题字宽收窄，看着像错位的下划线。
+                .padding(.top, 18)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .overlay(alignment: .top) {
                     Rectangle().fill(Color.holoTextSecondary.opacity(0.18)).frame(height: 1)
                 }
+                .padding(.top, 44)
             ForEach(report.disclosureNotes, id: \.self) { note in
-                Text(note)
-                    .font(.system(size: 12.5))
-                    .foregroundColor(.holoTextSecondary)
-                    .lineSpacing(4)
+                Self.disclosureNote(note)
                     .padding(.top, 9)
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    /// 数据说明条目：后端字符串自带「·」前缀，改悬挂缩进——续行与首行文字对齐，不顶到符号下方。
+    @ViewBuilder
+    static func disclosureNote(_ note: String) -> some View {
+        if note.hasPrefix("·") {
+            HStack(alignment: .top, spacing: 6) {
+                Text("·")
+                    .font(.system(size: 12.5))
+                    .foregroundColor(.holoTextSecondary)
+                Text(note.dropFirst(1).drop(while: { $0 == " " }))
+                    .font(.system(size: 12.5))
+                    .foregroundColor(.holoTextSecondary)
+                    .lineSpacing(4)
+            }
+        } else {
+            Text(note)
+                .font(.system(size: 12.5))
+                .foregroundColor(.holoTextSecondary)
+                .lineSpacing(4)
         }
     }
 
@@ -282,6 +308,7 @@ struct AgentDeepReportView: View {
                 .foregroundColor(dark ? .white : .holoTextPrimary)
         }
         .padding(.bottom, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.holoTextSecondary.opacity(0.18)).frame(height: 1)
         }
