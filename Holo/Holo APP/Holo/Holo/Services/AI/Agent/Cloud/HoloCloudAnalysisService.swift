@@ -178,7 +178,8 @@ final class HoloCloudAnalysisService {
         sourceMessageID: UUID,
         scenario: AnalysisScenario? = nil,
         goalScope: HoloAgentGoalScope? = nil,
-        goalReview: GoalEvaluationSnapshot? = nil
+        goalReview: GoalEvaluationSnapshot? = nil,
+        parentReportBrief: String? = nil
     ) async -> HoloCloudAttemptOutcome {
         guard HoloAIFeatureFlags.cloudDeepAnalysisEnabled else { return .unavailable(.featureDisabled) }
         guard Self.privacyConsented else { return .unavailable(.needsConsent) }
@@ -208,7 +209,8 @@ final class HoloCloudAnalysisService {
                 scenario: scenario,
                 userQuestion: question,
                 goalScope: goalScope,
-                goalReview: goalReview
+                goalReview: goalReview,
+                parentReportBrief: parentReportBrief
             )
             let started = try await client.start(question: question)
             try Task.checkCancellation()
@@ -246,6 +248,29 @@ final class HoloCloudAnalysisService {
         }
     }
 
+    /// 追问上云（2026-11-10 东林拍板：追问与深度分析同通道）：把父报告压缩成
+    /// 随快照上行的结论摘要。父身份只认消息库 canonical 重读（对齐本地 Runtime
+    /// 的 cloudParentLoader 方案B——云端 ack 即焚不落档案），UI 回传文本不可信。
+    /// 读不到父报告时退化为根问题+关系标签：指代仍有最低限度的锚，不阻塞追问。
+    nonisolated static func makeParentReportBrief(
+        draft: HoloAgentContinuationDraft
+    ) async -> String? {
+        let rootLine = "【父报告】根问题：\(draft.rootUserQuestion)"
+        let relationLine = "追问关系：\(draft.relation.shortLabel)"
+        guard let parent = await ChatMessageRepository.shared.loadRenderedResultByResultID(draft.parentResultID) else {
+            return "\(rootLine)\n\(relationLine)\n（父报告正文已不可读，仅根问题作锚）"
+        }
+        var lines: [String] = [rootLine, relationLine, "父报告结论（背景指代用，本轮结论须重新查工具取证，不得直接沿用这些数字）："]
+        lines.append("· 标题：\(parent.title)")
+        if !parent.summary.isEmpty { lines.append("· 摘要：\(parent.summary)") }
+        for section in parent.sections.prefix(8) {
+            let body = section.body.count > 160 ? String(section.body.prefix(160)) + "…" : section.body
+            lines.append("· \(section.title)：\(body)")
+        }
+        let joined = lines.joined(separator: "\n")
+        return joined.count > 1600 ? String(joined.prefix(1600)) + "…" : joined
+    }
+
     /// 周期回放云端轨道（2026-09-01 云端化统一）：
     /// 素材 = iOS 聚合的回放上下文（含健康摘要——东林拍板方案 C），复用任务底座
     /// （密文上传/轮询/推送/即焚）；完成/失败经 periodReplay 回调交回 Coordinator。
@@ -269,7 +294,7 @@ final class HoloCloudAnalysisService {
         do {
             // 与本地生成共用同一份聚合器（素材口径零漂移；健康摘要随素材上云）
             let builder = MemoryInsightContextBuilder()
-            let (context, snapshotHash) = try await builder.build(periodType: periodType, start: start, end: end)
+            let (context, snapshotHash) = await builder.build(periodType: periodType, start: start, end: end)
             let material = try JSONEncoder().encode(context)
             let started = try await client.start(question: "period_replay", taskType: "period_replay")
             try Task.checkCancellation()
@@ -346,7 +371,7 @@ final class HoloCloudAnalysisService {
                         // 回放失败统一回落本地执行链（Coordinator 接管）：额度类失败由本地
                         // 生成路径撞额度墙后落标准额度卡，其余按本地重试语义续跑——
                         // 云端/本地同一套终态呈现。
-                        periodReplayProgressHandler?(context.messageID, "云端生成中断", "正在改在本地继续…")
+                        periodReplayProgressHandler?(context.messageID, "云端生成中断", "这次回放没有生成完整，稍后重试即可。")
                         periodReplayFallbackHandler?(context.messageID)
                         return
                     }

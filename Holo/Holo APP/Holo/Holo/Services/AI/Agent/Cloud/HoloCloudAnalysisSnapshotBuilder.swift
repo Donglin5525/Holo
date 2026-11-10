@@ -83,6 +83,10 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         var profileBrief: String? = nil
         /// 用户在「一个发现」确认过的理解（高信度背景，东林 2026-11-08 拍板接入）。
         var confirmedKnowledgeBrief: String? = nil
+        /// 追问上云（2026-11-10 东林拍板：追问与深度分析同通道）：父报告结论摘要。
+        /// 由消息库 canonical 重读父报告后压缩上行，云端注入 <parent_report_context>；
+        /// 旧后端忽略；nil 时不编码该键。
+        var parentReportBrief: String? = nil
     }
 
     enum JSONValue: Encodable {
@@ -160,7 +164,8 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
         scenario: AnalysisScenario? = nil,
         userQuestion: String? = nil,
         goalScope: HoloAgentGoalScope? = nil,
-        goalReview: GoalEvaluationSnapshot? = nil
+        goalReview: GoalEvaluationSnapshot? = nil,
+        parentReportBrief: String? = nil
     ) async throws -> Data {
         let start = Calendar.current.date(byAdding: .day, value: -historyDays, to: now) ?? now
         let range = HoloAgentTimeRange(label: "云端分析快照窗口", start: start, end: now)
@@ -293,7 +298,8 @@ nonisolated enum HoloCloudAnalysisSnapshotBuilder {
             goalScope: goalScope,
             goalReview: goalReview,
             profileBrief: profileBrief,
-            confirmedKnowledgeBrief: confirmedBrief
+            confirmedKnowledgeBrief: confirmedBrief,
+            parentReportBrief: parentReportBrief
         )
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

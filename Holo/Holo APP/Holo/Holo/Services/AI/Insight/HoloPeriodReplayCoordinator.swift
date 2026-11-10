@@ -60,7 +60,9 @@ final class HoloPeriodReplayCoordinator {
         cloud.periodReplayFallbackHandler = { [weak self] messageId in
             guard let self else { return }
             guard let job = self.repository.periodReplayJob(messageId: messageId) else { return }
-            self.schedule(messageId: messageId, job: job)
+            // 软退役（2026-11-10 东林拍板本地分析退役）：云端生成中断不再回落
+            // 本地执行链——诚实失败卡，重试即重新走云端（与深度分析 9-11 口径一致）
+            self.markFailed(messageId: messageId, job: job, category: "CLOUD_INTERRUPTED")
         }
         cloud.cloudTaskSlotReleasedHandler = { [weak self] in
             // 云端任务位已释放：唤醒因单飞排队的回放（含云端失败回落后排队的那个）
@@ -245,7 +247,9 @@ final class HoloPeriodReplayCoordinator {
                     sourceMessageID: cloudMessageId
                 )
                 if !handled {
-                    self.schedule(messageId: cloudMessageId, job: job)
+                    // 软退役（2026-11-10）：云端未接管（功能关闭/未同意隐私/任务位
+                    // 占用）不再回落本地生成——诚实失败卡
+                    self.markFailed(messageId: cloudMessageId, job: job, category: "CLOUD_UNAVAILABLE")
                 }
             }
             return
@@ -265,8 +269,8 @@ final class HoloPeriodReplayCoordinator {
               existing.insightStatus == .ready,
               existing.parsedPayload != nil else { return nil }
         let builder = MemoryInsightContextBuilder()
-        guard let (_, snapshotHash) = try? await builder.build(periodType: periodType, start: start, end: end),
-              snapshotHash == existing.sourceSnapshotHash else { return nil }
+        let (_, snapshotHash) = await builder.build(periodType: periodType, start: start, end: end)
+        guard snapshotHash == existing.sourceSnapshotHash else { return nil }
         return existing
     }
 

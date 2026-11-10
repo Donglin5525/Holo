@@ -129,7 +129,9 @@ final class HoloMemorySettings: ObservableObject {
         static let runtimeEnabled = true
         static let debugModeEnabled = false
         static let memoryGalleryEnabled = true
-        static let observerTier2Enabled = true
+        // 软退役（2026-11-10 东林拍板本地分析退役）：记忆观察者 Tier2 自动触发
+        // 的深度分析退役——无人值守上云与隐私承诺冲突，且本地通道已收口
+        static let observerTier2Enabled = false
         static let stepIdempotencyEnabled = true
         static let continuedProcessingEnabled = true
     }

@@ -409,7 +409,8 @@ final class ChatViewModel: ObservableObject {
         question: String,
         aiMessageId: UUID,
         intent: String?,
-        scenario: AnalysisScenario? = nil
+        scenario: AnalysisScenario? = nil,
+        parentReportBrief: String? = nil
     ) async -> Bool {
         if !HoloCloudAnalysisService.privacyConsented {
             // 首次使用：弹隐私说明并把本次分析挂起；确认后续跑上云，关闭则落不可用卡
@@ -430,7 +431,8 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
         switch await HoloCloudAnalysisService.shared.attempt(
             question: question,
             sourceMessageID: aiMessageId,
-            scenario: scenario
+            scenario: scenario,
+            parentReportBrief: parentReportBrief
         ) {
         case .handled:
             return true
@@ -1425,24 +1427,85 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
                         }
                     }
                     // 云端独占轨道（2026-09-11 拍板）：深度分析只走云端，失败落诚实卡片
-                    // 不再回落本地；周计划与续跑仍走本地轨道（下方 runAnalysis）。
+                    // 不再回落本地。追问上云 + 周计划上云（2026-11-10 东林拍板本地分析
+                    // 软退役）：分析类追问（executeFromResult 已在上方分流处置 nil）与
+                    // 周计划固定问句同样走云端轨道，本地分析入口至此全部收口。
                     // 显式场景随问题上云（P1 冻结任务）：改写问句不丢场景。
-                    if !isWeeklyPlanning, continuation == nil {
+                    if isWeeklyPlanning {
+                        // 周计划：固定问句走云端深度分析，完成后从消息库读回 rendered
+                        // 组装计划卡；云端不可用/失败=诚实卡片，不回落本地。
+                        let weeklyQuestion = "汇总我最近一周的生活数据快照：任务完成与逾期、习惯打卡、支出结构、睡眠与活动、想法主题；列出其中显著的变化与异常（附数据依据）。不需要深挖单个域，快照汇总即可，供制定本周生活计划使用"
                         let cloudFinished = await self.runCloudOnlyAnalysis(
-                            question: text,
+                            question: weeklyQuestion,
                             aiMessageId: aiMessageId,
-                            intent: processResult.firstIntent?.rawValue,
-                            scenario: explicitScenario
+                            intent: processResult.firstIntent?.rawValue
                         )
+                        progressPoller.cancel()
                         if cloudFinished {
-                            progressPoller.cancel()
+                            if let rendered = await self.chatRepo?.loadRenderedResultByMessageID(aiMessageId),
+                               rendered.failure == nil {
+                                await self.finalizeWeeklyPlanning(
+                                    aiMessageId: aiMessageId,
+                                    rendered: rendered,
+                                    intent: processResult.firstIntent?.rawValue,
+                                    userContext: userContext
+                                )
+                            } else if await self.chatRepo?.loadRenderedResultByMessageID(aiMessageId) == nil {
+                                // 云端已终局但结果读不回（竞态/损坏）：诚实失败，不留转圈
+                                self.chatRepo?.finalizeMessage(
+                                    aiMessageId,
+                                    finalContent: "本周计划的数据分析没有完成，重新发起即可重试。",
+                                    intent: processResult.firstIntent?.rawValue,
+                                    extractedDataJSON: nil,
+                                    parsedBatchJSON: nil,
+                                    executionBatchJSON: nil,
+                                    analysisContextJSON: nil,
+                                    rawLogJSON: nil,
+                                    agentResultJSON: nil
+                                )
+                            }
                             self.concludeStreamingSession(aiMessageId: aiMessageId)
                             return
                         }
-                        // 云端轨道因用户点「停止」而退出：取消语义到此为止，
-                        // 不得再启动本地全量分析（结果不展示但额度照烧）
+                        // 用户点「停止」退出云端轨道：取消语义到此为止，不回落本地
                         try Task.checkCancellation()
+                        return
                     }
+                    var parentBrief: String? = nil
+                    if let continuation {
+                        parentBrief = await HoloCloudAnalysisService.makeParentReportBrief(draft: continuation)
+                    }
+                    let cloudFinished = await self.runCloudOnlyAnalysis(
+                        question: text,
+                        aiMessageId: aiMessageId,
+                        intent: processResult.firstIntent?.rawValue,
+                        scenario: explicitScenario,
+                        parentReportBrief: parentBrief
+                    )
+                    if cloudFinished {
+                        progressPoller.cancel()
+                        self.concludeStreamingSession(aiMessageId: aiMessageId)
+                        return
+                    }
+                    // 云端轨道因用户点「停止」而退出：取消语义到此为止，
+                    // 不得再启动本地全量分析（结果不展示但额度照烧）
+                    try Task.checkCancellation()
+                    // 软退役（2026-11-10 东林拍板）：云端未终局且非用户取消的理论
+                    // 边缘同样不回落本地——诚实收尾，本地 runAnalysis 至此不可达
+                    self.chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: "这次分析没有完成，重新提问即可重试。",
+                        intent: processResult.firstIntent?.rawValue,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        analysisContextJSON: nil,
+                        rawLogJSON: nil,
+                        agentResultJSON: nil
+                    )
+                    progressPoller.cancel()
+                    self.concludeStreamingSession(aiMessageId: aiMessageId)
+                    return
                     let rendered = await self.analysisService.runAnalysis(
                         question: isWeeklyPlanning
                             ? "汇总我最近一周的生活数据快照：任务完成与逾期、习惯打卡、支出结构、睡眠与活动、想法主题；列出其中显著的变化与异常（附数据依据）。不需要深挖单个域，快照汇总即可，供制定本周生活计划使用"
@@ -2837,9 +2900,12 @@ HoloCloudPushTokenService.shared.requestAuthorizationAndRegister()
         // 分期入账为 Plus 权益：非 Plus 先弹付费墙，购买成功后自动续上本次确认
         if batch.items[pendingIndex].renderData?["installmentEnabled"] == "true",
            !HoloEntitlementState.shared.isPlusActive {
-            HoloPlusActionCoordinator.shared.requirePlus(context: .financeInstallment) { [weak self] in
-                self?.confirmPendingTransaction(from: message, itemID: itemID)
-            }
+            HoloPlusActionCoordinator.shared.requirePlus(
+                context: .financeInstallment,
+                onDismiss: { [weak self] in
+                    self?.confirmPendingTransaction(from: message, itemID: itemID)
+                }
+            )
             return
         }
         confirmingItemIds.insert(itemId)

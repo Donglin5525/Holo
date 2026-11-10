@@ -114,9 +114,12 @@ final class ConversationCoordinator {
         ]
         guard !executionIntents.contains(intent) else { return false }
         if intent == "query_analysis" { return true }
-        // 每周生活计划：走 Agent 深度分析拿证据与结论，完成后由生成服务组装计划
+        // 每周生活计划：走云端深度分析拿证据与结论，完成后由生成服务组装计划
+        // （2026-11-10 上云，见 ChatViewModel 云端轨道）
         if intent == "weekly_planning" { return true }
-        return intent == "flexible_data_query" && HoloAgentDynamicQueryFlags.enabled
+        // 软退役（2026-11-10 东林拍板本地分析退役）：自由数据查询不再走本地
+        // Agent——回落旧的结构化查询路径（轻量确定性，不上云不烧快照）
+        return false
     }
 
     // MARK: - Main Entry

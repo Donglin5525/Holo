@@ -2029,6 +2029,33 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// 按消息 ID 读回该消息的 canonical rendered（周计划上云：云端分析完成后
+    /// 由 ChatViewModel 读回结果组装计划卡）。agentResultJSON 是云端结果的
+    /// 权威存储；读不回或解码失败返回 nil，调用方落诚实失败卡。
+    func loadRenderedResultByMessageID(_ messageID: UUID) async -> HoloRenderedAgentResult? {
+        await CoreDataStack.shared.waitUntilReady()
+        do {
+            return try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = ["agentResultJSON"]
+                    request.predicate = NSPredicate(format: "id == %@ AND deletedAt == nil", messageID as CVarArg)
+                    request.fetchLimit = 1
+                    guard let row = try context.fetch(request).first,
+                          let json = row["agentResultJSON"] as? String,
+                          let data = json.data(using: .utf8),
+                          let rendered = try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data)
+                    else { return nil }
+                    return rendered
+                }
+            }.value
+        } catch {
+            return nil
+        }
+    }
+
     /// 按 agentResultID 从消息库重读云端报告的 canonical rendered（追问方案B）。
     /// 云端结果 ack 即焚、不落本地 Job/Result 档案——消息库里的 agentResultJSON 就是它的权威存储；
     /// Runtime 追问时经此重读父报告内容，不经 UI，防篡改语义与本地档案路径一致。
