@@ -141,7 +141,7 @@ final class HoloKnowledgeMigrationEngine: Sendable {
                         issuedAt: now
                     )
                 }
-                receipt.detail = "\(receipt.detail)|retired:\(priors.count)"
+                receipt.detail = "\(receipt.detail ?? "")|retired:\(priors.count)"
             }
 
             try await repository.saveKnowledgeRevisionAndOperation(

@@ -55,10 +55,10 @@ struct ThoughtSidebarView: View {
         VStack(alignment: .leading, spacing: 0) {
             // 标题与范围入口固定，长列表滚动时不再穿过状态栏。
             topSection
-                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.horizontal, ThoughtLayout.pageInset)
                 .padding(.top, HoloSpacing.md)
             sectionPicker
-                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.horizontal, ThoughtLayout.pageInset)
                 .padding(.top, HoloSpacing.md)
                 .padding(.bottom, HoloSpacing.sm)
 
@@ -72,14 +72,14 @@ struct ThoughtSidebarView: View {
                     }
                     bottomToolsSection
                 }
-                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.horizontal, ThoughtLayout.pageInset)
                 .padding(.top, HoloSpacing.sm)
                 .padding(.bottom, HoloSpacing.xl)
             }
             .clipped()
 
             archivedSection
-                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.horizontal, ThoughtLayout.pageInset)
                 .padding(.vertical, HoloSpacing.xs)
         }
         .background(Color.holoToolSurface)
@@ -122,7 +122,7 @@ struct ThoughtSidebarView: View {
             activeSection = section
         } label: {
             Text(title)
-                .holoText(.supporting)
+                .font(ThoughtLayout.secondary)
                 .fontWeight(activeSection == section ? .semibold : .regular)
                 .foregroundColor(activeSection == section ? .holoPrimary : .holoToolTextSecondary)
                 .frame(maxWidth: .infinity, minHeight: 44)
@@ -204,10 +204,10 @@ struct ThoughtSidebarView: View {
     // MARK: - 顶部固定区
 
     private var topSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+        VStack(alignment: .leading, spacing: ThoughtLayout.detailGap) {
             HStack {
                 Text("想法")
-                    .holoText(.pageTitle)
+                    .font(ThoughtLayout.title)
                     .foregroundColor(.holoToolText)
 
                 Spacer()
@@ -309,11 +309,11 @@ struct ThoughtSidebarView: View {
                 .foregroundColor(.holoToolAction)
             VStack(alignment: .leading, spacing: 2) {
                 Text(cluster.name?.isEmpty == false ? cluster.name! : "新的主题方向")
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoToolText)
                     .lineLimit(1)
                 Text("\(cluster.memberIDs.count) 条相关想法")
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoToolTextSecondary)
             }
             Spacer(minLength: 0)
@@ -321,7 +321,7 @@ struct ThoughtSidebarView: View {
                 Task { await establishSuggestedTopic(cluster) }
             } label: {
                 Text("建立")
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
                     .padding(.horizontal, 10)
@@ -468,13 +468,13 @@ struct ThoughtSidebarView: View {
                                 Text(currentEmoji)
                                     .font(.system(size: 15))
                                 Text(node.displayName)
-                                    .holoText(.body)
+                                    .font(ThoughtLayout.body)
                                     .fontWeight(isSelected ? .semibold : .regular)
                                     .foregroundColor(isSelected ? .holoPrimary : .holoToolText)
                                     .lineLimit(1)
                             } else {
                                 Text("#" + node.displayName)
-                                    .holoText(.body)
+                                    .font(ThoughtLayout.body)
                                     .fontWeight(isSelected ? .semibold : .regular)
                                     .foregroundColor(isSelected ? .holoPrimary : .holoToolText)
                                     .lineLimit(1)
@@ -561,13 +561,13 @@ struct ThoughtSidebarView: View {
 
     /// 危险/低频操作不与「全部想法」同级争主导航位（flomo 改版批2：数据清理下沉）
     private var bottomToolsSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+        VStack(alignment: .leading, spacing: ThoughtLayout.detailGap) {
             Divider()
             Button {
                 showClearThoughtSheet = true
             } label: {
                 Label("数据清理…", systemImage: "trash")
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoToolTextSecondary)
                     .frame(minHeight: 44, alignment: .leading)
                     .padding(.horizontal, HoloSpacing.sm)
@@ -583,15 +583,15 @@ struct ThoughtSidebarView: View {
                                               emptyText: String = "",
                                               isEmpty: Bool = false,
                                               @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+        VStack(alignment: .leading, spacing: ThoughtLayout.detailGap) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .holoText(.metadata)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoToolTextSecondary)
                 // P1 §3.1 身份说明：一句话讲清这组入口「是谁的」（标签=你写的 / 主题=Holo 串的）
                 if let subtitle {
                     Text(subtitle)
-                        .font(.holoTinyLabel)
+                        .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoTextPlaceholder)
                         .lineLimit(1)
                 }
@@ -601,7 +601,7 @@ struct ThoughtSidebarView: View {
             .padding(.bottom, 2)
             if isEmpty, !emptyText.isEmpty {
                 Text(emptyText)
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoToolTextSecondary)
                     .padding(.horizontal, HoloSpacing.sm)
                     .padding(.vertical, 6)
@@ -628,7 +628,7 @@ struct ThoughtSidebarView: View {
                     .frame(width: 22)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
-                        .holoText(.body)
+                        .font(ThoughtLayout.body)
                         // 选中态不只靠颜色（深色模式/色觉友好），字重同步变化
                         .fontWeight(isSelected ? .semibold : .regular)
                         .foregroundColor(isSelected ? .holoPrimary : .holoToolText)
@@ -636,7 +636,7 @@ struct ThoughtSidebarView: View {
                     // P1 §3.1 主题行副标题：成员数（与侧栏计数/详情同口径的投影计数）
                     if let subtitle {
                         Text(subtitle)
-                            .font(.holoTinyLabel)
+                            .font(ThoughtLayout.metadata)
                             .foregroundColor(.holoTextPlaceholder)
                             .lineLimit(1)
                     }

@@ -23,9 +23,9 @@ struct ExpandableText: View {
     let text: String
     var lineLimit: Int = 5
     /// 想法正文使用系统 Body Regular，与编辑器和详情页共用同一阅读基线。
-    var font: Font = .body
+    var font: Font = ThoughtLayout.body
     var color: Color = .holoTextPrimary
-    var lineSpacing: CGFloat = 6
+    var lineSpacing: CGFloat = ThoughtLayout.bodyLineSpacing
 
     // MARK: - 状态
 
@@ -71,7 +71,7 @@ struct ExpandableText: View {
             }
         } label: {
             Text(isExpanded ? String(localized: "收起") : String(localized: "展开"))
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoPrimary)
         }
     }

@@ -305,7 +305,7 @@ enum HoloContextChatPlanner {
         if let client {
             cloudClient = client
         } else {
-            cloudClient = await HoloCloudAnalysisClient()
+            cloudClient = HoloCloudAnalysisClient()
         }
         let start = try await cloudClient.start(question: utterance, taskType: "context_plan")
         let snapshot = try JSONSerialization.data(

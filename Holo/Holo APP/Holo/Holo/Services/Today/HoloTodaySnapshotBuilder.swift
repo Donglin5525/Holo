@@ -122,7 +122,7 @@ enum HoloTodaySnapshotBuilder {
 
         var scheduleCandidates: [HoloTodayScheduleCandidate] = []
         var agendaItems: [HoloTodayAgendaItem] = []
-        var sectionAgendaFailed = false
+        let sectionAgendaFailed = false
 
         // 日程：ScheduleStore 当日缓存（同步读取，不触发重新加载）。
         if ScheduleStore.shared.isEnabled, ScheduleStore.shared.authorizationStatus == .fullAccess {

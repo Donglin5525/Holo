@@ -901,7 +901,7 @@ struct RefundEntrySheet: View {
                 Spacer()
                 Menu {
                     ForEach(accounts, id: \.id) { account in
-                        Button(account.name ?? "") {
+                        Button(account.name) {
                             selectedAccount = account
                         }
                     }

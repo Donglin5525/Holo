@@ -11,7 +11,7 @@
 
 import Foundation
 
-struct SleepStructureAnalyzer {
+nonisolated struct SleepStructureAnalyzer {
 
     typealias Interval = HealthSleepSampleAggregator.Interval
 

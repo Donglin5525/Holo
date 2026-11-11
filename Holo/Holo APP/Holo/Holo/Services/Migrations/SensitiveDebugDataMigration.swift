@@ -11,7 +11,7 @@ enum SensitiveDebugDataMigration {
     private static let keychainCompletionAccount = "com.holo.migration.sensitiveDebugData.v1"
 
     private static var hasCompletedInKeychain: Bool {
-        var query: [String: Any] = [
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: keychainCompletionAccount,
             kSecReturnData as String: true,

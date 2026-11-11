@@ -110,7 +110,7 @@ nonisolated enum AttachmentImageLoader {
                                        ownerID: UUID?) async -> Data? {
         await Task.detached(priority: .userInitiated) { () -> Data? in
             let context = CoreDataStack.shared.persistentContainer.newBackgroundContext()
-            let blob = try? await context.perform {
+            let blob = await context.perform {
                 (try? context.existingObject(with: objectID))?.value(forKey: key) as? Data
             }
             if let blob { return blob }

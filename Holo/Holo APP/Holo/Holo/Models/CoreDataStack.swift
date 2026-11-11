@@ -573,7 +573,7 @@ nonisolated class CoreDataStack: @unchecked Sendable {
     /// （`store.sqlite.conflict-backup-` 前缀匹配不到 `-wal`/`-shm` 备份，
     /// 导出清单会漏掉 WAL 中尚未合并的内容）。
     private nonisolated static func recordConflictRecoveryMarker(storeURL: URL?, backup: ConflictBackupResult, logger: Logger) {
-        guard let storeURL, let markerURL = conflictRecoveryMarkerURL else {
+        guard storeURL != nil, let markerURL = conflictRecoveryMarkerURL else {
             logger.error("冲突恢复标记写入失败：无法定位标记路径")
             return
         }

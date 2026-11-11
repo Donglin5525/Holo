@@ -51,7 +51,7 @@ struct ThoughtOrganizationSettingsView: View {
                             Text(excludedTagCount > 0
                                  ? "\(excludedTagCount) 个标签已排除"
                                  : "未设置")
-                                .font(.holoCaption)
+                                .font(ThoughtLayout.secondary)
                                 .foregroundStyle(Color.holoTextSecondary)
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 13))
@@ -84,7 +84,7 @@ struct ThoughtOrganizationSettingsView: View {
                             LabeledContent("最近整理", value: last.formatted(.relative(presentation: .named)))
                         } else if stats.activeItems == 0 {
                             Text("还没有开始整理，保持 App 打开会自动进行")
-                                .font(.holoCaption).foregroundStyle(Color.holoTextSecondary)
+                                .font(ThoughtLayout.secondary).foregroundStyle(Color.holoTextSecondary)
                         }
                         // 类别理解（零打扰管线）：进度可见，等待期不再像「没生效」
                         if let briefStats {
@@ -100,12 +100,12 @@ struct ThoughtOrganizationSettingsView: View {
                         // 等待原因只保留一条：与主题发现状态撞同一文案时去重，避免同句提示重复出现
                         if let reason = stats.waitingReason {
                             Text(ThoughtSemanticRetryPolicy.userMessage(for: reason))
-                                .font(.holoCaption).foregroundStyle(Color.holoTextSecondary)
+                                .font(ThoughtLayout.secondary).foregroundStyle(Color.holoTextSecondary)
                         } else if newTopics, let discoveryMessage, discoveryMessage != ThoughtSemanticRetryPolicy.userMessage(for: stats.waitingReason ?? "") {
-                            Text(discoveryMessage).font(.holoCaption).foregroundStyle(Color.holoTextSecondary)
+                            Text(discoveryMessage).font(ThoughtLayout.secondary).foregroundStyle(Color.holoTextSecondary)
                         }
                         Text("处理完成的笔记不一定需要归类；只有原文支持具体主题时才会归入。")
-                            .font(.holoCaption).foregroundStyle(Color.holoTextSecondary)
+                            .font(ThoughtLayout.secondary).foregroundStyle(Color.holoTextSecondary)
                     } else { Text("正在准备智能整理") }
                     // 未授权/已关闭时这个按钮永远不可用，藏掉而不是灰着占一行
                     if automatic && granted {
@@ -122,7 +122,7 @@ struct ThoughtOrganizationSettingsView: View {
                                 Task { await ThoughtSemanticPipeline.shared.kickQueue() }
                             }
                         }.disabled(busy)
-                        if let message { Text(message).font(.holoCaption).foregroundStyle(Color.holoTextSecondary) }
+                        if let message { Text(message).font(ThoughtLayout.secondary).foregroundStyle(Color.holoTextSecondary) }
                     }
                 }
                 Section {

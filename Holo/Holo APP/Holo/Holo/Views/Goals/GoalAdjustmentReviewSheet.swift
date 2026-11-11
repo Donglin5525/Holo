@@ -58,8 +58,8 @@ struct GoalAdjustmentReviewSheet: View {
                     if containsFundSchedule { fundRecomputeCard }
                     if containsCriteriaChange { criteriaConfirmCard }
                     if containsBudgetUpdate { budgetConfirmCard }
-                    if let appliedSummary { appliedCard }
-                    if let errorText { errorCard }
+                    if appliedSummary != nil { appliedCard }
+                    if errorText != nil { errorCard }
                 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.md)
@@ -209,7 +209,7 @@ struct GoalAdjustmentReviewSheet: View {
     private var existingBudgetStatus: (spent: Decimal, remaining: Decimal)? {
         guard let rule = draft.selectedOperations.first(where: { $0.kind == .updateBudget })?.budgetRule,
               let budgetID = rule.reuseExistingBudgetID,
-              let budget = try? BudgetRepository.shared.getBudgets(forAccount: rule.accountID).first(where: { $0.id == budgetID }),
+              let budget = BudgetRepository.shared.getBudgets(forAccount: rule.accountID).first(where: { $0.id == budgetID }),
               let status = BudgetRepository.shared.computeBudgetStatus(budget: budget) else { return nil }
         return (status.spentAmount, status.remainingAmount)
     }

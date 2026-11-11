@@ -97,7 +97,7 @@ struct ReferenceSelectorView: View {
                 .foregroundColor(.holoTextSecondary)
 
             TextField("搜索想法...", text: $searchText)
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextPrimary)
 
             if !searchText.isEmpty {
@@ -118,7 +118,7 @@ struct ReferenceSelectorView: View {
             RoundedRectangle(cornerRadius: HoloRadius.md)
                 .stroke(Color.holoBorder, lineWidth: 1)
         )
-        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.horizontal, ThoughtLayout.pageInset)
         .padding(.vertical, HoloSpacing.sm)
     }
 
@@ -127,7 +127,7 @@ struct ReferenceSelectorView: View {
     private var selectedCountBar: some View {
         HStack {
             Text("已选择 \(selectedIds.count) 条想法")
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoPrimary)
 
             Spacer()
@@ -136,10 +136,10 @@ struct ReferenceSelectorView: View {
                 selectedIds = []
                 HapticManager.light()
             }
-            .font(.holoCaption)
+            .font(ThoughtLayout.secondary)
             .foregroundColor(.holoTextSecondary)
         }
-        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.horizontal, ThoughtLayout.pageInset)
         .padding(.bottom, HoloSpacing.sm)
     }
 
@@ -157,7 +157,7 @@ struct ReferenceSelectorView: View {
                     }
                 }
             }
-            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.horizontal, ThoughtLayout.pageInset)
             .padding(.vertical, HoloSpacing.sm)
         }
     }
@@ -171,11 +171,11 @@ struct ReferenceSelectorView: View {
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
 
             Text("暂无可引用的想法")
-                .font(.holoBody)
+                .font(ThoughtLayout.body)
                 .foregroundColor(.holoTextSecondary)
 
             Text("先记录一些想法再来引用吧")
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextSecondary.opacity(0.7))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -230,13 +230,13 @@ struct ReferenceThoughtRow: View {
                     // 日期
                     HStack(spacing: 6) {
                         Text(thought.formattedDate)
-                            .font(.holoLabel)
+                            .font(ThoughtLayout.metadata)
                             .foregroundColor(.holoTextSecondary)
                     }
 
                     // 预览文本
                     Text(thought.previewText)
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(2)
                 }

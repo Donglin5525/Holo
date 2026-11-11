@@ -12,9 +12,9 @@
 
 import CoreData
 
-enum GoalWorkshopSchemaDefaults {
+nonisolated enum GoalWorkshopSchemaDefaults {
     static let zeroUUID = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
-    /// 当前会话/决策摘要 payload 的 schema 版本；升级时 +1 并在 Store 解码处分版
+    /// 当前会话/决策摘要 payload 的 schema 版本；升级时 +1 并在 Store 解码时分版
     static let payloadSchemaVersion: Int16 = 1
 }
 

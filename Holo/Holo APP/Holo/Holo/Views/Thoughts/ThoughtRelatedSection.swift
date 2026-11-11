@@ -95,7 +95,7 @@ struct ThoughtRelatedSection: View {
             if loaded, !items.isEmpty {
                 VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                     Label("你之前也写过", systemImage: "sparkle.magnifyingglass")
-                        .font(.holoLabel)
+                        .font(ThoughtLayout.metadata)
                         .fontWeight(.semibold)
                         .foregroundColor(.holoToolAI)
 
@@ -104,7 +104,7 @@ struct ThoughtRelatedSection: View {
                     }
 
                     Text("按内容相关推荐，不代表观点一致")
-                        .font(.holoTinyLabel)
+                        .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoTextPlaceholder)
                 }
                 .padding(HoloSpacing.md)
@@ -127,13 +127,13 @@ struct ThoughtRelatedSection: View {
             } label: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.content)
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(3)
                         .multilineTextAlignment(.leading)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     Text(item.createdAt.formatted(.dateTime.month().day()))
-                        .font(.holoTinyLabel)
+                        .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoTextPlaceholder)
                 }
             }
@@ -225,7 +225,7 @@ struct ThoughtInsightButton: View {
             showSheet = true
         } label: {
             Label("帮我想想", systemImage: "lightbulb.max")
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .fontWeight(.semibold)
                 .foregroundColor(.holoToolAI)
                 .padding(.horizontal, HoloSpacing.md)
@@ -263,7 +263,7 @@ struct ThoughtInsightSheet: View {
                         VStack(spacing: HoloSpacing.sm) {
                             ProgressView().tint(.holoAI)
                             Text("正在基于这条想法思考…")
-                                .font(.holoCaption)
+                                .font(ThoughtLayout.secondary)
                                 .foregroundColor(.holoTextSecondary)
                         }
                         .frame(maxWidth: .infinity)
@@ -275,12 +275,12 @@ struct ThoughtInsightSheet: View {
                                 .font(.system(size: 26))
                                 .foregroundColor(.holoTextPlaceholder)
                             Text(reason)
-                                .font(.holoCaption)
+                                .font(ThoughtLayout.secondary)
                                 .foregroundColor(.holoTextSecondary)
                                 .multilineTextAlignment(.center)
                             if let retry = retryAction {
                                 Button("重试", action: retry)
-                                    .font(.holoCaption)
+                                    .font(ThoughtLayout.secondary)
                                     .fontWeight(.semibold)
                                     .foregroundColor(.holoPrimary)
                             }
@@ -295,11 +295,11 @@ struct ThoughtInsightSheet: View {
                                     ForEach(observations) { obs in
                                         VStack(alignment: .leading, spacing: 3) {
                                             Text("\"\(obs.quote)\"")
-                                                .font(.holoCaption)
+                                                .font(ThoughtLayout.secondary)
                                                 .foregroundColor(.holoTextPrimary)
                                             if !obs.note.isEmpty {
                                                 Text(obs.note)
-                                                    .font(.holoTinyLabel)
+                                                    .font(ThoughtLayout.metadata)
                                                     .foregroundColor(.holoTextSecondary)
                                             }
                                         }
@@ -314,7 +314,7 @@ struct ThoughtInsightSheet: View {
                                 insightSection(title: "AI 的思考（推测，请自行判断）", icon: "sparkles") {
                                     ForEach(Array(perspectives.enumerated()), id: \.offset) { _, p in
                                         Text(p)
-                                            .font(.holoCaption)
+                                            .font(ThoughtLayout.secondary)
                                             .foregroundColor(.holoTextPrimary)
                                             .padding(HoloSpacing.sm)
                                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -325,7 +325,7 @@ struct ThoughtInsightSheet: View {
                             }
                             if let next = result.nextStep, !next.isEmpty {
                                 Label(next, systemImage: "figure.walk")
-                                    .font(.holoCaption)
+                                    .font(ThoughtLayout.secondary)
                                     .foregroundColor(.holoPrimary)
                                     .padding(HoloSpacing.sm)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -367,7 +367,7 @@ struct ThoughtInsightSheet: View {
                                                 @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Label(title, systemImage: icon)
-                .font(.holoLabel)
+                .font(ThoughtLayout.metadata)
                 .fontWeight(.semibold)
                 .foregroundColor(.holoTextSecondary)
             content()

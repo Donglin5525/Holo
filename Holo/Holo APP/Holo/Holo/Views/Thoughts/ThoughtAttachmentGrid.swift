@@ -54,7 +54,7 @@ struct ThoughtAttachmentGrid: View {
     private var editModeBar: some View {
         HStack {
             Text("点击附件以删除")
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextSecondary)
             Spacer()
             Button("完成") {
@@ -62,7 +62,7 @@ struct ThoughtAttachmentGrid: View {
                     isEditing = false
                 }
             }
-            .font(.holoCaption)
+            .font(ThoughtLayout.secondary)
             .foregroundColor(.holoPrimary)
         }
     }

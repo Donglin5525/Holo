@@ -308,7 +308,7 @@ struct ReadOnlyRichTextPreview: View {
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.right")
                             .font(.system(size: 10, weight: .semibold))
                     }
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoPrimary)
                 }
                 .buttonStyle(.plain)

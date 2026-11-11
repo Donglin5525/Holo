@@ -9,7 +9,7 @@
 import SwiftUI
 import Combine
 import CoreData
-import os.log
+import os
 
 // MARK: - 展开状态枚举
 
@@ -26,6 +26,7 @@ enum CalendarExpandState {
 class CalendarState: ObservableObject {
 
     private let logger = Logger(subsystem: "com.holo.app", category: "CalendarState")
+    private let refreshSignposter = OSSignposter(subsystem: "com.holo.app", category: "PresentationRefresh")
 
     // MARK: - 对外发布属性
     
@@ -83,23 +84,23 @@ class CalendarState: ObservableObject {
     /// 缓存：key = 月首日，value = 月度 DailySummary
     private var summaryCache: [Date: [Date: DailySummary]] = [:]
 
-    /// 已并入 dailySummaries 共享桶的月份（key = 月首日）：
-    /// 周历/月历按天查桶且可见日期可跨月，桶里必须同时有相邻月的数据
-    private var loadedSummaryMonths: Set<Date> = []
-
     private let repository = FinanceRepository.shared
+    private var isPresentationVisible = false
+    private var isPresentationReady = false
+    private var hasLoadedCalendar = false
+    private var needsPresentationRefresh = true
+    private var presentationRefreshTask: Task<Void, Never>?
 
     /// 财务数据变化通知订阅
     private var changeObserver: AnyCancellable?
 
     init() {
-        // 与 FinanceView 同生命周期，在此统一监听财务数据变化并清缓存重载：
-        // 不依赖账本视图恰好在屏（此前在固定支出页落账后切回账本，月度卡片仍是旧缓存）
+        // 与 FinanceView 同生命周期：账本不可见时也要记住变化，回到账本再刷新。
         changeObserver = NotificationCenter.default
             .publisher(for: .financeDataDidChange)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                Task { @MainActor in self?.refreshAfterDataChange() }
+                self?.refreshAfterDataChange()
             }
     }
     
@@ -185,14 +186,9 @@ class CalendarState: ObservableObject {
     
     /// 首次加载：当月汇总 + 当日交易 + 月度汇总 + 环比
     func initialLoad() async {
-        isLoading = true
-        await loadMonthSummaries(for: currentMonth)
-        await loadSelectedDayData()
-        loadMonthlySummary()
-        await loadPreviousPeriodComparison()
-        await ensureWeekMonthsLoaded()
-        await loadHasAnyTransaction()
-        isLoading = false
+        isPresentationReady = true
+        schedulePresentationRefresh()
+        await presentationRefreshTask?.value
     }
 
     /// 周历可见 7 天可能横跨两个月：把两端月份的汇总都并入共享桶，
@@ -205,8 +201,8 @@ class CalendarState: ObservableObject {
     /// 加载指定月的汇总（带缓存；结果并入共享桶，不整桶替换）
     func loadMonthSummaries(for month: Date) async {
         let key = month.startOfMonth
-        if let cached = summaryCache[key] {
-            mergeSummaries(cached, for: key)
+        if summaryCache[key] != nil {
+            if currentMonth.startOfMonth == key { loadMonthlySummary() }
             return
         }
         do {
@@ -218,12 +214,14 @@ class CalendarState: ObservableObject {
         }
     }
 
-    /// 月度数据并入 dailySummaries 共享桶：
+    /// 只替换该月在共享桶中的数据，保留相邻月份：
     /// 周历/月历的可见日期会跨月（如 9/28~10/4 那一周），整桶替换会让
     /// 跨月日的金额随加载顺序闪没（2026-10-01 东林实测），所以按月合并、共存于桶内
     private func mergeSummaries(_ data: [Date: DailySummary], for monthKey: Date) {
-        dailySummaries.merge(data) { _, new in new }
-        loadedSummaryMonths.insert(monthKey)
+        let nextMonth = monthKey.addingMonths(1)
+        var summaries = dailySummaries.filter { $0.key < monthKey || $0.key >= nextMonth }
+        summaries.merge(data) { _, new in new }
+        dailySummaries = summaries
         if currentMonth.startOfMonth == monthKey { loadMonthlySummary() }
     }
     
@@ -243,26 +241,58 @@ class CalendarState: ObservableObject {
         }
     }
 
-    /// 数据变更后刷新（清缓存 + 重载所有已并入月份，await 版本）
+    /// 保存链路等待同一轮展示刷新，避免和保存通知重复读取。
     func refreshData() async {
-        summaryCache.removeAll()
-        // 当月先刷（月度卡片最显眼），其余已并入月份补齐跨月周历
-        let currentKey = currentMonth.startOfMonth
-        var months = loadedSummaryMonths.filter { $0 != currentKey }.sorted()
-        if loadedSummaryMonths.contains(currentKey) {
-            months.insert(currentKey, at: 0)
+        refreshAfterDataChange()
+        await presentationRefreshTask?.value
+    }
+
+    func refreshAfterDataChange() {
+        needsPresentationRefresh = true
+        schedulePresentationRefresh()
+    }
+
+    func setPresentationVisible(_ visible: Bool) {
+        isPresentationVisible = visible
+        schedulePresentationRefresh()
+    }
+
+    private func schedulePresentationRefresh() {
+        guard isPresentationVisible, isPresentationReady, needsPresentationRefresh,
+              presentationRefreshTask == nil else { return }
+        let isFirstLoad = !hasLoadedCalendar
+        presentationRefreshTask = Task { [weak self] in
+            // 从首条通知起固定合并一次，连续变更也有机会及时展示。
+            if !isFirstLoad { try? await Task.sleep(for: .milliseconds(40)) }
+            guard let self else { return }
+            defer { presentationRefreshTask = nil }
+            while isPresentationVisible && needsPresentationRefresh {
+                needsPresentationRefresh = false
+                if !hasLoadedCalendar { isLoading = true }
+                await reloadVisibleData()
+                if !hasLoadedCalendar {
+                    hasLoadedCalendar = true
+                    isLoading = false
+                }
+            }
         }
-        for month in months {
-            await loadMonthSummaries(for: month)
+    }
+
+    private func reloadVisibleData() async {
+        let interval = refreshSignposter.beginInterval("Ledger presentation refresh")
+        defer { refreshSignposter.endInterval("Ledger presentation refresh", interval) }
+        // 历史月份失效后按需读取，保留屏上数据直到新结果到达。
+        summaryCache.removeAll()
+        await loadMonthSummaries(for: currentMonth)
+        await ensureWeekMonthsLoaded()
+        // 月历最后一行可能显示下月的日期；周历未跨月时也要补齐这部分。
+        if let lastDay = CalendarGridGenerator.generateGrid(for: currentMonth).last,
+           !lastDay.isSameMonth(as: currentMonth) {
+            await loadMonthSummaries(for: lastDay)
         }
         await loadSelectedDayData()
         await loadPreviousPeriodComparison()
         await loadHasAnyTransaction()
-    }
-
-    /// 数据变更后刷新（通知处理器用，fire-and-forget）
-    func refreshAfterDataChange() {
-        Task { await refreshData() }
     }
 
     /// 刷新「是否记过账」标记（记下第一笔后翻转，空态引导随之消失）

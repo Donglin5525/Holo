@@ -15,6 +15,7 @@ import AppKit
 #endif
 import Combine
 import CoreData
+import os
 
 extension Notification.Name {
     /// 搜索页等外部 surface 请求首页打开某任务详情（object = 任务 UUID）
@@ -61,8 +62,14 @@ final class TaskExperienceViewModel: ObservableObject {
     }
 
     private let repository: TodoRepository
+    private let refreshSignposter = OSSignposter(subsystem: "com.holo.app", category: "PresentationRefresh")
     private var cancellables: Set<AnyCancellable> = []
     private var boundaryTimer: AnyCancellable?
+    private var isPresentationVisible = false
+    private var isPresentationReady = false
+    private var needsSnapshotRefresh = true
+    private var needsTodayPlanRefresh = false
+    private var presentationRefreshTask: Task<Void, Never>?
 
     /// 新增定位（保存后展开目标组并滚动到新任务）
     @Published var locateTaskID: UUID? = nil
@@ -82,15 +89,15 @@ final class TaskExperienceViewModel: ObservableObject {
     private func observeChanges() {
         NotificationCenter.default.publisher(for: .todoDataDidChange)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.reload() }
+            .sink { [weak self] _ in self?.requestSnapshotRefresh() }
             .store(in: &cancellables)
 
         // 今日计划变化：行内「加入/放下」菜单态跟随刷新
         NotificationCenter.default.publisher(for: .holoTodayPlanDidChange)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.refreshTodayEntries()
-                self?.objectWillChange.send()
+                self?.needsTodayPlanRefresh = true
+                self?.schedulePresentationRefresh()
             }
             .store(in: &cancellables)
 
@@ -102,7 +109,7 @@ final class TaskExperienceViewModel: ObservableObject {
         #endif
         NotificationCenter.default.publisher(for: activeName)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.reload() }
+            .sink { [weak self] _ in self?.requestSnapshotRefresh() }
             .store(in: &cancellables)
 
         // 显著时间变化（运营商时间同步/跨时区旅行）与时区切换：
@@ -114,11 +121,11 @@ final class TaskExperienceViewModel: ObservableObject {
         #endif
         NotificationCenter.default.publisher(for: significantTimeChange)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.reload() }
+            .sink { [weak self] _ in self?.requestSnapshotRefresh() }
             .store(in: &cancellables)
         NotificationCenter.default.publisher(for: NSNotification.Name.NSSystemTimeZoneDidChange)
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.reload() }
+            .sink { [weak self] _ in self?.requestSnapshotRefresh() }
             .store(in: &cancellables)
 
         // 撤回窗口开/关：计数与行投影同步（不重读库，纯派生）
@@ -141,12 +148,53 @@ final class TaskExperienceViewModel: ObservableObject {
         boundaryTimer = Timer.publish(every: max(1, next.timeIntervalSinceNow), on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
-                self?.reload()
+                self?.requestSnapshotRefresh()
                 self?.scheduleBoundaryRefresh()
             }
     }
 
+    var canRefreshPresentation: Bool { isPresentationReady && isPresentationVisible }
+
+    func setPresentationVisible(_ visible: Bool) {
+        isPresentationVisible = visible
+        schedulePresentationRefresh()
+    }
+
+    func startPresentation() {
+        isPresentationReady = true
+        schedulePresentationRefresh()
+    }
+
+    private func requestSnapshotRefresh() {
+        needsSnapshotRefresh = true
+        schedulePresentationRefresh()
+    }
+
+    private func schedulePresentationRefresh() {
+        guard canRefreshPresentation, needsSnapshotRefresh || needsTodayPlanRefresh,
+              presentationRefreshTask == nil else { return }
+        presentationRefreshTask = Task { [weak self] in
+            // 多条通知共用一次刷新，首次请求决定执行时间。
+            try? await Task.sleep(for: .milliseconds(40))
+            guard let self else { return }
+            presentationRefreshTask = nil
+            guard canRefreshPresentation else { return }
+            if needsSnapshotRefresh {
+                reload()
+            } else if needsTodayPlanRefresh {
+                refreshTodayEntries()
+            }
+        }
+    }
+
     func reload() {
+        guard canRefreshPresentation else {
+            requestSnapshotRefresh()
+            return
+        }
+        needsSnapshotRefresh = false
+        let interval = refreshSignposter.beginInterval("Task presentation refresh")
+        defer { refreshSignposter.endInterval("Task presentation refresh", interval) }
         do {
             let loaded = try TaskSnapshotReader.readAllSnapshots(in: repository.context)
             snapshots = loaded
@@ -158,6 +206,7 @@ final class TaskExperienceViewModel: ObservableObject {
             // 读失败保留上次快照并如实标记（不显示假 0，§9.4）
             isLoading = false
             loadFailed = true
+            if needsTodayPlanRefresh { refreshTodayEntries() }
         }
     }
 
@@ -231,12 +280,15 @@ final class TaskExperienceViewModel: ObservableObject {
     @Published private(set) var todayEntryIDs: Set<UUID> = []
 
     private func refreshTodayEntries() {
+        needsTodayPlanRefresh = false
         let read = HoloTodayPlanRepository(context: repository.context).currentPlan(scope: HoloTodayDayScope.current())
+        let ids: Set<UUID>
         if case .active(let payload, _) = read.state {
-            todayEntryIDs = Set(payload.entries.map(\.taskID))
+            ids = Set(payload.entries.map(\.taskID))
         } else {
-            todayEntryIDs = []
+            ids = []
         }
+        if todayEntryIDs != ids { todayEntryIDs = ids }
     }
 
     /// 当前范围的活动未完成任务（pending 完成任务暂时移出待办，§4.3）

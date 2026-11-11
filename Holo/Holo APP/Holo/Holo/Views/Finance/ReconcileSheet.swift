@@ -142,7 +142,8 @@ struct ReconcileSheet: View {
             // 信用卡/欠款账户：银行 App 展示的「欠款」是正数，这里要输负数，必须提前讲清
             if account.accountType.isCreditCard || currentBalance < 0 {
                 let outstanding = abs(min(currentBalance, 0))
-                Text(currentBalance < 0
+                // verbatim：金额数字直接按字面渲染（不走本地化插值调试描述），输出与既有展示一致
+                Text(verbatim: currentBalance < 0
                      ? "当前为欠款状态（欠 ¥\(outstanding)）。银行 App 显示的「欠款 ¥\(outstanding)」在这里请输入 \(-outstanding)（负数）"
                      : "信用卡如处于欠款状态，请输入负数（如 -3200）")
                     .font(.system(size: 12))

@@ -322,7 +322,7 @@ struct FeedbackSheet: View {
             shots.append(contentsOf: loaded)
             pickerItems = []
             isProcessingImages = false
-            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.prefix(remaining).count, permissionRequired: permissionRequired, limitedAccess: limitedAccess, cloudFailed: cloudFailed)
+            PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.prefix(remaining).count, permissionRequired: permissionRequired, limitedAccess: limitedAccess, cloudFailed: cloudFailed)
         }
     }
     #else

@@ -60,7 +60,7 @@ struct TopicManagementView: View {
             if let notice {
                 Section {
                     Text(notice)
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextSecondary)
                 }
             }
@@ -135,16 +135,17 @@ struct TopicManagementView: View {
     }
 
     private func topicRow(_ topic: Topic) -> some View {
-        HStack(spacing: HoloSpacing.sm) {
+        HStack(spacing: ThoughtLayout.itemGap) {
             Text(TopicIconProvider.icon(for: topic))
                 .font(.system(size: 17))
                 .frame(width: 28, height: 28)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: ThoughtLayout.detailGap) {
                 Text(topic.title)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoTextPrimary)
                 Text("\(topicRepository.thoughtCount(of: topic)) 条想法")
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextSecondary)
             }
 

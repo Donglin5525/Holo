@@ -30,7 +30,7 @@ struct ThoughtTemplateChooser: View {
                                 }
                             }
                         Text(style.shortTitle)
-                            .font(.holoLabel)
+                            .font(ThoughtLayout.metadata)
                             .foregroundStyle(selected == style ? Color.holoToolAction : Color.holoToolText)
                             .lineLimit(2)
                     }

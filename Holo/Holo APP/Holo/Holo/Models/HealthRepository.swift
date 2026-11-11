@@ -12,7 +12,7 @@ import Combine
 
 // MARK: - HealthSleepSampleAggregator
 
-struct HealthSleepSampleAggregator {
+nonisolated struct HealthSleepSampleAggregator {
     struct Interval {
         let start: Date
         let end: Date
@@ -94,7 +94,7 @@ struct DailyVitals: Sendable {
 
 // MARK: - HealthStandHourAggregator
 
-struct HealthStandHourAggregator {
+nonisolated struct HealthStandHourAggregator {
     static func stoodHours(for samples: [HKCategorySample], in window: HealthSleepSampleAggregator.Interval) -> Double {
         let calendar = Calendar.current
         let stoodHourKeys = samples.compactMap { sample -> Date? in
@@ -813,12 +813,14 @@ class HealthRepository: ObservableObject {
         var current = calendar.startOfDay(for: start)
         let endDay = calendar.startOfDay(for: end)
         while current <= endDay {
-            async let resting = fetchDiscreteVitalSample(.restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), date: current, pick: .latest)
-            async let hrv = fetchDiscreteVitalSample(.heartRateVariability, unit: HKUnit.secondUnit(with: .milli), date: current, pick: .mean)
-            async let respiratory = fetchDiscreteVitalSample(.respiratoryRate, unit: HKUnit.count().unitDivided(by: .minute()), date: current, pick: .mean)
+            // async let 并发闭包按值捕获当日，避免引用可变 var（Swift 6 数据隔离报错）
+            let day = current
+            async let resting = fetchDiscreteVitalSample(.restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), date: day, pick: .latest)
+            async let hrv = fetchDiscreteVitalSample(.heartRateVariability, unit: HKUnit.secondUnit(with: .milli), date: day, pick: .mean)
+            async let respiratory = fetchDiscreteVitalSample(.respiratoryRate, unit: HKUnit.count().unitDivided(by: .minute()), date: day, pick: .mean)
             let (restingValue, hrvValue, respiratoryValue) = await (resting, hrv, respiratory)
             results.append(DailyVitals(
-                date: current,
+                date: day,
                 restingHeartRate: restingValue,
                 heartRateVariability: hrvValue,
                 respiratoryRate: respiratoryValue
@@ -1389,7 +1391,7 @@ class HealthRepository: ObservableObject {
     // MARK: - 模拟运动会话（模拟器无 HealthKit，按日种子化保证同日稳定）
 
     /// 常见运动类型池（raw = HKWorkoutActivityType.rawValue）
-    private static let mockWorkoutTypePool: [(raw: UInt, name: String, hasDistance: Bool)] = [
+    nonisolated private static let mockWorkoutTypePool: [(raw: UInt, name: String, hasDistance: Bool)] = [
         (HKWorkoutActivityType.running.rawValue, "跑步", true),
         (HKWorkoutActivityType.walking.rawValue, "步行", true),
         (HKWorkoutActivityType.cycling.rawValue, "骑行", true),
@@ -1426,7 +1428,6 @@ class HealthRepository: ObservableObject {
                 maxHeartRate: averageHeartRate + Double(rng.next(15...35)),
                 sourceName: "Apple Watch"
             ))
-            _ = index
         }
         return sessions.sorted { $0.start < $1.start }
     }

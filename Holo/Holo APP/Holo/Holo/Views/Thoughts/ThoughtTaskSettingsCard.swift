@@ -55,11 +55,11 @@ struct ThoughtTaskSettingsCard: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.holoPrimary)
                 Text("任务设置")
-                    .font(.holoBody.bold())
+                    .font(ThoughtLayout.body.bold())
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
                 Text("应用于本批全部任务")
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextSecondary)
             }
 
@@ -83,11 +83,11 @@ struct ThoughtTaskSettingsCard: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack {
                 Text("截止日期")
-                    .font(.holoBody)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
                 Text(dateSummaryText)
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextSecondary)
             }
 
@@ -203,11 +203,11 @@ struct ThoughtTaskSettingsCard: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack {
                 Text("优先级")
-                    .font(.holoBody)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
                 Text(prioritySummaryText)
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextSecondary)
             }
 
@@ -248,11 +248,11 @@ struct ThoughtTaskSettingsCard: View {
         } label: {
             HStack(spacing: HoloSpacing.sm) {
                 Text("所属清单")
-                    .font(.holoBody)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
                 Text(settings.selectedList?.name ?? String(localized: "不设置"))
-                    .font(.holoBody)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(settings.selectedList == nil ? .holoTextSecondary : .holoTextPrimary)
                     .lineLimit(1)
                 Image(systemName: "chevron.right")
@@ -290,7 +290,7 @@ struct ThoughtTaskSettingsCard: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(isSelected ? .white : tint)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
@@ -341,7 +341,7 @@ private struct ThoughtTaskCustomDatePickerSheet: View {
                     VStack(spacing: 0) {
                         HStack {
                             Text("全天")
-                                .font(.holoBody)
+                                .font(ThoughtLayout.body)
                                 .foregroundColor(.holoTextPrimary)
                             Spacer()
                             Toggle("", isOn: $draftIsAllDay)
@@ -355,7 +355,7 @@ private struct ThoughtTaskCustomDatePickerSheet: View {
                                 .padding(.vertical, HoloSpacing.xs)
                             HStack {
                                 Text("具体时间")
-                                    .font(.holoBody)
+                                    .font(ThoughtLayout.body)
                                     .foregroundColor(.holoTextPrimary)
                                 Spacer()
                                 DatePicker("", selection: $draftDate, displayedComponents: .hourAndMinute)
@@ -420,7 +420,7 @@ private struct ThoughtTaskListPickerSheet: View {
                     }
                     if allLists.isEmpty {
                         Text("暂无清单，可先在任务模块创建")
-                            .font(.holoCaption)
+                            .font(ThoughtLayout.secondary)
                             .foregroundColor(.holoTextSecondary)
                             .padding(.top, HoloSpacing.lg)
                     }
@@ -457,7 +457,7 @@ private struct ThoughtTaskListPickerSheet: View {
         } label: {
             HStack {
                 Text(name)
-                    .font(.holoBody)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
                 if isSelected {
@@ -485,7 +485,7 @@ struct ThoughtTaskAIBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.holoTinyLabel)
+            .font(ThoughtLayout.metadata)
             .foregroundColor(tint)
             .padding(.horizontal, 6)
             .padding(.vertical, 3)

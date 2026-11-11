@@ -41,13 +41,13 @@ actor USearchSemanticIndex: LocalSemanticIndex {
         }
         let idx = try ensureIndex()
         let key = try keyFor(id: id)
-        try idx.remove(key: key)   // upsert 语义：同 key 先删后插
+        _ = try idx.remove(key: key)   // upsert 语义：同 key 先删后插（不存在时删除返回 false 属正常）
         try idx.add(key: key, vector: vector)
     }
 
     func remove(id: UUID) async throws {
         guard let key = idToKey[id], let idx = index else { return }
-        try idx.remove(key: key)
+        _ = try idx.remove(key: key)
         keyToID.removeValue(forKey: key)
         idToKey.removeValue(forKey: id)
     }

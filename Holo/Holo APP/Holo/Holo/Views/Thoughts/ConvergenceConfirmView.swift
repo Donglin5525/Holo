@@ -113,7 +113,7 @@ struct ConvergenceConfirmView: View {
                     .scaleEffect(1.2)
                     .tint(Color.holoToolAction)
                 Text("AI 正在分析你的想法…")
-                    .holoText(.body)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoToolTextSecondary)
             }
         } action: {
@@ -128,10 +128,10 @@ struct ConvergenceConfirmView: View {
             VStack(spacing: HoloSpacing.md) {
                 statusIcon("sparkles")
                 Text("想法还不足够形成主题")
-                    .holoText(.body)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoToolText)
                 Text("继续记录，AI 会自动发现可归并的长期主题。")
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoToolTextSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -155,10 +155,10 @@ struct ConvergenceConfirmView: View {
             VStack(spacing: HoloSpacing.md) {
                 statusIcon("checkmark.seal.fill")
                 Text("没有新的可归纳变化")
-                    .holoText(.body)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoToolText)
                 Text("上次归纳后，想法、标签和主题没有变化，本次已跳过 AI 调用。")
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoToolTextSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -178,7 +178,7 @@ struct ConvergenceConfirmView: View {
             VStack(spacing: HoloSpacing.md) {
                 statusIcon("exclamationmark.triangle", tint: .holoToolWarning)
                 Text(message)
-                    .holoText(.body)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoToolText)
                     .multilineTextAlignment(.center)
             }
@@ -197,7 +197,7 @@ struct ConvergenceConfirmView: View {
             VStack(spacing: HoloSpacing.md) {
                 statusIcon("checkmark.circle.fill")
                 Text("建议已处理完")
-                    .holoText(.body)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoToolText)
             }
         } action: {
@@ -216,10 +216,10 @@ struct ConvergenceConfirmView: View {
             VStack(spacing: HoloSpacing.md) {
                 statusIcon("folder.badge.plus")
                 Text("已生成 \(count) 个主题")
-                    .holoText(.body)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoToolText)
                 Text("这些主题已经出现在你的主题列表里。")
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoToolTextSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -239,10 +239,10 @@ struct ConvergenceConfirmView: View {
             VStack(spacing: HoloSpacing.md) {
                 statusIcon("sparkles")
                 Text("暂未发现可归并的主题")
-                    .holoText(.body)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoToolText)
                 Text("继续积累想法，AI 会自动发现长期主题。")
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoToolTextSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -321,7 +321,7 @@ private struct ConvergenceSuggestionCard: View {
             if isRenaming {
                 HStack(spacing: HoloSpacing.xs) {
                     TextField("主题名", text: $renamedTitle)
-                        .font(.holoHeading)
+                        .font(ThoughtLayout.title)
                         .textFieldStyle(.roundedBorder)
                     Button {
                         let trimmed = renamedTitle.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -347,7 +347,7 @@ private struct ConvergenceSuggestionCard: View {
                         .font(.system(size: 16))
                         .foregroundColor(.holoPrimary)
                     Text(suggestion.topicTitle)
-                        .font(.holoHeading)
+                        .font(ThoughtLayout.title)
                         .foregroundColor(.holoTextPrimary)
                     Spacer()
                     Button {
@@ -367,7 +367,7 @@ private struct ConvergenceSuggestionCard: View {
                     .font(.system(size: 12))
                     .foregroundColor(.holoTextSecondary)
                 Text("关联 \(suggestion.thoughtIds.count) 条想法")
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoTextSecondary)
             }
 
@@ -379,7 +379,7 @@ private struct ConvergenceSuggestionCard: View {
             // 理由
             if !suggestion.reason.isEmpty {
                 Text(suggestion.reason)
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoTextSecondary)
                     .lineLimit(3)
             }
@@ -390,7 +390,7 @@ private struct ConvergenceSuggestionCard: View {
                     onConfirm(nil)
                 } label: {
                     Text("确认归并")
-                        .font(.holoBody)
+                        .font(ThoughtLayout.body)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, HoloSpacing.xs)
@@ -402,7 +402,7 @@ private struct ConvergenceSuggestionCard: View {
                     onSkip()
                 } label: {
                     Text("暂不")
-                        .font(.holoBody)
+                        .font(ThoughtLayout.body)
                         .foregroundColor(.holoTextPrimary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, HoloSpacing.xs)
@@ -414,7 +414,7 @@ private struct ConvergenceSuggestionCard: View {
                     onReject()
                 } label: {
                     Text("拒绝")
-                        .font(.holoBody)
+                        .font(ThoughtLayout.body)
                         .foregroundColor(.holoToolError)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, HoloSpacing.xs)
@@ -451,7 +451,7 @@ private struct WrappingHStack: View {
         return LazyVGrid(columns: columns, alignment: .leading, spacing: HoloSpacing.xs) {
             ForEach(items, id: \.self) { tag in
                 Text(tag)
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextSecondary)
                     .padding(.horizontal, HoloSpacing.sm)
                     .padding(.vertical, 3)

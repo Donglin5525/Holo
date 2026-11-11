@@ -116,17 +116,17 @@ struct DeviceIntelligenceIndexView: View {
     private var statusCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("状态")
-                .font(.holoLabel)
+                .font(ThoughtLayout.metadata)
                 .fontWeight(.semibold)
                 .foregroundColor(.holoTextSecondary)
             Text(statusTitle)
-                .font(.holoBody)
+                .font(ThoughtLayout.body)
                 .foregroundColor(.holoTextPrimary)
             if !statusDetail.isEmpty {
                 Text(statusDetail)
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoTextSecondary)
-                    .lineSpacing(3)
+                    .lineSpacing(ThoughtLayout.bodyLineSpacing)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -138,14 +138,14 @@ struct DeviceIntelligenceIndexView: View {
     private var explanationCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("这个索引是什么")
-                .font(.holoLabel)
+                .font(ThoughtLayout.metadata)
                 .fontWeight(.semibold)
                 .foregroundColor(.holoTextSecondary)
             // 文案按已核实的后端事实收敛（2026-09-24 方案 §3 P1：不写未经核实的「不留副本」）
             Text("Holo 在你的设备上为想法建立语义索引，用来归类主题、找回相关内容。索引数据只存在本机，不上传 iCloud。处理请求时，后端会把必要内容转发给 AI 服务处理，Holo 服务器只记录用量与状态。删除索引不会删除你的想法。")
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextSecondary)
-                .lineSpacing(3)
+                .lineSpacing(ThoughtLayout.bodyLineSpacing)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(HoloSpacing.md)
@@ -158,7 +158,7 @@ struct DeviceIntelligenceIndexView: View {
     private var actionsCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("管理")
-                .font(.holoLabel)
+                .font(ThoughtLayout.metadata)
                 .fontWeight(.semibold)
                 .foregroundColor(.holoTextSecondary)
 
@@ -183,7 +183,7 @@ struct DeviceIntelligenceIndexView: View {
                 showDestroyConfirm = true
             } label: {
                 Text("删除设备智能索引")
-                    .font(.holoBody)
+                    .font(ThoughtLayout.body)
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
@@ -210,7 +210,7 @@ struct DeviceIntelligenceIndexView: View {
             }
         } label: {
             Text(title)
-                .font(.holoBody)
+                .font(ThoughtLayout.body)
                 .fontWeight(.semibold)
                 .foregroundColor(role == .primary ? .white : .holoPrimary)
                 .frame(maxWidth: .infinity)

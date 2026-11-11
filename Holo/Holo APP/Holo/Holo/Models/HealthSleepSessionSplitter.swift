@@ -22,7 +22,7 @@
 import Foundation
 import HealthKit
 
-enum HealthSleepSessionSplitter {
+nonisolated enum HealthSleepSessionSplitter {
 
     /// 睡着类样本的 HKCategoryValueSleepAnalysis.rawValue（unspecified/core/deep/REM）
     private static let asleepRawValues: Set<Int> = [

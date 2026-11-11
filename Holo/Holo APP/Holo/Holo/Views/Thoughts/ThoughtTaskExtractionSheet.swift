@@ -122,7 +122,7 @@ struct ThoughtTaskExtractionSheet: View {
             .toolbar {
                 ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
                     Button("取消", action: onDismiss)
-                        .font(.holoBody)
+                        .font(ThoughtLayout.body)
                         .foregroundColor(.holoTextSecondary)
                 }
                 if !isFromSelection && !isAIExcluded {
@@ -135,10 +135,10 @@ struct ThoughtTaskExtractionSheet: View {
                                     .font(.system(size: 13))
                                 if isExtracting {
                                     Text("识别中…")
-                                        .font(.holoCaption)
+                                        .font(ThoughtLayout.secondary)
                                 } else {
                                     Text("AI 智能识别")
-                                        .font(.holoCaption.bold())
+                                        .font(ThoughtLayout.secondary.bold())
                                 }
                             }
                             .foregroundColor(isExtracting ? .holoTextSecondary : .holoPrimary)
@@ -152,11 +152,11 @@ struct ThoughtTaskExtractionSheet: View {
                     } label: {
                         if isCreating {
                             Text("创建中…")
-                                .font(.holoBody)
+                                .font(ThoughtLayout.body)
                                 .foregroundColor(.holoTextSecondary)
                         } else {
                             Text("创建 \(selectedCount) 项")
-                                .font(.holoBody.bold())
+                                .font(ThoughtLayout.body.bold())
                                 .foregroundColor(selectedCount > 0 ? .holoPrimary : .holoTextSecondary)
                         }
                     }
@@ -185,7 +185,7 @@ struct ThoughtTaskExtractionSheet: View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                 Text(hintText)
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoTextSecondary)
                     .padding(.horizontal, HoloSpacing.md)
                     .padding(.top, HoloSpacing.sm)
@@ -206,7 +206,7 @@ struct ThoughtTaskExtractionSheet: View {
                         .accessibilityLabel(row.isSelected ? String(localized: "取消选择任务") : String(localized: "选择任务"))
 
                         TextField("任务内容", text: $row.text)
-                            .font(.holoBody)
+                            .font(ThoughtLayout.body)
                             .foregroundColor(.holoTextPrimary)
                             .textFieldStyle(.plain)
 
@@ -236,7 +236,7 @@ struct ThoughtTaskExtractionSheet: View {
                 .font(.system(size: 40))
                 .foregroundColor(.holoTextSecondary)
             Text("没有可提取的内容")
-                .font(.holoBody)
+                .font(ThoughtLayout.body)
                 .foregroundColor(.holoTextSecondary)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

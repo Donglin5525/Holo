@@ -235,13 +235,13 @@ struct EditorFormatToolbar: View {
                 smartSummaryEnabled.toggle()
             } label: {
                 Label(
-                    smartSummaryEnabled ? String(localized: "关闭智能总结") : String(localized: "开启智能总结"),
+                    smartSummaryEnabled ? String(localized: "关闭口述整理") : String(localized: "开启口述整理"),
                     systemImage: smartSummaryEnabled ? "sparkles" : "sparkle"
                 )
             }
         }
         .accessibilityLabel(String(localized: "语音输入"))
-        .accessibilityHint(String(localized: "长按可切换智能总结"))
+        .accessibilityHint(String(localized: "长按可切换口述整理"))
     }
 
     /// 完成/发送键：编辑会话 ✔ / 新建会话纸飞机。横向胶囊（宽约为高的 1.4 倍），

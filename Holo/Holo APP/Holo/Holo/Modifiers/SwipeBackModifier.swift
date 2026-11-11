@@ -322,7 +322,9 @@ private class EdgeGestureHostView: UIView {
     }
 
     private func containsPushedNavigationStack(in view: UIView) -> Bool {
-        if let navController = view as? UINavigationController,
+        // UINavigationController 不是 UIView 子类，不能直接转换视图本身；
+        // 导航控制器的根视图其 next 响应者即导航控制器（与上方响应链路径同口径）
+        if let navController = view.next as? UINavigationController,
            navController.viewControllers.count > 1 {
             return true
         }

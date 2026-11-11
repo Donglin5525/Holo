@@ -76,7 +76,6 @@ const LANGUAGE_ALLOWED_PURPOSES = new Set([
   "replayDigest",
   "health_insight_generation",
   "weekly_plan_generation",
-  "thought_voice_summary",
   "thought_organization",
   "agent_loop",
   // 个人情境：planning/request 输出用户直接阅读 → 多语言；extraction/verification
@@ -206,7 +205,10 @@ export function injectServerPrompt(purpose, messages, options = {}) {
   if (profileMessage) {
     finalMessages.push(profileMessage);
   }
-  finalMessages.push(...messages);
+  // 旧客户端会附带自己的总结指令。口述整理由同一份服务端规则决定，保留输入语言。
+  finalMessages.push(...(purpose === "thought_voice_summary"
+    ? messages.filter((message) => message.role === "user")
+    : messages));
 
   return {
     promptType,

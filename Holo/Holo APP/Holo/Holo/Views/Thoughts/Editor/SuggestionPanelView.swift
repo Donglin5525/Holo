@@ -99,7 +99,7 @@ struct SuggestionPanelView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(.holoToolTextSecondary.opacity(0.7))
             Text(isTagMode ? String(localized: "输入文字创建新标签") : String(localized: "没有匹配的想法"))
-                .holoText(.supporting)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoToolTextSecondary.opacity(0.8))
             Spacer(minLength: 0)
         }
@@ -140,7 +140,7 @@ struct SuggestionPanelView: View {
                     .foregroundColor(isCreate ? .holoPrimary : .holoToolTextSecondary)
                     .frame(width: 18)
                 Text("#\(path)")
-                    .font(.subheadline.weight(.medium))
+                    .font(ThoughtLayout.secondary.weight(.medium))
                     .foregroundColor(isCreate ? .holoPrimary : .holoToolText)
                     .lineLimit(1)
                 Spacer(minLength: 0)
@@ -166,17 +166,17 @@ struct SuggestionPanelView: View {
                 HStack(spacing: 6) {
                     // 候选面板也保留 @ 前缀，和插入后的行内 Token、外层阅读态保持同一语义。
                     Text("@\(title)")
-                        .font(.subheadline.weight(.medium))
+                        .font(ThoughtLayout.secondary.weight(.medium))
                         .foregroundColor(.holoToolText)
                         .lineLimit(1)
                     Spacer(minLength: 0)
                     Text(dateText)
-                        .holoText(.supporting)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoToolTextSecondary.opacity(0.7))
                 }
                 if !preview.isEmpty {
                     Text(preview)
-                        .holoText(.supporting)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoToolTextSecondary.opacity(0.8))
                         .lineLimit(1)
                 }

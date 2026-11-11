@@ -23,9 +23,9 @@ struct ThoughtCardView: View {
 
     private enum Metrics {
         /// 卡片内边距
-        static let padding: CGFloat = HoloSpacing.md
+        static let padding = ThoughtLayout.contentInset
         /// 顶部/正文/底部三区块间距
-        static let sectionSpacing: CGFloat = 12
+        static let sectionSpacing = ThoughtLayout.cardGap
         /// 主题弱徽章字色强度（绿=主题语义，降强度不当强调色用）
         /// 标签 chip 底色透明度（统一值，前景仍用用户自选色）
         static let tagChipBackgroundOpacity: Double = 0.08
@@ -186,7 +186,7 @@ struct ThoughtCardView: View {
         HStack(spacing: 8) {
             // 日期
             Text(thought.formattedDate)
-                .holoText(.supporting)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoToolTextSecondary)
 
             Spacer()
@@ -253,7 +253,7 @@ struct ThoughtCardView: View {
                         if let onArchive {
                             Button(archiveActionTitle, role: nil) { onArchive() }
                         }
-                        if let onDelete {
+                        if onDelete != nil {
                             Button("删除", role: .destructive) {
                                 pendingMenuAction = .deleteConfirm
                                 showActionSheet = false
@@ -369,7 +369,7 @@ struct ThoughtCardView: View {
                         }
                         if presentation.hiddenCount > 0 {
                             Text("+\(presentation.hiddenCount)")
-                                .holoText(.metadata)
+                                .font(ThoughtLayout.metadata)
                                 .foregroundColor(.holoToolTextSecondary)
                         }
                     }
@@ -377,7 +377,7 @@ struct ThoughtCardView: View {
             } else if !ThoughtSemanticFeatureFlags.uiEnabled, thought.organizedStatus == "processing" {
                 // 正在整理（V3 新 UI 下不出现：AI 过程不进主路径）
                 Text("AI 正在整理...")
-                    .holoText(.metadata)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoToolTextSecondary)
             }
 
@@ -390,7 +390,7 @@ struct ThoughtCardView: View {
                     Image(systemName: "link")
                         .font(.system(size: 12))
                     Text("\(refCount)")
-                        .holoText(.metadata)
+                        .font(ThoughtLayout.metadata)
                 }
                 // 引用数是信息不是操作：品牌橙只留给主操作（2026-09-25 颜色纪律）
                 .foregroundColor(.holoToolTextSecondary)
@@ -449,7 +449,7 @@ struct ThoughtCardView: View {
                 Image(systemName: "leaf.fill")
                     .font(.system(size: 9, weight: .semibold))
                 Text(topic.title)
-                    .holoText(.metadata)
+                    .font(ThoughtLayout.metadata)
                     .fontWeight(.semibold)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -541,7 +541,7 @@ struct ThoughtCardView: View {
                         .font(.system(size: 9, weight: .semibold))
                 }
             }
-                .holoText(.metadata)
+                .font(ThoughtLayout.metadata)
                 .foregroundColor(chipColor)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -562,11 +562,11 @@ struct ThoughtCardView: View {
             HStack(spacing: 3) {
                 // AI 归类展示完整主题路径（#碎碎念/加班），让「归到了哪」一眼可见；筛选仍用原始路径
                 Text("#\(ThoughtTagNormalizer.displayPath(tagName))")
-                    .holoText(.metadata)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoToolTextSecondary)
 
                 Text("AI")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(ThoughtLayout.metadata.weight(.semibold))
                     // 微标不做半透明降档：深色下会跌破可读线
                     .foregroundColor(.holoToolTextSecondary)
             }
@@ -618,17 +618,17 @@ private struct TopicMembershipReasonSheet: View {
                         .font(.system(size: 10, weight: .semibold))
                         .foregroundColor(.holoSuccess)
                     Text(sourceText)
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextSecondary)
                 }
                 if let relationText {
                     Text(relationText)
-                        .font(.holoBody)
+                        .font(ThoughtLayout.body)
                         .foregroundColor(.holoTextPrimary)
                 }
                 if let quote = evidence?.verifierQuote, !quote.isEmpty {
                     Text("「\(quote)」")
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextSecondary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 9)
@@ -637,11 +637,11 @@ private struct TopicMembershipReasonSheet: View {
                 }
                 if let engine = evidence?.engineVersion, !engine.isEmpty {
                     Text(String(localized: "判定引擎 \(engine)"))
-                        .font(.holoTinyLabel)
+                        .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoTextPlaceholder)
                 }
                 Text(String(localized: "不想要这个归属：长按徽章「从这条移除」，移出会成为 AI 的反例，同类内容以后不会再收进来。"))
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextPlaceholder)
                 Spacer(minLength: 0)
             }
@@ -730,7 +730,7 @@ private struct ThoughtCardStatusBadge: View {
             Image(systemName: status.icon)
                 .font(.system(size: 9, weight: .semibold))
             Text(status.title)
-                .font(.holoTinyLabel)
+                .font(ThoughtLayout.metadata)
         }
         .foregroundColor(status.color)
         .padding(.horizontal, 8)
@@ -820,7 +820,7 @@ private struct ThoughtContentBody: View {
 #Preview("想法卡片") {
     VStack(spacing: 16) {
         Text("预览需要 Core Data context")
-            .holoText(.body)
+            .font(ThoughtLayout.body)
             .foregroundColor(.holoToolTextSecondary)
     }
     .padding()

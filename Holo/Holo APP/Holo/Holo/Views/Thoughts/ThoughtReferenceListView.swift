@@ -81,10 +81,10 @@ struct ThoughtReferenceListView: View {
     // MARK: - 区块
 
     private func referenceSection(title: String, iconName: String, thoughts: [Thought]) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
             HStack(spacing: 4) {
                 Text(title)
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoTextSecondary)
 
                 Image(systemName: iconName)
@@ -118,10 +118,10 @@ struct ThoughtReferenceListView: View {
                 .font(.system(size: 32))
                 .foregroundColor(.holoTextPlaceholder)
             Text("这条想法还没有引用关系")
-                .font(.holoBody)
+                .font(ThoughtLayout.body)
                 .foregroundColor(.holoTextSecondary)
             Text("在正文输入 @ 可以引用另一条想法")
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextPlaceholder)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -151,7 +151,7 @@ struct ReferenceCardView: View {
                 // 顶部：日期
                 HStack {
                     Text(thought.formattedDate)
-                        .font(.holoTinyLabel)
+                        .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoTextSecondary)
                     Spacer()
                 }
@@ -171,7 +171,7 @@ struct ReferenceCardView: View {
                     FlowLayout(spacing: 4) {
                         ForEach(thought.tagArray.prefix(3)) { tag in
                             Text("#\(ThoughtTagNormalizer.lastSegment(tag.name))")
-                                .font(.system(size: 10, weight: .medium))
+                                .font(ThoughtLayout.metadata.weight(.medium))
                                 .foregroundColor(tag.tagColor)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)

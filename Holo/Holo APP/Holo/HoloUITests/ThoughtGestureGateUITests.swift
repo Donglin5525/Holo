@@ -794,6 +794,7 @@ final class ThoughtTopicBadgeUITests: XCTestCase {
         app.launchEnvironment["HOLO_THOUGHT_TOPIC_BADGE_GATE"] = "1"
         // 只测显示和滚动；不要让自动整理在测试中修改虚构关系。
         app.launchArguments = ["-AppleLanguages", "(zh-Hans)", "-AppleLocale", "zh_CN",
+                               "-holo_coach_home_tour_v1_seen", "YES",
                                "-thoughts.automaticOrganization.enabled", "NO",
                                "-isThoughtAutoOrganizationEnabled", "NO"]
         if largeType {
@@ -803,10 +804,13 @@ final class ThoughtTopicBadgeUITests: XCTestCase {
         let thoughts = app.buttons.matching(NSPredicate(format: "label == '想法'")).firstMatch
         XCTAssertTrue(thoughts.waitForExistence(timeout: 20))
         thoughts.tap()
-        // 按想法身份定位，不依赖界面中有多少其他截图剧本的卡片。
-        XCTAssertTrue(app.buttons.matching(NSPredicate(format:
-            "identifier BEGINSWITH 'thought.topic.BAD6E100-0000-0000-0000-000000000000.'"))
-            .firstMatch.waitForExistence(timeout: 15))
+        // 最大辅助字号下徽章可能在首屏以下，先滚动再等待惰性列表加载测试卡片。
+        let scroll = app.scrollViews.firstMatch
+        let fixtureBadge = app.buttons.matching(NSPredicate(format:
+            "identifier BEGINSWITH 'thought.topic.BAD6E100-0000-0000-0000-'")).firstMatch
+        XCTAssertTrue(scroll.waitForExistence(timeout: 10))
+        for _ in 0..<4 where !fixtureBadge.exists { scroll.swipeUp() }
+        XCTAssertTrue(fixtureBadge.waitForExistence(timeout: 5))
 
         func visibleBadges() -> [XCUIElement] {
             // 完整快照避免 iOS 26 单元素优化查询返回无限坐标。
@@ -838,7 +842,6 @@ final class ThoughtTopicBadgeUITests: XCTestCase {
             XCTAssertFalse(app.staticTexts["Holo 已归入"].exists)
             XCTAssertFalse(app.staticTexts["已加入"].exists)
         }
-        let scroll = app.scrollViews.firstMatch
         for _ in 0..<4 where visibleBadges().isEmpty { scroll.swipeUp() }
         verifyVisible()
         for _ in 0..<3 {

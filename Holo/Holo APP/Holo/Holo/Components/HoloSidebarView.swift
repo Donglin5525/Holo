@@ -141,11 +141,11 @@ struct HoloSidebarView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 14)
 
-            if let onToggleVisibility, !isRail {
+            if onToggleVisibility != nil, !isRail {
                 collapseButton
                     .padding(.horizontal, 14)
                     .padding(.bottom, 14)
-            } else if let onToggleVisibility, isRail {
+            } else if onToggleVisibility != nil, isRail {
                 expandButton
                     .padding(.horizontal, 10)
                     .padding(.bottom, 14)

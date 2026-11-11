@@ -63,7 +63,7 @@ final class GoalWorkshopCoordinator {
     func start(seedText: String, goalID: UUID? = nil,
                contextRefs: [GoalWorkshopContextRef] = [],
                candidates: GoalWorkshopAuthorizedCandidates? = nil) async throws -> GoalWorkshopSessionV1 {
-        var session = GoalWorkshopSessionV1(goalID: goalID, originalText: seedText,
+        let session = GoalWorkshopSessionV1(goalID: goalID, originalText: seedText,
                                             authorizedCandidates: candidates)
         try store.saveIfRevisionMatches(session)
         return try await advance(session: session, operation: .understand, input: seedText,

@@ -12,7 +12,7 @@ struct HoloDefaultScheduleDataSource: HoloScheduleDataSource {
 
     func events(from startDate: Date, days: Int) async -> [HoloScheduleToolEvent]? {
         let store = await MainActor.run { ScheduleStore.shared }
-        guard await store.isAvailableForAgent else { return nil }
+        guard store.isAvailableForAgent else { return nil }
 
         let calendar = Calendar.current
         var result: [HoloScheduleToolEvent] = []

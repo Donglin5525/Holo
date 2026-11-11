@@ -103,8 +103,11 @@ final class TodayPlanChangeObserver: ObservableObject {
     static let shared = TodayPlanChangeObserver()
     @Published private(set) var token = 0
 
+    /// 必须持有订阅令牌，否则 sink 订阅随 init 结束被释放、观察者永不触发
+    private var cancellable: AnyCancellable?
+
     private init() {
-        NotificationCenter.default.publisher(for: .holoTodayPlanDidChange)
+        cancellable = NotificationCenter.default.publisher(for: .holoTodayPlanDidChange)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 self?.token += 1

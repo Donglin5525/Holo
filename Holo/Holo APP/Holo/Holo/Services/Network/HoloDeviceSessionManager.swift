@@ -195,7 +195,7 @@ nonisolated final class HoloDeviceSessionManager {
     }
 
     private static func loadPrivateKeyFromKeychain() -> Curve25519.Signing.PrivateKey? {
-        var query: [String: Any] = [
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: keychainAccount,
             kSecReturnData as String: true,

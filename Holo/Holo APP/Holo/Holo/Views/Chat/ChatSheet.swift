@@ -70,7 +70,7 @@ enum ChatSheet: Identifiable {
         case .categoryEdit(let message, let itemID, _):
             return "categoryEdit-\(message.id)-\(itemID ?? "nil")"
         case .taskEdit(let edit):
-            return "taskEdit-\(edit.messageID.uuidString)-\(edit.itemID)-\(edit.kind)"
+            return "taskEdit-\(edit.messageID.uuidString)-\(edit.itemID ?? "nil")-\(edit.kind)"
         }
     }
 }

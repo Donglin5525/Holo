@@ -6,9 +6,26 @@ import AppKit
 #endif
 import Foundation
 
+/// 想法页面与口述稿共用的排版。纸张模板可以替换字形，正文节奏保持一致。
+enum ThoughtLayout {
+    static let title = Font.title3.weight(.semibold)
+    static let sectionTitle = Font.headline
+    static let body = Font.callout
+    static let secondary = Font.subheadline
+    static let metadata = Font.caption
+    static let bodySize: CGFloat = 16
+    static let bodyLineHeight: CGFloat = 1.68
+    static let bodyLineSpacing: CGFloat = 7
+    static let pageInset: CGFloat = HoloSpacing.page
+    static let contentInset: CGFloat = HoloSpacing.md
+    static let cardGap: CGFloat = 12
+    static let itemGap: CGFloat = HoloSpacing.sm
+    static let detailGap: CGFloat = HoloSpacing.xs
+}
+
 /// 字体只用于想法纸面；按钮、导航与其他模块继续使用全局字体。
 enum ThoughtTypography {
-    static func font(_ role: ThoughtFontRole, size: CGFloat = 17, bold: Bool = false, relativeTo textStyle: Font.TextStyle = .body) -> Font {
+    static func font(_ role: ThoughtFontRole, size: CGFloat = ThoughtLayout.bodySize, bold: Bool = false, relativeTo textStyle: Font.TextStyle = .callout) -> Font {
         if role == .system { return .system(textStyle, design: .default, weight: bold ? .semibold : .regular) }
         return .custom(fontName(role, bold: bold), size: size, relativeTo: textStyle)
     }

@@ -26,6 +26,15 @@ enum TranscriptDisplayMode: Equatable {
     case original
 }
 
+enum VoiceSummaryPhase: Equatable {
+    case idle, processing, ready, failed
+}
+
+struct VoiceTranscriptSubmission: Equatable {
+    let text: String
+    let originalToRestore: String?
+}
+
 enum VoiceInputError: Equatable {
     case microphonePermissionDenied
     case recordingTooShort
@@ -84,6 +93,29 @@ final class VoiceInputViewModel: ObservableObject {
     @Published private(set) var summaryTranscript: String?
     @Published private(set) var transcriptDisplayMode: TranscriptDisplayMode = .summary
     @Published private(set) var summaryNotice: String?
+    @Published private(set) var summaryPhase: VoiceSummaryPhase = .idle
+    private(set) var summaryQualityNotice: String?
+
+    private var summaryInput: String?
+    private var originalDraft: String?
+    private var summaryDraft: String?
+    private var keepsOriginalVisible = false
+
+    var isTranscriptEdited: Bool {
+        guard let baseline = transcriptDisplayMode == .summary ? summaryTranscript : originalTranscript else {
+            return false
+        }
+        return editableTranscript != baseline
+    }
+
+    var submission: VoiceTranscriptSubmission {
+        VoiceTranscriptSubmission(
+            text: editableTranscript,
+            originalToRestore: transcriptDisplayMode == .summary && editableTranscript != originalTranscript
+                ? originalTranscript : nil
+        )
+    }
+
 
     let postProcessor: (any VoiceTranscriptPostProcessing)?
     private var summaryTask: Task<Void, Never>?
@@ -160,10 +192,7 @@ final class VoiceInputViewModel: ObservableObject {
         recordingDuration = 0
         didAutoFinishBecauseOfLimit = false
         didReceiveRecoverableInterruption = false
-        originalTranscript = nil
-        summaryTranscript = nil
-        transcriptDisplayMode = .summary
-        summaryNotice = nil
+        resetSummaryDrafts()
 
         let granted = await recordingService.requestPermission()
         guard granted else {
@@ -282,10 +311,7 @@ final class VoiceInputViewModel: ObservableObject {
         recordingDuration = 0
         didAutoFinishBecauseOfLimit = false
         didReceiveRecoverableInterruption = false
-        originalTranscript = nil
-        summaryTranscript = nil
-        transcriptDisplayMode = .summary
-        summaryNotice = nil
+        resetSummaryDrafts()
         state = .idle
     }
 
@@ -305,10 +331,7 @@ final class VoiceInputViewModel: ObservableObject {
         recordingDuration = 0
         didAutoFinishBecauseOfLimit = false
         didReceiveRecoverableInterruption = false
-        originalTranscript = nil
-        summaryTranscript = nil
-        transcriptDisplayMode = .summary
-        summaryNotice = nil
+        resetSummaryDrafts()
 
         Task {
             await startRecording()
@@ -449,7 +472,7 @@ final class VoiceInputViewModel: ObservableObject {
             summaryTranscript = nil
             editableTranscript = formattedText
             transcriptDisplayMode = .original
-            summaryNotice = String(localized: "正在智能总结，可先确认原文")
+            summaryInput = text
             state = .transcriptReady(formattedText)
             startSummary(text, processor: postProcessor)
         } else {
@@ -459,6 +482,8 @@ final class VoiceInputViewModel: ObservableObject {
     }
 
     private func startSummary(_ asrText: String, processor: any VoiceTranscriptPostProcessing) {
+        summaryPhase = .processing
+        summaryNotice = String(localized: "正在智能总结，可先确认原文")
         summaryTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -470,17 +495,22 @@ final class VoiceInputViewModel: ObservableObject {
                         try await Task.sleep(nanoseconds: 15_000_000_000)
                         throw SummaryError.timeout
                     }
-                    let first = try await group.next()!
+                    guard let first = try await group.next() else { throw SummaryError.emptyResult }
                     group.cancelAll()
                     return first
                 }
                 guard !Task.isCancelled else { return }
 
                 let formattedResult = self.formatTranscript(result)
+                guard !formattedResult.isEmpty else { throw SummaryError.emptyResult }
+                self.summaryQualityNotice = Self.qualityNotice(summary: formattedResult, original: self.originalTranscript ?? asrText)
+                self.summaryNotice = self.summaryQualityNotice
                 let shouldApplySummary = self.transcriptDisplayMode == .original
-                    && self.editableTranscript == self.originalTranscript
+                    && !self.keepsOriginalVisible
+                    && !self.isTranscriptEdited
+                    && self.summaryNotice == nil
                 self.summaryTranscript = formattedResult
-                self.summaryNotice = Self.qualityNotice(summary: formattedResult, original: self.originalTranscript ?? asrText)
+                self.summaryPhase = .ready
                 if shouldApplySummary {
                     self.editableTranscript = formattedResult
                     self.transcriptDisplayMode = .summary
@@ -489,17 +519,12 @@ final class VoiceInputViewModel: ObservableObject {
                     self.summaryNotice = self.summaryNotice ?? String(localized: "智能总结已完成，可还原总结")
                     self.state = .transcriptReady(self.editableTranscript)
                 }
-            } catch is CancellationError {
-                // Task 被 cancel，不更新状态
             } catch {
                 guard !Task.isCancelled else { return }
-                // 总结失败，回退 ASR 原文
-                self.summaryTranscript = nil
-                let fallbackText = self.originalTranscript ?? self.formatTranscript(asrText)
-                self.editableTranscript = fallbackText
-                self.transcriptDisplayMode = .original
-                self.summaryNotice = String(localized: "智能总结失败，已保留原文")
-                self.state = .transcriptReady(fallbackText)
+                // 原文已可编辑，失败只更新状态，避免覆盖用户手改。
+                self.summaryPhase = .failed
+                self.summaryNotice = String(localized: "整理失败，当前文字已保留")
+                self.state = .transcriptReady(self.editableTranscript)
             }
         }
     }
@@ -510,15 +535,36 @@ final class VoiceInputViewModel: ObservableObject {
     }
 
     func showOriginalTranscript() {
-        guard let originalTranscript else { return }
-        editableTranscript = originalTranscript
+        keepsOriginalVisible = true
+        guard let originalTranscript, transcriptDisplayMode != .original else { return }
+        summaryDraft = editableTranscript
+        editableTranscript = originalDraft ?? originalTranscript
         transcriptDisplayMode = .original
     }
 
     func restoreSummaryTranscript() {
-        guard let summaryTranscript else { return }
-        editableTranscript = summaryTranscript
+        guard let summaryTranscript, transcriptDisplayMode != .summary else { return }
+        originalDraft = editableTranscript
+        editableTranscript = summaryDraft ?? summaryTranscript
         transcriptDisplayMode = .summary
+    }
+
+    func retrySummary() {
+        guard summaryPhase == .failed, let summaryInput, let postProcessor else { return }
+        startSummary(summaryInput, processor: postProcessor)
+    }
+
+    private func resetSummaryDrafts() {
+        originalTranscript = nil
+        summaryTranscript = nil
+        transcriptDisplayMode = .summary
+        summaryNotice = nil
+        summaryQualityNotice = nil
+        summaryPhase = .idle
+        summaryInput = nil
+        originalDraft = nil
+        summaryDraft = nil
+        keepsOriginalVisible = false
     }
 
     private func formatTranscript(_ text: String) -> String {
@@ -530,10 +576,10 @@ final class VoiceInputViewModel: ObservableObject {
     private static func qualityNotice(summary: String, original: String) -> String? {
         let ratio = Double(summary.count) / Double(max(original.count, 1))
         if ratio < 0.1 {
-            return String(localized: "总结较原文大幅缩短，可查看原文确认")
+            return String(localized: "整理稿较原文大幅缩短，可对照原文")
         }
         if ratio > 1.5 {
-            return String(localized: "总结内容较原文更长，建议查看原文对比")
+            return String(localized: "整理稿比原文更长，可对照原文")
         }
         return nil
     }

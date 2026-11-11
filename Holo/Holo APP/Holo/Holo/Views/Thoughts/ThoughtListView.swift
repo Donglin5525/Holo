@@ -541,10 +541,10 @@ struct ThoughtListView: View {
                 .font(.system(size: 30))
                 .foregroundColor(.holoTextPlaceholder)
             Text("选一条想法打开")
-                .holoText(.body)
+                .font(ThoughtLayout.body)
                 .foregroundColor(.holoToolTextSecondary)
             Text("在左侧轻点卡片，在这里展开编辑")
-                .holoText(.supporting)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextPlaceholder)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -574,7 +574,7 @@ struct ThoughtListView: View {
                         .tint(.holoPrimary)
 
                     Text("AI 自动归纳中（\(orgQueue.batchCompleted)/\(total)）")
-                        .holoText(.supporting)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoToolTextSecondary)
 
                     Spacer()
@@ -591,7 +591,7 @@ struct ThoughtListView: View {
                         .foregroundColor(.holoToolTextSecondary)
 
                     Text("今日 AI 额度已用尽，剩余条目明天自动续做")
-                        .holoText(.supporting)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoToolTextSecondary)
 
                     Spacer()
@@ -611,7 +611,7 @@ struct ThoughtListView: View {
                             .foregroundColor(.holoToolAction)
 
                         Text("AI 有 \(pendingConfirmationCount) 条主题归属想跟你确认")
-                            .holoText(.supporting)
+                            .font(ThoughtLayout.secondary)
                             .foregroundColor(.holoToolTextSecondary)
 
                         Spacer()
@@ -634,7 +634,7 @@ struct ThoughtListView: View {
                         .tint(.holoPrimary)
 
                     Text("AI 自动归纳中...")
-                        .holoText(.supporting)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoToolTextSecondary)
 
                     Spacer()
@@ -672,7 +672,7 @@ struct ThoughtListView: View {
 
             // 信息排序：是什么 → 可以拒绝 → 可以不管（最后一句卸下心理负担）
             Text("Holo 会自动为想法打标签、归主题。不合适的建议点 ✗ 即可，不管它也没关系。")
-                .holoText(.supporting)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -682,7 +682,7 @@ struct ThoughtListView: View {
                 }
             } label: {
                 Text("知道了")
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoPrimary)
                     .padding(.horizontal, 4)
@@ -701,7 +701,7 @@ struct ThoughtListView: View {
                         .stroke(Color.holoToolAction.opacity(0.22), lineWidth: 1)
                 )
         )
-        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.horizontal, ThoughtLayout.pageInset)
         .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
@@ -864,27 +864,20 @@ struct ThoughtListView: View {
     /// 当前浏览范围的基集（抽屉范围优先；nil = 全部想法）。
     /// 面板筛选与刷新共用，保证「范围内叠加条件」的口径一致。
     private func baseThoughtsForCurrentScope() throws -> [Thought] {
-        if let drawerSelection, drawerSelection != .aiOrganize {
-            var scoped: [Thought] = []
-            switch drawerSelection {
-            case nil, .allNotes:
-                scoped = try thoughtRepository.fetchAll()
-            case .unclassified:
-                scoped = try thoughtRepository.fetchUnclassifiedThoughts()
-            case .aiTag(let tagName):
-                scoped = try thoughtRepository.fetchThoughtsByAITag(tagName)
-            case .userTag(let pathKey):
-                scoped = try thoughtRepository.fetchThoughtsByUserTag(pathKey: pathKey)
-            case .topic(let topicId):
-                scoped = try topicRepository.fetchThoughts(byTopic: topicId)
-            case .archived:
-                scoped = try thoughtRepository.fetchArchived()
-            case .aiOrganize:
-                scoped = try thoughtRepository.fetchAll()
-            }
-            return scoped
+        switch drawerSelection {
+        case nil, .allNotes, .aiOrganize:
+            return try thoughtRepository.fetchAll()
+        case .unclassified:
+            return try thoughtRepository.fetchUnclassifiedThoughts()
+        case .aiTag(let tagName):
+            return try thoughtRepository.fetchThoughtsByAITag(tagName)
+        case .userTag(let pathKey):
+            return try thoughtRepository.fetchThoughtsByUserTag(pathKey: pathKey)
+        case .topic(let topicId):
+            return try topicRepository.fetchThoughts(byTopic: topicId)
+        case .archived:
+            return try thoughtRepository.fetchArchived()
         }
-        return try thoughtRepository.fetchAll()
     }
 
     /// P1：整理状态匹配（待确认判定复用 Policy，认可集合为列表层缓存）
@@ -1005,18 +998,18 @@ struct ThoughtListView: View {
                 Image(systemName: "sparkles")
                     .foregroundColor(.holoToolAction)
                 Text("批量 AI 整理")
-                    .holoText(.sectionTitle)
+                    .font(ThoughtLayout.title)
                     .foregroundColor(.holoToolText)
                 Spacer()
             }
 
             // 说明
-            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
                 Text("将为 **\(unprocessedCount)** 条未整理想法生成 AI 标签")
-                    .holoText(.body)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoToolText)
                 Text("每条想法会产生 ≤3 个标签建议，可在详情页确认或拒绝。")
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoToolTextSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1027,7 +1020,7 @@ struct ThoughtListView: View {
                     .foregroundColor(.holoPrimary)
                     .font(.system(size: 12))
                 Text("后台串行整理，受每日配额限制，会占用今日 AI 额度（与聊天等共享，可能影响新想法当天的自动整理）；多余条目会在后续打开 App 时自动续做。")
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoToolTextSecondary)
             }
             .padding(HoloSpacing.md)
@@ -1079,7 +1072,7 @@ struct ThoughtListView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(.holoToolTextSecondary)
                         Text(sidebarScopeTitle)
-                            .holoText(.sectionTitle)
+                            .font(ThoughtLayout.title)
                             .foregroundColor(.holoToolText)
                             .lineLimit(1)
                     }
@@ -1099,7 +1092,7 @@ struct ThoughtListView: View {
                             Image(systemName: "plus")
                                 .font(.system(size: 13, weight: .semibold))
                             Text("新建")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(ThoughtLayout.secondary.weight(.semibold))
                         }
                         .foregroundColor(.white)
                         .padding(.horizontal, 14)
@@ -1117,7 +1110,7 @@ struct ThoughtListView: View {
                 }
                 .accessibilityIdentifier("thoughts.settings.open")
             }
-            .padding(.horizontal, HoloSpacing.page)
+            .padding(.horizontal, ThoughtLayout.pageInset)
             .padding(.vertical, HoloSpacing.sm)
             .background(Color.holoToolBackground)
         } else {
@@ -1159,7 +1152,7 @@ struct ThoughtListView: View {
 
             // 标题
             Text("想法")
-                .holoText(.sectionTitle)
+                .font(ThoughtLayout.title)
                 .foregroundColor(.holoToolText)
 
             Spacer()
@@ -1173,7 +1166,7 @@ struct ThoughtListView: View {
                         Image(systemName: "plus")
                             .font(.system(size: 13, weight: .semibold))
                         Text("新建")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(ThoughtLayout.secondary.weight(.semibold))
                     }
                     .foregroundColor(.white)
                     .padding(.horizontal, 14)
@@ -1229,7 +1222,7 @@ struct ThoughtListView: View {
             RoundedRectangle(cornerRadius: HoloRadius.md)
                 .stroke(Color.holoToolBorder, lineWidth: 1)
         )
-        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.horizontal, ThoughtLayout.pageInset)
         .padding(.bottom, HoloSpacing.sm)
     }
 
@@ -1246,7 +1239,7 @@ struct ThoughtListView: View {
                     .font(.system(size: 12, weight: .medium))
                     .symbolEffect(.bounce, value: isSelected)
                 Text(title)
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
             }
             .foregroundColor(isSelected ? .white : .holoToolTextSecondary)
             .frame(maxWidth: .infinity)
@@ -1272,7 +1265,7 @@ struct ThoughtListView: View {
 
             TextField("搜索想法或标签...", text: $searchText)
                 .focused($searchFieldFocused)
-                .holoText(.supporting)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoToolText)
 
             if !searchText.isEmpty {
@@ -1317,7 +1310,7 @@ struct ThoughtListView: View {
             RoundedRectangle(cornerRadius: HoloRadius.md)
                 .stroke(Color.holoToolBorder, lineWidth: 1)
         )
-        .padding(.horizontal, HoloSpacing.page)
+        .padding(.horizontal, ThoughtLayout.pageInset)
         .padding(.vertical, HoloSpacing.sm)
     }
 
@@ -1369,14 +1362,14 @@ struct ThoughtListView: View {
                     clearAllPanelFilters()
                 } label: {
                     Text("清除筛选")
-                        .font(.holoTinyLabel)
+                        .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoToolTextSecondary)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, HoloSpacing.page)
+            .padding(.horizontal, ThoughtLayout.pageInset)
             .transition(.opacity.combined(with: .move(edge: .top)))
         }
     }
@@ -1398,16 +1391,16 @@ struct ThoughtListView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("主题脉络")
-                            .holoText(.supporting)
+                            .font(ThoughtLayout.secondary)
                             .fontWeight(.semibold)
                             .foregroundColor(.holoToolText)
                         Text(topicScopeDescription)
-                            .font(.holoTinyLabel)
+                            .font(ThoughtLayout.metadata)
                             .foregroundColor(.holoToolTextSecondary)
                     }
                     Spacer(minLength: 0)
                     Text("查看")
-                        .holoText(.supporting)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoSuccessText)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
@@ -1420,7 +1413,7 @@ struct ThoughtListView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, HoloSpacing.page)
+            .padding(.horizontal, ThoughtLayout.pageInset)
             .padding(.bottom, HoloSpacing.xs)
             .accessibilityLabel(String(localized: "查看主题脉络"))
         }
@@ -1463,7 +1456,7 @@ struct ThoughtListView: View {
                                 Image(systemName: "leaf.fill")
                                     .font(.system(size: 11, weight: .semibold))
                                 Text(String(localized: "其中 \(item.count) 条也在「\(item.topic.title)」"))
-                                    .holoText(.supporting)
+                                    .font(ThoughtLayout.secondary)
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 9, weight: .semibold))
                             }
@@ -1479,7 +1472,7 @@ struct ThoughtListView: View {
                         .accessibilityLabel(String(localized: "\(item.count) 条想法也在主题\(item.topic.title)，点按查看"))
                     }
                 }
-                .padding(.horizontal, HoloSpacing.page)
+                .padding(.horizontal, ThoughtLayout.pageInset)
             }
             .padding(.bottom, HoloSpacing.xs)
         }
@@ -1500,7 +1493,7 @@ struct ThoughtListView: View {
     private func summaryChip(text: String, onRemove: @escaping () -> Void) -> some View {
         HStack(spacing: 4) {
             Text(text)
-                .holoText(.metadata)
+                .font(ThoughtLayout.metadata)
                 .foregroundColor(.holoToolText)
                 .lineLimit(1)
             Button {
@@ -1616,7 +1609,7 @@ struct ThoughtListView: View {
                                 Image(systemName: "leaf.fill")
                                     .font(.system(size: 9, weight: .semibold))
                                 Text(topic.title)
-                                    .holoText(.metadata)
+                                    .font(ThoughtLayout.metadata)
                                     .lineLimit(1)
                             }
                             .foregroundColor(isTopicFilterSelected(topic)
@@ -1651,7 +1644,7 @@ struct ThoughtListView: View {
                 }
                 .accessibilityLabel(String(localized: "筛选"))
             }
-            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.horizontal, ThoughtLayout.pageInset)
             .padding(.vertical, HoloSpacing.sm)
         }
     }
@@ -1660,7 +1653,7 @@ struct ThoughtListView: View {
 
     private var thoughtListView: some View {
         ScrollView(showsIndicators: false) {
-            LazyVStack(spacing: 12) {
+            LazyVStack(spacing: ThoughtLayout.cardGap) {
                 ForEach(Array(filteredThoughts.enumerated()), id: \.element) { index, thought in
                     SwipeActionView(
                         isRevealed: Binding(
@@ -1754,7 +1747,7 @@ struct ThoughtListView: View {
                     .holoStaggeredAppear(index: index)
                 }
             }
-            .padding(.horizontal, HoloSpacing.page)
+            .padding(.horizontal, ThoughtLayout.pageInset)
             .padding(.top, HoloSpacing.md)
             .padding(.bottom, 90) // 给浮动按钮留位
         }
@@ -1865,11 +1858,11 @@ struct ThoughtListView: View {
                 .foregroundColor(.holoToolTextSecondary.opacity(0.3))
 
             Text(title)
-                .holoText(.body)
+                .font(ThoughtLayout.body)
                 .foregroundColor(.holoToolTextSecondary)
 
             Text(caption)
-                .holoText(.supporting)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoToolTextSecondary.opacity(0.7))
 
             // 空态行动按钮：右下 FAB 是本屏唯一橙主行动，此处退为灰描边次级引导
@@ -1878,7 +1871,7 @@ struct ThoughtListView: View {
                     showAddThought = true
                 } label: {
                     Label(String(localized: "记录第一条想法"), systemImage: "plus.circle")
-                        .font(.subheadline.weight(.semibold))
+                        .font(ThoughtLayout.secondary.weight(.semibold))
                         .foregroundColor(.holoToolTextSecondary)
                         .padding(.horizontal, 26)
                         .padding(.vertical, 11)
@@ -1895,7 +1888,7 @@ struct ThoughtListView: View {
 
             if ICloudSyncStatusService.shared.isInitialSyncPending {
                 Text("正在从 iCloud 恢复数据，稍等片刻就会显示")
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoInfo)
                     .transition(.opacity)
             }

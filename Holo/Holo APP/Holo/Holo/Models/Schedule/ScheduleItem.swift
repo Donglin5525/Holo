@@ -8,7 +8,7 @@
 import SwiftUI
 import EventKit
 
-struct ScheduleItem: Identifiable, Equatable {
+nonisolated struct ScheduleItem: Identifiable, Equatable {
     /// eventIdentifier + 发生时刻合成，保证重复日程多场各自唯一（Identifiable）
     let id: String
     let eventIdentifier: String
@@ -49,7 +49,7 @@ struct ScheduleItem: Identifiable, Equatable {
         self.endDate = event.endDate
         self.isAllDay = event.isAllDay
         self.location = event.location
-        self.id = "\(event.eventIdentifier)|\(event.startDate.timeIntervalSince1970)"
+        self.id = "\(event.eventIdentifier ?? "")|\(event.startDate.timeIntervalSince1970)"
     }
 
     static func == (lhs: ScheduleItem, rhs: ScheduleItem) -> Bool {

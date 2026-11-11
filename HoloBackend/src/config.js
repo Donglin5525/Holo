@@ -210,10 +210,10 @@ const DEFAULT_CONFIG = {
         ?? process.env.HOLO_CHAT_MODEL
         ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_TEMPERATURE ?? 0.3),
-      maxTokens: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_MAX_TOKENS ?? 1024),
+      maxTokens: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_MAX_TOKENS ?? 6144),
       // §reasoning-off: 语音总结是轻量文本整理任务，不需要推理模型先思考再输出。
       // 关闭思考（reasoning_effort=none）后：① 耗时从 ~1800ms 降到 ~1000ms；
-      // ② reasoning_tokens 归零，1024 maxTokens 全部留给正式输出，不再有"思考吃满额度导致输出为空"的风险。
+      // ② 输出预算留给原意保留，避免长录音为了适配预算被强行压缩。
       // 与 agent_loop（用 low）同属 buildUpstreamBody 的 reasoning_effort 透传机制。
       reasoningEffort: process.env.HOLO_THOUGHT_VOICE_SUMMARY_REASONING_EFFORT ?? "none",
     },

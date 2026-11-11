@@ -956,7 +956,7 @@ actor ThoughtSemanticStore {
     private func bindValue(_ b: Bind, to stmt: OpaquePointer, at idx: Int32) {
         switch b {
         case .uuid(let u):
-            withUnsafeBytes(of: u.uuid) { sqlite3_bind_blob(stmt, idx, $0.baseAddress, Int32($0.count), SQLITE_TRANSIENT_DESTRUCTOR) }
+            _ = withUnsafeBytes(of: u.uuid) { sqlite3_bind_blob(stmt, idx, $0.baseAddress, Int32($0.count), SQLITE_TRANSIENT_DESTRUCTOR) }
         case .text(let s):
             if let s { sqlite3_bind_text(stmt, idx, s, -1, SQLITE_TRANSIENT_DESTRUCTOR) } else { sqlite3_bind_null(stmt, idx) }
         case .int(let v), .int64(let v):
@@ -966,7 +966,7 @@ actor ThoughtSemanticStore {
         case .date(let d):
             if let d { sqlite3_bind_double(stmt, idx, d.timeIntervalSince1970) } else { sqlite3_bind_null(stmt, idx) }
         case .blob(let data):
-            data.withUnsafeBytes { sqlite3_bind_blob(stmt, idx, $0.baseAddress, Int32($0.count), SQLITE_TRANSIENT_DESTRUCTOR) }
+            _ = data.withUnsafeBytes { sqlite3_bind_blob(stmt, idx, $0.baseAddress, Int32($0.count), SQLITE_TRANSIENT_DESTRUCTOR) }
         }
     }
 

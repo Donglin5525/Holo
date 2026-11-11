@@ -142,7 +142,7 @@ struct TaskImagePicker: View {
             if !images.isEmpty {
                 onSelectImages(images)
             }
-            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired, limitedAccess: limitedAccess, cloudFailed: cloudFailed)
+            PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired, limitedAccess: limitedAccess, cloudFailed: cloudFailed)
         }
     }
 }

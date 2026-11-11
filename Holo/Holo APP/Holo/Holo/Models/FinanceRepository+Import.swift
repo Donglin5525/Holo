@@ -825,7 +825,7 @@ extension FinanceRepository {
             catRequest.predicate = NSPredicate(format: "importBatchId == %@", batchId as CVarArg)
             let batchCategories = (try? bgContext.fetch(catRequest)) ?? []
             for cat in batchCategories {
-                let liveRefCount = (cat.transactions as? Set<Transaction> ?? [])
+                let liveRefCount = (cat.transactions ?? [])
                     .filter { $0.deletedAt == nil }.count
                 if liveRefCount == 0 {
                     bgContext.delete(cat)
@@ -839,7 +839,7 @@ extension FinanceRepository {
             accRequest.predicate = NSPredicate(format: "importBatchId == %@", batchId as CVarArg)
             let batchAccounts = (try? bgContext.fetch(accRequest)) ?? []
             for acc in batchAccounts {
-                let liveRefCount = (acc.transactions as? Set<Transaction> ?? [])
+                let liveRefCount = (acc.transactions ?? [])
                     .filter { $0.deletedAt == nil }.count
                 if liveRefCount == 0 {
                     bgContext.delete(acc)

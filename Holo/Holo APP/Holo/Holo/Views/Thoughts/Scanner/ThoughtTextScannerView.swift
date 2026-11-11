@@ -281,7 +281,7 @@ private struct TextScannerOverlayView: View {
             Spacer()
             if !state.recognizedText.isEmpty {
                 Text(String(localized: "已识别 \(state.recognizedText.count) 字"))
-                    .font(.footnote)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -309,7 +309,7 @@ private struct RecognizedTextPanel: View {
                             .textSelection(.enabled)
                     }
                 }
-                .font(.body)
+                .font(ThoughtLayout.body)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)

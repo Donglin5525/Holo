@@ -114,6 +114,17 @@
   .cand .amt { font-size: 14px; font-weight: 700; }
   .cand .match-tag { font-size: 10px; color: #34C77B; border: 1px solid rgba(52,199,123,.45); border-radius: 999px; padding: 1px 7px; margin-left: 6px; vertical-align: 1px; }
 
+  /* 屏2 新增：搜索框 + 降级出口 */
+  .search-box { background: #23232A; border-radius: 10px; padding: 9px 12px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #6E6E76; }
+  .search-box .placeholder { flex: 1; }
+  .search-box .kbd { font-size: 11px; color: #55555D; border: 1px solid #33333B; border-radius: 5px; padding: 1px 6px; }
+  .fallback {
+    margin-top: 2px; text-align: center; padding: 12px 0 2px;
+    border-top: 1px solid #2A2A31;
+  }
+  .fallback button { background: none; border: none; color: #8E8E96; font-size: 13px; font-family: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }
+  .fallback .why { font-size: 11px; color: #55555D; margin-top: 6px; line-height: 1.5; }
+
   /* ===== 屏3：保存后的结果态（账本列表） ===== */
   .list-sec { font-size: 13px; font-weight: 700; color: #C8C8CE; margin-top: 4px; }
   .tx {
@@ -164,7 +175,7 @@
 
         <div class="refund-hint">
           <div class="ico">↩︎</div>
-          <div class="txt">看起来是<b>退款</b>。关联原支出后，这笔钱会自动<b>冲减当天支出</b>，而不是记成收入。</div>
+          <div class="txt">看起来是<b>退款</b>，关联原支出可自动冲减</div>
           <button class="act">选择原支出</button>
         </div>
       </div>
@@ -182,7 +193,7 @@
       <div class="sheet">
         <div class="grab"></div>
         <h3>这笔退的是哪笔消费？</h3>
-        <div class="tip">近 90 天的支出，金额吻合的排最前。关联后原支出会带上「已退」标记。</div>
+        <div class="search-box">🔍 <span class="placeholder">搜商家 / 备注，如「优衣库」</span><span class="kbd">全量支出</span></div>
         <div class="cand match">
           <div class="em">👕</div>
           <div class="mid">
@@ -206,6 +217,9 @@
             <div class="d">11月7日 · 吃吃喝喝/午餐 · 招商银行</div>
           </div>
           <div class="amt">¥243.82</div>
+        </div>
+        <div class="fallback">
+          <button>没找到，直接按普通收入记录 ›</button>
         </div>
       </div>
     </div>
@@ -273,7 +287,9 @@
 2. 触发条件与 AI 聊天同源：备注/分类命中「退款/退货/退费/退回」即出现；<br>
 3. 选中候选后分类自动沿用原支出（与 AI 链路口径一致），账户默认退回原支付账户；<br>
 4. 金额超原支出时给出拦截（复用现有「累计退款不得超过原额」校验）；<br>
-5. 分期支出不可关联（与详情页「记退款」入口同一规则）。
+5. 分期支出不可关联（与详情页「记退款」入口同一规则）；<br>
+6. <b>「找不到」三条退路</b>：候选只有几十条太多翻不动 → 顶部搜索框搜全量支出（商家/备注关键词，不再限 90 天）；<br>
+　　消费超过 90 天或当初没记账 → 底部「直接按普通收入记录」一键降级（= 现状行为，账不丢、只是不冲减支出）。
 </p>
 
 </body>

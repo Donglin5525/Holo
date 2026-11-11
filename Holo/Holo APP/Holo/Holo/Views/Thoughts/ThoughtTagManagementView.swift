@@ -66,7 +66,7 @@ struct ThoughtTagManagementView: View {
                     let names = segment == .mine ? recognizedNames : unrecognizedAINames
                     if names.isEmpty {
                         Text(segment == .mine ? String(localized: "还没有你确认过的标签") : String(localized: "暂无待处理的 AI 建议标签"))
-                            .font(.holoCaption)
+                            .font(ThoughtLayout.secondary)
                             .foregroundColor(.holoTextSecondary)
                     }
                     ForEach(names, id: \.self) { name in
@@ -120,7 +120,7 @@ struct ThoughtTagManagementView: View {
             .overlay(alignment: .bottom) {
                 if let notice {
                     Text(notice)
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextPrimary)
                         .padding(.horizontal, HoloSpacing.md)
                         .padding(.vertical, HoloSpacing.sm)
@@ -143,10 +143,10 @@ struct ThoughtTagManagementView: View {
         let count = assignmentCounts[key] ?? 0
         let aiExcluded = segment == .mine && excludedTagKeys.contains(key)
         return HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 5) {
+            VStack(alignment: .leading, spacing: ThoughtLayout.detailGap) {
+                HStack(spacing: ThoughtLayout.detailGap) {
                     Text("#\(display)")
-                        .font(.holoBody)
+                        .font(ThoughtLayout.body)
                         .foregroundColor(aiExcluded ? Color.holoAIShieldTint : .holoTextPrimary)
                     if aiExcluded {
                         Image(systemName: "checkmark.shield.fill")
@@ -157,7 +157,7 @@ struct ThoughtTagManagementView: View {
                 Text(aiExcluded
                      ? String(localized: "\(count) 条想法 · 已排除出 AI 分析")
                      : (count > 0 ? String(localized: "\(count) 条想法") : String(localized: "未使用")))
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextSecondary)
             }
             Spacer()
@@ -351,7 +351,7 @@ private struct TagThoughtListView: View {
                 if thoughts.isEmpty {
                     VStack(spacing: HoloSpacing.sm) {
                         Text("这个标签下还没有想法")
-                            .font(.holoBody)
+                            .font(ThoughtLayout.body)
                             .foregroundColor(.holoTextSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -400,10 +400,10 @@ private struct TagThoughtListView: View {
     private func thoughtRow(_ thought: Thought) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(thought.createdAt.formatted(date: .abbreviated, time: .omitted))
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextSecondary.opacity(0.6))
             Text(thought.content)
-                .font(.holoBody)
+                .font(ThoughtLayout.body)
                 .foregroundColor(.holoTextPrimary)
                 .lineLimit(2)
         }

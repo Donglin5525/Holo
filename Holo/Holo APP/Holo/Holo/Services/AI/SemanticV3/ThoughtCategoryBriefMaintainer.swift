@@ -130,7 +130,7 @@ nonisolated final class ThoughtCategoryBriefMaintainer: @unchecked Sendable {
                 let sa = ThoughtTopicLinkProjection.categorySampleRank(of: $0, in: topic)
                 let sb = ThoughtTopicLinkProjection.categorySampleRank(of: $1, in: topic)
                 if sa != sb { return sa < sb }
-                return ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast)
+                return $0.updatedAt > $1.updatedAt
             }
             let memberSamples = ordered.prefix(Self.memberSampleLimit).compactMap { thought -> (String, String, String)? in
                 let text = ThoughtSemanticText.prefix(ThoughtIndexV2Policy.redactedText(forUpload: thought.content), maxUTF16: 240)

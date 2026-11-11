@@ -77,13 +77,13 @@ struct ThoughtStylePicker: View {
                 Text(candidate == currentStyle ? String(localized: "正在使用") : String(localized: "仅预览，尚未应用"))
                     .foregroundStyle(Color.holoToolTextSecondary)
             }
-            .font(.holoLabel)
+            .font(ThoughtLayout.metadata)
             ThoughtTemplateChooser(selected: candidate, date: createdAt) { style in
                 HapticManager.selection()
                 candidate = style
             }
             Text(String(localized: "仅应用到本条，文字与图片保留"))
-                .font(.holoLabel)
+                .font(ThoughtLayout.metadata)
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }

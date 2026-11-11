@@ -80,7 +80,7 @@ enum BillDuplicateDetector {
 
             guard !candidates.isEmpty else { continue }
 
-            var unresolvedRows: [(row: Int, date: Date, window: Int)] = incomingRows.map { row in
+            let unresolvedRows: [(row: Int, date: Date, window: Int)] = incomingRows.map { row in
                 (row.row, row.date, manualWindowDays)
             }
 

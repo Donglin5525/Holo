@@ -7,6 +7,30 @@
 
 import Foundation
 
+enum ThoughtVoiceInsertionStatus: Equatable {
+    case polished, restored
+}
+
+/// 只在当前编辑器会话保存，用实际插入后的 UTF-16 范围定位这一段。
+struct ThoughtVoiceReplacement {
+    let expectedDocument: String
+    let range: NSRange
+    let alternate: String
+    let status: ThoughtVoiceInsertionStatus
+
+    func reversing(in document: String) -> ThoughtVoiceReplacement? {
+        guard document.utf16.elementsEqual(expectedDocument.utf16),
+              let stringRange = Range(range, in: document) else { return nil }
+        let previous = String(document[stringRange])
+        return ThoughtVoiceReplacement(
+            expectedDocument: document.replacingCharacters(in: stringRange, with: alternate),
+            range: NSRange(location: range.location, length: alternate.utf16.count),
+            alternate: previous,
+            status: status == .polished ? .restored : .polished
+        )
+    }
+}
+
 enum ThoughtVoiceTranscriptInsertion {
     static func makeInsertionText(
         transcript: String,

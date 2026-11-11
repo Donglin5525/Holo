@@ -395,7 +395,7 @@ struct HoloMemoryConfirmedKnowledgeRow: View {
                                     Label("修改", systemImage: "pencil")
                                 }
                             }
-                            if let onDisable {
+                            if onDisable != nil {
                                 Button(role: .destructive) {
                                     showsDisableConfirm = true
                                 } label: {

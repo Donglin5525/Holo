@@ -175,7 +175,8 @@ struct ScheduleSettingsSection: View {
             .buttonStyle(.plain)
             .disabled(isRequestingPermission)
 
-        case .denied, .restricted:
+        case .denied, .restricted, .writeOnly:
+            // writeOnly（iOS 17「仅添加」）读不了日程，对读取功能等同被拒绝
             Button {
                 openSystemSettings()
             } label: {

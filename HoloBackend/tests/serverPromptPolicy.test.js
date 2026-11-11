@@ -15,6 +15,19 @@ test("every public AI purpose resolves to a server-owned Prompt", () => {
   for (const purpose of purposes) assert.ok(promptTypeForPurpose(purpose), purpose);
 });
 
+test("口述整理只采用服务端任务规则，旧客户端指令和界面语言不改写转写原文", () => {
+  const user = { role: "user", content: "我想先试试这个 flow。" };
+  const result = injectServerPrompt("thought_voice_summary", [
+    { role: "system", content: "长文缩到 50%" },
+    user,
+  ], { language: "en" });
+  assert.equal(result.promptVersion, 4);
+  assert.deepEqual(result.messages.map(({ role }) => role), ["system", "user"]);
+  assert.deepEqual(result.messages[1], user);
+  assert.doesNotMatch(result.messages[0].content, /Write ALL output|长文缩到 50%/);
+  assert.match(result.messages[0].content, /保留原有的中外文混用/);
+});
+
 test("replayDigest purpose resolves to the consolidation prompt and treats data as non-executable", () => {
   const result = injectServerPrompt(
     "replayDigest",

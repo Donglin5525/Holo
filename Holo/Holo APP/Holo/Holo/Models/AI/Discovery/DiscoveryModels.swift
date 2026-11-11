@@ -324,8 +324,9 @@ private enum DiscoveryStrictJSON {
 }
 
 /// RFC 3339 date-time 解析（schema format: date-time；校验在 validate 阶段执行）
-enum DiscoveryISO8601 {
-    static let parser: ISO8601DateFormatter = {
+nonisolated enum DiscoveryISO8601 {
+    /// ISO8601DateFormatter 线程安全且此常量配置后不再变更，unsafe 仅为绕过未标 Sendable
+    nonisolated(unsafe) static let parser: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter

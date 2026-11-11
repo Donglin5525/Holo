@@ -149,9 +149,9 @@ extension AddTransactionSheet {
                             if transaction.financeProjectId != targetId {
                                 let group = try await repository.getInstallmentGroup(groupId: groupId)
                                 if let project = selectedProject {
-                                    try await FinanceProjectRepository.shared.attach(group, to: project)
+                                    try FinanceProjectRepository.shared.attach(group, to: project)
                                 } else {
-                                    try await FinanceProjectRepository.shared.detach(group)
+                                    try FinanceProjectRepository.shared.detach(group)
                                 }
                             }
                         }
@@ -334,9 +334,9 @@ extension AddTransactionSheet {
                         if transaction.financeProjectId != targetId {
                             let group = try await repository.getInstallmentGroup(groupId: groupId)
                             if let project = selectedProject {
-                                try await FinanceProjectRepository.shared.attach(group, to: project)
+                                try FinanceProjectRepository.shared.attach(group, to: project)
                             } else {
-                                try await FinanceProjectRepository.shared.detach(group)
+                                try FinanceProjectRepository.shared.detach(group)
                             }
                         }
                     }

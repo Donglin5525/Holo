@@ -65,7 +65,7 @@ struct ThoughtGalleryView: View {
 
                 // 页码指示器
                 Text("\(currentIndex + 1)/\(attachments.count)")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(ThoughtLayout.body.weight(.medium))
                     .foregroundColor(.white.opacity(0.7))
                     .padding(.bottom, 40)
             }

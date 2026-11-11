@@ -89,7 +89,7 @@ struct TopicDetailView: View {
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                VStack(alignment: .leading, spacing: ThoughtLayout.cardGap) {
                     if let topic {
                         topicContentSections(topic)
                     } else {
@@ -97,7 +97,7 @@ struct TopicDetailView: View {
                     }
                     Spacer(minLength: HoloSpacing.xxl)
                 }
-                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.horizontal, ThoughtLayout.pageInset)
                 .padding(.top, HoloSpacing.sm)
             }
             .background(Color.holoBackground)
@@ -244,7 +244,7 @@ struct TopicDetailView: View {
         do {
             let content = try await ThoughtTopicSummaryClient.refreshSummary(
                 topicID: topicId,
-                title: topic.title ?? "",
+                title: topic.title,
                 thoughts: thoughts,
                 basisRevision: topic.topicRevision,
                 provider: HoloBackendAIProvider(),
@@ -308,35 +308,35 @@ struct TopicDetailView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 5) {
                         Image(systemName: "sparkles")
-                            .font(.holoTinyLabel)
+                            .font(ThoughtLayout.metadata)
                             .foregroundColor(.holoToolAI)
                         Text("这个主题收什么")
-                            .font(.holoTinyLabel)
+                            .font(ThoughtLayout.metadata)
                             .foregroundColor(.holoTextSecondary)
                         Spacer()
                         Image(systemName: "pencil")
-                            .font(.holoTinyLabel)
+                            .font(ThoughtLayout.metadata)
                             .foregroundColor(.holoTextPlaceholder)
                     }
                     if let definition = topic.categoryDefinition, !definition.isEmpty {
                         Text(definition)
-                            .font(.holoCaption)
+                            .font(ThoughtLayout.secondary)
                             .foregroundColor(.holoTextPrimary)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else if let brief = briefDefinition {
                         Text(brief)
-                            .font(.holoCaption)
+                            .font(ThoughtLayout.secondary)
                             .foregroundColor(.holoTextPrimary)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Text("AI 根据你放进来的笔记代写 · 点开可改；不改它，它也只跟着你的动作学")
-                            .font(.holoTinyLabel)
+                            .font(ThoughtLayout.metadata)
                             .foregroundColor(.holoTextPlaceholder)
                             .multilineTextAlignment(.leading)
                     } else {
                         Text("写一句「收什么、不收什么」，AI 会按它归类；不写也可以，AI 按你的用法慢慢学")
-                            .font(.holoCaption)
+                            .font(ThoughtLayout.secondary)
                             .foregroundColor(.holoTextPlaceholder)
                             .multilineTextAlignment(.leading)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -390,11 +390,11 @@ struct TopicDetailView: View {
     private func splitPill(title: String, detail: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(title)
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .fontWeight(.semibold)
                 .foregroundColor(color)
             Text(detail)
-                .font(.holoTinyLabel)
+                .font(ThoughtLayout.metadata)
                 .foregroundColor(.holoTextPlaceholder)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -410,9 +410,9 @@ struct TopicDetailView: View {
     private var memberTagChipsSection: some View {
         let chips = memberTagChips
         if !chips.isEmpty {
-            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
                 Text("成员里你用过的 #标签")
-                    .font(.holoLabel)
+                    .font(ThoughtLayout.metadata)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
                 HStack(spacing: 8) {
@@ -425,9 +425,9 @@ struct TopicDetailView: View {
                         } label: {
                             HStack(spacing: 3) {
                                 Text("#\(ThoughtTagNormalizer.lastSegment(item.name))")
-                                    .font(.holoCaption)
+                                    .font(ThoughtLayout.secondary)
                                 Text("×\(item.count)")
-                                    .font(.holoTinyLabel)
+                                    .font(ThoughtLayout.metadata)
                                     .foregroundColor(.holoTextPlaceholder)
                             }
                             .foregroundColor(.holoPrimary)
@@ -461,10 +461,10 @@ struct TopicDetailView: View {
     @ViewBuilder
     private func topicSummarySection(_ topic: Topic) -> some View {
         if let content = summaryContent {
-            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
                 HStack(spacing: 6) {
                     Text("这段时间的变化")
-                        .font(.holoLabel)
+                        .font(ThoughtLayout.metadata)
                         .fontWeight(.semibold)
                         .foregroundColor(.holoTextPrimary)
                     Spacer()
@@ -479,7 +479,7 @@ struct TopicDetailView: View {
                                     .font(.system(size: 9.5, weight: .semibold))
                             }
                             Text("AI 摘要 · 可重建")
-                                .font(.system(size: 10.5, weight: .medium))
+                                .font(ThoughtLayout.metadata.weight(.medium))
                         }
                         .foregroundColor(.holoTextSecondary)
                         .padding(.horizontal, 8)
@@ -494,9 +494,9 @@ struct TopicDetailView: View {
                 }
 
                 Text(content.summary)
-                    .font(.system(size: 14.5))
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoTextPrimary.opacity(0.85))
-                    .lineSpacing(3)
+                    .lineSpacing(ThoughtLayout.bodyLineSpacing)
                     .fixedSize(horizontal: false, vertical: true)
 
                 // 过期态（方案 §3 P1：成员变化后旧摘要不冒充最新——标「可更新」）
@@ -505,7 +505,7 @@ struct TopicDetailView: View {
                         Image(systemName: "clock.arrow.circlepath")
                             .font(.system(size: 10))
                         Text("主题有新内容，摘要可更新")
-                            .font(.holoTinyLabel)
+                            .font(ThoughtLayout.metadata)
                     }
                     .foregroundColor(.holoTextSecondary)
                     .padding(.top, 2)
@@ -514,7 +514,7 @@ struct TopicDetailView: View {
                 if !content.viewpoints.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         Text("你反复提到的")
-                            .font(.system(size: 12.5, weight: .semibold))
+                            .font(ThoughtLayout.secondary.weight(.semibold))
                             .foregroundColor(.holoTextSecondary)
                             .padding(.bottom, 4)
                         ForEach(content.viewpoints, id: \.thoughtID) { viewpoint in
@@ -526,7 +526,8 @@ struct TopicDetailView: View {
                                         .fill(Color.holoPrimary)
                                         .frame(width: 5, height: 5)
                                     Text(viewpoint.quote)
-                                        .font(.system(size: 13.5))
+                                        .font(ThoughtLayout.secondary)
+                                        .lineSpacing(ThoughtLayout.detailGap)
                                         .foregroundColor(.holoTextPrimary)
                                         .lineLimit(2)
                                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -565,17 +566,17 @@ struct TopicDetailView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(topic.title)
-                    .font(.holoHeading)
+                    .font(ThoughtLayout.title)
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(1)
                 // V3 新 UI：想法数 + 持续时间（§4.5）；旧 UI 保持「关键词」口径
                 if ThoughtSemanticFeatureFlags.uiEnabled {
                     Text("\(thoughts.count) 条想法 · \(topicDurationText)")
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextSecondary)
                 } else {
                     Text("\(thoughts.count) 条想法 · \(topicBuckets.count) 个关键词")
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextSecondary)
                 }
             }
@@ -593,9 +594,9 @@ struct TopicDetailView: View {
     /// 不依赖 AI 的主题价值：让用户立即看到同一方向最早与最近的记录。
     /// 数据按创建时间倒序读取，首尾两条可直接回到原文。
     private var timelineEndpointsSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
             Text("从最初到现在")
-                .font(.holoLabel)
+                .font(ThoughtLayout.metadata)
                 .fontWeight(.semibold)
                 .foregroundColor(.holoTextPrimary)
 
@@ -621,10 +622,10 @@ struct TopicDetailView: View {
                     .padding(.top, 6)
                 VStack(alignment: .leading, spacing: 3) {
                     Text("\(label) · \(thought.createdAt.formatted(date: .abbreviated, time: .omitted))")
-                        .font(.holoTinyLabel)
+                        .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoTextSecondary)
                     Text(thought.content)
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
@@ -689,13 +690,13 @@ struct TopicDetailView: View {
                         .font(.system(size: 36, weight: .light))
                         .foregroundColor(.holoTextSecondary.opacity(0.4))
                     Text(selectedKeywordKey == nil ? String(localized: "这个主题下还没有想法") : String(localized: "这个关键词下暂无想法"))
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextSecondary)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.top, HoloSpacing.xxl)
             } else {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: ThoughtLayout.cardGap) {
                     ForEach(filteredThoughts) { thought in
                         ThoughtCardView(
                             thought: thought,
@@ -735,7 +736,7 @@ struct TopicDetailView: View {
                 .font(.system(size: 40))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
             Text("主题不存在或已被删除")
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextSecondary)
         }
         .frame(maxWidth: .infinity)
@@ -789,18 +790,18 @@ struct TopicDetailView: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
                 TextEditor(text: $definitionInput)
-                    .font(.body)
+                    .font(ThoughtLayout.body)
                     .frame(minHeight: 108)
                     .padding(HoloSpacing.sm + 2)
                     .scrollContentBackground(.hidden)
                     .background(RoundedRectangle(cornerRadius: HoloRadius.md)
                         .fill(Color.holoNestedCardBackground))
                 Text("这行话就是 AI 的归类依据。改了它，相关笔记会自动重新归类；不写也可以，AI 按你放进来的笔记用法判定。")
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextPlaceholder)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.horizontal, ThoughtLayout.pageInset)
             .padding(.top, HoloSpacing.md)
             .navigationTitle(String(localized: "这个主题收什么"))
             #if canImport(UIKit)
@@ -898,7 +899,7 @@ struct TopicDetailView: View {
         Group {
             if let notice = actionNotice {
                 Text(notice)
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.white)
                     .padding(.horizontal, HoloSpacing.md)
                     .padding(.vertical, HoloSpacing.sm)

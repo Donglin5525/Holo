@@ -691,7 +691,7 @@ enum HabitPresentationProjector {
             let component: Calendar.Component = habit.habitFrequency == .weekly ? .weekOfYear : .month
             guard let currentStart = periodStart(for: habitNow, component: component, calendar: calendar) else { return nil }
 
-            let hasTarget = habit.isCountType, hasTargetValue = target?.value
+            let hasTargetValue = target?.value
             let kindName: String
             if habit.isMeasureType || hasTargetValue == nil {
                 kindName = String(localized: "连续记录")

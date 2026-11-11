@@ -308,20 +308,30 @@ struct FinanceLedgerView: View {
             }
             .presentationDetents([.medium])
         }
-        .task {
+        .task(id: parentMotionSurfaceActive) {
+            guard parentMotionSurfaceActive else { return }
             // 等 Core Data store 就绪再读数：未就绪时 fetch 静默返回空，
             // 会导致预算卡等数据在内容揭示后才补齐、分批弹入
             await CoreDataStack.shared.waitUntilReady()
+            guard !Task.isCancelled else { return }
+            calendarState.setPresentationVisible(true)
             // 预算数据同步可得，先备好，避免内容揭示后再插入预算卡造成布局跳动
             loadBudgetData()
+            guard !isInitialContentReady else { return }
             await calendarState.initialLoad()
+            guard !Task.isCancelled else { return }
             // 数据全部就绪后，内容区一次性淡入（原子化揭示，避免分批弹入）
             withAnimation(.easeIn(duration: 0.18)) {
                 isInitialContentReady = true
             }
         }
+        .onChange(of: parentMotionSurfaceActive, initial: true) { _, visible in
+            calendarState.setPresentationVisible(visible)
+        }
+        .onDisappear { calendarState.setPresentationVisible(false) }
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
             // 账本数据刷新由 CalendarState 统一监听通知负责，这里只补视图本地的预算数据
+            guard parentMotionSurfaceActive, isInitialContentReady else { return }
             loadBudgetData()
         }
         // 监听长按日期事件，触发快速记账 Sheet

@@ -6,9 +6,63 @@
 //
 
 import XCTest
+import SwiftUI
+import UIKit
 @testable import Holo
 
 final class ThoughtVoiceTranscriptInsertionTests: XCTestCase {
+
+    func testRestoreAndUndoOnlyReplaceInsertedRangeEvenWithDuplicateText() throws {
+        let prefix = "前面🙂我有点犹豫。\n"
+        let polished = "我有点犹豫。"
+        let original = "嗯，我现在其实有点犹豫。"
+        let suffix = "\n后面的笔记"
+        let document = prefix + polished + suffix
+        let receipt = ThoughtVoiceReplacement(
+            expectedDocument: document,
+            range: NSRange(location: prefix.utf16.count, length: polished.utf16.count),
+            alternate: original,
+            status: .polished
+        )
+
+        let restored = try XCTUnwrap(receipt.reversing(in: document))
+        XCTAssertEqual(restored.expectedDocument, prefix + original + suffix)
+        XCTAssertEqual(restored.status, .restored)
+        XCTAssertEqual(restored.reversing(in: restored.expectedDocument)?.expectedDocument, document)
+        XCTAssertNil(receipt.reversing(in: document + "后续修改"))
+    }
+
+    @MainActor
+    func testEditorSwapsJustTheInsertedSegmentAndRefusesAfterTyping() {
+        let surrounding = "🙂前文\n\n后文"
+        var boundText = surrounding
+        let binding = Binding(get: { boundText }, set: { boundText = $0 })
+        let coordinator = MarkdownTextView.Coordinator(
+            text: binding, triggerContext: .constant(nil), selectedToken: .constant(nil)
+        )
+        let editor = UITextView()
+        editor.attributedText = MarkdownTextView.makeAttributedText(from: surrounding)
+        editor.selectedRange = NSRange(location: "🙂前文\n".utf16.count, length: 0)
+        let draft = VoiceTranscriptSubmission(text: "我有点犹豫。", originalToRestore: "嗯，我有点犹豫。")
+        var status: ThoughtVoiceInsertionStatus?
+        coordinator.onVoiceInsertionChange = { status = $0 }
+        coordinator.perform(action: .insertVoiceTranscript(draft), on: editor, markdown: binding)
+        XCTAssertEqual(editor.attributedText.string, "🙂前文\n我有点犹豫。\n后文")
+        XCTAssertEqual(status, .polished)
+
+        editor.selectedRange = NSRange(location: 0, length: 0)
+        coordinator.perform(action: .swapVoiceTranscript, on: editor, markdown: binding)
+        XCTAssertEqual(editor.attributedText.string, "🙂前文\n嗯，我有点犹豫。\n后文")
+        XCTAssertEqual(status, .restored)
+        coordinator.perform(action: .swapVoiceTranscript, on: editor, markdown: binding)
+        XCTAssertEqual(editor.attributedText.string, "🙂前文\n我有点犹豫。\n后文")
+
+        editor.textStorage.append(NSAttributedString(string: "手改"))
+        coordinator.textViewDidChange(editor)
+        XCTAssertNil(status)
+        coordinator.perform(action: .swapVoiceTranscript, on: editor, markdown: binding)
+        XCTAssertEqual(editor.attributedText.string, "🙂前文\n我有点犹豫。\n后文手改")
+    }
 
     func testInsertionTextKeepsTranscriptWhenContentIsEmpty() {
         let result = ThoughtVoiceTranscriptInsertion.makeInsertionText(

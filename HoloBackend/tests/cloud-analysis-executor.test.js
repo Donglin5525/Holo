@@ -2497,3 +2497,38 @@ test("v27报告结构：kicker 编数字→置空该字段但保留段落；无 
   assert.equal(sec.chartHint, null, "非法 kind/空 dataset 的 chartHint 应剥离");
   assert.equal(sec.paragraphClaimIDs.length, 1, "段落本身保留");
 });
+
+// —— 追问上云（2026-11-10 东林拍板：追问与深度分析同通道）：父报告结论摘要
+// 随快照上行注入 <parent_report_context>；旧快照无字段=行为不变 ——
+
+test("追问上下文：快照带 parentReportBrief → system 注入父报告块；无字段不注入", async () => {
+  const withBrief = { ...SNAPSHOT, parentReportBrief: "【父报告】根问题：算一下我半年来每个月的恩格尔系数\n· 五个完整月系数 49.9%~51.0%" };
+  const provider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{
+        displayText: "结合父报告口径：五个完整月系数稳定",
+        metricAssertions: [],
+        evidenceIDs: ["finance.transactions#0"],
+      }],
+    }),
+  ]);
+  const { store, executor } = makeExecutor(provider);
+  const task = store.create({ deviceId: "d-fup", question: "为什么5月占比那么高？" });
+  store.attachSnapshot({ id: task.id, snapshot: JSON.stringify(withBrief) });
+  assert.equal(await executor.run(task.id), "completed");
+  const systemContent = provider.calls[0].messages.find((m) => m.role === "system").content;
+  assert.ok(systemContent.includes("<parent_report_context>"), "父报告块必须注入 system");
+  assert.ok(systemContent.includes("算一下我半年来每个月的恩格尔系数"), "父报告根问题随块上行");
+
+  const noBriefProvider = makeProvider([
+    agentJson("final_claims", {
+      claims: [{ displayText: "本月餐饮支出多发生在工作日", metricAssertions: [], evidenceIDs: ["finance.transactions#0"] }],
+    }),
+  ]);
+  const noBrief = makeExecutor(noBriefProvider);
+  const task2 = noBrief.store.create({ deviceId: "d-fup-none", question: "q" });
+  noBrief.store.attachSnapshot({ id: task2.id, snapshot: JSON.stringify(SNAPSHOT) });
+  assert.equal(await noBrief.executor.run(task2.id), "completed");
+  const sys2 = noBriefProvider.calls[0].messages.find((m) => m.role === "system").content;
+  assert.ok(!sys2.includes("<parent_report_context>"), "旧快照无字段不得注入空块");
+});

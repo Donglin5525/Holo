@@ -844,7 +844,7 @@ struct AddHabitSheet: View {
                     dayEndTime: dayEndTimeComponents
                 )
                 // 目标关联失败不回滚基础习惯：保留同一草稿 ID 只补关联（方案 §8.3）
-                if let goal = goalSelection {
+                if goalSelection != nil {
                     do {
                         try linkGoal(habitId: habit.id)
                     } catch {

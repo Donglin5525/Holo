@@ -311,6 +311,9 @@ final class HoloBackendAIProvider: AIProvider {
             throw APIError.serverError("AI 未返回有效内容")
         }
 
+        if purpose == .thoughtVoiceSummary, response.choices?.first?.finishReason == "length" {
+            throw APIError.serverError("口述整理结果未完整返回")
+        }
 
         lastCallLog = LLMCallLog(
             requestId: requestId,
@@ -937,7 +940,7 @@ nonisolated final class HoloBackendDeviceIdentity {
     }
 
     private static func loadFromKeychain() -> String? {
-        var query: [String: Any] = [
+        let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: keychainAccount,
             kSecReturnData as String: true,

@@ -61,10 +61,10 @@ nonisolated enum ThoughtTopicSummaryClient {
         guard !trimmedTitle.isEmpty else { return nil }
         let representatives: [ThoughtTopicSummaryRequestDTO.Representative] = thoughts
             .filter { !ThoughtAIAudience.isExcluded($0) }
-            .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+            .sorted { $0.createdAt > $1.createdAt }
             .prefix(representativeMaxCount)
             .compactMap { thought in
-                let plain = (thought.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                let plain = thought.content.trimmingCharacters(in: .whitespacesAndNewlines)
                 let redacted = ThoughtIndexV2Policy.redactedText(forUpload: plain)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !redacted.isEmpty else { return nil }
@@ -172,7 +172,7 @@ extension ThoughtTopicSummaryClient {
     static func makeNameRequest(thoughts: [Thought]) -> ThoughtTopicNameRequestDTO? {
         let representatives: [ThoughtTopicNameRequestDTO.Representative] = thoughts
             .filter { !ThoughtAIAudience.isExcluded($0) }
-            .sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }
+            .sorted { $0.createdAt > $1.createdAt }
             .prefix(8)
             .compactMap { thought in
                 let plain = thought.content.trimmingCharacters(in: .whitespacesAndNewlines)

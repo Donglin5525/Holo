@@ -48,6 +48,14 @@ enum ThoughtEditorAppearance {
             if let current = attributes[.font] as? UIFont {
                 let proposed = ThoughtTypography.uiFont(style.fontRole, size: current.pointSize, traits: current.fontDescriptor.symbolicTraits)
                 if proposed != current { replacement[.font] = proposed }
+                if let paragraph = attributes[.paragraphStyle] as? NSParagraphStyle {
+                    let spacing = MarkdownTextView.editorLineSpacing(for: proposed)
+                    if abs(paragraph.lineSpacing - spacing) > 0.1,
+                       let adjusted = paragraph.mutableCopy() as? NSMutableParagraphStyle {
+                        adjusted.lineSpacing = spacing
+                        replacement[.paragraphStyle] = adjusted
+                    }
+                }
             }
             if !replacement.isEmpty { updates.append((range, replacement)) }
         }

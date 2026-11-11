@@ -100,7 +100,7 @@ nonisolated enum HoloMemoryEvidenceSourceLookup {
                                               context: context) else { return nil }
                 let repository = FinanceRepository(context: context)
                 let categoryText = transaction.category.map { category in
-                    repository.resolveCategoryNames(from: category).sub.map { "\($0)" } ?? category.name ?? ""
+                    repository.resolveCategoryNames(from: category).sub.map { "\($0)" } ?? category.name
                 } ?? ""
                 return nonEmpty(HoloFinanceContextSourcePaging.observationText(transaction, categoryText: categoryText))
             case "task":

@@ -64,7 +64,7 @@ enum ThoughtTopicClusterEngine {
         var edges: [(Int, Int, Float)] = []
         var seenPairs = Set<UInt64>()
         for id in ids {
-            guard let vector = vectors[id], let i = indexByID[id] else { continue }
+            guard vectors[id] != nil, let i = indexByID[id] else { continue }
             for neighbor in neighborLookup(id) where neighbor.id != id {
                 guard let j = indexByID[neighbor.id], vectors[neighbor.id] != nil else { continue }
                 guard neighbor.similarity >= threshold else { continue }

@@ -184,7 +184,7 @@ final class HabitListReorderModel: ObservableObject {
     }
 
     func dragMoved(translationY: CGFloat, locationY: CGFloat) {
-        guard var s = session, let draggingId else { return }
+        guard var s = session, draggingId != nil else { return }
         s.liveTranslation = translationY
         lastGestureActivity = Date()
 
@@ -326,7 +326,7 @@ final class HabitListReorderModel: ObservableObject {
     private func stepAutoScroll(direction: Int) {
         guard let s = session,
               let order = orders[s.section],
-              let draggingId,
+              draggingId != nil,
               let proxy = scrollProxy else { return }
         let target = s.currentIndex + direction
         guard target >= 0, target < order.count else { return }

@@ -36,7 +36,10 @@ enum BillArchiveExtractor {
 
     /// 解压账单 zip，返回其中的数据文件（csv/txt/tsv/xlsx）落盘后的 URL
     static func extract(archiveURL: URL) throws -> URL {
-        guard let archive = Archive(url: archiveURL, accessMode: .read) else {
+        let archive: Archive
+        do {
+            archive = try Archive(url: archiveURL, accessMode: .read)
+        } catch {
             throw ExtractError.notArchive
         }
 

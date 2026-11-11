@@ -611,7 +611,7 @@ nonisolated struct HoloPersonalContextExtractor: Sendable {
                 }
             )
         }
-        var record = HoloMemoryRecord(
+        let record = HoloMemoryRecord(
             id: stableID,
             scope: .domain,
             primaryDomain: domain,

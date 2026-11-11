@@ -86,7 +86,8 @@ struct ThoughtEditorView: View {
     // MARK: - UI State
     @State private var showVoiceInput: Bool = false
     @State private var pendingEditorAction: MarkdownEditorAction? = nil
-    @State private var pendingVoiceTranscriptToInsert: String? = nil
+    @State private var pendingVoiceTranscriptToInsert: VoiceTranscriptSubmission?
+    @State private var voiceInsertionStatus: ThoughtVoiceInsertionStatus?
     // 先用短内容的舒适起步高度，避免编辑器等待第一次布局回调时先闪出大块空白。
     @State private var editorHeight: CGFloat = 240
     @State private var typingFormatState: TypingFormatState = TypingFormatState()
@@ -218,7 +219,7 @@ struct ThoughtEditorView: View {
         NavigationStack {
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: HoloSpacing.md) {
+                    VStack(spacing: ThoughtLayout.cardGap) {
                         // G1：杀进程后未提交内容的恢复入口（用户确认才恢复，不自动覆盖）
                         recoveryBanner
                         // 内容编辑区（含光标吸附候选浮层）
@@ -240,7 +241,7 @@ struct ThoughtEditorView: View {
                                         .font(.system(size: 12, weight: .semibold))
                                     Text("这条想法带有不参与 AI 的标签，AI 功能已停用。想到「想法设置 › AI 分析范围」可调整。")
                                 }
-                                .font(.holoCaption)
+                                .font(ThoughtLayout.secondary)
                                 .foregroundStyle(Color.holoAIShieldTint)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             } else if ThoughtSemanticFeatureFlags.uiEnabled,
@@ -260,7 +261,7 @@ struct ThoughtEditorView: View {
                             }
                         }
                     }
-                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.horizontal, ThoughtLayout.pageInset)
                     .padding(.bottom, HoloSpacing.xl)  // 底部留白（工具栏已沉入编辑器卡片底部）
                 }
                 .background(Color.holoToolBackground)
@@ -399,18 +400,11 @@ struct ThoughtEditorView: View {
             // 排除想法不挂智能总结处理器：语音输入照常，只是不把内容交给 AI 整理
             if smartSummaryEnabled && !aiExcluded {
                 VoiceInputSheet(
+                    thoughtReview: true,
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(source: .thought),
-                    readySubtitle: String(localized: "确认后插入到想法内容"),
-                    submitButtonTitle: String(localized: "插入"),
-                    resultConfig: VoiceResultConfig(
-                        title: String(localized: "智能总结完成"),
-                        subtitle: String(localized: "已整理成更适合想法记录的表达"),
-                        showsOriginalToggle: true
-                    ),
-                    postProcessor: ThoughtVoiceSummaryProcessor(),
-                    transcriptFormatter: formatThoughtVoiceTranscript
-                ) { transcript in
-                    pendingVoiceTranscriptToInsert = transcript
+                    postProcessor: ThoughtVoiceSummaryProcessor()
+                ) { draft in
+                    pendingVoiceTranscriptToInsert = draft
                     showVoiceInput = false
                 }
             } else {
@@ -420,7 +414,7 @@ struct ThoughtEditorView: View {
                     submitButtonTitle: String(localized: "插入"),
                     transcriptFormatter: formatThoughtVoiceTranscript
                 ) { transcript in
-                    pendingVoiceTranscriptToInsert = transcript
+                    pendingVoiceTranscriptToInsert = VoiceTranscriptSubmission(text: transcript, originalToRestore: nil)
                     showVoiceInput = false
                 }
             }
@@ -915,6 +909,7 @@ struct ThoughtEditorView: View {
             initialRichJSON = draft.richContentJSON
         }
         editorNodesLoaded = false
+        voiceInsertionStatus = nil
         editorReloadToken += 1
         // 旧记录由当前会话接管身份：清旧记录文件（staged 文件保留给新记录引用）
         let oldSessionId = draft.sessionId
@@ -960,9 +955,9 @@ struct ThoughtEditorView: View {
                     .foregroundColor(.holoPrimary)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("检测到上次未保存的内容")
-                        .holoText(.body)
+                        .font(ThoughtLayout.body)
                     Text("保存于 \(draft.updatedAt.formatted(date: .abbreviated, time: .shortened))")
-                        .holoText(.metadata)
+                        .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoToolTextSecondary)
                 }
                 Spacer()
@@ -970,14 +965,14 @@ struct ThoughtEditorView: View {
                     restoreRecoverableDraft(draft)
                 } label: {
                     Text("恢复")
-                        .holoText(.body)
+                        .font(ThoughtLayout.body)
                         .foregroundColor(.holoPrimary)
                 }
                 Button(role: .destructive) {
                     discardRecoverableDraft(draft)
                 } label: {
                     Text("丢弃")
-                        .holoText(.body)
+                        .font(ThoughtLayout.body)
                 }
             }
             .padding(HoloSpacing.md)
@@ -1124,7 +1119,12 @@ struct ThoughtEditorView: View {
                     caretRect: $caretRect,
                     autoFocus: !isEditing || autoFocusExistingThought,
                     // 语音按钮已收进底部工具栏，正文区不再为悬浮入口预留大片底部空白
-                    textContainerInset: UIEdgeInsets(top: 16, left: selectedStyle == .plain ? 16 : selectedStyle.textInset, bottom: 16, right: selectedStyle == .plain ? 16 : selectedStyle.trailingInset),
+                    textContainerInset: UIEdgeInsets(
+                        top: ThoughtLayout.contentInset,
+                        left: selectedStyle == .plain ? ThoughtLayout.contentInset : selectedStyle.textInset,
+                        bottom: ThoughtLayout.contentInset,
+                        right: selectedStyle == .plain ? ThoughtLayout.contentInset : selectedStyle.trailingInset
+                    ),
                     initialRichJSON: initialRichJSON,
                     presentationStyle: selectedStyle,
                     placeholder: String(localized: "写点什么吧…"),
@@ -1132,6 +1132,7 @@ struct ThoughtEditorView: View {
                         editorNodes = newNodes
                         editorNodesLoaded = true
                     },
+                    onVoiceInsertionChange: { voiceInsertionStatus = $0 },
                     onConvertToTask: { startTaskExtraction() },
                     onConvertSelection: { selectedText, selectedRange in
                         startTaskExtraction(selectedText: selectedText, selectedRange: selectedRange)
@@ -1166,6 +1167,14 @@ struct ThoughtEditorView: View {
                 }
             }
             .overlay { ThoughtStationeryBackground(style: selectedStyle) }
+
+            if let voiceInsertionStatus {
+                ThoughtVoiceInsertionNotice(
+                    status: voiceInsertionStatus,
+                    onSwap: { pendingEditorAction = .swapVoiceTranscript },
+                    onDismiss: { pendingEditorAction = .dismissVoiceReplacement }
+                )
+            }
 
             // 工具栏沉在卡片底部：同底色、同圆角，是输入框自身的一部分而不是键盘附属
             EditorFormatToolbar(
@@ -1342,10 +1351,10 @@ struct ThoughtEditorView: View {
     /// AI 归类区域（只读回显）
     /// 编辑能力（保留/拒绝/重新分类）留待后续与「二次分类」一起设计
     private var aiTagsSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
             HStack(spacing: 4) {
                 Text("AI 归类")
-                    .holoText(.supporting)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoToolTextSecondary)
                 Image(systemName: "sparkles")
                     .font(.system(size: 10))
@@ -1373,11 +1382,11 @@ struct ThoughtEditorView: View {
         return HStack(spacing: 4) {
             // AI 归类展示归一化后的完整主题路径（#碎碎念/加班），与列表/详情页口径一致
             Text("#\(ThoughtTagNormalizer.displayPath(tagName))")
-                .holoText(.metadata)
+                .font(ThoughtLayout.metadata)
                 .foregroundColor(isConfirmed ? .holoPrimary : .holoToolTextSecondary)
 
             Text("AI")
-                .font(.system(size: 10, weight: .semibold))
+                .font(ThoughtLayout.metadata.weight(.semibold))
                 // 微标不做半透明降档：深色下半透橙/灰会跌破可读线
                 .foregroundColor(isConfirmed ? .holoToolWarning : .holoToolTextSecondary)
 
@@ -1599,14 +1608,14 @@ struct ThoughtEditorView: View {
             // 标题行
             VStack(spacing: 4) {
                 Text(tokenMenuTitle(token))
-                    .holoText(.sectionTitle)
+                    .font(ThoughtLayout.title)
                     .foregroundColor(.holoToolText)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
 
                 if let subtitle = tokenMenuSubtitle(token) {
                     Text(subtitle)
-                        .holoText(.supporting)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoToolTextSecondary)
                         .multilineTextAlignment(.center)
                         .lineLimit(2)
@@ -1701,7 +1710,7 @@ struct ThoughtEditorView: View {
                     .font(.system(size: 16))
                     .frame(width: 24)
                 Text(title)
-                    .holoText(.body)
+                    .font(ThoughtLayout.body)
                 Spacer()
             }
             .foregroundColor(isDestructive ? .holoError : .holoToolText)
@@ -2143,18 +2152,12 @@ struct ThoughtEditorView: View {
         }
     }
 
-    private func insertVoiceTranscript(_ transcript: String) {
-        let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTranscript.isEmpty else { return }
-        pendingEditorAction = .insertText(trimmedTranscript)
-    }
-
     private func insertPendingVoiceTranscript() {
-        guard let transcript = pendingVoiceTranscriptToInsert else { return }
+        guard let draft = pendingVoiceTranscriptToInsert else { return }
         pendingVoiceTranscriptToInsert = nil
 
         DispatchQueue.main.async {
-            insertVoiceTranscript(transcript)
+            pendingEditorAction = .insertVoiceTranscript(draft)
         }
     }
 }
@@ -2232,7 +2235,7 @@ struct ThoughtEditorView: View {
 
     var body: some View {
         Text("想法编辑将在 Mac 版后续阶段提供")
-            .font(.title3)
+            .font(ThoughtLayout.title)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

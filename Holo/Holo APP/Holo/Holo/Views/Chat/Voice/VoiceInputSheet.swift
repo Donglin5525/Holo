@@ -28,7 +28,8 @@ struct VoiceInputSheet: View {
     let readySubtitle: String
     let submitButtonTitle: String
     let resultConfig: VoiceResultConfig?
-    let onSendTranscript: (String) -> Void
+    private let thoughtReview: Bool
+    private let onSubmitDraft: (VoiceTranscriptSubmission) -> Void
 
     init(
         speechProvider: SpeechRecognitionProvider = MockSpeechRecognitionProvider(),
@@ -40,6 +41,33 @@ struct VoiceInputSheet: View {
         postProcessor: (any VoiceTranscriptPostProcessing)? = nil,
         transcriptFormatter: @escaping (String) -> String = { $0 },
         onSendTranscript: @escaping (String) -> Void
+    ) {
+        self.init(
+            thoughtReview: false,
+            speechProvider: speechProvider,
+            recordingService: recordingService,
+            maximumDuration: maximumDuration,
+            readySubtitle: readySubtitle,
+            submitButtonTitle: submitButtonTitle,
+            resultConfig: resultConfig,
+            postProcessor: postProcessor,
+            transcriptFormatter: transcriptFormatter
+        ) { draft in
+            onSendTranscript(draft.text)
+        }
+    }
+
+    init(
+        thoughtReview: Bool,
+        speechProvider: SpeechRecognitionProvider,
+        recordingService: VoiceRecordingServiceProviding? = nil,
+        maximumDuration: TimeInterval? = nil,
+        readySubtitle: String = String(localized: "确认后插入到想法内容"),
+        submitButtonTitle: String = String(localized: "插入"),
+        resultConfig: VoiceResultConfig? = nil,
+        postProcessor: (any VoiceTranscriptPostProcessing)? = nil,
+        transcriptFormatter: @escaping (String) -> String = { $0 },
+        onSubmitDraft: @escaping (VoiceTranscriptSubmission) -> Void
     ) {
         _viewModel = StateObject(
             wrappedValue: VoiceInputViewModel(
@@ -53,10 +81,53 @@ struct VoiceInputSheet: View {
         self.readySubtitle = readySubtitle
         self.submitButtonTitle = submitButtonTitle
         self.resultConfig = resultConfig
-        self.onSendTranscript = onSendTranscript
+        self.thoughtReview = thoughtReview
+        self.onSubmitDraft = onSubmitDraft
     }
 
     var body: some View {
+        sheetContent
+        .frame(maxWidth: .infinity)
+        .background((thoughtReview ? Color.holoToolBackground : Color.holoBackground).ignoresSafeArea())
+        .presentationDetents(thoughtReview && isTranscriptReady ? [.height(preferredSheetHeight), .large] : [.height(preferredSheetHeight), .medium])
+        .presentationDragIndicator(thoughtReview && isTranscriptReady ? .visible : .hidden)
+        .task {
+            #if canImport(UIKit)
+            UIApplication.shared.isIdleTimerDisabled = true
+            #endif
+            await viewModel.startRecording()
+        }
+        .onDisappear {
+            viewModel.cleanupAfterDismiss()
+            #if canImport(UIKit)
+            UIApplication.shared.isIdleTimerDisabled = false
+            #endif
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            viewModel.handleScenePhaseChange(newPhase)
+        }
+        .onChange(of: viewModel.state) { _, newState in
+            handleStateFeedback(newState)
+        }
+    }
+
+    @ViewBuilder
+    private var sheetContent: some View {
+        if thoughtReview && isTranscriptReady {
+            ScrollView {
+                VStack(spacing: ThoughtLayout.cardGap) {
+                    ThoughtVoiceReview(model: viewModel, onClose: { dismiss() }, onInsert: submit)
+                    plusUpgradeHint
+                }
+                .padding(.horizontal, ThoughtLayout.pageInset)
+                .padding(.vertical, ThoughtLayout.contentInset)
+            }
+        } else {
+            standardSheet
+        }
+    }
+
+    private var standardSheet: some View {
         VStack(spacing: 22) {
             Capsule()
                 .fill(Color.holoTextSecondary.opacity(0.24))
@@ -81,32 +152,6 @@ struct VoiceInputSheet: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 18)
-        .frame(maxWidth: .infinity)
-        .background(Color.holoBackground.ignoresSafeArea())
-        .presentationDetents([.height(preferredSheetHeight), .medium])
-        .presentationDragIndicator(.hidden)
-        .task {
-            #if canImport(UIKit)
-            UIApplication.shared.isIdleTimerDisabled = true
-            #else
-            // macOS：无 idle timer 概念，无需持锁
-            #endif
-            await viewModel.startRecording()
-        }
-        .onDisappear {
-            viewModel.cleanupAfterDismiss()
-            #if canImport(UIKit)
-            UIApplication.shared.isIdleTimerDisabled = false
-            #else
-            // macOS：无 idle timer 概念，无需持锁
-            #endif
-        }
-        .onChange(of: scenePhase) { _, newPhase in
-            viewModel.handleScenePhaseChange(newPhase)
-        }
-        .onChange(of: viewModel.state) { _, newState in
-            handleStateFeedback(newState)
-        }
     }
 
     private var header: some View {
@@ -116,12 +161,12 @@ struct VoiceInputSheet: View {
                 .foregroundColor(headerColor)
 
             Text(titleText)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.holoTextPrimary)
+                .font(thoughtReview ? ThoughtLayout.title : .system(size: 20, weight: .semibold))
+                .foregroundColor(thoughtReview ? .holoToolText : .holoTextPrimary)
 
             Text(subtitleText)
-                .font(.system(size: 14, weight: .regular))
-                .foregroundColor(.holoTextSecondary)
+                .font(thoughtReview ? ThoughtLayout.metadata : .system(size: 14))
+                .foregroundColor(thoughtReview ? .holoToolTextSecondary : .holoTextSecondary)
                 .multilineTextAlignment(.center)
                 .frame(minHeight: 20)
         }
@@ -174,7 +219,7 @@ struct VoiceInputSheet: View {
                 HapticManager.medium()
                 Task { await viewModel.finishRecording() }
             }
-            .buttonStyle(VoicePrimaryButtonStyle())
+            .buttonStyle(VoicePrimaryButtonStyle(usesThoughtPalette: thoughtReview))
         }
     }
 
@@ -217,29 +262,34 @@ struct VoiceInputSheet: View {
                     }
                 }
 
-                Button(submitButtonTitle) {
-                    HapticManager.success()
-                    onSendTranscript(viewModel.editableTranscript)
-                }
+                Button(submitButtonTitle, action: submit)
                 .buttonStyle(VoicePrimaryButtonStyle())
                 .disabled(viewModel.editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
 
-            // 免费用户因达到 1 分钟上限自动停止后，底部柔和引导升级 Plus。
-            // 分寸：只在转写结果出来后才出现，不遮挡内容、不打断用户确认。
-            if showsPlusUpgradeHint {
-                Button {
-                    HapticManager.selection()
-                    HoloPlusActionCoordinator.shared.requirePlus(context: .asrDuration)
-                } label: {
-                    HStack(spacing: 4) {
-                        Text("升级 Holo Plus，可录制 5 分钟语音")
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
-                    }
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+            plusUpgradeHint
+        }
+    }
+
+    private func submit() {
+        HapticManager.success()
+        onSubmitDraft(viewModel.submission)
+    }
+
+    @ViewBuilder
+    private var plusUpgradeHint: some View {
+        if showsPlusUpgradeHint {
+            Button {
+                HapticManager.selection()
+                HoloPlusActionCoordinator.shared.requirePlus(context: .asrDuration)
+            } label: {
+                HStack(spacing: 4) {
+                    Text("升级 Holo Plus，可录制 5 分钟语音")
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
                 }
+                .font(thoughtReview ? ThoughtLayout.metadata : .system(size: 12, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
             }
         }
     }
@@ -419,7 +469,7 @@ struct VoiceInputSheet: View {
         if case .failed = viewModel.state {
             return .holoError
         }
-        return .holoPrimary
+        return thoughtReview ? .holoThoughtVoiceAction : .holoPrimary
     }
 
     private func formatDuration(_ duration: TimeInterval) -> String {
@@ -450,16 +500,18 @@ struct VoiceInputSheet: View {
 }
 
 private struct VoicePrimaryButtonStyle: ButtonStyle {
+    var usesThoughtPalette = false
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.body.weight(.semibold))
-            .foregroundColor(.white)
+            .font(usesThoughtPalette ? ThoughtLayout.body.weight(.semibold) : .body.weight(.semibold))
+            .foregroundColor(usesThoughtPalette ? .holoToolOnAction : .white)
             .lineLimit(1)
             .minimumScaleFactor(0.85)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 44)
             .padding(.horizontal, 8)
-            .background(Color.holoPrimary.opacity(configuration.isPressed ? 0.78 : 1))
+            .background((usesThoughtPalette ? Color.holoThoughtVoiceAction : .holoPrimary).opacity(configuration.isPressed ? 0.78 : 1))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }

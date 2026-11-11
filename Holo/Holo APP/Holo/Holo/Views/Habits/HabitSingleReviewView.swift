@@ -63,7 +63,7 @@ struct HabitSingleReviewView: View {
         Group {
             if let snapshot {
                 content(snapshot)
-            } else if let habit {
+            } else if habit != nil {
                 unavailableState
             } else {
                 ProgressView()
@@ -720,7 +720,7 @@ struct HabitSingleReviewView: View {
                 Text(numericEmptyTitle(snapshot))
                     .holoText(.body)
                     .foregroundColor(.holoToolText)
-                if let latest = latestOverall {
+                if latestOverall != nil {
                     Button {
                         onGoTodayRecord(habitId)
                     } label: {

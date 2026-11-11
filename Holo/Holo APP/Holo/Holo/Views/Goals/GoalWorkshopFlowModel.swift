@@ -65,7 +65,7 @@ final class GoalWorkshopFlowModel: ObservableObject {
 
     func resume(_ id: UUID) async {
         await perform {
-            let restored = try await self.coordinator.loadSession(id)
+            let restored = try self.coordinator.loadSession(id)
             self.session = restored
             self.resumeCandidates = []
         }
@@ -170,7 +170,7 @@ final class GoalWorkshopFlowModel: ObservableObject {
         needsRestart = false
         needsReload = false
         do {
-            let saved = try await coordinator.loadSession(session.id)
+            let saved = try coordinator.loadSession(session.id)
             guard saved.phase == .saved, saved.appliedGoalID == goalID else {
                 throw GoalWorkshopCoordinatorError.sessionUnavailable(session.id)
             }

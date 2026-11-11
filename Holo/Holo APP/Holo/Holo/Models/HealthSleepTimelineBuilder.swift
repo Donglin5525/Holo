@@ -45,7 +45,7 @@ struct HealthSleepTimeline: Equatable, Sendable {
     var nightEnd: Date? { segments.map(\.end).max() }
 }
 
-enum HealthSleepTimelineBuilder {
+nonisolated enum HealthSleepTimelineBuilder {
 
     typealias Interval = HealthSleepSampleAggregator.Interval
 

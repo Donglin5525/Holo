@@ -48,7 +48,7 @@ enum ThoughtBrowseScope: Equatable, Hashable {
     /// 旧通道的 aiTag 名 → 归一化全路径；侧栏没有的节点返回 nil（调用方保持现状）。
     init?(from node: DrawerNode) {
         switch node {
-        case nil, .allNotes:
+        case .allNotes:
             self = .all
         case .topic(let id):
             self = .topic(id)

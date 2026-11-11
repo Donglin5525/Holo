@@ -185,7 +185,7 @@ struct TodayMatterSection: View {
                         .foregroundStyle(.orange)
                 }
                 HStack(spacing: 8) {
-                    if let next = item.nextAction {
+                    if item.nextAction != nil {
                         Button {
                             onCard(item)
                         } label: {

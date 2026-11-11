@@ -53,7 +53,7 @@ struct ThoughtFilterSheetView: View {
                         // 整理状态筛选
                         organizationStateFilterSection
                     }
-                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.horizontal, ThoughtLayout.pageInset)
                     .padding(.top, HoloSpacing.md)
                 }
 
@@ -85,7 +85,7 @@ struct ThoughtFilterSheetView: View {
             // 标题
             HStack {
                 Text("日期范围")
-                    .font(.holoLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextSecondary)
 
                 Spacer()
@@ -95,7 +95,7 @@ struct ThoughtFilterSheetView: View {
                         startDate = nil
                         endDate = nil
                     }
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoPrimary)
                 }
 
@@ -130,7 +130,7 @@ struct ThoughtFilterSheetView: View {
     private func datePickerRow(title: String, date: Binding<Date?>) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextSecondary)
 
             DatePicker(
@@ -152,7 +152,7 @@ struct ThoughtFilterSheetView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("整理状态")
-                    .font(.holoLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextSecondary)
 
                 Spacer()
@@ -161,7 +161,7 @@ struct ThoughtFilterSheetView: View {
                     Button("清除") {
                         organizationState = nil
                     }
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoPrimary)
                 }
             }
@@ -173,7 +173,7 @@ struct ThoughtFilterSheetView: View {
                         organizationState = isSelected ? nil : state
                     } label: {
                         Text(state.rawValue)
-                            .font(.holoCaption)
+                            .font(ThoughtLayout.secondary)
                             .foregroundColor(isSelected ? .white : .holoTextPrimary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
@@ -203,7 +203,7 @@ struct ThoughtFilterSheetView: View {
                 organizationState = nil
             } label: {
                 Text("重置")
-                    .font(.holoLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextPrimary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
@@ -223,7 +223,7 @@ struct ThoughtFilterSheetView: View {
                 dismiss()
             } label: {
                 Text("应用")
-                    .font(.holoLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
@@ -231,7 +231,7 @@ struct ThoughtFilterSheetView: View {
                     .cornerRadius(HoloRadius.md)
             }
         }
-        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.horizontal, ThoughtLayout.pageInset)
         .padding(.vertical, HoloSpacing.md)
     }
 }

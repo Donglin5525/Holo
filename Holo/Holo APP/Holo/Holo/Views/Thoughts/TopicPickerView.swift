@@ -30,7 +30,7 @@ struct TopicPickerView: View {
                 if showNewTopicInput {
                     HStack(spacing: HoloSpacing.sm) {
                         TextField("主题名", text: $newTopicTitle)
-                            .font(.holoCaption)
+                            .font(ThoughtLayout.secondary)
                             .padding(.horizontal, HoloSpacing.sm)
                             .padding(.vertical, 8)
                             .background(Color.holoCardBackground)
@@ -40,7 +40,7 @@ struct TopicPickerView: View {
                             createAndAssign()
                         } label: {
                             Text("创建并移入")
-                                .font(.holoCaption)
+                                .font(ThoughtLayout.secondary)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, HoloSpacing.md)
                                 .padding(.vertical, 8)
@@ -59,10 +59,10 @@ struct TopicPickerView: View {
                             .font(.system(size: 30))
                             .foregroundColor(.holoPrimary)
                         Text("暂无主题")
-                            .font(.holoCaption)
+                            .font(ThoughtLayout.secondary)
                             .foregroundColor(.holoTextSecondary)
                         Text("点右上角「新建」创建第一个主题")
-                            .font(.holoTinyLabel)
+                            .font(ThoughtLayout.metadata)
                             .foregroundColor(.holoTextSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -85,7 +85,7 @@ struct TopicPickerView: View {
                                             .foregroundColor(.holoPrimary)
                                     }
                                     Text("\(topicRepository.thoughtCount(of: topic))")
-                                        .font(.holoLabel)
+                                        .font(ThoughtLayout.metadata)
                                         .foregroundColor(.holoTextSecondary)
                                 }
                             }

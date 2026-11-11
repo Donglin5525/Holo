@@ -1,0 +1,142 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>记忆萃取：改造前后对比</title><style>body{margin:0;padding:20px;background:light-dark(#f2f2f7,#0e0e10);}</style></head><body>
+<div id="mx-flow-compare" class="mx-wrap">
+<style>
+  #mx-flow-compare { font-family: -apple-system, "PingFang SC", sans-serif; color: light-dark(#1c1c1e, #f2f2f7); }
+  #mx-flow-compare .mx-label { font-size: 13px; color: light-dark(#6e6e73, #98989f); }
+  #mx-flow-compare .mx-note { font-size: 12px; color: light-dark(#8e8e93, #aeaeb2); line-height: 1.5; }
+  #mx-flow-compare .mx-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { #mx-flow-compare .mx-cols { grid-template-columns: 1fr; } }
+  #mx-flow-compare .mx-col { border-radius: 14px; padding: 14px 14px 12px; background: light-dark(#f7f7f8, #131315); border: 1px solid light-dark(#e3e3e6, #26262a); }
+  #mx-flow-compare .mx-col-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  #mx-flow-compare .mx-sub { font-size: 12px; color: light-dark(#8e8e93, #98989f); margin-bottom: 10px; }
+  #mx-flow-compare .mx-row { display: flex; gap: 10px; margin-bottom: 9px; }
+  #mx-flow-compare .mx-row:last-child { margin-bottom: 0; }
+  #mx-flow-compare .mx-emoji { width: 34px; height: 34px; min-width: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 17px; background: light-dark(#ffffff, #1d1d21); border: 1px solid light-dark(#e8e8ec, #2c2c31); }
+  #mx-flow-compare .mx-body { flex: 1; padding-top: 1px; }
+  #mx-flow-compare .mx-t { font-size: 13px; font-weight: 600; line-height: 1.35; }
+  #mx-flow-compare .mx-d { font-size: 12px; color: light-dark(#7c7c82, #a4a4aa); line-height: 1.45; margin-top: 1px; }
+  #mx-flow-compare .mx-flow { position: relative; height: 3px; border-radius: 2px; margin: 6px 0 9px 17px; background: light-dark(#dcdce1, #33333a); }
+  #mx-flow-compare .mx-flow::after { content: ""; position: absolute; top: -5px; left: 34%; width: 13px; height: 13px; border-radius: 50%; background: light-dark(#c7c7cc, #5a5a63); }
+  #mx-flow-compare .mx-bad .mx-flow::after { background: #d6685c; }
+  #mx-flow-compare .mx-good .mx-flow::after { background: #67b279; }
+  #mx-flow-compare .mx-bad .mx-flow { background: repeating-linear-gradient(90deg, light-dark(#e6c8c4, #4a3230) 0 6px, transparent 6px 11px); }
+  #mx-flow-compare .mx-bad .mx-t .mx-x { color: #c25044; }
+  #mx-flow-compare .mx-money { margin-top: 10px; border-radius: 10px; padding: 8px 10px; font-size: 12px; line-height: 1.5; background: light-dark(#ffffff, #1d1d21); border: 1px solid light-dark(#e8e8ec, #2c2c31); }
+  #mx-flow-compare .mx-money b { font-weight: 600; }
+  #mx-flow-compare .mx-red { color: #c25044; }
+  #mx-flow-compare .mx-green { color: #3f8f5b; }
+  #mx-flow-compare .mx-tag { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 99px; margin-left: 6px; vertical-align: 1px; }
+  #mx-flow-compare .mx-tag-g { background: rgba(103,178,121,.16); color: #3f8f5b; }
+  #mx-flow-compare .mx-tag-r { background: rgba(194,80,68,.14); color: #c25044; }
+  #mx-flow-compare .mx-swap { display: flex; justify-content: center; margin: 12px 0; }
+  #mx-flow-compare .mx-swap button { font: inherit; font-size: 13px; border: none; border-radius: 99px; padding: 6px 16px; cursor: pointer; background: light-dark(#1c1c1e, #f2f2f7); color: light-dark(#f2f2f7, #1c1c1e); }
+  #mx-flow-compare .mx-scene { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  #mx-flow-compare .mx-scene button { font: inherit; font-size: 13px; border: 1px solid light-dark(#d8d8dd, #33333a); border-radius: 99px; padding: 5px 14px; cursor: pointer; background: transparent; color: inherit; }
+  #mx-flow-compare .mx-scene button[aria-pressed="true"] { background: light-dark(#1c1c1e, #f2f2f7); color: light-dark(#f2f2f7, #1c1c1e); border-color: transparent; }
+</style>
+
+<div class="mx-label" style="margin-bottom:6px">点下面三个场景，左右对比改造前后（金额为推算值，来源：证据/cost_model.py）</div>
+<div class="mx-scene" role="group" aria-label="场景选择">
+  <button type="button" data-scene="daily" aria-pressed="true">过日子</button>
+  <button type="button" data-scene="backfill" aria-pressed="false">补历史（老用户/导入）</button>
+  <button type="button" data-scene="upgrade" aria-pressed="false">升级记忆系统</button>
+</div>
+
+<div class="mx-cols">
+  <div class="mx-col mx-bad" id="col-before">
+    <div class="mx-col-title" id="title-b">改造前</div>
+    <div class="mx-sub" id="sub-b"></div>
+    <div id="steps-b"></div>
+    <div class="mx-money" id="money-b"></div>
+  </div>
+  <div class="mx-col mx-good" id="col-after">
+    <div class="mx-col-title" id="title-a">改造后</div>
+    <div class="mx-sub" id="sub-a"></div>
+    <div id="steps-a"></div>
+    <div class="mx-money" id="money-a"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const root = document.getElementById("mx-flow-compare");
+  const ICONS = { gate: "🚪", stack: "📚", pack: "📦", robot: "🤖", wallet: "💰", clock: "⏳", chart: "📊", plug: "🔌", mine: "⛏️" };
+  const SCENES = {
+    daily: {
+      sub_b: "重度用户 · 一天打开 App 12 次",
+      sub_a: "同一用户 · 改造后",
+      b: [
+        { i: ICONS.gate, t: '打开 App 时<span class="mx-x">两轮整理同时开跑</span>', d: "「启动」和「回到前台」各开一轮，同一批记录付两遍钱；AI 答坏了每分钟重试、不设上限" },
+        { i: ICONS.pack, t: "每打开一次就整理一小包", d: "哪怕只多了 1 条没备注的打卡，也要带上约 3500 token 的固定内容开一包" },
+        { i: ICONS.clock, t: '想法主题 <span class="mx-x">14 天自动过期</span>，全部重算', d: "新建一个主题、改一个主题名，所有想法也要全部重新问一遍 AI" },
+        { i: ICONS.wallet, t: "重度用户 ¥2.83/月 <span class='mx-tag mx-tag-r'>超过 ¥2 额度被拦</span>", d: "实测：你的手机 11 月后台花费里有 25% 是重复付费" },
+      ],
+      a: [
+        { i: ICONS.gate, t: "同一时间只允许一轮", d: "同一个包失败 3 次就停下并记录原因；失败的调用也计入每日上限" },
+        { i: ICONS.mine, t: "先筛掉没信息量的记录", d: "没备注的打卡、备注不到 5 个字的账单交给本地统计引擎，不花钱" },
+        { i: ICONS.pack, t: "每类攒满 15 条或到第二天整理一次", d: "核验只带本包被引用的原文，不再重传整页 50 条" },
+        { i: ICONS.chart, t: "主题判断不再定期过期", d: "AI 新建主题只重算最相关的 30 条；你亲手改类别定义时才全部重算" },
+        { i: ICONS.wallet, t: "重度 ¥0.84/月 <span class='mx-tag mx-tag-g'>占月付到手 34% → 10%</span>", d: "最坏假设下也只到 ¥1.00/月" },
+      ],
+      money_b: "<b>重度用户过日子</b>：约 <b class='mx-red'>¥2.83/月</b>（主题关联 ¥1.67 + 档案 ¥0.43 + 领域 ¥0.41 + 一个发现 ¥0.28 + 其他 ¥0.04），推算值",
+      money_a: "<b>重度用户过日子</b>：约 <b class='mx-green'>¥0.84/月</b>（主题关联 ¥0.16 + 档案 ¥0.10 + 领域 ¥0.26 + 一个发现 ¥0.28 + 其他 ¥0.04）；再加两个可选项约 ¥0.60",
+    },
+    backfill: {
+      sub_b: "老用户第一次开启 / 导入 10 年账单",
+      sub_a: "先近后远 · 只读有信息量的记录",
+      b: [
+        { i: ICONS.stack, t: '从<span class="mx-x">最旧</span>的记录开始搬', d: "两年前的旧账最先学，最近的记录最后才学到" },
+        { i: ICONS.pack, t: "12 条一包，你的库要 277 包", d: "1425 条打卡里只有 1 条带备注，照样一包包地喂给 AI" },
+        { i: ICONS.robot, t: "每包萃取 + 核验", d: "核验把整页 50 条原文重传一遍" },
+        { i: ICONS.wallet, t: "重度老用户 ¥1.15 <span class='mx-tag mx-tag-r'>被额度拖成跨月</span>", d: "Moze 1.2 万笔导入时间算作「今天」，全部当新数据处理，约 ¥3.04" },
+      ],
+      a: [
+        { i: ICONS.clock, t: '先补<span style="color:#3f8f5b">近 30 天</span>，再往前补到 12 个月', d: "几天内就能先看到「最近的我」被记住" },
+        { i: ICONS.mine, t: "只补有信息量的记录", d: "更早的账单和没备注的记录交给本地挖矿引擎，规律照样能发现，¥0" },
+        { i: ICONS.pack, t: "24 条一包，你的库只要 52 包", d: "核验只带本包被引用的原文" },
+        { i: ICONS.wallet, t: "重度老用户 ¥0.50 <span class='mx-tag mx-tag-g'>约 5 天匀速补完</span>", d: "第一个月合计约 ¥1.34，单设备 ¥2/月额度够用，不用新建额度池" },
+      ],
+      money_b: "<b>重度老用户一次性</b>：约 <b class='mx-red'>¥1.15</b>（档案 ¥0.81 + 主题关联 ¥0.34）；<b>Moze 导入</b> 约 ¥3.04",
+      money_a: "<b>重度老用户一次性</b>：约 <b class='mx-green'>¥0.50</b>（档案 ¥0.16 + 主题关联 ¥0.34）；<b>Moze 导入</b> ¥0.04~0.16；轻度老用户 ¥0.06",
+    },
+    upgrade: {
+      sub_b: "改一次提示词 / 升一级萃取版本",
+      sub_a: "默认只管新记录",
+      b: [
+        { i: ICONS.plug, t: "版本一升，进度清零", d: "10-09 那次升级，你的手机到 11 月还在为它付费" },
+        { i: ICONS.stack, t: "所有用户把全部历史重读一遍", d: "每升一次级就是一次「全员搬家」" },
+        { i: ICONS.wallet, t: "1 万人一次约 ¥3,475 <span class='mx-tag mx-tag-r'>越大越不敢升级</span>", d: "搬家期间新记的内容迟迟进不了记忆" },
+      ],
+      a: [
+        { i: ICONS.gate, t: "旧记忆原样保留", d: "只有新记录按新规则处理；提示词版本只做记录，不再触发重读" },
+        { i: ICONS.clock, t: "真需要重看时只回看近 90 天", d: "能用本地规则修正的先用规则修正，剩下的才交给 AI" },
+        { i: ICONS.mine, t: "旧记忆的质量靠本地「大扫除」治理", d: "不靠花钱重跑" },
+        { i: ICONS.wallet, t: "默认 <span class='mx-tag mx-tag-g'>¥0</span>", d: "确需回看时 1 万人约 ¥579" },
+      ],
+      money_b: "<b>每升一次级（全员）</b>：人均约 ¥0.35 → 1000 人 <b class='mx-red'>¥348</b>、1 万人 <b class='mx-red'>¥3,475</b>",
+      money_a: "<b>每升一次级</b>：默认 <b class='mx-green'>¥0</b>；确需回看近 90 天时 1 万人 <b class='mx-green'>¥579</b>",
+    },
+  };
+  const esc = s => s; // 内容为本文件内写死的受控标记
+  function render(name) {
+    const s = SCENES[name];
+    const steps = (arr) => arr.map((st, idx) => (idx ? '<div class="mx-flow"></div>' : "") +
+      '<div class="mx-row"><div class="mx-emoji">' + st.i + '</div><div class="mx-body"><div class="mx-t">' + st.t + '</div><div class="mx-d">' + st.d + '</div></div></div>').join("");
+    document.getElementById("sub-b").textContent = s.sub_b;
+    document.getElementById("sub-a").textContent = s.sub_a;
+    document.getElementById("steps-b").innerHTML = steps(s.b);
+    document.getElementById("steps-a").innerHTML = steps(s.a);
+    document.getElementById("money-b").innerHTML = s.money_b;
+    document.getElementById("money-a").innerHTML = s.money_a;
+  }
+  root.querySelectorAll(".mx-scene button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll(".mx-scene button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+      render(btn.dataset.scene);
+    });
+  });
+  render("daily");
+})();
+</script>
+</div>
+</body></html>

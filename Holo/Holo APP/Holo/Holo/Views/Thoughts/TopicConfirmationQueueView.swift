@@ -34,7 +34,7 @@ struct TopicConfirmationQueueView: View {
                         emptyState
                     } else {
                         Text("AI 对下面 \(thoughts.count) 条想法的主题归属不太有把握，选一下它们该去的书架。确认后类似内容会更准。")
-                            .font(.holoCaption)
+                            .font(ThoughtLayout.secondary)
                             .foregroundColor(.holoTextSecondary)
                             .padding(.horizontal, HoloSpacing.xs)
 
@@ -153,9 +153,9 @@ struct TopicConfirmationQueueView: View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(spacing: HoloSpacing.sm) {
                 Text(thought.classificationTopic.map { TopicIconProvider.icon(for: $0) } ?? "📥")
-                    .font(.system(size: 15))
+                    .font(ThoughtLayout.body)
                 Text(thought.classificationTopic?.title ?? String(localized: "未归类"))
-                    .font(.holoBody)
+                    .font(ThoughtLayout.body)
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
                 HStack(spacing: 4) {
@@ -163,14 +163,14 @@ struct TopicConfirmationQueueView: View {
                         .font(.system(size: 10))
                         .foregroundColor(.holoToolAI)
                     Text("AI 建议")
-                        .font(.holoTinyLabel)
+                        .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoToolAI)
                 }
             }
 
             if let reason = thought.topicAssignmentReason, !reason.isEmpty {
                 Text(reason)
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -178,7 +178,7 @@ struct TopicConfirmationQueueView: View {
             HStack(spacing: HoloSpacing.sm) {
                 ConfidenceBar(value: confidence)
                 Text("把握 \(Int(confidence * 100))%")
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextSecondary)
             }
         }
@@ -213,10 +213,10 @@ struct TopicConfirmationQueueView: View {
                 .font(.system(size: 44))
                 .foregroundColor(.holoSuccessText)
             Text("都确认完了")
-                .font(.holoHeading)
+                .font(ThoughtLayout.title)
                 .foregroundColor(.holoTextPrimary)
             Text("AI 把握不足的想法都已处理，\n你的确认会持续让分类越来越准。")
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextSecondary)
                 .multilineTextAlignment(.center)
         }
@@ -228,7 +228,7 @@ struct TopicConfirmationQueueView: View {
         Group {
             if let notice {
                 Text(notice)
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.white)
                     .padding(.horizontal, HoloSpacing.md)
                     .padding(.vertical, HoloSpacing.sm)

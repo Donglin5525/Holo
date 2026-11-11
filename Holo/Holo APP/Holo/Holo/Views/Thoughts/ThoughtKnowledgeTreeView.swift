@@ -65,7 +65,7 @@ struct ThoughtKnowledgeTreeView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            VStack(alignment: .leading, spacing: ThoughtLayout.cardGap) {
                 // V3 新脉络建议卡（同一时间最多一张，§4.4）
                 if ThoughtSemanticFeatureFlags.discoveryEnabled, suggestedCluster != nil {
                     suggestionCard
@@ -100,7 +100,7 @@ struct ThoughtKnowledgeTreeView: View {
                     organizationSettingsRow
                 }
             }
-            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.horizontal, ThoughtLayout.pageInset)
             .padding(.top, HoloSpacing.sm)
             .padding(.bottom, 100)
             // 通览型页面对齐长廊 920 口径（通宵冲刺 D3）；iPhone 直通
@@ -264,18 +264,18 @@ struct ThoughtKnowledgeTreeView: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.holoPrimary)
                 Text("最近有 \(suggestedCluster?.memberIDs.count ?? 0) 条想法形成了新的脉络")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(ThoughtLayout.secondary.weight(.semibold))
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
             }
 
             // 命名回填失败（离线/闸门）时用中性占位；「建立主题」会转入用户命名
             Text(suggestedCluster?.name ?? String(localized: "这组新想法"))
-                .font(.system(size: 18, weight: .bold))
+                .font(ThoughtLayout.title)
                 .foregroundColor(.holoTextPrimary)
 
             Text("\(suggestedCluster?.memberIDs.count ?? 0) 条想法 · \(clusterDurationText)")
-                .font(.system(size: 12.5))
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextSecondary)
 
             HStack(spacing: HoloSpacing.sm) {
@@ -283,7 +283,7 @@ struct ThoughtKnowledgeTreeView: View {
                     Task { await establishClusterTopic(userTitle: nil) }
                 } label: {
                     Text("建立主题")
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(ThoughtLayout.secondary.weight(.semibold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
@@ -298,7 +298,7 @@ struct ThoughtKnowledgeTreeView: View {
                     showClusterNameAlert = true
                 } label: {
                     Text("改个名字")
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(ThoughtLayout.secondary.weight(.semibold))
                         .foregroundColor(.holoTextPrimary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
@@ -314,7 +314,7 @@ struct ThoughtKnowledgeTreeView: View {
                     Task { await snoozeCluster() }
                 } label: {
                     Text("以后再说")
-                        .font(.system(size: 13.5, weight: .semibold))
+                        .font(ThoughtLayout.secondary.weight(.semibold))
                         .foregroundColor(.holoTextSecondary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 9)
@@ -333,7 +333,7 @@ struct ThoughtKnowledgeTreeView: View {
                 Task { await rejectCluster() }
             } label: {
                 Text("不再建议这个方向")
-                    .font(.system(size: 11.5))
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextSecondary.opacity(0.7))
             }
             .buttonStyle(.plain)
@@ -452,12 +452,12 @@ struct ThoughtKnowledgeTreeView: View {
                 .font(.system(size: 14))
                 .foregroundColor(.holoToolAI)
             Text(text)
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
             if let badge {
                 Text(badge)
-                    .font(.holoTinyLabel)
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.white)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
@@ -483,7 +483,7 @@ struct ThoughtKnowledgeTreeView: View {
 
     private func sectionLabel(_ title: String) -> some View {
         Text(title)
-            .font(.holoLabel)
+            .font(ThoughtLayout.metadata)
             .foregroundColor(.holoTextSecondary)
             .padding(.horizontal, HoloSpacing.xs)
     }
@@ -516,12 +516,12 @@ struct ThoughtKnowledgeTreeView: View {
                 // 标题 + 数量（基线对齐，单行截断）
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(topic.title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(ThoughtLayout.sectionTitle)
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     Text("\(count)")
-                        .font(.holoTinyLabel)
+                        .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoTextSecondary)
                 }
 
@@ -534,7 +534,7 @@ struct ThoughtKnowledgeTreeView: View {
 
                 // 最近活跃（固定高度，无想法时占位保持等高）
                 Text(recentLabel(for: topic))
-                    .font(.system(size: 10.5))
+                    .font(ThoughtLayout.metadata)
                     .foregroundColor(.holoTextSecondary.opacity(0.75))
                     .lineLimit(1)
             }
@@ -557,7 +557,7 @@ struct ThoughtKnowledgeTreeView: View {
         HStack(spacing: 4) {
             ForEach(Array(topicKeywords(topic).prefix(2)), id: \.self) { keyword in
                 Text(keyword)
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(ThoughtLayout.metadata.weight(.medium))
                     .foregroundColor(.holoTextSecondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -602,11 +602,11 @@ struct ThoughtKnowledgeTreeView: View {
                 .font(.system(size: 34))
                 .foregroundColor(.holoSuccess)
             Text("主题会从你的想法里长出来")
-                .font(.holoBody)
+                .font(ThoughtLayout.body)
                 .fontWeight(.semibold)
                 .foregroundColor(.holoTextPrimary)
             Text("先自由记录，Holo 会留意反复出现的方向，攒够同类想法后建议你建主题。\n你的分类体系，由你的想法塑造。")
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextSecondary)
                 .multilineTextAlignment(.center)
         }
@@ -622,7 +622,7 @@ struct ThoughtKnowledgeTreeView: View {
     // MARK: - 想法群落（未归类的积极语义：等待成簇、长成主题）
 
     private var unclassifiedCard: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
             Button {
                 onNavigateToList(.unclassified)
             } label: {
@@ -636,12 +636,12 @@ struct ThoughtKnowledgeTreeView: View {
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("未归入主题")
-                            .font(.holoBody)
+                            .font(ThoughtLayout.body)
                             .foregroundColor(.holoTextPrimary)
                         Text(unclassifiedCount > 0
                              ? String(localized: "\(unclassifiedCount) 条想法还没归入主题，可手动归入")
                              : String(localized: "没有待归类的想法"))
-                            .font(.holoCaption)
+                            .font(ThoughtLayout.secondary)
                             .foregroundColor(.holoTextSecondary)
                     }
                     Spacer()
@@ -662,7 +662,7 @@ struct ThoughtKnowledgeTreeView: View {
     // MARK: - 自动合集（V2：同一概念 ≥3 条有效想法自动出现的浏览入口）
 
     private var autoCollectionsSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        VStack(alignment: .leading, spacing: ThoughtLayout.itemGap) {
             sectionLabel(String(localized: "自动合集"))
             ForEach(collections) { collection in
                 collectionCard(collection)
@@ -686,10 +686,10 @@ struct ThoughtKnowledgeTreeView: View {
             } label: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(collection.displayName)
-                        .font(.holoBody)
+                        .font(ThoughtLayout.body)
                         .foregroundColor(.holoTextPrimary)
                     Text("最近想法 · \(collection.latestThoughtAt.map(dayLabel(_:)) ?? String(localized: "—"))")
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextSecondary)
                 }
             }
@@ -699,7 +699,7 @@ struct ThoughtKnowledgeTreeView: View {
             Spacer()
 
             Text("\(collection.count) 条")
-                .font(.holoCaption)
+                .font(ThoughtLayout.secondary)
                 .foregroundColor(.holoTextSecondary)
                 .padding(.horizontal, 7)
                 .padding(.vertical, 2)
@@ -747,10 +747,10 @@ struct ThoughtKnowledgeTreeView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("发现新主题")
-                        .font(.holoBody)
+                        .font(ThoughtLayout.body)
                         .foregroundColor(.holoTextPrimary)
                     Text("AI 从未归类想法中归纳潜在新主题，经你确认后创建")
-                        .font(.holoCaption)
+                        .font(ThoughtLayout.secondary)
                         .foregroundColor(.holoTextSecondary)
                 }
                 Spacer()
@@ -780,12 +780,12 @@ struct ThoughtKnowledgeTreeView: View {
                     .font(.system(size: 13))
                     .foregroundColor(.holoTextSecondary)
                 Text("已归档")
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoTextSecondary)
                 Spacer()
                 if archivedCount > 0 {
                     Text("\(archivedCount)")
-                        .font(.holoLabel)
+                        .font(ThoughtLayout.metadata)
                         .foregroundColor(.holoTextSecondary)
                 }
             }
@@ -806,7 +806,7 @@ struct ThoughtKnowledgeTreeView: View {
                     .font(.system(size: 13))
                     .foregroundColor(.holoTextSecondary)
                 Text("整理设置")
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundColor(.holoTextSecondary)
                 Spacer()
                 Image(systemName: "chevron.right")

@@ -22,7 +22,7 @@ typealias UIFontDescriptor = NSFontDescriptor
 
 /// macOS 无 UIFontMetrics（Dynamic Type 为 iOS 专属体系）：正文基线直接透传原字体
 struct HoloMacFontMetrics {
-    enum TextStyle { case body, caption1 }
+    enum TextStyle { case body, callout, caption1 }
     init(forTextStyle style: TextStyle) {}
     func scaledFont(for font: NSFont) -> NSFont { font }
 }
@@ -43,6 +43,9 @@ enum MarkdownEditorAction: Equatable {
     case insertUnorderedList
     case insertOrderedList
     case insertText(String)
+    case insertVoiceTranscript(VoiceTranscriptSubmission)
+    case swapVoiceTranscript
+    case dismissVoiceReplacement
     /// 工具栏 #/@ 按钮：原文插入触发字符并进入搜索态
     case insertTriggerCharacter(String)
     /// 候选面板选中标签：触发区间整体替换为标签 Token
@@ -137,6 +140,7 @@ struct MarkdownTextView: UIViewRepresentable {
     var placeholder: String? = nil
     /// 节点模型变化回调（保存时取 richContentJSON 用）
     var onNodesChange: (([HoloContentNode]) -> Void)? = nil
+    var onVoiceInsertionChange: ((ThoughtVoiceInsertionStatus?) -> Void)? = nil
     /// 键盘工具栏「转为任务」回调：整篇转化入口
     var onConvertToTask: (() -> Void)? = nil
     /// 选区菜单「转为任务」回调：同时传出选中的纯文本和真实 UTF-16 选区
@@ -275,6 +279,7 @@ struct MarkdownTextView: UIViewRepresentable {
         context.coordinator.lastAppliedSizeCategory = sizeCategory
         context.coordinator.nodes = initialNodes
         context.coordinator.onNodesChange = onNodesChange
+        context.coordinator.onVoiceInsertionChange = onVoiceInsertionChange
         context.coordinator.onConvertSelection = onConvertSelection
         context.coordinator.onConvertToTask = onConvertToTask
         context.coordinator.onSuggestionCommand = onSuggestionCommand
@@ -387,6 +392,10 @@ struct MarkdownTextView: UIViewRepresentable {
             DispatchQueue.main.async {
                 // 工具动作整体移出 updateUIView：正文、Binding、节点回调都会改 SwiftUI
                 // State，在视图更新栈内执行会造成 AttributeGraph 重入甚至重复消费动作。
+                guard textView.markedTextRange == nil else {
+                    coordinator.isPendingActionScheduled = false
+                    return
+                }
                 coordinator.perform(action: action, on: textView, markdown: textBinding)
                 if actionBinding.wrappedValue == action {
                     actionBinding.wrappedValue = nil
@@ -541,6 +550,9 @@ struct MarkdownTextView: UIViewRepresentable {
         var onHeightChange: ((CGFloat) -> Void)?
         var onFormatStateChange: ((TypingFormatState) -> Void)?
         var onNodesChange: (([HoloContentNode]) -> Void)?
+        var onVoiceInsertionChange: ((ThoughtVoiceInsertionStatus?) -> Void)?
+        private var voiceReplacement: ThoughtVoiceReplacement?
+        private var voiceSegment: [HoloContentNode] = []
         /// 光标 rect 变化回调（编辑器局部坐标系），父视图据此吸附候选浮层
         var onCaretRectChange: ((CGRect) -> Void)?
     /// 选区菜单「转为任务」回调
@@ -855,12 +867,14 @@ struct MarkdownTextView: UIViewRepresentable {
             markdown: Binding<String>
         ) {
             if textView.markedTextRange != nil {
-                IMEDiag.log("perform DEFERRED: \(action) (composing)")
+                IMEDiag.log("perform DEFERRED (composing)")
                 return
             }
 
-            if !textView.isFirstResponder {
-                textView.becomeFirstResponder()
+            switch action {
+            case .insertVoiceTranscript, .swapVoiceTranscript, .dismissVoiceReplacement: break
+            default:
+                if !textView.isFirstResponder { textView.becomeFirstResponder() }
             }
 
             switch action {
@@ -878,6 +892,12 @@ struct MarkdownTextView: UIViewRepresentable {
                 insertAtLineStart("1. ", on: textView)
             case .insertText(let text):
                 insertText(text, on: textView)
+            case .insertVoiceTranscript(let draft):
+                insertVoiceTranscript(draft, on: textView)
+            case .swapVoiceTranscript:
+                swapVoiceTranscript(on: textView)
+            case .dismissVoiceReplacement:
+                updateVoiceReplacement(nil, in: textView.attributedText)
             case .insertTriggerCharacter(let character):
                 insertTriggerCharacter(character, on: textView)
             case .insertTagToken(let id, let displayPath):
@@ -998,6 +1018,9 @@ struct MarkdownTextView: UIViewRepresentable {
         }
 
         private func syncMarkdown(from textView: UITextView) {
+            if let receipt = voiceReplacement, !matchesVoiceSegment(receipt, in: textView.attributedText) {
+                updateVoiceReplacement(nil, in: textView.attributedText)
+            }
             let serializedNodes = MarkdownTextView.serializeNodes(from: textView.attributedText)
             nodes = serializedNodes
             let markdown = RichContentSerializer.plainText(from: serializedNodes)
@@ -2194,17 +2217,68 @@ struct MarkdownTextView: UIViewRepresentable {
             )
             guard !insertionText.isEmpty else { return }
 
-            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
             let insert = makeTaskAwareReplacement(
                 insertionText,
                 range: safeRange,
                 in: textView
             )
-            mutable.replaceCharacters(in: safeRange, with: insert)
+            replaceText(insert, range: safeRange, in: textView, actionName: String(localized: "插入文字"))
+        }
 
-            performProgrammaticEdit(on: textView, actionName: String(localized: "插入语音文字")) {
+        private func insertVoiceTranscript(_ draft: VoiceTranscriptSubmission, on textView: UITextView) {
+            let text = draft.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return }
+            let range = MarkdownTextView.clampedRange(textView.selectedRange, for: textView.attributedText.length)
+            let insertion = makeTaskAwareReplacement(text, range: range, in: textView)
+            replaceText(insertion, range: range, in: textView, actionName: String(localized: "插入语音文字"))
+            let receipt = draft.originalToRestore.map {
+                ThoughtVoiceReplacement(
+                    expectedDocument: textView.attributedText.string,
+                    range: NSRange(location: range.location, length: insertion.length),
+                    alternate: $0,
+                    status: .polished
+                )
+            }
+            updateVoiceReplacement(receipt, in: textView.attributedText)
+        }
+
+        private func swapVoiceTranscript(on textView: UITextView) {
+            guard let receipt = voiceReplacement,
+                  matchesVoiceSegment(receipt, in: textView.attributedText),
+                  let next = receipt.reversing(in: textView.attributedText.string) else {
+                updateVoiceReplacement(nil, in: textView.attributedText)
+                return
+            }
+            let attributes = textView.attributedText.attributes(at: receipt.range.location, effectiveRange: nil)
+            let replacement = NSAttributedString(string: receipt.alternate, attributes: attributes)
+            let actionName = next.status == .restored ? String(localized: "换回原文") : String(localized: "撤销换回")
+            replaceText(replacement, range: receipt.range, in: textView, actionName: actionName)
+            updateVoiceReplacement(next, in: textView.attributedText)
+        }
+
+        private func matchesVoiceSegment(_ receipt: ThoughtVoiceReplacement, in document: NSAttributedString) -> Bool {
+            guard document.string.utf16.elementsEqual(receipt.expectedDocument.utf16),
+                  NSMaxRange(receipt.range) <= document.length else { return false }
+            return MarkdownTextView.serializeNodes(from: document.attributedSubstring(from: receipt.range)) == voiceSegment
+        }
+
+        private func updateVoiceReplacement(_ receipt: ThoughtVoiceReplacement?, in document: NSAttributedString) {
+            let hadReplacement = voiceReplacement != nil
+            voiceReplacement = receipt
+            voiceSegment = receipt.map {
+                MarkdownTextView.serializeNodes(from: document.attributedSubstring(from: $0.range))
+            } ?? []
+            if receipt != nil || hadReplacement {
+                onVoiceInsertionChange?(receipt?.status)
+            }
+        }
+
+        private func replaceText(_ replacement: NSAttributedString, range: NSRange, in textView: UITextView, actionName: String) {
+            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+            mutable.replaceCharacters(in: range, with: replacement)
+            performProgrammaticEdit(on: textView, actionName: actionName) {
                 textView.attributedText = mutable
-                textView.selectedRange = NSRange(location: safeRange.location + insert.length, length: 0)
+                textView.selectedRange = NSRange(location: range.location + replacement.length, length: 0)
             }
             refreshTypingAttributes(for: textView)
         }
@@ -2277,10 +2351,10 @@ extension MarkdownTextView {
         var listHeadIndent: CGFloat?
     }
 
-    /// 与卡片/详情正文一致的动态正文基线：系统 Body 17pt、Regular，随 Dynamic Type 缩放。
+    /// 与想法阅读态和语音整理共用正文基线，随 Dynamic Type 缩放。
     static var baseFont: UIFont {
-        UIFontMetrics(forTextStyle: .body)
-            .scaledFont(for: UIFont.systemFont(ofSize: 17, weight: .regular))
+        UIFontMetrics(forTextStyle: .callout)
+            .scaledFont(for: UIFont.systemFont(ofSize: ThoughtLayout.bodySize, weight: .regular))
     }
     static let baseTextColor: UIColor = {
         #if canImport(UIKit)
@@ -2306,13 +2380,11 @@ extension MarkdownTextView {
 
     private static func baseParagraphStyle() -> NSParagraphStyle {
         let style = NSMutableParagraphStyle()
-        style.lineSpacing = 6
+        style.lineSpacing = editorLineSpacing(for: baseFont)
         return style
     }
 
-    /// 编辑态行高基线：行高 = 字号 × 1.5（中文正文的舒适行距）。
-    /// 阅读态（列表卡片/详情页）维持 6pt 的紧凑基线：编辑器优先输入体验，列表优先信息密度。
-    /// 行距按当前字号计算，Dynamic Type 放大后比例不漂移。
+    /// 编辑态和阅读态使用同一行高比例，随实际字号放大。
     static func editorLineSpacing(for font: UIFont) -> CGFloat {
         #if canImport(UIKit)
         let lineHeight = font.lineHeight
@@ -2320,7 +2392,7 @@ extension MarkdownTextView {
         // NSFont 无 lineHeight 成员：取字形包围盒高度（含行距语义等价）
         let lineHeight = font.boundingRectForFont.height.rounded()
         #endif
-        return max(0, font.pointSize * 1.5 - lineHeight)
+        return max(0, font.pointSize * ThoughtLayout.bodyLineHeight - lineHeight)
     }
 
     /// 把整段富文本的行距统一替换为编辑态基线（保留列表悬挂缩进等其他段落设置）。

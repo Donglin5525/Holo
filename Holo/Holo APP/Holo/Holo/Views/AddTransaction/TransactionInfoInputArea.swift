@@ -230,9 +230,10 @@ extension AddTransactionSheet {
             showNumericKeypad = false
             // 分期为 Plus 权益：非 Plus 弹付费墙，购买成功后回开分期设置
             guard HoloEntitlementState.shared.isPlusActive else {
-                HoloPlusActionCoordinator.shared.requirePlus(context: .financeInstallment) {
-                    showInstallmentSheet = true
-                }
+                HoloPlusActionCoordinator.shared.requirePlus(
+                    context: .financeInstallment,
+                    onDismiss: { showInstallmentSheet = true }
+                )
                 return
             }
             withAnimation(HoloAnimation.enter) {

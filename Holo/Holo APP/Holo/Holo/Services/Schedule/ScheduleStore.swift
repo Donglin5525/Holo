@@ -133,7 +133,7 @@ final class ScheduleStore: ObservableObject {
     }
 
     private func activate() async {
-        guard let store = await ensureEventStore() else { return }
+        guard await ensureEventStore() != nil else { return }
         if EKEventStore.authorizationStatus(for: .event) == .notDetermined {
             let granted = await requestFullAccess()
             if !granted { return }
@@ -172,7 +172,7 @@ final class ScheduleStore: ObservableObject {
 
     /// 权限被拒后的再次申请入口（设置页「去系统设置开启」之外的重试通道）
     func requestAccessAgain() async {
-        guard let store = await ensureEventStore() else { return }
+        guard await ensureEventStore() != nil else { return }
         if EKEventStore.authorizationStatus(for: .event) == .notDetermined {
             _ = await requestFullAccess()
             if authorizationStatus == .fullAccess {
@@ -185,7 +185,7 @@ final class ScheduleStore: ObservableObject {
     }
 
     private func refreshAuthorizationStatus() {
-        guard let store = eventStore else {
+        guard eventStore != nil else {
             authorizationStatus = .notDetermined
             return
         }
@@ -300,7 +300,7 @@ final class ScheduleStore: ObservableObject {
 
     private func fetchItems(from start: Date, to end: Date, store: EKEventStore) async -> [ScheduleItem] {
         let calendars = selectedEKCalendars
-        return await Task.detached(priority: .userInitiated) { [calendar] in
+        return await Task.detached(priority: .userInitiated) {
             let predicate = store.predicateForEvents(withStart: start, end: end, calendars: calendars)
             let events = store.events(matching: predicate)
             let items = events.map(ScheduleItem.init)

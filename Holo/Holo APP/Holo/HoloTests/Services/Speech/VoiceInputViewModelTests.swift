@@ -196,6 +196,52 @@ final class VoiceInputViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.summaryTranscript, "总结第一句。\n\n总结第二句。")
     }
 
+    func testDraftSwitchKeepsBothEditsAndRetainsImmutableOriginalForRestore() async {
+        let recorder = FakeVoiceRecordingService()
+        let provider = FakeSpeechRecognitionProvider()
+        provider.result = SpeechRecognitionResult(text: "嗯，我有点犹豫。", duration: 2, confidence: nil)
+        let processor = DelayedVoiceTranscriptPostProcessor(result: "我有点犹豫。")
+        let model = VoiceInputViewModel(speechProvider: provider, recordingService: recorder, postProcessor: processor)
+
+        await model.startRecording()
+        await model.finishRecording()
+        await provider.streamingSession.waitForFinish()
+        model.editableTranscript = "我先补了原文。"
+        processor.finish()
+        await waitUntil { model.summaryPhase == .ready }
+        XCTAssertEqual(model.editableTranscript, "我先补了原文。")
+        XCTAssertEqual(model.submission.originalToRestore, nil)
+
+        model.restoreSummaryTranscript()
+        model.editableTranscript = "我现在还有点犹豫。"
+        model.showOriginalTranscript()
+        XCTAssertEqual(model.editableTranscript, "我先补了原文。")
+        model.restoreSummaryTranscript()
+        XCTAssertEqual(model.submission, VoiceTranscriptSubmission(text: "我现在还有点犹豫。", originalToRestore: "嗯，我有点犹豫。"))
+    }
+
+    func testSummaryFailureAndRetryKeepManuallyEditedTranscript() async {
+        let recorder = FakeVoiceRecordingService()
+        let provider = FakeSpeechRecognitionProvider()
+        provider.result = SpeechRecognitionResult(text: "嗯，我还要再看看。", duration: 2, confidence: nil)
+        let processor = DelayedVoiceTranscriptPostProcessor(result: "我还要再看看。", firstAttemptFails: true)
+        let model = VoiceInputViewModel(speechProvider: provider, recordingService: recorder, postProcessor: processor)
+
+        await model.startRecording()
+        await model.finishRecording()
+        await provider.streamingSession.waitForFinish()
+        model.editableTranscript = "我改了这句，明天再看看。"
+        processor.finish()
+        await waitUntil { model.summaryPhase == .failed }
+        XCTAssertEqual(model.editableTranscript, "我改了这句，明天再看看。")
+
+        model.retrySummary()
+        await waitUntil { model.summaryPhase == .ready }
+        XCTAssertEqual(model.editableTranscript, "我改了这句，明天再看看。")
+        XCTAssertEqual(model.summaryTranscript, "我还要再看看。")
+        XCTAssertEqual(model.transcriptDisplayMode, .original)
+    }
+
     func testEmptyTranscriptFails() async {
         let recorder = FakeVoiceRecordingService()
         recorder.currentTime = 2.0
@@ -423,6 +469,8 @@ private final class FakeSpeechRecognitionStreamingSession: SpeechRecognitionStre
 @MainActor
 private final class DelayedVoiceTranscriptPostProcessor: VoiceTranscriptPostProcessing {
     let result: String
+    let firstAttemptFails: Bool
+    private var attempts = 0
     private var startContinuation: CheckedContinuation<Void, Never>?
     private var finishContinuation: CheckedContinuation<Void, Never>?
     private var completionContinuation: CheckedContinuation<Void, Never>?
@@ -430,11 +478,13 @@ private final class DelayedVoiceTranscriptPostProcessor: VoiceTranscriptPostProc
     private var shouldFinish = false
     private var didComplete = false
 
-    init(result: String) {
+    init(result: String, firstAttemptFails: Bool = false) {
         self.result = result
+        self.firstAttemptFails = firstAttemptFails
     }
 
     func process(_ text: String) async throws -> String {
+        attempts += 1
         didStart = true
         startContinuation?.resume()
         startContinuation = nil
@@ -448,6 +498,7 @@ private final class DelayedVoiceTranscriptPostProcessor: VoiceTranscriptPostProc
         didComplete = true
         completionContinuation?.resume()
         completionContinuation = nil
+        if firstAttemptFails && attempts == 1 { throw SummaryError.timeout }
         return result
     }
 

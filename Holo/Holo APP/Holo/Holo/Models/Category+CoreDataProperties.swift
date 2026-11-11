@@ -521,7 +521,7 @@ extension Category {
         // 先固化种子语言再读层级：库里已有分类 = 老用户，其数据是简体种的，
         // 固化简体（否则补种逻辑按新语言再铺一套跨语言去重失效的分类）；
         // 空库 = 新用户，按当前 App 语言固化
-        SeedLanguage.resolveSeedLanguage(hasExistingSeedData: !all.isEmpty)
+        _ = SeedLanguage.resolveSeedLanguage(hasExistingSeedData: !all.isEmpty)
 
         // 老用户（已有二级分类）：种子是初始模板而非持续强制的系统清单——
         // 不再按缺失项补齐，用户删除过的预设分类不得复活（分类删除治理方案 D5/Phase4）。

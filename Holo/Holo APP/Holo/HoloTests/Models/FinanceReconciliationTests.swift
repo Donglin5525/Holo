@@ -609,3 +609,27 @@ extension FinanceReconciliationTests {
         XCTAssertEqual(aggregations.first?.amount, 500, "冲减随删除还原")
     }
 }
+
+// MARK: - 退款语义识别（手动「记一笔」引导与 AI 聊天同源共用，11-10 退款引导批）
+
+final class RefundSemanticsTests: XCTestCase {
+
+    func test_matches_词表命中且营销词不触发() {
+        for word in RefundSemantics.keywords {
+            XCTAssertTrue(RefundSemantics.matches("收到\(word)了"), word)
+        }
+        // 与 AI 侧同一红线：不含「返还」——运营商充值返还等营销语义不触发
+        XCTAssertFalse(RefundSemantics.matches("话费返还20元"))
+        XCTAssertFalse(RefundSemantics.matches(""))
+    }
+
+    func test_strippingKeywords_剔除触发词留下可搜索文本() {
+        XCTAssertEqual(RefundSemantics.strippingKeywords(from: "优衣库退货"), "优衣库")
+        XCTAssertEqual(RefundSemantics.strippingKeywords(from: "优衣库退货了"), "优衣库")
+        XCTAssertEqual(RefundSemantics.strippingKeywords(from: "退货了"), "")
+        XCTAssertEqual(RefundSemantics.strippingKeywords(from: "优衣库退了款"), "优衣库")
+        XCTAssertEqual(RefundSemantics.strippingKeywords(from: "瑞幸退款26.5"), "瑞幸26.5")
+        // 「退了」不在词表（AI 侧口径不变），剔除后残留「退」字：仅作候选加分项，不承诺精确匹配
+        XCTAssertEqual(RefundSemantics.strippingKeywords(from: "优衣库退了"), "优衣库退")
+    }
+}

@@ -550,7 +550,6 @@ struct ReceiptGalleryView: View {
     private func tearCurrent() {
         guard liveItems.indices.contains(currentIndex) else { return }
         let index = currentIndex
-        let item = liveItems[index]
         liveItems.remove(at: index)
         images.remove(at: index)
         if liveItems.isEmpty {
@@ -639,7 +638,7 @@ struct TransactionReceiptDetailSection: View {
     private func detachAt(_ index: Int) {
         guard items.indices.contains(index) else { return }
         let attachment = items[index].attachment
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
+        _ = withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) {
             items.remove(at: index)
         }
         if let attachment {

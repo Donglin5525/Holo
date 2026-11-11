@@ -54,7 +54,7 @@ enum BillExcelReader {
     /// 读取 xlsx 为字符串行矩阵
     /// - Returns: 每行每列的字符串值；自动选取行数最多的 sheet 作为数据表
     static func readRows(url: URL) throws -> [[String]] {
-        guard let file = try? XLSXFile(filepath: url.path) else {
+        guard let file = XLSXFile(filepath: url.path) else {
             throw ReadError.cannotOpen
         }
 
@@ -70,7 +70,7 @@ enum BillExcelReader {
             guard let worksheet = try? file.parseWorksheet(at: path) else { continue }
             let dateColumns = dateColumnIndices(in: worksheet, sharedStrings: sharedStrings)
             var rows: [[String]] = []
-            for row in worksheet.sheetData.rows {
+            for row in worksheet.data?.rows ?? [] {
                 var cells: [String] = []
                 var lastColumn = 0
                 for cell in row.cells {
@@ -130,7 +130,7 @@ enum BillExcelReader {
     /// 只从同时包含日期和金额语义的表头行识别日期列，避免误读封面说明文字。
     private static func dateColumnIndices(in worksheet: Worksheet, sharedStrings: SharedStrings?) -> Set<Int> {
         var result = Set<Int>()
-        for row in worksheet.sheetData.rows {
+        for row in worksheet.data?.rows ?? [] {
             let fields = row.cells.map { cell -> String in
                 if let sharedStrings, let sharedText = cell.stringValue(sharedStrings) {
                     return sharedText

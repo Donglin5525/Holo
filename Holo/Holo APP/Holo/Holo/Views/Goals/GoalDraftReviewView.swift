@@ -578,7 +578,7 @@ struct GoalDraftReviewView: View {
     private func save() {
         guard !isSaving else { return }  // 双击确认防护
         // 完整校验通过才可点（标题之外，共创会话还需成功证据非空、日期可解析）
-        if let workshopSession {
+        if workshopSession != nil {
             guard !workshopSuccessEvidence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 saveErrorText = "先填「成功证据」：达成后你能观察到什么。"
                 return

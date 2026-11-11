@@ -47,7 +47,7 @@ extension HoloHealthQueryOutcome {
 }
 
 /// HK 回调 error 分类器（§7.1）：把 HealthKit 错误映射为严格 outcome 分支。
-enum HoloStrictHealthQueryService {
+nonisolated enum HoloStrictHealthQueryService {
 
     /// HK 查询回调的 error → 严格 outcome；nil 表示无错误可继续解析样本。
     static func failure<T: Sendable>(from error: Error?) -> HoloHealthQueryOutcome<T>? {

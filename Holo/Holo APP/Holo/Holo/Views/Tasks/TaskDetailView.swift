@@ -988,7 +988,7 @@ struct TaskDetailView: View {
                 guard !images.isEmpty || failedCount > 0 else { return }
                 pendingImages.append(contentsOf: images)
             }
-            await PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired, limitedAccess: limitedAccess, cloudFailed: cloudFailed)
+            PhotoLibraryImageLoader.announceLoadFailure(failedCount: failedCount, totalCount: items.count, permissionRequired: permissionRequired, limitedAccess: limitedAccess, cloudFailed: cloudFailed)
         }
     }
 

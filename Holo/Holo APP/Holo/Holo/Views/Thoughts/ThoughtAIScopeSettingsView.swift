@@ -60,9 +60,9 @@ struct ThoughtAIScopeSettingsView: View {
                     .foregroundStyle(Color.holoPrimary)
                     .padding(.bottom, 2)
                 Text("有些想法，只想留给自己。")
-                    .font(.title3.weight(.bold))
+                    .font(ThoughtLayout.title.weight(.bold))
                 Text("在这里标记的标签，Holo 不会交给 AI——不归类、不分析、不进任何报告。")
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundStyle(Color.holoTextSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -75,7 +75,7 @@ struct ThoughtAIScopeSettingsView: View {
         Section {
             LabeledContent {
                 Text(summaryText)
-                    .font(.holoBody.weight(.semibold))
+                    .font(ThoughtLayout.body.weight(.semibold))
                     .foregroundStyle(Color.holoPrimary)
             } label: {
                 Text("当前范围")
@@ -96,7 +96,7 @@ struct ThoughtAIScopeSettingsView: View {
         Section {
             if tags.isEmpty {
                 Text("还没有可用标签")
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundStyle(Color.holoTextSecondary)
             }
             ForEach(tags) { info in
@@ -115,7 +115,7 @@ struct ThoughtAIScopeSettingsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 5) {
                     Text("#\(info.displayName)")
-                        .font(.holoBody.weight(.semibold))
+                        .font(ThoughtLayout.body.weight(.semibold))
                         .foregroundStyle(excluded ? Color.holoAIShieldTint : Color.primary)
                     if excluded {
                         Image(systemName: "checkmark.shield.fill")
@@ -126,7 +126,7 @@ struct ThoughtAIScopeSettingsView: View {
                 Text(excluded
                      ? "\(info.userThoughtCount) 条想法 · AI 不可见"
                      : info.userThoughtCount > 0 ? "\(info.userThoughtCount) 条想法" : "未使用")
-                    .font(.holoCaption)
+                    .font(ThoughtLayout.secondary)
                     .foregroundStyle(Color.holoTextSecondary)
             }
             Spacer()

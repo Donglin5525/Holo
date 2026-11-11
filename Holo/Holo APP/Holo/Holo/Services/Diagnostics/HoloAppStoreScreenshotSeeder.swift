@@ -2823,7 +2823,19 @@ enum HoloAppStoreScreenshotSeeder {
         story: Story
     ) async throws -> Transaction {
         let categories = try context.fetch(Category.fetchRequest())
-        let byName = Dictionary(grouping: categories.filter(\.isSubCategory), by: \.name)
+        // 账目分类的显示名会随系统语言切换（如“药品”→“Medicine”）。截图夹具使用
+        // 资产目录名这个稳定标识查找，避免英语/繁体环境下按中文显示名找不到分类。
+        let fixtureCategoryIcons: [String: String] = [
+            "药品": "finance_medicine",
+            "外卖": "finance_takeout",
+            "午餐": "finance_lunch",
+            "旅行": "finance_travel",
+            "地铁": "finance_subway",
+            "超市": "finance_supermarket",
+            "早餐": "finance_breakfast",
+            "晚餐": "finance_dinner"
+        ]
+        let byIcon = Dictionary(grouping: categories.filter(\.isSubCategory), by: \.icon)
         let samples: [(day: Int, hour: Int, minute: Int, amount: Decimal, category: String, note: String)] = story == .lifeFlow
             ? [
                 (0, 12, 10, 128, "药品", "给爸妈买药"),
@@ -2856,7 +2868,8 @@ enum HoloAppStoreScreenshotSeeder {
 
         var actionTransaction: Transaction?
         for sample in samples {
-            guard let category = byName[sample.category]?.first else {
+            guard let icon = fixtureCategoryIcons[sample.category],
+                  let category = byIcon[icon]?.first else {
                 throw ScreenshotSeedError.missingCategory(sample.category)
             }
             let sampleDate = date(

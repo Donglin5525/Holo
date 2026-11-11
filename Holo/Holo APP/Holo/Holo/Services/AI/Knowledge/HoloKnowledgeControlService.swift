@@ -146,7 +146,11 @@ final class HoloKnowledgeControlService: Sendable {
         // 此时落 #N 后缀新代操作重走完整校验（冲突时如实返回冲突，不假成功）。
         if try await repository.knowledgeOperation(operationID: request.operationID) != nil {
             if try await semanticEffectStillHolds(request) {
-                await completeMirroring(request: request, snapshot: nil)
+                let mirrorOutcome = await completeMirroring(request: request, snapshot: nil)
+                if case .persistenceFailed = mirrorOutcome {
+                    // 补齐失败如实上报、不假成功（09-R09）；重试会再进此分支继续补齐
+                    return mirrorOutcome
+                }
                 return .alreadyApplied
             }
             var generation = 1

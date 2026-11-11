@@ -2,8 +2,8 @@
 //  ThoughtVoiceSummaryProcessor.swift
 //  Holo
 //
-//  观点语音智能总结处理器
-//  调用后端 AI 将 ASR 原文整理为观点风格文本
+//  口述整理处理器
+//  调用后端 AI 轻度编辑转写原文
 //
 
 import Foundation
@@ -36,10 +36,10 @@ final class ThoughtVoiceSummaryProcessor: VoiceTranscriptPostProcessing {
         let systemPrompt = (try? promptManager.loadPrompt(.thoughtVoiceSummary))
             ?? promptManager.loadDefaultTemplate(.thoughtVoiceSummary)
 
-        let messages: [ChatMessageDTO] = [
-            .system(systemPrompt),
-            .user(text)
-        ]
+        var messages: [ChatMessageDTO] = [.user(text)]
+        if !systemPrompt.isEmpty {
+            messages.insert(.system(systemPrompt), at: 0)
+        }
 
         let result = try await aiProvider.chat(
             messages: messages,

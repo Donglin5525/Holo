@@ -14,7 +14,7 @@ import OSLog
 
 struct TaskExperienceView: View {
 
-    @ObservedObject var repository: TodoRepository
+    let repository: TodoRepository
     let onBack: () -> Void
     /// 外层容器（TasksView）转发的搜索触发
     var searchTrigger: Int = 0
@@ -26,6 +26,7 @@ struct TaskExperienceView: View {
     @ObservedObject private var actionCoordinator = TaskPresentationActionCoordinator.shared
 
     @Environment(\.holoContentWidth) private var contentWidth
+    @Environment(\.holoMotionSurfaceIsActive) private var presentationIsVisible
     private var isWideLayout: Bool {
         HoloAdaptiveLayout.isExpandedWidth(contentWidth)
     }
@@ -51,6 +52,7 @@ struct TaskExperienceView: View {
     @State private var pageScrollProxy: ScrollViewProxy? = nil
     /// 范围外新任务提示（提示+查看，用户点才切范围，§7.1）
     @State private var outOfScopeToastID: UUID? = nil
+    @State private var pendingCreatedTaskID: UUID? = nil
     /// Deep Link 状态（任务详情目标由本页消费，纪念日仍归容器）
     @ObservedObject private var deepLinkState = DeepLinkState.shared
 
@@ -80,11 +82,22 @@ struct TaskExperienceView: View {
         } detail: {
             detailPane
         }
-        .task {
+        .task(id: presentationIsVisible) {
+            guard presentationIsVisible else { return }
             await CoreDataStack.shared.waitUntilReady()
+            guard !Task.isCancelled else { return }
             repository.setup()
-            model.reload()
+            model.setPresentationVisible(true)
+            model.startPresentation()
+            if let taskID = pendingCreatedTaskID {
+                pendingCreatedTaskID = nil
+                handleCreated(taskID: taskID)
+            }
         }
+        .onChange(of: presentationIsVisible, initial: true) { _, visible in
+            model.setPresentationVisible(visible)
+        }
+        .onDisappear { model.setPresentationVisible(false) }
         .onReceive(NotificationCenter.default.publisher(for: .taskExperienceOpenDetail)) { notification in
             if let taskID = notification.object as? UUID {
                 detailSelection = taskID
@@ -102,6 +115,10 @@ struct TaskExperienceView: View {
         // 统一创建回执：按当前视图定位（§7.2）；范围外任务提示+查看
         .onReceive(NotificationCenter.default.publisher(for: .taskExperienceCreated)) { notification in
             guard let taskID = notification.userInfo?["id"] as? UUID else { return }
+            guard model.canRefreshPresentation else {
+                pendingCreatedTaskID = taskID
+                return
+            }
             handleCreated(taskID: taskID)
         }
         // 任务深链（通知/来源想法）：新首页接住，不被切换截断（§4.5）

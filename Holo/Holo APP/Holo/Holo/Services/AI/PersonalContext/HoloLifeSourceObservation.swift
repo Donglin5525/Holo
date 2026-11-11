@@ -79,7 +79,7 @@ struct HoloFinanceContextSourcePaging: HoloContextSourcePaging {
             cursorKey: { (transaction: Transaction) in HoloLifeSourceKeys.financeKey(transaction.id) },
             makeSnapshot: { (transaction: Transaction) in
                 let categoryText = transaction.category.map { category in
-                    self.repository.resolveCategoryNames(from: category).sub.map { "\($0)" } ?? category.name ?? ""
+                    self.repository.resolveCategoryNames(from: category).sub.map { "\($0)" } ?? category.name
                 } ?? ""
                 var businessState: [String: String] = [
                     "type": transaction.type,

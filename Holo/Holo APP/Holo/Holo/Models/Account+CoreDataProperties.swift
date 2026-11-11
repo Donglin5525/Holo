@@ -72,7 +72,7 @@ extension Account {
         let accountCount = (try? context.count(for: fetchRequest)) ?? 0
 
         // 先固化种子语言再取预设名单：已有账户 = 老用户，其数据是简体种的 → 固化简体
-        SeedLanguage.resolveSeedLanguage(hasExistingSeedData: accountCount > 0)
+        _ = SeedLanguage.resolveSeedLanguage(hasExistingSeedData: accountCount > 0)
 
         if accountCount > 0 {
             return // 已有账户，跳过初始化

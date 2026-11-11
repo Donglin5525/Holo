@@ -232,7 +232,7 @@ struct TodayPrimaryFocusCard: View {
             }
             return String(localized: "已经过了截止时间，今天处理掉它。")
         case .matterAtRisk:
-            if let days = args.daysUntilTarget, let title = args.matterTitle {
+            if args.daysUntilTarget != nil, let title = args.matterTitle {
                 return String(localized: "「\(title)」的目标已过或临近，这件事还没确认。")
             }
             return String(localized: "这件事存在已确认的风险，需要今天推进。")

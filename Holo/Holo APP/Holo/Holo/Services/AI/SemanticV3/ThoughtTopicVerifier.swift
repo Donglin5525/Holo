@@ -144,10 +144,10 @@ nonisolated enum ThoughtTopicVerifier {
                         let sa = ThoughtTopicLinkProjection.categorySampleRank(of: $0, in: topic)
                         let sb = ThoughtTopicLinkProjection.categorySampleRank(of: $1, in: topic)
                         if sa != sb { return sa < sb }
-                        return ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast)
+                        return $0.updatedAt > $1.updatedAt
                     }
                 } else {
-                    ordered = members.sorted { ($0.updatedAt ?? .distantPast) > ($1.updatedAt ?? .distantPast) }
+                    ordered = members.sorted { $0.updatedAt > $1.updatedAt }
                 }
                 let representatives = ordered.prefix(3).map {
                     ThoughtSemanticRelateRequestDTO.Representative(ref: $0.id.uuidString,

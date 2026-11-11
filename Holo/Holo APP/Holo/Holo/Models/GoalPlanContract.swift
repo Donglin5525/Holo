@@ -262,13 +262,14 @@ enum GoalPlanPayloadCodec {
     private struct VersionProbe: Decodable { let schemaVersion: Int? }
 
     /// 写入带毫秒的 ISO8601；读取兼容带/不带毫秒（旧串）
-    nonisolated static let fractionalFormatter: ISO8601DateFormatter = {
+    /// ISO8601DateFormatter 线程安全且此常量配置后不再变更，unsafe 仅为绕过未标 Sendable
+    nonisolated(unsafe) static let fractionalFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
     }()
 
-    nonisolated static let plainFormatter: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let plainFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         return f
@@ -501,7 +502,7 @@ struct HoloAgentGoalScope: Equatable, Sendable {
         ].joined(separator: "|")
     }
 
-    nonisolated static let wireDateFormatter: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let wireDateFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         return f

@@ -13,7 +13,7 @@ import HealthKit
 
 /// 单次运动会话。保留 HKWorkout 会话明细；日聚合 DailyWorkoutData 由 `fold` 折叠而来，
 /// 全模块口径统一（界面、AI 工具、洞察共用同一份会话数据）。
-struct WorkoutSessionData: Identifiable, Equatable, Sendable {
+nonisolated struct WorkoutSessionData: Identifiable, Equatable, Sendable {
     let id: UUID
     let start: Date
     let end: Date
@@ -142,7 +142,7 @@ struct WorkoutHeartDetail: Equatable, Sendable {
 }
 
 /// 心率五区间分析（Apple 健康口径：按最大心率百分比划分）
-enum WorkoutHeartZoneAnalyzer {
+nonisolated enum WorkoutHeartZoneAnalyzer {
 
     /// Z1 <60% / Z2 <70% / Z3 <80% / Z4 <90% / Z5 ≥90%
     static let zoneUpperRatios: [Double] = [0.6, 0.7, 0.8, 0.9, .infinity]
@@ -196,7 +196,7 @@ enum WorkoutHeartZoneAnalyzer {
 // MARK: - 种子化随机数（模拟数据用：同一种子序列可复现）
 
 /// SplitMix64：轻量确定性随机源，供模拟数据按日期种子生成稳定结果。
-struct SeededRandomNumberGenerator: RandomNumberGenerator {
+nonisolated struct SeededRandomNumberGenerator: RandomNumberGenerator {
     private var state: UInt64
 
     init(seed: UInt64) {

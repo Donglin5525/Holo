@@ -104,7 +104,7 @@ struct ScopeCategoryDrillDownView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScopeSubHeaderView(title: category.name ?? "", onBack: onBack)
+            ScopeSubHeaderView(title: category.name, onBack: onBack)
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.lg) {
@@ -141,7 +141,7 @@ struct ScopeCategoryDrillDownView: View {
             transactionCategoryIcon(category, size: 44)
 
             VStack(alignment: .leading, spacing: HoloSpacing.xs) {
-                Text(category.name ?? "-")
+                Text(category.name)
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
 
@@ -203,7 +203,7 @@ struct ScopeCategoryDrillDownView: View {
     private func subRow(_ item: CategoryAggregation, maxAmount: Decimal) -> some View {
         let name = item.category.id == category.id
             ? String(localized: "其他")
-            : (item.category.name ?? "-")
+            : item.category.name
 
         return HStack(spacing: HoloSpacing.sm) {
             Text(name)
@@ -346,7 +346,7 @@ struct ScopeCategoryBars: View {
     @ViewBuilder
     private func topRow(_ item: CategoryAggregation, maxAmount: Decimal) -> some View {
         let content = HStack(spacing: HoloSpacing.sm) {
-            Text(item.category.name ?? "-")
+            Text(item.category.name)
                 .font(.holoCaption)
                 .foregroundColor(.holoTextPrimary)
                 .lineLimit(1)
