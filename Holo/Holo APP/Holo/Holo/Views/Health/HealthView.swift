@@ -119,13 +119,18 @@ struct HealthView: View {
         }
         .task {
             await refreshAll()
-            await insightViewModel.load()
+            // 洞察改为后台隐性生成：页面只读缓存立即显示，生成不随页面离场取消
+            insightViewModel.load()
         }
         .onChange(of: selectedDate) {
             Task { await loadDateData(for: selectedDate) }
         }
         .sheet(item: $selectedEvidenceInsight) { insight in
-            HealthInsightEvidenceSheet(insight: insight, evidence: insightViewModel.snapshot?.evidence ?? [])
+            HealthInsightEvidenceSheet(
+                insight: insight,
+                evidence: insightViewModel.snapshot?.evidence ?? [],
+                periodBadgeText: insightPeriodBadgeText
+            )
         }
     }
 
@@ -147,57 +152,131 @@ struct HealthView: View {
                 canSwipeForward: !Calendar.current.isDateInToday(selectedDate),
                 edgeExclusionWidth: 24
             ) {
-                ScrollView(showsIndicators: false) {
-                    Group {
+                // 方案甲拆段后 .id 不再挂在内容根上（周期段不随日期换身份），
+                // 滚动复位改由锚点 scrollTo 承担，ScrollViewReader 提供锚点滚动
+                ScrollViewReader { proxy in
+                    ScrollView(showsIndicators: false) {
                         if isExpandedWidth {
-                            // v2 宽屏双栏：左=今天的数据（三环/指标/体征），右=解读与趋势（洞察/趋势/闭环）
-                            HStack(alignment: .top, spacing: HoloSpacing.md) {
-                                VStack(spacing: HoloSpacing.md) {
-                                    heroCard
-                                    metricSummaryRow
-                                    vitalsEntry
-                                    if shouldShowDataSourceCard {
-                                        dataSourceCard
-                                    }
-                                }
-                                .frame(maxWidth: .infinity)
-                                VStack(spacing: HoloSpacing.md) {
-                                    coreInsightCard
-                                    weeklyTrendCard
-                                    lifestyleInsightCard
-                                    healthFootnote
-                                }
-                                .frame(maxWidth: .infinity)
-                            }
+                            expandedColumns
                         } else {
-                            // 阅读动线（睡眠优先）：今天怎么样(三环) → 各项具体(指标) → Holo 怎么看(洞察)
-                            // → 最近趋势 → 跨域关联 → 身体状态入口；系统信息只在异常时出现
-                            VStack(spacing: HoloSpacing.md) {
-                                heroCard
-                                metricSummaryRow
-                                coreInsightCard
-                                weeklyTrendCard
-                                lifestyleInsightCard
-                                vitalsEntry
-                                if shouldShowDataSourceCard {
-                                    dataSourceCard
-                                }
-                                healthFootnote
-                            }
+                            singleColumnStack
                         }
                     }
-                    // 切天内容方向性滑入：id 随日期切换换身份触发过渡（滚动位置同步重置回顶部）
-                    .id(selectedDate)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: dayContentEdge).combined(with: .opacity),
-                        removal: .opacity
-                    ))
-                    .padding(HoloSpacing.md)
+                    .onChange(of: selectedDate) {
+                        scrollToDateTop(proxy)
+                    }
                 }
             }
         }
         .background(Color.holoToolBackground)
     }
+
+    /// 单列阅读动线（方案甲）：日期段①（今天+趋势）→ 周期段（洞察+闭环，不随日期滑动）
+    /// → 日期段②（身体状态+数据源）→ 页脚
+    private var singleColumnStack: some View {
+        VStack(spacing: HoloSpacing.md) {
+            dateSwipeSection(anchor: healthDateTopAnchorID) {
+                VStack(spacing: HoloSpacing.md) {
+                    todayCard
+                    weeklyTrendCard
+                }
+            }
+
+            periodSection
+
+            dateSwipeSection {
+                VStack(spacing: HoloSpacing.md) {
+                    vitalsEntry
+                    if shouldShowDataSourceCard {
+                        dataSourceCard
+                    }
+                }
+            }
+
+            healthFootnote
+        }
+        .padding(.horizontal, HoloSpacing.page)
+        .padding(.vertical, HoloSpacing.md)
+    }
+
+    /// 宽屏双栏（方案甲）：左栏整体为日期段（今天+体征+数据源，随切天滑动）；
+    /// 右栏上部日期段（趋势）+ 下部周期段（洞察+闭环+页脚，不随日期滑动）
+    private var expandedColumns: some View {
+        HStack(alignment: .top, spacing: HoloSpacing.md) {
+            dateSwipeSection(anchor: healthDateTopAnchorID) {
+                VStack(spacing: HoloSpacing.md) {
+                    todayCard
+                    vitalsEntry
+                    if shouldShowDataSourceCard {
+                        dataSourceCard
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+
+            VStack(spacing: HoloSpacing.md) {
+                dateSwipeSection {
+                    weeklyTrendCard
+                }
+                periodSection
+                healthFootnote
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, HoloSpacing.page)
+        .padding(.vertical, HoloSpacing.md)
+    }
+
+    /// 周期段：核心洞察与生活闭环是近 N 天的周期结论，与所选日期无关，
+    /// 不挂 .id 不参与切天过渡（方案甲：切天时只有日期段滑动）
+    private var periodSection: some View {
+        VStack(spacing: HoloSpacing.md) {
+            if let core = generatedCoreInsight {
+                coreInsightCard(core)
+            }
+            lifestyleInsightCard
+        }
+    }
+
+    /// 日期段容器：段内容随切天换身份整段方向性滑入。
+    /// 必须包 ZStack(alignment: .top)——.id 换身份过渡期间新旧两份视图同时存在，
+    /// VStack 兄弟会把两份上下堆叠穿帮，ZStack 让它们重叠过渡，段高按 max(旧,新) 平滑变化。
+    /// anchor 非 nil 时在段容器上暴露滚动复位锚点（日期段① 挂顶部锚点）。
+    @ViewBuilder
+    private func dateSwipeSection<Content: View>(
+        anchor: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        let section = ZStack(alignment: .top) {
+            content()
+                // 切天内容方向性滑入：id 随日期切换换身份触发过渡
+                .id(selectedDate)
+                .transition(.asymmetric(
+                    insertion: .move(edge: dayContentEdge).combined(with: .opacity),
+                    removal: .opacity
+                ))
+        }
+        if let anchor {
+            section.id(anchor)
+        } else {
+            section
+        }
+    }
+
+    /// 切天滚动复位：三个切天入口（滑动/箭头/日历）都写 selectedDate，
+    /// 统一在此一处复位到日期段① 顶部（与切天同一动画节奏）
+    private func scrollToDateTop(_ proxy: ScrollViewProxy) {
+        if reduceMotion {
+            proxy.scrollTo(healthDateTopAnchorID, anchor: .top)
+        } else {
+            withAnimation(HoloAnimation.standard) {
+                proxy.scrollTo(healthDateTopAnchorID, anchor: .top)
+            }
+        }
+    }
+
+    /// 日期段① 的滚动复位锚点（scrollTo 目标）
+    private let healthDateTopAnchorID = "healthDateTop"
 
     /// 数据源状态卡只在异常（部分连接）时常驻展示；
     /// 正常连接的同步状态已由头部副标题承载，不再打断内容动线。
@@ -206,7 +285,7 @@ struct HealthView: View {
     }
 
     private var healthFootnote: some View {
-        Text("健康数据由 AI 分析，仅供参考")
+        Text("数据来自 Apple Health · 身体分与洞察仅供参考")
             .holoText(.metadata)
             .foregroundColor(.holoToolTextSecondary)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -230,118 +309,228 @@ struct HealthView: View {
         .padding(.top, HoloSpacing.sm)
     }
 
+    /// 顶栏一行（返回/标题/同步）+ 日期行；所有日期状态下高度一致，切天不跳动。
+    /// 数据来源与免责说明由页脚承载，不再占副标题位（「刚刚」写死问题随副标题一并移除）。
     private var headerView: some View {
-        VStack(spacing: HoloSpacing.sm) {
+        VStack(spacing: HoloSpacing.xs) {
             HStack(alignment: .center, spacing: HoloSpacing.md) {
                 backButton
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("健康")
-                        .holoText(.pageTitle)
-                        .foregroundColor(.holoToolText)
-
-                    Text(syncStatusText)
-                        .holoText(.supporting)
-                        .foregroundColor(.holoToolTextSecondary)
-                }
+                Text("健康")
+                    .holoText(.pageTitle)
+                    .foregroundColor(.holoToolText)
 
                 Spacer()
 
                 syncButton
             }
+            .frame(height: 44)
 
             HealthDateNavigator(selectedDate: $selectedDate)
         }
         .padding(.top, HoloSpacing.sm)
-        // 与下方卡片、日期栏统一左右留白，避免返回/同步按钮贴屏幕边缘
-        .padding(.horizontal, HoloSpacing.md)
+        .padding(.bottom, HoloSpacing.sm)
+        // 与下方卡片统一左右留白，避免返回/同步按钮贴屏幕边缘
+        .padding(.horizontal, HoloSpacing.page)
     }
 
+    /// 同步按钮：中性色 44pt 圆钮（与返回钮同款底），刷新时图标旋转。
+    /// 主色橙只留给「今天」芯片，不再同时承担同步/步数多个语义。
     private var syncButton: some View {
         Button {
             Task {
                 await runRefresh()
             }
         } label: {
-            HStack(spacing: 7) {
-                ZStack {
-                    Circle()
-                        .stroke(Color.holoPrimary.opacity(0.18), lineWidth: 2)
-                        .frame(width: 18, height: 18)
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(isRefreshing ? Color.holoToolTextSecondary : Color.holoToolText)
+                .rotationEffect(.degrees(animateSync ? 360 : 0))
+                .animation(animateSync ? HoloAnimation.loadingRotation : nil, value: animateSync)
+                .frame(width: 44, height: 44)
+                .background(Color.holoToolSurface, in: Circle())
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(HoloPressStyle())
+        .disabled(isRefreshing)
+        .accessibilityLabel(Text(isRefreshing ? "同步中" : "同步健康数据"))
+        .accessibilityIdentifier("health.sync")
+    }
 
-                    Circle()
-                        .trim(from: 0.12, to: 0.82)
-                        .stroke(
-                            Color.holoPrimary,
-                            style: StrokeStyle(lineWidth: 2, lineCap: .round)
-                        )
-                        .frame(width: 18, height: 18)
-                        .rotationEffect(.degrees(animateSync ? 360 : 0))
-                        .animation(
-                            animateSync ? HoloAnimation.loadingRotation : nil,
-                            value: animateSync
-                        )
+    /// 今天卡（方案 A）：三环 + 判词 + 四项数值合一，一张卡回答「这一天怎么样、差在哪」。
+    /// 取代原「三环卡 + 四宫格」：同一组进度不再画两遍，近 7 天趋势得以进首屏。
+    private var todayCard: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: HoloSpacing.md) {
+                TripleHealthRingView(snapshot: snapshot)
 
-                    Circle()
-                        .fill(Color.holoPrimary)
-                        .frame(width: 4, height: 4)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(snapshot.statusTitle)
+                        .holoText(.body)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoToolText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+
+                    // 判词按句分行（达标一句、差距一句）：整段自动换行会把「睡眠」拆到两行
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(snapshot.verdictClauses.enumerated()), id: \.offset) { _, clause in
+                            Text(clause)
+                                .holoText(.supporting)
+                                .foregroundColor(.holoToolTextSecondary)
+                                .lineSpacing(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    if let badge = snapshot.scoringBadgeText {
+                        HStack(spacing: 3) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 9, weight: .bold))
+
+                            Text(badge)
+                        }
+                        .font(.system(.caption2, weight: .medium))
+                        .foregroundColor(.holoToolTextSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.holoToolInset)
+                        .clipShape(Capsule())
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(HoloSpacing.md)
+            .accessibilityElement(children: .combine)
+
+            Rectangle()
+                .fill(Color.holoToolBorder)
+                .frame(height: 0.5)
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 0),
+                    GridItem(.flexible(), spacing: 0)
+                ],
+                spacing: 0
+            ) {
+                ForEach(Array(snapshot.metrics.enumerated()), id: \.element.id) { index, metric in
+                    metricCell(metric, showsTrailingDivider: index % 2 == 0, showsBottomDivider: index < 2)
+                }
+            }
+        }
+        .holoSurface()
+    }
+
+    /// 今天卡四格：整格可点进对应指标详情，右上徽章说达标/差距/缺数据
+    private func metricCell(
+        _ metric: HealthMetricSnapshot,
+        showsTrailingDivider: Bool,
+        showsBottomDivider: Bool
+    ) -> some View {
+        Button {
+            guard !daySwipeState.isSwiping else { return }
+            selectedMetric = metric.type
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 5) {
+                    Image(systemName: metric.type.icon)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(metric.type.color)
+
+                    Text(metric.title)
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoToolTextSecondary)
+
+                    Spacer(minLength: 4)
+
+                    metricBadge(metric)
                 }
 
-                Text(isRefreshing ? String(localized: "同步中") : String(localized: "同步"))
-                    .holoText(.metadata)
-                    .foregroundColor(.holoPrimary)
-                    .lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text(metric.valueText)
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundColor(.holoToolText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+
+                    if metric.availability == .available {
+                        Text(metric.type.unit)
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoToolTextSecondary)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
+                }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(Color.holoPrimary.opacity(0.1))
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(Color.holoPrimary.opacity(0.18), lineWidth: 1)
-            )
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .disabled(isRefreshing)
-    }
-
-    private var heroCard: some View {
-        HStack(spacing: HoloSpacing.md) {
-            TripleHealthRingView(snapshot: snapshot)
-
-            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                Text(snapshot.statusTitle)
-                    .holoText(.sectionTitle)
-                    .foregroundColor(.holoToolText)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text(snapshot.statusSubtitle)
-                    .holoText(.supporting)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .lineSpacing(2)
-
-                Text(snapshot.ringBadgeText)
-                    .holoText(.metadata)
-                    .foregroundColor(.holoPrimary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.holoPrimary.opacity(0.12))
-                    .clipShape(Capsule())
+        .buttonStyle(HoloPressStyle())
+        .overlay(alignment: .trailing) {
+            if showsTrailingDivider {
+                Rectangle()
+                    .fill(Color.holoToolBorder)
+                    .frame(width: 0.5)
+                    .padding(.vertical, 8)
             }
-
-            Spacer(minLength: 0)
         }
-        .padding(HoloSpacing.md)
-        .background(Color.holoToolSurface)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.xl)
-                .stroke(Color.holoToolBorder, lineWidth: 1)
-        )
-        .shadow(color: HoloShadow.card, radius: 6, y: 2)
+        .overlay(alignment: .bottom) {
+            if showsBottomDivider {
+                Rectangle()
+                    .fill(Color.holoToolBorder)
+                    .frame(height: 0.5)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(metric.title))
+        .accessibilityValue(Text(metricCellAccessibilityValue(metric)))
     }
 
-    /// 身体状态窄入口（二期方案 A）：三指标行下方、数据源卡上方。
+    /// 格内徽章：达标 / 差多少 / 缺数据原因（不再显示无解释的「--」）
+    private func metricBadge(_ metric: HealthMetricSnapshot) -> some View {
+        let (text, color): (String, Color) = {
+            if metric.isGoalMet {
+                return (String(localized: "达标"), Color.holoToolSuccess)
+            }
+            if let gap = metric.gapText {
+                return (String(localized: "差 \(gap)"), Color.holoToolWarning)
+            }
+            return (metric.statusText, Color.holoToolTextSecondary)
+        }()
+        return Text(text)
+            .font(.system(.caption2, weight: .medium))
+            .foregroundColor(color)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.10))
+            .clipShape(Capsule())
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    private func metricCellAccessibilityValue(_ metric: HealthMetricSnapshot) -> String {
+        var parts = [metric.valueText]
+        if metric.availability == .available {
+            parts.append(metric.type.unit)
+        }
+        if metric.isGoalMet {
+            parts.append(String(localized: "达标"))
+        } else if let gap = metric.gapText {
+            parts.append(String(localized: "差 \(gap)"))
+        } else {
+            parts.append(metric.statusText)
+        }
+        return parts.joined(separator: " ")
+    }
+
+    /// 身体状态窄入口：与今天卡共用表面样式，标题与卡片标题同级。
     private var vitalsEntry: some View {
         Button {
             guard !daySwipeState.isSwiping else { return }
@@ -357,7 +546,8 @@ struct HealthView: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text("身体状态")
-                        .holoText(.metadata)
+                        .holoText(.supporting)
+                        .fontWeight(.semibold)
                         .foregroundColor(.holoToolText)
                     Text("静息心率 · HRV · 呼吸频率")
                         .font(.holoTinyLabel)
@@ -377,74 +567,9 @@ struct HealthView: View {
             }
             .padding(.horizontal, HoloSpacing.md)
             .padding(.vertical, 11)
-            .background(Color.holoToolSurface)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .stroke(Color.holoToolBorder, lineWidth: 1)
-            )
+            .holoSurface()
         }
         .buttonStyle(.plain)
-    }
-
-    private var metricSummaryRow: some View {
-        LazyVGrid(
-            columns: [
-                GridItem(.flexible(), spacing: HoloSpacing.sm),
-                GridItem(.flexible(), spacing: HoloSpacing.sm)
-            ],
-            spacing: HoloSpacing.sm
-        ) {
-            ForEach(snapshot.metrics) { metric in
-                Button {
-                    guard !daySwipeState.isSwiping else { return }
-                    selectedMetric = metric.type
-                } label: {
-                    metricSummaryChip(metric)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func metricSummaryChip(_ metric: HealthMetricSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack {
-                Image(systemName: metric.type.icon)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(metric.type.color)
-                Text(metric.title)
-                    .holoText(.metadata)
-                    .foregroundColor(.holoToolTextSecondary)
-                Spacer()
-                // chevron 暗示可点击进入详情
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.holoToolTextSecondary.opacity(0.5))
-            }
-
-            Text(metric.valueText)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(.holoToolText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-
-            HoloProgress(value: metric.availability == .available ? metric.progress : nil, color: metric.type.color, lineWidth: 5)
-
-            Text(metric.targetText)
-                .font(.holoTinyLabel)
-                .foregroundColor(.holoToolTextSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, minHeight: 104)
-        .background(Color.holoToolSurface)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoToolBorder, lineWidth: 1)
-        )
     }
 
     private var dataSourceCard: some View {
@@ -487,12 +612,7 @@ struct HealthView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoToolSurface)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoToolBorder, lineWidth: 1)
-        )
+        .holoSurface()
         .contentShape(Rectangle())
         .onTapGesture {
             // 部分连接时点按跳转系统设置，引导用户补全健康权限
@@ -509,55 +629,169 @@ struct HealthView: View {
         }
     }
 
-    private var coreInsightCard: some View {
-        let core = displayedCoreInsight
-        let generated = insightViewModel.snapshot?.coreInsight
-        return insightCard(
-            iconText: "✦",
-            title: core.title,
-            detail: core.detail,
-            color: .holoAI
-        )
-        // 无 AI 洞察（规则兜底文案）时整组不挂手势：挂了又在 action 里判空
-        // = 吞点击死区（ConditionalGestureModifiers）；生活闭环区同款口径
-        .contentShapeIf(generated != nil, shape: Rectangle())
-        .onTapGestureIf(generated != nil) {
-            guard !daySwipeState.isSwiping, let generated else { return }
-            selectedEvidenceInsight = generated
+    /// 只展示真实 AI 洞察：本地兜底 core（fallback-core-* 前缀，含「数据正在积累」话术）
+    /// 整卡不出现——数据齐全时兜底话与 94 分「状态很好」自相矛盾（11-10 诊断 P0）。
+    private var generatedCoreInsight: GeneratedHealthInsight? {
+        guard let core = insightViewModel.snapshot?.coreInsight,
+              !HealthInsightFallbackBuilder.isFallbackCore(core) else { return nil }
+        return core
+    }
+
+    private func coreInsightCard(_ insight: GeneratedHealthInsight) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            // 卡头：图标 + 标题 + 周期徽章；窄宽一行放不下时徽章降级第二行
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    coreInsightHeaderTitle
+                    insightPeriodBadge
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    coreInsightHeaderTitle
+                    insightPeriodBadge
+                }
+            }
+
+            Text(insight.title)
+                .holoText(.body)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoToolText)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(insight.summary)
+                .holoText(.supporting)
+                .foregroundColor(.holoToolTextSecondary)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !insight.evidenceIds.isEmpty {
+                Rectangle()
+                    .fill(Color.holoToolBorder)
+                    .frame(height: 0.5)
+                    .padding(.top, 2)
+
+                HStack(spacing: 4) {
+                    Text("证据 · \(insight.evidenceIds.count) 条")
+                        .holoText(.metadata)
+                        .foregroundColor(.holoToolTextSecondary)
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.holoToolTextSecondary.opacity(0.5))
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .holoSurface()
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard !daySwipeState.isSwiping else { return }
+            selectedEvidenceInsight = insight
+        }
+    }
+
+    /// 卡头标题（图标 + 「HOLO 洞察」），单行与徽章降级两行两种排布复用
+    private var coreInsightHeaderTitle: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 11, weight: .semibold))
+
+            Text("HOLO 洞察")
+                .lineLimit(1)
+        }
+        .font(.system(.caption2, weight: .semibold))
+        .foregroundColor(.holoToolAI)
+    }
+
+    /// 周期徽章：真实窗口「近 N 天 · 起日–止日」（连接符 en dash，中文两侧不空格）
+    private var insightPeriodBadge: some View {
+        Text(insightPeriodBadgeText)
+            .font(.system(.caption2, weight: .medium))
+            .foregroundColor(Color.holoToolAI)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.holoToolAI.opacity(0.10))
+            .clipShape(Capsule())
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
+    }
+
+    /// 洞察周期徽章文案（卡头与证据弹层同源）：有快照 period 时显示真实窗口
+    /// 「近 N 天 · 起日–止日」，无 period 时退回固定窗口「近 14 天」
+    private var insightPeriodBadgeText: String {
+        guard let period = insightViewModel.snapshot?.period else {
+            return String(localized: "近 \(HealthThresholds.insightWindowDays) 天")
+        }
+        let crossYear = !Calendar.current.isDate(period.start, equalTo: period.end, toGranularity: .year)
+        let startText = crossYear
+            ? Self.insightBadgeCrossYearFormatter.string(from: period.start)
+            : Self.insightBadgeDayFormatter.string(from: period.start)
+        let endText = Self.insightBadgeDayFormatter.string(from: period.end)
+        return String(localized: "近 \(period.days) 天 · \(startText)–\(endText)")
+    }
+
+    /// 「MMMd」按 App 语言取模板（照抄 HealthDateNavigator 的种子语言做法，不用 Locale.current；
+    /// 简繁：11月10日；英文：Nov 10）
+    private static let insightBadgeDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = insightBadgeLocale
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return formatter
+    }()
+
+    /// 跨年时起始日带年份（2025年12月30日 / Dec 30, 2025）
+    private static let insightBadgeCrossYearFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = insightBadgeLocale
+        formatter.setLocalizedDateFormatFromTemplate("yMMMd")
+        return formatter
+    }()
+
+    private static var insightBadgeLocale: Locale {
+        switch SeedLanguage.current {
+        case .simplifiedChinese: return Locale(identifier: "zh_CN")
+        case .traditionalChinese: return Locale(identifier: "zh_TW")
+        case .english: return Locale(identifier: "en_US")
         }
     }
 
     private var lifestyleInsightCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack {
+            HStack(alignment: .firstTextBaseline) {
                 Text("生活闭环")
                     .holoText(.body)
+                    .fontWeight(.semibold)
                     .foregroundColor(.holoToolText)
+                    .layoutPriority(1)
                 Spacer()
-                Text("\(lifestyleRows.count) 条关联")
+                Text("近 \(insightPeriodDays) 天 · \(lifestyleRows.count) 条关联")
                     .holoText(.metadata)
                     .foregroundColor(.holoToolTextSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
 
             if lifestyleRows.isEmpty {
                 Text(lifestyleEmptyHint)
-                    .font(.holoTinyLabel)
+                    .holoText(.supporting)
                     .foregroundColor(.holoToolTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                VStack(spacing: HoloSpacing.sm) {
+                VStack(spacing: HoloSpacing.md) {
                     ForEach(Array(lifestyleRows.enumerated()), id: \.offset) { _, row in
                         HStack(alignment: .top, spacing: HoloSpacing.sm) {
-                            Text(row.badge)
-                                .holoText(.metadata)
-                                .foregroundColor(.white)
+                            Image(systemName: row.icon)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(row.color)
                                 .frame(width: 28, height: 28)
-                                .background(row.color)
-                                .clipShape(Circle())
+                                .background(row.color.opacity(0.10))
+                                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(row.title)
-                                    .holoText(.metadata)
+                                    .font(.system(.subheadline, weight: .semibold))
                                     .foregroundColor(.holoToolText)
 
                                 Text(row.detail)
@@ -578,50 +812,50 @@ struct HealthView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoToolSurface)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoToolBorder, lineWidth: 1)
-        )
+        .holoSurface()
     }
 
-    // MARK: - 洞察数据源（优先 LLM 生成结果，回退现有规则文案）
+    // MARK: - 洞察数据源（只认 LLM 生成结果；规则兜底文案不上界面）
 
-    private var displayedCoreInsight: (title: String, detail: String) {
-        if let core = insightViewModel.snapshot?.coreInsight {
-            return (core.title, core.summary)
-        }
-        let fallback = snapshot.coreInsight
-        return (fallback.title, fallback.detail)
+    /// 洞察窗口天数：快照 period 的真实天数，无快照时退回固定窗口
+    private var insightPeriodDays: Int {
+        insightViewModel.snapshot?.period.days ?? HealthThresholds.insightWindowDays
     }
 
-    private var lifestyleRows: [(badge: String, title: String, detail: String, color: Color, generated: GeneratedHealthInsight?)] {
+    private var lifestyleRows: [(icon: String, title: String, detail: String, color: Color, generated: GeneratedHealthInsight?)] {
         if let loops = insightViewModel.snapshot?.lifestyleLoops, !loops.isEmpty {
             return loops.map {
-                (lifestyleBadge(for: $0.domain), $0.title, $0.summary, lifestyleColor(for: $0.domain), $0)
+                (lifestyleIcon(for: $0.domain), $0.title, $0.summary, lifestyleColor(for: $0.domain), $0)
             }
         }
         // P4：无 LLM 跨域循环时不展示硬编码假洞察，返回空（卡片显示诚实占位）。
         return []
     }
 
-    /// 生活闭环空态文案：区分「数据不足」与「分析过但暂无关联」，避免生硬的「0 条」体验。
+    /// 生活闭环空态文案：按生成状态说实话——数据不足 / 分析失败 / 分析中 / 分析过但无关联。
     private var lifestyleEmptyHint: String {
-        if insightViewModel.snapshot?.status == .insufficientData {
+        switch insightViewModel.snapshot?.status {
+        case .insufficientData:
             return String(localized: "数据积累中。连续记录睡眠、运动、记账、待办，HOLO 会从中发现跨域规律。")
+        case .fallback:
+            return String(localized: "这次分析没有完成。")
+        case .generating, .none:
+            return String(localized: "HOLO 正在分析近 \(HealthThresholds.insightWindowDays) 天的记录。")
+        case .disabled:
+            return String(localized: "洞察生成暂不可用。")
+        case .fresh, .cached:
+            return String(localized: "这 14 天没有发现明显的跨域规律。继续记录，HOLO 会持续观察。")
         }
-        return String(localized: "这 14 天没有发现明显的跨域规律。继续记录，HOLO 会持续观察。")
     }
 
-    private func lifestyleBadge(for domain: HealthInsightDomain) -> String {
+    private func lifestyleIcon(for domain: HealthInsightDomain) -> String {
         switch domain {
-        case .health: return String(localized: "健")
-        case .task: return String(localized: "任")
-        case .habit: return String(localized: "习")
-        case .finance: return String(localized: "财")
-        case .thought: return String(localized: "想")
-        case .mixed: return String(localized: "联")
+        case .health: return "heart.fill"
+        case .task: return "checklist"
+        case .habit: return "repeat"
+        case .finance: return "creditcard.fill"
+        case .thought: return "lightbulb.fill"
+        case .mixed: return "link"
         }
     }
 
@@ -636,51 +870,49 @@ struct HealthView: View {
         }
     }
 
-    /// 7 天趋势卡：睡眠/步数/运动三指标可切换（默认睡眠），右上「详情」进入对应指标页
+    /// 近 7 天趋势卡：指标切换用系统分段控件（§8.8 口径），卡头带「详情」入口
     private var weeklyTrendCard: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack {
-                trendPicker
+            HStack(alignment: .center) {
+                Text("近 7 天 · \(trendMetric.displayName)")
+                    .holoText(.body)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoToolText)
+                    .lineLimit(1)
+
                 Spacer()
+
                 Button {
                     guard !daySwipeState.isSwiping else { return }
                     selectedMetric = trendMetric
                 } label: {
-                    Text("详情")
-                        .holoText(.metadata)
-                        .foregroundColor(trendMetric.color)
+                    HStack(spacing: 2) {
+                        Text("详情")
+                            .holoText(.metadata)
+                            .foregroundColor(.holoToolTextSecondary)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.holoToolTextSecondary.opacity(0.5))
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
 
-            HealthTrendChart(data: trendData, type: trendMetric, endingOn: selectedDate)
+            Picker("指标", selection: $trendMetric) {
+                ForEach([HealthMetricType.sleep, .steps, .workout], id: \.self) { metric in
+                    Text(metric.displayName).tag(metric)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            HealthTrendChart(data: trendData, type: trendMetric, endingOn: selectedDate, showsTitle: false)
         }
-        .padding(HoloSpacing.md)
+        .padding(.top, 6)
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.bottom, HoloSpacing.md)
         .holoSurface()
-    }
-
-    private var trendPicker: some View {
-        HStack(spacing: 6) {
-            ForEach([HealthMetricType.sleep, .steps, .workout], id: \.self) { metric in
-                Button {
-                    guard !daySwipeState.isSwiping else { return }
-                    trendMetric = metric
-                } label: {
-                    Text(metric.displayName)
-                        .holoText(.metadata)
-                        .foregroundColor(trendMetric == metric ? metric.color : .holoToolTextSecondary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(trendMetric == metric ? Color.holoToolInset : Color.clear)
-                        .clipShape(Capsule())
-                        .overlay(
-                            // 深色下彩色淡底与卡底难分：选中 chip 嵌套底 + 细描边兜边界
-                            Capsule().strokeBorder(trendMetric == metric ? Color.holoToolBorder : Color.clear, lineWidth: 0.5)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-        }
     }
 
     private var trendData: [DailyHealthData] {
@@ -690,38 +922,6 @@ struct HealthView: View {
         case .workout: return weeklyWorkoutData
         default: return weeklySleepData
         }
-    }
-
-    private func insightCard(iconText: String, title: String, detail: String, color: Color) -> some View {
-        HStack(alignment: .top, spacing: HoloSpacing.md) {
-            Text(iconText)
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.white)
-                .frame(width: 34, height: 34)
-                .background(color)
-                .clipShape(Circle())
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(title)
-                    .holoText(.body)
-                    .foregroundColor(.holoToolText)
-
-                Text(detail)
-                    .holoText(.supporting)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(HoloSpacing.md)
-        .background(Color.holoToolAI.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoToolAI.opacity(0.18), lineWidth: 1)
-        )
     }
 
     private var unavailableView: some View {
@@ -760,24 +960,6 @@ struct HealthView: View {
         .padding(HoloSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.holoToolBackground)
-    }
-
-    private var syncStatusText: String {
-        let calendar = Calendar.current
-        let isToday = calendar.isDateInToday(selectedDate)
-
-        switch repository.dataSourceState {
-        case .connected:
-            return isToday ? String(localized: "同步自 Apple Health · 刚刚") : String(localized: "查看历史健康数据")
-        case .partiallyConnected:
-            return isToday ? String(localized: "Apple Health 部分同步") : String(localized: "查看历史健康数据")
-        case .notRequested:
-            return String(localized: "等待 Apple Health 授权")
-        case .denied:
-            return String(localized: "健康权限已关闭")
-        case .unavailable:
-            return String(localized: "健康功能暂不支持 iPad 和 Mac")
-        }
     }
 
     private func requestPermission() {

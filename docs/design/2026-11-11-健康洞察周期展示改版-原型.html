@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-zcode-design>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>健康洞察改版原型 · 动的是这一天，不动的是这十四天</title>
+<style>
+:root{
+  --paper:#FDFCF8; --card:#FFFFFF; --nested:#F4F7F9;
+  --ink:#333333; --ink2:#6E6E73; --ink3:#939393;
+  --ai:#6D28D9; --ai-soft:rgba(109,40,217,.10); --ai-line:rgba(109,40,217,.26);
+  --accent:#F46D38; --good:#15803D; --good-soft:#EAF6EF; --warn:#B45309;
+  --blue:#1C4FD9;
+  --ring-move:#FA114F; --ring-ex:#92E82A; --ring-stand:#1AD6E0;
+  --studio:#F1EFE9; --studio-ink:#191817;
+  --hair:rgba(25,24,23,.10); --hair-strong:rgba(25,24,23,.16);
+  --r-card:20px; --r-lg:28px; --r-chip:999px;
+  --shadow-card:0 1px 2px rgba(25,24,23,.05),0 10px 28px rgba(25,24,23,.07);
+  --shadow-raise:0 2px 4px rgba(25,24,23,.06),0 16px 40px rgba(25,24,23,.12);
+  --shadow-phone:0 30px 70px rgba(25,24,23,.16),0 4px 12px rgba(25,24,23,.10);
+  --ease:cubic-bezier(.32,.72,.28,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  background:var(--studio); color:var(--studio-ink); line-height:1.6;
+  padding:clamp(24px,4vw,56px) clamp(16px,4vw,48px) 96px;
+}
+.wrap{max-width:1160px;margin:0 auto}
+a{color:inherit}
+
+/* ────────── 页头 ────────── */
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.22em;color:var(--ink2);text-transform:uppercase}
+.masthead h1{
+  font-size:clamp(28px,4.6vw,44px);font-weight:700;letter-spacing:.01em;line-height:1.25;
+  margin:14px 0 10px;max-width:22em;
+}
+.masthead h1 em{font-style:normal;color:var(--ai)}
+.masthead .lede{font-size:clamp(15px,1.6vw,17px);color:var(--ink2);max-width:44em}
+.toc{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.toc a{
+  text-decoration:none;font-size:13.5px;font-weight:600;color:var(--ink);
+  background:var(--card);border:1px solid var(--hair);border-radius:var(--r-chip);
+  padding:8px 16px;box-shadow:0 1px 2px rgba(25,24,23,.05);
+  transition:transform .18s var(--ease),box-shadow .18s var(--ease),border-color .18s;
+}
+.toc a:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(25,24,23,.10);border-color:var(--hair-strong)}
+.toc a:active{transform:translateY(0);box-shadow:0 1px 2px rgba(25,24,23,.06)}
+.toc a .no{color:var(--ai);margin-right:6px}
+
+/* ────────── 画板通用 ────────── */
+.board{margin-top:clamp(48px,7vw,88px)}
+.board-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px}
+.board-head h2{font-size:clamp(20px,2.6vw,26px);font-weight:700;letter-spacing:.01em}
+.board-head .tag{
+  font-size:12px;font-weight:600;color:var(--ai);background:var(--ai-soft);
+  border-radius:var(--r-chip);padding:4px 12px;letter-spacing:.06em;
+}
+.board-sub{color:var(--ink2);font-size:14.5px;max-width:52em;margin-bottom:26px}
+.stage{display:grid;grid-template-columns:minmax(0,398px) minmax(0,1fr);gap:clamp(24px,4vw,52px);align-items:start}
+@media (max-width:880px){.stage{grid-template-columns:1fr}}
+.notes{display:flex;flex-direction:column;gap:14px;min-width:0}
+.note{
+  background:var(--card);border:1px solid var(--hair);border-radius:var(--r-card);
+  padding:18px 20px;box-shadow:var(--shadow-card);
+}
+.note h3{font-size:15px;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+.note p{font-size:13.5px;color:var(--ink2)}
+.note p b{color:var(--ink);font-weight:600}
+.note .k{color:var(--ai);font-weight:600}
+.icon{width:18px;height:18px;flex:none}
+
+/* ────────── 手机壳 ────────── */
+.phone{
+  width:100%;max-width:398px;background:var(--paper);border-radius:52px;
+  box-shadow:var(--shadow-phone);outline:1px solid rgba(25,24,23,.06);
+  position:relative;overflow:hidden;margin:0 auto;
+}
+.phone-screen{height:min(760px,86vh);min-height:560px;display:flex;flex-direction:column;position:relative}
+@media (max-width:440px){.phone{border-radius:40px}}
+.statusbar{
+  flex:none;display:flex;justify-content:space-between;align-items:center;
+  padding:16px 30px 6px;font-size:14.5px;font-weight:600;color:var(--ink);
+}
+.statusbar .right{display:flex;align-items:center;gap:6px}
+.sb-bat{width:24px;height:12px;border:1.4px solid var(--ink);border-radius:3.5px;position:relative;padding:1.5px;display:block}
+.sb-bat::after{content:"";position:absolute;right:-3.5px;top:3.2px;width:2px;height:4.5px;background:var(--ink);border-radius:0 1px 1px 0}
+.sb-bat i{display:block;height:100%;width:62%;background:var(--ink);border-radius:1.5px}
+
+/* ────────── 健康页顶栏与日期行 ────────── */
+.app-top{flex:none;padding:8px 20px 0}
+.app-bar{display:flex;align-items:center;justify-content:space-between}
+.round-btn{
+  width:34px;height:34px;border-radius:var(--r-chip);background:var(--card);
+  border:1px solid var(--hair);display:flex;align-items:center;justify-content:center;
+  color:var(--ink2);cursor:pointer;transition:transform .15s var(--ease),box-shadow .15s;
+}
+.round-btn:hover{transform:scale(1.06);box-shadow:0 4px 10px rgba(25,24,23,.10)}
+.round-btn:active{transform:scale(.94)}
+.app-bar .title{font-size:17px;font-weight:700;letter-spacing:.02em}
+.date-row{display:flex;align-items:center;justify-content:space-between;margin-top:14px}
+.date-main{display:flex;align-items:center;gap:7px;font-size:20px;font-weight:700;cursor:pointer}
+.date-main svg{width:15px;height:15px;color:var(--ink3)}
+.date-ops{display:flex;align-items:center;gap:8px}
+.chip-today{
+  font-size:13px;font-weight:600;color:var(--ai);background:var(--ai-soft);
+  border:none;border-radius:var(--r-chip);padding:7px 14px;cursor:pointer;
+  transition:transform .15s var(--ease),opacity .15s;
+}
+.chip-today:hover:not(:disabled){transform:scale(1.05)}
+.chip-today:active:not(:disabled){transform:scale(.95)}
+.chip-today:disabled{opacity:.38;cursor:default}
+.nav-group{display:flex;background:var(--card);border:1px solid var(--hair);border-radius:var(--r-chip)}
+.nav-btn{
+  width:38px;height:36px;border:none;background:transparent;color:var(--ink);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  transition:background .15s;
+}
+.nav-btn:first-child{border-radius:var(--r-chip) 0 0 var(--r-chip)}
+.nav-btn:last-child{border-radius:0 var(--r-chip) var(--r-chip) 0}
+.nav-btn:hover:not(:disabled){background:var(--nested)}
+.nav-btn:active:not(:disabled){background:#E8ECF0}
+.nav-btn:disabled{color:var(--ink3);opacity:.4;cursor:default}
+.nav-btn svg{width:16px;height:16px}
+
+/* ────────── 滚动内容 ────────── */
+.scroll{flex:1;overflow-y:auto;padding:16px 18px 20px;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.seg{position:relative;border-radius:var(--r-card)}
+.block{background:var(--card);border-radius:var(--r-card);box-shadow:var(--shadow-card);padding:18px}
+.block + .block{margin-top:14px}
+
+/* 今天卡 */
+.ring-wrap{display:flex;align-items:center;gap:18px}
+.rings{width:132px;height:132px;flex:none}
+.ring-meta{min-width:0}
+.ring-meta .score{font-size:34px;font-weight:700;letter-spacing:-.02em;line-height:1.1}
+.ring-meta .score small{font-size:13px;font-weight:600;color:var(--ink3);margin-left:2px}
+.ring-meta .basis{display:inline-block;font-size:11px;font-weight:600;color:var(--ink2);background:var(--nested);border-radius:var(--r-chip);padding:3px 9px;margin-top:6px}
+.verdict{font-size:13.5px;color:var(--ink);margin-top:10px;line-height:1.55}
+.grid4{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.cell{background:var(--nested);border-radius:14px;padding:11px 13px}
+.cell .lbl{font-size:11.5px;color:var(--ink2);display:flex;align-items:center;gap:5px}
+.cell .val{font-size:17px;font-weight:700;margin-top:3px;letter-spacing:-.01em}
+.cell .val small{font-size:11px;font-weight:600;color:var(--ink3)}
+.cell .st{font-size:11px;font-weight:600;margin-top:2px;display:flex;align-items:center;gap:4px}
+.cell .st.ok{color:var(--good)} .cell .st.gap{color:var(--warn)} .cell .st.na{color:var(--ink3)}
+.dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex:none}
+
+/* 趋势卡 */
+.trend-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.trend-title{font-size:14.5px;font-weight:700}
+.segctl{display:flex;background:var(--nested);border-radius:var(--r-chip);padding:3px}
+.segctl button{
+  border:none;background:transparent;font-size:12px;font-weight:600;color:var(--ink2);
+  padding:5px 12px;border-radius:var(--r-chip);cursor:pointer;transition:color .15s;
+}
+.segctl button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(25,24,23,.10)}
+.bars{display:flex;align-items:flex-end;gap:7px;height:96px}
+.bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;height:100%;gap:0}
+.bar i{
+  display:block;background:linear-gradient(180deg,#E8B98F,var(--accent));border-radius:5px 5px 2px 2px;
+  min-height:4px;transition:height .45s var(--ease);
+}
+.bar.sel i{background:linear-gradient(180deg,var(--accent),#D95B24)}
+.bar.muted i{background:#E4DFD6}
+.ticks{display:flex;gap:7px;margin-top:6px}
+.ticks span{flex:1;text-align:center;font-size:9.5px;color:var(--ink3)}
+
+/* 周期段（洞察卡 + 闭环卡） */
+.insight{cursor:pointer;transition:transform .2s var(--ease),box-shadow .2s var(--ease);border:1px solid transparent}
+.insight:hover{transform:translateY(-2px);box-shadow:var(--shadow-raise);border-color:var(--ai-line)}
+.insight:active{transform:translateY(0)}
+.insight-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.insight-head .t{font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px}
+.insight-head .t svg{width:15px;height:15px;color:var(--ai)}
+.badge{
+  font-size:11px;font-weight:600;color:var(--ai);background:var(--ai-soft);
+  border-radius:var(--r-chip);padding:3.5px 9px;white-space:nowrap;
+}
+.insight-title{font-size:16.5px;font-weight:700;margin-top:10px;letter-spacing:-.01em}
+.insight-summary{font-size:13px;color:var(--ink2);margin-top:5px;line-height:1.6}
+.evidence-link{
+  display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:12.5px;font-weight:600;
+  color:var(--ai);background:transparent;border:1px solid var(--ai-line);border-radius:var(--r-chip);
+  padding:6px 13px;cursor:pointer;transition:background .15s,transform .15s var(--ease);
+}
+.evidence-link:hover{background:var(--ai-soft)}
+.evidence-link:active{transform:scale(.96)}
+.evidence-link svg{width:12px;height:12px}
+.loop-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.loop-head .t{font-size:14px;font-weight:700}
+.loop-head .meta{font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.loop-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--nested);font-size:13px}
+.loop-row:last-child{border-bottom:none;padding-bottom:2px}
+.loop-row .d{color:var(--ink3);font-size:11.5px;flex:none;width:44px}
+.loop-row .x{color:var(--ink);flex:1;min-width:0}
+
+/* 日期段②：身体状态入口 + 页脚 */
+.entry-row{display:flex;align-items:center;gap:12px}
+.entry-row .ic{
+  width:38px;height:38px;border-radius:12px;background:var(--ai-soft);color:var(--ai);
+  display:flex;align-items:center;justify-content:center;flex:none;
+}
+.entry-row .tx{flex:1;min-width:0}
+.entry-row .tx b{font-size:14px;font-weight:700;display:block}
+.entry-row .tx span{font-size:11.5px;color:var(--ink3)}
+.entry-row svg.chev{width:14px;height:14px;color:var(--ink3)}
+.footnote{font-size:10.5px;color:var(--ink3);text-align:center;padding:6px 0 2px}
+
+/* ────────── 标注模式 ────────── */
+.annotate .seg[data-kind="day"]{outline:2px dashed rgba(28,79,217,.45);outline-offset:5px;border-radius:var(--r-card)}
+.annotate .seg[data-kind="period"]{outline:2px dashed var(--ai-line);outline-offset:5px;border-radius:var(--r-card)}
+.pin-label{
+  position:absolute;font-size:10.5px;font-weight:700;letter-spacing:.04em;
+  border-radius:var(--r-chip);padding:3px 10px;display:none;align-items:center;gap:5px;
+  box-shadow:0 2px 8px rgba(25,24,23,.12);z-index:5;white-space:nowrap;
+}
+.pin-label svg{width:11px;height:11px}
+.annotate .pin-label{display:inline-flex}
+.pin-day{background:#1C4FD9;color:#fff;top:-4px;left:14px}
+.pin-period{background:var(--ai);color:#fff;top:-4px;left:14px}
+.seg{margin-top:0}
+.seg[data-kind="day"]{margin-top:14px;transition:opacity .2s var(--ease),transform .28s var(--ease)}
+.scroll > .seg:first-child{margin-top:0}
+.seg[data-kind="day"].day-out{opacity:0;transform:translateX(var(--out-x,-26px))}
+.seg[data-kind="day"].day-in-start{opacity:0;transform:translateX(var(--in-x,26px))}
+.seg-period{margin-top:14px}
+
+/* 标注开关 */
+.switch-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:var(--card);border:1px solid var(--hair);border-radius:var(--r-card);
+  padding:14px 18px;box-shadow:var(--shadow-card);cursor:pointer;user-select:none;
+}
+.switch-row .lab b{font-size:14px;font-weight:700;display:block}
+.switch-row .lab span{font-size:12px;color:var(--ink2)}
+.sw{width:46px;height:28px;border-radius:var(--r-chip);background:#D8D4CC;position:relative;flex:none;transition:background .2s}
+.sw::after{
+  content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+  background:#fff;box-shadow:0 1px 3px rgba(25,24,23,.25);transition:transform .2s var(--ease);
+}
+.switch-row[aria-pressed="true"] .sw{background:var(--ai)}
+.switch-row[aria-pressed="true"] .sw::after{transform:translateX(18px)}
+
+/* ────────── 证据弹层（画板1的浮层 & 画板2的整屏） ────────── */
+.sheet-page{height:100%;display:flex;flex-direction:column;background:var(--paper)}
+.sheet-scroll{flex:1;overflow-y:auto;padding:6px 18px 18px;scrollbar-width:none}
+.sheet-scroll::-webkit-scrollbar{display:none}
+.sheet-top{flex:none;display:flex;align-items:center;justify-content:space-between;padding:14px 18px 8px}
+.sheet-top .st{font-size:16px;font-weight:700}
+.close-pill{
+  font-size:12.5px;font-weight:600;color:var(--ink2);background:var(--card);border:1px solid var(--hair);
+  border-radius:var(--r-chip);padding:6px 14px;cursor:pointer;transition:transform .15s,background .15s;
+}
+.close-pill:hover{background:var(--nested)}
+.close-pill:active{transform:scale(.95)}
+.ev-card{background:var(--card);border-radius:16px;box-shadow:var(--shadow-card);padding:14px 15px}
+.ev-card + .ev-card{margin-top:10px}
+.ev-num .t{font-size:13.5px;font-weight:700}
+.ev-num .d{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.ev-note .t{font-size:13.5px;font-weight:700}
+.ev-quote{display:flex;gap:9px;margin-top:9px}
+.ev-quote .rule{width:2px;border-radius:1px;background:rgba(110,110,115,.25);flex:none}
+.ev-quote p{font-size:12.5px;color:var(--ink2);line-height:1.65}
+.ev-src{font-size:11px;color:rgba(110,110,115,.75);margin-top:9px}
+.ev-old .t{font-size:13.5px;font-weight:700}
+.ev-old .d{font-size:12.5px;color:var(--ink2);margin-top:5px;line-height:1.65}
+.section-cap{font-size:12px;font-weight:700;color:var(--ink3);letter-spacing:.08em;margin:18px 2px 9px}
+.disclaimer{font-size:10.5px;color:var(--ink3);line-height:1.6;margin-top:18px}
+.hint-pill{
+  position:absolute;left:50%;bottom:14px;transform:translateX(-50%);
+  font-size:11.5px;font-weight:600;color:#fff;background:rgba(25,24,23,.72);border-radius:var(--r-chip);
+  padding:7px 14px;white-space:nowrap;z-index:8;pointer-events:none;transition:opacity .3s;
+}
+.hint-pill.hide{opacity:0}
+
+/* 画板1 浮层 */
+.sheet-overlay{
+  position:absolute;inset:0;z-index:20;display:none;flex-direction:column;
+}
+.sheet-overlay.open{display:flex}
+.sheet-overlay .dim{position:absolute;inset:0;background:rgba(25,24,23,.32);opacity:0;transition:opacity .25s}
+.sheet-overlay.open .dim{opacity:1}
+.sheet-overlay .panel{
+  position:relative;margin-top:52px;flex:1;background:var(--paper);border-radius:26px 26px 0 0;
+  transform:translateY(100%);transition:transform .32s var(--ease);box-shadow:0 -12px 40px rgba(25,24,23,.18);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.sheet-overlay.open .panel{transform:translateY(0)}
+.grabber{width:38px;height:5px;border-radius:3px;background:rgba(25,24,23,.16);margin:8px auto 0;flex:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">HOLO · 健康洞察改版 · 2026-11-11</div>
+    <h1>动的是<em>这一天</em>，不动的是<em>这十四天</em></h1>
+    <p class="lede">修两个问题：一是「HOLO 洞察」建议永远是最新的近 14 天结论，却跟着日期翻页一起滑，让人误以为是当天的建议；二是证据弹层里「维生素 备注」把 AI 塞进去的整段原话当成你写的备注。下面三个画板，可以点、可以切、可以对比。</p>
+    <nav class="toc">
+      <a href="#b1"><span class="no">一</span>健康页 · 切日期看谁在动</a>
+      <a href="#b2"><span class="no">二</span>证据弹层 · 改版前后对比</a>
+      <a href="#b3"><span class="no">三</span>一句复合语音 · 备注是怎么写脏的</a>
+    </nav>
+  </header>
+
+  <!-- ══════════ 画板一 ══════════ -->
+  <section class="board" id="b1">
+    <div class="board-head">
+      <h2>健康页 · 切日期，看谁在动</h2>
+      <span class="tag">可交互</span>
+    </div>
+    <p class="board-sub">点右上箭头切到 11月4日：<b>今天卡和趋势卡</b>会滑动换内容（它们是那一天的事），<b>「HOLO 洞察」卡和生活闭环卡钉在原地一动不动</b>——不动，就是在告诉你它是跨天的全局观察，且徽章写明了它覆盖的真实日期范围。</p>
+
+    <div class="stage">
+      <div>
+        <div class="phone">
+          <div class="phone-screen annotate" id="healthScreen">
+            <div class="statusbar">
+              <span>16:24</span>
+              <span class="right">
+                <svg width="17" height="11" viewBox="0 0 17 11" fill="none" aria-hidden="true"><rect x="0" y="7" width="3" height="4" rx="1" fill="#333"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="#333"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="#333"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="#333" opacity=".3"/></svg>
+                <span style="font-size:11px;font-weight:700">4G</span>
+                <span class="sb-bat"><i></i></span>
+              </span>
+            </div>
+
+            <div class="app-top">
+              <div class="app-bar">
+                <button class="round-btn" aria-label="返回" onclick="void(0)">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <span class="title">健康</span>
+                <button class="round-btn" aria-label="身体状态入口，见下方入口行" onclick="void(0)">
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.9c0 5.4-7.5 10-7.5 10z"/></svg>
+                </button>
+              </div>
+              <div class="date-row">
+                <button class="date-main" id="dateLabel" aria-label="选择日期">
+                  <span id="dateText">11月11日 今天</span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+                <div class="date-ops">
+                  <button class="chip-today" id="todayChip" disabled>今天</button>
+                  <div class="nav-group">
+                    <button class="nav-btn" id="prevBtn" aria-label="前一天">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+                    </button>
+                    <button class="nav-btn" id="nextBtn" aria-label="后一天" disabled>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="scroll">
+              <!-- 日期段①：随日期滑动 -->
+              <div class="seg" data-kind="day" style="position:relative">
+                <span class="pin-label pin-day">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                  随日期翻页 · 这一天的事
+                </span>
+                <div id="todayCard" class="block"></div>
+                <div id="trendCard" class="block" style="margin-top:14px"></div>
+              </div>
+
+              <!-- 周期段：原地不动 -->
+              <div class="seg seg-period" data-kind="period" style="position:relative">
+                <span class="pin-label pin-period">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17v5M9 3h6l1 7 2.2 2.2a1.4 1.4 0 0 1-1 2.4H6.8a1.4 1.4 0 0 1-1-2.4L8 10z"/></svg>
+                  钉在原地 · 近 14 天的全局观察
+                </span>
+                <div class="block insight" id="insightCard" role="button" tabindex="0" aria-label="打开为什么这么说">
+                  <div class="insight-head">
+                    <span class="t">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4z"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z"/></svg>
+                      HOLO 洞察
+                    </span>
+                    <span class="badge">近 14 天 · 10月29日–11月11日</span>
+                  </div>
+                  <div class="insight-title">会议准备与睡眠管理的平衡</div>
+                  <p class="insight-summary">注意到你在 11月1日提到需要为次日会议准备材料，而 11月7日出现了低于 6 小时的低睡眠情况。充足的休息可能有助于应对高强度的工作准备。</p>
+                  <button class="evidence-link" id="openSheetBtn">
+                    证据 · 2 条
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                  </button>
+                </div>
+                <div class="block" style="margin-top:14px">
+                  <div class="loop-head">
+                    <span class="t">生活闭环</span>
+                    <span class="meta">近 14 天 · 2 条关联</span>
+                  </div>
+                  <div class="loop-row"><span class="d">11/07</span><span class="x">低睡眠日 · 待办完成 2 项，低于你的日均</span></div>
+                  <div class="loop-row"><span class="d">11/05</span><span class="x">咖啡支出 · 与前一晚睡眠不足同日出现</span></div>
+                </div>
+              </div>
+
+              <!-- 日期段②：随日期滑动 -->
+              <div class="seg" data-kind="day" style="position:relative">
+                <span class="pin-label pin-day">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                  随日期翻页 · 这一天的事
+                </span>
+                <div class="block entry-row">
+                  <span class="ic">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.9c0 5.4-7.5 10-7.5 10z"/></svg>
+                  </span>
+                  <span class="tx"><b>身体状态</b><span id="vitalsDate">心率 · 血氧 · 体重，11月11日</span></span>
+                  <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+                </div>
+              </div>
+
+              <p class="footnote">数据来自 Apple Health · 身体分与洞察仅供参考</p>
+            </div>
+
+            <!-- 证据弹层浮层（改版后形态，点洞察卡打开） -->
+            <div class="sheet-overlay" id="sheetOverlay" aria-hidden="true">
+              <div class="dim" id="sheetDim"></div>
+              <div class="panel">
+                <div class="grabber"></div>
+                <div class="sheet-page">
+                  <div class="sheet-top">
+                    <span class="st">为什么这么说</span>
+                    <button class="close-pill" id="closeSheetBtn">关闭</button>
+                  </div>
+                  <div class="sheet-scroll">
+                    <span class="badge" style="display:inline-block;margin:2px 2px 0">近 14 天 · 10月29日–11月11日</span>
+                    <div class="insight-title" style="margin-top:12px">会议准备与睡眠管理的平衡</div>
+                    <p class="insight-summary">注意到你在 11月1日提到需要为次日会议准备材料，而 11月7日出现了低于 6 小时的低睡眠情况。值得留意的是，充足的休息可能有助于应对高强度的工作准备。</p>
+                    <div class="section-cap">一个可以试试的小动作</div>
+                    <p style="font-size:14px;font-weight:600;color:var(--blue)">今晚将会议材料的准备工作提前完成，避免熬夜赶工。</p>
+                    <div class="section-cap">为什么这么说</div>
+                    <div class="ev-card ev-num">
+                      <div class="t">11月7日 睡眠 5.3 小时</div>
+                      <div class="d">低于 6 小时阈值</div>
+                    </div>
+                    <div class="ev-card ev-note">
+                      <div class="t">11月1日 维生素</div>
+                      <div class="ev-quote">
+                        <span class="rule"></span>
+                        <p>“昨晚吃烤肉 298，停车费 20，记得提醒我今天晚上要准备好明天早上会议的材料。还有昨晚吃 的习惯忘记，今天给补上”</p>
+                      </div>
+                      <div class="ev-src">当时打卡时记下的备注</div>
+                    </div>
+                    <p class="disclaimer">本内容由 AI 基于健康数据分析生成，仅供参考，不构成医疗诊断或专业建议。如有健康问题，请咨询专业医生。</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="hint-pill" id="hintPill">点右上箭头切到 11月4日 试试</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="notes">
+        <div class="switch-row" id="annotateSwitch" aria-pressed="true" role="button" tabindex="0">
+          <span class="lab"><b>标注模式</b><span>给「会动的」和「不动的」画上记号，看得更明白</span></span>
+          <span class="sw" aria-hidden="true"></span>
+        </div>
+        <div class="note">
+          <h3>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="var(--ai)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9l4.3-1.4z"/></svg>
+            建议卡钉在原地
+          </h3>
+          <p>切到 <b>11月4日</b>：今天卡、趋势卡、身体状态入口跟着滑动换内容；「HOLO 洞察」和「生活闭环」<span class="k">原地不动、内容也不变</span>。以前整页一起滑，建议看起来就像那天的——现在「不动」本身说明它是全局的。</p>
+        </div>
+        <div class="note">
+          <h3>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="var(--ai)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+            徽章写明真实范围
+          </h3>
+          <p>「<span class="k">近 14 天 · 10月29日–11月11日</span>」来自洞察快照里真实的数据窗口，不是写死的文案。翻到 11月4日 也能看出：这条建议看到的证据（11月7日）比你正在看的那天还晚——这正是「它不是那天的事」的证明。</p>
+        </div>
+        <div class="note">
+          <h3>
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="var(--ai)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.6a4.3 4.3 0 0 1 7.5 2.9c0 5.4-7.5 10-7.5 10z"/></svg>
+            点开洞察卡
+          </h3>
+          <p>洞察卡可点开「为什么这么说」证据弹层（画板二有改版前后的完整对比）。弹层顶部同样带日期范围徽章。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 画板二 ══════════ -->
+  <section class="board" id="b2">
+    <div class="board-head">
+      <h2>证据弹层 · 改版前后对比</h2>
+      <span class="tag">可切换</span>
+    </div>
+    <p class="board-sub">同一个「为什么这么说」弹层。用开关切<b>改版前 / 改版后</b>，看四处差别：顶部日期范围徽章、维生素那张卡的样式、引号与来源行、免责声明的位置。</p>
+
+    <div class="stage">
+      <div>
+        <div style="display:flex;justify-content:center;margin-bottom:16px">
+          <div class="segctl" style="padding:4px;background:#E9E6DE;box-shadow:inset 0 1px 3px rgba(25,24,23,.08)" role="tablist" aria-label="改版前后切换">
+            <button id="btnBefore" role="tab">改版前</button>
+            <button id="btnAfter" class="on" role="tab" aria-selected="true">改版后</button>
+          </div>
+        </div>
+        <div class="phone">
+          <div class="phone-screen" style="height:min(680px,80vh)">
+            <div class="sheet-page" id="evSheet">
+              <div class="sheet-top" style="padding-top:20px">
+                <span class="st">为什么这么说</span>
+                <span class="close-pill" style="cursor:default">关闭</span>
+              </div>
+              <div class="sheet-scroll" id="evSheetBody"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="notes">
+        <div class="note">
+          <h3><span class="k">①</span> 顶部多了日期范围徽章</h3>
+          <p>改版前整页没有任何时间信息，建议看起来像「刚刚为今天算的」。改版后顶部一粒「近 14 天 · 10月29日–11月11日」，先说清它是哪段时间的结论。</p>
+        </div>
+        <div class="note">
+          <h3><span class="k">②</span> 维生素卡：从「字段」变成「引文」</h3>
+          <p>改版前标题是「11月1日 维生素 <b>备注</b>」，正文裸排整段原话——像你在维生素里写了这么多。改版后标题只有「11月1日 维生素」，正文用<span class="k">竖引线 + 弯引号</span>包裹原话，一眼可知「这是当时留下的一段话」，不是你填的字段。</p>
+        </div>
+        <div class="note">
+          <h3><span class="k">③</span> 来源行说人话</h3>
+          <p>卡片底部一行小字「<span class="k">当时打卡时记下的备注</span>」——不写「原始数据」「系统记录」这类说明书腔，就一句人话：这是你当时打卡时留下的字。</p>
+        </div>
+        <div class="note">
+          <h3><span class="k">④</span> 免责声明挪到最底部</h3>
+          <p>改版前它夹在「小动作建议」和证据区中间，把建议和依据隔断。改版后挪到弹层末尾：先看结论，再看证据，法律声明收尾。</p>
+        </div>
+        <div class="note">
+          <h3><span class="k">⑤</span> 数值证据卡不动</h3>
+          <p>「11月7日 睡眠 5.3 小时」这类数值卡保持原样、顺序不变（AI 引用证据的顺序本身有含义），只有备注类卡片换新卡型。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════ 画板三 ══════════ -->
+  <section class="board" id="b3">
+    <div class="board-head">
+      <h2>一句复合语音 · 备注是怎么写脏的</h2>
+      <span class="tag">写入侧新规矩</span>
+    </div>
+    <p class="board-sub">你 11月1日 对 AI 说了一句混了三件事的话。AI 三件事都办对了，坏在最后一步——补打卡时顺手把你的<b>整句原话</b>存成了维生素的备注。左右对比改版前后的最后一步。</p>
+
+    <div class="stage" style="grid-template-columns:1fr 1fr">
+      <div class="note" style="padding:22px 24px">
+        <h3 style="justify-content:flex-start">
+          <span style="font-size:11px;font-weight:700;color:#B42318;background:#FDECEA;border-radius:999px;padding:3px 10px;letter-spacing:.06em">改版前</span>
+        </h3>
+        <div class="bubble">「昨晚吃烤肉 298，停车费 20，记得提醒我准备会议材料，维生素的习惯忘了今天补上」</div>
+        <div class="acts">
+          <div class="act"><svg class="icon ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5L19.5 7"/></svg>记两笔账：烤肉 298 · 停车费 20</div>
+          <div class="act"><svg class="icon ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5L19.5 7"/></svg>建提醒：准备会议材料</div>
+          <div class="act"><svg class="icon ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5L19.5 7"/></svg>维生素 · 打卡成功</div>
+        </div>
+        <div class="result dirty">
+          <div class="r-cap"><span class="dot" style="color:#B42318"></span>然后，备注被塞进整段原话</div>
+          <div class="r-body">昨晚吃烤肉 298，停车费 20，记得提醒我今天晚上要准备好明天早上会议的材料。还有昨晚吃 的习惯忘记 ， 今天给补上</div>
+          <div class="r-foot">这句备注后来被健康洞察当证据展示 → 就是你截图里那张莫名其妙的卡</div>
+        </div>
+      </div>
+
+      <div class="note" style="padding:22px 24px">
+        <h3 style="justify-content:flex-start">
+          <span style="font-size:11px;font-weight:700;color:var(--good);background:var(--good-soft);border-radius:999px;padding:3px 10px;letter-spacing:.06em">改版后</span>
+        </h3>
+        <div class="bubble">「昨晚吃烤肉 298，停车费 20，记得提醒我准备会议材料，维生素的习惯忘了今天补上」</div>
+        <div class="acts">
+          <div class="act"><svg class="icon ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5L19.5 7"/></svg>记两笔账：烤肉 298 · 停车费 20</div>
+          <div class="act"><svg class="icon ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5L19.5 7"/></svg>建提醒：准备会议材料</div>
+          <div class="act"><svg class="icon ok" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 12.5l5 5L19.5 7"/></svg>维生素 · 打卡成功</div>
+        </div>
+        <div class="result clean">
+          <div class="r-cap"><span class="dot" style="color:var(--good)"></span>备注：不存。宁可不存，不存脏的</div>
+          <div class="r-body" style="color:var(--ink3);border-style:dashed">（无备注）</div>
+          <div class="r-foot">一句话里出现两个以上数字 = 混了记账等多件事的复合句，备注不存；清洗后超过 30 字也不存</div>
+        </div>
+      </div>
+
+      <div class="note" style="grid-column:1 / -1">
+        <h3>
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="var(--ai)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9h8M8 12h5"/></svg>
+          正常的备注照存
+        </h3>
+        <p>「打卡跑步」清洗后是空的，不存；「跑步5公里状态不错」照旧存「<b>5公里状态不错</b>」——单个数字、一句短话，是真备注。你库里 11月1日 那条脏备注没有被删，它会在 11月16日 自然滚出「近 14 天」观察范围。</p>
+      </div>
+    </div>
+  </section>
+
+  <style>
+  .bubble{
+    background:var(--nested);border-radius:18px 18px 18px 6px;padding:13px 16px;
+    font-size:13.5px;color:var(--ink);line-height:1.65;
+  }
+  .acts{margin:14px 0 6px;display:flex;flex-direction:column;gap:8px}
+  .act{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink2)}
+  .act .ok{color:var(--good);width:16px;height:16px}
+  .result{border:1px solid var(--hair);border-radius:16px;padding:14px 16px;margin-top:12px;background:var(--paper)}
+  .result .r-cap{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px}
+  .result .r-body{
+    font-size:12px;color:var(--ink2);line-height:1.7;margin-top:9px;
+    background:var(--card);border:1px solid var(--hair);border-radius:10px;padding:10px 12px;
+    word-break:break-all;
+  }
+  .result .r-foot{font-size:11px;color:var(--ink3);margin-top:9px;line-height:1.6}
+  </style>
+
+<script>
+(function(){
+"use strict";
+var RM = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ── 画板一：两天的数据 ── */
+var DAYS = {
+  "1111": {
+    label: "11月11日 今天",
+    score: 91, basis: "身体分 · 按 3 项算",
+    rings: [72, 38, 83],
+    verdict: "步数、站立已达标，睡眠还差 1 小时。",
+    grid: [
+      { lbl: "步数", val: "8,432", unit: "步", st: "ok", stTxt: "达标" },
+      { lbl: "站立", val: "12/12", unit: "小时", st: "ok", stTxt: "达标" },
+      { lbl: "睡眠", val: "6.1", unit: "小时", st: "gap", stTxt: "差 0.9 小时" },
+      { lbl: "锻炼", val: "—", unit: "", st: "na", stTxt: "无会话记录" }
+    ],
+    steps: [52, 74, 38, 66, 88, 30, 72],
+    sleep:  [80, 71, 59, 87, 77, 68, 68],
+    ticks:  ["11/5","11/6","11/7","11/8","11/9","11/10","11/11"]
+  },
+  "1104": {
+    label: "11月4日 周三",
+    score: 76, basis: "身体分 · 按 3 项算",
+    rings: [46, 22, 92],
+    verdict: "这天站立和睡眠达标，步数还差 1,800 步。",
+    grid: [
+      { lbl: "步数", val: "6,168", unit: "步", st: "gap", stTxt: "差 1,800 步" },
+      { lbl: "站立", val: "12/12", unit: "小时", st: "ok", stTxt: "达标" },
+      { lbl: "睡眠", val: "7.4", unit: "小时", st: "ok", stTxt: "达标" },
+      { lbl: "锻炼", val: "—", unit: "", st: "na", stTxt: "无会话记录" }
+    ],
+    steps: [66, 48, 80, 35, 72, 58, 44],
+    sleep:  [62, 55, 83, 58, 78, 66, 82],
+    ticks:  ["10/29","10/30","10/31","11/1","11/2","11/3","11/4"]
+  }
+};
+var curDay = "1111";
+var curMetric = "steps";
+
+function ringsSVG(pcts){
+  var R = [54, 40, 26], C = [];
+  var svg = '<svg class="rings" viewBox="0 0 132 132" aria-hidden="true">';
+  var cols = ["var(--ring-move)","var(--ring-ex)","var(--ring-stand)"];
+  for (var i = 0; i < 3; i++){
+    var r = R[i], c = 2 * Math.PI * r, len = c * pcts[i] / 100;
+    svg += '<circle cx="66" cy="66" r="'+r+'" fill="none" stroke="rgba(25,24,23,.07)" stroke-width="12"/>';
+    svg += '<circle cx="66" cy="66" r="'+r+'" fill="none" stroke="'+cols[i]+'" stroke-width="12" stroke-linecap="round" stroke-dasharray="'+len.toFixed(1)+' '+c.toFixed(1)+'" transform="rotate(-90 66 66)"/>';
+  }
+  return svg + "</svg>";
+}
+
+function cellIcon(t){
+  if (t === "ok") return '<span class="dot"></span>';
+  return "";
+}
+
+function renderTodayCard(d){
+  var g = d.grid.map(function(c){
+    return '<div class="cell"><div class="lbl">'+c.lbl+'</div><div class="val">'+c.val+
+      (c.unit ? "<small> "+c.unit+"</small>" : "")+
+      '</div><div class="st '+c.st+'">'+cellIcon(c.st)+c.stTxt+'</div></div>';
+  }).join("");
+  document.getElementById("todayCard").innerHTML =
+    '<div class="ring-wrap">'+ringsSVG(d.rings)+
+    '<div class="ring-meta"><div class="score">'+d.score+'<small>分</small></div>'+
+    '<span class="basis">'+d.basis+'</span></div></div>'+
+    '<p class="verdict">'+d.verdict+'</p><div class="grid4">'+g+'</div>';
+}
+
+function renderTrendCard(d){
+  var data = curMetric === "steps" ? d.steps : d.sleep;
+  var bars = data.map(function(v, i){
+    var last = i === data.length - 1;
+    return '<div class="bar'+(last ? " sel" : "")+'"><i style="height:'+v+'%"></i></div>';
+  }).join("");
+  var ticks = d.ticks.map(function(t){
+    return "<span>"+t+"</span>";
+  }).join("");
+  document.getElementById("trendCard").innerHTML =
+    '<div class="trend-head"><span class="trend-title" id="trendTitle">最近 7 天'+(curMetric === "steps" ? "步数" : "睡眠")+'</span>'+
+    '<div class="segctl"><button data-m="steps" class="'+(curMetric==="steps"?"on":"")+'">步数</button>'+
+    '<button data-m="sleep" class="'+(curMetric==="sleep"?"on":"")+'">睡眠</button></div></div>'+
+    '<div class="bars">'+bars+'</div><div class="ticks">'+ticks+"</div>";
+  document.getElementById("trendCard").querySelectorAll(".segctl button").forEach(function(b){
+    b.addEventListener("click", function(){
+      if (curMetric === b.dataset.m) return;
+      curMetric = b.dataset.m;
+      renderTrendCard(DAYS[curDay]);
+    });
+  });
+}
+
+function renderDay(key){
+  var d = DAYS[key];
+  document.getElementById("dateText").textContent = d.label;
+  renderTodayCard(d);
+  renderTrendCard(d);
+  var isToday = key === "1111";
+  document.getElementById("vitalsDate").textContent = "心率 · 血氧 · 体重，" + (isToday ? "11月11日" : "11月4日");
+  document.getElementById("todayChip").disabled = isToday;
+  document.getElementById("nextBtn").disabled = isToday;
+  document.getElementById("prevBtn").disabled = !isToday;
+}
+
+function switchDay(key, dir){
+  if (key === curDay) return;
+  curDay = key;
+  var segs = document.querySelectorAll('#healthScreen .seg[data-kind="day"]');
+  var outMs = RM ? 0 : 200;
+  if (!RM){
+    segs.forEach(function(s){
+      s.style.setProperty("--out-x", dir === "back" ? "-26px" : "26px");
+      s.classList.add("day-out");
+    });
+  }
+  window.setTimeout(function(){
+    renderDay(key);
+    segs.forEach(function(s){
+      s.classList.remove("day-out");
+      if (!RM){
+        s.style.setProperty("--in-x", dir === "back" ? "26px" : "-26px");
+        s.classList.add("day-in-start");
+        window.setTimeout(function(){ s.classList.remove("day-in-start"); }, 30);
+      }
+    });
+  }, outMs);
+  var hint = document.getElementById("hintPill");
+  if (hint) hint.classList.add("hide");
+}
+
+document.getElementById("prevBtn").addEventListener("click", function(){ switchDay("1104", "back"); });
+document.getElementById("nextBtn").addEventListener("click", function(){ switchDay("1111", "fwd"); });
+document.getElementById("todayChip").addEventListener("click", function(){ switchDay("1111", "fwd"); });
+
+/* 标注开关 */
+var annotate = document.getElementById("annotateSwitch");
+function toggleAnnotate(){
+  var on = annotate.getAttribute("aria-pressed") === "true";
+  annotate.setAttribute("aria-pressed", on ? "false" : "true");
+  document.getElementById("healthScreen").classList.toggle("annotate", !on);
+}
+annotate.addEventListener("click", toggleAnnotate);
+annotate.addEventListener("keydown", function(e){
+  if (e.key === "Enter" || e.key === " "){ e.preventDefault(); toggleAnnotate(); }
+});
+
+/* 证据弹层浮层 */
+var overlay = document.getElementById("sheetOverlay");
+function openSheet(){
+  overlay.classList.add("open");
+  overlay.setAttribute("aria-hidden", "false");
+}
+function closeSheet(){
+  overlay.classList.remove("open");
+  overlay.setAttribute("aria-hidden", "true");
+}
+document.getElementById("openSheetBtn").addEventListener("click", function(e){ e.stopPropagation(); openSheet(); });
+document.getElementById("insightCard").addEventListener("click", openSheet);
+document.getElementById("insightCard").addEventListener("keydown", function(e){
+  if (e.key === "Enter" || e.key === " "){ e.preventDefault(); openSheet(); }
+});
+document.getElementById("closeSheetBtn").addEventListener("click", closeSheet);
+document.getElementById("sheetDim").addEventListener("click", closeSheet);
+window.addEventListener("keydown", function(e){ if (e.key === "Escape") closeSheet(); });
+
+/* ── 画板二：改版前 / 改版后 ── */
+var SUMMARY = "注意到你在 11月1日提到需要为次日会议准备材料，而 11月7日出现了低于 6 小时的低睡眠情况。值得留意的是，充足的休息可能有助于应对高强度的工作准备。";
+var RAW_NOTE = "昨晚吃烤肉 298，停车费 20，记得提醒我今天晚上要准备好明天早上会议的材料。还有昨晚吃 的习惯忘记 ， 今天给补上";
+var DISCLAIMER = "本内容由 AI 基于健康数据分析生成，仅供参考，不构成医疗诊断或专业建议。如有健康问题，请咨询专业医生。";
+
+function sheetHTML(after){
+  var badge = after ? '<span class="badge" style="display:inline-block;margin:2px 2px 0">近 14 天 · 10月29日–11月11日</span>' : "";
+  var noteCard = after
+    ? '<div class="ev-card ev-note"><div class="t">11月1日 维生素</div>'+
+      '<div class="ev-quote"><span class="rule"></span><p>“'+RAW_NOTE+'”</p></div>'+
+      '<div class="ev-src">当时打卡时记下的备注</div></div>'
+    : '<div class="ev-card ev-old"><div class="t">11月1日 维生素 备注</div><div class="d">'+RAW_NOTE+"</div></div>";
+  var disclaimer = after
+    ? '<p class="disclaimer">'+DISCLAIMER+"</p>"
+    : '<p class="disclaimer">'+DISCLAIMER+"</p>";
+  var midDisclaimer = after ? "" : disclaimer;
+  var bottomDisclaimer = after ? disclaimer : "";
+  return badge +
+    '<div class="insight-title" style="margin-top:12px">会议准备与睡眠管理的平衡</div>'+
+    '<p class="insight-summary">'+SUMMARY+"</p>"+
+    '<div class="section-cap">一个可以试试的小动作</div>'+
+    '<p style="font-size:14px;font-weight:600;color:var(--blue)">今晚将会议材料的准备工作提前完成，避免熬夜赶工。</p>'+
+    midDisclaimer +
+    '<div class="section-cap">为什么这么说</div>'+
+    '<div class="ev-card ev-num"><div class="t">11月7日 睡眠 5.3 小时</div><div class="d">低于 6 小时阈值</div></div>'+
+    noteCard +
+    bottomDisclaimer;
+}
+
+var evBody = document.getElementById("evSheetBody");
+var btnBefore = document.getElementById("btnBefore");
+var btnAfter = document.getElementById("btnAfter");
+function setVersion(after){
+  btnBefore.classList.toggle("on", !after);
+  btnAfter.classList.toggle("on", after);
+  btnBefore.setAttribute("aria-selected", String(!after));
+  btnAfter.setAttribute("aria-selected", String(after));
+  var apply = function(){ evBody.innerHTML = sheetHTML(after); evBody.style.opacity = "1"; };
+  if (RM){ apply(); return; }
+  evBody.style.opacity = "0";
+  window.setTimeout(apply, 160);
+}
+btnBefore.addEventListener("click", function(){ setVersion(false); });
+btnAfter.addEventListener("click", function(){ setVersion(true); });
+evBody.style.transition = RM ? "none" : "opacity .16s ease";
+evBody.innerHTML = sheetHTML(true);
+
+/* 初始渲染 */
+renderDay("1111");
+window.setTimeout(function(){
+  var h = document.getElementById("hintPill");
+  if (h) h.classList.add("hide");
+}, 8000);
+})();
+</script>
+</div>
+</body>
+</html>

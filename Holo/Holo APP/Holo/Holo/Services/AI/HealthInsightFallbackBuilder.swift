@@ -15,6 +15,14 @@ struct HealthInsightFallbackBuilder {
     /// 数据积累期诚实文案。
     static let accumulatingSummary = String(localized: "健康数据正在积累。连续记录后，HOLO 会尝试把身体状态和任务、习惯、消费、想法串起来。")
 
+    /// 本地兜底 core 的 id 前缀（UI 用它区分真洞察与兜底，兜底不上界面）
+    static let fallbackCoreIDPrefix = "fallback-core-"
+
+    /// 是否为本地兜底 core：LLM 生成失败或校验未过时的替身，不代表真实洞察
+    static func isFallbackCore(_ insight: GeneratedHealthInsight) -> Bool {
+        insight.id.hasPrefix(fallbackCoreIDPrefix)
+    }
+
     /// 数据不足快照：无 core、无 loops、无 evidence。
     func buildInsufficientData(period: HealthInsightPeriod, now: Date) -> GeneratedHealthInsightSnapshot {
         GeneratedHealthInsightSnapshot(
@@ -44,7 +52,7 @@ struct HealthInsightFallbackBuilder {
     /// 本地规则 core（LLM core 校验失败时复用）。caveat 不写内部来源字样——那是诊断信息，走日志不上 UI。
     func buildFallbackCore(now: Date) -> GeneratedHealthInsight {
         GeneratedHealthInsight(
-            id: "fallback-core-\(HealthInsightContextBuilder.dayKey(from: now))",
+            id: "\(Self.fallbackCoreIDPrefix)\(HealthInsightContextBuilder.dayKey(from: now))",
             kind: .core,
             domain: .mixed,
             title: String(localized: "今日核心洞察"),

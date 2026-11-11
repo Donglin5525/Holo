@@ -48,34 +48,31 @@ struct TripleHealthRingView: View {
 
     var body: some View {
         ZStack {
-            ring(for: snapshot.steps, size: 168, lineWidth: 13, sweepDelay: 0)
-            ring(for: snapshot.sleep, size: 124, lineWidth: 13, sweepDelay: 0.08)
-            ring(for: snapshot.standOrActivity, size: 80, lineWidth: 13, sweepDelay: 0.16)
+            ring(for: snapshot.steps, size: 148, lineWidth: 12, sweepDelay: 0)
+            ring(for: snapshot.sleep, size: 108, lineWidth: 12, sweepDelay: 0.08)
+            ring(for: snapshot.standOrActivity, size: 68, lineWidth: 12, sweepDelay: 0.16)
 
-            Circle()
-                .fill(Color.holoCardBackground)
-                .frame(width: 58, height: 58)
-                .overlay(
-                    Circle()
-                        .stroke(Color.holoBorder, lineWidth: 1)
-                )
-
-            VStack(spacing: 2) {
+            VStack(spacing: 1) {
                 Text(snapshot.bodyScoreText)
-                    .font(.system(size: snapshot.bodyScore == nil ? 12 : 24, weight: .bold, design: .rounded))
-                    .foregroundColor(.holoTextPrimary)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(.holoToolText)
                     .contentTransition(.numericText())
                     .animation(HoloAnimation.smooth, value: snapshot.bodyScore)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
 
-                Text("身体")
+                Text("身体分")
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(.holoToolTextSecondary)
+                    .lineLimit(1)
             }
-            .frame(width: 52)
+            .frame(width: 48)
         }
-        .frame(width: 168, height: 168)
+        // 布局框 = 最外环中心线直径 148 + 线宽 12
+        .frame(width: 160, height: 160)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("身体分"))
+        .accessibilityValue(Text(snapshot.bodyScoreText))
     }
 
     private func ring(for metric: HealthMetricSnapshot, size: CGFloat, lineWidth: CGFloat, sweepDelay: Double) -> some View {

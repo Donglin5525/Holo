@@ -90,11 +90,44 @@ final class HealthDashboardStateTests: XCTestCase {
         )
 
         XCTAssertNil(snapshot.bodyScore)
-        XCTAssertEqual(snapshot.bodyScoreText, "数据不足")
+        XCTAssertEqual(snapshot.bodyScoreText, "--")
+        XCTAssertEqual(snapshot.statusTitle, "等待健康数据")
+        XCTAssertEqual(snapshot.verdictText, "Apple Health 里还没有这一天的记录。")
     }
 
-    /// 阅读动线（睡眠优先）：指标行为 睡眠→步数→运动→站立；三环徽章只统计三环指标
-    func testMetricsOrderIsSleepFirstAndRingBadgeCountsOnlyRingMetrics() {
+    /// 至少两项有数据才出分：单项折算=单项完成度，走满一万步就 100 分不代表身体状态
+    func testBodyScoreRequiresAtLeastTwoReliableMetrics() {
+        let stepsOnly = HealthDashboardSnapshot(
+            steps: HealthMetricSnapshot(type: .steps, value: 10_000, availability: .available),
+            sleep: HealthMetricSnapshot(type: .sleep, value: 0, availability: .noData),
+            workout: HealthMetricSnapshot(type: .workout, value: 0, availability: .noData),
+            standOrActivity: HealthMetricSnapshot(type: .standHours, value: 0, availability: .noData),
+            dataSourceState: .connected
+        )
+
+        XCTAssertNil(stepsOnly.bodyScore)
+        XCTAssertEqual(stepsOnly.statusTitle, "数据不全")
+        XCTAssertEqual(stepsOnly.verdictText, "只有步数有记录，暂不计算身体分。")
+        XCTAssertNil(stepsOnly.scoringBadgeText)
+
+        // 两项可用即出分；缺项时徽章必须注明按几项算
+        let twoItems = HealthDashboardSnapshot(
+            steps: HealthMetricSnapshot(type: .steps, value: 10_000, availability: .available),
+            sleep: HealthMetricSnapshot(type: .sleep, value: 8, availability: .available),
+            workout: HealthMetricSnapshot(type: .workout, value: 0, availability: .noData),
+            standOrActivity: HealthMetricSnapshot(type: .standHours, value: 0, availability: .noData),
+            dataSourceState: .connected
+        )
+
+        XCTAssertNotNil(twoItems.bodyScore)
+        XCTAssertEqual(twoItems.scoringRingCount, 2)
+        XCTAssertEqual(twoItems.scoringBadgeText, "按 2 项算")
+        // 参与打分的两项都达标，但缺站立不说「三环全部达标」
+        XCTAssertEqual(twoItems.verdictText, "步数、睡眠已达标。")
+    }
+
+    /// 阅读动线（睡眠优先）：指标行为 睡眠→步数→运动→站立
+    func testMetricsOrderIsSleepFirst() {
         let snapshot = HealthDashboardSnapshot(
             steps: HealthMetricSnapshot(type: .steps, value: 10_000, availability: .available),
             sleep: HealthMetricSnapshot(type: .sleep, value: 8, availability: .available),
@@ -105,8 +138,6 @@ final class HealthDashboardStateTests: XCTestCase {
 
         XCTAssertEqual(snapshot.metrics.map(\.type), [.sleep, .steps, .workout, .standHours])
         XCTAssertEqual(snapshot.ringMetrics.count, 3)
-        // 三环全满 → 3/3；即使运动也满进度也不进三环统计
-        XCTAssertEqual(snapshot.ringBadgeText, "三环 3/3 接近达标")
     }
 
     func testStandFallbackUsesActiveMinutesWhenStandIsUnsupported() {
@@ -128,40 +159,55 @@ final class HealthDashboardStateTests: XCTestCase {
         XCTAssertEqual(HealthDataSourceState.connected.badgeText, "在线")
     }
 
-    // MARK: - 健康洞察基线（LLM 生成改造前的稳定 fallback 行为）
-    // 审查修订 P13：coreInsight 三档只锁结构 + 分档区分性，不逐字锁文案；
-    // lifestyleInsights 只锁条数与 domain 顺序，文案后续交 FallbackBuilder 统一管理。
+    // MARK: - 今天卡判词（方案 A：一句话说清达标了什么、差在哪）
 
-    private func makeHealthSnapshot(
-        sleepValue: Double,
-        sleepAvailability: HealthMetricAvailability
+    private func makeRingSnapshot(
+        steps: Double,
+        sleep: Double,
+        stand: Double
     ) -> HealthDashboardSnapshot {
         HealthDashboardSnapshot(
-            steps: HealthMetricSnapshot(type: .steps, value: 6_000, availability: .available),
-            sleep: HealthMetricSnapshot(type: .sleep, value: sleepValue, availability: sleepAvailability),
+            steps: HealthMetricSnapshot(type: .steps, value: steps, availability: steps > 0 ? .available : .noData),
+            sleep: HealthMetricSnapshot(type: .sleep, value: sleep, availability: sleep > 0 ? .available : .noData),
             workout: HealthMetricSnapshot(type: .workout, value: 0, availability: .noData),
-            standOrActivity: HealthMetricSnapshot(type: .standHours, value: 10, availability: .available),
+            standOrActivity: HealthMetricSnapshot(type: .standHours, value: stand, availability: stand > 0 ? .available : .noData),
             dataSourceState: .connected
         )
     }
 
-    func testCoreInsightHasStableTitleAndThreeDistinctBranches() {
-        let high = makeHealthSnapshot(sleepValue: 8, sleepAvailability: .available).coreInsight
-        let low = makeHealthSnapshot(sleepValue: 6, sleepAvailability: .available).coreInsight
-        let noData = makeHealthSnapshot(sleepValue: 0, sleepAvailability: .noData).coreInsight
+    func testVerdictNamesMetMetricsAndWorstGap() {
+        // 步数、站立达标，睡眠 7/8 差 1 小时（整数小时不带小数）
+        let snapshot = makeRingSnapshot(steps: 10_000, sleep: 7, stand: 12)
+        XCTAssertEqual(snapshot.verdictText, "步数、站立已达标，睡眠还差 1 小时。")
+        // 分行版：达标一句、差距一句（整段换行会把「睡眠」拆开）
+        XCTAssertEqual(snapshot.verdictClauses, ["步数、站立已达标，", "睡眠还差 1 小时。"])
+        XCTAssertEqual(snapshot.scoringBadgeText, "按 3 项算")
+    }
 
-        // 标题稳定（三档共用）
-        XCTAssertEqual(high.title, "今日核心洞察")
-        XCTAssertEqual(low.title, "今日核心洞察")
-        XCTAssertEqual(noData.title, "今日核心洞察")
+    func testVerdictWhenNothingMetSpeaksGapOnly() {
+        // 三项都没达标：完成度最低的是步数（0.3），判词只说它差多少
+        let snapshot = makeRingSnapshot(steps: 3_000, sleep: 5, stand: 4)
+        XCTAssertEqual(snapshot.verdictText, "步数还差 7,000 步。")
+    }
 
-        // 三档文案互不相同、均非空（区分性断言，不锁具体措辞）
-        XCTAssertFalse(high.detail.isEmpty)
-        XCTAssertFalse(low.detail.isEmpty)
-        XCTAssertFalse(noData.detail.isEmpty)
-        XCTAssertNotEqual(high.detail, low.detail)
-        XCTAssertNotEqual(low.detail, noData.detail)
-        XCTAssertNotEqual(high.detail, noData.detail)
+    func testVerdictWhenAllRingMetricsMet() {
+        let snapshot = makeRingSnapshot(steps: 10_000, sleep: 8, stand: 12)
+        XCTAssertEqual(snapshot.verdictText, "三环全部达标。")
+    }
+
+    func testGapTextFormats() {
+        // 步数差值向上取整、千分位
+        XCTAssertEqual(
+            HealthMetricSnapshot(type: .steps, value: 8_400, availability: .available).gapText,
+            "1,600 步"
+        )
+        // 半小时保留一位小数
+        XCTAssertEqual(
+            HealthMetricSnapshot(type: .sleep, value: 7.5, availability: .available).gapText,
+            "0.5 小时"
+        )
+        // 已达标无差值
+        XCTAssertNil(HealthMetricSnapshot(type: .standHours, value: 12, availability: .available).gapText)
     }
 
 }

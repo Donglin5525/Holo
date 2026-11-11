@@ -831,8 +831,14 @@ final class IntentRouter {
     }
 
     /// 从用户原话提取记录备注：去掉习惯名、数值和纯指令词后，剩余的上下文才有记录价值
-    /// （「打卡跑步」清洗后为空不存；「跑步5公里状态不错」存「状态不错」）
-    private static func habitRecordNote(
+    /// （「打卡跑步」清洗后为空不存；「跑步5公里状态不错」存「5公里状态不错」）。
+    /// 复合句防混入（2026-11-11 收紧，实报事故：「昨晚吃烤肉 298，停车费 20，记得提醒我……
+    /// 维生素的习惯忘记今天补上」被几乎整段塞进维生素打卡备注）：
+    /// 1. 剩余文字出现 ≥2 处连续阿拉伯数字段 → 视为混了记账等多意图的复合句，整体不存
+    ///    （一句里多个独立数字是复合意图的强信号，备注宁可不存）；
+    /// 2. 剩余文字超 30 字 → 不存（备注定位是关于该习惯行为的单句上下文，不是段落）。
+    /// internal 仅为单元测试可见（IntentRouterHabitRecordNoteTests），勿在模块外调用。
+    static func habitRecordNote(
         originalInput: String?,
         habitNames: [String],
         removableTokens: [String]
@@ -851,6 +857,11 @@ final class IntentRouter {
             .joined(separator: " ")
             .trimmingCharacters(in: CharacterSet(charactersIn: " ，。,.、！!？?"))
         guard remaining.count > 2 else { return nil }
+        // ≥2 处独立数字段 = 多意图复合句（如烤肉 298 + 停车费 20 混记账），备注不存
+        let digitRunCount = remaining.split(whereSeparator: { !($0.isASCII && $0.isNumber) }).count
+        guard digitRunCount < 2 else { return nil }
+        // 单句上下文定位：超过 30 字的剩余文本不是备注，是段落
+        guard remaining.count <= 30 else { return nil }
         return String(remaining.prefix(60))
     }
 

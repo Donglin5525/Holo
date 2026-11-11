@@ -404,6 +404,8 @@ struct HoloApp: App {
                     }
                     // 想法整理：断网期间回退 pending 的条目，回前台有网时续做（幂等）
                     ThoughtOrganizationQueue.shared.appWillEnterForeground()
+                    // 健康洞察：回前台按需后台生成（单飞行；7 天内没访问健康页的用户不自动生成）
+                    HealthInsightScheduler.shared.refreshIfNeeded(trigger: .appBecameActive)
                 Task { await ThoughtSemanticChangeFeed.shared.reconcileAllThoughts(); await ThoughtSemanticPipeline.shared.kickQueue() }
                     // 权益状态回前台刷新：长期后台驻留后续订/降级/他设备购买，本会话档位需跟上
                     Task { await HoloSubscriptionService.shared.refreshStatus() }

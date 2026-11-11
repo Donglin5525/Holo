@@ -14,61 +14,79 @@ struct HealthDateNavigator: View {
     @Binding var selectedDate: Date
     @State private var showCalendar = false
 
+    private var isToday: Bool {
+        Calendar.current.isDateInToday(selectedDate)
+    }
+
+    /// 单行日期导航：日期文案（点开日历）靠左，「今天」芯片 + 前后箭头组靠右。
+    /// 三种日期状态下右侧元素位置固定，切天不产生布局跳动（10-14 版整宽胶囊曾把
+    /// 「今天」挤到第二行，离开今天整页下移 48pt）。
     var body: some View {
-        VStack(spacing: HoloSpacing.xs) {
-            HStack(spacing: HoloSpacing.sm) {
-                navigationButton(systemName: "chevron.left", isDisabled: false) {
-                    navigateDate(-1)
-                }
+        HStack(spacing: HoloSpacing.sm) {
+            dateButton
+                .layoutPriority(1)
 
-                dateButton
+            Spacer(minLength: HoloSpacing.sm)
 
-                navigationButton(
-                    systemName: "chevron.right",
-                    isDisabled: Calendar.current.isDateInToday(selectedDate)
-                ) {
-                    navigateDate(1)
-                }
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 4)
-            .background(Color.holoToolSurface.opacity(0.55))
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .stroke(Color.holoToolBorder.opacity(0.7), lineWidth: 1)
-            )
-            if !Calendar.current.isDateInToday(selectedDate) {
+            if !isToday {
                 todayButton
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.9)))
             }
+
+            arrowGroup
         }
+        .frame(height: 44)
+        .animation(reduceMotion ? nil : HoloAnimation.standard, value: isToday)
         .sheet(isPresented: $showCalendar) {
             HealthDatePickerSheet(selectedDate: $selectedDate)
         }
     }
 
-    /// 日期文案：点击弹出日历，支持跨月/跨年直接跳转历史日期
+    /// 日期文案：点击弹出日历，支持跨月/跨年直接跳转历史日期。
+    /// 格式随 App 语言（SeedLanguage）而非写死 zh_CN（10-14 曾引入写死中文）。
     private var dateButton: some View {
         Button {
             showCalendar = true
         } label: {
             HStack(spacing: 5) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoToolTextSecondary.opacity(0.7))
-
-                Text(dateDisplayText)
-                    .font(.holoBody)
+                Text(Self.dateDisplayText(for: selectedDate))
+                    .font(.system(.body, design: .default, weight: .semibold))
                     .foregroundColor(.holoToolText)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+                    .truncationMode(.tail)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.holoToolTextSecondary.opacity(0.7))
             }
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(HoloPressStyle())
         .accessibilityIdentifier("health.datePicker")
+    }
+
+    /// 前后箭头组：胶囊底内两枚 44pt 热区按钮，位置在所有日期状态下固定
+    private var arrowGroup: some View {
+        HStack(spacing: 0) {
+            navigationButton(systemName: "chevron.left", isDisabled: false) {
+                navigateDate(-1)
+            }
+
+            navigationButton(
+                systemName: "chevron.right",
+                isDisabled: isToday
+            ) {
+                navigateDate(1)
+            }
+        }
+        .frame(height: 36)
+        .background(Color.holoToolSurface)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(Color.holoToolBorder, lineWidth: 0.5)
+        )
     }
 
     private func navigationButton(
@@ -80,7 +98,7 @@ struct HealthDateNavigator: View {
             action()
         } label: {
             Image(systemName: systemName)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(isDisabled ? .holoToolTextSecondary.opacity(0.32) : .holoToolTextSecondary)
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
@@ -98,10 +116,10 @@ struct HealthDateNavigator: View {
             }
         } label: {
             Text("今天")
-                .font(.holoLabel)
+                .font(.system(.caption, design: .default, weight: .semibold))
                 .foregroundColor(.holoPrimary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 12)
+                .frame(height: 36)
                 .background(Color.holoPrimary.opacity(0.1))
                 .clipShape(Capsule())
                 .frame(minHeight: 44)
@@ -111,22 +129,51 @@ struct HealthDateNavigator: View {
         .accessibilityIdentifier("health.returnToToday")
     }
 
-    private var dateDisplayText: String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
+    /// 日期文案：今天/昨天带前缀不带星期（今天 · 11月10日），更早的日期拼星期（11月8日 周日）；
+    /// 跨年补年份。格式化按 App 声明语言（跟随 String(localized:) 的三语体系）。
+    static func dateDisplayText(for date: Date) -> String {
         let calendar = Calendar.current
 
-        formatter.setLocalizedDateFormatFromTemplate("MMMd")
-        let dateStr = formatter.string(from: selectedDate)
+        if calendar.isDateInToday(date) {
+            return String(localized: "今天 · \(Self.appDayFormatter.string(from: date))")
+        } else if calendar.isDateInYesterday(date) {
+            return String(localized: "昨天 · \(Self.appDayFormatter.string(from: date))")
+        }
+        if !calendar.isDate(date, equalTo: Date(), toGranularity: .year) {
+            return Self.appCrossYearFormatter.string(from: date)
+        }
+        return Self.appWeekdayFormatter.string(from: date)
+    }
 
-        if calendar.isDateInToday(selectedDate) {
-            return String(localized: "今天 · \(dateStr)")
-        } else if calendar.isDateInYesterday(selectedDate) {
-            return String(localized: "昨天 · \(dateStr)")
-        } else {
-            formatter.dateFormat = "EEEE"
-            let weekday = formatter.string(from: selectedDate)
-            return "\(dateStr) \(weekday)"
+    /// 「MMMd」按 App 语言取模板（简繁：11月10日；英文：Nov 10）
+    private static let appDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Self.appLocale
+        formatter.setLocalizedDateFormatFromTemplate("MMMd")
+        return formatter
+    }()
+
+    /// 「MMMd + 短星期」按 App 语言取模板（简繁：11月8日 周日；英文：Sun, Nov 8）
+    private static let appWeekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Self.appLocale
+        formatter.setLocalizedDateFormatFromTemplate("MMMdE")
+        return formatter
+    }()
+
+    /// 跨年日期带年份（2025年12月30日 周二 / Dec 30, 2025, Tue）
+    private static let appCrossYearFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Self.appLocale
+        formatter.setLocalizedDateFormatFromTemplate("yMMMdE")
+        return formatter
+    }()
+
+    private static var appLocale: Locale {
+        switch SeedLanguage.current {
+        case .simplifiedChinese: return Locale(identifier: "zh_CN")
+        case .traditionalChinese: return Locale(identifier: "zh_TW")
+        case .english: return Locale(identifier: "en_US")
         }
     }
 

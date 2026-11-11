@@ -143,14 +143,26 @@ struct HealthMetricSnapshot: Identifiable, Equatable {
             return String(localized: "不可用")
         }
     }
-}
 
-struct HealthInsight: Identifiable {
-    let id = UUID()
-    let domain: String
-    let title: String
-    let detail: String
-    let color: Color
+    var isGoalMet: Bool {
+        availability == .available && progress >= 1
+    }
+
+    /// 距目标的差值（带单位）；已达标或无可用数据时为 nil
+    var gapText: String? {
+        guard availability == .available, value < goal else { return nil }
+        let gap = goal - value
+        let number: String
+        switch type {
+        case .steps, .activeMinutes, .workout:
+            number = Int(gap.rounded(.up)).formatted()
+        case .sleep, .standHours:
+            // 整数小时不带小数（差 1 小时），其余保留一位；不足 0.1 也按 0.1 说，不出现「差 0 小时」
+            let rounded = max((gap * 10).rounded() / 10, 0.1)
+            number = rounded == rounded.rounded() ? Int(rounded).formatted() : String(format: "%.1f", rounded)
+        }
+        return "\(number) \(type.unit)"
+    }
 }
 
 struct HealthDashboardSnapshot: Equatable {
@@ -172,6 +184,13 @@ struct HealthDashboardSnapshot: Equatable {
         [steps, sleep, standOrActivity]
     }
 
+    /// 三环里有可用数据、参与打分的项数
+    var scoringRingCount: Int {
+        ringMetrics.filter { $0.availability.isReliableForScore }.count
+    }
+
+    /// 身体分：按可用项重新折算权重，但至少两项有数据才出分——
+    /// 只有一项时折算后等于「单项完成度」，走满一万步就 100 分，不代表身体状态。
     var bodyScore: Int? {
         let weightedInputs: [(HealthMetricSnapshot, Double)] = [
             (steps, 0.30),
@@ -180,7 +199,7 @@ struct HealthDashboardSnapshot: Equatable {
         ]
 
         let reliableInputs = weightedInputs.filter { $0.0.availability.isReliableForScore }
-        guard !reliableInputs.isEmpty else { return nil }
+        guard reliableInputs.count >= 2 else { return nil }
 
         let weightedScore = reliableInputs.reduce(0.0) { partial, item in
             partial + item.0.progress * item.1 * 100
@@ -192,65 +211,57 @@ struct HealthDashboardSnapshot: Equatable {
     }
 
     var bodyScoreText: String {
-        bodyScore.map(String.init) ?? String(localized: "数据不足")
+        bodyScore.map(String.init) ?? "--"
     }
 
     var statusTitle: String {
-        guard let score = bodyScore else { return String(localized: "等待健康数据") }
+        guard let score = bodyScore else {
+            return scoringRingCount == 0 ? String(localized: "等待健康数据") : String(localized: "数据不全")
+        }
         if score >= 85 { return String(localized: "状态很好") }
         if score >= 70 { return String(localized: "状态不错") }
         if score >= 45 { return String(localized: "身体需要一点照顾") }
-        return String(localized: "先把节奏放慢一点")
+        return String(localized: "离目标还远")
     }
 
-    var statusSubtitle: String {
-        if bodyScore == nil {
-            return String(localized: "授权或刷新 Apple Health 后，HOLO 会生成三环状态。")
+    /// 今天卡判词（分行版，显示用）：达标一句、差距一句各占一行；
+    /// 整段自动换行会把「睡眠」这类词拆到两行。页面可切历史日期，文案不写「今天」。
+    var verdictClauses: [String] {
+        let available = ringMetrics.filter { $0.availability.isReliableForScore }
+        let separator = String(localized: "、")
+
+        guard bodyScore != nil else {
+            if available.isEmpty {
+                return [String(localized: "Apple Health 里还没有这一天的记录。")]
+            }
+            let names = available.map(\.title).joined(separator: separator)
+            return [String(localized: "只有\(names)有记录，暂不计算身体分。")]
         }
-        if standOrActivity.type == .activeMinutes {
-            return String(localized: "已启用无 Watch 模式，用活动分钟替代站立环。")
+
+        let metNames = available.filter(\.isGoalMet).map(\.title).joined(separator: separator)
+        guard let worst = available.filter({ !$0.isGoalMet }).min(by: { $0.progress < $1.progress }),
+              let gap = worst.gapText else {
+            return [available.count == ringMetrics.count
+                ? String(localized: "三环全部达标。")
+                : String(localized: "\(metNames)已达标。")]
         }
-        return String(localized: "睡眠恢复、日间活动和久坐打断共同构成身体状态。")
+        var clauses: [String] = []
+        if !metNames.isEmpty {
+            clauses.append(String(localized: "\(metNames)已达标，"))
+        }
+        clauses.append(String(localized: "\(worst.title)还差 \(gap)。"))
+        return clauses
     }
 
-    var ringBadgeText: String {
-        // 达标与接近分开计数：全达标却显示「3/3 接近达标」是把好消息说成还没到（11-05 挑刺 P1）
-        let met = ringMetrics.filter { $0.progress >= 1.0 }.count
-        let nearly = ringMetrics.filter { $0.progress >= 0.8 && $0.progress < 1.0 }.count
-        if met == ringMetrics.count && met > 0 {
-            return String(localized: "三环全部达标")
-        }
-        if met > 0 {
-            return String(localized: "三环 \(met)/3 已达标")
-        }
-        return String(localized: "三环 \(nearly)/3 接近达标")
+    /// 判词整句（无障碍朗读 / 测试用）
+    var verdictText: String {
+        verdictClauses.joined()
     }
 
-    var coreInsight: HealthInsight {
-        if sleep.availability == .available && sleep.value >= HealthThresholds.sleepInsightGoodHours {
-            return HealthInsight(
-                domain: String(localized: "HOLO 洞察"),
-                title: String(localized: "今日核心洞察"),
-                detail: String(localized: "你睡眠接近目标时，第二天任务完成率通常更稳定。今晚优先保住睡眠环。"),
-                color: .holoPrimary
-            )
-        }
-
-        if sleep.availability == .available && sleep.value < HealthThresholds.sleepInsightLowHours {
-            return HealthInsight(
-                domain: String(localized: "HOLO 洞察"),
-                title: String(localized: "今日核心洞察"),
-                detail: String(localized: "昨晚睡眠偏低，今天适合减少高压力安排，并提前准备休息窗口。"),
-                color: .holoPrimary
-            )
-        }
-
-        return HealthInsight(
-            domain: String(localized: "HOLO 洞察"),
-            title: String(localized: "今日核心洞察"),
-            detail: String(localized: "健康数据正在积累。保持连续记录后，HOLO 会把身体状态和任务、习惯、记账串起来。"),
-            color: .holoPrimary
-        )
+    /// 打分口径说明（出分时才有）：缺项时分数是按剩余项折算的，必须说明
+    var scoringBadgeText: String? {
+        guard bodyScore != nil else { return nil }
+        return String(localized: "按 \(scoringRingCount) 项算")
     }
 
     static func standOrActivitySnapshot(

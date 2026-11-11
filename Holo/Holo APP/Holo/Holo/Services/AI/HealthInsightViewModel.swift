@@ -2,8 +2,9 @@
 //  HealthInsightViewModel.swift
 //  Holo
 //
-//  健康洞察 UI 状态：管理加载、刷新、缓存命中、错误回退。
-//  页面加载时先显示缓存或 fallback，异步触发生成（方案 Task 8）。
+//  健康洞察 UI 状态（2026-11-09 后台隐性生成改造）：
+//  页面只读缓存——打开立即显示缓存/保底文案，生成由 HealthInsightScheduler
+//  在后台单飞行完成，页面通过 @Observable 转发实时更新，离开页面不取消生成。
 //
 
 import SwiftUI
@@ -12,40 +13,29 @@ import SwiftUI
 @Observable
 final class HealthInsightViewModel {
 
-    private let service: HealthInsightGenerationService
-    private let cache: HealthInsightCache
+    private let scheduler: HealthInsightScheduler
 
-    private(set) var snapshot: GeneratedHealthInsightSnapshot?
-    private(set) var isLoading = false
+    /// 页面显示快照：转发单飞行生成器的 @Observable 状态，生成完成即实时更新。
+    var snapshot: GeneratedHealthInsightSnapshot? { scheduler.snapshot }
 
-    init(service: HealthInsightGenerationService? = nil, cache: HealthInsightCache? = nil) {
-        if let service {
-            self.service = service
-        } else {
-            self.service = HealthInsightGenerationService(
-                contextBuilder: HealthInsightContextBuilder(dataSource: HoloHealthInsightDataSource()),
-                provider: HoloBackendAIProvider()
-            )
-        }
-        self.cache = cache ?? .shared
+    init(scheduler: HealthInsightScheduler? = nil) {
+        self.scheduler = scheduler ?? .shared
     }
 
-    /// 页面加载：先缓存后按需生成。
-    func load(now: Date = Date()) async {
-        isLoading = true
-        defer { isLoading = false }
-        snapshot = await service.load(now: now)
+    /// 页面打开：播种只读显示快照 + 发起后台按需生成（不等待，离开页面不取消）。
+    func load() {
+        scheduler.seedSnapshotForDisplay()
+        scheduler.recordHealthPageVisit()
+        scheduler.refreshIfNeeded(trigger: .healthPageAppeared)
     }
 
-    /// 手动刷新：受每天 3 次与失败节流限制（方案 6.3）。
-    func refresh(now: Date = Date()) async {
-        guard cache.canManualRefresh(now: now) else { return }
-        cache.recordManualRefresh(now: now)
-        await load(now: now)
+    /// 手动刷新：每天 3 次上限（cache 层），绕过新鲜度规则，走单飞行生成器。
+    func refresh() {
+        scheduler.refreshManually()
     }
 
     /// 手动刷新是否可用（UI 按钮禁用判断）。
-    func canRefresh(now: Date = Date()) -> Bool {
-        cache.canManualRefresh(now: now)
+    func canRefresh() -> Bool {
+        scheduler.canRefreshManually()
     }
 }

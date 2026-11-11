@@ -17,6 +17,38 @@
         }
       }
     },
+    "%@已达标。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ met."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@已達標。"
+          }
+        }
+      }
+    },
+    "%@已达标，" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ met; "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@已達標，"
+          }
+        }
+      }
+    },
     "%lld 张已开启" : {
       "localizations" : {
         "en" : {
@@ -45,6 +77,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld/3 張已開啟"
+          }
+        }
+      }
+    },
+    "Apple Health 里还没有这一天的记录。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Apple Health data for this day yet."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Health 裡還沒有這一天的記錄。"
+          }
+        }
+      }
+    },
+    "HOLO 正在分析近 %lld 天的记录。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HOLO is analyzing the last %lld days."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HOLO 正在分析近 %lld 天的記錄。"
+          }
+        }
+      }
+    },
+    "三环全部达标。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All three rings met."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "三環全部達標。"
           }
         }
       }
@@ -129,6 +209,38 @@
         }
       }
     },
+    "只有%@有记录，暂不计算身体分。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only %@ recorded; body score is on hold."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有%@有記錄，暫不計算身體分。"
+          }
+        }
+      }
+    },
+    "同步健康数据" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync Health Data"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步健康數據"
+          }
+        }
+      }
+    },
     "在财务 → 账户里点开信用卡，打开「还款提醒」即可，每张卡单独设置。" : {
       "localizations" : {
         "en" : {
@@ -157,6 +269,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開通後會自動打開這張卡的提醒"
+          }
+        }
+      }
+    },
+    "当时打卡时记下的备注" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From your check-in note"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "當時打卡時記下的備註"
           }
         }
       }
@@ -193,6 +321,54 @@
         }
       }
     },
+    "数据不全" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insufficient Data"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料不全"
+          }
+        }
+      }
+    },
+    "数据来自 Apple Health · 身体分与洞察仅供参考" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data from Apple Health · Score & insights for reference only"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "數據來自 Apple Health · 身體分與洞察僅供參考"
+          }
+        }
+      }
+    },
+    "未读取到可用数据" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No data available"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未讀取到可用數據"
+          }
+        }
+      }
+    },
     "每周回顾" : {
       "localizations" : {
         "en" : {
@@ -221,6 +397,38 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本週足跡 · %@"
+          }
+        }
+      }
+    },
+    "洞察生成暂不可用。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insight generation is unavailable."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "洞察生成暫不可用。"
+          }
+        }
+      }
+    },
+    "离目标还远" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Far From Goals"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "離目標還遠"
           }
         }
       }
@@ -289,6 +497,22 @@
         }
       }
     },
+    "证据 · %lld 条" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld pieces of evidence"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "證據 · %lld 條"
+          }
+        }
+      }
+    },
     "该账户已被删除" : {
       "localizations" : {
         "en" : {
@@ -301,6 +525,86 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "該帳戶已被刪除"
+          }
+        }
+      }
+    },
+    "身体分" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Body Score"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "身體分"
+          }
+        }
+      }
+    },
+    "近 %lld 天 · %@–%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last %lld days · %@ – %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近 %lld 天 · %@–%@"
+          }
+        }
+      }
+    },
+    "近 %lld 天 · %lld 条关联" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last %lld days · %lld connections"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近 %lld 天 · %lld 條關聯"
+          }
+        }
+      }
+    },
+    "近 7 天 · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last 7 Days · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近 7 天 · %@"
+          }
+        }
+      }
+    },
+    "近 7 天日均 · %lld 天有记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7-day average · %lld days recorded"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近 7 天日均 · %lld 天有記錄"
           }
         }
       }
@@ -1201,6 +1505,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "—"
+          }
+        }
+      }
+    },
+    "这次分析没有完成。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This analysis didn't finish."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這次分析沒有完成。"
           }
         }
       }
@@ -11235,6 +11555,7 @@
       }
     },
     "HOLO 洞察" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -26078,6 +26399,7 @@
       }
     },
     "共 %lld 天有记录" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -60796,6 +61118,7 @@
       }
     },
     "数据不足" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -62594,6 +62917,7 @@
       }
     },
     "无截止" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {

@@ -61,6 +61,23 @@ final class HealthInsightCache {
         loadEntry(for: date)?.snapshot
     }
 
+    /// 指定日缓存条目的保存时间（后台生成 6 小时新鲜度规则用；无缓存返回 nil）。
+    func entrySavedAt(for date: Date) -> Date? {
+        loadEntry(for: date)?.savedAt
+    }
+
+    /// 最近 7 天内（含今天）最新的一份缓存快照：页面今日无缓存时的显示来源。
+    func loadLatestSnapshot(now: Date) -> GeneratedHealthInsightSnapshot? {
+        let calendar = Calendar.current
+        for offset in 0...retentionDays {
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: now) else { break }
+            if let entry = loadEntry(for: calendar.startOfDay(for: date)) {
+                return entry.snapshot
+            }
+        }
+        return nil
+    }
+
     /// 是否需要刷新：无缓存 / contextHash 变化 / promptVersion 变化（N4）。
     func needsRefresh(for date: Date, contextHashInput: String, currentPromptVersion: Int?) -> Bool {
         guard let entry = loadEntry(for: date) else { return true }
