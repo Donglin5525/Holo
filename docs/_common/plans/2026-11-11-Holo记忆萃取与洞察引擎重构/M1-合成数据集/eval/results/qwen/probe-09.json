@@ -1,0 +1,20 @@
+{
+  "id": "probe-09",
+  "ok": true,
+  "seconds": "6.1",
+  "usage": {
+    "completion_tokens": 574,
+    "prompt_tokens": 684,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 684
+    },
+    "total_tokens": 1258
+  },
+  "cost": {
+    "inCNY": 0.002052,
+    "outCNY": 0.005166,
+    "totalCNY": 0.007218
+  },
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户在夜班期间依赖咖啡因摄入以维持清醒状态。\",\n      \"supportingRefs\": [\n        \"o4\"\n      ],\n      \"alternativeExplanations\": [\n        \"购买集中在凌晨班前可能是为了次日早晨提神，而非夜间工作期间使用。\",\n        \"高频购买可能源于个人对咖啡口味的偏好，与工作状态无直接因果关联。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"核对咖啡购买的具体时间点是否确实落在夜班工作时段内（如凌晨2点-6点），还是仅在班前准备阶段。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查非夜班期间（如白班或休息日）是否有类似的咖啡购买行为，以排除单纯口味偏好的可能性。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若证实购买时间严格对应夜班时段且非夜班无此行为，则从“偏好”升级为“功能性依赖”。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    },\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"该用户当前处于因轮班导致的短期睡眠节律调整期。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"入睡时点后移和白天补觉可能是长期存在的作息习惯，恰好与转班时间重合。\",\n        \"这些现象可能是由其他生活事件（如家庭责任、娱乐活动）引起的暂时性干扰，而非单纯的生理节律调整。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比转班前一周的入睡时点和补觉频率，确认这些变化是相对于基线的显著偏移。\"\n        },\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"观察转班结束后的一周内，睡眠指标是否迅速回落到正常水平，以确认其“阶段性”特征。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现转班后睡眠模式持续恶化或不恢复，则从“短期调整期”转变为“慢性睡眠障碍风险”。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}"
+}

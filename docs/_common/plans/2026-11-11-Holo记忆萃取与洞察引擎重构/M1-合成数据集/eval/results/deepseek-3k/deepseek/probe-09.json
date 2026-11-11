@@ -1,0 +1,24 @@
+{
+  "id": "probe-09",
+  "ok": true,
+  "seconds": "12.4",
+  "usage": {
+    "prompt_tokens": 656,
+    "completion_tokens": 1835,
+    "total_tokens": 2491,
+    "prompt_tokens_details": {
+      "cached_tokens": 512
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 1382
+    },
+    "prompt_cache_hit_tokens": 512,
+    "prompt_cache_miss_tokens": 144
+  },
+  "cost": {
+    "inCNY": 0.001968,
+    "outCNY": 0.016515000000000002,
+    "totalCNY": 0.018483000000000003
+  },
+  "raw": "{\"candidates\":[{\"claimType\":\"phaseState\",\"statement\":\"2026-11-16当周连续五天夜班后的一周内，出现入睡时点后移约一个睡眠周期、并多次白天补觉的阶段性作息变化。\",\"supportingRefs\":[\"o1\",\"o2\",\"o3\"],\"alternativeExplanations\":[\"同期还有非排班因素（临时事务、社交或环境变化）导致入睡后移与补觉。\",\"白天补觉是长期习惯，只是本周被记录到。\"],\"verificationPlan\":[{\"op\":\"comparePeriods\",\"question\":\"对比转班前与转班后各7天的入睡时点、补觉次数是否有稳定差异。\"},{\"op\":\"alignEvents\",\"question\":\"把夜班排班日期与入睡后移、补觉日期对齐，确认时间关系。\"},{\"op\":\"searchCounterEvidence\",\"question\":\"查找非夜班期是否也出现类似入睡后移与高频补觉。\"}],\"whatWouldChangeTheAnswer\":\"会改变对作息变化是否由夜班排班导致、以及是否属于短期阶段状态的回答。\",\"evidenceGrade\":\"支持\",\"action\":\"observe\"},{\"claimType\":\"conditionalAssociation\",\"statement\":\"凌晨班前集中出现咖啡购买记录，可能与夜班前准备相关；但购买者归属未确认，无法据此判断本人饮用或偏好。\",\"supportingRefs\":[\"o1\",\"o4\"],\"alternativeExplanations\":[\"这些咖啡购买是代同事或公共采购，不属于本人。\",\"凌晨购买仅反映当时可购买，与夜班准备无稳定关联。\"],\"verificationPlan\":[{\"op\":\"checkOwnership\",\"question\":\"确认这些咖啡购买是否由本人下单或记在本人账下。\"},{\"op\":\"retrieveRelated\",\"question\":\"查找与夜班前准备、提神用品相关的其他记录，判断是否存在一致模式。\"},{\"op\":\"searchCounterEvidence\",\"question\":\"查找非夜班日是否同样在凌晨购买咖啡。\"}],\"whatWouldChangeTheAnswer\":\"会改变对夜间提神消费归属、以及是否与夜班准备相关的回答。\",\"evidenceGrade\":\"线索\",\"action\":\"ask\"}],\"noValueReason\":\"\"}"
+}

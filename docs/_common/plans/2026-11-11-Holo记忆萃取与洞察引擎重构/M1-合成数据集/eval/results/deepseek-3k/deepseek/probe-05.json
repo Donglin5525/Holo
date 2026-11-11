@@ -1,0 +1,24 @@
+{
+  "id": "probe-05",
+  "ok": true,
+  "seconds": "9.0",
+  "usage": {
+    "prompt_tokens": 550,
+    "completion_tokens": 1224,
+    "total_tokens": 1774,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 627
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 166
+  },
+  "cost": {
+    "inCNY": 0.00165,
+    "outCNY": 0.011016,
+    "totalCNY": 0.012666
+  },
+  "raw": "{\"candidates\":[{\"claimType\":\"phaseState\",\"statement\":\"最近 28 天的入睡时点整体后移，晚睡日占比从基线 8% 升到 32%，属于近期作息阶段变化，而非长期特征。\",\"supportingRefs\":[\"o1\"],\"alternativeExplanations\":[\"近期工作或社交安排（如项目截止期、假期）造成的临时性后移，事件结束后会回落\",\"记录方式或数据覆盖变化（设备更换、补录缺失）造成的比例虚高，并非真实作息移动\"],\"verificationPlan\":[{\"op\":\"comparePeriods\",\"question\":\"把此前若干个 28 天窗口与本期对比，确认 32% 是持续抬升还是单次波动\"},{\"op\":\"checkCoverage\",\"question\":\"确认这 28 天入睡时点的记录天数与时间精度（是否来自实测而非默认填充时刻），排除缺失导致的占比失真\"},{\"op\":\"alignEvents\",\"question\":\"对齐是否有出差、假期、加班等事件与晚睡日集中期重合\"}],\"whatWouldChangeTheAnswer\":\"若确认是持续数周以上的稳定后移，会影响作息类提问（如“我最近几点睡”“适合作息安排的时间段”）的回答；若只是单周波动或记录缺失，则不应作为阶段状态陈述。\",\"evidenceGrade\":\"支持\",\"action\":\"observe\"},{\"claimType\":\"conditionalAssociation\",\"statement\":\"在该 28 天内，咖啡购买日与晚睡日是否同日出现存在待查的关联（仅指购买行为，不推断饮用）。\",\"supportingRefs\":[\"o1\",\"o2\"],\"alternativeExplanations\":[\"咖啡购买是稳定的日常行为（每天 1-2 笔、无空档），与晚睡并无对应关系，两者只是同期并存\",\"存在第三因素（如工作量集中期）同时推高咖啡购买频次与晚睡比例，二者非因果\"],\"verificationPlan\":[{\"op\":\"alignEvents\",\"question\":\"按日对齐咖啡购买记录与入睡时点，看晚睡日是否集中在购买笔数偏高的日子\"},{\"op\":\"searchCounterEvidence\",\"question\":\"找出无咖啡购买但仍晚睡的日期，以及有购买却早睡的日期，检验关联是否稳定\"},{\"op\":\"compareConditions\",\"question\":\"对比有购买日与无购买日的入睡时点分布差异是否超出日常波动\"},{\"op\":\"checkOwnership\",\"question\":\"确认这些购买是否全部为本人、是否含代他人购买，避免把代办计入本人行为\"}],\"whatWouldChangeTheAnswer\":\"若两者按日强对应，会影响关于咖啡与作息的回答（如是否建议调整下午购买时点）；若同期并存但按日不对应，则只能作为两条独立观察分别陈述，不能合并成关联结论。\",\"evidenceGrade\":\"线索\",\"action\":\"ask\"}],\"noValueReason\":\"\"}"
+}

@@ -1,0 +1,24 @@
+{
+  "id": "probe-03",
+  "ok": true,
+  "seconds": "11.8",
+  "usage": {
+    "prompt_tokens": 561,
+    "completion_tokens": 1500,
+    "total_tokens": 2061,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 1490
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 177
+  },
+  "cost": {
+    "inCNY": 0.001683,
+    "outCNY": 0.0135,
+    "totalCNY": 0.015183
+  },
+  "raw": "{\"candidates\":[{\"claimType\":\"re"
+}

@@ -1,0 +1,24 @@
+{
+  "id": "probe-08",
+  "ok": true,
+  "seconds": "10.9",
+  "usage": {
+    "prompt_tokens": 585,
+    "completion_tokens": 1572,
+    "total_tokens": 2157,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 855
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 201
+  },
+  "cost": {
+    "inCNY": 0.001755,
+    "outCNY": 0.014148,
+    "totalCNY": 0.015903
+  },
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"9月健身打卡次数由8月的14次骤降至2次，提示其运动参与可能正处于一个低谷阶段（也可能只是记录方式变化）。\",\n      \"supportingRefs\": [\"o2\", \"o3\"],\n      \"alternativeExplanations\": [\n        \"只是打卡/记录习惯改变，实际运动量未必下降（o3显示9月活动数据不可用，无法交叉验证）\",\n        \"9月存在出差、伤病、工作繁忙或设备/授权变更等外部条件导致漏记或中断\"\n      ],\n      \"verificationPlan\": [\n        {\"op\": \"comparePeriods\", \"question\": \"拉长到近6个月看打卡次数走势，9月的骤降是孤立波动还是持续下滑的延续？\"},\n        {\"op\": \"checkCoverage\", \"question\": \"9月活动分钟数据缺失是授权/设备问题还是确实无数据？换其他数据源（如手机步数、其他运动App）能否补上？\"},\n        {\"op\": \"searchCounterEvidence\", \"question\": \"是否存在9月仍进行运动的证据（户外步行记录、通勤、其他运动记录）？\"},\n        {\"op\": \"alignEvents\", \"question\": \"9月是否发生出差、搬家、伤病或日程结构变化等事件与打卡下降同期？\"}\n      ],\n      \"whatWouldChangeTheAnswer\": \"若查证发现9月仍有同等强度运动只是未打卡，则该命题应从「运动阶段低谷」降级为「记录行为变化」，会改变对『近期运动习惯/状态』类问题的回答。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"ask\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"8周内体重缓慢上升与同期健身打卡明显减少同时出现，值得查证体重变化是否在运动量较低的时期更明显。\",\n      \"supportingRefs\": [\"o1\", \"o2\", \"o3\"],\n      \"alternativeExplanations\": [\n        \"体重变化主要由饮食、作息或测量条件（称重时间、衣物）变化驱动，与运动量无关\",\n        \"体重记录与打卡记录的时间点未对齐，二者只是同期巧合\"\n      ],\n      \"verificationPlan\": [\n        {\"op\": \"alignEvents\", \"question\": \"把体重记录点与打卡记录点按时间对齐，体重上升是否集中在打卡减少之后而非之前？\"},\n        {\"op\": \"comparePeriods\", \"question\": \"对比8月（打卡多）与9月（打卡少）两段的体重走势差异，是否有可分辨的斜率变化？\"},\n        {\"op\": \"checkCoverage\", \"question\": \"体重记录的频率与测量条件是否稳定，8周趋势是否由少数几次称重撑起？\"},\n        {\"op\": \"searchCounterEvidence\", \"question\": \"是否存在饮食、睡眠或行程记录能解释同期体重变化，从而削弱运动量这一解释？\"}\n      ],\n      \"whatWouldChangeTheAnswer\": \"若体重在运动恢复后仍持续上升，或体重记录稀疏不足以支撑趋势，则该关联不成立，会改变关于『体重管理/运动安排』类问题的回答方向。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ],\n  \"noValueReason\": \"\"\n}"
+}

@@ -1,0 +1,24 @@
+{
+  "id": "probe-01",
+  "ok": true,
+  "seconds": "9.8",
+  "usage": {
+    "prompt_tokens": 708,
+    "completion_tokens": 1229,
+    "total_tokens": 1937,
+    "prompt_tokens_details": {
+      "cached_tokens": 512
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 654
+    },
+    "prompt_cache_hit_tokens": 512,
+    "prompt_cache_miss_tokens": 196
+  },
+  "cost": {
+    "inCNY": 0.002124,
+    "outCNY": 0.011061000000000001,
+    "totalCNY": 0.013185000000000002
+  },
+  "raw": "{\"candidates\":[{\"claimType\":\"role\",\"statement\":\"本人承担家中猫的日常照料责任（清理猫砂盆、安排体检），而不只是偶尔接触。\",\"supportingRefs\":[\"o3\",\"o4\",\"o5\"],\"alternativeExplanations\":[\"猫主要由同住他人（家人/室友）照料，本人只是临时补位做了一次清洁并代为预约\",\"本人是为他人（亲友）的猫代办清洁与体检安排，家中并无自养猫\"],\"verificationPlan\":[{\"op\":\"checkOwnership\",\"question\":\"猫粮/猫砂的采购归因能否确认到本人或本人家庭账户，以判断是否为自养猫\"},{\"op\":\"alignEvents\",\"question\":\"打扫猫砂盆、预约体检与猫粮采购在时间上是否构成持续的照料链，而非孤立一次\"},{\"op\":\"searchCounterEvidence\",\"question\":\"是否存在他人承担主要照料（如他人采购、他人就诊记录）的反证\"},{\"op\":\"comparePeriods\",\"question\":\"照料类任务是否在多个时间窗重复出现，而非集中在单月\"}],\"whatWouldChangeTheAnswer\":\"若采购归因确认非本人且照料类任务仅单次出现，则回答应从「本人是主要照料者」改为「家庭有猫、本人偶尔参与」；反之若多次重复且自购，则可确认该生活角色。\",\"evidenceGrade\":\"支持\",\"action\":\"ask\"},{\"claimType\":\"phaseState\",\"statement\":\"近期处于对猫掉毛与换粮的关注阶段，出现了\\\"先查证是否换粮、再安排体检\\\"的连续动作。\",\"supportingRefs\":[\"o4\",\"o5\"],\"alternativeExplanations\":[\"掉毛属于季节性正常现象，体检只是与掉毛无关的常规年度安排，两者不构成同一关注阶段\",\"只是零散想法，未形成实际处置（换粮未发生、体检仅停留在预约动作）\"],\"verificationPlan\":[{\"op\":\"retrieveRelated\",\"question\":\"是否出现与换粮相关的后续记录（新粮购买、旧粮停购、咨询/搜索记录），以确认关注是否落地\"},{\"op\":\"comparePeriods\",\"question\":\"掉毛相关表述与体检预约在往年同期是否也出现，以区分季节性常规还是本期新增关注\"},{\"op\":\"checkCoverage\",\"question\":\"体检任务是否只有创建记录而无完成状态，判断该阶段是否真的推进\"}],\"whatWouldChangeTheAnswer\":\"若换粮未发生、体检无后续且往年同期有同样表述，则应把该候选降为偶发想法而非阶段状态；若出现换粮后的新粮采购与体检完成记录，则可确认为一个真实的关注—处置阶段。\",\"evidenceGrade\":\"线索\",\"action\":\"observe\"}],\"noValueReason\":\"\"}"
+}

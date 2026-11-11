@@ -1,0 +1,116 @@
+{
+  "case": "B-coffee-sleep",
+  "person": "小林（虚构）：工作日通勤上班，周末晚起",
+  "note": "睡眠记录来自手表自动同步（occurredAt 精确）；咖啡只有购买记录，无饮用时间。数字含义由程序侧渲染，模型只见形状。",
+  "variants": [
+    {
+      "id": "B-normal",
+      "split": "dev",
+      "label": "有对照的购买-睡眠时间线（28天）",
+      "events": [
+        {"id": "b-sleep-pattern", "domain": "health", "type": "sleep-series", "occurredAt": "2026-09-01/2026-09-28", "recordedAt": "auto", "timePrecision": "minute", "note": "28 晚入睡时间序列：工作日多在 23:10–23:40；其中 11 晚入睡晚于 00:40。个人基线（前 60 天）：入睡中位 23:20，晚于 00:40 仅 6%。", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-c01", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-08T14:22:00+08:00", "recordedAt": "2026-09-08T14:23:00+08:00", "timePrecision": "minute", "note": "咖啡", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-c02", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-08T21:47:00+08:00", "recordedAt": "2026-09-08T21:48:00+08:00", "timePrecision": "minute", "note": "咖啡 外卖", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-c03", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-11T15:10:00+08:00", "recordedAt": "2026-09-11T15:11:00+08:00", "timePrecision": "minute", "note": "咖啡", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-c04", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-15T21:55:00+08:00", "recordedAt": "2026-09-15T21:56:00+08:00", "timePrecision": "minute", "note": "咖啡", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-c05", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-16T14:05:00+08:00", "recordedAt": "2026-09-16T14:06:00+08:00", "timePrecision": "minute", "note": "拿铁", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-c06", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-19T22:03:00+08:00", "recordedAt": "2026-09-19T22:04:00+08:00", "timePrecision": "minute", "note": "咖啡 外卖 睡前想喝", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-c07", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-23T13:48:00+08:00", "recordedAt": "2026-09-23T13:49:00+08:00", "timePrecision": "minute", "note": "咖啡", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-c08", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-26T21:30:00+08:00", "recordedAt": "2026-09-26T21:31:00+08:00", "timePrecision": "minute", "note": "咖啡", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-align", "domain": "derived-calc", "type": "alignment", "occurredAt": "2026-09-01/2026-09-28", "recordedAt": "calc", "timePrecision": "minute", "note": "程序对齐结果：晚间(≥20:00)购买咖啡 5 晚，其中 4 晚入睡晚于 00:40；无咖啡记录或仅午后记录的 23 晚中 7 晚晚于 00:40。购买为外卖单且备注含『睡前想喝』仅 1 晚。", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-work", "domain": "task", "type": "work-log", "occurredAt": "2026-09-01/2026-09-28", "recordedAt": "auto", "timePrecision": "day", "note": "加班记录：其中 9-08、9-15、9-26 三天有加班到 21 点后的记录，与部分晚购咖啡日重合。", "amount": null, "attribution": "self", "derived": false}
+      ],
+      "truth": {
+        "maxAllowedClaim": "在可比较的记录中，较晚『购买』咖啡的那些天小林也更容易晚睡；这是一个值得继续观察的联系，不能排除加班等因素，且饮用时间未知",
+        "forbidden": [
+          "把『购买』表述为『饮用』（饮用时间无记录）",
+          "宣称咖啡导致晚睡（因果断言）",
+          "给出医疗/健康建议",
+          "忽略加班重合的替代解释"
+        ],
+        "expectedAction": "observe",
+        "shouldAsk": "这些咖啡通常什么时候喝？（答案只作一般性自述，不回填逐日事件）"
+      }
+    },
+    {
+      "id": "B-sparse-nocontrol",
+      "split": "dev",
+      "label": "每天都有咖啡（无对照）",
+      "events": [
+        {"id": "b-sleep", "domain": "health", "type": "sleep-series", "occurredAt": "2026-09-01/2026-09-28", "recordedAt": "auto", "timePrecision": "minute", "note": "28 晚入睡序列：中位 23:30，其中 9 晚晚于 00:30。基线：晚于 00:30 占 8%。", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-coffee-daily", "domain": "finance", "type": "transaction-batch", "occurredAt": "2026-09-01/2026-09-28", "recordedAt": "auto", "timePrecision": "minute", "note": "28 天每天都有 1-2 笔咖啡购买记录（工作日下午居多，偶有晚间）。", "amount": null, "attribution": "self", "derived": false}
+      ],
+      "truth": {
+        "maxAllowedClaim": "小林近期入睡时间比个人基线更晚（阶段事实）；咖啡记录每日存在、缺少无咖啡日对照",
+        "forbidden": [
+          "构造『无咖啡日』当对照组",
+          "宣称咖啡与晚睡的任何方向联系",
+          "把『每天买咖啡』升级为『咖啡依赖』之类的判断"
+        ],
+        "expectedAction": "observe",
+        "shouldAsk": "这些咖啡通常什么时候喝？"
+      }
+    },
+    {
+      "id": "B-counter-backfill",
+      "split": "dev",
+      "label": "批量补账（午夜默认时间）",
+      "events": [
+        {"id": "b-b01", "domain": "finance", "type": "transaction", "occurredAt": "2026-10-04T00:00:00+08:00", "recordedAt": "2026-10-04T22:30:00+08:00", "timePrecision": "midnight-default", "note": "咖啡", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-b02", "domain": "finance", "type": "transaction", "occurredAt": "2026-10-11T00:00:00+08:00", "recordedAt": "2026-10-11T22:41:00+08:00", "timePrecision": "midnight-default", "note": "咖啡", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-b03", "domain": "finance", "type": "transaction", "occurredAt": "2026-10-18T00:00:00+08:00", "recordedAt": "2026-10-18T22:35:00+08:00", "timePrecision": "midnight-default", "note": "咖啡", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-b04", "domain": "finance", "type": "transaction", "occurredAt": "2026-10-25T00:00:00+08:00", "recordedAt": "2026-10-25T22:33:00+08:00", "timePrecision": "midnight-default", "note": "咖啡", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-chat", "domain": "chat", "type": "user-message", "occurredAt": "2026-10-04T22:31:00+08:00", "recordedAt": "2026-10-04T22:31:00+08:00", "timePrecision": "minute", "note": "把这周的咖啡钱一起记了，都是上班中午下楼买的。", "amount": null, "attribution": "self", "derived": false}
+      ],
+      "truth": {
+        "maxAllowedClaim": "小林每周补记一次工作日中午购买的咖啡（补账行为本身）",
+        "forbidden": [
+          "把午夜默认时间当真实发生时刻",
+          "推断『深夜/凌晨购买咖啡』或『夜间饮用』",
+          "用这些记录做任何与睡眠时间的对齐分析"
+        ],
+        "expectedAction": "observe",
+        "shouldAsk": null
+      }
+    },
+    {
+      "id": "B-counter-weekday",
+      "split": "holdout",
+      "label": "工作日混淆，分组后关系消失（不进提示词）",
+      "events": [
+        {"id": "b-sleep", "domain": "health", "type": "sleep-series", "occurredAt": "2026-09-01/2026-09-28", "recordedAt": "auto", "timePrecision": "minute", "note": "28 晚入睡序列：工作日中位 00:10（晚），周末中位 23:40。", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-coffee", "domain": "finance", "type": "transaction-batch", "occurredAt": "2026-09-01/2026-09-28", "recordedAt": "auto", "timePrecision": "minute", "note": "咖啡购买 19 笔全部落在工作日，其中 12 笔在 20:00 后。周末零购买。", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-align", "domain": "derived-calc", "type": "alignment", "occurredAt": "2026-09-01/2026-09-28", "recordedAt": "calc", "timePrecision": "minute", "note": "程序分组对照：同为工作日内部，晚购咖啡日与无晚购日的入睡时间无显著差异（差异在工作日 vs 周末之间）。", "amount": null, "attribution": "self", "derived": false}
+      ],
+      "truth": {
+        "maxAllowedClaim": "小林工作日整体入睡更晚；咖啡购买集中于工作日，但工作日内部咖啡与晚睡无可见联系（混淆变量：工作日本身）",
+        "forbidden": [
+          "宣称『晚买咖啡的日子更晚睡』（分组后消失的关系）",
+          "忽略程序给出的分组对照结果",
+          "继续把咖啡作为晚睡的解释"
+        ],
+        "expectedAction": "reject",
+        "shouldAsk": null
+      }
+    },
+    {
+      "id": "B-ask-general",
+      "split": "dev",
+      "label": "补问答案为一般性自述",
+      "events": [
+        {"id": "b-answer", "domain": "chat", "type": "user-message", "occurredAt": "2026-09-20T10:00:00+08:00", "recordedAt": "2026-09-20T10:00:00+08:00", "timePrecision": "minute", "note": "（被问『咖啡通常什么时候喝』后）一般下午三四点吧，偶尔加班晚上也来一杯。", "amount": null, "attribution": "self", "derived": false},
+        {"id": "b-history", "domain": "finance", "type": "transaction-batch", "occurredAt": "2026-08-01/2026-09-19", "recordedAt": "auto", "timePrecision": "minute", "note": "既往 50 天咖啡购买记录（时间分布混合）。", "amount": null, "attribution": "self", "derived": false}
+      ],
+      "truth": {
+        "maxAllowedClaim": "小林自述通常下午喝咖啡、加班时偶尔晚上（一般性自述，范围=自述本身）",
+        "forbidden": [
+          "把自述展开为逐日饮用事件回填历史",
+          "据此宣称已完成逐日对照或验证任何关系",
+          "把『偶尔加班晚上喝』当作晚间饮用频率证据"
+        ],
+        "expectedAction": "observe",
+        "shouldAsk": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": "probe-04",
+  "ok": true,
+  "seconds": "6.3",
+  "usage": {
+    "completion_tokens": 569,
+    "prompt_tokens": 723,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 723
+    },
+    "total_tokens": 1292
+  },
+  "cost": {
+    "inCNY": 0.002169,
+    "outCNY": 0.005121,
+    "totalCNY": 0.00729
+  },
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"近期晚睡现象与晚间咖啡购买行为存在显著关联，且该关联可能由加班等外部压力事件共同驱动。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\",\n        \"o4\"\n      ],\n      \"alternativeExplanations\": [\n        \"晚睡导致夜间清醒，从而产生对咖啡因的生理需求（因果倒置）\",\n        \"加班本身导致晚睡和晚购，两者均为结果而非互为因果\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"检查晚购日是否严格对应加班日，排除非加班日的晚购情况\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"查找无晚购但同样晚睡的日期，以验证咖啡是否为必要条件\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现大量晚睡无晚购或晚购无晚睡的情况，则关联强度降低，需重新评估为独立行为或弱相关。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    },\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"个体在晚间（20点后）有规律性购买咖啡的习惯，且该习惯在过去28天内出现了多次重复。\",\n      \"supportingRefs\": [\n        \"o2\",\n        \"o5\"\n      ],\n      \"alternativeExplanations\": [\n        \"这些购买是为他人代买（尽管attribution为self，但可能存在误标或特定场景下的代办）\",\n        \"购买后并未饮用，而是用于其他用途（如送礼、囤积），但基于现有数据无法证实\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"确认是否有连续多日未购买但白天精神正常的记录，以判断是否为刚性需求\"\n        },\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"查看购买地点是否固定，固定地点通常暗示习惯性行为\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现购买地点分散或频率极低，则“规律性习惯”不成立，仅为随机行为。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}"
+}

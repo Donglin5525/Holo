@@ -1,0 +1,24 @@
+{
+  "id": "probe-04",
+  "ok": true,
+  "seconds": "15.5",
+  "usage": {
+    "prompt_tokens": 693,
+    "completion_tokens": 2282,
+    "total_tokens": 2975,
+    "prompt_tokens_details": {
+      "cached_tokens": 512
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 1711
+    },
+    "prompt_cache_hit_tokens": 512,
+    "prompt_cache_miss_tokens": 181
+  },
+  "cost": {
+    "inCNY": 0.002079,
+    "outCNY": 0.020538,
+    "totalCNY": 0.022617
+  },
+  "raw": "{\"candidates\":[{\"claimType\":\"phaseState\",\"statement\":\"近28天晚睡占比由个人基线的6%升至29%，呈现短期作息后移的阶段状态。\",\"supportingRefs\":[\"o1\"],\"alternativeExplanations\":[\"本期加班或工作负荷增加导致作息后移，而非稳定偏好变化\",\"单期记录波动、统计窗口差异或短期社交安排造成的暂时升高\"],\"verificationPlan\":[{\"op\":\"comparePeriods\",\"question\":\"对比此前多个28天与后续窗口，确认晚睡比例升高是否持续，而非单期波动\"},{\"op\":\"alignEvents\",\"question\":\"对齐加班日与晚睡日，判断本期晚睡升高是否集中由加班等工作安排解释\"},{\"op\":\"searchCounterEvidence\",\"question\":\"查找本期非加班、非晚购的晚睡日，评估是否存在其他共同因素\"},{\"op\":\"checkCoverage\",\"question\":\"核对睡眠记录完整性与晚睡判定口径在各窗口是否一致\"}],\"whatWouldChangeTheAnswer\":\"若后续窗口晚睡比例回落至基线附近，或晚睡升高几乎完全由加班日解释，则“阶段状态”的表述需要弱化或改写。\",\"evidenceGrade\":\"支持\",\"action\":\"observe\"},{\"claimType\":\"conditionalAssociation\",\"statement\":\"在近28天里，20点后购买咖啡的夜晚更常伴随当晚晚睡，但该关联可能由加班等共同因素解释，且购买时间不等于饮用时间。\",\"supportingRefs\":[\"o1\",\"o2\",\"o3\",\"o4\",\"o5\"],\"alternativeExplanations\":[\"加班是共同原因：加班同时导致晚睡和20点后购买咖啡\",\"晚睡后更可能下单咖啡，或5个晚购日样本太小造成偶然关联\"],\"verificationPlan\":[{\"op\":\"alignEvents\",\"question\":\"核对晚购时间、入睡时点与加班日的日级先后和重合，判断晚购是否稳定先于晚睡、加班是否解释两者\"},{\"op\":\"compareConditions\",\"question\":\"在加班日与非加班日分别比较晚购日/非晚购日的晚睡比例，检验关联是否独立于加班\"},{\"op\":\"checkCoverage\",\"question\":\"确认是否有饮用时间或咖啡因摄入记录；若无，只能验证购买行为与作息的关联，不能推断饮用影响\"},{\"op\":\"searchCounterEvidence\",\"question\":\"查找晚购但未晚睡、晚睡但无晚购的夜晚，评估反例比例与样本稳定性\"}],\"whatWouldChangeTheAnswer\":\"若控制加班后晚购与晚睡的关联消失，或补充记录显示咖啡并非在晚间饮用，则该条件性关联需删除或改为仅描述购买时间。\",\"evidenceGrade\":\"线索\",\"action\":\"ask\"}]}"
+}

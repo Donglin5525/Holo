@@ -1,0 +1,24 @@
+{
+  "id": "probe-09",
+  "ok": true,
+  "seconds": "9.6",
+  "usage": {
+    "prompt_tokens": 656,
+    "completion_tokens": 1500,
+    "total_tokens": 2156,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 1267
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 272
+  },
+  "cost": {
+    "inCNY": 0.001968,
+    "outCNY": 0.0135,
+    "totalCNY": 0.015467999999999999
+  },
+  "raw": "{\"candidates\": [{\"claimType\": \"phaseState\", \"statement\": \"在2026-11-16当周连续五天夜班期间，入睡时点整体后移约一个睡眠周期，并伴随白天补觉增加，更像是随班次变化的暂时状态，而不是稳定的作息偏好。\", \"supportingRefs\": [\"o1\", \"o2\", \"o3\"], \"alternativeExplanations\": [\"本人本来就偏向晚睡，夜班只是让原有倾向更明显\", \"入睡时点后移由夜班之外的同期因素（家庭安排、其他任务）造成，与班次无关\"], \"verificationPlan\": [{\"op\": \"comparePeriods\", \"question\": \"对比夜班周前后各7–14天的入睡时点与白天补觉次数，看这种后移是否只在夜班周出现\"}, {\"op\": \"alignEvents\", \"question\": \"把入睡时点后移的日期与夜班五天排班日逐日对齐，确认后移起点是否与班次同步\"}, {\"op\": \"searchCounterEvidence\", \"question\": \"查找非"
+}

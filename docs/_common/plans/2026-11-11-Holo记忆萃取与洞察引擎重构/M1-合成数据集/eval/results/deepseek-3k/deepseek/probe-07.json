@@ -1,0 +1,24 @@
+{
+  "id": "probe-07",
+  "ok": true,
+  "seconds": "11.6",
+  "usage": {
+    "prompt_tokens": 615,
+    "completion_tokens": 1776,
+    "total_tokens": 2391,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 1247
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 231
+  },
+  "cost": {
+    "inCNY": 0.0018449999999999999,
+    "outCNY": 0.015984,
+    "totalCNY": 0.017829
+  },
+  "raw": "{\"candidates\": [{\"claimType\": \"phaseState\", \"statement\": \"本人近8周处于体重缓慢上升、日常活动分钟持续下降的阶段，与自述的“年底前把体重控回年初水平”目标方向不一致。\", \"supportingRefs\": [\"o1\", \"o2\", \"o3\"], \"alternativeExplanations\": [\"活动减少与体重上升可能源于同期工作或作息节奏变化（加班、出差等），属情境性波动而非持续阶段\", \"体重缓慢上升可能部分来自测量条件或水分变化，幅度尚未超出个人正常波动范围\"], \"verificationPlan\": [{\"op\": \"comparePeriods\", \"question\": \"对比年初与近8周的体重及活动分钟基线，确认变化幅度是否超出个人正常波动区间\"}, {\"op\": \"retrieveRelated\", \"question\": \"调取同期饮食、睡眠、日程/出差记录，看活动下降是否有明确情境来源\"}, {\"op\": \"searchCounterEvidence\", \"question\": \"查找近8周中活动量回升但体重未回落的周次，检验两者是否同步\"}], \"whatWouldChangeTheAnswer\": \"若确认是短期情境性波动或测量偏差，则“阶段状态”判断需下调；会影响关于运动安排、目标进度评估与提醒策略的回答。\", \"evidenceGrade\": \"支持\", \"action\": \"observe\"}, {\"claimType\": \"conditionalAssociation\", \"statement\": \"在活动分钟持续下降的同期，体重呈缓慢上升，两者在近8周内同向变化。\", \"supportingRefs\": [\"o1\", \"o2\"], \"alternativeExplanations\": [\"方向可能相反：体重上升带来活动意愿下降\", \"两者可能同由第三因素（工作强度、作息、情绪）驱动，彼此无直接关联\"], \"verificationPlan\": [{\"op\": \"alignEvents\", \"question\": \"对齐活动分钟开始下降的时间点与体重开始上升的拐点，看是否存在时间先后\"}, {\"op\": \"compareConditions\", \"question\": \"比较活动量较高周与较低周的体重变化差异\"}, {\"op\": \"checkCoverage\", \"question\": \"核实活动记录缺失的1天是否影响趋势判断\"}], \"whatWouldChangeTheAnswer\": \"若两者时间上不同步或缺失日影响趋势，则不能将活动下降与体重上升并列为关联；会影响是否以增加活动作为主要干预建议的回答。\", \"evidenceGrade\": \"线索\", \"action\": \"observe\"}], \"noValueReason\": \"\"}"
+}

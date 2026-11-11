@@ -1,0 +1,24 @@
+{
+  "id": "probe-04",
+  "ok": true,
+  "seconds": "10.4",
+  "usage": {
+    "prompt_tokens": 693,
+    "completion_tokens": 1500,
+    "total_tokens": 2193,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 1500
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 309
+  },
+  "cost": {
+    "inCNY": 0.002079,
+    "outCNY": 0.0135,
+    "totalCNY": 0.015578999999999999
+  },
+  "raw": ""
+}

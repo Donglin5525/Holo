@@ -1,0 +1,20 @@
+{
+  "id": "probe-02",
+  "ok": true,
+  "seconds": "3.4",
+  "usage": {
+    "completion_tokens": 288,
+    "prompt_tokens": 502,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 502
+    },
+    "total_tokens": 790
+  },
+  "cost": {
+    "inCNY": 0.001506,
+    "outCNY": 0.002592,
+    "totalCNY": 0.004098
+  },
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"role\",\n      \"statement\": \"该个体可能拥有或负责照料至少一只猫。\",\n      \"supportingRefs\": [\n        \"o1\"\n      ],\n      \"alternativeExplanations\": [\n        \"该购买行为由他人代办（proxy），本人并非猫主人，仅为代购者。\",\n        \"该物品用于商业目的（如宠物店进货、志愿者活动分发），而非个人饲养。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkOwnership\",\n          \"question\": \"查询同一时间段内是否有宠物医院就诊记录、宠物保险投保记录或宠物用品租赁记录以佐证所有权。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查是否存在其他家庭成员或共同账户的类似高频购买记录，以区分是个人独立行为还是家庭/团体行为。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现明确的宠物医疗或保险关联，则从“线索”升级为“支持”，并确认角色；若确认为纯代购且无其他关联，则命题不成立。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}"
+}

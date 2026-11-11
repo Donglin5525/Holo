@@ -1,0 +1,24 @@
+{
+  "id": "probe-02",
+  "ok": true,
+  "seconds": "10.0",
+  "usage": {
+    "prompt_tokens": 494,
+    "completion_tokens": 1422,
+    "total_tokens": 1916,
+    "prompt_tokens_details": {
+      "cached_tokens": 256
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 916
+    },
+    "prompt_cache_hit_tokens": 256,
+    "prompt_cache_miss_tokens": 238
+  },
+  "cost": {
+    "inCNY": 0.0014819999999999998,
+    "outCNY": 0.012798,
+    "totalCNY": 0.014280000000000001
+  },
+  "raw": "{\"candidates\":[{\"claimType\":\"role\",\"statement\":\"此人（或与其同住的家庭）在为一只猫持续采购猫粮，可能承担日常喂养与照料责任。\",\"supportingRefs\":[\"o1\"],\"alternativeExplanations\":[\"帮亲友、救助点或单位代买，本人并不饲养\",\"收货与使用方是家中其他成员，本人只负责下单付款\"],\"verificationPlan\":[{\"op\":\"checkOwnership\",\"question\":\"该笔消费是否挂在本人常用账户与常驻收货地址下，能否确认归属本人家庭\"},{\"op\":\"retrieveRelated\",\"question\":\"是否同时存在猫砂、宠物医疗、宠物玩具等互补品类消费，形成宠物照料证据链\"},{\"op\":\"comparePeriods\",\"question\":\"2026-08~10 是否为连续采购，此前或此后是否也有同类消费\"},{\"op\":\"searchCounterEvidence\",\"question\":\"是否存在寄往不同地址、为他人代买或一次性帮买的线索\"},{\"op\":\"alignEvents\",\"question\":\"采购时间点是否与出差、寄养、搬家等事件对应，排除代买或临时安置\"}],\"whatWouldChangeTheAnswer\":\"若确认家中有猫且为自用，则关于家庭构成、宠物相关支出安排、以及是否推荐宠物类内容与用品的回答都会改变。\",\"evidenceGrade\":\"线索\",\"action\":\"ask\"},{\"claimType\":\"recurringBehavior\",\"statement\":\"猫粮采购在三个月内重复出现 3 次，呈现约每月一次的补货节律。\",\"supportingRefs\":[\"o1\"],\"alternativeExplanations\":[\"三次购买可能是同一时期的一次性囤货被拆成多笔订单\",\"样本次数少且时间精度只到月，无法排除偶发或无规律购买\"],\"verificationPlan\":[{\"op\":\"comparePeriods\",\"question\":\"各笔购买的间隔是否接近等距，后续月份是否延续同一节奏\"},{\"op\":\"retrieveRelated\",\"question\":\"其他日用消耗品是否也呈月度补货节律，判断是通用补货习惯还是仅此品类\"},{\"op\":\"checkCoverage\",\"question\":\"数据是否覆盖全部支付渠道与订单，避免漏单造成虚假节律\"}],\"whatWouldChangeTheAnswer\":\"若确认为稳定的月度补货，则可用于补货提醒、消耗品清单，以及判断「何时该问是否需要再买」类回答。\",\"evidenceGrade\":\"线索\",\"action\":\"observe\"}]}"
+}

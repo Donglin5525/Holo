@@ -1,0 +1,20 @@
+{
+  "id": "probe-01",
+  "ok": true,
+  "seconds": "6.6",
+  "usage": {
+    "completion_tokens": 575,
+    "prompt_tokens": 754,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 754
+    },
+    "total_tokens": 1329
+  },
+  "cost": {
+    "inCNY": 0.002262,
+    "outCNY": 0.005175,
+    "totalCNY": 0.007437
+  },
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"role\",\n      \"statement\": \"该用户是猫的主要照料者（负责日常清洁、医疗预约及饮食管理）。\",\n      \"supportingRefs\": [\n        \"o3\",\n        \"o4\",\n        \"o5\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅为偶尔帮忙的亲友，主要责任由他人承担。\",\n        \"用户正在学习养猫知识或代为照顾朋友的猫。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"检查其他月份是否有持续的宠物相关任务记录（如喂食、遛弯等），以确认责任的持续性。\"\n        },\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"关联查看 o1/o2 的 attribution 是否曾标记为 self，或是否有其他家庭成员/室友共同承担此类任务的记录。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现主要照料行为集中在极短时间窗口，或 attribution 明确指向他人，则角色认定不成立。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"用户关注猫咪健康指标（如掉毛）并据此调整饮食选择。\",\n      \"supportingRefs\": [\n        \"o5\",\n        \"o1\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅因掉毛问题感到困扰，但尚未采取换粮行动（仍维持原购买习惯）。\",\n        \"掉毛是季节性现象，用户并未将其与换粮建立因果联系，只是单纯查询信息。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比 o5（查换粮）前后 o1（买猫粮）的品牌或类型是否发生变化。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"查找在 o5 之后是否有再次搜索“猫粮推荐”或“去浮毛”等行为，以确认关注度是否持续。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若 o1 的购买品牌/类型在 o5 后未变，或后续无进一步的健康/饮食相关行为，则该条件关联较弱。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}"
+}

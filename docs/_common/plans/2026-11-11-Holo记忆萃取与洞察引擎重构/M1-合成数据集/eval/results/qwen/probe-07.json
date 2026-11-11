@@ -1,0 +1,20 @@
+{
+  "id": "probe-07",
+  "ok": true,
+  "seconds": "6.2",
+  "usage": {
+    "completion_tokens": 573,
+    "prompt_tokens": 633,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 633
+    },
+    "total_tokens": 1206
+  },
+  "cost": {
+    "inCNY": 0.001899,
+    "outCNY": 0.005157,
+    "totalCNY": 0.007056
+  },
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户在近8周内存在能量摄入超过消耗的行为模式，导致体重缓慢上升。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"体重上升由非活动因素（如肌肉量增加、水分滞留或激素变化）引起，而非单纯的能量过剩。\",\n        \"活动分钟数的下降幅度不足以解释体重的上升趋势，可能存在未被记录的其他代谢或饮食变化。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"查询同期是否有饮食记录或健康打卡数据，以验证热量摄入情况。\"\n        },\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比过去无体重上升周期的活动与饮食数据，寻找差异点。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现近期有高强度力量训练或显著的水分/药物影响，则命题不成立。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    },\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"该用户目前处于‘目标驱动但执行受阻’的状态，意识到需要控制体重但当前行为轨迹与目标背离。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户可能并未感到困扰，而是将体重波动视为正常现象，仅做常规记录而无强烈干预意图。\",\n        \"用户可能在等待特定时间点（如年后）再开始行动，当前状态为‘计划期’而非‘执行受阻期’。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查近期是否有健身课程购买、健康食品采购或运动装备更新等积极行动信号。\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"确认‘年底前’这一时间节点是否临近，以及近期是否有因时间压力导致的焦虑或忙碌迹象。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现用户已采取具体行动且效果初显，或完全放弃该目标，则此阶段状态描述需调整。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}"
+}

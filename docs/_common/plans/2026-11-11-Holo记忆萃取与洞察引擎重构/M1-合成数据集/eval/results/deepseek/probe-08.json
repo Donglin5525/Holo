@@ -1,0 +1,24 @@
+{
+  "id": "probe-08",
+  "ok": true,
+  "seconds": "9.8",
+  "usage": {
+    "prompt_tokens": 585,
+    "completion_tokens": 1247,
+    "total_tokens": 1832,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 646
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 201
+  },
+  "cost": {
+    "inCNY": 0.001755,
+    "outCNY": 0.011223,
+    "totalCNY": 0.012978
+  },
+  "raw": "{\"candidates\":[{\"claimType\":\"phaseState\",\"statement\":\"9月健身打卡次数从8月的14次降到2次量级，提示本人的规律运动习惯在9月出现中断或大幅收缩。\",\"supportingRefs\":[\"o2\",\"o3\"],\"alternativeExplanations\":[\"打卡记录缺失或漏记，实际运动并未减少（9月活动分钟读数不可用，无法交叉验证）\",\"9月存在出行、伤病、工作强度变化等条件性因素，属短期打断而非习惯改变\"],\"verificationPlan\":[{\"op\":\"checkCoverage\",\"question\":\"9月活动分钟、步数等被动读数能否补齐或换用其他数据源，以区分「真减少」与「只是没打卡」？\"},{\"op\":\"comparePeriods\",\"question\":\"把打卡频率按周展开，看9月下降是整月平摊还是集中在某一段（如某次出行或事件前后）？\"},{\"op\":\"searchCounterEvidence\",\"question\":\"是否存在9月未打卡但有其他运动痕迹（如手动记录、其他设备数据）的反例？\"},{\"op\":\"ask\",\"question\":\"9月是否有出行、身体不适或日程变动导致运动安排被打断？\"}],\"whatWouldChangeTheAnswer\":\"若补齐的被动活动数据在9月并未下降，则该命题应退回为「记录行为下降」而非运动习惯改变；若下降集中在特定事件窗口，则应改述为条件性打断。\",\"evidenceGrade\":\"支持\",\"action\":\"observe\"},{\"claimType\":\"conditionalAssociation\",\"statement\":\"体重在8周窗口内缓慢上升的同时，健身打卡频率在9月明显下降，两者时间上同期但先后与因果未定。\",\"supportingRefs\":[\"o1\",\"o2\"],\"alternativeExplanations\":[\"体重上升是贯穿整个8周的连续趋势，早于9月打卡下降，两者可能无共同驱动因素\",\"体重读数可能来自不同测量条件或设备，波动本身包含测量误差，与运动量无关\"],\"verificationPlan\":[{\"op\":\"comparePeriods\",\"question\":\"把8周体重按周切分，看上升斜率在9月打卡下降前后是否发生变化？\"},{\"op\":\"retrieveRelated\",\"question\":\"是否有饮食、作息、通勤等其他维度数据能与体重趋势对齐，排除单一归因？\"},{\"op\":\"checkOwnership\",\"question\":\"体重数据的录入方是否为本人（是否存在代录或他人测量）？\"},{\"op\":\"alignEvents\",\"question\":\"体重拐点、打卡下降、以及任何生活事件三者能否在时间轴上对齐？\"}],\"whatWouldChangeTheAnswer\":\"若体重上升在打卡下降之前就已匀速发生、且下降后斜率无变化，则该关联应判为巧合而非条件性关联；若斜率在打卡下降后明显变陡，才值得进一步讨论两者关系。\",\"evidenceGrade\":\"线索\",\"action\":\"observe\"}]}"
+}

@@ -1,0 +1,20 @@
+{
+  "id": "probe-06",
+  "ok": true,
+  "seconds": "6.2",
+  "usage": {
+    "completion_tokens": 550,
+    "prompt_tokens": 562,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 562
+    },
+    "total_tokens": 1112
+  },
+  "cost": {
+    "inCNY": 0.001686,
+    "outCNY": 0.00495,
+    "totalCNY": 0.006636
+  },
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户在每个工作日的中午有下楼购买咖啡的习惯。\",\n      \"supportingRefs\": [\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅在特定几天（如周一、周五）购买，而非每天\",\n        \"购买地点并非严格意义上的“下楼”，而是附近其他店铺\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"检索过去一个月所有 finance 域中概念为“咖啡”且 attribution 为 self 的记录，检查其 recordedAt 或 occurredAt 是否集中在工作日中午时段\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"是否存在工作日中午购买了非咖啡类饮品但被归类为咖啡的异常记录，或完全未购买咖啡的工作日\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现购买时间分散在早晚或非工作日，则命题不成立；若发现仅偶尔购买，则从“习惯”降级为“偶发行为”。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"用户的咖啡消费与工作日的办公场景存在强关联。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户可能在周末也购买咖啡，但仅在工作日集中记账\",\n        \"“上班”仅为语境修饰，实际购买行为与通勤或居家无关\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比工作日与非工作日（周末/节假日）的咖啡购买频次，验证是否显著高于非工作日\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"将咖啡购买时间与用户的位置数据（如有）或日程事件对齐，确认是否发生在办公区域附近\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若周末购买频次与工作日持平，则条件性关联减弱；若发现购买地点多在居住区，则关联对象变为“居家”而非“办公”。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}"
+}

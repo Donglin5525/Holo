@@ -1,0 +1,24 @@
+{
+  "id": "probe-06",
+  "ok": true,
+  "seconds": "12.2",
+  "usage": {
+    "prompt_tokens": 551,
+    "completion_tokens": 1500,
+    "total_tokens": 2051,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 1359
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 167
+  },
+  "cost": {
+    "inCNY": 0.001653,
+    "outCNY": 0.0135,
+    "totalCNY": 0.015153
+  },
+  "raw": "{\"candidates\": [{\"claimType\": \"recurringBehavior\", \"statement\": \"咖啡消费主要发生在工作日中午、办公楼下（下楼购买），属于上班时段的固定小额支出。\", \"supportingRefs\": [\"o1\", \"o2\"], \"alternativeExplanations\": [\"「这周的咖啡钱」可能包含为同事代买或办公区拼单的份额，实际自用频率低于记录次数\", \"咖啡可能并非现制饮品，也可能是咖啡豆、咖啡机耗材等非即饮购买\"], \"verificationPlan\": [{\"op\": \"retrieveRelated\", \"question\": \"同一周期内是否存在对应门店或支付流水，"
+}

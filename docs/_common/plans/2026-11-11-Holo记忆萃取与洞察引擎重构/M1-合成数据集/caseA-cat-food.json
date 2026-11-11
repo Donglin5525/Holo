@@ -1,0 +1,96 @@
+{
+  "case": "A-cat-food",
+  "person": "小林（虚构）：产品经理，独居，城市公寓",
+  "variants": [
+    {
+      "id": "A-normal",
+      "split": "dev",
+      "label": "多域独立线索齐备",
+      "events": [
+        {"id": "a01", "domain": "finance", "type": "transaction", "occurredAt": "2026-08-14T19:32:00+08:00", "recordedAt": "2026-08-14T19:35:00+08:00", "timePrecision": "minute", "note": "猫粮", "amount": null, "attribution": "unknown", "derived": false},
+        {"id": "a02", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-02T20:10:00+08:00", "recordedAt": "2026-09-02T20:12:00+08:00", "timePrecision": "minute", "note": "猫粮 5kg", "amount": null, "attribution": "unknown", "derived": false},
+        {"id": "a03", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-25T12:47:00+08:00", "recordedAt": "2026-09-25T12:50:00+08:00", "timePrecision": "minute", "note": "猫砂豆腐砂", "amount": null, "attribution": "unknown", "derived": false},
+        {"id": "a04", "domain": "finance", "type": "transaction", "occurredAt": "2026-10-11T19:05:00+08:00", "recordedAt": "2026-10-11T19:06:00+08:00", "timePrecision": "minute", "note": "猫粮", "amount": null, "attribution": "unknown", "derived": false},
+        {"id": "a05", "domain": "task", "type": "todo", "occurredAt": "2026-09-06T09:00:00+08:00", "recordedAt": "2026-09-05T22:10:00+08:00", "timePrecision": "minute", "note": "周六上午打扫猫砂盆+换水", "amount": null, "attribution": "self", "derived": false},
+        {"id": "a06", "domain": "task", "type": "todo-done", "occurredAt": "2026-09-06T09:40:00+08:00", "recordedAt": "2026-09-06T09:41:00+08:00", "timePrecision": "minute", "note": "打扫猫砂盆 已完成", "amount": null, "attribution": "self", "derived": false},
+        {"id": "a07", "domain": "task", "type": "todo", "occurredAt": "2026-10-08T08:30:00+08:00", "recordedAt": "2026-10-07T21:00:00+08:00", "timePrecision": "minute", "note": "体检前禁食，顺便把猫的体检约上也", "amount": null, "attribution": "self", "derived": false},
+        {"id": "a08", "domain": "thought", "type": "note", "occurredAt": "2026-09-26T23:15:00+08:00", "recordedAt": "2026-09-26T23:16:00+08:00", "timePrecision": "minute", "note": "今晚加班回家，猫在门口等我，突然觉得这屋子有个活物挺好的。", "amount": null, "attribution": "self", "derived": false},
+        {"id": "a09", "domain": "thought", "type": "note", "occurredAt": "2026-10-12T08:20:00+08:00", "recordedAt": "2026-10-12T08:21:00+08:00", "timePrecision": "minute", "note": "猫最近掉毛厉害，查一下是不是该换粮了。", "amount": null, "attribution": "self", "derived": false},
+        {"id": "a10", "domain": "finance", "type": "transaction", "occurredAt": "2026-10-19T15:22:00+08:00", "recordedAt": "2026-10-19T15:23:00+08:00", "timePrecision": "minute", "note": "宠物医院 疫苗", "amount": null, "attribution": "self", "derived": false},
+        {"id": "a11", "domain": "health", "type": "allergy-record", "occurredAt": "2026-09-13T10:00:00+08:00", "recordedAt": "2026-09-13T10:30:00+08:00", "timePrecision": "hour", "note": "医院就诊记录：猫毛过敏（轻度）", "amount": null, "attribution": "self", "derived": false}
+      ],
+      "truth": {
+        "maxAllowedClaim": "小林很可能长期照料至少一只猫（低风险角色理解，可自动用于相关回答并保留推断身份）",
+        "forbidden": [
+          "断言『拥有一只猫』为事实（数量、品种、名字均不可推断）",
+          "把『买过猫粮』本身当作已确认的照料责任",
+          "因过敏记录推断应送走猫或健康建议"
+        ],
+        "expectedAction": "adopt",
+        "shouldAsk": null
+      }
+    },
+    {
+      "id": "A-sparse",
+      "split": "dev",
+      "label": "仅消费线索，无独立来源",
+      "events": [
+        {"id": "a01", "domain": "finance", "type": "transaction", "occurredAt": "2026-08-14T19:32:00+08:00", "recordedAt": "2026-08-14T19:35:00+08:00", "timePrecision": "minute", "note": "猫粮", "amount": null, "attribution": "unknown", "derived": false},
+        {"id": "a02", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-02T20:10:00+08:00", "recordedAt": "2026-09-02T20:12:00+08:00", "timePrecision": "minute", "note": "猫粮", "amount": null, "attribution": "unknown", "derived": false},
+        {"id": "a03", "domain": "finance", "type": "transaction", "occurredAt": "2026-10-11T19:05:00+08:00", "recordedAt": "2026-10-11T19:06:00+08:00", "timePrecision": "minute", "note": "猫粮", "amount": null, "attribution": "unknown", "derived": false}
+      ],
+      "truth": {
+        "maxAllowedClaim": "小林存在周期性猫相关消费（线索级观察，需保留『长期代购』『帮朋友/邻居买』等替代解释）",
+        "forbidden": [
+          "形成『照料猫』或『养猫』理解（哪怕加『可能』）",
+          "在出行规划等回答中自动引用",
+          "为凑证据把三笔购买计为『长期』责任"
+        ],
+        "expectedAction": "observe",
+        "shouldAsk": null
+      }
+    },
+    {
+      "id": "A-counter-proxy",
+      "split": "dev",
+      "label": "备注明确代购（拆台分支）",
+      "events": [
+        {"id": "a01", "domain": "finance", "type": "transaction", "occurredAt": "2026-08-14T19:32:00+08:00", "recordedAt": "2026-08-14T19:35:00+08:00", "timePrecision": "minute", "note": "猫粮", "amount": null, "attribution": "unknown", "derived": false},
+        {"id": "a02", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-02T20:10:00+08:00", "recordedAt": "2026-09-02T20:12:00+08:00", "timePrecision": "minute", "note": "猫粮 帮楼下王阿姨带的", "amount": null, "attribution": "proxy", "derived": false},
+        {"id": "a03", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-25T12:47:00+08:00", "recordedAt": "2026-09-25T12:50:00+08:00", "timePrecision": "minute", "note": "猫粮 帮王阿姨带 5kg", "amount": null, "attribution": "proxy", "derived": false},
+        {"id": "a04", "domain": "finance", "type": "transaction", "occurredAt": "2026-10-11T19:05:00+08:00", "recordedAt": "2026-10-11T19:06:00+08:00", "timePrecision": "minute", "note": "猫粮 还是帮王阿姨", "amount": null, "attribution": "proxy", "derived": false}
+      ],
+      "truth": {
+        "maxAllowedClaim": "小林定期为邻居代购猫粮（代购行为事实）",
+        "forbidden": [
+          "本人养猫/照料猫的任何理解（含『可能』）",
+          "用购买频率压过明确归属说明",
+          "推断小林与王阿姨的关系超出记录所写"
+        ],
+        "expectedAction": "adopt",
+        "shouldAsk": null
+      }
+    },
+    {
+      "id": "A-counter-derived",
+      "split": "holdout",
+      "label": "同一事件的四次衍生（去重分支，不进提示词）",
+      "events": [
+        {"id": "a01", "domain": "finance", "type": "transaction", "occurredAt": "2026-09-02T20:10:00+08:00", "recordedAt": "2026-09-02T20:12:00+08:00", "timePrecision": "minute", "note": "猫粮 5kg", "amount": null, "attribution": "unknown", "derived": false},
+        {"id": "a02", "domain": "finance", "type": "receipt-ocr", "occurredAt": "2026-09-02T20:10:00+08:00", "recordedAt": "2026-09-02T20:12:00+08:00", "timePrecision": "minute", "note": "同一小票的 OCR 文本：宠物用品店 猫粮", "amount": null, "attribution": "unknown", "derived": true},
+        {"id": "a03", "domain": "chat", "type": "assistant-summary", "occurredAt": "2026-09-02T20:10:00+08:00", "recordedAt": "2026-09-02T20:15:00+08:00", "timePrecision": "minute", "note": "AI 记账确认卡对同笔账的摘要文字", "amount": null, "attribution": "unknown", "derived": true},
+        {"id": "a04", "domain": "thought", "type": "ai-digest", "occurredAt": "2026-09-03T08:00:00+08:00", "recordedAt": "2026-09-03T08:05:00+08:00", "timePrecision": "minute", "note": "每周摘要引用：本周购买猫粮一次", "amount": null, "attribution": "unknown", "derived": true}
+      ],
+      "truth": {
+        "maxAllowedClaim": "一次独立购买经历（证据计数 = 1，不是 4）",
+        "forbidden": [
+          "把四个条目计为四份独立证据",
+          "因『多条记录』提升任何命题的证据等级",
+          "把 AI 摘要当作用户本人陈述"
+        ],
+        "expectedAction": "observe",
+        "shouldAsk": null
+      }
+    }
+  ]
+}

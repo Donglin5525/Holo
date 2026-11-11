@@ -1,0 +1,20 @@
+{
+  "id": "probe-03",
+  "ok": true,
+  "seconds": "2.8",
+  "usage": {
+    "completion_tokens": 214,
+    "prompt_tokens": 580,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 580
+    },
+    "total_tokens": 794
+  },
+  "cost": {
+    "inCNY": 0.00174,
+    "outCNY": 0.001926,
+    "totalCNY": 0.003666
+  },
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"proxy\",\n      \"statement\": \"本人近期在持续协助邻居王阿姨代购宠物用品。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"本人正在为多位不同的客户/朋友进行批量代购（如社区团购团长）\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"检索同一时期是否有其他非王阿姨的代购记录，以判断是个人互助还是商业/规模化行为\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现大量不同对象的代购记录，则命题从“协助特定邻居”变为“从事代购业务或大型团购”，角色性质改变。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    }\n  ]\n}"
+}

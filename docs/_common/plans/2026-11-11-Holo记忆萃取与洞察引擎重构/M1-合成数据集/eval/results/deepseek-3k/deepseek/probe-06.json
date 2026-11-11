@@ -1,0 +1,24 @@
+{
+  "id": "probe-06",
+  "ok": true,
+  "seconds": "20.0",
+  "usage": {
+    "prompt_tokens": 551,
+    "completion_tokens": 3000,
+    "total_tokens": 3551,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 2448
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 167
+  },
+  "cost": {
+    "inCNY": 0.001653,
+    "outCNY": 0.027,
+    "totalCNY": 0.028652999999999998
+  },
+  "raw": "{\"candidates\":[{\"claimType\":\"recurringBehavior\",\"statement\":\"每周日晚有集中补记当周咖啡支出的记账习惯。\",\"supportingRefs\":[\"o1\",\"o2\"],\"alternativeExplanations\":[\"周日晚只是账本同步或导入的固定时间，并非本人主动补记。\",\"本周只是临时集中补记，尚未形成每周习惯。\"],\"verificationPlan\":[{\"op\":\"comparePeriods\",\"question\":\"查看连续数周的 recordedAt 是否稳定在周日22:30左右，判断是否每周固定补记。\"},{\"op\":\"checkCoverage\",\"question\":\"查看其他类别支出是否也在周日晚集中记录，以区分咖啡特有习惯与整体记账习惯。\"},{\"op\":\"alignEvents\",\"question\":\"把当周咖啡购买记录与周日记账动作对齐，确认补记内容与购买周次一致。\"},{\"op\":\"searchCounterEvidence\",\"question\":\"查找非周日记录或分散记录的咖啡支出，检验“每周日晚集中补记”是否被反例削弱。\"}],\"whatWouldChangeTheAnswer\":\"若连续数周并非周日晚补记，则“每周日晚集中记账”降为单次补记；若其他支出也同日集中记录，则可扩展为整体记账习惯而非咖啡特有。\",\"evidenceGrade\":\"支持\",\"action\":\"observe\"},{\"claimType\":\"recurringBehavior\",\"statement\":\"上班日中午会在工作地点楼下买咖啡（仅为购买行为，不推断是否本人饮用）。\",\"supportingRefs\":[\"o2\",\"o1\"],\"alternativeExplanations\":[\"这只是某一周的偶发购买，不能代表工作日午间常态。\",\"购买可能包含同事或办公室公共咖啡，不一定是本人单独消费。\"],\"verificationPlan\":[{\"op\":\"comparePeriods\",\"question\":\"对比连续数周的工作日中午购买记录，看“上班中午下楼买”是否稳定重复。\"},{\"op\":\"compareConditions\",\"question\":\"比较工作日与非工作日、中午与其他时段的购买分布，确认条件是否稳定关联。\"},{\"op\":\"alignEvents\",\"question\":\"将购买记录与工作日/午休时间线对齐；不使用 midnight-default 的 occurredAt 作为发生时刻。\"},{\"op\":\"checkOwnership\",\"question\":\"确认这些咖啡支出是本人付款/本人消费，还是代同事或办公室公共购买。\"},{\"op\":\"searchCounterEvidence\",\"question\":\"查找非上班日、非中午或非楼下的咖啡购买，检验该行为的边界。\"}],\"whatWouldChangeTheAnswer\":\"若多数周并不存在工作日中午购买，则该候选降为偶发行为；若购买多为代买或公共支出，则不能归为本人午间消费习惯。\",\"evidenceGrade\":\"支持\",\""
+}

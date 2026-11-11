@@ -1,0 +1,24 @@
+{
+  "id": "probe-05",
+  "ok": true,
+  "seconds": "10.4",
+  "usage": {
+    "prompt_tokens": 550,
+    "completion_tokens": 1500,
+    "total_tokens": 2050,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 895
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 166
+  },
+  "cost": {
+    "inCNY": 0.00165,
+    "outCNY": 0.0135,
+    "totalCNY": 0.01515
+  },
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"近 28 天内该人的入睡时点整体后移，晚睡天数占比由基线 8% 上升到 32%，属于一次阶段性的作息偏移，而非长期稳定模式。\",\n      \"supportingRefs\": [\"o1\"],\n      \"alternativeExplanations\": [\n        \"由工作排班、项目截止或出差等外部条件造成的临时作息变化，条件解除后会自行回落\",\n        \"记录方式或数据覆盖发生变化（换设备、补录、漏记早睡日），导致晚睡占比被高估\"\n      ],\n      \"verificationPlan\": [\n        {\"op\": \"comparePeriods\", \"question\": \"把当前 28 天与前几个 28 天以及再往后的 28 天对比，看晚睡占比是否在某一点骤升、之后是持续还是回落\"},\n        {\"op\": \"checkCoverage\", \"question\": \"确认这 28 天的睡眠记录是否完整覆盖每一天、是否存在明显漏记或补录时段\"},\n        {\"op\": \"alignEvents\", \"question\": \"把晚睡日与日历中的加班、出差、假期、周末等事件对齐，判断偏移是否由特定日子集中贡献\"},\n        {\"op\": \"searchCounterEvidence\", \"question\": \"找出这 28 天里仍按时入睡的日子有多少、集中在什么条件下\"}\n      ],\n      \"whatWouldChangeTheAnswer\": \"影响所有涉及近期作息、精力状态或夜间安排的判断，例如是否适合把重要事项排到晚间的建议；如果偏移是条件性的，回答应改按具体条件区分，而不是当作该人的作息偏好。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"咖啡购买行为与晚睡增多出现在同一个 28 天窗口内，两者是否构成条件性关联，值得进一步查证。\",\n      \"supportingRefs\": [\"o1\", \"o2\"],\n      \"alternativeExplanations\": [\n        \"两者只是同期发生的巧合，各自由第三方因素（如加班期、季节变化）驱动，彼此无关联\",\n        \"晚睡导致白天需要摄入咖啡，方向与假设相反；也可能两者都由同一压力期驱动\"\n      ],\n      \"verificationPlan\": [\n        {\"op\": \"retrieveRelated\", \"question\": \"补充咖啡购买的具体时间分布，以及是否还有其他含咖啡因商品的购买记录\"},\n        {\"op\": \"compareConditions\", \"question\": \"在更长的时间范围内找出没有咖啡购买的日子，比较这些日子与其后当晚的入睡时点差异\"},\n        {\"op\": \"comparePeriods\", \"question\": \"比较基线期（晚睡占比 8%）与当前 28 天的咖啡购买频次有没有变化\"},\n        {\""
+}

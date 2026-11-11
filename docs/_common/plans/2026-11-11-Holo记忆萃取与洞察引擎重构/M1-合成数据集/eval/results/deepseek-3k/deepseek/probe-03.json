@@ -1,0 +1,24 @@
+{
+  "id": "probe-03",
+  "ok": true,
+  "seconds": "10.8",
+  "usage": {
+    "prompt_tokens": 561,
+    "completion_tokens": 1525,
+    "total_tokens": 2086,
+    "prompt_tokens_details": {
+      "cached_tokens": 384
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 899
+    },
+    "prompt_cache_hit_tokens": 384,
+    "prompt_cache_miss_tokens": 177
+  },
+  "cost": {
+    "inCNY": 0.001683,
+    "outCNY": 0.013725000000000001,
+    "totalCNY": 0.015408000000000002
+  },
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户在 2026-08~10 期间多次（猫粮 4 次、猫砂 1 次）为王阿姨代购猫用品，形成跨月的稳定代买行为。\",\n      \"supportingRefs\": [\"o1\", \"o2\"],\n      \"alternativeExplanations\": [\n        \"只是单次顺路帮忙，备注被同一次购买的多次记录重复套用，实际并非重复行为\",\n        \"属于团购/跑腿代下单等有偿或组织化代办，而非个人邻里互助\"\n      ],\n      \"verificationPlan\": [\n        {\"op\": \"checkOwnership\", \"question\": \"核对这些订单的下单账号、收货地址与收货人是否指向王阿姨家，排除备注误标或套用\"},\n        {\"op\": \"comparePeriods\", \"question\": \"对比 2026-08 之前更长的周期，看同类别代购是否长期稳定出现，还是集中在近三个月\"},\n        {\"op\": \"searchCounterEvidence\", \"question\": \"检索是否存在收货地址为本人家、且与猫相关（猫粮/猫砂/宠物用品）的购买记录\"}\n      ],\n      \"whatWouldChangeTheAnswer\": \"会改变「该用户是否有宠物相关消费」以及「家庭日常采购由谁发起」类问题的归属判断，避免把代买记为本人养宠或本人使用。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"role\",\n      \"statement\": \"该用户在邻里关系中承担替他人代买日用品的协助角色（至少对王阿姨）。\",\n      \"supportingRefs\": [\"o1\", \"o2\"],\n      \"alternativeExplanations\": [\n        \"仅为偶发顺路帮忙，样本太少不足以称为稳定角色\",\n        \"备注中的王阿姨实为亲属或同住人，属家庭内部分工而非邻里协助，角色性质不同\"\n      ],\n      \"verificationPlan\": [\n        {\"op\": \"checkCoverage\", \"question\": \"查找是否还有其他代买对象或其他品类（非猫用品）的代办记录，判断是否为跨场景的稳定角色\"},\n        {\"op\": \"alignEvents\", \"question\": \"这些代买是否集中在特定条件（如恶劣天气、对方不便外出的时段），即是否为条件性触发而非日常角色\"},\n        {\"op\": \"searchCounterEvidence\", \"question\": \"是否存在与「邻里关系疏远」相反的线索缺失，例如从未出现任何与邻里的其他往来记录\"}\n      ],\n      \"whatWouldChangeTheAnswer\": \"会改变「该用户的社交/互助网络规模」「家庭外支出中有多少属于代付」这类回答，也影响是否将其计入本人生活角色画像。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ],\n  \"noValueReason\": \"\"\n}"
+}

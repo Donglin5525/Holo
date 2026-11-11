@@ -1,0 +1,20 @@
+{
+  "id": "probe-05",
+  "ok": true,
+  "seconds": "3.4",
+  "usage": {
+    "completion_tokens": 304,
+    "prompt_tokens": 563,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 563
+    },
+    "total_tokens": 867
+  },
+  "cost": {
+    "inCNY": 0.001689,
+    "outCNY": 0.002736,
+    "totalCNY": 0.004425
+  },
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"该用户近期晚睡行为与每日高频购买咖啡存在条件性关联，可能通过咖啡因摄入维持夜间清醒或补偿睡眠不足。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户因工作/学习压力导致失眠（晚睡），同时因焦虑或习惯增加咖啡消费作为心理慰藉，二者无直接因果。\",\n        \"用户近期生活作息整体推迟（如社交活动增多），晚睡是主动选择，咖啡购买仅是伴随的日常习惯未变。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"咖啡购买时间是否集中在傍晚或深夜时段？\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"是否存在晚睡但当日无咖啡购买的日期？\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现咖啡购买时间多在清晨或上午，则削弱“咖啡因维持夜间清醒”的假设；若发现大量晚睡无咖啡日，则支持“独立变量”解释。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}"
+}

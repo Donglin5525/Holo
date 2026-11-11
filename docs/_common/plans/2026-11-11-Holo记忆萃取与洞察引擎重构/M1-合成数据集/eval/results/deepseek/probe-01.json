@@ -1,0 +1,24 @@
+{
+  "id": "probe-01",
+  "ok": true,
+  "seconds": "7.6",
+  "usage": {
+    "prompt_tokens": 708,
+    "completion_tokens": 1076,
+    "total_tokens": 1784,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 635
+    },
+    "prompt_cache_hit_tokens": 0,
+    "prompt_cache_miss_tokens": 708
+  },
+  "cost": {
+    "inCNY": 0.002124,
+    "outCNY": 0.009684,
+    "totalCNY": 0.011807999999999999
+  },
+  "raw": "{\"candidates\":[{\"claimType\":\"role\",\"statement\":\"本人是这只猫的照料者之一，会亲自处理猫砂盆清洁、体检预约这类具体照料事务。\",\"supportingRefs\":[\"o3\",\"o4\",\"o5\"],\"alternativeExplanations\":[\"只是偶尔帮忙，猫的主要照料者是家中其他人\",\"这两件事是一次性临时任务，不构成稳定的照料角色\"],\"verificationPlan\":[{\"op\":\"retrieveRelated\",\"question\":\"是否还有喂食、铲砂、梳毛等重复出现的照料类任务记录，能说明照料是持续而非一次性\"},{\"op\":\"checkOwnership\",\"question\":\"猫粮、猫砂这类采购记录能否归到本人名下，还是他人代办\"},{\"op\":\"comparePeriods\",\"question\":\"照料类任务是否在多个时间窗口反复出现，而不是集中在单月\"}],\"whatWouldChangeTheAnswer\":\"如果后续出现持续的照料任务记录，可确认照料角色；如果这些任务都只有一次且采购归属他人，则应降为临时帮忙。\",\"evidenceGrade\":\"线索\",\"action\":\"ask\"},{\"claimType\":\"phaseState\",\"statement\":\"近期本人正处在考虑给猫换粮、关注掉毛情况的阶段。\",\"supportingRefs\":[\"o5\",\"o1\"],\"alternativeExplanations\":[\"掉毛是季节性现象，换粮只是随口疑问，未进入实际行动\",\"换粮关注来自他人转述或网络信息，并非本人正在推进的事项\"],\"verificationPlan\":[{\"op\":\"searchCounterEvidence\",\"question\":\"是否出现与换粮相反的记录，例如继续购买同一款猫粮、或明确表示不换粮\"},{\"op\":\"retrieveRelated\",\"question\":\"是否出现新品类猫粮、换粮过渡、体检结论等后续动作记录\"},{\"op\":\"alignEvents\",\"question\":\"换粮想法与体检预约在时间上是否相关，体检结果是否牵动换粮决定\"}],\"whatWouldChangeTheAnswer\":\"若后续无换粮相关动作且持续购买原粮，则该阶段状态应视为未成立，只是一闪而过的念头。\",\"evidenceGrade\":\"线索\",\"action\":\"observe\"}]}"
+}
