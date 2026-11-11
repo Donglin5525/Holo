@@ -2,8 +2,8 @@
 //  ReceiptReviewCompactRow.swift
 //  Holo
 //
-//  复核确认页 · 多笔紧凑摘要行（2026-11-11 重设计，原型画板②）：
-//  勾选圆 + 金额 + 方向胶囊 + 名称 + 「科目 · 账户」尾注，52pt 高。
+//  复核确认页 · 多笔紧凑摘要行（2026-11-12 两行制，原型画板②）：
+//  账单式两行——L1 名称（行标题）+ 金额右对齐成列，L2 方向胶囊 + 「科目 · 账户」小灰字。
 //  点行展开细改（手风琴，一次一笔），点勾选圆剔除这笔（独立 a11y 元素，不与行展开合并）。
 //
 
@@ -21,28 +21,36 @@ struct ReceiptReviewCompactRow: View {
 
     var body: some View {
         Button(action: onToggleExpanded) {
-            HStack(spacing: 9) {
+            HStack(alignment: .center, spacing: 10) {
                 checkCircle
-                Text(verbatim: "¥\(state.amountText)")
-                    .font(.body.weight(.semibold))
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .layoutPriority(2)
-                directionPill
-                Text(state.note)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                trailingNote
+                VStack(alignment: .leading, spacing: 4) {
+                    // L1：名称（弹性宽，行标题）… 金额（固定宽右对齐，多笔自然成列）
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(state.note)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.holoTextPrimary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+                        Text(verbatim: "¥\(state.amountText)")
+                            .font(.body.weight(.bold))
+                            .monospacedDigit()
+                            .lineLimit(1)
+                            .fixedSize()
+                            .layoutPriority(1)
+                    }
+                    // L2：方向胶囊 + 「科目 · 账户」副注
+                    HStack(spacing: 6) {
+                        directionPill
+                        subNote
+                    }
+                }
                 Image(systemName: "chevron.right")
                     .font(.footnote)
                     .foregroundStyle(.tertiary)
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
             }
             .padding(.vertical, 10)
-            .frame(minHeight: 52)
             .contentShape(Rectangle())
             .opacity(state.included ? 1 : 0.45)
         }
@@ -98,9 +106,9 @@ struct ReceiptReviewCompactRow: View {
         return state.typeIsIncome ? String(localized: "收") : String(localized: "支")
     }
 
-    // MARK: 尾注「科目 · 账户」（上限行宽 40%、下限 96pt 保「科目 · 账户」可读，尾部截断）
+    // MARK: L2 副注「科目 · 账户」（警示有则挂前，尾部截断；两行制后与名称无挤压竞争）
 
-    private var trailingNote: some View {
+    private var subNote: some View {
         HStack(spacing: 4) {
             if hasWarning {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -113,8 +121,7 @@ struct ReceiptReviewCompactRow: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
-        // 名称是弹性宽先让位；尾注保底 96pt（判读修复：原先可被挤到账户名全省略）
-        .frame(minWidth: 96, maxWidth: summaryMaxWidth, alignment: .trailing)
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 
     private var hasWarning: Bool {
@@ -127,10 +134,5 @@ struct ReceiptReviewCompactRow: View {
         )
         let account = ReceiptReviewItemEditorBlock.accountTitle(for: state, accounts: accounts)
         return "\(category) · \(account)"
-    }
-
-    /// 尾注上限=行宽 40%：行宽=屏宽-页边距(2×24)-卡内边距(2×16)
-    private var summaryMaxWidth: CGFloat {
-        (holoScreenWidth() - 80) * 0.4
     }
 }
