@@ -24868,6 +24868,22 @@
         }
       }
     },
+    "先勾选要记的账" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the items to book first"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先勾選要記的賬"
+          }
+        }
+      }
+    },
     "先去习惯页创建你的第一个习惯" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -28748,6 +28764,22 @@
         }
       }
     },
+    "凭证原图" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original Receipt"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "憑證原圖"
+          }
+        }
+      }
+    },
     "出现新阶段" : {
       "localizations" : {
         "en" : {
@@ -32124,6 +32156,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "動物與自然"
+          }
+        }
+      }
+    },
+    "勾掉不想记的，一次入账。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uncheck what you don't want, book the rest at once."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "勾掉不想記的，一次入賬。"
           }
         }
       }
@@ -59292,6 +59340,22 @@
         }
       }
     },
+    "支" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Out"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支"
+          }
+        }
+      }
+    },
     "支付完成后触发操作按钮：Holo 自动识别金额、商户、账户和项目；有疑问的账留给你确认。" : {
       "localizations" : {
         "en" : {
@@ -59775,6 +59839,22 @@
         }
       }
     },
+    "收" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收"
+          }
+        }
+      }
+    },
     "收下日常的小发现" : {
       "localizations" : {
         "en" : {
@@ -59883,7 +59963,24 @@
         }
       }
     },
+    "收入不挂" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not for income"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收入不掛"
+          }
+        }
+      }
+    },
     "收入不挂项目" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -83079,7 +83176,24 @@
         }
       }
     },
+    "票面原文 ¥%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Receipt shows ¥%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "票面原文 ¥%@"
+          }
+        }
+      }
+    },
     "票面金额原文" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -91194,6 +91308,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "記賬年"
+          }
+        }
+      }
+    },
+    "记账日期" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Booking Date"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記賬日期"
           }
         }
       }

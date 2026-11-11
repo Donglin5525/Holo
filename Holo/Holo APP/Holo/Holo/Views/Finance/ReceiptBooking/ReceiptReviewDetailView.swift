@@ -8,6 +8,10 @@
 //  来源键沿用草案 → 幂等不重复入账。
 //  2026-09-19 一图多笔：一张确认卡承载全部笔，逐笔编辑/可剔除、逐笔账户按
 //  各自支付渠道预填、一次确认整批落账（部分重复命中不算失败）。
+//  2026-11-11 复核页重设计（原型即契约，docs/design-prototypes/receipt-review-redesign-prototype.html）：
+//  「看/改分离」——单笔一张卡全字段一屏（四字段 2×2 宫格、日期 chip+弹层、原图 44×44 卡角小图）；
+//  多笔卡头汇总条（笔数+合计大字）+ 52pt 紧凑行手风琴展开细改（一次只展开一笔）。
+//  编辑区/紧凑行/弹层拆出独立文件；确认落账链路零改动。
 //
 
 import SwiftUI
@@ -26,34 +30,21 @@ struct ReceiptReviewDetailView: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    /// 逐笔编辑状态（一图多笔；旧单笔草稿 effectiveItems 合成一条）
-    private struct ItemEditState: Identifiable {
-        let id: String   // itemKey
-        let title: String
-        let item: ReceiptBookingResultStore.StoredDraftItem
-        var included = true
-        var amountText: String
-        var typeIsIncome: Bool
-        var date = Date()
-        var note = ""
-        var selectedAccountID: UUID?
-        var selectedProjectID: UUID?
-        /// 科目：nil = 跟随 AI 解析（完整分类链）；选中后以用户选择为准
-        var selectedCategoryID: UUID?
-        var suggestedCategoryTitle = ""
-        var suggestedCategoryTask: Task<Void, Never>?
-    }
-
-    @State private var itemStates: [ItemEditState] = []
+    /// 逐笔编辑状态（2026-11-11 迁出到 ReceiptReviewItemEditorBlock.swift，单笔卡与多笔展开块共用）
+    @State private var itemStates: [ReceiptReviewItemEditState] = []
     @State private var accounts: [Account] = []
     @State private var projects: [FinanceProject] = []
     @State private var expenseCategories: [HoloFinanceCategory] = []
     @State private var incomeCategories: [HoloFinanceCategory] = []
     @State private var evidenceImage: UIImage?
-    @State private var evidenceExpanded = false
     @State private var isCommitting = false
     @State private var errorMessage: String?
     @State private var showDeleteConfirmation = false
+
+    // 2026-11-11 重设计新增 UI 态：多笔手风琴（一次只展开一笔）、原图弹层、日期弹层锚点
+    @State private var expandedItemID: String?
+    @State private var showEvidenceSheet = false
+    @State private var activeDateItemID: String?
 
     var body: some View {
         ScrollView {
@@ -65,11 +56,15 @@ struct ReceiptReviewDetailView: View {
                         .foregroundStyle(Color.orange)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                ForEach($itemStates) { $state in
-                    itemCard(for: $state)
-                }
-                if itemStates.count > 1, evidenceImage != nil {
-                    evidenceCard
+                if itemStates.count == 1 {
+                    // 单笔：一张卡全字段一屏（编辑区带「原图角图 + 记这笔」头行）
+                    ForEach($itemStates) { $state in
+                        card {
+                            editorBlock(for: $state, showsEvidenceThumb: true)
+                        }
+                    }
+                } else {
+                    multiItemSection
                 }
                 if let errorMessage {
                     Text(errorMessage)
@@ -86,6 +81,7 @@ struct ReceiptReviewDetailView: View {
             Color.holoSecondaryGroupedBackground
                 .ignoresSafeArea()
         )
+        .onTapGesture(perform: dismissKeyboard)
         .navigationTitle(itemStates.count > 1 ? Text("确认这几笔账") : Text("确认这笔账"))
         #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
@@ -103,6 +99,12 @@ struct ReceiptReviewDetailView: View {
         } message: {
             Text("草稿和暂存的证据图会被删除，且不会记账。")
         }
+        .sheet(isPresented: $showEvidenceSheet) {
+            ReceiptReviewEvidenceSheet(image: evidenceImage)
+        }
+        .sheet(isPresented: dateSheetPresentation) {
+            ReceiptReviewDatePickerSheet(date: activeDateBinding ?? .constant(Date()))
+        }
         .onAppear(perform: load)
         .onDisappear {
             for index in itemStates.indices {
@@ -111,325 +113,193 @@ struct ReceiptReviewDetailView: View {
         }
     }
 
-    // MARK: - 卡片
+    // MARK: - 页面骨架
 
-    /// 信息行：识别时间必显（2026-09-23 起旧草案一眼可辨）；多笔附笔数与同向合计。
-    /// 单笔不出汇总卡——金额就在笔卡内（2026-10-13 改版，原型画板②）
+    /// 信息行：识别时间必显（2026-09-23 起旧草案一眼可辨）。
+    /// 多笔合计 2026-11-11 升级为列表卡头部汇总条，meta 行只留左侧（原型画板②）
     private var metaLine: some View {
-        HStack {
-            Text("识别于 \(ReceiptRecognizedTimeText.text(for: draft.createdAt))")
-                .font(.caption)
+        Text("识别于 \(ReceiptRecognizedTimeText.text(for: draft.createdAt))")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 多笔：原图入口行（36pt）+ 一张列表卡（汇总条 + 紧凑行 + 展开块）
+    @ViewBuilder
+    private var multiItemSection: some View {
+        if evidenceImage != nil {
+            evidenceEntryRow
+        }
+        card {
+            VStack(spacing: 0) {
+                summaryHeader
+                Divider().overlay(Color.holoDivider)
+                ForEach($itemStates) { $state in
+                    compactItemRow(for: $state)
+                    if state.id != itemStates.last?.id {
+                        Divider().overlay(Color.holoDivider)
+                    }
+                }
+            }
+        }
+    }
+
+    /// 原图入口行：点开弹层看大图，看完关掉页面位置不动（不再页面内嵌撑开一大块）
+    private var evidenceEntryRow: some View {
+        Button {
+            showEvidenceSheet = true
+        } label: {
+            HStack(spacing: 9) {
+                Image(systemName: "photo")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+                Text("查看原图核对")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .fixedSize()
+                Text("仅在本机暂存，确认或删除后自动清理")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 13)
+            .frame(height: 36)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(Color.holoCardBackground)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 卡头汇总条（东林 11-11 拍板⑦：合计是关键信息，从 meta 小灰字升级至此）：
+    /// 左「N 笔待确认」13pt semibold 次级色，右合计 24pt rounded 大字，勾选实时联动；
+    /// 全剔除时金额置灰。收支方向不一致时不给合计（加总无意义，沿用 uniformTotalText 口径）
+    private var summaryHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text("\(includedStates.count) 笔待确认")
+                .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
             Spacer()
-            if itemStates.count > 1, let total = uniformTotalText {
-                Text("\(includedStates.count) 笔待确认 · 合计 ¥\(total)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-        }
-    }
-
-    private var evidenceCard: some View {
-        card {
-            DisclosureGroup("查看原图核对", isExpanded: $evidenceExpanded) {
-                VStack(spacing: 8) {
-                    if let evidenceImage {
-                        #if canImport(UIKit)
-                        Image(uiImage: evidenceImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 220)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                        #else
-                        Image(nsImage: evidenceImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 220)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                        #endif
-                    }
-                    Text("仅在本机暂存，确认或删除后自动清理")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+            if showsSummaryTotal {
+                HStack(alignment: .firstTextBaseline, spacing: 1) {
+                    Text("¥")
+                        .font(.system(size: 15, weight: .bold))
+                    Text(summaryTotalText)
+                        .font(.system(size: 24, weight: .heavy, design: .rounded))
                 }
-                .padding(.top, 10)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .foregroundStyle(includedStates.isEmpty ? Color.holoTextPlaceholder : Color.holoTextPrimary)
             }
-            .font(.subheadline.weight(.medium))
-            .tint(.holoPrimary)
         }
+        .padding(.top, 4)
+        .padding(.bottom, 8)
     }
 
-    /// 单笔编辑卡：可剔除 + 名称/金额/方向/科目/账户/项目/日期
-    /// 2026-10-13 改版（原型画板②③ + 东林名称反馈）：名称=唯一文本输入（表单第一行，
-    /// 预填 AI 商户名，直接落账本显示名 Transaction.note——商户名此前从未落库）；
-    /// 开关带「记这笔」标签（旧版 labelsHidden 裸开关且文案与绑定语义相反）；
-    /// 单笔时原图缩略图行进卡内（多笔仍走页面底部证据卡）。
-    private func itemCard(for state: Binding<ItemEditState>) -> some View {
-        card {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(state.wrappedValue.title)
-                            .font(.subheadline.weight(.medium))
-                            .foregroundColor(.holoTextSecondary)
-                        if itemStates.count > 1 {
-                            Text("¥\(state.wrappedValue.amountText)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
+    private var showsSummaryTotal: Bool {
+        uniformTotalText != nil || includedStates.isEmpty
+    }
+
+    private var summaryTotalText: String {
+        if let total = uniformTotalText { return total }
+        return ReceiptBookingCoordinator.formatAmount(Decimal(0))
+    }
+
+    /// 单笔紧凑行 + 手风琴展开块（一次只展开一笔，展开块无头行/缩略图）
+    private func compactItemRow(for state: Binding<ReceiptReviewItemEditState>) -> some View {
+        let itemID = state.wrappedValue.id
+        return VStack(spacing: 0) {
+            ReceiptReviewCompactRow(
+                state: state,
+                accounts: accounts,
+                projects: projects,
+                expenseCategories: expenseCategories,
+                incomeCategories: incomeCategories,
+                isExpanded: expandedItemID == itemID,
+                onToggleIncluded: {
+                    withAnimation(HoloAnimation.standard) {
+                        state.wrappedValue.included.toggle()
+                        // 剔除=整行淡出（方案 §5.3）：该笔展开块随之收起，不留占位行
+                        if !state.wrappedValue.included, expandedItemID == itemID {
+                            expandedItemID = nil
                         }
                     }
-                    Spacer()
-                    // fixedSize：Toggle 默认占满行宽（标签贴左开关贴右成断裂感），
-                    // 压回内容宽让「记这笔 [开关]」紧排成组；开关用系统绿——
-                    // 主按钮已是大块主题橙，同为橙则撞色（2026-10-13 东林「不和谐」反馈）
-                    Toggle("记这笔", isOn: state.included)
-                        .font(.footnote)
-                        .toggleStyle(.switch)
-                        .disabled(isCommitting)
-                        .fixedSize()
-                }
-
-                if state.wrappedValue.included {
-                // 转账/红包：方向+对方放笔卡最上方，跟随下方收支切换实时变化（2026-11-06）
-                if let kind = state.wrappedValue.item.transferKind {
-                    ReceiptReviewTransferLine(
-                        isRedPacket: kind == HoloVisionTransferInfo.redPacketKind,
-                        isIncome: state.wrappedValue.typeIsIncome,
-                        counterparty: state.wrappedValue.item.transferCounterparty,
-                        awaitingReceipt: state.wrappedValue.item.transferAwaitingReceipt == true
-                    )
-                }
-                if let notes = state.wrappedValue.item.reviewNotes, !notes.isEmpty {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption)
-                            .foregroundStyle(Color.orange)
-                        Text(itemReviewNotesText(notes))
-                            .font(.caption)
-                            .foregroundStyle(Color.orange)
+                },
+                onToggleExpanded: {
+                    // 剔除行不展开（无编辑内容可改，恢复勾选后再展开）
+                    guard state.wrappedValue.included else { return }
+                    withAnimation(HoloAnimation.standard) {
+                        expandedItemID = expandedItemID == itemID ? nil : itemID
                     }
                 }
-
-                // 单笔：原图贴卡内（核对依据跟着这笔账，不再压页面底部）
-                if itemStates.count == 1, let evidenceImage {
-                    evidenceThumbRow(image: evidenceImage)
-                }
-
-                // 名称=这笔账在账本里的显示名（Transaction.note），唯一且可编辑；
-                // 预填 AI 认出的商户名——此前商户名只做摆设标题且从未落库，
-                // 账本里这笔交易连名字都没有（2026-10-13 东林反馈根治）。
-                // 预填态占位符不显示，须带常驻「名称」标签否则用户认不出这是名称字段
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("名称")
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    TextField("名称", text: state.note)
-                        .font(.body)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color.holoSystemGray6)
-                        )
-                }
-
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text("¥").font(.title2.weight(.semibold))
-                        TextField("0.00", text: state.amountText)
-                            .font(.system(.title, design: .rounded).weight(.bold))
-                            #if canImport(UIKit)
-                            .keyboardType(.decimalPad)
-                            #endif
-                            .monospacedDigit()
-                    }
-                    Picker("方向", selection: state.typeIsIncome) {
-                        Text("支出").tag(false)
-                        Text("收入").tag(true)
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: state.wrappedValue.typeIsIncome) { _, _ in
-                        state.wrappedValue.selectedCategoryID = nil
-                        if state.wrappedValue.typeIsIncome { state.wrappedValue.selectedProjectID = nil }
-                        refreshCategorySuggestion(index: itemIndex(of: state.wrappedValue.id))
-                    }
-                    if let original = state.wrappedValue.item.amountOriginalText, !original.isEmpty {
-                        HStack {
-                            Text("票面金额原文").font(.footnote).foregroundStyle(.secondary)
-                            Spacer()
-                            Text(original).font(.footnote).monospacedDigit()
-                        }
-                    }
-
-                    Divider()
-
-                    categoryRow(for: state)
-
-                    Divider()
-
-                    accountRow(for: state)
-
-                    Divider()
-
-                    projectRow(for: state)
-
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        DatePicker("日期", selection: state.date, displayedComponents: .date)
-                            .font(.holoBody)
-                    }
-                } else {
-                    Text("这笔不记，确认时将跳过")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
+            )
+            if expandedItemID == itemID {
+                editorBlock(for: state, showsEvidenceThumb: false)
+                    // 缩进仅作层级暗示：35pt 会挤掉宫格值宽（「不挂项目」被截，判读 P0），收窄到 12
+                    .padding(.leading, 12)
+                    .padding(.top, 4)
+                    .padding(.bottom, 2)
             }
         }
     }
 
-    /// 原图缩略图行（单笔卡内）：点开/收起大图
-    private func evidenceThumbRow(image: UIImage) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                evidenceExpanded.toggle()
-            } label: {
-                HStack(spacing: 12) {
-                    #if canImport(UIKit)
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 72, height: 52)
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
-                    #else
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 72, height: 52)
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
-                    #endif
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("查看原图核对")
-                            .font(.footnote.weight(.medium))
-                            .foregroundColor(.holoTextPrimary)
-                        Text("仅在本机暂存，确认或删除后自动清理")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                    Spacer()
-                    Image(systemName: evidenceExpanded ? "chevron.down" : "chevron.right")
-                        .font(.footnote)
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(8)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(Color.holoSystemGray6)
-                )
-            }
-            .buttonStyle(.plain)
-            if evidenceExpanded {
-                #if canImport(UIKit)
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                #else
-                Image(nsImage: image)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                #endif
-            }
-        }
+    /// 逐笔编辑区（单笔卡与多笔展开块共用；回调把业务联动留在宿主）
+    private func editorBlock(
+        for state: Binding<ReceiptReviewItemEditState>,
+        showsEvidenceThumb: Bool
+    ) -> some View {
+        ReceiptReviewItemEditorBlock(
+            state: state,
+            showsEvidenceThumb: showsEvidenceThumb,
+            evidenceImage: evidenceImage,
+            isCommitting: isCommitting,
+            accounts: accounts,
+            projects: projects,
+            expenseCategories: expenseCategories,
+            incomeCategories: incomeCategories,
+            onDirectionChange: {
+                refreshCategorySuggestion(index: itemIndex(of: state.wrappedValue.id))
+            },
+            onTapEvidence: { showEvidenceSheet = true },
+            onTapDateChip: { activeDateItemID = state.wrappedValue.id }
+        )
     }
 
-    /// 科目行（AI 建议预填，可点改）
-    private func categoryRow(for state: Binding<ItemEditState>) -> some View {
-        let categories = state.wrappedValue.typeIsIncome ? incomeCategories : expenseCategories
-        return HStack {
-            Text("科目").font(.holoBody).foregroundColor(.holoTextPrimary)
-            Spacer()
-            Menu {
-                ForEach(topLevelCategories(in: categories), id: \.id) { top in
-                    Menu(top.name) {
-                        ForEach(subCategories(of: top, in: categories), id: \.id) { sub in
-                            Button(sub.name) {
-                                state.wrappedValue.selectedCategoryID = sub.id
-                            }
-                        }
-                    }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Text(currentCategoryTitle(for: state.wrappedValue, categories: categories))
-                        .foregroundColor(.holoTextPrimary)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption)
-                        .foregroundColor(.holoTextSecondary)
-                }
-            }
-        }
+    /// 日期弹层锚定：itemKey 锚到对应笔的 date（弹层内改即改这笔）
+    private var dateSheetPresentation: Binding<Bool> {
+        Binding(
+            get: { activeDateItemID != nil },
+            set: { if !$0 { activeDateItemID = nil } }
+        )
     }
 
-    /// 账户行：预填=逐笔渠道解析（各笔渠道可能不同），可点改
-    private func accountRow(for state: Binding<ItemEditState>) -> some View {
-        HStack {
-            Text("账户").font(.holoBody).foregroundColor(.holoTextPrimary)
-            Spacer()
-            Menu {
-                ForEach(accounts, id: \.id) { account in
-                    Button(account.name) {
-                        state.wrappedValue.selectedAccountID = account.id
-                    }
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Text(currentAccountName(for: state.wrappedValue))
-                        .foregroundColor(.holoTextPrimary)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.caption)
-                        .foregroundColor(.holoTextSecondary)
-                }
-            }
+    private var activeDateBinding: Binding<Date>? {
+        guard let id = activeDateItemID,
+              let index = itemStates.firstIndex(where: { $0.id == id }) else {
+            return nil
         }
+        return Binding(
+            get: { itemStates[index].date },
+            set: { itemStates[index].date = $0 }
+        )
     }
 
-    /// 项目行：支出可挂，收入不挂
-    private func projectRow(for state: Binding<ItemEditState>) -> some View {
-        Group {
-            if state.wrappedValue.typeIsIncome {
-                HStack {
-                    Text("项目").font(.holoBody).foregroundColor(.holoTextPrimary)
-                    Spacer()
-                    Text("收入不挂项目")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-            } else {
-                HStack {
-                    Text("项目").font(.holoBody).foregroundColor(.holoTextPrimary)
-                    Spacer()
-                    Menu {
-                        Button("不挂项目") { state.wrappedValue.selectedProjectID = nil }
-                        ForEach(projects, id: \.id) { project in
-                            Button(project.name) { state.wrappedValue.selectedProjectID = project.id }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text(currentProjectName(for: state.wrappedValue))
-                                .foregroundColor(.holoTextPrimary)
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.caption)
-                                .foregroundColor(.holoTextSecondary)
-                        }
-                    }
-                }
-            }
-        }
+    /// 点内容区空白收起金额/名称键盘（照 AddTransactionSheet 的收键盘手法）
+    private func dismissKeyboard() {
+        #if canImport(UIKit)
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        #else
+        NSApp.sendAction(#selector(NSResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        #endif
     }
 
     private var actionButtons: some View {
@@ -443,6 +313,8 @@ struct ReceiptReviewDetailView: View {
                     }
                     Text(commitButtonTitle)
                         .font(.holoBody.weight(.semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
@@ -457,7 +329,7 @@ struct ReceiptReviewDetailView: View {
             // 知情提示：默认开的自动归档必须让用户能预期照片会被保存（开关关时不显示）
             if ReceiptBookingArchivePolicy.isAutoArchiveEnabled {
                 Text(String(localized: "确认后，凭证照片将自动归档为票根"))
-                    .font(.system(size: 12))
+                    .font(.caption2)
                     .foregroundStyle(.tertiary)
                     .frame(maxWidth: .infinity)
             }
@@ -499,7 +371,7 @@ struct ReceiptReviewDetailView: View {
 
     // MARK: - 派生状态
 
-    private var includedStates: [ItemEditState] {
+    private var includedStates: [ReceiptReviewItemEditState] {
         itemStates.filter(\.included)
     }
 
@@ -515,6 +387,8 @@ struct ReceiptReviewDetailView: View {
 
     private var commitButtonTitle: String {
         let count = includedStates.count
+        // 全剔除（2026-11-11 拍板）：不再是「确认记 0 笔」怪文案，明确指向勾选动作
+        if count == 0 { return String(localized: "先勾选要记的账") }
         let total = uniformTotalText
         if count == 1 {
             return total.map { String(localized: "确认记账 ¥\($0)") } ?? String(localized: "确认记账")
@@ -531,53 +405,22 @@ struct ReceiptReviewDetailView: View {
         }
     }
 
-    private func topLevelCategories(in categories: [HoloFinanceCategory]) -> [HoloFinanceCategory] {
-        categories.filter { $0.isTopLevel }
-    }
-
-    private func subCategories(of top: HoloFinanceCategory, in categories: [HoloFinanceCategory]) -> [HoloFinanceCategory] {
-        categories.filter { !$0.isTopLevel && $0.parentId == top.id }
-    }
-
-    /// 当前生效科目名：用户改选 > AI 解析建议
-    private func currentCategoryTitle(for state: ItemEditState, categories: [HoloFinanceCategory]) -> String {
-        if let selectedCategoryID = state.selectedCategoryID,
-           let selected = categories.first(where: { $0.id == selectedCategoryID }) {
-            return selected.name
-        }
-        return state.suggestedCategoryTitle.isEmpty ? String(localized: "正在匹配科目…") : state.suggestedCategoryTitle
-    }
-
-    private func currentAccountName(for state: ItemEditState) -> String {
-        if let selectedAccountID = state.selectedAccountID,
-           let account = accounts.first(where: { $0.id == selectedAccountID }) {
-            return account.name
-        }
-        return String(localized: "自动识别")
-    }
-
-    private func currentProjectName(for state: ItemEditState) -> String {
-        if let selectedProjectID = state.selectedProjectID,
-           let project = projects.first(where: { $0.id == selectedProjectID }) {
-            return project.name
-        }
-        return String(localized: "不挂项目")
-    }
-
     private func itemIndex(of itemKey: String) -> Int? {
         itemStates.firstIndex { $0.id == itemKey }
     }
 
     /// 页面级复核原因：只在有具体原因时显示一行（2026-10-13 原型画板②：
     /// 「这笔账需要你确认。」兜底文案每张卡都有=零信息，不再展示）；
-    /// 笔级原因（金额没认准等）由各笔卡内的 reviewNotes 行承载
+    /// 笔级原因（金额没认准等）由各笔的 reviewNotes 行承载。
+    /// 2026-11-11 拍板：转账笔「请核对方向和对方。」不再显示——转账行方向胶囊已说清方向，
+    /// 对方名只在名称栏出现一次；多笔提示压成一句「勾掉不想记的，一次入账。」
     private var pageReasonText: String? {
         guard let first = draft.reasons.first, let reason = ReceiptBookingReason(rawValue: first) else {
             return nil
         }
         switch reason {
         case .reviewMultipleTransactions:
-            return String(localized: "图里有多笔交易，都留在这张确认卡里了，勾掉不想记的、核对金额后一次入账。")
+            return String(localized: "勾掉不想记的，一次入账。")
         case .reviewAmountLowConfidence, .reviewAmountConflict: return String(localized: "金额没认准，请核对。")
         case .reviewDirectionLowConfidence: return String(localized: "收支方向不确定，请选择。")
         case .reviewPaymentStatusLowConfidence: return String(localized: "支付状态不确定。")
@@ -590,23 +433,9 @@ struct ReceiptReviewDetailView: View {
         case .reviewContractGuarded: return String(localized: "识别结果有异常，请人工核对。")
         // 人话文案（2026-09-15 东林反馈）：旧契约灰度提示不该说「服务需要更新」
         case .reviewLegacyContract: return String(localized: "识别信息不完整，请核对后保存。")
-        case .reviewTransferConfirm: return String(localized: "请核对方向和对方。")
+        case .reviewTransferConfirm: return nil
         default: return nil
         }
-    }
-
-    private func itemReviewNotesText(_ notes: [String]) -> String {
-        let parts = notes.compactMap { ReceiptBookingReason(rawValue: $0) }.map { reason -> String in
-            switch reason {
-            case .reviewAmountLowConfidence, .reviewAmountConflict:
-                return String(localized: "金额没认准")
-            case .reviewDirectionLowConfidence:
-                return String(localized: "方向不确定")
-            default:
-                return String(localized: "请核对")
-            }
-        }
-        return parts.joined(separator: "、")
     }
 
     // MARK: - 数据
@@ -617,7 +446,7 @@ struct ReceiptReviewDetailView: View {
         projects = FinanceProjectRepository.shared.activeProjects()
 
         itemStates = draft.effectiveItems.enumerated().map { itemIndex, item in
-            var state = ItemEditState(
+            var state = ReceiptReviewItemEditState(
                 id: item.itemKey,
                 title: String(localized: "第 \(itemIndex + 1) 笔"),
                 item: item,
