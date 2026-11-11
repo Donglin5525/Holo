@@ -33,10 +33,14 @@ struct ContextExtractorOrchestratorStandaloneTests {
     }
 
     static func main() async throws {
+        // C9 失败包隔离计数存 UserDefaults（本机持久）——测试入口统一清零，防止
+        // 上一次运行的失败计数叠加导致本套件行为跨运行漂移。
+        UserDefaults.standard.removeObject(forKey: HoloPersonalContextExtractor.BatchQuarantine.defaultsKey)
         try await testDuplicateSourceBatch()
         try await testHappyPathCreatesRecordsAndAdvancesCursor()
         try await testBatchIdempotencySkipsLLMOnReplay()
         try await testLLMFailureDoesNotAdvanceCursor()
+        try await testQuarantineAfterRepeatedBillingFailures()
         try await testGenerationChangeRejectsStaleBatch()
         try await testSourceRevisionChangeRejectsStaleBatch()
         try await testTombstoneSuppressesResurrection()
@@ -47,6 +51,54 @@ struct ContextExtractorOrchestratorStandaloneTests {
         try await testDomainFollowsOrchestratorAndEvidenceCarriesQuote()
         try await testRebuildMigrationArchivesAndResets()
         print("ContextExtractorOrchestratorStandaloneTests: \(assertionCount) 断言全部通过")
+    }
+
+    /// C9（2026-11-12 降本四修）：计费类失败按批次键计数——第 3 次失败落空批回执放行
+    /// 游标（不再整页卡死重复付费）；同键此后幂等跳过；正文/修订变化产生新键，
+    /// 不受旧失败计数影响。
+    static func testQuarantineAfterRepeatedBillingFailures() async throws {
+        let sources = [source()]
+        let (extractor, llm, writer) = makeExtractor(sources: sources)
+        let badParse = HoloPersonalContextResponseParser.ParseError.notJSON
+
+        // 前两次失败：照旧抛错、游标不动（保留正常重试语义）。
+        for round in 1...2 {
+            llm.extractError = badParse
+            do {
+                _ = try await extractor.runOneBatch(now: Date(timeIntervalSince1970: 1_790_000_000))
+                expect(false, "第 \(round) 次失败应抛错")
+            } catch {
+                expect(true, "第 \(round) 次失败照旧抛错")
+            }
+            expect(writer.cursor == nil, "前两次失败不推游标")
+        }
+
+        // 第 3 次失败：隔离放行——不抛错、落空批回执、游标前进、无记录。
+        llm.extractError = badParse
+        let outcome = try await extractor.runOneBatch(now: Date(timeIntervalSince1970: 1_790_000_100))
+        expect(outcome.quarantinedBatches == 1, "第 3 次失败应被隔离放行（quarantinedBatches=1）")
+        expect(writer.cursor != nil, "隔离后页游标前进（不再卡死重复付费）")
+        expect(writer.records.isEmpty, "隔离不落任何记录")
+        let callsAfterQuarantine = llm.extractCallCount
+        expect(callsAfterQuarantine == 3, "恰好三次调用后隔离（前两次重试+第三次隔离，不多付）")
+
+        // 隔离回执落库后：同键幂等跳过，不再调 LLM。
+        llm.extractError = nil
+        llm.extractResponses = [extractionRaw()]
+        llm.verifyResponses = ["{\"verdicts\":[{\"candidateRef\":\"c1\",\"verdict\":\"supported\"}]}"]
+        let replay = try await extractor.runOneBatch(now: Date(timeIntervalSince1970: 1_790_000_200))
+        expect(replay.quarantinedBatches == 0 && replay.createdRecords == 0, "同键重放零处理")
+        expect(llm.extractCallCount == callsAfterQuarantine, "隔离回执后同键不再调用模型")
+
+        // 正文变化 → 新批次键：旧失败计数不跟随，正常成功。
+        let sources2 = [source(id: "thought-1", text: "最近轮到我照料邻居家的猫两周。", revision: "rev-1")]
+        let (extractor2, llm2, writer2) = makeExtractor(sources: sources2)
+        llm2.extractResponses = [extractionRaw(ref: "c9", statement: "我近期临时照料邻居的猫", quote: "照料", sourceID: "thought-1")]
+        llm2.verifyResponses = ["{\"verdicts\":[{\"candidateRef\":\"c9\",\"verdict\":\"supported\"}]}"]
+        let outcome2 = try await extractor2.runOneBatch(now: Date(timeIntervalSince1970: 1_790_000_300))
+        expect(outcome2.createdRecords == 1 && outcome2.quarantinedBatches == 0,
+               "新批次键不受旧失败计数影响，正常处理")
+        _ = writer2
     }
 
     // MARK: 测试替身

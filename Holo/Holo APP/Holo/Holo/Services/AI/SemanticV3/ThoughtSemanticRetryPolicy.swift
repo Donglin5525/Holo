@@ -32,7 +32,9 @@ nonisolated enum ThoughtSemanticRetryPolicy {
         if case APIError.rateLimited = error { return 60 }
         if case APIError.backendError(let status, let code, _, _) = error {
             // 模型格式错误不需要等外部额度恢复，避免指数退避把单条笔记挂起很久。
-            if code == "MODEL_OUTPUT_INVALID" { return 60 }
+            // C1（2026-11-12 降本四修）：连续第 3 次起退避拉到 15 分钟，防模型抽风日
+            // 同一坏输出被 60 秒节奏反复付费；配合执行器 attempt≥5 终态封顶。
+            if code == "MODEL_OUTPUT_INVALID" { return attempt >= 3 ? 900 : 60 }
             // 预算墙（当日后台/整理额度用尽）整池等次日重置：精确匹配此前漏了带
             // 前缀的 BACKGROUND_BUDGET_EXCEEDED，落到 429→60s 分支，叠加积压队列
             // 变成每 4 秒空打一次、一天 246 次的风暴（2026-11-01 实锤）。两个

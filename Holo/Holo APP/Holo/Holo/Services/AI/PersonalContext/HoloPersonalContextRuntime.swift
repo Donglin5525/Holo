@@ -462,8 +462,13 @@ enum HoloPersonalContextExtractionScheduler {
     private static let lastPassAtKey = "holo_personal_context_extraction_last_pass_at_v1"
     /// 防抖间隔：两次前台萃取之间的最小间隔。
     static let minimumInterval: TimeInterval = 30 * 60
+    /// C7 单飞保护（2026-11-12 降本四修）：冷启动（跳防抖）与回前台两条路径可在
+    /// 附近各自开一轮，同游标同批包双付费（2026-11 实测 64 次萃取并发重叠）。
+    /// 在途一轮结束前，后续触发直接放弃；结束后仍由防抖与谷窗决定下一次。
+    private static var isRunning = false
 
     static func runPassIfDue(bypassDebounce: Bool = false, packageLimit: Int = 2) async {
+        guard !isRunning else { return }
         let defaults = UserDefaults.standard
         if !bypassDebounce, let last = defaults.object(forKey: lastPassAtKey) as? Date,
            Date().timeIntervalSince(last) < minimumInterval {
@@ -474,6 +479,8 @@ enum HoloPersonalContextExtractionScheduler {
         if !HoloAIWindowPolicy.isValleyWindow() {
             return
         }
+        isRunning = true
+        defer { isRunning = false }
         defaults.set(Date(), forKey: lastPassAtKey)
         _ = await HoloPersonalContextExtractionJob.runPass(packageLimit: packageLimit)
     }

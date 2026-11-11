@@ -121,7 +121,8 @@ actor ThoughtSemanticEmbeddingExecutor {
     }
 
     private func finishFailure(_ error: Error, job: ThoughtSemanticStore.SemanticJob, store: ThoughtSemanticStore) async {
-        let terminal = isTerminalError(error)
+        // C1 重试封顶（2026-11-12 降本四修）：与 relate 执行器同口径，attempt≥5 转终态。
+        let terminal = isTerminalError(error) || job.attemptCount + 1 >= 5
         let next = Date().addingTimeInterval(ThoughtSemanticRetryPolicy.delay(error, attempt: job.attemptCount + 1))
         try? await store.finishJob(id: job.id, state: terminal ? "failed_terminal" : "pending",
                                   nextAttemptAt: terminal ? nil : next, errorCode: errorCode(for: error))
@@ -198,7 +199,8 @@ actor ThoughtSemanticEmbeddingExecutor {
         } catch {
             let attempt = job.attemptCount + 1
             // 协议/数据类错误直接终态；网络类退避重试（指数，封顶 1h）
-            let terminal = isTerminalError(error)
+            // C1 重试封顶（2026-11-12 降本四修）：attempt≥5 转终态失败留诊断。
+            let terminal = isTerminalError(error) || attempt >= 5
             let next = Date().addingTimeInterval(ThoughtSemanticRetryPolicy.delay(error, attempt: attempt))
             try? await store.finishJob(id: job.id,
                                        state: terminal ? "failed_terminal" : "pending",

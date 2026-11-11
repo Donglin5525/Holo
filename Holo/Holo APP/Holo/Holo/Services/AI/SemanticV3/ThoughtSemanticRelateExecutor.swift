@@ -126,7 +126,10 @@ actor ThoughtSemanticRelateExecutor {
             return .done
         } catch {
             let attempt = job.attemptCount + 1
-            let terminal = isTerminalError(error)
+            // C1 重试封顶（2026-11-12 降本四修）：非终态错误此前无限 pending 重试
+            //（实测 11 月 9 天 ¥0.14 重复计费）；attempt≥5 转终态失败留诊断，
+            // 正文/目录版本变化产生的新任务不受影响（新批次键从头计）。
+            let terminal = isTerminalError(error) || attempt >= 5
             let code = ThoughtSemanticRetryPolicy.code(error)
             let next = Date().addingTimeInterval(ThoughtSemanticRetryPolicy.delay(error, attempt: attempt))
             try? await store.finishJob(id: job.id,

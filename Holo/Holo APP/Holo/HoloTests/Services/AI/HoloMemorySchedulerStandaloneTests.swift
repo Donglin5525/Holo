@@ -75,6 +75,7 @@ struct HoloMemorySchedulerStandaloneTests {
         try await testMaterialThresholdCrossDomainAndDailyBudget()
         try await testOnlyOneAIJobRunsAtATime()
         try await testControlStateRecheckBeforeCommit()
+        try await testFailureCountsBudgetAndCircuitBreaker()
         #if DEBUG
         try await testDebugResetValidationState()
         #endif
@@ -436,6 +437,94 @@ struct HoloMemorySchedulerStandaloneTests {
                "日预算耗尽后，剩余领域必须延后")
         expect(budgetEvents.contains(.deferredByResource(.dailyBudgetExhausted)),
                "预算延后应留下可验证事件")
+    }
+
+    /// C8（2026-11-12 降本四修）：①失败调用也计入当日配额（调用一发出即计费）；
+    /// ②同观测键第 3 次失败熔断到次日本地零点，不再指数空转。
+    private static func testFailureCountsBudgetAndCircuitBreaker() async throws {
+        let control = SchedulerControlBox()
+        let counter = CounterBox()
+        // 2024-07-03 19:46 北京（谷窗，与上方用例同时刻语义）。
+        let now = Date(timeIntervalSince1970: 1_720_007_200)
+
+        // ① 失败占预算：dailyAICallLimit=2，两次失败后第三次必须被预算挡住。
+        let budgetScheduler = HoloMemoryObservationScheduler(
+            controlStateProvider: { await control.snapshot() },
+            consentProvider: { await control.hasConsent() }
+        )
+        await budgetScheduler.markDirty(target: .domain(.finance), sourceDigest: "c8-budget", now: now)
+        var lastRetry = now
+        for _ in 0..<2 {
+            let events = await budgetScheduler.runIfNeeded(
+                now: lastRetry.addingTimeInterval(120),
+                resourceSnapshot: .init(dailyAICallLimit: 2),
+                extractorVersion: 1,
+                promptVersion: 1,
+                debounce: 0,
+                materialChange: { _ in true },
+                extract: { _ in await counter.extracted(); throw TestError.expected },
+                commit: { _, _ in await counter.committed() }
+            )
+            guard case .failed(_, let retryAt) = events.last else {
+                fatalError("前两次失败应记录指数退避，实际 \(events)")
+            }
+            assertions += 1
+            lastRetry = retryAt
+        }
+        let blocked = await budgetScheduler.runIfNeeded(
+            now: lastRetry.addingTimeInterval(120),
+            resourceSnapshot: .init(dailyAICallLimit: 2),
+            extractorVersion: 1,
+            promptVersion: 1,
+            debounce: 0,
+            materialChange: { _ in true },
+            extract: { _ in await counter.extracted(); throw TestError.expected },
+            commit: { _, _ in await counter.committed() }
+        )
+        expect(blocked.contains(.deferredByResource(.dailyBudgetExhausted)),
+               "两次失败已占满 limit=2 的当日配额，第三次必须被预算延后（失败也计数）")
+        let afterBudget = await counter.snapshot()
+        expect(afterBudget.0 == 2, "预算场景恰好两次调用被发出（第三次被挡在前）")
+
+        // ② 第 3 次失败熔断：退避必须越过指数上限 6h（次日本地零点语义）。
+        let circuitScheduler = HoloMemoryObservationScheduler(
+            controlStateProvider: { await control.snapshot() },
+            consentProvider: { await control.hasConsent() }
+        )
+        await circuitScheduler.markDirty(target: .domain(.habit), sourceDigest: "c8-circuit", now: now)
+        var circuitRetry = now.addingTimeInterval(10)
+        for round in 1...3 {
+            let runNow = circuitRetry.addingTimeInterval(1)
+            let events = await circuitScheduler.runIfNeeded(
+                now: runNow,
+                resourceSnapshot: .init(),
+                extractorVersion: 1,
+                promptVersion: 1,
+                debounce: 0,
+                materialChange: { _ in true },
+                extract: { _ in throw TestError.expected },
+                commit: { _, _ in }
+            )
+            guard case .failed(_, let retryAt) = events.last else {
+                fatalError("第 \(round) 次失败应记录重试时间，实际 \(events)")
+            }
+            assertions += 1
+            if round == 3 {
+                // 熔断语义 = 推到「次日本地零点」：retryAt 必须跨本地日界且不足 24h
+                //（不能用 >6h 判据——傍晚失败时次日零点可能只差 3-4 小时）。
+                let calendar = Calendar.current
+                func dayComps(_ d: Date) -> DateComponents {
+                    calendar.dateComponents([.year, .month, .day], from: d)
+                }
+                expect(dayComps(retryAt) != dayComps(runNow)
+                       && retryAt.timeIntervalSince(runNow) < 24 * 60 * 60,
+                       "第 3 次失败必须熔断到次日本地零点（跨日界），实际 retryAt=\(retryAt) runNow=\(runNow)")
+            } else {
+                expect(retryAt.timeIntervalSince(runNow) <= 6 * 60 * 60,
+                       "前两次失败仍应落在指数退避 6h 上限内")
+            }
+            circuitRetry = retryAt
+        }
     }
 
     private static func testOnlyOneAIJobRunsAtATime() async throws {

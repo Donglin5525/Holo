@@ -31,6 +31,7 @@ struct ThoughtSemanticStoreStandaloneTests {
         try await legacyQueueRecovery(tmp.appendingPathComponent("legacy"))
         await flatIndexBehavior()
         vectorMath()
+        retryPolicyC1BackoffSteps()
         try await destroySemantics(tmp)
         try await malformedVectorAndOpenContract(tmp)
         try? FileManager.default.removeItem(at: tmp)
@@ -128,11 +129,42 @@ struct ThoughtSemanticStoreStandaloneTests {
             basisRemovalCount: 0, updatedAt: Date()))
         check(!(try await store.hasRelationRecord(thoughtID: thoughts[0], contentHash: "unchanged",
                                                    evaluationVersion: catalogVersion)), "类别理解升版仍需重评")
+        // C6（2026-11-12 降本四修）：过期记录不再触发重评——14 天过期曾周期性把全库
+        // 关联重新入队（重度用户 93% 后台费来自关联重算）；重评只由版本与正文变化触发。
+        // 注意：上面刚把 brief 升到 v2，过期记录必须用「当前」版本键写入，才是在测
+        // 过期维度而不是版本维度。
+        let briefKeysNow = try await store.allCategoryBriefVersionKeys()
+        let recordedVersionNow = catalogVersion + ":brief=" + briefKeysNow.joined(separator: "|")
+        let expiredThought = UUID()
+        try await store.recordRelationCandidate(thoughtID: expiredThought, topicID: expiredThought,
+            contentHash: "expired-hash", scoreFeatures: "{}",
+            verifierResult: "evaluated", state: "evaluated",
+            engineVersion: recordedVersionNow, expiryDays: -1)
+        check(try await store.hasRelationRecord(thoughtID: expiredThought, contentHash: "expired-hash",
+                                                 evaluationVersion: catalogVersion),
+              "已过期的关联记录仍应判『已有』，不再因过期重新入队重评")
+        check(!(try await store.hasRelationRecord(thoughtID: expiredThought, contentHash: "expired-hash",
+                                                  evaluationVersion: "new-catalog")),
+              "过期记录在目录版本变化时仍需重评（版本通道保留）")
         await store.close()
-        print("PASS: 7 份类别理解下 104 条完成回执连续三次核对不重排，正文/目录/类别版本变化仍重评")
+        print("PASS: 7 份类别理解下 104 条完成回执连续三次核对不重排，正文/目录/类别版本变化仍重评；C6 过期不再触发重评")
     }
 
     // MARK: - 2. job 队列语义
+
+    /// C1（2026-11-12 降本四修）：MODEL_OUTPUT_INVALID 前 2 次快退避 60s，
+    /// 第 3 次起拉到 900s——防模型抽风日同一坏输出被分钟级节奏反复付费。
+    ///（attempt≥5 转终态的封顶在执行器 catch 内，逻辑为单条 or 条件，由编译与走查覆盖。）
+    static func retryPolicyC1BackoffSteps() {
+        func invalidError() -> Error {
+            APIError.backendError(statusCode: 200, code: "MODEL_OUTPUT_INVALID",
+                                  message: "bad output", requestId: nil)
+        }
+        check(ThoughtSemanticRetryPolicy.delay(invalidError(), attempt: 1) == 60, "第 1 次坏输出 60s")
+        check(ThoughtSemanticRetryPolicy.delay(invalidError(), attempt: 2) == 60, "第 2 次坏输出 60s")
+        check(ThoughtSemanticRetryPolicy.delay(invalidError(), attempt: 3) == 900, "第 3 次坏输出起退避 15 分钟")
+        check(ThoughtSemanticRetryPolicy.delay(invalidError(), attempt: 4) == 900, "第 4 次坏输出维持 15 分钟")
+    }
 
     static func jobQueueSemantics(_ root: URL) async throws {
         let store = await ThoughtSemanticStore(root: root)

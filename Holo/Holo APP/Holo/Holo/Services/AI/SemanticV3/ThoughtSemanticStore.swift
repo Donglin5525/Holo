@@ -308,13 +308,17 @@ actor ThoughtSemanticStore {
 
     /// 该想法此正文版本是否已有 relate 记录。传入目录版本后统一补齐类别理解版本，
     /// 与执行器的回执保持同一口径，避免有 brief 的笔记成功后仍反复入队。
+    /// C6（2026-11-12 降本四修）：不再用 expires_at 参与判重——14 天过期会周期性把
+    /// 全库关联重新入队重评（实测重度用户 93% 后台费来自关联重算）。过期记录仍可
+    /// 展示；重评只由目录/引擎版本（evaluationVersion、engine_version）与正文变化
+    /// （contentHash）触发。
     func hasRelationRecord(thoughtID: UUID, contentHash: String, evaluationVersion: String? = nil) throws -> Bool {
         let currentVersion = try evaluationVersion.map { try relationEvaluationVersion(catalogVersion: $0) }
         let stmt = try prepare("""
             SELECT COUNT(*) FROM relation_candidate
-            WHERE thought_id=?1 AND content_hash=?2 AND expires_at > ?3
-                AND (?4 IS NULL OR engine_version=?4)
-            """, .uuid(thoughtID), .text(contentHash), .date(Date()), .text(currentVersion))
+            WHERE thought_id=?1 AND content_hash=?2
+                AND (?3 IS NULL OR engine_version=?3)
+            """, .uuid(thoughtID), .text(contentHash), .text(currentVersion))
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return false }
         return sqlite3_column_int64(stmt, 0) > 0

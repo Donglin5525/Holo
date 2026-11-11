@@ -288,8 +288,11 @@ actor HoloMemoryObservationScheduler {
                 promptVersion: promptVersion
             )
             do {
-                let output = try await extract(job)
+                // C8 计数前置（2026-11-12 降本四修）：调用一发出即计入当日配额，失败同样
+                // 占名额。此前只在成功后计数，坏输出无限重试不占每日上限（实测单日计费
+                // 13~14 次超过名义上限 10、同输入重复占领域萃取花费 38%）。
                 state.aiCallDates.append(now)
+                let output = try await extract(job)
 
                 let beforeCommit = await controlStateProvider()
                 guard controlAllowsJob(beforeCommit, matching: initialControl),
@@ -308,9 +311,15 @@ actor HoloMemoryObservationScheduler {
             } catch {
                 let previousAttempt = state.retryByObservationKey[key]?.attempt ?? 0
                 let attempt = previousAttempt + 1
-                let delay = error is HoloMemoryCommitValidationRefused
-                    ? Self.secondsUntilNextLocalDay(now)
-                    : min(pow(2, Double(attempt - 1)) * 60, 6 * 60 * 60)
+                // C8 失败熔断（2026-11-12 降本四修）：同观测键当日第 3 次失败后不再
+                // 指数空转，推到次日本地零点再试（任务不永久丢失，来源修订变化会
+                // 换观测键自然重置）。
+                let delay: TimeInterval
+                if attempt >= 3 || error is HoloMemoryCommitValidationRefused {
+                    delay = Self.secondsUntilNextLocalDay(now)
+                } else {
+                    delay = min(pow(2, Double(attempt - 1)) * 60, 6 * 60 * 60)
+                }
                 let retryAt = now.addingTimeInterval(delay)
                 state.retryByObservationKey[key] = HoloMemoryRetryState(
                     attempt: attempt,
