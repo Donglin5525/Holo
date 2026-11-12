@@ -14,5 +14,6 @@ private struct UnderstandingStandaloneRunner {
         try await ProposalGateStandaloneTests.main2()
         try EvidenceRouterStandaloneTests.run()
         try ThemeIndexStandaloneTests.run()
+        try ShadowRuntimeStandaloneTests.run()
     }
 }
