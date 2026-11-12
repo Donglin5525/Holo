@@ -12,8 +12,13 @@
 #   2) 首个 View struct 内联体量 > 1400 → 构建失败（把大 section 拆同目录独立 struct）
 #   3) 白名单豁免=挂账（在途/冻结占用），收口后拆分并移出白名单
 #   4) 读不到文件/文件数异常 → fail-closed 拦截（假闸门比没闸门更危险）
+#   5) body 多顶层视图劫持修饰链 → 构建失败（2026-11-12 随每周回顾翻车设立：
+#      View 协议 body 要求自带 @ViewBuilder，body 里裸写兄弟视图会静默变 TupleView，
+#      编译零警告；其后跟的点修饰全部挂到兄弟视图上。实锤：d9ce7ecd0 把 .task 挂到
+#      空板块上 → 页面永久加载态，随 1.1.7(52) 上架。签名=根深度第 2+ 条语句是裸标识
+#      符且下一行以点开头）
 # 修法范本：Views/Settings/SettingsICloudSyncSection.swift（叶子拆出去、层级不增加）；
-# 红线真源：docs/standards/quality-redlines.md §3/§6
+# 红线真源：docs/standards/quality-redlines.md §3/§6/§8
 
 import os
 import re
@@ -43,6 +48,63 @@ WHITELIST = {
 top_level_decl = re.compile(r"^(private |final |public )*(struct|class|enum|extension|actor) ")
 view_struct_decl = re.compile(r"^(private |final |public )*struct \w+")
 
+# —— body 多顶层视图劫持检测（规则 5）——
+body_decl = re.compile(r"^\s*(?:@\w+\s+)*(?:private |public )?var body\b.*\{")
+bare_identifier_line = re.compile(r"^\s*[A-Za-z_][A-Za-z0-9_]*\s*$")
+dot_line = re.compile(r"^\s*\.")
+# 根深度上这些开头视为上一条语句的续行，不算新语句
+continuation_line = re.compile(r"^\s*[)}?:,&|+]")
+
+
+def _code(line):
+    """去掉行注释后的代码部分（brace 计数与判定都用它）。"""
+    return line.split("//", 1)[0].rstrip()
+
+
+def body_root_hijack_spans(lines):
+    """返回 [(行号1based, 裸标识符)]：body 根深度上第 2+ 条语句为裸标识符且下一行以点开头。
+
+    这是「修饰链被兄弟视图截断」的精确签名（TupleView + 修饰符挂错对象）。
+    第一条语句的裸标识符后跟点是合法链式修饰，不算；容器闭包内部的裸子视图
+    深度更高，也不算——深度追踪只盯 body 自己的根。
+    """
+    spans = []
+    i, n = 0, len(lines)
+    while i < n:
+        if not body_decl.match(lines[i]):
+            i += 1
+            continue
+        code = _code(lines[i])
+        depth = code.count("{") - code.count("}")
+        root_depth = depth
+        stmt_count = 0
+        j = i + 1
+        while j < n and depth >= root_depth:
+            raw = lines[j]
+            c = _code(raw)
+            if not c.strip():
+                j += 1
+                continue
+            delta = c.count("{") - c.count("}")
+            stripped = c.strip()
+            if (
+                depth == root_depth
+                and not stripped.startswith("}")
+                and not dot_line.match(c)
+                and not continuation_line.match(c)
+            ):
+                stmt_count += 1
+                if stmt_count >= 2 and bare_identifier_line.match(raw):
+                    k = j + 1
+                    while k < n and not _code(lines[k]).strip():
+                        k += 1
+                    if k < n and dot_line.match(_code(lines[k])):
+                        spans.append((j + 1, stripped))
+            depth += delta
+            j += 1
+        i = j
+    return spans
+
 
 def first_view_struct_span(lines):
     """首个 View struct 到下一个顶层声明之间的行数（主 struct 内联体量近似）。"""
@@ -66,8 +128,6 @@ def main():
         for fn in sorted(files):
             if not fn.endswith(".swift") or "ViewModel" in fn:
                 continue
-            if fn in WHITELIST:
-                continue
             path = os.path.join(root, fn)
             try:
                 with open(path, encoding="utf-8") as fp:
@@ -77,8 +137,17 @@ def main():
                     "error: View Weight Guard 无法读取 %s（脚本沙箱或文件异常，fail-closed 拦截）" % path
                 )
                 continue
-            checked += 1
             rel = os.path.relpath(path, SRCROOT)
+            # 规则 5 对白名单文件同样生效（劫持检查与体量豁免无关）
+            for ln, ident in body_root_hijack_spans(lines):
+                errors.append(
+                    "error: %s:%d 「%s」是 body 里第 2+ 个顶层视图（TupleView）——其后跟着的点修饰会挂到它身上"
+                    "而不是你以为的整页（2026-11-12 每周回顾永久卡加载实锤，quality-redlines.md §8）。"
+                    "把它移进容器/滚动内容流，让修饰链挂回唯一根视图" % (rel, ln, ident)
+                )
+            if fn in WHITELIST:
+                continue
+            checked += 1
             total = len(lines)
             if total > FILE_LIMIT:
                 errors.append(
