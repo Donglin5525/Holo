@@ -20,6 +20,8 @@ swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/ProposalGateStandaloneTests.swift" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/EvidenceRouterStandaloneTests.swift" \
   "$APP/Services/AI/Understanding/EvidenceRouter.swift" \
+  "$APP/Services/AI/Understanding/ThemeIndex.swift" \
+  "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/ThemeIndexStandaloneTests.swift" \
   "$APP/Services/AI/Understanding/ProposalGate.swift" \
   "$APP/Services/AI/Understanding/LifeObservation.swift" \
   "$APP/Services/AI/Understanding/DomainCapability.swift" \
