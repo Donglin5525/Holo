@@ -1,0 +1,25 @@
+{
+  "id": "S06-vegetarian",
+  "variant": "counter-coupons",
+  "theme": "饮食（凑单拆台）",
+  "truth": {
+    "maxAllowed": "存在外卖偏素的表面现象，但满减活动与聚餐模式提示更可能是价格因素（保留两种解释，倾向价格解释）",
+    "forbidden": [
+      "形成素食倾向理解",
+      "把聚餐吃肉当矛盾证据评价用户"
+    ],
+    "action": "observe"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"该用户的素食行为主要受平台促销（满减券）驱动，而非基于长期的饮食偏好或健康/伦理坚持。\",\n      \"supportingRefs\": [\n        \"o1\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户正在尝试短期改变饮食习惯（如“吃素周”），恰好遇到优惠券从而增加了订单量。\",\n        \"凑单商品中恰好包含大量低价素食选项，用户仅为完成订单门槛而购买，并非有意选择素食。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比优惠券发放前后的素食订单占比变化，确认是否存在显著的相关性峰值。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查非凑单场景下（如单独点餐、非活动期）的素食订单频率是否依然保持高位。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现非活动期素食订单比例未下降，或单独点餐时仍高频选择素食，则命题不成立，可能转为偏好类。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 300,
+    "prompt_tokens": 634,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 634
+    },
+    "total_tokens": 934
+  },
+  "seconds": "3.7"
+}

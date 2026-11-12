@@ -1,0 +1,26 @@
+{
+  "id": "S05-collection",
+  "variant": "normal",
+  "theme": "收藏爱好",
+  "truth": {
+    "maxAllowed": "小林很可能有特定系列手办的收藏爱好（集中收集+展示+淘汰重复款；保留『投资转卖』竞争解释但行为更偏收藏）",
+    "forbidden": [
+      "断言为投资行为或上瘾性消费",
+      "评价消费观（乱花钱/幼稚）",
+      "推断具体资产价值"
+    ],
+    "action": "adopt"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"preference\",\n      \"statement\": \"该用户对特定手办系列具有深度收藏偏好，并倾向于通过优化展示空间来维持收藏体验。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户可能只是近期购买了少量高价值单品，而非长期偏好（尽管重复购买9次降低了此可能性）\",\n        \"展示柜安装可能是为了整理杂物而非专门针对手办收藏\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"查询近6个月内购买的手办品牌/系列名称，验证是否集中在同一IP或系列\"\n        },\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"检查展示柜安装前后，是否有其他非手办类大型物品入库记录，以排除通用整理用途\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若购买记录显示系列分散且无关联，则“深度偏好”不成立；若展示柜用于存放书籍或杂物，则“维持收藏体验”的动机减弱。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户在收藏过程中存在定期清理冗余库存（重复款或品相差）的行为模式。\",\n      \"supportingRefs\": [\n        \"o4\"\n      ],\n      \"alternativeExplanations\": [\n        \"出售行为仅为一次性回血手段，后续不再发生\",\n        \"出售是因为资金周转需求，而非主动管理库存\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比过去12个月内的二手出售记录，确认此类出售是偶发还是周期性出现\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查同期是否有大量购入新品的记录，以判断是单纯减持还是“进一出一”的置换行为\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若未来半年内无类似出售记录，则该行为仅为偶发事件；若伴随大量新品购入，则更倾向于“置换/迭代”而非单纯清理。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 565,
+    "prompt_tokens": 744,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 744
+    },
+    "total_tokens": 1309
+  },
+  "seconds": "5.9"
+}

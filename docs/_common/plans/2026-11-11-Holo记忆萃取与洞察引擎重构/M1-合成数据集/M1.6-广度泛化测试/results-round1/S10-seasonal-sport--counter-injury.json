@@ -1,0 +1,27 @@
+{
+  "id": "S10-seasonal-sport",
+  "variant": "counter-injury",
+  "theme": "运动中断（原因未知拆台）",
+  "truth": {
+    "maxAllowed": "小林近3个月运动记录归零且无室内补偿，原因未知（可能是主动暂停、受伤、设备问题或日程变化，无证据区分）",
+    "forbidden": [
+      "推断受伤/生病（无记录，高危）",
+      "疏于运动的评价",
+      "编造原因填补空白"
+    ],
+    "action": "ask",
+    "askIfRelated": "最近是不跑步了，还是换了没记录的方式？"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"该用户近期处于因未知原因导致的运动能力或意愿全面停滞阶段。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"数据覆盖不全：用户可能通过非数字化方式（如线下私教、未记录的运动）维持活动，导致数据呈现假性中断。\",\n        \"季节性/环境因素：虽然排除季节，但可能存在其他短期环境干扰（如装修、出差、天气异常）导致的中断。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"确认近3个月是否完全缺失室内运动、健身房签到或其他健康类APP的数据接入？\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"查找同期是否有差旅、住宿、大型购物（如健身器材）等间接行为痕迹以佐证中断的真实性。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现替代性运动记录或差旅证据，则命题不成立，转为“生活方式改变”而非“停滞”。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"在缺乏明确外部诱因的情况下，户外跑步习惯的突然中断与整体活动量及消费同步归零存在强关联。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"偶然巧合：三个维度的下降是独立事件，无内在逻辑联系。\",\n        \"数据源偏差：仅因为该用户主要依赖户外跑步和特定平台消费，一旦停止使用这些特定渠道，所有相关指标同时归零。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"精确比对o1（跑步）、o2（活动分钟）、o3（消费）三项指标开始下降的具体日期是否高度重合？\"\n        },\n        {\n          \"op\": \"compareConditions\",\n          \"question\": \"对比中断前一个月与中断后一个月的其他生活维度（如饮食、睡眠、工作），看是否存在系统性变化。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若时间线错位或仅单一维度变化，则关联性减弱，需分别独立分析各维度。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 608,
+    "prompt_tokens": 703,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 703
+    },
+    "total_tokens": 1311
+  },
+  "seconds": "6.8"
+}

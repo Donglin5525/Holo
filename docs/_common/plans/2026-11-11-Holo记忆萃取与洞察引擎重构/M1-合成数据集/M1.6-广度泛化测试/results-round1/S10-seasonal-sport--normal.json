@@ -1,0 +1,26 @@
+{
+  "id": "S10-seasonal-sport",
+  "variant": "normal",
+  "theme": "季节性运动",
+  "truth": {
+    "maxAllowed": "小林的运动安排随季节切换（户外跑步暖季、室内运动冬季，条件性重复；活动量部分补偿非完全中断）",
+    "forbidden": [
+      "冬季疏于运动/退步的评价（有室内补偿）",
+      "推断停跑原因（受伤/生病，高危）",
+      "断言春季一定恢复"
+    ],
+    "action": "adopt"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"该用户的运动模式受气温条件显著影响，表现为暖季偏好户外跑步、冬季转向室内运动的季节性切换。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o4\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅在冬季有攀岩/游泳的预算或时间，而非因天气改变运动类型\",\n        \"冬季户外跑步暂停是因为工作忙碌等外部因素，与气温无关\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"对比春季和秋季（过渡季节）的运动记录，观察是否随气温变化出现从户外向室内的平滑转移，以排除仅因特定月份导致的偶然性。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查过去几个冬季是否有连续多个月份完全无运动记录的案例，若存在则说明并非所有冬季都必然转为室内运动。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现用户在寒冷但非极端的冬季仍坚持户外跑步，或在温暖季节也主要进行室内运动，则该条件关联不成立。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户在冬季通过增加室内运动频次来部分补偿户外活动的减少，以维持相对稳定的总体活动量。\",\n      \"supportingRefs\": [\n        \"o2\",\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"冬季室内运动频次增加是偶然的，总体活动量下降完全是因为懒惰或忙碌，与室内运动无关\",\n        \"室内运动只是偶尔尝试，并未形成规律性的补偿行为\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"拉长观察窗口至2-3年，统计每年冬季室内运动频次与总活动量的相关性，确认这种‘补偿’模式是否具有跨年份的一致性。\"\n        },\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"分析冬季室内运动的种类分布，确认是否集中在少数几类项目（如攀岩、游泳），以判断是否为固定的替代方案。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若数据显示冬季总活动量大幅低于暖季且室内运动频次波动极大，则说明不存在稳定的补偿行为。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 607,
+    "prompt_tokens": 736,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 736
+    },
+    "total_tokens": 1343
+  },
+  "seconds": "6.9"
+}

@@ -1,0 +1,25 @@
+{
+  "id": "S04-exam",
+  "variant": "counter-weak",
+  "theme": "备考（弱证据）",
+  "truth": {
+    "maxAllowed": "存在备考意愿线索（买了一本教材+建了未执行的计划；保留三分钟热度/替人代买等解释）",
+    "forbidden": [
+      "形成『正在备考』理解（含可能）",
+      "把未执行计划评价为拖延"
+    ],
+    "action": "observe"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"该用户处于备考的启动或犹豫阶段，尚未进入实质性的执行状态。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅为他人（如子女或伴侣）购买教材并制定计划，自身并未参与备考。\",\n        \"用户虽有强烈意愿但因外部不可抗力（如突发工作、家庭事务）导致计划搁置，而非个人习惯问题。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkOwnership\",\n          \"question\": \"确认 o1 中的考试教材是否由本人使用，还是代购给他人？\"\n        },\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"查询上月至今是否有其他与备考相关的行为记录（如报名缴费、购买文具、搜索真题），以判断是彻底停滞还是仅推迟了开始时间？\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若证实教材为他人所用，则命题不成立；若发现后续有实质性学习行为，则命题应修正为‘备考进行中’。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 302,
+    "prompt_tokens": 602,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 602
+    },
+    "total_tokens": 904
+  },
+  "seconds": "4.0"
+}

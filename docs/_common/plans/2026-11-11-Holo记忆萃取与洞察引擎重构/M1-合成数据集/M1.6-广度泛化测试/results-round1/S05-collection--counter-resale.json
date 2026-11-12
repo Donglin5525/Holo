@@ -1,0 +1,25 @@
+{
+  "id": "S05-collection",
+  "variant": "counter-resale",
+  "theme": "收藏（转卖拆台）",
+  "truth": {
+    "maxAllowed": "小林在手办市场进行买卖转手（交易行为，且以价差获利为导向）",
+    "forbidden": [
+      "收藏爱好的理解（行为模式是交易不是收藏）",
+      "推断收入水平"
+    ],
+    "action": "adopt"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户近期存在高频的手办“低买高卖”套利行为，且将此视为一种获取额外资金的手段。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅是单纯清理库存回血，并非主动追求利润（尽管卖出价高于买入价可能是市场自然波动而非主观套利策略）。\",\n        \"用户可能是在帮他人代卖或处理二手平台上的非个人藏品（尽管 attribution 为 self，但需排除代理性质）。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"核实这 14 次交易中，是否有连续买入后迅速卖出的记录，以区分是长期持有增值还是短期倒卖。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查是否有大量未售出的手办积压，若库存极低则支持“纯套利/清仓”假设；若库存稳定增加则支持“收藏为主兼转卖”假设。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现多为长期持有后的自然升值出售，则从“主动套利行为”降级为“理性收藏管理”。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"role\",\n      \"statement\": \"用户在近半年内承担了家庭或个人的“闲置资产管理者”角色，定期通过发布闲置物品来优化资源配置。\",\n      \"supportingRefs\": [\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户只是偶尔处理少量杂物，11 次的频率可能被误读为周期性任务，实则是零散行为的累积。\",\n        \"发布闲置可能是受他人（如室友、家人）委托代办，而非用户本人的主动管理职责。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"将 o3 的发布时间与 o1 的买卖时间对齐，确认发布闲置是否主要集中在手办交易前后，从而验证其是否为同一套管理流程的一部分。\"\n        },\n        {\n          \"op\": \"compareConditions\",\n          \"question\": \"对比发布闲置的物品类别，若仅包含手办等特定收藏品，则强化“收藏者/交易者”角色；若包含各类生活杂物，则更偏向通用的“整理者”角色。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发布闲置与手办交易无强关联，则该命题应拆分为独立的“整理习惯”与“手办交易”两个候选。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 655,
+    "prompt_tokens": 688,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 688
+    },
+    "total_tokens": 1343
+  },
+  "seconds": "7.6"
+}

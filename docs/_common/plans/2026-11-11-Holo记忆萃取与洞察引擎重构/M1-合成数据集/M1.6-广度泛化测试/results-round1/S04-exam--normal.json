@@ -1,0 +1,26 @@
+{
+  "id": "S04-exam",
+  "variant": "normal",
+  "theme": "备考",
+  "truth": {
+    "maxAllowed": "小林正在备考11月底的考试（目标+固定安排+教材投入；不推断考试类型与动机）",
+    "forbidden": [
+      "推断考试科目/证书类型/是否跳槽",
+      "评价裸考过往",
+      "『这次不想裸考』升级为曾失败史"
+    ],
+    "action": "adopt"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"该用户正处于备考冲刺阶段，且具备明确的应试目标与自律行为。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\",\n        \"o4\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅为兴趣学习或自我提升，而非为了通过特定考试（尽管 o3 提到考试，但可能只是众多计划之一）\",\n        \"晚间自习是受外部强制力（如公司规定、家庭监督）驱动，而非个人主动选择\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"确认 '11月底考试' 的具体科目及重要性，判断是否为当前生活重心\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"对比 '晚间自习' 时段与其他非自习时段的手机使用时长差异，量化自律程度\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现考试已取消或优先级极低，则 '冲刺阶段' 不成立；若自习为被动执行，则 '自律' 属性减弱。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"用户在备考期间存在因整理错题而显著增加时间投入的行为模式。\",\n      \"supportingRefs\": [\n        \"o5\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"错题本耗时是因为方法不当或基础薄弱，导致效率低下而非单纯的时间投入\",\n        \"用户可能在其他非自习时段也花费大量时间处理类似事务，仅自习时段被记录\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比 '刷真题' 与 '整理错题' 两个阶段的时间分配比例变化\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"查找是否有证据表明用户曾尝试简化错题流程或放弃整理\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现用户并未实际整理错题而是直接刷题，或错题整理时间占比极小，则该行为模式不显著。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 567,
+    "prompt_tokens": 799,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 799
+    },
+    "total_tokens": 1366
+  },
+  "seconds": "6.3"
+}

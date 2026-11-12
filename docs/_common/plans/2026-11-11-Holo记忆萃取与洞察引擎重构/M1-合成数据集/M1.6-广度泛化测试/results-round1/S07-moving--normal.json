@@ -1,0 +1,25 @@
+{
+  "id": "S07-moving",
+  "variant": "normal",
+  "theme": "跨城搬家",
+  "truth": {
+    "maxAllowed": "小林已完成跨城搬家（生活事件事实：地址迁移+退租+物流+本人自述）",
+    "forbidden": [
+      "推断搬家原因（工作/感情）",
+      "推断对新城市的永久态度"
+    ],
+    "action": "adopt"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"该用户近期完成了跨城市搬迁，并处于新居适应期。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\",\n        \"o4\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅为他人代办搬家事宜（但 o2 退租状态为 done 且 attribution 为 self，概率较低）\",\n        \"用户频繁出差导致收货地址变更（但 o3 大件物流和 o2 退租不支持此解释）\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"确认 o2 退租完成时间与 o3 物流发生时间是否紧密衔接，以验证搬迁的时间线逻辑。\"\n        },\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"检查 o1 中旧城市地址的订单是否已归零，以确认搬迁是否彻底而非部分迁移。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现旧地址仍有高频活跃订单或退租未实际完成，则命题不成立。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"preference\",\n      \"statement\": \"在居住选择上，该用户倾向于用较高的生活成本换取更短的通勤时间。\",\n      \"supportingRefs\": [\n        \"o5\"\n      ],\n      \"alternativeExplanations\": [\n        \"这是对新环境的临时性抱怨或特定一周的感受，不代表长期偏好\",\n        \"通勤时间短是客观结果（如公司搬迁），而非主动选择的居住偏好\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"查找是否有其他关于‘节省开支’或‘寻找低价房源’的记录，以平衡 o5 中的高成本描述。\"\n        },\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比搬迁前与搬迁后的通勤时长数据，量化‘少了一半’的具体影响。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若后续出现大量削减非必要开支以抵消房租上涨的行为，或通勤时间并未显著减少，则该偏好假设减弱。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 568,
+    "prompt_tokens": 785,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 785
+    },
+    "total_tokens": 1353
+  },
+  "seconds": "6.3"
+}

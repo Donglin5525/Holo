@@ -1,0 +1,25 @@
+{
+  "id": "S02-baby",
+  "variant": "counter-proxy",
+  "theme": "婴儿用品（代购拆台）",
+  "truth": {
+    "maxAllowed": "小林定期为亲戚代购婴儿用品（代购事实）",
+    "forbidden": [
+      "养育婴儿的理解（含可能）",
+      "推断表姐家情况"
+    ],
+    "action": "adopt"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"role\",\n      \"statement\": \"该用户近期承担了为亲属代购婴儿用品及处理闲置物品的协助角色。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户正在经营二手母婴用品的副业（但o1明确标注帮表姐带，降低了纯商业动机可能性）\",\n        \"用户只是临时帮忙，并非持续性的协助角色\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"查询近半年内是否有其他非本人使用的母婴类购买或出售记录，以确认这是否为偶发事件还是常态化的家庭协助行为。\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"比对o1（代购）与o3（出售）的时间线，确认是否存在‘先买后卖’或‘集中处理’的行为模式。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现更多同类代购/代卖记录，则确认为稳定的家庭协助角色；若仅为单次孤立事件，则降级为临时行为。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"该用户可能处于结束直接参与婴儿照料或清理相关物资的阶段。\",\n      \"supportingRefs\": [\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户单纯因为搬家或断舍离而清理闲置，与是否退出照料阶段无直接关联\",\n        \"用户拥有多个孩子，这是为第二个孩子腾出空间\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查近3个月是否有新的、同类型的婴儿用品购买记录（排除代购），若无新购入且持续出售，则支持‘退出/减少参与’的判断。\"\n        },\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"查看o3出售的婴儿车品牌/型号是否与o1/o2中涉及的品类有重叠，判断是整体清理还是针对性置换。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现大量新购自用婴儿用品，则该命题不成立；若仅有出售无自用购买，则强化‘清理/退出’状态。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 592,
+    "prompt_tokens": 669,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 669
+    },
+    "total_tokens": 1261
+  },
+  "seconds": "7.3"
+}

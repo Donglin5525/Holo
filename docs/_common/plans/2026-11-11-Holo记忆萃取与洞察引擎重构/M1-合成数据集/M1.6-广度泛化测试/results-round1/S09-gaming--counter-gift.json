@@ -1,0 +1,25 @@
+{
+  "id": "S09-gaming",
+  "variant": "counter-gift",
+  "theme": "游戏消费（代充拆台）",
+  "truth": {
+    "maxAllowed": "上月的充值很可能是给侄子的礼物（归属拆台：本人自述+本人时长不变）",
+    "forbidden": [
+      "本人消费上升/上头/自我管理类的理解",
+      "把礼物支出当本人娱乐消费统计"
+    ],
+    "action": "adopt"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"role\",\n      \"statement\": \"该用户近期承担了为侄子购买游戏虚拟道具（如皮肤）的亲属赠礼角色。\",\n      \"supportingRefs\": [\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户是在帮他人代买，实际受益人并非侄子本人\",\n        \"“侄子”是网络昵称或泛指，非真实亲属关系\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"核查 o1 中的3笔游戏充值记录的交易对象、账号ID是否与 o2 中提到的侄子游戏账号一致\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查是否有其他聊天记录提及“帮朋友买”、“代购”等排除亲属关系的表述\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若确认 o1 与 o2 指向同一账号，则强化“亲属赠礼”结论；若不一致，则可能仅为普通玩家消费或代充行为。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"该用户在“上月”的游戏消费行为主要受特定社交/情感事件驱动，而非高频日常娱乐习惯。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户本身有高频小额充值习惯，恰好集中在上月\",\n        \"o1 的3笔充值属于退款失败或系统重复扣款等非自愿行为\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比前几个月的游戏充值频率和金额，判断上月是否为异常峰值\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"将 o1 的时间点与 o2 提到的“侄子生日”日期进行对齐，验证时间关联性\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若上月充值频次显著高于平时且时间点吻合生日，则支持“事件驱动”；若历史数据也如此，则为常态。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 553,
+    "prompt_tokens": 656,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 656
+    },
+    "total_tokens": 1209
+  },
+  "seconds": "6.3"
+}

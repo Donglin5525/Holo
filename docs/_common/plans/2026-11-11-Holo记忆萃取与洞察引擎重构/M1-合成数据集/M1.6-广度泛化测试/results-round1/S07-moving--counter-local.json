@@ -1,0 +1,25 @@
+{
+  "id": "S07-moving",
+  "variant": "counter-local",
+  "theme": "搬家（同城弱化）",
+  "truth": {
+    "maxAllowed": "小林在同城内搬了住处（同城迁移事实；健身房续费支持同城解释）",
+    "forbidden": [
+      "跨城/换城市工作的理解",
+      "过度推断（换工作/分手）"
+    ],
+    "action": "adopt"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"该用户处于同城短距离搬迁的过渡期，且新居与旧居距离较近。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户为亲友或他人代办搬家及收货（尽管 attribution 标记为 self，但需排除 proxy 可能性）\",\n        \"用户在两地间频繁往返办公或居住，而非单一搬家事件\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"核对 o1 中两个地址的首次出现时间与 o2 搬家服务的时间先后顺序，确认是否为搬家导致的地址变更\"\n        },\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"检查 o1 中两个地址是否属于同一小区或相邻楼栋，以验证 '3公里' 范围内的具体空间关系\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现两个地址长期交替使用且无搬家记录关联，则可能并非单次搬家，而是双居所状态\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"用户的健身习惯受居住地变动影响较小，倾向于维持原有社交或服务圈层。\",\n      \"supportingRefs\": [\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"原健身房即将到期或优惠结束，用户仅在续费窗口期操作，与搬家无关\",\n        \"用户尚未完成搬家，仍主要居住在原址附近\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"查询该健身房会员合约的具体到期日，判断续费行为是主动延续还是被动截止前操作\"\n        },\n        {\n          \"op\": \"compareConditions\",\n          \"question\": \"对比搬家发生前后，用户前往原健身房的交通方式或频率是否有显著变化\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现搬家后用户立即注销了原健身卡并在新居附近新开卡，则该命题不成立\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 542,
+    "prompt_tokens": 665,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 665
+    },
+    "total_tokens": 1207
+  },
+  "seconds": "5.9"
+}

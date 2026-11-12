@@ -1,0 +1,26 @@
+{
+  "id": "S08-social",
+  "variant": "counter-external",
+  "theme": "社交（外部条件拆台）",
+  "truth": {
+    "maxAllowed": "社交频率下降与项目高强度期重叠（外部条件挤压，非偏好改变；用户已表达补局意愿）",
+    "forbidden": [
+      "主动减少社交/独处偏好的理解",
+      "孤僻/社恐推断",
+      "把项目忙写成工作狂标签"
+    ],
+    "action": "observe"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"该用户的社交频率下降与当前工作项目的上线周期存在强关联，表现为项目期社交抑制、预期上线后补偿性社交。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户近期因个人原因（如健康、家庭事务）主动减少社交，且恰好处于项目关键期，两者无因果联系。\",\n        \"用户对“补饭局”仅为客套话或习惯性表达，实际并无强烈的补偿性社交意愿。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"对比过去半年数据：在过往非高压项目期间，该用户的聚餐频率是否显著高于当前水平？\"\n        },\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"检查上月至今的聊天记录或日历，确认“项目上线”的具体日期及后续是否有实际的社交邀约记录。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现历史同期（非加班期）社交频率也低，或项目结束后无社交回升，则命题不成立。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 310,
+    "prompt_tokens": 610,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 610
+    },
+    "total_tokens": 920
+  },
+  "seconds": "3.8"
+}

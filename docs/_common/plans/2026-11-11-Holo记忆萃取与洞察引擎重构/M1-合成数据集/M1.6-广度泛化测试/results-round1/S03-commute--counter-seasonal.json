@@ -1,0 +1,25 @@
+{
+  "id": "S03-commute",
+  "variant": "counter-seasonal",
+  "theme": "通勤（季节条件拆台）",
+  "truth": {
+    "maxAllowed": "小林的通勤方式随季节在骑行与打车间切换（条件性重复行为，非单向转变）",
+    "forbidden": [
+      "宣称『已转变/放弃打车』（把条件性当单向）",
+      "推断经济原因"
+    ],
+    "action": "observe"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"该用户的通勤方式选择高度受天气条件（寒冷/降雨）制约，而非单纯的偏好或习惯。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户可能因车辆故障或保养周期导致冬季无法骑行，从而被迫使用网约车。\",\n        \"暖季包月骑行卡可能是为了配合特定的季节性运动计划，而非日常通勤刚需。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"核对 o1 中网约车订单的具体日期，是否与气象记录中的降雨或低温日重合。\"\n        },\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"确认 o2 中骑行卡的覆盖范围是否包含所有工作日，排除仅周末使用的可能性。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现网约车订单多发生在非恶劣天气日，或骑行卡仅在周末激活，则“天气制约”命题不成立。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"用户在暖季存在明确的“主动增加户外移动”的行为阶段，且该行为未显著改变整体活动量水平。\",\n      \"supportingRefs\": [\n        \"o2\",\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"骑行带来的活动量增量被其他季节的久坐行为抵消，导致整体无差异，但这不代表暖季有额外投入。\",\n        \"o3 的数据粒度较粗，可能掩盖了暖季骑行带来的局部活动量波动。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比暖季与非暖季的日均步数或活跃时长，验证 o3 中“无显著差异”的具体统计边界。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查暖季是否有除骑行外的其他户外活动记录，以确认骑行是否为唯一变量。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现暖季活动量显著高于非暖季，或骑行卡购买与特定健身目标相关，则当前关于“阶段状态”的描述需调整。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 587,
+    "prompt_tokens": 675,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 675
+    },
+    "total_tokens": 1262
+  },
+  "seconds": "6.3"
+}

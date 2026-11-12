@@ -1,0 +1,26 @@
+{
+  "id": "S03-commute",
+  "variant": "normal",
+  "theme": "通勤方式转变",
+  "truth": {
+    "maxAllowed": "小林的通勤方式已转变（卖车后转向骑行+地铁组合，阶段事实，来自明确表达+消费结构同步变化）",
+    "forbidden": [
+      "推断卖车原因（缺钱/环保）",
+      "评价『没车=生活质量下降』",
+      "把转变写成偏好（可能只是现实安排）"
+    ],
+    "action": "adopt"
+  },
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户已将日常通勤的主要交通方式从网约车切换为共享骑行。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"网约车降为零是因为近期居家办公或请假，而非主动切换通勤方式。\",\n        \"共享骑行卡是代他人购买或误操作续费，本人并未实际使用。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"核查近2个月是否有地铁/公交刷卡记录，以确认骑行后的接驳行为是否真实发生。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查近2个月工作日早高峰是否有其他大额交通支出（如出租车、私家车停车费），排除隐性通勤成本转移。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现无地铁出行记录或存在其他高频交通消费，则命题不成立。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"该用户处于「无车持有期」，且正在通过驾照维护保持驾驶资格以备未来用车。\",\n      \"supportingRefs\": [\n        \"o3\",\n        \"o4\"\n      ],\n      \"alternativeExplanations\": [\n        \"驾照换证仅是行政流程到期强制办理，与当前通勤方式转变无直接因果关联。\",\n        \"卖车原因并非因为「车龄到」，而是因经济压力或其他突发状况被迫出售。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"确认过去一年内是否有车辆保险缴纳记录或保养记录，验证「无车持有」状态的持续性。\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"比对卖车时间与网约车停止使用的具体时间间隔，判断两者是否存在紧密的时间关联性。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现近期有租车记录或车辆仍在名下（如借给亲友），则「无车持有期」状态需修正。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 554,
+    "prompt_tokens": 749,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 749
+    },
+    "total_tokens": 1303
+  },
+  "seconds": "6.3"
+}
