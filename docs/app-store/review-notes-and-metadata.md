@@ -1,12 +1,56 @@
 # Holo App Store Review Notes 与 ASO 元数据草稿
 
-更新时间：2026-11-09（1.1.7 草稿版，待东林定稿）
+更新时间：2026-11-13（1.1.8 草稿版，待东林定稿）
 
 ## 使用方式
 
 这份文档用于 App Store Connect 的版本信息、审核备注和截图文案准备。
 
-## 1.1.7 提审材料包（2026-11-09 起草；What's New 简中已由东林定稿，推广文本与 Review Notes 待定）
+## 1.1.8 提审材料包（2026-11-13 起草，待东林定稿）
+
+> 版本口径：1.1.8 / 构建 53（归档当晚）。更新说明覆盖 1.1.7/52 上架（2026-11-10 前后）之后的全部用户可感变化。
+> 本版重点：想法语音口述双稿对照、截图记账确认页重做、健康页「动与不动」改版、报告点按核对修复、信用卡到期提醒、习惯提醒学会看进度、每周回顾打不开修复。
+> 上架前动作（东林手工）：①CloudKit Production 部署 Account 两个新字段（信用卡提醒）＋ 1.1.7 遗留的习惯描述字段（`CD_Habit.habitDescription`，Console 切 Production 环境核对）；②语音整理后端发版（maxTokens 1024→6144＋整理语言服务端注入，走 holo-backend-deploy）。
+
+### 更新说明草稿（What's New，三语）
+
+**简体中文：**
+
+Holo 1.1.8 来了。这版把「说」和「看」都往前推了一大步。
+【语音口述·双稿对照】想法里的语音面板大升级：转写原文和整理稿并排切换，整理稿可以自己改；「插入」把稿子落进光标处，插错了随时换回原文，只动那一段不碰已写的正文。
+【截图记账·确认页重做】扫完一眼就能确认：单笔一屏装下、确认按钮永远在屏内；多笔一行一笔、勾掉不想记的，合计金额放大醒目。
+【健康·看得更明白】翻日期只动当天的卡，近 14 天的洞察稳稳不动、还标清了日期范围；打卡语音里混进来的无关内容，不再污染习惯备注。
+【报告·点得开了】深度分析报告里点「点按核对」，直接看到这条结论算账的那段记录；月度指标不再跳空白页。
+【信用卡·到期提醒】给账户里的信用卡设好账单日和还款日，到点提醒，不再错过。
+【习惯·聪明地催】每周几次的习惯，这周达标了就安静；快来不及了才提醒你。
+【更稳定】修复每周回顾页面打不开的问题，细节打磨。
+谢谢每一位反馈的朋友，Holo 因你而更懂你。
+
+**繁體中文：**
+
+Holo 1.1.8 來了。這版把「說」和「看」都往前推了一大步。
+【語音口述·雙稿對照】想法裡的語音面板大升級：轉寫原文和整理稿並排切換，整理稿可以自己改；「插入」把稿子落進游標處，插錯了隨時換回原文，只動那一段不碰已寫的正文。
+【截圖記帳·確認頁重做】掃完一眼就能確認：單筆一屏裝下、確認按鈕永遠在屏內；多筆一行一筆、勾掉不想記的，合計金額放大醒目。
+【健康·看得更明白】翻日期只動當天的卡，近 14 天的洞察穩穩不動、還標清了日期範圍；打卡語音裡混進來的無關內容，不再污染習慣備註。
+【報告·點得開了】深度分析報告裡點「點按核對」，直接看到這條結論算帳的那段記錄；月度指標不再跳空白頁。
+【信用卡·到期提醒】給帳戶裡的信用卡設好帳單日和還款日，到點提醒，不再錯過。
+【習慣·聰明地催】每週幾次的習慣，這週達標了就安靜；快來不及了才提醒你。
+【更穩定】修復每週回顧頁面打不開的問題，細節打磨。
+謝謝每一位回饋的朋友，Holo 因你而更懂你。
+
+**English:**
+
+Holo 1.1.8 is here. This release takes both "speaking" and "seeing" a big step forward.
+[Voice Notes · Two Drafts Side by Side] The voice panel in Thoughts is rebuilt: switch between the raw transcript and the polished draft, edit the draft yourself, insert it right at your cursor — and swap back to the original anytime, touching nothing else you've written.
+[Screenshot Booking · Confirmation Redesigned] Confirm at a glance: a single receipt fits on one screen with the confirm button always in reach; multiple receipts show one line each, uncheck what you don't want, totals in big bold numbers.
+[Health · Clearer at a Glance] Flipping dates now moves only that day's cards — the 14-day insights stay put with their date range labeled. Irrelevant chatter caught in voice check-ins no longer pollutes habit notes.
+[Reports · Taps That Work] Tapping "Check the numbers" in a report now opens exactly the records behind that conclusion; monthly figures no longer land on a blank page.
+[Credit Cards · Due Reminders] Set the statement and due dates for cards in your accounts, and get reminded right on time.
+[Habits · Nudges With Sense] A few-times-a-week habit stays quiet once you've hit this week's target — and only speaks up when you're running out of time.
+[Stability] Fixed the Weekly Review page failing to load, plus plenty of polish.
+Thanks to everyone who shared feedback — Holo understands you better because of you.
+
+## 1.1.7 提审材料包（历史存档，勿再用于贴库）
 
 > 版本口径：1.1.7 / 构建 52（已归档 `Holo-1.1.7-52.xcarchive`，2026-11-08 23:45）。更新说明覆盖 1.1.5/37 上架（2026-11-05）之后的全部用户可感变化（1.1.6 跳版未占用）。
 > 本版重点：「一个发现」v3 全新版本、每周回顾与周四晚推送、深度分析新引擎、截图记账支持转账红包、任务四象限重做、聊天输入舱放大、习惯一句话描述。
