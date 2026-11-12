@@ -39,7 +39,6 @@ struct WeeklyReviewView: View {
         .background(Color.holoBackground)
         .navigationTitle(String(localized: "每周回顾"))
         .navigationBarTitleDisplayMode(.inline)
-        confirmedInsightsSection
         .task {
             guard snapshot == nil else { return }
             let insights = await Self.confirmedInsightsThisWeek(calendar: calendar)
@@ -59,6 +58,7 @@ struct WeeklyReviewView: View {
         VStack(spacing: 14) {
             heroCard(snapshot)
             footprintsCard(snapshot)
+            confirmedInsightsSection
             Text(closingText(snapshot))
                 .font(.system(size: 13))
                 .foregroundColor(.holoTextSecondary)
