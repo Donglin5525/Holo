@@ -2654,6 +2654,7 @@ function quotaTypeForPurpose(purpose) {
   // 通用个人情境：后台萃取/核验不占会员池（独立限流桶兜量）；
   // 请求准备与方案生成是用户交互路径，归 chat 池（客户端另有每 run 生成次数预算）。
   if (purpose === "personal_context_extraction" || purpose === "personal_context_verification") return null;
+  if (purpose === "understanding_proposal") return null; // 理解引擎提案：后台桶（与个人情境同口径）
   if (purpose === "personal_context_request" || purpose === "personal_context_planning") return QUOTA_TYPES.chat;
   // Matter 对账：用户交互路径，归 chat 池（route 另有独立限流桶与 maxTokens，成本独立统计）。
   if (purpose === "matter_reconciliation") return QUOTA_TYPES.chat;

@@ -311,6 +311,19 @@ const DEFAULT_CONFIG = {
     // 通用个人情境（docs/_common/plans/2026-09-06-HoloAI通用个人情境理解与规划-完整实施方案.md §11）。
     // 萃取/核验是结构化信号处理：none 思考档（与 memory_domain_extraction 同理）；
     // 上限作为配置初值（4/分、60/天），实测后经 .env 调整，不默认无限。
+    // 理解引擎提案（2026-11-13 M2.6）：qwen3.7-flash（东林拍板选型），提示词由客户端
+    // 构造（与个人情境同模式，后端透传+计费）；输出预算=方案 §7 提案 1.5k。
+    understanding_proposal: {
+      provider: process.env.HOLO_UNDERSTANDING_PROVIDER ?? process.env.HOLO_PERSONAL_CONTEXT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_UNDERSTANDING_MODEL ?? process.env.HOLO_PERSONAL_CONTEXT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_UNDERSTANDING_PROPOSAL_TEMPERATURE ?? 0.3),
+      maxTokens: Number(process.env.HOLO_UNDERSTANDING_PROPOSAL_MAX_TOKENS ?? 1500),
+      reasoningEffort: process.env.HOLO_UNDERSTANDING_PROPOSAL_REASONING_EFFORT ?? "none",
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_UNDERSTANDING_PROPOSAL_REQUESTS_PER_MINUTE ?? 4),
+        perDay: Number(process.env.HOLO_UNDERSTANDING_PROPOSAL_REQUESTS_PER_DAY ?? 30),
+      },
+    },
     personal_context_extraction: {
       provider: process.env.HOLO_PERSONAL_CONTEXT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_PERSONAL_CONTEXT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",

@@ -10,6 +10,7 @@ import { GatewayError } from "../errors.js";
 // 阶段路径由 backgroundPathPurpose 前缀匹配建域，成本并入后台总预算。
 export const BACKGROUND_PURPOSES = new Set([
   "personal_context_extraction", "personal_context_verification",
+  "understanding_proposal",
   "memory_observer", "memory_domain_extraction", "memory_cross_domain_fusion",
   "thought_organization", "thought_tag_convergence",
   "thought_organize_a", "thought_organize_r", "thought_organize_b",
