@@ -1,0 +1,18 @@
+{
+  "id": "m12-A-legacy",
+  "theme": "猫粮",
+  "shape": "legacy",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"role\",\n      \"statement\": \"该用户是猫粮的购买者，且家中饲养至少一只猫。\",\n      \"supportingRefs\": [\n        \"finance:商户『猫粮』\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户为亲友或室友代购（proxy），本人并非实际饲养者。\",\n        \"用户从事宠物相关行业（如零售、批发）而非个人消费。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkOwnership\",\n          \"question\": \"查询是否有其他家庭成员或关联账户也购买了同类商品，以判断是否为共同饲养或代购。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查是否有宠物保险、宠物医院就诊记录或宠物用品（如猫砂、玩具）的购买记录来佐证饲养行为。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现高频购买其他宠物品类或存在明确的家庭成员关联购买，则可能修正为“家庭共同饲养”或“代购角色”。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"该用户购买的猫粮可能与特定的饮食需求（如低敏/处方粮）相关，尽管过敏记录显示为阴性或极少。\",\n      \"supportingRefs\": [\n        \"finance:商户『猫粮』\",\n        \"health:指标：过敏记录\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户购买的只是普通猫粮，过敏记录少是因为从未进行过相关检测或无需关注。\",\n        \"猫粮品牌本身主打天然无添加，用户出于预防性健康理念选择，而非针对现有过敏症状。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"检索具体购买的猫粮品牌及SKU详情，分析其是否属于特殊功能粮（如肠胃敏感、泌尿道护理等）。\"\n        },\n        {\n          \"op\": \"compareConditions\",\n          \"question\": \"对比购买频率与过敏记录的时序关系，看是否在出现轻微不适后增加了特定类型猫粮的购买。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若确认购买的是处方粮或特殊配方粮，则该关联成立；若仅为普通粮，则该假设不成立。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 584,
+    "prompt_tokens": 607,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 607
+    },
+    "total_tokens": 1191
+  },
+  "seconds": "7.0",
+  "cost": 0.007077
+}

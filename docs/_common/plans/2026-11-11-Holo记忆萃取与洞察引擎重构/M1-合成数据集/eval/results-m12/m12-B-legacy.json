@@ -1,0 +1,18 @@
+{
+  "id": "m12-B-legacy",
+  "theme": "咖啡睡眠",
+  "shape": "legacy",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"该用户在深夜时段（23:00-01:00）存在高频咖啡消费行为，且这可能与较晚的入睡时间相关。\",\n      \"supportingRefs\": [\n        \"m12-B-legacy/health/sleep_time\",\n        \"m12-B-legacy/finance/coffee_spending\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅在周末或特定日期购买咖啡，而非每晚都喝\",\n        \"咖啡消费与睡眠延迟无因果关系，两者均为独立的生活习惯\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"咖啡购买的日期是否与入睡时间在23:00之后的日期高度重合？\"\n        },\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"获取具体的咖啡购买时间点，确认是否集中在晚间\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现咖啡购买多发生在白天或清晨，则关联不成立；若发现入睡时间早于咖啡购买时间，则因果方向存疑。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    },\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户在近一个月内保持了每周约2次的咖啡购买频率。\",\n      \"supportingRefs\": [\n        \"m12-B-legacy/finance/coffee_spending\"\n      ],\n      \"alternativeExplanations\": [\n        \"这8次购买集中在某一周，其余三周无购买记录\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"将这8次购买按周分布，检查是否存在明显的集中趋势或均匀分布\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若分布极不均匀，则“规律性”减弱，更倾向于“偶发性”行为。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 488,
+    "prompt_tokens": 638,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 638
+    },
+    "total_tokens": 1126
+  },
+  "seconds": "5.5",
+  "cost": 0.006306
+}

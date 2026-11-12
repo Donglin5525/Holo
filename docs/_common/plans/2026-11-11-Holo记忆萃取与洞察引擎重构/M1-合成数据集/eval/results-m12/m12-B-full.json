@@ -1,0 +1,18 @@
+{
+  "id": "m12-B-full",
+  "theme": "咖啡睡眠",
+  "shape": "full",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"晚间（20:00后）购买咖啡的行为与当晚入睡时间显著推迟（晚于00:40）存在强关联。\",\n      \"supportingRefs\": [\n        \"程序对齐\",\n        \"财务\"\n      ],\n      \"alternativeExplanations\": [\n        \"加班或工作压力导致既需要提神（买咖啡）又导致失眠，咖啡是结果而非原因。\",\n        \"晚间购买咖啡的人本身就有熬夜习惯，两者由同一潜在因素驱动。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"检查所有工作日中，非晚间购买咖啡但入睡晚于00:40的案例，确认是否存在反例。\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"将加班记录与睡眠数据交叉比对，验证‘加班’是否比‘晚间购咖’更能预测晚睡。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现大量晚间未购咖但依然晚睡的情况，或晚间购咖后次日白天补觉/精神尚可，则关联强度降低。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    },\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户在特定日期（如09-19）有明确的‘睡前饮用咖啡’意图或行为模式。\",\n      \"supportingRefs\": [\n        \"财务\"\n      ],\n      \"alternativeExplanations\": [\n        \"备注仅为当时的情绪宣泄或玩笑，实际并未饮用。\",\n        \"用户可能购买了咖啡但未饮用，或留给他人饮用。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"查询09-19当天的其他健康数据（如心率、活动量）是否有异常波动以佐证摄入兴奋剂。\"\n        },\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"回溯该用户历史订单中是否有类似‘睡前想喝’备注后的后续行为模式。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若能通过设备数据证实该时段生理唤醒水平升高，或找到同类备注下的确凿饮用证据，则命题成立。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 572,
+    "prompt_tokens": 1032,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 1032
+    },
+    "total_tokens": 1604
+  },
+  "seconds": "6.5",
+  "cost": 0.008244
+}

@@ -1,0 +1,18 @@
+{
+  "id": "m12-B-semantic",
+  "theme": "咖啡睡眠",
+  "shape": "semantic",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"在20:00后购买咖啡的行为与当晚入睡时间推迟存在条件性关联。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"加班（o4）导致晚睡，且加班期间更倾向于购买咖啡，咖啡并非晚睡的直接原因。\",\n        \"个人作息自然波动或压力导致的晚睡，恰好与晚间购物习惯重合。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"compareConditions\",\n          \"question\": \"对比‘晚购但无加班’与‘有加班但无晚购’两组数据的入睡时点差异，以剥离加班的影响。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查是否存在‘晚购咖啡但未晚睡’的案例，评估该关联的稳健性。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现加班是主要驱动因素，则咖啡与晚睡的关联将被削弱或消除；若排除加班后关联依然显著，则该命题成立度提升。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    },\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户在20:00后有较高的概率进行咖啡购买行为。\",\n      \"supportingRefs\": [\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"这8次购买是偶发事件，不代表长期稳定的行为习惯。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"扩展时间窗口至更长周期（如3个月），统计20:00后购买咖啡的频率是否持续高于其他时段。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若长期数据显示晚间购买占比下降，则该行为仅为短期特定情境下的反应，而非稳定偏好。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 505,
+    "prompt_tokens": 772,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 772
+    },
+    "total_tokens": 1277
+  },
+  "seconds": "5.6",
+  "cost": 0.006861000000000001
+}

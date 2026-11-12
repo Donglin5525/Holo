@@ -1,0 +1,18 @@
+{
+  "id": "m12-C-legacy",
+  "theme": "体重活动",
+  "shape": "legacy",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户在近28天内有规律进行健身活动的行为模式，但频率较低（约每两周一次）。\",\n      \"supportingRefs\": [\n        \"习惯：健身\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅在特定日期（如周末）集中锻炼，导致记录显示为低频。\",\n        \"用户使用的健身追踪工具存在漏记情况，实际频率高于记录。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"查询近28天具体的健身打卡日期分布，判断是均匀分布还是集中在特定时间段。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查是否有其他运动类应用或设备数据同步，以验证是否存在漏记的运动行为。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现高频漏记或集中爆发式锻炼，则“低频规律”的命题需调整为“间歇性高强度”或“数据不完整”。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"在体重波动区间（64.1-66.4kg）内，用户的日常活动分钟数呈现显著的低值特征（最低仅18分钟），暗示低活动量可能与当前体重维持状态相关。\",\n      \"supportingRefs\": [\n        \"指标：体重\",\n        \"指标：活动分钟\"\n      ],\n      \"alternativeExplanations\": [\n        \"体重和活动分钟的数据采集时间窗口不一致或不同步，导致无法直接建立因果关联。\",\n        \"用户可能在非记录时段进行了高强度短时运动，导致活动分钟数被低估，而体重受饮食影响更大。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"对比体重测量日与活动分钟记录的对应关系，确认两者是否在相同的时间粒度上可对齐。\"\n        },\n        {\n          \"op\": \"compareConditions\",\n          \"question\": \"分析高活动分钟日（如95分钟）对应的体重数值，看是否存在明显的体重下降趋势，以验证活动对体重的潜在影响。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现高活动日体重明显更低，或数据时间戳错位，则该条件性关联不成立或需修正为弱相关。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 603,
+    "prompt_tokens": 654,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 654
+    },
+    "total_tokens": 1257
+  },
+  "seconds": "7.5",
+  "cost": 0.007389
+}

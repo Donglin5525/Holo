@@ -1,0 +1,18 @@
+{
+  "id": "m12-C-semantic",
+  "theme": "体重活动",
+  "shape": "semantic",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户近期主动减少了健身频率，导致活动量下降和体重上升。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o2\",\n        \"o3\"\n      ],\n      \"alternativeExplanations\": [\n        \"因伤病、出差或外部不可抗力导致无法运动（非主观意愿减少）\",\n        \"饮食摄入大幅增加抵消了原有运动量（运动频率未变但强度/时长变化，或记录偏差）\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"查询近4周是否有请假、出差、生病或设备故障等中断运动的客观事件记录\"\n        },\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"确认‘健身打卡’是否完全等同于‘活动分钟’来源，排除其他运动形式未被计入的可能\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现明确的中断原因（如受伤），则命题从‘主动减少’变为‘被动受限’；若饮食数据同步大幅上升，则归因可能转向能量平衡而非单纯行为减少。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    },\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"该用户当前处于‘意识到体重失控并试图通过控制饮食恢复’的干预阶段。\",\n      \"supportingRefs\": [\n        \"o1\",\n        \"o4\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅设定目标但未采取任何实际行动（空想型目标）\",\n        \"用户正在尝试其他未记录的干预手段（如药物、医疗介入）\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查近期是否有新增的饮食类购买记录或健康咨询记录，以验证是否存在实际干预行动\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"比对体重上升趋势与目标设定时间的先后关系，确认是‘先有趋势后定目标’还是‘长期目标近期才显现压力’\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现无相关饮食/医疗行为记录，则命题降级为‘仅有意图无行动’；若有新行动记录，则确认为‘积极干预中’。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 586,
+    "prompt_tokens": 741,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 741
+    },
+    "total_tokens": 1327
+  },
+  "seconds": "7.1",
+  "cost": 0.007497
+}

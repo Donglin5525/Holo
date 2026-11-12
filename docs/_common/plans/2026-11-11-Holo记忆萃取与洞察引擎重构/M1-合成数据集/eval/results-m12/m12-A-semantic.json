@@ -1,0 +1,18 @@
+{
+  "id": "m12-A-semantic",
+  "theme": "猫粮",
+  "shape": "semantic",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"role\",\n      \"statement\": \"本人是猫的主要照料者（负责日常清洁、健康管理和饮食决策）。\",\n      \"supportingRefs\": [\n        \"o4\",\n        \"o5\",\n        \"o6\"\n      ],\n      \"alternativeExplanations\": [\n        \"本人仅负责部分杂务，主要照料由他人或宠物保姆承担\",\n        \"本人刚接手养猫，处于学习适应期而非稳定照料角色\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"查询 o1/o2 的购买记录中 attribution 是否为 self，以确认物资采购责任归属\"\n        },\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比 o4 (打扫) 与 o3/o5 (医疗/体检) 的时间间隔，判断照料行为的连续性和独立性\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现主要物资采购和核心护理行为均由他人完成，则命题不成立\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"本人的轻度猫毛过敏状况并未阻止其养猫，但可能影响了其对猫粮品质或环境清洁的关注度。\",\n      \"supportingRefs\": [\n        \"o8\",\n        \"o6\",\n        \"o7\"\n      ],\n      \"alternativeExplanations\": [\n        \"过敏症状已消失或经治疗控制良好，不再构成显著约束\",\n        \"本人对猫的喜爱超越了过敏不适，且未采取特殊隔离措施\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检查是否有购买空气净化器、除螨仪或抗过敏药物的记录，以验证应对策略\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"比对 o6 (换粮思考) 与 o8 (过敏诊断) 的时间线，确认换粮动机是否直接关联过敏管理\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现近期有严重的过敏反应就医记录，或完全无应对措施，则关联强度改变\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 551,
+    "prompt_tokens": 963,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 963
+    },
+    "total_tokens": 1514
+  },
+  "seconds": "7.5",
+  "cost": 0.007848
+}

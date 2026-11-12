@@ -1,0 +1,18 @@
+{
+  "id": "m12-A-full",
+  "theme": "猫粮",
+  "shape": "full",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"role\",\n      \"statement\": \"该用户是猫的法定或实际监护人，承担日常照料及医疗决策责任。\",\n      \"supportingRefs\": [\n        \"财务-2026-10-19 宠物医院 疫苗\",\n        \"任务-2026-09-06 打扫猫砂盆\",\n        \"任务-2026-10-08 把猫的体检约上也\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅为临时寄养者或代朋友照顾宠物（但“把猫的体检约上”暗示长期管理权）\",\n        \"用户为宠物店员工或相关从业者（但个人生活记录如“加班回家猫在门口等”更指向私人生活场景）\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkOwnership\",\n          \"question\": \"查询宠物医院就诊记录中是否有该用户的签字或作为紧急联系人/主人的登记信息？\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"核对“打扫猫砂盆”与“购买猫粮/猫砂”的时间频率是否匹配单人饲养的消耗量？\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现多只猫的记录或多人共同分摊费用/任务，则角色可能从“唯一监护人”变为“共同抚养人”。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"用户在感到孤独或工作压力大时，会通过观察宠物的陪伴行为来获得情感慰藉。\",\n      \"supportingRefs\": [\n        \"想法-2026-09-26 今晚加班回家...突然觉得这屋子有个活物挺好的\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户仅是在特定时刻（加班后疲惫时）对宠物存在感的客观描述，而非普遍的情感依赖机制\",\n        \"用户只是单纯喜欢动物，这句话仅是当下的感叹，不具备条件性关联特征\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"检索其他日期（特别是非加班、周末或心情愉悦时）的想法记录，看是否有类似“有活物挺好”或表达孤独感的语句？\"\n        },\n        {\n          \"op\": \"compareConditions\",\n          \"question\": \"对比用户表达负面情绪（如焦虑、疲惫）的日子与正面情绪日子，观察其对宠物互动的描述差异？\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若在其他高压或独处场景下未出现类似表述，则该命题不成立，仅为单次情境感慨。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 657,
+    "prompt_tokens": 1054,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 1054
+    },
+    "total_tokens": 1711
+  },
+  "seconds": "7.9",
+  "cost": 0.009075
+}

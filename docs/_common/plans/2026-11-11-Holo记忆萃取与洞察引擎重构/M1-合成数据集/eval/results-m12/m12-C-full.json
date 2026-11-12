@@ -1,0 +1,18 @@
+{
+  "id": "m12-C-full",
+  "theme": "体重活动",
+  "shape": "full",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该用户在8月14日至9月底期间，显著降低了健身频率与活动量，导致体重出现持续上升趋势。\",\n      \"supportingRefs\": [\n        \"健康·体重\",\n        \"健康·活动\",\n        \"习惯\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户可能在后期因伤病、出差或生活重大变动而被迫减少活动，而非主观意愿降低。\",\n        \"体重上升可能由非运动因素（如饮食结构改变、水分滞留、生理期等）主导，活动量下降是结果而非原因。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"核实8月14日之后是否有未记录的“断档”原因（如请假、生病），以排除不可抗力导致的被动行为改变。\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"检查同期是否有饮食记录或购物记录变化，以验证体重上升是否主要由热量摄入增加驱动。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现存在不可抗力中断，则命题从“行为模式改变”调整为“阶段性异常波动”，需重新评估其长期趋势。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"当用户的周均健身打卡次数低于5次时，其体重控制目标达成概率显著降低（基于当前趋势推断）。\",\n      \"supportingRefs\": [\n        \"健康·体重\",\n        \"习惯\",\n        \"目标\"\n      ],\n      \"alternativeExplanations\": [\n        \"用户可能在通过严格饮食控制来抵消运动量的减少，从而维持体重稳定（尽管数据显示体重上升，但假设存在其他补偿机制未被捕捉）。\",\n        \"体重的缓慢上升处于正常生理波动范围内，尚未构成对目标的实质性威胁，用户可能认为无需大幅调整行为。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比历史数据中健身频率较低时期（如去年冬季）的体重变化曲线，判断低频次是否必然伴随体重上升。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"查找是否存在“低运动+高自律饮食”成功维持体重的案例，以证伪该条件性关联的唯一性。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若历史数据显示低频次也能维持体重，则该条件性关联不成立，建议转向关注饮食变量。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 635,
+    "prompt_tokens": 693,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 693
+    },
+    "total_tokens": 1328
+  },
+  "seconds": "7.8",
+  "cost": 0.007794000000000001
+}

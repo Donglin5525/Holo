@@ -1,0 +1,18 @@
+{
+  "id": "m12-D-legacy",
+  "theme": "夜班（未见主题）",
+  "shape": "legacy",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该个体在近期存在规律性的夜间工作/活动，并伴随高频的咖啡因摄入以应对精力需求。\",\n      \"supportingRefs\": [\n        \"任务：夜班排班\",\n        \"商户『咖啡』\",\n        \"习惯：补觉\"\n      ],\n      \"alternativeExplanations\": [\n        \"咖啡消费是出于社交或休闲偏好，而非单纯为了提神；\",\n        \"入睡时点较晚（14:35-16:15）可能源于非工作原因的熬夜习惯，而非仅由夜班导致。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"咖啡购买时间是否与夜班时段或入睡前的清醒期高度重合？\"\n        },\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"近7天内的其他日期是否有类似的睡眠延迟和补觉行为，以确认这是周期性模式而非偶发事件？\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若咖啡购买时间分散且与睡眠无关联，则命题不成立；若补觉仅发生在周末，则说明主要压力源为工作日。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"phaseState\",\n      \"statement\": \"该个体目前处于因作息颠倒导致的生理节律调整期，表现为日间长睡眠补偿行为。\",\n      \"supportingRefs\": [\n        \"指标：入睡时点\",\n        \"习惯：补觉\"\n      ],\n      \"alternativeExplanations\": [\n        \"入睡时点晚是因为个人自然生物钟偏晚（夜猫子型），而非病理或环境导致的节律失调；\",\n        \"补觉次数少（5次/7天）可能意味着大部分夜晚睡眠质量尚可，无需频繁补觉。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"comparePeriods\",\n          \"question\": \"对比有夜班和无夜班的日子里，入睡时点和补觉频率是否有显著差异？\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"是否存在白天活跃或运动记录，以排除因身体不适导致的嗜睡？\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若无夜班日期的睡眠数据作为对照，无法确定当前状态是否为“调整期”还是“常态”。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 595,
+    "prompt_tokens": 727,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 727
+    },
+    "total_tokens": 1322
+  },
+  "seconds": "6.6",
+  "cost": 0.007536
+}

@@ -1,0 +1,18 @@
+{
+  "id": "m12-D-full",
+  "theme": "夜班（未见主题）",
+  "shape": "full",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"在夜班工作期间，该个体倾向于通过凌晨时段购买咖啡来辅助维持清醒或应对疲劳。\",\n      \"supportingRefs\": [\n        \"财务-咖啡购买6笔，集中在凌晨班前（00:30-01:20）\"\n      ],\n      \"alternativeExplanations\": [\n        \"购买行为仅出于个人口味偏好或社交习惯，与工作状态无直接因果关联。\",\n        \"咖啡因摄入发生在非工作时间段，仅为日常例行消费，未针对夜班进行特殊调整。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"compareConditions\",\n          \"question\": \"对比白班期间同一时间段（00:30-01:20）的咖啡购买频率，确认是否存在显著差异。\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"检查这6次购买是否严格对应具体的夜班排班日期，排除休息日偶然购买的可能。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若白班期间该时段无购买记录，或购买时间与夜班结束时间错位，则“条件性关联”不成立。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"adopt\"\n    },\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"该个体在转班后存在白天补觉的行为模式，但并非每晚都执行。\",\n      \"supportingRefs\": [\n        \"习惯-白天补觉打卡：转班后7天共5次\"\n      ],\n      \"alternativeExplanations\": [\n        \"补觉次数少是因为部分夜晚睡眠质量较好，无需额外补觉。\",\n        \"打卡机制本身存在漏报可能，实际补觉次数多于记录。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"查询睡眠监测数据中对应的5个补觉时段的时长和质量，以及另外2晚的入睡/醒来时间，以验证补觉的必要性与规律性。\"\n        },\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"确认‘打卡’是否覆盖了所有可能的补觉场景，排除因忘记打卡导致的统计偏差。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现另外2晚有长时间午睡记录但未打卡，或补觉时长极短（如<30分钟），则“行为模式”的定义需调整为“碎片化休息”。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 610,
+    "prompt_tokens": 661,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 661
+    },
+    "total_tokens": 1271
+  },
+  "seconds": "6.9",
+  "cost": 0.0074730000000000005
+}

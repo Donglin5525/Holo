@@ -1,0 +1,18 @@
+{
+  "id": "m12-D-semantic",
+  "theme": "夜班（未见主题）",
+  "shape": "semantic",
+  "ok": true,
+  "raw": "{\n  \"candidates\": [\n    {\n      \"claimType\": \"conditionalAssociation\",\n      \"statement\": \"在夜班期间，该个体倾向于通过购买咖啡来维持清醒或应对疲劳。\",\n      \"supportingRefs\": [\n        \"o4\"\n      ],\n      \"alternativeExplanations\": [\n        \"购买行为可能源于社交需求（如与同事分享）而非个人提神需求。\",\n        \"购买集中在班前可能是为了囤货或凑单优惠，而非即时饮用。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"checkCoverage\",\n          \"question\": \"确认这6次购买是否全部发生在凌晨班次的工作日前后，排除非工作日的随机购买。\"\n        },\n        {\n          \"op\": \"searchCounterEvidence\",\n          \"question\": \"查找是否有其他提神手段（如能量饮料、功能性食品）的购买记录，以评估咖啡是否为唯一或主要依赖项。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若发现购买时间分散或与班次无关，则关联强度减弱；若发现大量同类提神产品购买，则咖啡并非唯一策略。\",\n      \"evidenceGrade\": \"线索\",\n      \"action\": \"ask\"\n    },\n    {\n      \"claimType\": \"recurringBehavior\",\n      \"statement\": \"在经历夜班周期时，该个体有规律地进行白天补觉的行为。\",\n      \"supportingRefs\": [\n        \"o3\",\n        \"o2\"\n      ],\n      \"alternativeExplanations\": [\n        \"补觉可能是不连续的碎片化休息，而非完整的睡眠周期。\",\n        \"补觉行为可能受到外部因素（如家庭事务、噪音干扰）影响而中断，导致实际睡眠质量低。\"\n      ],\n      \"verificationPlan\": [\n        {\n          \"op\": \"retrieveRelated\",\n          \"question\": \"获取具体的补觉时间段和时长数据，判断是单次长睡还是多次短睡。\"\n        },\n        {\n          \"op\": \"alignEvents\",\n          \"question\": \"将补觉时间与o2中的入睡时点后移数据进行对齐，验证补觉是否有效缓解了生物钟偏移带来的不适。\"\n        }\n      ],\n      \"whatWouldChangeTheAnswer\": \"若补觉时间极短或不规律，则“规律补觉”命题不成立；若补觉后仍出现严重嗜睡，则行为效果存疑。\",\n      \"evidenceGrade\": \"支持\",\n      \"action\": \"observe\"\n    }\n  ]\n}",
+  "usage": {
+    "completion_tokens": 567,
+    "prompt_tokens": 726,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 726
+    },
+    "total_tokens": 1293
+  },
+  "seconds": "6.8",
+  "cost": 0.007280999999999999
+}
