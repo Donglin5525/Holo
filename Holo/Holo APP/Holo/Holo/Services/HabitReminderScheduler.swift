@@ -9,6 +9,8 @@
 //  follow 组在兜底时间收一条汇总（文案带 streak 连续数据）；
 //  solo 组按习惯自己的时间各一条，不进汇总——同一习惯一天最多提醒一次。
 //  当天已打卡的习惯不排；数值型没有「完成」语义、不参与提醒。
+//  周频/月频习惯不逐日催（2026-11-12 拍板「来得及不催，来不及才催」）：
+//  本周期已达标整周期静默；剩余天数还够不催；只剩「再拖就完不成」的天数才逐日提醒。
 //
 
 import Foundation
@@ -72,31 +74,54 @@ final class HabitReminderScheduler: RollingNotificationScheduler {
 
     override func makeRequests(now: Date) -> [UNNotificationRequest] {
         let repo = HabitRepository.shared
-        // streak 计算要回查记录，循环外一次性算好，逐日只做过滤
-        let checkIns: [(habitId: UUID, name: String, streak: Int, completedToday: Bool, mode: HabitReminderMode, time: (hour: Int, minute: Int))] = repo.getActiveHabits()
-            .filter { $0.isCheckInType }
-            .map { habit in
-                (habitId: habit.id,
-                 name: habit.name,
-                 streak: repo.calculateStreakInfo(for: habit).value,
-                 completedToday: repo.isTodayCompleted(for: habit),
-                 mode: habit.habitReminderMode,
-                 time: habit.reminderTime)
-            }
-        guard !checkIns.isEmpty else { return [] }
+        let habits = repo.getActiveHabits().filter { $0.isCheckInType }
+        guard !habits.isEmpty else { return [] }
 
         let calendar = Calendar.current
         let fallback = reminderTime
+        let weekDays: [Date] = (0..<Self.rollingDays).compactMap {
+            calendar.date(byAdding: .day, value: $0, to: calendar.startOfDay(for: now))
+        }
+
+        // 周频/月频习惯逐日预判「该不该催」（打卡后 .habitDataDidChange 自动重排刷新快照）：
+        // 完成数按 (习惯, 周期) 缓存——7 天窗口最多跨 2 个周期，未来周期无记录天然算 0
+        var periodicEligible: [UUID: Set<Int>] = [:]
+        for habit in habits where habit.habitFrequency != .daily {
+            let component: Calendar.Component = habit.habitFrequency == .monthly ? .month : .weekOfYear
+            var periodCounts: [Date: Int] = [:]
+            var eligible = Set<Int>()
+            for (offset, day) in weekDays.enumerated() {
+                guard let period = HabitRepository.periodInterval(periodComponent: component, containing: day, calendar: calendar) else { continue }
+                let completed = periodCounts[period.start]
+                    ?? repo.countDistinctCompletionDays(for: habit, from: period.start, to: period.end)
+                periodCounts[period.start] = completed
+                let daysRemaining = calendar.dateComponents([.day], from: day, to: period.end).day ?? 0
+                if Self.shouldRemindPeriodic(target: max(habit.targetCountValue ?? 1, 1), completedInPeriod: completed, daysRemainingInPeriod: daysRemaining) {
+                    eligible.insert(offset)
+                }
+            }
+            periodicEligible[habit.id] = eligible
+        }
+
+        // streak 计算要回查记录，循环外一次性算好，逐日只做过滤
+        let checkIns: [(habitId: UUID, name: String, streak: Int, completedToday: Bool, mode: HabitReminderMode, time: (hour: Int, minute: Int))] = habits.map { habit in
+            (habitId: habit.id,
+             name: habit.name,
+             streak: repo.calculateStreakInfo(for: habit).value,
+             completedToday: repo.isTodayCompleted(for: habit),
+             mode: habit.habitReminderMode,
+             time: habit.reminderTime)
+        }
 
         var requests: [UNNotificationRequest] = []
-        for offset in 0..<Self.rollingDays {
-            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: now)) else { continue }
-
+        for (offset, day) in weekDays.enumerated() {
             // 今天按当前打卡进度快照（全打完 → 当天不排）；
-            // 未来日无法预知进度，视为都未打卡，到点时没打就是没打
-            let pending = offset == 0
+            // 未来日无法预知进度，视为都未打卡，到点时没打就是没打；
+            // 周频/月频再按上面的预判过滤——daily 不在字典、默认放行，行为与改版前一致
+            let pending = (offset == 0
                 ? checkIns.filter { !$0.completedToday }
-                : checkIns
+                : checkIns)
+                .filter { periodicEligible[$0.habitId]?.contains(offset) ?? true }
 
             // solo 组：每个单独时间的习惯一条，按习惯自己的时刻滚动排；
             // 不进兜底汇总，「同一习惯一天最多提醒一次」由分组天然保证
@@ -154,6 +179,14 @@ final class HabitReminderScheduler: RollingNotificationScheduler {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyyMMdd"
         return formatter.string(from: day)
+    }
+
+    /// 纯函数：周频/月频习惯某天是否该提醒——
+    /// 本周期已达标 → 静默；剩余天数 > 剩余次数 → 还来得及不催；只剩「再拖就完不成」的天数 → 天天提醒
+    static func shouldRemindPeriodic(target: Int, completedInPeriod: Int, daysRemainingInPeriod: Int) -> Bool {
+        let remaining = target - completedInPeriod
+        if remaining <= 0 { return false }
+        return daysRemainingInPeriod <= remaining
     }
 
     /// 纯函数：pending 为空返回 nil（不排）

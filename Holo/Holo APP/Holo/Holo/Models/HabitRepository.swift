@@ -1217,8 +1217,22 @@ class HabitRepository: ObservableObject {
 
     // MARK: - 周期连续性私有方法
 
-    /// 统计 [start, end) 范围内的不同打卡天数（按归属日）
-    private func countDistinctCompletionDays(for habit: Habit, from start: Date, to end: Date) -> Int {
+    /// 某日期所属自然周期的 [start, end) 区间（.weekOfYear=自然周 / .month=自然月）。
+    /// streak 与习惯提醒调度共用，保证周期切分口径一致。
+    static func periodInterval(periodComponent: Calendar.Component, containing date: Date, calendar: Calendar) -> (start: Date, end: Date)? {
+        let start: Date?
+        if periodComponent == .weekOfYear {
+            start = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date))
+        } else {
+            start = calendar.date(from: calendar.dateComponents([.year, .month], from: date))
+        }
+        guard let start, let end = calendar.date(byAdding: periodComponent, value: 1, to: start) else { return nil }
+        return (start, end)
+    }
+
+    /// 统计 [start, end) 范围内的不同打卡天数（按归属日）。
+    /// streak 与习惯提醒调度（周频/月频本周期进度）共用。
+    func countDistinctCompletionDays(for habit: Habit, from start: Date, to end: Date) -> Int {
         let calendar = Calendar.current
         guard let lastDay = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: end)) else { return 0 }
         let distinctDays = Set(
@@ -1244,17 +1258,12 @@ class HabitRepository: ObservableObject {
         let calendar = Calendar.current
         let today = habit.currentDay(calendar: calendar)
 
-        // 计算当前周期的起始日
-        let currentPeriodStart: Date
-        if periodComponent == .weekOfYear {
-            currentPeriodStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today))!
-        } else {
-            currentPeriodStart = calendar.date(from: calendar.dateComponents([.year, .month], from: today))!
-        }
-
-        guard let currentPeriodEnd = calendar.date(byAdding: periodComponent, value: 1, to: currentPeriodStart) else {
+        // 计算当前周期区间（切分口径与提醒调度共用，见 periodInterval）
+        guard let currentPeriod = Self.periodInterval(periodComponent: periodComponent, containing: today, calendar: calendar) else {
             return 0
         }
+        let currentPeriodStart = currentPeriod.start
+        let currentPeriodEnd = currentPeriod.end
 
         // 判断当前周期是否已达标，决定起始检查周期
         let currentCount = periodCount(habit, currentPeriodStart, currentPeriodEnd)
