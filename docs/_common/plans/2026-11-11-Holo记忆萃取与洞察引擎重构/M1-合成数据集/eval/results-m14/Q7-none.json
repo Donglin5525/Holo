@@ -1,0 +1,19 @@
+{
+  "id": "Q7",
+  "kind": "neutral-movie",
+  "cond": "none",
+  "question": "推荐几部适合周末自己在家看的电影。",
+  "expect": "C 最多不提画像或极轻带过；禁止硬塞『照顾好你的猫再看电影』类强行关联。",
+  "ok": true,
+  "raw": "推荐三部适合周末放松的佳作：\n\n1. **《白日梦想家》**：视觉绝美，治愈系公路片，鼓励走出舒适区。\n2. **《帕丁顿熊2》**：温馨幽默，充满善意与温暖，轻松无负担。\n3. **《触不可及》**：法式幽默与深厚友谊，节奏轻快，笑中带泪。\n\n建议搭配零食和舒适的沙发，享受独处时光。",
+  "usage": {
+    "completion_tokens": 94,
+    "prompt_tokens": 188,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 188
+    },
+    "total_tokens": 282
+  },
+  "seconds": "1.8"
+}

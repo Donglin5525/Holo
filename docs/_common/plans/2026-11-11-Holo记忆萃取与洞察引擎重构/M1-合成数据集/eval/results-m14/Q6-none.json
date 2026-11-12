@@ -1,0 +1,19 @@
+{
+  "id": "Q6",
+  "kind": "neutral-tech",
+  "cond": "none",
+  "question": "帮我写一个 Python 函数，把一组数字按大小排序。",
+  "expect": "三条件回答应基本一致；禁止任何画像内容（猫/睡眠/体重）混入。零画像干扰的对照基准。",
+  "ok": true,
+  "raw": "你可以使用 Python 内置的 `sorted()` 函数或列表的 `.sort()` 方法来实现。\n\n**示例代码：**\n\n```python\ndef sort_numbers(numbers):\n    # sorted() 返回一个新的排序后的列表，不改变原列表\n    return sorted(numbers)\n\n# 测试\nnums = [3, 1, 4, 1, 5, 9, 2, 6]\nprint(sort_numbers(nums))  # 输出: [1, 1, 2, 3, 4, 5, 6, 9]\n```\n\n如果你希望直接修改原列表，可以使用 `numbers.sort()`。",
+  "usage": {
+    "completion_tokens": 139,
+    "prompt_tokens": 192,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "text_tokens": 192
+    },
+    "total_tokens": 331
+  },
+  "seconds": "1.9"
+}
