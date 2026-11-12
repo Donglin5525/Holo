@@ -125,6 +125,11 @@ nonisolated enum ProposalGate {
             return (false, "rejected", verdict.reasons)
         }
         let evidence = evidenceGate(candidate: candidate, observations: observations)
+        // 对抗回归实抓（11-13）：证据闸的硬拒绝（引用编造不可回源）必须短路——
+        // 此前该分支被吞，编造引用的候选会以 adopt 放行。
+        guard evidence.passed else {
+            return (false, "rejected", evidence.reasons)
+        }
         let finalAction = evidence.downgradeTo
             ?? (candidate.action == "adopt" ? "adopt" : candidate.action)
         return (true, finalAction, evidence.reasons)

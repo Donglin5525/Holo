@@ -61,20 +61,21 @@ nonisolated enum FinanceObservationProjector {
         }
     }
 
-    /// 概念提取：按空白切词，丢含数字/量纲的 token（「猫粮 5kg」→「猫粮」），保留类目名。
+    /// 概念提取：按空白切词，丢含数字/量纲的 token（「猫粮 5kg」→「猫粮」），token 去重
+    ///（对抗回归实抓：重复备注会产生重复概念膨胀上送视图），保留类目名。
     static func concepts(fromNote note: String, categoryName: String?) -> [String] {
         var result: [String] = []
         if !note.isEmpty {
-            result += note.split(separator: " ", omittingEmptySubsequences: true)
-                .map(String.init)
-                .filter { token in
-                    !token.isEmpty && token.rangeOfCharacter(from: .decimalDigits) == nil
-                }
+            for token in note.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+            where !token.isEmpty && token.rangeOfCharacter(from: .decimalDigits) == nil && !result.contains(token) {
+                result.append(token)
+                if result.count >= 4 { break }
+            }
         }
         if let category = categoryName, !category.isEmpty, !result.contains(category) {
             result.append(category)
         }
-        return Array(result.prefix(4))
+        return result
     }
 
     /// 归属：显式代办词法（「帮/替 + 带买购」「代购」）→ proxy；其余不猜（M1.6 教训）。

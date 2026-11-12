@@ -15,5 +15,7 @@ private struct UnderstandingStandaloneRunner {
         try EvidenceRouterStandaloneTests.run()
         try ThemeIndexStandaloneTests.run()
         try ShadowRuntimeStandaloneTests.run()
+        try EndToEndStandaloneTests.run()
+        try AdversarialRegressionTests.run()
     }
 }
