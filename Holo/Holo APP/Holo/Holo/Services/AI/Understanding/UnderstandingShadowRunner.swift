@@ -101,20 +101,11 @@ enum UnderstandingShadowRunner {
             _ = ledger.advance(id: candidateID, to: .packaged, now: now)
             _ = ledger.advance(id: candidateID, to: .proposing, now: now)
 
-            // 提案（失败不重试：rejected 留诊断）
-            let evidence = theme.memberIDs.compactMap { id -> SemanticEvidenceItem? in
-                guard let obs = index.observations[id] else { return nil }
-                return SemanticEvidenceItem(
-                    oid: obs.sourceRef,
-                    domain: obs.domain.rawValue,
-                    concepts: obs.concepts,
-                    attribution: obs.attribution.rawValue,
-                    businessState: obs.businessState.rawValue,
-                    window: obs.occurredAt.map { Self.windowLabel(for: $0, now: now) } ?? "时间不可知",
-                    coverage: obs.coverage.map { "\($0.kind.rawValue):\($0.note)" },
-                    quoteExcerpt: obs.quote.map { String($0.prefix(50)) }
-                )
-            }
+            // 提案（失败不重试：rejected 留诊断）。
+            // 上送量上限（11-14 真机实锤 413：火锅/鞋类高频主题成员几十条全量上送
+            // 撑爆请求体）——每主题最多 12 条代表性证据：按发生时间倒序取最新，
+            // 保证覆盖多域（财务先行、想法/任务补位）。
+            let evidence = Self.representativeEvidence(for: theme, in: index, now: now)
             let candidates: [ProposalCandidate]
             do {
                 candidates = try await proposeClient.propose(themeKey: theme.key, evidence: evidence)
@@ -182,7 +173,35 @@ enum UnderstandingShadowRunner {
         }
     }
 
-    static func windowLabel(for date: Date, now: Date) -> String {
+    /// 代表性证据选取：≤12 条；跨域配额（财务≤8，其余域合计≥4 若有）+ 时间倒序。
+    nonisolated static func representativeEvidence(for theme: ObservationTheme, in index: ObservationIndex, now: Date) -> [SemanticEvidenceItem] {
+        let members = theme.memberIDs.compactMap { index.observations[$0] }
+        let sorted = members.sorted { ($0.occurredAt ?? $0.recordedAt) > ($1.occurredAt ?? $1.recordedAt) }
+        var picked: [LifeObservation] = []
+        var financeCount = 0
+        for obs in sorted {
+            if picked.count >= 12 { break }
+            if obs.domain == .finance {
+                if financeCount >= 8 { continue }
+                financeCount += 1
+            }
+            picked.append(obs)
+        }
+        return picked.map { obs in
+            SemanticEvidenceItem(
+                oid: obs.sourceRef,
+                domain: obs.domain.rawValue,
+                concepts: obs.concepts,
+                attribution: obs.attribution.rawValue,
+                businessState: obs.businessState.rawValue,
+                window: obs.occurredAt.map { windowLabel(for: $0, now: now) } ?? "时间不可知",
+                coverage: obs.coverage.map { "\($0.kind.rawValue):\($0.note)" },
+                quoteExcerpt: obs.quote.map { String($0.prefix(50)) }
+            )
+        }
+    }
+
+    nonisolated static func windowLabel(for date: Date, now: Date) -> String {
         let days = Int(now.timeIntervalSince(date) / 86_400)
         if days <= 1 { return "近1-2天" }
         if days <= 7 { return "近1周" }

@@ -416,7 +416,9 @@ final class HoloVisionExtractionService {
             body: HoloVisionExtractionRequest(
                 image: jpeg.base64EncodedString(),
                 text: caption?.isEmpty == false ? caption : nil
-            )
+            ),
+            // 合法大 body：压缩图 base64（链路自带压缩纪律，10MB 防真正异常巨物）。
+            bodySizeLimitBytes: 10 * 1024 * 1024
         )
         let response: HoloVisionExtractionResponse = try await apiClient.send(request)
         var understanding = response.understanding

@@ -18,6 +18,14 @@ nonisolated struct APIRequest {
     /// agent 单轮模型时延实测可达 90s+，60s 会导致首试必然超时、重试全部撞
     /// 自己的在途步锁吃 409（2026-09-08 深度分析卡死事故的深层根因）。
     var timeoutInterval: TimeInterval?
+    /// 请求体大小上限（字节）。nil = 全局默认 512KB。
+    /// 统一预检（2026-11-14 影子引擎 413 实锤后设立）：文本类 AI 上送材料不该超过
+    /// 该量级，超限在本地拒绝并带诊断（实际大小/上限/路径），不出网——防止任何
+    /// 链路漏写条目约束把超大请求发到服务端吃裸 413。合法大 body 端点（图片 base64
+    /// 等）在构造处显式覆盖。
+    var bodySizeLimitBytes: Int?
+
+    static let defaultBodySizeLimitBytes = 512 * 1024
 
     init(
         baseURL: String,
@@ -25,7 +33,8 @@ nonisolated struct APIRequest {
         method: HTTPMethod,
         headers: [String: String] = [:],
         body: Encodable? = nil,
-        timeoutInterval: TimeInterval? = nil
+        timeoutInterval: TimeInterval? = nil,
+        bodySizeLimitBytes: Int? = nil
     ) {
         self.baseURL = baseURL
         self.path = path
@@ -33,6 +42,7 @@ nonisolated struct APIRequest {
         self.headers = headers
         self.body = body
         self.timeoutInterval = timeoutInterval
+        self.bodySizeLimitBytes = bodySizeLimitBytes
     }
 
     nonisolated enum HTTPMethod: String {
@@ -71,7 +81,14 @@ nonisolated struct APIRequest {
 
         if let body = body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try JSONEncoder().encode(body)
+            let payload = try JSONEncoder().encode(body)
+            let limit = bodySizeLimitBytes ?? APIRequest.defaultBodySizeLimitBytes
+            if payload.count > limit {
+                throw APIError.serverError(
+                    "请求体 \(payload.count / 1024)KB 超过 \(limit / 1024)KB 上限（\(path)）——材料打包失控，请在链路侧收窄条目数"
+                )
+            }
+            request.httpBody = payload
         }
 
         return request

@@ -22,6 +22,7 @@ struct ShadowRunnerStandaloneTests {
         try await firstRunFullPipeline()
         try await secondRunIdempotent()
         try await proposalFailureNoRetry()
+        try await evidenceCapRegression()
         try await persistenceArtifacts()
 
         print("ShadowRunnerStandaloneTests: \(assertions) assertions passed")
@@ -114,6 +115,32 @@ struct ShadowRunnerStandaloneTests {
         expect(report.modelFailures.count == 1, "失败主题入 modelFailures 留诊断")
         expect(report.outcomes["rejected"] == 1, "提案失败→rejected（不重试不空转）")
         try? FileManager.default.removeItem(at: storage)
+    }
+
+    // MARK: 3.5 上送量上限（11-14 真机 413 实锤后的回归锁）
+
+    static func evidenceCapRegression() async throws {
+        // 60 笔火锅类消费（同概念）+ 1 条想法原话 → 证据应裁到 ≤12 且含跨域
+        var finance: [FinanceObservationInput] = []
+        for i in 0..<60 {
+            finance.append(FinanceObservationInput(
+                id: "hw-\(i)", note: "火锅",
+                occurredAt: day(2026, 8 + i / 30, 1 + i % 28, 19), recordedAt: day(2026, 8 + i / 30, 1 + i % 28, 19),
+                updatedAt: day(2026, 8 + i / 30, 1 + i % 28, 19), isRefund: false, categoryName: nil))
+        }
+        var index = ObservationIndex()
+        _ = index.merge(FinanceObservationProjector.project(finance))
+        _ = index.merge(ThoughtObservationProjector.project([
+            ThoughtObservationInput(id: "th-x1", text: "这家火锅真香，下次还来。", createdAt: day(2026, 10, 1, 20), updatedAt: day(2026, 10, 1, 20), isAIDerived: false),
+        ]))
+        let themes = ThemeIndex.buildThemes(from: index.observations.values.map { $0 })
+        guard let theme = themes.first(where: { $0.key.contains("火锅") }) else {
+            fatalError("火锅主题应聚出（60财务+1原话≥2成员）")
+        }
+        let evidence = UnderstandingShadowRunner.representativeEvidence(for: theme, in: index, now: now)
+        expect(evidence.count <= 12, "证据上送上限 12（实际 \(evidence.count)）——413 回归锁")
+        expect(evidence.contains { $0.domain == "thought" }, "跨域配额：想法原话不被财务挤光")
+        expect(evidence.filter { $0.domain == "finance" }.count <= 8, "财务域证据 ≤8")
     }
 
     // MARK: 4. 持久化三件套（索引/主题快照/台账）
