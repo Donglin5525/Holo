@@ -38,8 +38,8 @@ test("profile channel: chat 注入档案 system 消息（主 system 之后、用
   assert.equal(result.messages[2].content, "你好", "用户消息在档案消息之后");
 });
 
-test("profile channel: 结构化/萃取 purpose 不注入（数据不可执行纪律不与档案指令打架）", () => {
-  for (const purpose of ["intent", "memory_domain_extraction", "personal_context_verification", "replayDigest"]) {
+test("profile channel: 结构化、核验和原文编辑 purpose 不注入", () => {
+  for (const purpose of ["intent", "memory_domain_extraction", "personal_context_verification", "replayDigest", "thought_voice_summary"]) {
     assert.equal(isProfileChannelPurpose(purpose), false, purpose);
     const result = injectServerPrompt(
       purpose,
