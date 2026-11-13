@@ -218,8 +218,9 @@ run_step "Public health" check_health
 run_step "Public release status" check_release_status
 run_step "Authenticated release evidence" check_admin_release_status
 # 深度报告 C 方案（2026-11-07 设计 §七）：新提示词随发版核验（复用 admin release status 的 prompt 检查通道）
-PROMPT_TYPE="deep_report_writer" EXPECT_PROMPT_VERSION="3" EXPECT_PROMPT_CONTAINS="唯一的数字来源,每一处都同样生效" \
-  run_step "Prompt: deep_report_writer v3" check_admin_release_status
+# v4（2026-11-13 修正）：writer v4 防碎片 10-28 已上产，脚本期待值过期导致 verify:prod 误报失败
+PROMPT_TYPE="deep_report_writer" EXPECT_PROMPT_VERSION="4" EXPECT_PROMPT_CONTAINS="唯一的数字来源,每一处都同样生效" \
+  run_step "Prompt: deep_report_writer v4" check_admin_release_status
 PROMPT_TYPE="deep_report_checker" EXPECT_PROMPT_VERSION="4" EXPECT_PROMPT_CONTAINS="取整和约数不算问题" \
   run_step "Prompt: deep_report_checker v4" check_admin_release_status
 
