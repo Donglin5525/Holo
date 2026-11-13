@@ -54,6 +54,8 @@ struct AIMemoryLabView: View {
     )
     @State private var contextDiagnostics = HoloPersonalContextDiagnosticsSnapshot()
     @State private var isRunningContextExtraction = false
+    @State private var isRunningShadowUnderstanding = false
+    @State private var shadowSummary: String?
 
     var body: some View {
         List {
@@ -66,6 +68,7 @@ struct AIMemoryLabView: View {
             operatingModeSection
             domainOverviewSection
             personalContextSection
+            shadowUnderstandingSection
             toolsSection
             recentTraceSection
         }
@@ -191,6 +194,35 @@ struct AIMemoryLabView: View {
             Text(String(localized: "情境链路（想法→整理→规划）"))
         } footer: {
             Text(String(localized: "排障顺序：库内条目为 0 = 整理没跑；有条目但规划选取为 0 = 检索没命中。"))
+        }
+    }
+
+    // MARK: - 影子理解引擎（1.1.9 理解引擎线，DEBUG 试跑入口；只读真数据、产出仅评审）
+    private var shadowUnderstandingSection: some View {
+        Section {
+            Button {
+                Task { await runShadowUnderstanding() }
+            } label: {
+                HStack(spacing: 8) {
+                    if isRunningShadowUnderstanding {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: "brain.head.profile")
+                    }
+                    Text(isRunningShadowUnderstanding ? String(localized: "影子引擎运行中…") : String(localized: "跑一轮影子理解（真实数据）"))
+                }
+            }
+            .disabled(isRunningShadowUnderstanding)
+            if let summary = shadowSummary {
+                Text(summary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        } header: {
+            Text(String(localized: "理解引擎·影子试跑（只读）"))
+        } footer: {
+            Text(String(localized: "读近 90 天账单与想法（授权门内），本机跑主题→提案→取证→核验，产出只进影子台账不影响任何功能；每轮最多 3 个主题、每主题 1 次模型调用。"))
         }
     }
 
@@ -370,6 +402,41 @@ struct AIMemoryLabView: View {
     }
 
     @MainActor
+    private func runShadowUnderstanding() async {
+        isRunningShadowUnderstanding = true
+        shadowSummary = nil
+        defer { isRunningShadowUnderstanding = false }
+        let report = await UnderstandingRealEntry.runShadowOnce()
+        let outcomeLines = report.outcomes
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key)×\($0.value)" }
+            .joined(separator: "  ")
+        var lines = [
+            "观察：财务 \(report.financeObservations) + 想法 \(report.thoughtObservations)，主题 \(report.themesTotal) 个",
+            "本轮处理 \(report.topicsProcessed) 主题，收到提案 \(report.proposalsReceived) 条",
+            "终态：\(outcomeLines.isEmpty ? "无" : outcomeLines)",
+        ]
+        if !report.rejections.isEmpty {
+            lines.append("拒绝理由：\n" + report.rejections.joined(separator: "\n"))
+        }
+        if !report.modelFailures.isEmpty {
+            lines.append("提案失败主题：\(report.modelFailures.joined(separator: "、"))（不重试）")
+        }
+        // 评审包导出（M2.8）：写入 Documents 便于隔空投送。
+        let storage = UnderstandingShadowRunner.storageDirectory()
+        let ledger = ShadowLedger.load(directory: storage)
+        let index = ObservationIndex.load(directory: storage)
+        let themes = UnderstandingShadowRunner.loadThemeSnapshot(directory: storage)
+        let pkg = ShadowReviewExporter.assemble(ledger: ledger, themes: themes, index: index, now: report.ranAt)
+        if let data = try? ShadowReviewExporter.exportJSON(pkg) {
+            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            let file = docs.appendingPathComponent("UnderstandingShadowReport-\(Int(report.ranAt.timeIntervalSince1970)).json")
+            try? data.write(to: file)
+            lines.append("评审包：\(file.lastPathComponent)（已写入「文件」App 可见目录）")
+        }
+        shadowSummary = lines.joined(separator: "\n")
+    }
+
     private func runContextExtraction() async {
         isRunningContextExtraction = true
         operationResult = nil

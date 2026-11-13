@@ -17,5 +17,6 @@ private struct UnderstandingStandaloneRunner {
         try ShadowRuntimeStandaloneTests.run()
         try EndToEndStandaloneTests.run()
         try AdversarialRegressionTests.run()
+        try await ShadowRunnerStandaloneTests.run()
     }
 }
