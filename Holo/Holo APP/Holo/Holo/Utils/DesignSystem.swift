@@ -525,6 +525,14 @@ enum HoloAnimation {
     static let paperReceiptDuration: TimeInterval = 0.75
     /// 记录行/纸页行入场：轻微显现，不做表演
     static let paperSettle: Animation = .spring(response: 0.4, dampingFraction: 0.85)
+
+    // MARK: 记忆长廊随机漫步「一束暖光」（2026-11-13 暖光规格 §4.2，时长真源在此）
+    /// 主段：光晕从 0.74 缩放 / 0.18 亮度推进到终态（HTML 原型 --motion-duration 1.45s）
+    static let warmLightMainDuration: TimeInterval = 1.45
+    /// 抵达后合成层整体淡出（HTML .is-landing transition 0.21s ease-out）
+    static let warmLightFadeDuration: TimeInterval = 0.21
+    /// 系统「减少动态」主段（原型 prefers-reduced-motion 分支 850ms，光形固定终态）
+    static let warmLightReducedMainDuration: TimeInterval = 0.85
 }
 
 // MARK: - Holo Plus 主题

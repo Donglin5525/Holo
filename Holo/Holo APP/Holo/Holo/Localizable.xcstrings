@@ -1,6 +1,342 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "随机漫步": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隨機漫步"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Random Walk"
+          }
+        }
+      }
+    },
+    "去一个有记录的旧日": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "去一個有記錄的舊日"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Visit a day with records"
+          }
+        }
+      }
+    },
+    "再走一天": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再走一天"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Another Day"
+          }
+        }
+      }
+    },
+    "重新漫步": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "重新漫步"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Over"
+          }
+        }
+      }
+    },
+    "在长廊看这天": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在長廊看這天"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See This Day in the Gallery"
+          }
+        }
+      }
+    },
+    "在长廊看全部 %lld 条": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在長廊看全部 %lld 條"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See All %lld in the Gallery"
+          }
+        }
+      }
+    },
+    "那天的记录": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "那天的記錄"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Records That Day"
+          }
+        }
+      }
+    },
+    "那天的记录 · %lld": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "那天的記錄 · %lld"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Records That Day · %lld"
+          }
+        }
+      }
+    },
+    "查看这句的来源 ›": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "查看這句的來源 ›"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View Source ›"
+          }
+        }
+      }
+    },
+    "正在找一段旧日记录": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在找一段舊日記錄"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finding a past day…"
+          }
+        }
+      }
+    },
+    "暂时无法载入旧日记录": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "暫時無法載入舊日記錄"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't load past records"
+          }
+        }
+      }
+    },
+    "还没有可漫步的旧日": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有可漫步的舊日"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No old days to visit yet"
+          }
+        }
+      }
+    },
+    "长廊里有了更早的记录，就可以回来走走": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "長廊裡有了更早的記錄，就可以回來走走"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Once the gallery has earlier records, come back for a walk"
+          }
+        }
+      }
+    },
+    "距今天 %lld 天": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "距今天 %lld 天"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld days ago"
+          }
+        }
+      }
+    },
+    "正在回到那一天": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在回到那一天"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Going back to that day"
+          }
+        }
+      }
+    },
+    "找日期": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "找日期"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Find a Date"
+          }
+        }
+      }
+    },
+    "回到最近": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "回到最近"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to Latest"
+          }
+        }
+      }
+    },
+    "出发": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "出發"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depart"
+          }
+        }
+      }
+    },
+    "想起那一天": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "想起那一天"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remembering That Day"
+          }
+        }
+      }
+    },
+    "你那天写道：“%@”": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你那天寫道：「%@」"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You wrote that day: \"%@\""
+          }
+        }
+      }
+    },
+    "这一天的记录大多留在傍晚以后": {
+      "localizations": {
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這一天的記錄大多留在傍晚以後"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Most records that day were made after dusk"
+          }
+        }
+      }
+    },
     "" : {
       "localizations" : {
         "en" : {
@@ -96419,6 +96755,9 @@
           }
         }
       }
+    },
+    "距今天 176 天" : {
+
     },
     "距今天还有 %@ 天" : {
       "localizations" : {

@@ -479,6 +479,9 @@
 		RLSG8T0000000000000002B /* ReleaseGateFiveEntryUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = RLSG8T0000000000000001B /* ReleaseGateFiveEntryUITests.swift */; };
 		TPEDIT020000000000000002 /* TaskPendingEditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TPEDIT010000000000000001 /* TaskPendingEditTests.swift */; };
 		TSAFE0B000000000000000001 /* ThoughtSemanticSafetyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TSAFE0A000000000000000001 /* ThoughtSemanticSafetyTests.swift */; };
+		WLGT000000000000000000A2 /* WarmLightModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WLGT000000000000000000A1 /* WarmLightModelTests.swift */; };
+		WLGT000000000000000000A6 /* WarmLightFrameRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WLGT000000000000000000A5 /* WarmLightFrameRenderTests.swift */; };
+		WLGT000000000000000000A8 /* MemoryRandomWalkCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WLGT000000000000000000A7 /* MemoryRandomWalkCoreTests.swift */; };
 		WRAGG00000000000000000B1 /* WeeklyReviewAggregatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WRAGG00000000000000000F1 /* WeeklyReviewAggregatorTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -991,6 +994,9 @@
 		RLSG8T0000000000000001B /* ReleaseGateFiveEntryUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReleaseGateFiveEntryUITests.swift; sourceTree = "<group>"; };
 		TPEDIT010000000000000001 /* TaskPendingEditTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TaskPendingEditTests.swift; sourceTree = "<group>"; };
 		TSAFE0A000000000000000001 /* ThoughtSemanticSafetyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtSemanticSafetyTests.swift; sourceTree = "<group>"; };
+		WLGT000000000000000000A1 /* WarmLightModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WarmLightModelTests.swift; sourceTree = "<group>"; };
+		WLGT000000000000000000A5 /* WarmLightFrameRenderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WarmLightFrameRenderTests.swift; sourceTree = "<group>"; };
+		WLGT000000000000000000A7 /* MemoryRandomWalkCoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryRandomWalkCoreTests.swift; sourceTree = "<group>"; };
 		WRAGG00000000000000000F1 /* WeeklyReviewAggregatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyReviewAggregatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -1596,6 +1602,9 @@
 				398FCBD1E9630524A051ED67 /* MemoryInsightRefreshQuotaTests.swift */,
 				D531892A7D014FFC9E0B398D /* TimelineAxisLayoutTests.swift */,
 				108ECFE2BB6D4500EBBFCD08 /* CalendarViewModelNavigationTests.swift */,
+				WLGT000000000000000000A1 /* WarmLightModelTests.swift */,
+				WLGT000000000000000000A5 /* WarmLightFrameRenderTests.swift */,
+				WLGT000000000000000000A7 /* MemoryRandomWalkCoreTests.swift */,
 				AA11BB22CC33DD44EE55FF02 /* HoloMemoryEvidenceRoutingTests.swift */,
 				0B0AF2BDDC43021D85B561D3 /* MemoryInsightActionPromptBuilderTests.swift */,
 			);
@@ -2290,6 +2299,9 @@
 				F1AC00000000000000000FD2 /* BudgetRepositoryTests.swift in Sources */,
 				F1AC00000000000000000FB3 /* ReceiptAttachmentTests.swift in Sources */,
 				F38D3889CE87698AECF36EAF /* GoalWorkshopStoreTests.swift in Sources */,
+				WLGT000000000000000000A2 /* WarmLightModelTests.swift in Sources */,
+				WLGT000000000000000000A6 /* WarmLightFrameRenderTests.swift in Sources */,
+				WLGT000000000000000000A8 /* MemoryRandomWalkCoreTests.swift in Sources */,
 				BC59E00B27BFC9CD15E7DF45 /* GoalWorkshopCommitTests.swift in Sources */,
 				7A1D0A2026102000000000A2 /* GoalPlanContractTests.swift in Sources */,
 				7A1D0A2026102000000000A4 /* GoalEvaluationSnapshotBuilderTests.swift in Sources */,

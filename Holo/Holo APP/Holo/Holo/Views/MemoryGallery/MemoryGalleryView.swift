@@ -23,6 +23,8 @@ struct MemoryGalleryView: View {
     // MARK: - State
 
     @StateObject private var viewModel = MemoryGalleryViewModel()
+    /// 「找日期」面板（含随机漫步会话）：顶栏按钮与日历页共用同一展示宿主。
+    @StateObject private var findDateModel = MemoryGalleryFindDateModel()
     @State private var selectedTab: MemoryGalleryTab = .calendar
     @State private var hasMountedInsight = false
     @State private var showGrowth = false
@@ -89,6 +91,11 @@ struct MemoryGalleryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
+        // 长廊会话结束：清随机漫步本轮已看集合（§5.2：本轮状态仅驻留本次长廊会话）。
+        // 切 tab 不触发（两 tab 常驻只隐藏），只有长廊整体收起/离开才清。
+        .onDisappear {
+            findDateModel.endGallerySession()
+        }
         .sheet(isPresented: $showGrowth) {
             NavigationStack {
                 HoloGrowthView(onOpenModule: { target in
@@ -156,6 +163,20 @@ struct MemoryGalleryView: View {
 
                 Spacer(minLength: 0)
 
+                // 找日期：日历/随机漫步的同一入口（暖光规格 §2 导航「返回｜记忆长廊｜找日期」）
+                Button {
+                    findDateModel.open()
+                } label: {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoToolText)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "找日期"))
+                .accessibilityIdentifier("memoryGallery.findDate")
+
                 // 页级视图拨动开关（左＝日历 / 右＝洞察）
                 MemoryViewToggleSwitch(selectedTab: $selectedTab)
             }
@@ -212,7 +233,7 @@ struct MemoryGalleryView: View {
     // MARK: - 日历 Tab（日回放 / 周网格 / 月月历）
 
     private var calendarTab: some View {
-        CalendarRootView()
+        CalendarRootView(findDate: findDateModel)
     }
 
     // MARK: - 洞察 Tab

@@ -12,6 +12,10 @@ import SwiftUI
 
 struct CalendarRootView: View {
 
+    /// 「找日期」共享模型（MemoryGalleryView 持有）：面板在这里挂 sheet，
+    /// 日期定位/续载/事件详情直接复用本页 viewModel 与既有路由。
+    @ObservedObject var findDate: MemoryGalleryFindDateModel
+
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 宽屏档章节大时间放大，与章节头排印同口径
@@ -76,6 +80,26 @@ struct CalendarRootView: View {
                     ? String(localized: "选择日期")
                     : String(localized: "选择回看的日期"),
                 onCommit: { viewModel.focusDay(pickerDate) }
+            )
+        }
+        .sheet(isPresented: $findDate.isPresented) {
+            MemoryGalleryFindDateSheet(
+                model: findDate,
+                calendar: .current,
+                focusedDate: viewModel.focusedDate,
+                recordCount: { viewModel.dayEventCounts[$0] },
+                ensureData: { viewModel.ensureTimelineData(around: $0) },
+                onSelectDay: { day in
+                    viewModel.focusDay(day)
+                    findDate.dismiss()
+                },
+                onBackToLatest: {
+                    viewModel.goToToday()
+                    findDate.dismiss()
+                },
+                onOpenEvent: { event in
+                    handleEventSelect(event)
+                }
             )
         }
     }
