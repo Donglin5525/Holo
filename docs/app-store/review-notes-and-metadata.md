@@ -50,6 +50,20 @@ Holo 1.1.8 is here. This release takes both "speaking" and "seeing" a big step f
 [Stability] Fixed the Weekly Review page failing to load, plus plenty of polish.
 Thanks to everyone who shared feedback — Holo understands you better because of you.
 
+### 推广文本草稿（Promotional Text，170 字符限内；en/zh-Hant 留空则回落简中，按 1.1.7 惯例可只传简中）
+
+**简体中文：**
+
+> 对着 Holo 说的话，草稿都替你打好了：转写原文、整理稿一键切换，插入正文只动那一段。截图记账一眼确认，信用卡到期到点提醒，习惯来不及才催。1.1.8，说和看都更省心。
+
+**繁體中文：**
+
+> 對著 Holo 說的話，草稿都替你打好了：轉寫原文、整理稿一鍵切換，插入正文只動那一段。截圖記帳一眼確認，信用卡到期到點提醒，習慣來不及才催。1.1.8，說和看都更省心。
+
+**English：**
+
+> Speak to Holo and even the draft's done — transcript and polished notes, one tap to switch. Receipts confirm at a glance; credit cards nudge before they're due.
+
 ## 1.1.7 提审材料包（历史存档，勿再用于贴库）
 
 > 版本口径：1.1.7 / 构建 52（已归档 `Holo-1.1.7-52.xcarchive`，2026-11-08 23:45）。更新说明覆盖 1.1.5/37 上架（2026-11-05）之后的全部用户可感变化（1.1.6 跳版未占用）。
