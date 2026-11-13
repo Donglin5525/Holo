@@ -41,7 +41,8 @@ case "$SYNC_MODE" in
   *) fail "HOLO_DEPLOY_SYNC 只能是 push 或 rsync" ;;
 esac
 
-[ -d "$HOLO_REPO/.git" ] || fail "找不到 HOLO git 仓库：$HOLO_REPO"
+# -e 兼容 git worktree（.git 为文件）与常规仓库（.git 为目录）——1.1.9 理解引擎线在独立 worktree 发版。
+[ -e "$HOLO_REPO/.git" ] || fail "找不到 HOLO git 仓库：$HOLO_REPO"
 [ -d "$HOLO_REPO/$BACKEND_DIR" ] || fail "找不到后端目录：$HOLO_REPO/$BACKEND_DIR"
 cd "$HOLO_REPO"
 
