@@ -314,6 +314,8 @@ struct HoloApp: App {
                 #if DEBUG
                 // 财务图表/账本模拟器纵向验收合成数据（-FinanceDemoSeed 启动参数触发，幂等）
                 await FinanceDemoSeed.seedIfNeeded()
+                // 影子理解引擎合成数据（-UnderstandingDemoSeed，幂等）：模拟器全链验证用
+                await UnderstandingDemoSeed.seedIfNeeded()
                 // 统计页「项目×分类」走查种子（-FinanceProjectSeed 触发，幂等）
                 await FinanceDemoSeed.seedProjectIfNeeded()
                 #endif

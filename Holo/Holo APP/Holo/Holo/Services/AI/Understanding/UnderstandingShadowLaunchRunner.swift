@@ -60,7 +60,10 @@ enum UnderstandingShadowLaunchRunner {
     static let launchArgument = "-understandingShadowRun"
 
     static var isRequested: Bool {
+        // 环境变量通道（SIMCTL_CHILD_ 前缀经 simctl 传递）：启动参数以 - 开头会被
+        // simctl launch 当选项吞掉（2026-11-14 实踩 code=4），env 是可靠替代。
         ProcessInfo.processInfo.arguments.contains(launchArgument)
+            || ProcessInfo.processInfo.environment["UNDERSTANDING_SHADOW_RUN"] == "1"
     }
 
     /// 跑一轮并返回摘要文本（结果覆盖层与文件共用）。
