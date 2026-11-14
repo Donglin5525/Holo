@@ -30,13 +30,13 @@ struct MemoryRandomWalkView: View {
     }
 
     /// 加载提示的防闪门槛（§2：等待超过 200ms 显示；短请求不闪状态）。
-    /// 原型 walk-date h4 = 2.6rem(41.6pt)，随动态字体缩放。
-    @ScaledMetric(relativeTo: .largeTitle) private var walkDateSize: CGFloat = 41.6
-    @ScaledMetric(relativeTo: .body) private var rowTitleSize: CGFloat = 15
-    @ScaledMetric(relativeTo: .caption) private var metaSize: CGFloat = 12
-    @ScaledMetric(relativeTo: .subheadline) private var rowValueSize: CGFloat = 14
-    @ScaledMetric(relativeTo: .title3) private var echoTextSize: CGFloat = 16
-    @ScaledMetric(relativeTo: .subheadline) private var actionSize: CGFloat = 14
+    // 原型即契约：固定字号（px→pt 1:1），不随系统 Dynamic Type 缩放（东林真机实报定谳）。
+    private let walkDateSize: CGFloat = 41.6
+    private let rowTitleSize: CGFloat = 15
+    private let metaSize: CGFloat = 12
+    private let rowValueSize: CGFloat = 14
+    private let echoTextSize: CGFloat = 16
+    private let actionSize: CGFloat = 14
     @State private var loadingShown = false
     @State private var loadingTimer: Task<Void, Never>?
     /// 原型 is-arriving 的上浮淡入（walk-reveal）：抵达瞬间记录列表 250ms ease-out、

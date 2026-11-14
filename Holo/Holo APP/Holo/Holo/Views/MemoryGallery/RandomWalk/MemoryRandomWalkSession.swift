@@ -307,15 +307,9 @@ final class MemoryRandomWalkSession: ObservableObject {
         announce(String(localized: "正在回到那一天"))
 
         let timeline = WarmLightTimeline(reduceMotion: reduceMotion)
-        // 未设置过的 rollout 键默认开：bool(forKey:) 对缺省返回 false 会把动画整个跳过
-        // （冒烟实抓：没动过动效开关的用户永远看不到暖光）。
-        let replayEnabled = (UserDefaults.standard.object(forKey: HoloMotionRollout.replayKey) as? Bool) ?? true
-        // App 内动效开关关闭：直接展示已加载结果（§4.3）。
-        guard replayEnabled else {
-            commitArrival()
-            finishTravel(requestID: requestID)
-            return
-        }
+        // 2026-11-14 东林真机实报「动画完全没做」定谳：此前把「重播动效」设置开关当漫步动画闸门，
+        // 开关为关的用户整段跳过暖光。漫步动画是核心体验，只随系统「减弱动态效果」降级（§4.3 上半句），
+        // 不再受重播开关控制（该开关只管列表回放微动效，见 HoloReplayReveal）。
         lifecycleTask = Task { [weak self] in
             guard let self else { return }
             try? await Task.sleep(for: .milliseconds(Int(timeline.handoffElapsed * 1000)))

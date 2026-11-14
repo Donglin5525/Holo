@@ -111,10 +111,11 @@ struct MemoryGalleryFindDateSheet: View {
     @State private var walkDetailEvent: CalendarEvent?
     /// 漫步里点开的想法：面板内全文阅读，不跳出长廊、不清本轮已看集合（交互审查 P0）。
     @State private var walkThoughtEvent: CalendarEvent?
-    @ScaledMetric(relativeTo: .caption) private var weekdaySize: CGFloat = 12
-    @ScaledMetric(relativeTo: .body) private var dayNumberSize: CGFloat = 14
-    @ScaledMetric(relativeTo: .footnote) private var footSize: CGFloat = 13
-    @ScaledMetric(relativeTo: .body) private var launchTitleSize: CGFloat = 15
+    // 原型即契约：固定字号（px→pt 1:1），不随系统 Dynamic Type 缩放。
+    private let weekdaySize: CGFloat = 12
+    private let dayNumberSize: CGFloat = 14
+    private let footSize: CGFloat = 13
+    private let launchTitleSize: CGFloat = 15
 
     private var displayedMonth: Date {
         monthAnchor ?? model.readingMonth ?? focusedDate

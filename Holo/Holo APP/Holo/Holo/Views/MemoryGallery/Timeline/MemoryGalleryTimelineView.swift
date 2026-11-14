@@ -78,55 +78,54 @@ struct MemoryGalleryTimelineView: View {
     @State private var isFirstRowVisible = true
     @State private var extendRequestedFor: Date?
     @State private var reachedEarliest = false
-    /// 视口内可见的日期行（LazyVStack 懒加载边界近似）；最新一枚=当前阅读日。
-    @State private var visibleDays: Set<Date> = []
     /// 远跳后「回到最近」等今天窗口重载完成再定位。
     @State private var awaitingBackToRecent = false
 
-    // 字号随 Dynamic Type 缩放（§2：字号随 Dynamic Type 缩放；交互审查 P1）。
-    @ScaledMetric(relativeTo: .largeTitle) private var monthTitleSize: CGFloat = 32
-    @ScaledMetric(relativeTo: .title) private var dayNumberSize: CGFloat = 30
-    @ScaledMetric(relativeTo: .title3) private var leadHeadlineSize: CGFloat = 20
-    @ScaledMetric(relativeTo: .body) private var rowTitleSize: CGFloat = 15
-    @ScaledMetric(relativeTo: .subheadline) private var rowValueSize: CGFloat = 14
-    @ScaledMetric(relativeTo: .caption) private var metaSize: CGFloat = 12
-    @ScaledMetric(relativeTo: .footnote) private var minorSize: CGFloat = 13
-    @ScaledMetric(relativeTo: .title2) private var stateTitleSize: CGFloat = 26
+    // 原型即契约：字号为原型 px→pt 固定值，不随系统 Dynamic Type 缩放
+    //（2026-11-14 东林真机实报「字体跟原型对不上」定谳：@ScaledMetric 在非默认字号设备上全偏）。
+    private let monthTitleSize: CGFloat = 32
+    private let dayNumberSize: CGFloat = 30
+    private let leadHeadlineSize: CGFloat = 20
+    private let rowTitleSize: CGFloat = 15
+    private let rowValueSize: CGFloat = 14
+    private let metaSize: CGFloat = 12
+    private let minorSize: CGFloat = 13
+    private let stateTitleSize: CGFloat = 26
 
     private let calendar = Calendar.current
 
     // MARK: 派生数据
 
-    private var recordDays: [Date] {
-        eventsByDay.filter { !$0.value.isEmpty }.keys.sorted(by: >)
-    }
+    /// 分组结果缓存（在档坑「分组计算属性=body 每帧全量重算」；只在数据修订/目标日变化时重建）。
+    @State private var recordDaysCache: [Date] = []
+    @State private var displayDaysCache: [Date] = []
+    @State private var chaptersCache: [Chapter] = []
 
-    private var mostRecentDay: Date? { recordDays.first }
+    private var recordDays: [Date] { recordDaysCache }
+    private var mostRecentDay: Date? { recordDaysCache.first }
+    private var displayDays: [Date] { displayDaysCache }
 
-    /// 展示的日序列：有记录的日 +（空白的目标日临时插入），新到旧。
-    private var displayDays: [Date] {
-        var days = recordDays
+    /// 数据修订/目标日变化时重建分组（滚动帧内零重算）。
+    private func rebuildSections() {
+        var days = eventsByDay.filter { !$0.value.isEmpty }.keys.sorted(by: >)
         if let selectedDay, !days.contains(selectedDay) {
             days.append(selectedDay)
             days.sort(by: >)
         }
-        return days
+        var grouped: [Date: [Date]] = [:]
+        for day in days {
+            let comps = calendar.dateComponents([.year, .month], from: day)
+            grouped[calendar.date(from: comps) ?? day, default: []].append(day)
+        }
+        displayDaysCache = days
+        recordDaysCache = days.filter { !(selectedDay == $0 && (eventsByDay[$0]?.isEmpty ?? true)) }
+        chaptersCache = grouped.keys.sorted(by: >).map { Chapter(month: $0, days: grouped[$0] ?? []) }
     }
 
     private struct Chapter: Identifiable {
         let month: Date
         let days: [Date]
         var id: Date { month }
-    }
-
-    private var chapters: [Chapter] {
-        var grouped: [Date: [Date]] = [:]
-        for day in displayDays {
-            let comps = calendar.dateComponents([.year, .month], from: day)
-            let month = calendar.date(from: comps) ?? day
-            grouped[month, default: []].append(day)
-        }
-        return grouped.keys.sorted(by: >).map { Chapter(month: $0, days: grouped[$0] ?? []) }
     }
 
     private var showBackToRecent: Bool {
@@ -161,7 +160,7 @@ struct MemoryGalleryTimelineView: View {
             ScrollView(showsIndicators: false) {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     if !failedModules.isEmpty { failureNotice }
-                    ForEach(Array(chapters.enumerated()), id: \.element.id) { index, chapter in
+                    ForEach(Array(chaptersCache.enumerated()), id: \.element.id) { index, chapter in
                         Section {
                             ForEach(chapter.days, id: \.self) { day in
                                 dayRow(day)
@@ -171,6 +170,9 @@ struct MemoryGalleryTimelineView: View {
                             // 章节上距放在吸顶头的背景之内：否则吸顶时头部上方留透明缝，
                             // 滚动中会露出上一月的节尾行（冒烟判读实抓）。
                             monthHeader(chapter.month, topInset: index == 0 ? 24 : 34)
+                                // 阅读章节只按月头进入回写（在档坑：按行 onAppear 写 @Published
+                                // 打穿 MemoryGalleryView 全量重渲染=滚动卡顿主因之一）。
+                                .onAppear { syncReadingChapter(chapter) }
                         }
                     }
                     tailView
@@ -212,23 +214,26 @@ struct MemoryGalleryTimelineView: View {
                 performBackToRecent(proxy: proxy)
             }
             .onAppear {
+                rebuildSections()
                 if let request = findDate.pendingJump {
                     jump(to: request.day, proxy: proxy)
                     findDate.pendingJump = nil
                 }
             }
+            .onChange(of: dataRevision) { _, _ in rebuildSections() }
+            .onChange(of: selectedDay) { _, _ in rebuildSections() }
         }
     }
 
     // MARK: 定位
 
-    /// 视口最新可见日 → 找日期面板的初始月份/旧档位的落点（§2：月份跟随当前阅读章节）。
-    private func syncReadingChapter() {
-        guard let readingDay = visibleDays.max() else { return }
-        let comps = calendar.dateComponents([.year, .month], from: readingDay)
-        if let month = calendar.date(from: comps), findDate.readingDay != readingDay {
-            findDate.readingMonth = month
-            findDate.readingDay = readingDay
+    /// 月头进入懒加载窗口时回写阅读章节（月份变化才写，@Published 低频触发）。
+    private func syncReadingChapter(_ chapter: Chapter) {
+        if findDate.readingMonth != chapter.month {
+            findDate.readingMonth = chapter.month
+        }
+        if let first = chapter.days.first, findDate.readingDay != first {
+            findDate.readingDay = first
         }
     }
 
@@ -304,13 +309,7 @@ struct MemoryGalleryTimelineView: View {
             dayContent(day: day, events: events, featured: split.featured, others: split.others)
         }
         .onAppear {
-            visibleDays.insert(day)
-            syncReadingChapter()
-            if day == mostRecentDay {
-                isFirstRowVisible = true
-                // 远跳后窗口被替换：从最新边缘向今天方向续载回近段历史。
-                onEnsureData(day)
-            }
+            if day == mostRecentDay { isFirstRowVisible = true }
             if day == recordDays.last {
                 // 滚到已载入的最早一天：向更早续载。
                 extendRequestedFor = day
@@ -318,8 +317,6 @@ struct MemoryGalleryTimelineView: View {
             }
         }
         .onDisappear {
-            visibleDays.remove(day)
-            syncReadingChapter()
             if day == mostRecentDay { isFirstRowVisible = false }
         }
         .accessibilityElement(children: .contain)
@@ -617,12 +614,26 @@ struct MemoryGalleryTimelineView: View {
 
 // MARK: - 缩略图（UIKit/AppKit 双端）
 
+/// 解码缓存（在档坑：UIImage(data:) 在 body 里=每次求值重新解码，滚动卡顿主因之一；
+/// 与 AttachmentImageLoader 同思路，这里键取内容 hash）。
+enum MemoryGalleryThumbnailCache {
+    static let cache = NSCache<NSString, UIImage>()
+
+    static func image(for data: Data) -> UIImage? {
+        let key = NSString(string: String(data.hashValue) + "-" + String(data.count))
+        if let cached = cache.object(forKey: key) { return cached }
+        guard let image = UIImage(data: data) else { return nil }
+        cache.setObject(image, forKey: key)
+        return image
+    }
+}
+
 private struct MemoryGalleryThumbnail: View {
     let data: Data
 
     var body: some View {
         #if canImport(UIKit)
-        if let image = UIImage(data: data) {
+        if let image = MemoryGalleryThumbnailCache.image(for: data) {
             Image(uiImage: image).resizable()
         } else {
             Color.galleryInset
