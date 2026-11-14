@@ -141,12 +141,13 @@ enum GoalMetricSource: String, Codable, CaseIterable, Identifiable {
     }
 
     /// 表单可选项（按目标类型收窄矩阵）：
-    /// 累积型可选手动/习惯/账本；达标型只选手动/习惯（「账本」没有「降到某值」的语义）
+    /// 累积型可选手动/习惯/账本（全账本或指定账户净结余增加）；
+    /// 达标型可选手动/习惯/账本（账本只提供「账户余额到达目标值」，表单必选具体账户）
     static func selectable(for kind: GoalKind) -> [GoalMetricSource] {
         switch kind {
         case .process: return [.manual]
         case .cumulative: return [.manual, .habit, .ledger]
-        case .target: return [.manual, .habit]
+        case .target: return [.manual, .habit, .ledger]
         }
     }
 }
@@ -229,6 +230,9 @@ struct GoalDraft: Codable, Equatable, Identifiable {
     var metricBaselineValue: Double? = nil
     /// habit 源指向的数值习惯（三期 3b）
     var sourceHabitId: UUID? = nil
+    /// ledger 源的账本范围（2026-11-14 表单暴露）：累积型=全账本/指定账户净结余增加，
+    /// 达标型=账户余额；nil=未指定（老草案解码兼容，按全账本解释）
+    var ledgerScope: GoalLedgerScopePayload? = nil
 
     var isQuantitative: Bool { goalKind != .process }
 
@@ -263,12 +267,14 @@ extension GoalDraft {
         metricTargetValue = try c.decodeIfPresent(Double.self, forKey: .metricTargetValue)
         metricBaselineValue = try c.decodeIfPresent(Double.self, forKey: .metricBaselineValue)
         sourceHabitId = try c.decodeIfPresent(UUID.self, forKey: .sourceHabitId)
+        ledgerScope = try? c.decodeIfPresent(GoalLedgerScopePayload.self, forKey: .ledgerScope)
     }
 
     enum CodingKeys: String, CodingKey {
         case id, title, summary, domain, iconEmoji, desiredOutcome, motivation, deadlineText
         case tasks, habits, missingInfoWarnings
         case goalKind, metricSource, metricUnit, metricTargetValue, metricBaselineValue, sourceHabitId
+        case ledgerScope
     }
 }
 

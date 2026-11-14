@@ -216,9 +216,10 @@ struct GoalResultSourceConfirmCard: View {
                         current.ledgerScope = GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
                         current.sourceID = nil
                         current.isPending = false
-                    case .accountBalance:
+                    case .accountBalance, .accountDelta:
+                        // 账户口径（余额 reach / 净结余增加）同构：保留已选账户，无账户则待补齐
                         let accountID = current.ledgerScope?.accountID
-                        current.ledgerScope = GoalLedgerScopePayload(kind: .accountBalance, accountID: accountID)
+                        current.ledgerScope = GoalLedgerScopePayload(kind: kind, accountID: accountID)
                         current.sourceID = accountID
                         current.isPending = accountID == nil
                     }

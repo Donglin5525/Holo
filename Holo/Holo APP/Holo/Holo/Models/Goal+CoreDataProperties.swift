@@ -83,6 +83,30 @@ extension Goal {
         set { metricSource = newValue.rawValue }
     }
 
+    /// 账本范围便捷读写（2026-11-14 表单暴露账本范围选择）：ledgerScope 存
+    /// GoalLedgerScopePayload JSON。共创旧提交只存 kind 原始值（不带账户 ID），
+    /// JSON 解不出来按 nil 返回——读取方（评估器/表单预填）回落计划版本里的完整 payload，
+    /// 与既有行为一致，不把旧值静默升级
+    var ledgerScopePayload: GoalLedgerScopePayload? {
+        get {
+            guard let raw = ledgerScope, !raw.isEmpty,
+                  let data = raw.data(using: .utf8),
+                  let payload = try? JSONDecoder().decode(GoalLedgerScopePayload.self, from: data) else {
+                return nil
+            }
+            return payload
+        }
+        set {
+            guard let newValue,
+                  let data = try? JSONEncoder().encode(newValue),
+                  let json = String(data: data, encoding: .utf8) else {
+                ledgerScope = nil
+                return
+            }
+            ledgerScope = json
+        }
+    }
+
     /// 目标数值（Double 便捷形式，写法对齐 Habit.targetValueDouble）
     var metricTargetValueDouble: Double? {
         get { targetValue?.doubleValue }

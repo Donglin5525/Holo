@@ -288,7 +288,9 @@ final class GoalPlanCommitV2Tests: XCTestCase {
         XCTAssertEqual(payload.bindings.filter { $0.entityType == .task }.count, 1)
         XCTAssertEqual(payload.bindings.first { $0.entityType == .account }?.entityID, account.id)
         let goal = try XCTUnwrap(fetchGoal(id: receipt.goalID))
-        XCTAssertEqual(goal.ledgerScope, GoalLedgerScopeKind.accountBalance.rawValue, "ledgerScope 从本期开始真实写入")
+        // 2026-11-14 表单暴露账本范围后 goal.ledgerScope 存完整 payload JSON（含账户 ID）
+        XCTAssertEqual(goal.ledgerScopePayload, GoalLedgerScopePayload(kind: .accountBalance, accountID: account.id),
+                       "ledgerScope 从本期开始真实写入")
         XCTAssertEqual(goal.metricSourceEnum, .ledger)
         XCTAssertEqual(goal.metricTargetValueDouble, 18000)
     }

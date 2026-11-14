@@ -386,7 +386,8 @@ struct GoalListView: View {
             metricUnit: goal.metricUnit,
             metricTargetValue: goal.metricTargetValueDouble,
             metricBaselineValue: goal.baselineValueDouble,
-            sourceHabitId: goal.sourceHabitId
+            sourceHabitId: goal.sourceHabitId,
+            ledgerScope: goal.metricSourceEnum == .ledger ? goal.ledgerScopePayload : nil
         )
     }
 
@@ -671,6 +672,7 @@ struct GoalManualCreateSheet: View {
                     .padding(.top, 4)
                     .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
         .presentationDetents([.large])
         .alert("保存失败", isPresented: Binding(

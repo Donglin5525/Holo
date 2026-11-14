@@ -29,18 +29,21 @@ enum GoalResultSourceKind: String, Codable, Equatable, Sendable {
 enum GoalLedgerScopeKind: String, Codable, Equatable, Sendable {
     case wholeLedgerDelta = "whole_ledger_delta"
     case accountBalance = "account_balance"
+    /// 指定账户净结余增加（2026-11-14 表单暴露账本范围：累积型选具体账本时用）
+    case accountDelta = "account_delta"
 
     var displayName: String {
         switch self {
         case .wholeLedgerDelta: return String(localized: "全账本净结余增加")
         case .accountBalance: return String(localized: "单账户余额")
+        case .accountDelta: return String(localized: "该账本净结余增加")
         }
     }
 }
 
-struct GoalLedgerScopePayload: Codable, Equatable, Sendable {
+struct GoalLedgerScopePayload: Codable, Equatable, Hashable, Sendable {
     var kind: GoalLedgerScopeKind
-    /// kind == .accountBalance 时必填：单一真实资产账户
+    /// kind == .accountBalance / .accountDelta 时必填：单一真实资产账户
     var accountID: UUID?
 }
 
@@ -60,7 +63,7 @@ enum GoalResultComparison: String, Codable, Equatable, Sendable {
 
 struct GoalPlanResultSourceV2: Codable, Equatable, Sendable {
     var sourceType: GoalResultSourceKind
-    /// habit → 数值习惯 id；ledger+accountBalance → 账户 id；manual → nil
+    /// habit → 数值习惯 id；ledger 账户口径（accountBalance/accountDelta）以 ledgerScope.accountID 为准；manual → nil
     var sourceID: UUID?
     var unit: String?
     var aggregation: GoalHabitAggregationKind?

@@ -164,7 +164,9 @@ enum GoalPlanResolver {
     }
 
     /// 旧量化字段 → 结果来源；过程型目标无结果量（nil）。
-    /// ledger 的 ledgerScope 保持 nil：按旧「全账本净结余增量」解释，不静默切账户余额（§6.2）
+    /// ledger 的账本范围取 Goal.ledgerScopePayload（2026-11-14 表单真实写入后随基线重建）；
+    /// 旧共创目标该字段只有 kind 原始值、payload 读不出来 → 保持 nil，按旧「全账本净结余增量」
+    /// 解释，不静默切账户余额（§6.2）
     static func legacyResultSource(goal: Goal) -> GoalPlanResultSourceV2? {
         guard goal.isQuantitative else { return nil }
         let isCumulative = goal.goalKindEnum == .cumulative
@@ -190,7 +192,7 @@ enum GoalPlanResolver {
             baselineValue: goal.baselineValueDouble,
             baselineObservedAt: goal.baselineDate,
             freshnessDays: isCumulative ? nil : 14,
-            ledgerScope: nil,
+            ledgerScope: sourceKind == .ledger ? goal.ledgerScopePayload : nil,
             isPending: sourceKind == .habit && sourceID == nil
         )
     }

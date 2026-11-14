@@ -5,6 +5,9 @@ enum GoalJourneyStyle {
     static let action = Color("GoalJourneyAction")
     static let inset = Color("GoalJourneyInset")
     static let pageInset: CGFloat = 22
+    /// 目标表单弹层底栏衬底：奶油同源底（surface 72% 混色，R6）——替代共享壳的
+    /// ultraThinMaterial 灰底，与页面暖底同源
+    static let sheetFooterCream = Color.holoToolSurface.opacity(0.72)
 }
 
 enum GoalJourneyType {

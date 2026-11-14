@@ -611,6 +611,7 @@ struct GoalEditSheet: View {
         return draft.desiredOutcome != before.desiredOutcome || draft.deadlineText != before.deadlineText
             || draft.goalKind != before.goalKind || draft.metricTargetValue != before.metricTargetValue
             || draft.metricSource != before.metricSource || draft.sourceHabitId != before.sourceHabitId
+            || draft.ledgerScope != before.ledgerScope
     }
 
     var body: some View {
@@ -633,6 +634,7 @@ struct GoalEditSheet: View {
                 .padding(.top, 4)
                 .padding(.bottom, 20)
             }
+            .scrollDismissesKeyboard(.interactively)
         }
         .presentationDetents([.large])
         .alert("保存失败", isPresented: Binding(
@@ -672,6 +674,8 @@ struct GoalEditSheet: View {
                     metricSource: draft.isQuantitative ? draft.metricSource : nil,
                     sourceHabitId: draft.isQuantitative
                         ? .some(draft.metricSource == .habit ? draft.sourceHabitId : nil) : nil,
+                    ledgerScope: draft.isQuantitative
+                        ? .some(draft.metricSource == .ledger ? draft.ledgerScope : nil) : nil,
                     expectedPlanRevisionID: baseRevisionID
                 )
                 isSaving = false

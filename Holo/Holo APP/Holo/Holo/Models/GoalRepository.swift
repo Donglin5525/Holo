@@ -134,6 +134,7 @@ final class GoalRepository: ObservableObject {
         goal.metricTargetValueDouble = draft.metricTargetValue
         goal.baselineValueDouble = draft.goalKind == .target ? draft.metricBaselineValue : nil
         goal.sourceHabitId = draft.metricSource == .habit ? draft.sourceHabitId : nil
+        goal.ledgerScopePayload = draft.metricSource == .ledger ? draft.ledgerScope : nil
         goal.baselineDate = now
     }
 
@@ -160,7 +161,7 @@ final class GoalRepository: ObservableObject {
     /// 批量更新目标字段。nil 参数表示不修改该字段。
     /// 量化字段：goalKind 传 .process 会清空全部量化配置（切回过程型）；
     /// metricUnit/metricTargetValue/metricBaselineValue 沿用双层可选约定（.some(nil)=清空）；
-    /// metricSource/sourceHabitId 变化视为换口径，累计起点 baselineDate 重置为当前时刻。
+    /// metricSource/sourceHabitId/ledgerScope 变化视为换口径，累计起点 baselineDate 重置为当前时刻。
     func updateFields(
         _ goal: Goal,
         title: String? = nil,
@@ -177,6 +178,7 @@ final class GoalRepository: ObservableObject {
         metricBaselineValue: Double?? = nil,
         metricSource: GoalMetricSource? = nil,
         sourceHabitId: UUID?? = nil,
+        ledgerScope: GoalLedgerScopePayload?? = nil,
         expectedPlanRevisionID: UUID? = nil
     ) throws {
         let priorRow = GoalPlanRevisionStore.latestRevisionRow(goalID: goal.id, in: context)
@@ -205,6 +207,7 @@ final class GoalRepository: ObservableObject {
                 goal.baselineValue = nil
                 goal.baselineDate = nil
                 goal.sourceHabitId = nil
+                goal.ledgerScope = nil
             } else if goal.baselineDate == nil {
                 // 过程型转量化：以转换时刻为累计/速率起点
                 goal.baselineDate = Date()
@@ -214,11 +217,14 @@ final class GoalRepository: ObservableObject {
         if let metricTargetValue { goal.metricTargetValueDouble = metricTargetValue }
         if let metricBaselineValue { goal.baselineValueDouble = metricBaselineValue }
 
-        // 换源/换源习惯：口径变了，旧累计起点无意义，重置为当前时刻
+        // 换源/换源习惯/换账本范围：口径变了，旧累计起点无意义，重置为当前时刻
+        let ledgerScopeChanged = ledgerScope.map { $0 != goal.ledgerScopePayload } ?? false
         let sourceChanged = (metricSource != nil && metricSource != goal.metricSourceEnum)
             || (sourceHabitId != nil && sourceHabitId != goal.sourceHabitId)
+            || ledgerScopeChanged
         if let metricSource { goal.metricSourceEnum = metricSource }
         if let sourceHabitId { goal.sourceHabitId = sourceHabitId }
+        if let ledgerScope { goal.ledgerScopePayload = ledgerScope }
         if sourceChanged && goal.isQuantitative {
             goal.baselineDate = Date()
         }
@@ -238,6 +244,9 @@ final class GoalRepository: ObservableObject {
                     next.resultSource?.targetValue = goal.metricTargetValueDouble
                     next.resultSource?.unit = goal.metricUnit
                     next.resultSource?.baselineValue = goal.baselineValueDouble
+                    if goal.metricSourceEnum == .ledger {
+                        next.resultSource?.ledgerScope = goal.ledgerScopePayload
+                    }
                 }
                 if next.resultSource?.sourceType != .ledger { next.fundSchedule = [] }
                 if old != next {
