@@ -106,6 +106,30 @@ struct HoloApp: App {
 
     // MARK: - Body
 
+    // MARK: - 影子理解试跑（启动参数 -understandingShadowRun，DEBUG-only；东林 11-14
+    // 禁令：App 内不加调试口子，验收工具走启动参数）
+    #if DEBUG
+    @State private var understandingShadowResult: String?
+    @State private var understandingShadowFinished = false
+
+    @ViewBuilder
+    private var understandingShadowRunView: some View {
+        if let understandingShadowResult {
+            UnderstandingShadowRunOverlay(summary: understandingShadowResult) {
+                understandingShadowFinished = true
+            }
+        } else if understandingShadowFinished {
+            Color.clear.ignoresSafeArea()
+        } else {
+            ProgressView(String(localized: "影子理解运行中…"))
+                .padding(40)
+                .task {
+                    understandingShadowResult = await UnderstandingShadowLaunchRunner.runAndSummarize()
+                }
+        }
+    }
+    #endif
+
     var body: some Scene {
         WindowGroup {
             if TestHostEnvironment.isHostedByXCTest {
@@ -116,6 +140,8 @@ struct HoloApp: App {
                 growthValidationView
             } else if HoloChartGalleryView.isRequested {
                 HoloChartGalleryView()
+            } else if UnderstandingShadowLaunchRunner.isRequested {
+                understandingShadowRunView
             } else {
                 // 应用锁闸门层与业务根视图同帧渲染：锁定时首帧即锁屏，无内容闪现；
                 // 热回时由 AppLockManager 的系统级窗口盖住浮层（fullScreenCover/sheet）
