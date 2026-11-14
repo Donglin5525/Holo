@@ -38,6 +38,8 @@ struct AdversarialRound2Tests {
         bug4_realModelOutputParsing()
         try await round3_starvationBounded()
         round3_extremeJSON()
+        try await userJourneyFixA_categoryOnlyThemesSkipped()
+        userJourneyFixC_revisionDigestSyncSafe()
         printOutcome()
     }
 
@@ -62,6 +64,50 @@ struct AdversarialRound2Tests {
             loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
         expect(third.topicsProcessed == 0, "轮3应0处理（全部已入台账+无变化——饥饿修复不破坏幂等终点）")
         try? FileManager.default.removeItem(at: storage)
+    }
+
+    /// 用户画像1（轻度无备注）：纯类目巨主题不烧模型费；有备注主题正常处理。
+    static func userJourneyFixA_categoryOnlyThemesSkipped() async throws {
+        let storage = tempStorage()
+        struct Echo: UnderstandingProposeClient {
+            var calls = 0
+            func propose(themeKey: String, evidence: [SemanticEvidenceItem]) async throws -> [ProposalCandidate] { [] }
+        }
+        // 无备注 30 笔同类目（「餐饮」巨主题）+ 有备注 2 笔（「猫粮」语义主题）
+        var finance: [FinanceObservationInput] = []
+        for i in 0..<30 {
+            finance.append(FinanceObservationInput(
+                id: "meal-\(i)", note: nil,
+                occurredAt: day(2026, 10, 1 + i % 28), recordedAt: day(2026, 10, 1 + i % 28),
+                updatedAt: day(2026, 10, 1 + i % 28), isRefund: false, categoryName: "餐饮"))
+        }
+        finance += [
+            FinanceObservationInput(id: "cat-a", note: "猫粮", occurredAt: day(2026, 10, 5), recordedAt: day(2026, 10, 5), updatedAt: day(2026, 10, 5), isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "cat-b", note: "猫砂", occurredAt: day(2026, 10, 12), recordedAt: day(2026, 10, 12), updatedAt: day(2026, 10, 12), isRefund: false, categoryName: nil),
+        ]
+        let report = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 3, storage: storage,
+            loadInputs: { (finance, []) }, proposeClient: Echo())
+        let ledger = ShadowLedger.load(directory: storage)
+        let processed = Set(ledger.candidates.values.map(\.themeKey))
+        expect(!processed.contains("餐饮"), "纯类目巨主题（30笔无备注）不得进提案池——第一笔模型费不买废话")
+        expect(processed.contains("猫"), "有备注语义主题正常处理（实际处理: \(processed.sorted())）")
+        try? FileManager.default.removeItem(at: storage)
+    }
+
+    /// 用户画像4（换机重装）：updatedAt 被 CloudKit 同步刷新 → 不得触发全量重提案。
+    static func userJourneyFixC_revisionDigestSyncSafe() {
+        let base = FinanceObservationInput(id: "sync-1", note: "猫粮",
+            occurredAt: day(2026, 9, 2, 20), recordedAt: day(2026, 9, 2, 20),
+            updatedAt: day(2026, 9, 2, 20), isRefund: false, categoryName: nil)
+        let synced = FinanceObservationInput(id: base.id, note: base.note,
+            occurredAt: base.occurredAt, recordedAt: base.recordedAt,
+            updatedAt: day(2026, 11, 14), isRefund: false, categoryName: base.categoryName) // 同步刷新 updatedAt
+        expect(base.revisionDigest == synced.revisionDigest,
+               "updatedAt 变化不得改变修订摘要（换机同步后全量重提案=烧一遍全量模型费）")
+        let edited = FinanceObservationInput(id: base.id, note: "猫粮 5kg",
+            occurredAt: base.occurredAt, recordedAt: base.recordedAt,
+            updatedAt: base.updatedAt, isRefund: false, categoryName: base.categoryName)
+        expect(base.revisionDigest != edited.revisionDigest, "真实编辑（备注变化）必须触发重投影")
     }
 
     /// 极端 JSON 形态：candidates 为 null / 截断 JSON / 数组顶层——全部显式失败不崩。

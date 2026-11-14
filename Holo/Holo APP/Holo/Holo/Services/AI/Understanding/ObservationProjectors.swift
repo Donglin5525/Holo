@@ -25,7 +25,9 @@ nonisolated struct FinanceObservationInput: Sendable, Equatable {
 
     /// 修订摘要：内容+类目+更新时间派生（与信号通道口径一致）。
     var revisionDigest: String {
-        "\(Int(updatedAt.timeIntervalSince1970))-\(note ?? "-")-\(categoryName ?? "-")"
+        // 只用业务字段：CloudKit 同步/换机重装会刷新 updatedAt（全量假变化→全量
+        // 重提案烧一遍模型费，2026-11-14 用户旅程模拟实锤）；金额不进观察故不进摘要。
+        "\(Int(occurredAt.timeIntervalSince1970))-\(note ?? "-")-\(categoryName ?? "-")"
     }
 }
 

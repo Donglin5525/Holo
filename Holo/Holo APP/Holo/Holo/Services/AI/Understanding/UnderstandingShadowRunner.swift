@@ -92,6 +92,11 @@ enum UnderstandingShadowRunner {
         pendingKeys += neverProcessed
         let pending = pendingKeys
             .compactMap { themesByKey[$0] }
+            // 语义丰富度门槛（2026-11-14 用户旅程画像1实锤）：纯类目聚合主题
+            //（轻度记账用户 90% 无备注时的「餐饮」巨主题）等价 legacy 统计形状，
+            // 模型只能产出计数式废话（M1.2 定谳），且成员最多永远第一个被处理——
+            // 第一笔模型费全买废话。跳过提案，留在索引等语义线索出现。
+            .filter { Self.hasSemanticValue($0, index: index) }
             .sorted { ($0.memberIDs.count, $0.key) > ($1.memberIDs.count, $1.key) }
             .prefix(maxTopics)
 
@@ -192,6 +197,17 @@ enum UnderstandingShadowRunner {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try? data.write(to: directory.appendingPathComponent("themes.json"), options: .atomic)
         }
+    }
+
+    /// 主题语义价值判定：任一成员带非空备注（quote）或有想法域成员 → true；
+    /// 纯类目聚合（全部无备注、纯财务类目名概念）→ false（不配调模型）。
+    nonisolated static func hasSemanticValue(_ theme: ObservationTheme, index: ObservationIndex) -> Bool {
+        for id in theme.memberIDs {
+            guard let obs = index.observations[id] else { continue }
+            if obs.domain == .thought { return true }
+            if let quote = obs.quote, !quote.isEmpty { return true }
+        }
+        return false
     }
 
     /// 代表性证据选取：≤12 条；跨域配额（财务≤8，其余域合计≥4 若有）+ 时间倒序。
