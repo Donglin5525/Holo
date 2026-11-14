@@ -139,7 +139,9 @@ struct MemoryGalleryTimelineView: View {
         Group {
             if isInitialLoading && eventsByDay.isEmpty {
                 stateView(icon: "book", title: "正在打开长廊", message: "正在读取你的记录。", action: nil)
-            } else if recordDays.isEmpty && selectedDay == nil {
+            } else if eventsByDay.values.allSatisfy({ $0.isEmpty }) && selectedDay == nil {
+                // 空态判断用数据源本身：分组缓存要等时间线挂载后才有人重建（见下），
+                // 吃缓存会把「缓存未初始化」误判成「没有记录」（11-15 东林真机实报根因）。
                 if failedModules.isEmpty {
                     stateView(icon: "book", title: "长廊还没有记录",
                               message: "写下的想法、账单、打卡和完成的任务，会按日期出现在这里。",
@@ -153,6 +155,11 @@ struct MemoryGalleryTimelineView: View {
             }
         }
         .background(Color.galleryPaper)
+        // 分组重建挂在常驻容器上：此前挂在 timeline 内部，而 timeline 只有缓存非空才渲染
+        // → onChange/onAppear 永远挂不上 → 缓存死锁在空（真机实报根因，与 1) 成对）。
+        .onAppear { rebuildSections() }
+        .onChange(of: dataRevision) { _, _ in rebuildSections() }
+        .onChange(of: selectedDay) { _, _ in rebuildSections() }
     }
 
     private var timeline: some View {
@@ -214,14 +221,11 @@ struct MemoryGalleryTimelineView: View {
                 performBackToRecent(proxy: proxy)
             }
             .onAppear {
-                rebuildSections()
                 if let request = findDate.pendingJump {
                     jump(to: request.day, proxy: proxy)
                     findDate.pendingJump = nil
                 }
             }
-            .onChange(of: dataRevision) { _, _ in rebuildSections() }
-            .onChange(of: selectedDay) { _, _ in rebuildSections() }
         }
     }
 
