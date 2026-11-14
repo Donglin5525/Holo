@@ -43,6 +43,7 @@ struct AdversarialRound2Tests {
         habitDomainProjectionAndTheme()
         try await habitOnlyUserEndToEnd()
         try await round4_staleUnderstandingNotInvalidated()
+        try await bug6_shortIDReferenceRoundTrip()
         printOutcome()
     }
 
@@ -200,6 +201,39 @@ struct AdversarialRound2Tests {
         let stale = ledger.snapshot(stage: .adoptable)
         confirmBug(!stale.isEmpty,
                    "BUG-5", "归属翻转后旧 adoptable 仍 \(stale.count) 条未失效（工程稿§6.1 要求来源修订触发失效；用户已说代购,引擎仍持『很可能照料猫』）")
+        try? FileManager.default.removeItem(at: storage)
+    }
+
+    /// BUG-6 真数据实锤（11-15 凌晨东林轮：3/6 提案因「引用不存在的观察」报废）：
+    /// 模型抄 36 位 UUID 出错率高。修复=证据视图短编号 e1..e12 + gate 判定前回源。
+    static func bug6_shortIDReferenceRoundTrip() async throws {
+        let storage = tempStorage()
+        final class ShortRefClient: UnderstandingProposeClient, @unchecked Sendable {
+            var receivedOIDs: [String] = []
+            func propose(themeKey: String, evidence: [SemanticEvidenceItem]) async throws -> [ProposalCandidate] {
+                receivedOIDs = evidence.map(\.oid)
+                // 模拟模型行为：引用短编号（修复后应能回源通过）
+                return [ProposalCandidate(claimType: "recurringBehavior", statement: "高频深夜外卖。",
+                                          supportingRefs: evidence.prefix(3).map(\.oid),
+                                          alternativeExplanations: ["预订"],
+                                          whatWouldChangeTheAnswer: nil, evidenceGrade: "支持", action: "observe")]
+            }
+        }
+        let client = ShortRefClient()
+        let finance = financeInputs() + [
+            FinanceObservationInput(id: "cf-1", note: "咖啡 外卖", occurredAt: day(2026, 10, 8, 23), recordedAt: day(2026, 10, 8, 23), updatedAt: day(2026, 10, 8, 23), isRefund: false, categoryName: nil),
+        ]
+        _ = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 3, storage: storage,
+            loadInputs: { (finance, thoughtInputs(), []) }, proposeClient: client)
+        expect(client.receivedOIDs.allSatisfy { $0.hasPrefix("e") && $0.count <= 3 },
+               "证据视图用短编号（实际: \(client.receivedOIDs)）——模型不再抄 UUID")
+        let ledger = ShadowLedger.load(directory: storage)
+        let rejected = ledger.snapshot(stage: .rejected).filter { $0.lastReason?.contains("不存在的观察") ?? false }
+        if !rejected.isEmpty {
+            for r in rejected { print("DEBUG rejection:", r.themeKey, "|", r.lastReason ?? "-") }
+            print("DEBUG receivedOIDs:", client.receivedOIDs.joined(separator: ","))
+        }
+        expect(rejected.isEmpty, "短编号引用经回源后必须全部通过（不再因抄写报废）")
         try? FileManager.default.removeItem(at: storage)
     }
 

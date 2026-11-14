@@ -137,7 +137,7 @@ struct ShadowRunnerStandaloneTests {
         guard let theme = themes.first(where: { $0.key.contains("火锅") }) else {
             fatalError("火锅主题应聚出（60财务+1原话≥2成员）")
         }
-        let evidence = UnderstandingShadowRunner.representativeEvidence(for: theme, in: index, now: now)
+        let (evidence, _) = UnderstandingShadowRunner.representativeEvidence(for: theme, in: index, now: now)
         expect(evidence.count <= 12, "证据上送上限 12（实际 \(evidence.count)）——413 回归锁")
         expect(evidence.contains { $0.domain == "thought" }, "跨域配额：想法原话不被财务挤光")
         expect(evidence.filter { $0.domain == "finance" }.count <= 8, "财务域证据 ≤8")

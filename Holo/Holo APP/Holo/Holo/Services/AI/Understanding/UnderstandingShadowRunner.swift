@@ -123,7 +123,9 @@ enum UnderstandingShadowRunner {
             // 上送量上限（11-14 真机实锤 413：火锅/鞋类高频主题成员几十条全量上送
             // 撑爆请求体）——每主题最多 12 条代表性证据：按发生时间倒序取最新，
             // 保证覆盖多域（财务先行、想法/任务补位）。
-            let evidence = Self.representativeEvidence(for: theme, in: index, now: now)
+            // 短编号证据（BUG-6 真数据实锤：给模型 36 位 UUID 抄写错一个字符即整条
+            // 报废——3/6 提案损耗；方案本设计即短 oid。映射表供 gate 判定前回源。
+            let (evidence, refByShortID) = Self.representativeEvidence(for: theme, in: index, now: now)
             let candidates: [ProposalCandidate]
             do {
                 candidates = try await proposeClient.propose(themeKey: theme.key, evidence: evidence)
@@ -148,7 +150,12 @@ enum UnderstandingShadowRunner {
             // （id 加候选序号后缀），第 1 条进终态不再吞掉第 2 条的判定。
             // 主条目（无后缀）承载主题级流转；候选条目只经 register→settle 直达终态。
             for (candidateIndex, candidate) in candidates.enumerated() {
-                let result = ProposalGate.evaluate(candidate: candidate, observations: Array(observationsByRef.values))
+                // BUG-6：supportingRefs 短编号回源（e3→真实sourceRef）；UUID 原样保留。
+                var resolved = candidate
+                resolved.supportingRefs = candidate.supportingRefs.map { ref in
+                    refByShortID[ref] ?? ref
+                }
+                let result = ProposalGate.evaluate(candidate: resolved, observations: Array(observationsByRef.values))
                 var settled = ledger.settle(id: candidateID, gateResult: result, now: now)
                 if candidateIndex > 0 {
                     let subID = candidateID + "#c\(candidateIndex + 1)"
@@ -219,7 +226,8 @@ enum UnderstandingShadowRunner {
     }
 
     /// 代表性证据选取：≤12 条；跨域配额（财务≤8，其余域合计≥4 若有）+ 时间倒序。
-    nonisolated static func representativeEvidence(for theme: ObservationTheme, in index: ObservationIndex, now: Date) -> [SemanticEvidenceItem] {
+    /// 返回 (短编号证据项, 短编号→真实sourceRef 映射)。
+    nonisolated static func representativeEvidence(for theme: ObservationTheme, in index: ObservationIndex, now: Date) -> ([SemanticEvidenceItem], [String: String]) {
         let members = theme.memberIDs.compactMap { index.observations[$0] }
         let sorted = members.sorted { ($0.occurredAt ?? $0.recordedAt) > ($1.occurredAt ?? $1.recordedAt) }
         var picked: [LifeObservation] = []
@@ -232,9 +240,14 @@ enum UnderstandingShadowRunner {
             }
             picked.append(obs)
         }
-        return picked.map { obs in
+        // oid 用短编号（BUG-6）：模型抄 e1..e12 不会错；真实 sourceRef 随返回值
+        // 交给调用方做 gate 回源（修复自映射陷阱：value 不能取 evidence.oid 本身）。
+        let shortToSourceRef = Dictionary(
+            uniqueKeysWithValues: picked.enumerated().map { ("e\($0.offset + 1)", $0.element.sourceRef) }
+        )
+        let items = picked.enumerated().map { index, obs in
             SemanticEvidenceItem(
-                oid: obs.sourceRef,
+                oid: "e\(index + 1)",
                 domain: obs.domain.rawValue,
                 concepts: obs.concepts,
                 attribution: obs.attribution.rawValue,
@@ -244,6 +257,7 @@ enum UnderstandingShadowRunner {
                 quoteExcerpt: obs.quote.map { String($0.prefix(50)) }
             )
         }
+        return (items, shortToSourceRef)
     }
 
     nonisolated static func windowLabel(for date: Date, now: Date) -> String {
