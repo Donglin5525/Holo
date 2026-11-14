@@ -46,6 +46,8 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   agent_loop: "agent_loop",
   personal_context_extraction: "personal_context_extraction",
   personal_context_verification: "personal_context_verification",
+  // 理解引擎提案（2026-11-14 补全：通道注册时漏 prompt 映射，真机实锤 PROMPT_NOT_FOUND）。
+  understanding_proposal: "understanding_proposal",
   personal_context_request: "personal_context_request",
   personal_context_planning: "personal_context_planning",
   vision_extraction: "vision_extraction",

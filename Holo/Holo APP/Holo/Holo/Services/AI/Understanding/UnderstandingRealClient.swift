@@ -13,29 +13,14 @@ import Foundation
 // provider 的 MainActor 调用在方法体内用 MainActor.run 显式跳岛。
 
 struct RealUnderstandingProposeClient: UnderstandingProposeClient {
-    nonisolated static let systemPrompt = """
-    你是 Holo 生活理解引擎的「提案器」。输入是关于同一个人的一组观察材料（已脱敏、程序预整理；不含金额与精确数值）。
-
-    任务：基于材料提出【最多 2 条】值得查证的候选理解。每条输出：
-    {"claimType":"role|preference|recurringBehavior|phaseState|conditionalAssociation","statement":"一句话命题（中文）","supportingRefs":["观察的oid"],"alternativeExplanations":["1-2个竞争解释"],"verificationPlan":[{"op":"retrieveRelated|checkOwnership|comparePeriods|compareConditions|alignEvents|searchCounterEvidence|checkCoverage","question":"想查什么"}],"whatWouldChangeTheAnswer":"成立后改变哪类回答","evidenceGrade":"线索|支持","action":"adopt|observe|ask"}
-
-    硬规则：
-    1. 证据不足宁可 observe/ask，不给强命题；只有购买记录禁止说使用/饮用。
-    2. attribution 为 unknown 不得默认本人；proxy 是明确代办。
-    3. 命题层禁止出现「患者」措辞（疾病身份只能以用户自述证据转述）；禁止医疗诊断。
-    4. 禁止人格/道德标签（懒/自律差/拖延症/孤僻/社恐/成瘾/上瘾/自制力差）；禁止身份默认（如产后）。
-    5. 材料里没有的信息不许编造；统计数字只支撑统计结论；材料明确原因未知时不得自行填补原因。
-    6. 时间窗表述（近3个月等）是范围不是月龄；婴儿月龄不得精确化。
-    7. 提不出可执行查证计划的候选不要输出；没有值得提的输出空数组。
-    8. 只输出 JSON：{"candidates":[...],"noValueReason":"空数组时一句原因"}
-    """
-
     func propose(themeKey: String, evidence: [SemanticEvidenceItem]) async throws -> [ProposalCandidate] {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let evidenceJSON = String(data: try encoder.encode(evidence), encoding: .utf8) ?? "[]"
+        // prompt 真源在服务端（serverPromptPolicy 注入 understanding_proposal 模板），
+        // 客户端只发材料——2026-11-14 修复：客户端自带 system 与服务端注入并存时
+        // 出现双 system，且通道注册初期漏服务端映射导致 PROMPT_NOT_FOUND。
         let messages: [ChatMessageDTO] = [
-            .system(Self.systemPrompt),
             .user("观察材料（主题：\(themeKey)）：\n\(evidenceJSON)"),
         ]
         let provider = await MainActor.run { HoloBackendAIProvider() }

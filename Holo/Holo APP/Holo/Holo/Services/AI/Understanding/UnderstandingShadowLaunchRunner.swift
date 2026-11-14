@@ -64,7 +64,13 @@ enum UnderstandingShadowLaunchRunner {
     }
 
     /// 跑一轮并返回摘要文本（结果覆盖层与文件共用）。
+    /// 启动参数是显式手动意图：每次先清影子三件套（索引/主题快照/台账）完整重跑——
+    /// 否则幂等保护（同数据 unchanged 零处理）会挡住诊断性重跑（11-14 实踩）。
     static func runAndSummarize() async -> String {
+        let shadowStorage = UnderstandingShadowRunner.storageDirectory()
+        for file in ["index.json", "themes.json", "shadow-ledger.json"] {
+            try? FileManager.default.removeItem(at: shadowStorage.appendingPathComponent(file))
+        }
         let report = await UnderstandingRealEntry.runShadowOnce()
         let outcomeLines = report.outcomes.sorted { $0.key < $1.key }
             .map { "\($0.key)×\($0.value)" }

@@ -113,7 +113,8 @@ enum UnderstandingShadowRunner {
             } catch {
                 _ = ledger.advance(id: candidateID, to: .rejected, now: now,
                                    reason: "提案调用失败（不重试）:\(String(describing: error).prefix(80))")
-                modelFailures.append(theme.key)
+                let errorText = String(describing: error)
+                modelFailures.append(theme.key + "｜" + errorText.prefix(200))
                 outcomes["rejected", default: 0] += 1
                 continue
             }
