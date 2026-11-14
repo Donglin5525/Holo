@@ -242,6 +242,8 @@ struct AdversarialRound2Tests {
     /// 渠道升格词与时段词必须有证据出处，否则降级 observe。
     static func bug7_channelEscalationAndTimeFabrication() {
         // 证据：晚间真实消费（occurredAt 19:xx=evening）+ 美团概念；无外卖、无深夜证据
+        // 2026-11-15 水位后夹具升级：诚实通过版须达 recurringBehavior 水位
+        //（span≥30 且 occ≥3）——原 2 笔（含 1 笔补账）说「多次」本就证据不足。
         let eveningDinner = LifeObservation(
             domain: .finance, sourceRef: "mt-1", sourceRevision: "r1", sourceKind: "transaction",
             occurredAt: day(2026, 10, 8, 19), recordedAt: day(2026, 10, 8, 19),
@@ -250,11 +252,22 @@ struct AdversarialRound2Tests {
         // 补账版：occurredAt 默认午夜 + midnightDefault
         let backfill = LifeObservation(
             domain: .finance, sourceRef: "mt-2", sourceRevision: "r1", sourceKind: "transaction",
-            occurredAt: day(2026, 10, 9), recordedAt: day(2026, 10, 9, 22), 
+            occurredAt: day(2026, 10, 9), recordedAt: day(2026, 10, 9, 22),
             timePrecision: .midnightDefault, concepts: ["美团", "晚餐"], action: nil,
             attribution: .unknown, businessState: .plain,
             coverage: ObservationCoverageNote(kind: .batchBackfill, note: "补账"), quote: "美团")
-        let obs = [eveningDinner, backfill]
+        // 水位成员：9/6 与 9/26 两笔真实晚间消费（与 mt-1 构成 32 天 3 次）
+        let eveningEarlier = LifeObservation(
+            domain: .finance, sourceRef: "mt-0", sourceRevision: "r1", sourceKind: "transaction",
+            occurredAt: day(2026, 9, 6, 20), recordedAt: day(2026, 9, 6, 20),
+            timePrecision: .minute, concepts: ["美团平台商户", "晚餐"], action: nil,
+            attribution: .unknown, businessState: .plain, coverage: nil, quote: "美团平台商户")
+        let eveningMid = LifeObservation(
+            domain: .finance, sourceRef: "mt-3", sourceRevision: "r1", sourceKind: "transaction",
+            occurredAt: day(2026, 9, 26, 19), recordedAt: day(2026, 9, 26, 19),
+            timePrecision: .minute, concepts: ["晚餐"], action: nil,
+            attribution: .unknown, businessState: .plain, coverage: nil, quote: "遇见小面 晚餐")
+        let obs = [eveningDinner, backfill, eveningEarlier, eveningMid]
         // ①「深夜外卖」——外卖无出处 + 深夜无night证据 → 降级 observe
         let fabricated = ProposalCandidate(
             claimType: "recurringBehavior",
@@ -265,14 +278,14 @@ struct AdversarialRound2Tests {
         expect(r1.action == "observe", "「深夜外卖」必须降级 observe（外卖无出处+深夜无证据）实际:\(r1.action)")
         expect(r1.reasons.contains { $0.contains("外卖") } && r1.reasons.contains { $0.contains("深夜") },
                "降级理由须同时点名渠道升格与时段脑补")
-        // ②「晚间用餐」——晚间有 evening 证据 + 无渠道词 → 原样通过
+        // ②「晚间用餐」——晚间有 evening 证据 + 无渠道词 + 水位达标（32天3次）→ 原样通过
         let honest = ProposalCandidate(
             claimType: "recurringBehavior",
             statement: "用户近期多次在晚间通过平台商户用餐。",
-            supportingRefs: ["mt-1", "mt-2"], alternativeExplanations: [],
+            supportingRefs: ["mt-0", "mt-1", "mt-2", "mt-3"], alternativeExplanations: [],
             whatWouldChangeTheAnswer: nil, evidenceGrade: "支持", action: "adopt")
         let r2 = ProposalGate.evaluate(candidate: honest, observations: obs)
-        expect(r2.action == "adopt", "「晚间用餐」有据可查应通过（晚间证据存在），实际:\(r2.action)")
+        expect(r2.action == "adopt", "「晚间用餐」有据且达水位应通过（晚间证据存在），实际:\(r2.action)")
         // ③ 补账记录时段=unknown 不给模型任何暗示
         expect(UnderstandingShadowRunner.timeOfDayBand(of: backfill) == "unknown",
                "补账默认午夜 → 时段 unknown（不给编故事原料）")

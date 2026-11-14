@@ -60,6 +60,16 @@ nonisolated struct ShadowCandidate: Codable, Sendable, Equatable {
     var attempts: Int = 0       // 本阶段重试次数（回炉累计）
     var lastReason: String?
 
+    // 认识三标记（方案 §4.2，2026-11-15 落字段）：M3 上岗注入的硬前置——
+    // usage ≥ explicitBackground 才进对话上下文；validity=phase 的断证自然过期。
+    // 可选类型兼容旧台账 JSON（缺 key 解码为 nil，历史条目不搬家）。
+    /// 根据什么知道：stated 用户自述 / recorded 行为记录（/ inferred 预留）。
+    var provenance: EpistemicProvenance?
+    /// 适用于什么时候：phase 阶段 / enduring 持续 / conditional 条件（/ moment 预留）。
+    var validity: EpistemicValidity?
+    /// 可以怎样使用：internalOnly / explicitBackground（proactive 发现通道专属）。
+    var usage: EpistemicUsage?
+
     init(id: String, themeKey: String, now: Date) {
         self.id = id
         self.themeKey = themeKey
@@ -149,8 +159,14 @@ nonisolated struct ShadowLedger: Codable, Sendable, Equatable {
     // MARK: - 与核验闸集成（verifying → 终态）
 
     /// 核验后落终态：被拒→rejected（带闸理由）；通过→按闸结果分流。
+    /// 三标记随终态落账：provenance/validity 由调用方从命题与证据推导传入，
+    /// usage 由终态推导（adoptable=可作为明确背景；观察/补问=仅内部观察）。
     @discardableResult
-    mutating func settle(id: String, gateResult: (accepted: Bool, action: String, reasons: [String]), now: Date) -> ShadowCandidate? {
+    mutating func settle(id: String,
+                         gateResult: (accepted: Bool, action: String, reasons: [String]),
+                         provenance: EpistemicProvenance? = nil,
+                         validity: EpistemicValidity? = nil,
+                         now: Date) -> ShadowCandidate? {
         let stage: ShadowStage
         let reason: String?
         if !gateResult.accepted {
@@ -165,7 +181,14 @@ nonisolated struct ShadowLedger: Codable, Sendable, Equatable {
                 reason = gateResult.reasons.isEmpty ? nil : gateResult.reasons.joined(separator: ";")
             }
         }
-        return advance(id: id, to: stage, now: now, reason: reason)
+        guard let settled = advance(id: id, to: stage, now: now, reason: reason) else { return nil }
+        // 三标记写回（advance 后回写——advance 是阶段机职责，标记是命题属性）。
+        if candidates[id] != nil {
+            candidates[id]?.provenance = provenance
+            candidates[id]?.validity = validity
+            candidates[id]?.usage = EpistemicUsage.forStage(stage)
+        }
+        return candidates[id] ?? settled
     }
 
     func snapshot(stage: ShadowStage? = nil) -> [ShadowCandidate] {

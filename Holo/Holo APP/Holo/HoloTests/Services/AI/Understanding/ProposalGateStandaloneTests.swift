@@ -33,10 +33,11 @@ struct ProposalGateStandaloneTests {
     // MARK: 最小观察夹具
 
     static func obs(_ ref: String, domain: ObservationDomain, attribution: ObservationAttribution,
-                    state: ObservationBusinessState = .plain) -> LifeObservation {
+                    state: ObservationBusinessState = .plain,
+                    occurredAt: Date = Date(timeIntervalSince1970: 1_790_000_000)) -> LifeObservation {
         LifeObservation(domain: domain, sourceRef: ref, sourceRevision: "r1", sourceKind: "fixture",
-                        occurredAt: Date(timeIntervalSince1970: 1_790_000_000),
-                        recordedAt: Date(timeIntervalSince1970: 1_790_000_000),
+                        occurredAt: occurredAt,
+                        recordedAt: occurredAt,
                         timePrecision: .minute, concepts: ["夹具"], action: nil,
                         attribution: attribution, businessState: state, coverage: nil, quote: nil)
     }
@@ -144,19 +145,26 @@ struct ProposalGateStandaloneTests {
     // MARK: 5. M1.6 好候选回放（拆台与正常必须放行）
 
     static func replayM16GoodCandidates() {
+        // 2026-11-15 水位后夹具升级：固定同刻时间戳 → recorded 轨 span=0/occ 少，
+        // role 类会按水位降级。代办拆台案例的证据拉到 3 源跨 39 天（水位达标
+        // 形态），保持本测试原意：拆台措辞不被误伤、代办角色可被识别放行。
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        func d(_ mo: Int, _ day: Int) -> Date { cal.date(from: DateComponents(year: 2026, month: mo, day: day, hour: 12))! }
         let observations = [
-            obs("f1", domain: .finance, attribution: .proxy),   // 猫粮（帮邻居带）
-            obs("t1", domain: .task, attribution: .self_, state: .done),
-            obs("th1", domain: .thought, attribution: .self_, state: .quote),
+            obs("f1", domain: .finance, attribution: .proxy, occurredAt: d(9, 1)),   // 猫粮（帮邻居带）
+            obs("f2", domain: .finance, attribution: .proxy, occurredAt: d(9, 22)),  // 第二次代购
+            obs("t1", domain: .task, attribution: .self_, state: .done, occurredAt: d(10, 10)),
+            obs("th1", domain: .thought, attribution: .self_, state: .quote, occurredAt: d(10, 12)),
         ]
-        // S01-counter 候选1 原文（拆台正确识别）
+        // S01-counter 候选1 原文（拆台正确识别；refs 扩 3 源达水位）
         let s01c = ProposalCandidate(
             claimType: "role",
             statement: "本人近期承担了为同事老周代购降压药及陪诊跑腿的代办角色。",
-            supportingRefs: ["f1", "t1"], alternativeExplanations: ["自家共用账户"],
+            supportingRefs: ["f1", "f2", "t1"], alternativeExplanations: ["自家共用账户"],
             whatWouldChangeTheAnswer: "代办类提醒", evidenceGrade: "支持", action: "adopt")
         let v1 = ProposalGate.evaluate(candidate: s01c, observations: observations)
-        expect(v1.accepted && v1.action == "adopt", "回放S01拆台：代办角色正确识别且放行")
+        expect(v1.accepted && v1.action == "adopt", "回放S01拆台：代办角色正确识别且放行（3源跨39天达角色水位）")
 
         // M1.2 A-semantic 风格（正常好候选）
         let good = ProposalCandidate(

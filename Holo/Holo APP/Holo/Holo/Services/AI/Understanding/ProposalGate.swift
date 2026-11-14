@@ -69,10 +69,12 @@ nonisolated enum ProposalGate {
         return reasons.isEmpty ? .pass : GateVerdict(passed: false, downgradeTo: nil, reasons: reasons)
     }
 
-    // MARK: - 闸2：证据对照（claimType × 支持证据形态）
+    // MARK: - 闸2：证据对照（引用回源 + 水位政策 + 细节出处）
 
-    /// 引用必须真实存在；role 需 ≥2 独立来源且含本人归属证据；关联类需跨 ≥2 域。
-    /// 证据不足→降级 observe（不拒——有价值线索保留观察，M1.6 S04-weak 的正确处理）。
+    /// 引用必须真实存在；命题类型 × 知信轨的最低水位由 SufficiencyPolicy 统一定
+    ///（2026-11-15 拍板：打卡 2 天和 90 天不得产出同级理解——旧版阶段类只查
+    /// 「有引用」的缺口已补）。水位不足→降级 observe（不拒——有价值线索保留
+    /// 观察，M1.6 S04-weak 的正确处理）。
     static func evidenceGate(candidate: ProposalCandidate, observations: [LifeObservation]) -> GateVerdict {
         let byRef = Dictionary(uniqueKeysWithValues: observations.map { ($0.sourceRef, $0) })
         // 便捷时段计算（与 evidence 视图 timeOfDayBand 同口径）
@@ -91,21 +93,22 @@ nonisolated enum ProposalGate {
         if cited.count != candidate.supportingRefs.count {
             return GateVerdict(passed: false, downgradeTo: nil, reasons: ["证据闸[引用了不存在的观察]"])
         }
-        let independentSources = Set(cited.map(\.sourceRef))
-        let nonDerived = cited.filter { $0.businessState != .derived }
-        let selfOwned = nonDerived.contains { $0.attribution == .self_ || $0.businessState == .quote }
 
         var reasons: [String] = []
         var downgrade = false
-        switch candidate.kind {
-        case .role:
-            if independentSources.count < 2 { reasons.append("证据闸[角色类需≥2独立来源，现\(independentSources.count)]"); downgrade = true }
-            if !selfOwned { reasons.append("证据闸[角色类缺本人归属证据(备注代办/归属未知不构成)]"); downgrade = true }
-        case .conditionalAssociation:
-            let domains = Set(cited.map(\.domain))
-            if domains.count < 2 { reasons.append("证据闸[关联类需跨≥2域证据，现\(domains.count)]"); downgrade = true }
-        case .phaseState, .preference, .recurringBehavior, nil:
-            if independentSources.isEmpty { reasons.append("证据闸[无有效引用]"); downgrade = true }
+        // 水位判定（SufficiencyPolicy v1 表）。未知类型（nil）维持旧行为：无引用即降级。
+        if let kind = candidate.kind {
+            let gaps = Sufficiency.gaps(
+                cited: cited,
+                policy: SufficiencyPolicy.policy(for: kind),
+                kindLabel: SufficiencyPolicy.kindLabel(kind))
+            if !gaps.isEmpty {
+                reasons.append(contentsOf: gaps)
+                downgrade = true
+            }
+        } else if Set(cited.map(\.sourceRef)).isEmpty {
+            reasons.append("证据闸[无有效引用]")
+            downgrade = true
         }
         // BUG-7 细节出处检查（真数据实锤：美团支付记录→「深夜外卖」——渠道升格+
         // 时段脑补都无证据出处）。时段词须有任一引用证据的 timeOfDay 匹配；

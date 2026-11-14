@@ -25,6 +25,11 @@ nonisolated enum ShadowReviewExporter {
         var stage: String
         var attempts: Int
         var lastReason: String?
+        /// 认识三标记（方案 §4.2，2026-11-15）：根据什么知道 / 适用于什么时候 /
+        /// 可以怎样使用。评审可见「用户自述」与「行为推断」的分层与使用范围。
+        var provenance: String?
+        var validity: String?
+        var usage: String?
         /// 该主题当前成员观察的可读摘要（域/概念/归属，无原文无数值）。
         var evidenceDigest: [String]
     }
@@ -52,7 +57,11 @@ nonisolated enum ShadowReviewExporter {
             }
             return CandidateReview(id: candidate.id, themeKey: candidate.themeKey,
                                    stage: candidate.stage.rawValue, attempts: candidate.attempts,
-                                   lastReason: candidate.lastReason, evidenceDigest: digest)
+                                   lastReason: candidate.lastReason,
+                                   provenance: candidate.provenance?.rawValue,
+                                   validity: candidate.validity?.rawValue,
+                                   usage: candidate.usage?.rawValue,
+                                   evidenceDigest: digest)
         }
 
         let themeSummary = themes.map {

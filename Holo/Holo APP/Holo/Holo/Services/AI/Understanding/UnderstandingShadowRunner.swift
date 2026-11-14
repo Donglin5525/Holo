@@ -119,24 +119,39 @@ enum UnderstandingShadowRunner {
             _ = ledger.advance(id: candidateID, to: .packaged, now: now)
             _ = ledger.advance(id: candidateID, to: .proposing, now: now)
 
-            // 提案（失败不重试：rejected 留诊断）。
-            // 上送量上限（11-14 真机实锤 413：火锅/鞋类高频主题成员几十条全量上送
-            // 撑爆请求体）——每主题最多 12 条代表性证据：按发生时间倒序取最新，
-            // 保证覆盖多域（财务先行、想法/任务补位）。
-            // 短编号证据（BUG-6 真数据实锤：给模型 36 位 UUID 抄写错一个字符即整条
-            // 报废——3/6 提案损耗；方案本设计即短 oid。映射表供 gate 判定前回源。
-            let (evidence, refByShortID) = Self.representativeEvidence(for: theme, in: index, now: now)
+            // 提案分流（2026-11-15 拍板第三件事）：habit 域纯主题（habit 成员过半）
+            // 走确定性提案器——用户自证类阶段命题程序直出，不烧模型；混域主题
+            // 仍走模型通道（可能有跨域价值）。两条通道共用同一套闸。
+            let memberObservations = theme.memberIDs.compactMap { index.observations[$0] }
+            let habitCount = memberObservations.filter { $0.domain == .habit }.count
+            let useDeterministic = habitCount > 0 && habitCount * 2 >= theme.memberIDs.count
+
             let candidates: [ProposalCandidate]
-            do {
-                candidates = try await proposeClient.propose(themeKey: theme.key, evidence: evidence)
+            let refByShortID: [String: String]
+            if useDeterministic {
+                refByShortID = [:]   // 直出 refs 即真实 sourceRef，无短编号映射需求
+                candidates = HabitPhaseProposer().propose(themeKey: theme.key, members: memberObservations, now: now)
                 proposalsReceived += candidates.count
-            } catch {
-                _ = ledger.advance(id: candidateID, to: .rejected, now: now,
-                                   reason: "提案调用失败（不重试）:\(String(describing: error).prefix(80))")
-                let errorText = String(describing: error)
-                modelFailures.append(theme.key + "｜" + errorText.prefix(200))
-                outcomes["rejected", default: 0] += 1
-                continue
+            } else {
+                // 上送量上限（11-14 真机实锤 413：火锅/鞋类高频主题成员几十条全量上送
+                // 撑爆请求体）——每主题最多 12 条代表性证据：按发生时间倒序取最新，
+                // 保证覆盖多域（财务先行、想法/任务补位）。
+                // 短编号证据（BUG-6 真数据实锤：给模型 36 位 UUID 抄写错一个字符即整条
+                // 报废——3/6 提案损耗；方案本设计即短 oid。映射表供 gate 判定前回源。
+                let (evidence, mapping) = Self.representativeEvidence(for: theme, in: index, now: now)
+                refByShortID = mapping
+                // 提案（失败不重试：rejected 留诊断）。
+                do {
+                    candidates = try await proposeClient.propose(themeKey: theme.key, evidence: evidence)
+                    proposalsReceived += candidates.count
+                } catch {
+                    _ = ledger.advance(id: candidateID, to: .rejected, now: now,
+                                       reason: "提案调用失败（不重试）:\(String(describing: error).prefix(80))")
+                    let errorText = String(describing: error)
+                    modelFailures.append(theme.key + "｜" + errorText.prefix(200))
+                    outcomes["rejected", default: 0] += 1
+                    continue
+                }
             }
             _ = ledger.advance(id: candidateID, to: .awaitingLocalEvidence, now: now)
 
@@ -156,7 +171,13 @@ enum UnderstandingShadowRunner {
                     refByShortID[ref] ?? ref
                 }
                 let result = ProposalGate.evaluate(candidate: resolved, observations: Array(observationsByRef.values))
-                var settled = ledger.settle(id: candidateID, gateResult: result, now: now)
+                // 认识三标记（方案 §4.2，2026-11-15）：从回源后的引用证据推导，
+                // 随终态落台账——M3 上岗注入按 usage 放行、按 validity 过期。
+                let cited = resolved.supportingRefs.compactMap { observationsByRef[$0] }
+                let provenance = EpistemicTags.provenance(cited: cited)
+                let validity = EpistemicTags.validity(kind: resolved.kind)
+                var settled = ledger.settle(id: candidateID, gateResult: result,
+                                            provenance: provenance, validity: validity, now: now)
                 if candidateIndex > 0 {
                     let subID = candidateID + "#c\(candidateIndex + 1)"
                     if ledger.register(id: subID, themeKey: theme.key, now: now) != nil {
@@ -164,7 +185,8 @@ enum UnderstandingShadowRunner {
                         _ = ledger.advance(id: subID, to: .proposing, now: now)
                         _ = ledger.advance(id: subID, to: .awaitingLocalEvidence, now: now)
                         _ = ledger.advance(id: subID, to: .verifying, now: now)
-                        settled = ledger.settle(id: subID, gateResult: result, now: now)
+                        settled = ledger.settle(id: subID, gateResult: result,
+                                                provenance: provenance, validity: validity, now: now)
                     }
                 }
                 if let stage = settled?.stage {

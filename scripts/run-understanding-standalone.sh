@@ -26,6 +26,7 @@ swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
   "$APP/Services/AI/Understanding/ProposalEnvelopeParser.swift" \
   "$APP/Services/AI/Understanding/UnderstandingHabitIntegration.swift" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/AdversarialRound2Tests.swift" \
+  "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/SufficiencyPolicyStandaloneTests.swift" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/ShadowRunnerStandaloneTests.swift" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/ShadowRuntimeStandaloneTests.swift" \
   "$APP/Services/AI/Understanding/ShadowReviewExporter.swift" \
@@ -33,6 +34,8 @@ swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/AdversarialRegressionTests.swift" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/ThemeIndexStandaloneTests.swift" \
   "$APP/Services/AI/Understanding/ProposalGate.swift" \
+  "$APP/Services/AI/Understanding/SufficiencyPolicy.swift" \
+  "$APP/Services/AI/Understanding/HabitPhaseProposer.swift" \
   "$APP/Services/AI/Understanding/LifeObservation.swift" \
   "$APP/Services/AI/Understanding/DomainCapability.swift" \
   "$APP/Services/AI/Understanding/ObservationProjectors.swift" \
