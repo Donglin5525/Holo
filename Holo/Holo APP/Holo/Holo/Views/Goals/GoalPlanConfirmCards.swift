@@ -37,7 +37,7 @@ struct GoalResultSourceConfirmCard: View {
                         aggregationPicker
                     case .ledger:
                         ledgerScopePicker
-                        if source.resolvedLedgerScope == .accountBalance {
+                        if source.resolvedLedgerScope == .accountBalance || source.resolvedLedgerScope == .accountDelta {
                             accountPicker
                         } else {
                             goalConfirmHint(String(localized: "按全账本收入减支出的净增加衡量，不是专项资金"))
@@ -204,7 +204,7 @@ struct GoalResultSourceConfirmCard: View {
         }
     }
 
-    // MARK: 账本来源（全账本净增 / 单账户余额）
+    // MARK: 账本来源（全账本净增 / 该账本净增 / 单账户余额）
 
     private var ledgerScopePicker: some View {
         Picker("", selection: Binding(
@@ -226,8 +226,10 @@ struct GoalResultSourceConfirmCard: View {
                 }
             }
         )) {
-            Text(GoalLedgerScopeKind.wholeLedgerDelta.displayName).tag(GoalLedgerScopeKind.wholeLedgerDelta)
-            Text(GoalLedgerScopeKind.accountBalance.displayName).tag(GoalLedgerScopeKind.accountBalance)
+            // segmented 三档放不下完整 displayName，短文案与口径一一对应
+            Text(String(localized: "全账本净增")).tag(GoalLedgerScopeKind.wholeLedgerDelta)
+            Text(String(localized: "该账本净增")).tag(GoalLedgerScopeKind.accountDelta)
+            Text(String(localized: "账户余额")).tag(GoalLedgerScopeKind.accountBalance)
         }
         .pickerStyle(.segmented)
     }
@@ -245,12 +247,14 @@ struct GoalResultSourceConfirmCard: View {
             },
             set: { tag in
                 updateSource { current in
+                    // 选账户不改写口径 kind：余额 reach / 该账本净增由上方三档决定
+                    let kind = current.ledgerScope?.kind == .accountBalance ? GoalLedgerScopeKind.accountBalance : .accountDelta
                     if tag.hasPrefix("account:"), let id = UUID(uuidString: String(tag.dropFirst("account:".count))) {
-                        current.ledgerScope = GoalLedgerScopePayload(kind: .accountBalance, accountID: id)
+                        current.ledgerScope = GoalLedgerScopePayload(kind: kind, accountID: id)
                         current.sourceID = id
                         current.isPending = false
                     } else {
-                        current.ledgerScope = GoalLedgerScopePayload(kind: .accountBalance, accountID: nil)
+                        current.ledgerScope = GoalLedgerScopePayload(kind: kind, accountID: nil)
                         current.sourceID = nil
                         current.isPending = true
                     }
@@ -260,7 +264,9 @@ struct GoalResultSourceConfirmCard: View {
     }
 
     private var accountPicker: some View {
-        goalConfirmLabeled(String(localized: "哪个账户代表这笔资金")) {
+        goalConfirmLabeled(source.resolvedLedgerScope == .accountBalance
+                           ? String(localized: "哪个账户代表这笔资金")
+                           : String(localized: "在哪个账户里净增加")) {
             Picker("", selection: accountSelectionBinding) {
                 Text("稍后补齐").tag(Self.pendingTag)
                 ForEach(selectableAccounts) { account in

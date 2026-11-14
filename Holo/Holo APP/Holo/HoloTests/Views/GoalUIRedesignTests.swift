@@ -84,8 +84,8 @@ final class GoalUIRedesignTests: XCTestCase {
         XCTAssertNil(GoalEditForm.cumulativeHintNumber(inTitle: "读三百页")) // 中文数字不触发
         XCTAssertNil(GoalEditForm.cumulativeHintNumber(inTitle: "跑３００公里")) // 全角数字不触发
         XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "每天走 10000 步"), 10000)
-        // 多个数字串取首个达到阈值的
-        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "跑 20 次累计 400 分钟"), 400)
+        // 多个数字串取首个达到阈值的（无单位词、阈值 30）
+        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "跑 20 圈累计 400 分钟"), 400)
     }
 
     func testShowsCumulativeHintRule() {
@@ -194,7 +194,7 @@ final class GoalUIRedesignTests: XCTestCase {
         XCTAssertEqual(draft.metricUnit, "km")
         XCTAssertNil(draft.deadlineText, "期限不继承（旧期限多半已过）")
         XCTAssertNotEqual(draft.id, goal.id.uuidString, "作为一个新 GoalDraft")
-        XCTAssertTrue(GoalEditForm.metricFieldsValid(in: draft), "预填后可直接保存")
+        XCTAssertTrue(GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: true), "预填后可直接保存")
     }
 
     // MARK: - S5 设置面板五字段落库链路
@@ -265,21 +265,21 @@ final class GoalUIRedesignTests: XCTestCase {
         draft.goalKind = .cumulative
         draft.metricTargetValue = 300
         draft.metricUnit = nil
-        XCTAssertTrue(GoalEditForm.metricFieldsValid(in: draft), "单位空合法（规格 B5）")
-        XCTAssertNil(GoalEditForm.disabledHint(for: draft), "单位空不应报「数字还没填完」")
+        XCTAssertTrue(GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: true), "单位空合法（规格 B5）")
+        XCTAssertNil(GoalEditForm.disabledHint(for: draft, hasActiveLedgerAccounts: true), "单位空不应报「数字还没填完」")
 
         // 达标型同理
         draft.goalKind = .target
         draft.metricBaselineValue = 75
         draft.metricTargetValue = 70
         draft.metricUnit = nil
-        XCTAssertTrue(GoalEditForm.metricFieldsValid(in: draft))
-        XCTAssertNil(GoalEditForm.disabledHint(for: draft))
+        XCTAssertTrue(GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: true))
+        XCTAssertNil(GoalEditForm.disabledHint(for: draft, hasActiveLedgerAccounts: true))
 
         // 数字缺失才报数字空（三态之一）
         draft.metricTargetValue = nil
-        XCTAssertFalse(GoalEditForm.metricFieldsValid(in: draft))
-        XCTAssertEqual(GoalEditForm.disabledHint(for: draft), "数字还没填完")
+        XCTAssertFalse(GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: true))
+        XCTAssertEqual(GoalEditForm.disabledHint(for: draft, hasActiveLedgerAccounts: true), "数字还没填完")
     }
 
     func testUnitKeywordMapping() {
@@ -343,27 +343,27 @@ final class GoalUIRedesignTests: XCTestCase {
         draft.goalKind = .cumulative
         draft.metricTargetValue = 50000
         draft.ledgerScope = GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
-        XCTAssertTrue(GoalEditForm.hasValidLedgerScope(in: draft))
-        XCTAssertTrue(GoalEditForm.metricFieldsValid(in: draft))
+        XCTAssertTrue(GoalEditForm.hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: true))
+        XCTAssertTrue(GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: true))
         draft.ledgerScope = GoalLedgerScopePayload(kind: .accountDelta, accountID: UUID())
-        XCTAssertTrue(GoalEditForm.hasValidLedgerScope(in: draft))
+        XCTAssertTrue(GoalEditForm.hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: true))
         draft.ledgerScope = GoalLedgerScopePayload(kind: .accountDelta, accountID: nil)
-        XCTAssertFalse(GoalEditForm.hasValidLedgerScope(in: draft), "账户净结余口径必须带账户")
+        XCTAssertFalse(GoalEditForm.hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: true), "账户净结余口径必须带账户")
 
         // 达标型：账户余额必选具体账户
         draft.goalKind = .target
         draft.metricBaselineValue = 1000
         draft.metricTargetValue = 1500
         draft.ledgerScope = GoalLedgerScopePayload(kind: .accountBalance, accountID: UUID())
-        XCTAssertTrue(GoalEditForm.hasValidLedgerScope(in: draft))
+        XCTAssertTrue(GoalEditForm.hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: true))
         draft.ledgerScope = GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
-        XCTAssertFalse(GoalEditForm.hasValidLedgerScope(in: draft), "达标型不提供全账本口径")
-        XCTAssertFalse(GoalEditForm.metricFieldsValid(in: draft), "范围不合法不可保存")
-        XCTAssertNotNil(GoalEditForm.disabledHint(for: draft), "范围不合法给出禁用文案")
+        XCTAssertFalse(GoalEditForm.hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: true), "达标型不提供全账本口径")
+        XCTAssertFalse(GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: true), "范围不合法不可保存")
+        XCTAssertNotNil(GoalEditForm.disabledHint(for: draft, hasActiveLedgerAccounts: true), "范围不合法给出禁用文案")
 
         // 范围缺失同样拦保存
         draft.ledgerScope = nil
-        XCTAssertFalse(GoalEditForm.hasValidLedgerScope(in: draft))
+        XCTAssertFalse(GoalEditForm.hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: true))
     }
 
     func testLedgerScopeSavedThroughCreateChainWithUnitYen() throws {
@@ -522,5 +522,298 @@ final class GoalUIRedesignTests: XCTestCase {
         XCTAssertNil(GoalMetricEvaluator.evaluate(goal: cumulative, finance: finance),
                      "账户不存在（accountMissing）不是 0 元观测")
         XCTAssertNil(GoalMetricEvaluator.evaluate(goal: target, finance: finance))
+    }
+
+    // MARK: - 计划编辑面板账本范围三档（2026-11-14 全链路补全）
+
+    func testPlanEditorLedgerScopeOptionsByPlanSemantics() throws {
+        let travel = Account.create(in: context, name: "旅行", type: AccountType.bank.rawValue)
+        let emergency = Account.create(in: context, name: "应急", type: AccountType.bank.rawValue)
+        try context.save()
+
+        // 累积语义（aggregation=sum）：全账本 + 各账户该账本净增加，无余额档
+        let cumulative = GoalPlanLedgerScopeEditor.options(aggregation: .sum, accounts: [travel, emergency])
+        XCTAssertEqual(cumulative.map(\.scope.kind), [.wholeLedgerDelta, .accountDelta, .accountDelta])
+        XCTAssertEqual(cumulative.map(\.scope.accountID), [nil, travel.id, emergency.id])
+        XCTAssertEqual(cumulative[1].title, "旅行·该账本净增加")
+        XCTAssertFalse(cumulative.contains { $0.title.contains("余额达到") })
+
+        // 达标语义（latest）：各账户余额达到，无全账本/净增加档
+        let reach = GoalPlanLedgerScopeEditor.options(aggregation: .latest, accounts: [travel, emergency])
+        XCTAssertEqual(reach.map(\.scope.kind), [.accountBalance, .accountBalance])
+        XCTAssertEqual(reach[0].title, "旅行·余额达到")
+        XCTAssertFalse(reach.contains { $0.scope.kind == .wholeLedgerDelta || $0.scope.kind == .accountDelta })
+
+        // 计划缺 aggregation：三档全给
+        let unknown = GoalPlanLedgerScopeEditor.options(aggregation: nil, accounts: [travel])
+        XCTAssertEqual(unknown.map(\.scope.kind), [.wholeLedgerDelta, .accountDelta, .accountBalance])
+    }
+
+    func testPlanEditorLedgerScopeDisplayTitle() throws {
+        let account = Account.create(in: context, name: "旅行", type: AccountType.bank.rawValue)
+        try context.save()
+        XCTAssertEqual(GoalPlanLedgerScopeEditor.displayTitle(
+            for: GoalLedgerScopePayload(kind: .accountDelta, accountID: account.id), accounts: [account]),
+            "旅行·该账本净增加")
+        XCTAssertEqual(GoalPlanLedgerScopeEditor.displayTitle(
+            for: GoalLedgerScopePayload(kind: .accountBalance, accountID: account.id), accounts: [account]),
+            "旅行·余额达到")
+        XCTAssertEqual(GoalPlanLedgerScopeEditor.displayTitle(
+            for: GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil), accounts: [account]),
+            "全部账本·净结余增加")
+        // 账户已删：回落口径名，不归一成别的档
+        XCTAssertEqual(GoalPlanLedgerScopeEditor.displayTitle(
+            for: GoalLedgerScopePayload(kind: .accountDelta, accountID: UUID()), accounts: [account]),
+            "该账本净增加")
+    }
+
+    func testPlanEditorLedgerScopeApplyWritesScopeSourceAndUnit() {
+        var source = GoalPlanResultSourceV2(
+            sourceType: .ledger, sourceID: nil, unit: "元", aggregation: .sum, comparison: .reach,
+            targetValue: 5000, baselineValue: nil, baselineObservedAt: nil, freshnessDays: nil,
+            ledgerScope: GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
+        )
+        let accountID = UUID()
+        // 改选账户·该账本净增加：范围/来源账户/单位一次写对
+        GoalPlanLedgerScopeEditor.apply(
+            GoalLedgerScopePayload(kind: .accountDelta, accountID: accountID), to: &source)
+        XCTAssertEqual(source.ledgerScope, GoalLedgerScopePayload(kind: .accountDelta, accountID: accountID))
+        XCTAssertEqual(source.sourceID, accountID)
+        XCTAssertEqual(source.unit, "¥", "账本源单位固定 ¥（与表单 v4 同规则）")
+        // 改回全账本：来源账户清空
+        GoalPlanLedgerScopeEditor.apply(
+            GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil), to: &source)
+        XCTAssertEqual(source.ledgerScope, GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil))
+        XCTAssertNil(source.sourceID)
+    }
+
+    func testPlanEditorRoundTripKeepsAccountDeltaKind() throws {
+        let account = Account.create(in: context, name: "旅行", type: AccountType.bank.rawValue)
+        try context.save()
+        let goal = try makeGoal(title: "存 5 万应急金")
+        goal.goalKindEnum = .cumulative
+        goal.metricSourceEnum = .ledger
+        goal.metricTargetValueDouble = 50000
+        goal.ledgerScopePayload = GoalLedgerScopePayload(kind: .accountDelta, accountID: account.id)
+        let baseScope = GoalLedgerScopePayload(kind: .accountDelta, accountID: account.id)
+        _ = try GoalPlanRevisionStore.makeRevisionRow(
+            in: context, goalID: goal.id, sourceSessionID: nil,
+            revisionNumber: 1, baseRevisionID: nil, operationID: nil,
+            effectiveFrom: Date(), payload: makePlanPayload(ledgerScope: baseScope), legacySummary: nil
+        )
+        try context.save()
+
+        // 面板载入：resolveCurrentPlan 原样带出 accountDelta，行值回显「该账本净增加」项而非归一成余额档
+        let resolved = try GoalPlanResolver.resolveCurrentPlan(goal: goal, in: context, persist: true)
+        XCTAssertEqual(resolved.payload.resultSource?.ledgerScope, baseScope)
+        XCTAssertEqual(
+            GoalPlanLedgerScopeEditor.displayTitle(for: resolved.payload.resultSource?.ledgerScope, accounts: [account]),
+            "旅行·该账本净增加")
+
+        // 用户只改成功条件、不动资金来源 → 保存后 kind 不丢（本轮抓到的核心 bug 的断言）
+        var draft = resolved.payload
+        draft.intent.successCriteria = "出发前专款 5 万"
+        try GoalPlanEditService.save(goalID: goal.id, baseRevisionID: resolved.revisionID, payload: draft,
+                                     operationID: UUID(), successChangeConfirmed: true, in: context)
+        let saved = try XCTUnwrap(GoalPlanRevisionStore.latestRevisionRow(goalID: goal.id, in: context))
+        XCTAssertEqual(saved.planPayloadV2?.resultSource?.ledgerScope, baseScope,
+                       "accountDelta 载入→不改资金来源→保存，kind 不被归一丢失")
+    }
+
+    func testPlanEditorChangeLedgerScopeSavesNewScope() throws {
+        let travel = Account.create(in: context, name: "旅行", type: AccountType.bank.rawValue)
+        let emergency = Account.create(in: context, name: "应急", type: AccountType.bank.rawValue)
+        try context.save()
+        let goal = try makeGoal(title: "存 5 万应急金")
+        goal.goalKindEnum = .cumulative
+        goal.metricSourceEnum = .ledger
+        goal.ledgerScopePayload = GoalLedgerScopePayload(kind: .accountDelta, accountID: travel.id)
+        _ = try GoalPlanRevisionStore.makeRevisionRow(
+            in: context, goalID: goal.id, sourceSessionID: nil,
+            revisionNumber: 1, baseRevisionID: nil, operationID: nil,
+            effectiveFrom: Date(),
+            payload: makePlanPayload(ledgerScope: GoalLedgerScopePayload(kind: .accountDelta, accountID: travel.id)),
+            legacySummary: nil
+        )
+        try context.save()
+
+        let resolved = try GoalPlanResolver.resolveCurrentPlan(goal: goal, in: context, persist: true)
+        var draft = resolved.payload
+        // 用户改选「应急·该账本净增加」（选择行 set → apply 写回）
+        GoalPlanLedgerScopeEditor.apply(
+            GoalLedgerScopePayload(kind: .accountDelta, accountID: emergency.id), to: &draft.resultSource!)
+        try GoalPlanEditService.save(goalID: goal.id, baseRevisionID: resolved.revisionID, payload: draft,
+                                     operationID: UUID(), successChangeConfirmed: true, in: context)
+        let saved = try XCTUnwrap(GoalPlanRevisionStore.latestRevisionRow(goalID: goal.id, in: context))
+        XCTAssertEqual(saved.planPayloadV2?.resultSource?.ledgerScope,
+                       GoalLedgerScopePayload(kind: .accountDelta, accountID: emergency.id))
+        XCTAssertEqual(saved.planPayloadV2?.resultSource?.sourceID, emergency.id)
+        XCTAssertEqual(saved.planPayloadV2?.resultSource?.unit, "¥")
+    }
+
+    func testPlanEditorChangesTextUsesKindDisplayNameAndAccountName() throws {
+        let account = Account.create(in: context, name: "旅行", type: AccountType.bank.rawValue)
+        try context.save()
+        XCTAssertEqual(GoalPlanEditPresentation.ledgerScopeText(
+            GoalLedgerScopePayload(kind: .accountDelta, accountID: account.id), accounts: [account]),
+            "该账本净结余增加·旅行")
+        XCTAssertEqual(GoalPlanEditPresentation.ledgerScopeText(
+            GoalLedgerScopePayload(kind: .accountBalance, accountID: account.id), accounts: [account]),
+            "单账户余额·旅行")
+        XCTAssertEqual(GoalPlanEditPresentation.ledgerScopeText(nil, accounts: []),
+                       "全账本净结余增加")
+
+        let old = makePlanPayload(ledgerScope: GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil))
+        let new = makePlanPayload(ledgerScope: GoalLedgerScopePayload(kind: .accountDelta, accountID: account.id))
+        let changes = GoalPlanEditPresentation.changes(from: old, to: new)
+        XCTAssertTrue(changes.contains { $0.hasPrefix("资金来源改为：") && $0.contains("该账本净结余增加") },
+                      "口径变更历史文案动态生成，不写死全账本：\(changes)")
+    }
+
+    // MARK: - 红队一轮修复（2026-11-14，10 用户红队 2P0+6P1+U6）
+
+    /// U5 账本口径说明行条件矩阵
+    func testLedgerScopeExplanationMatrix() {
+        XCTAssertEqual(
+            GoalEditForm.ledgerScopeExplanation(kind: .wholeLedgerDelta, accountName: nil),
+            "按全部账本收入减支出的净增加衡量；还债、转账不改变净资产")
+        XCTAssertEqual(
+            GoalEditForm.ledgerScopeExplanation(kind: .accountDelta, accountName: "旅行"),
+            "从今天起算「旅行」的净增加，已有余额不计入")
+        XCTAssertNil(GoalEditForm.ledgerScopeExplanation(kind: .accountBalance, accountName: "旅行"),
+                     "余额达到档由基线注释行解释，不重复加说明行")
+    }
+
+    /// U5 信用负债账户余额达到 → 基线注释追加还清口径
+    func testAccountBaselineNoteAppendsCreditLiabilitySuffix() {
+        let asOf = Date(timeIntervalSince1970: 0)
+        let plain = GoalEditForm.accountBaselineNote(accountName: "旅行", asOf: asOf, isCreditLiability: false)
+        XCTAssertEqual(plain, "取自「旅行」当前余额（\(GoalEditForm.shortDayText(asOf))）")
+        XCTAssertFalse(plain.contains("还清"), "储蓄账户不追加还清口径")
+        let credit = GoalEditForm.accountBaselineNote(accountName: "招行信用卡", asOf: asOf, isCreditLiability: true)
+        XCTAssertTrue(credit.hasSuffix("；余额还到 0 即还清"), "信用负债追加还清口径：\(credit)")
+    }
+
+    /// U10 误触「标记完成」可逆：恢复为进行中（列表 contextMenu 与详情按钮走同一 updateStatus(.active)）
+    func testReopenCompletedGoalViaUpdateStatus() throws {
+        let goal = try makeGoal(title: "跑满 300 公里", status: .completed)
+        XCTAssertNotNil(goal.completedAt)
+        try repository.updateStatus(goal, status: .active)
+        XCTAssertEqual(goal.goalStatus, .active)
+        XCTAssertNil(goal.completedAt, "恢复为进行中时 completedAt 由模型 setter 自动清")
+        XCTAssertTrue(GoalListView.sortedOngoingGoals([goal], reviewDueIDs: [], now: Date())
+            .map(\.id).contains(goal.id), "回进行中段可见")
+    }
+
+    /// U3 再来一轮：达标型不继承过期基线（预填后不再开屏 100%）
+    func testNewRoundDraftDropsStaleBaselineForTargetKind() throws {
+        let goal = try makeGoal(title: "还清招行信用卡")
+        goal.goalKindEnum = .target
+        goal.metricSourceEnum = .ledger
+        goal.metricTargetValueDouble = 0
+        goal.baselineValueDouble = 8800 // 旧基线已过期
+        try context.save()
+
+        let draft = GoalListView.newRoundDraft(from: goal)
+        XCTAssertEqual(draft.goalKind, .target)
+        XCTAssertEqual(draft.metricSource, .ledger)
+        XCTAssertNil(draft.metricBaselineValue, "新一轮不带旧「现在」，由表单入场按当前余额重取")
+    }
+
+    /// U1 无活跃账户时账本源不可保存（不再产出恒 0% 目标）
+    func testLedgerSourceBlockedWithoutActiveAccounts() {
+        var draft = GoalEditForm.emptyDraft()
+        draft.title = "存 5 万应急金"
+        draft.goalKind = .cumulative
+        draft.metricSource = .ledger
+        draft.metricTargetValue = 50000
+        draft.ledgerScope = GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
+        XCTAssertFalse(GoalEditForm.hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: false),
+                       "全账本口径也要求存在活跃账户")
+        XCTAssertFalse(GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: false))
+        XCTAssertEqual(GoalEditForm.disabledHint(for: draft, hasActiveLedgerAccounts: false), "还没有账户")
+        // 有账户则恢复可保存
+        XCTAssertTrue(GoalEditForm.hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: true))
+        XCTAssertNil(GoalEditForm.disabledHint(for: draft, hasActiveLedgerAccounts: true))
+    }
+
+    /// U8 改条件未确认 → 禁用文案指向脚手架恒可见区的确认勾选
+    func testDisabledHintReportsUnconfirmedCriteriaChange() {
+        var draft = GoalEditForm.emptyDraft()
+        draft.title = "跑满 300 公里"
+        XCTAssertEqual(
+            GoalEditForm.disabledHint(for: draft, hasActiveLedgerAccounts: true, criteriaUnconfirmed: true),
+            "修改了成功条件——勾选下方确认后可保存")
+        XCTAssertNil(GoalEditForm.disabledHint(for: draft, hasActiveLedgerAccounts: true),
+                     "未改条件时不出现确认提示")
+    }
+
+    /// U1 「设个期限」默认今天 + 30 天（不再默认写入今天）
+    func testDefaultDeadlineIsThirtyDaysOut() {
+        let now = Date()
+        let deadline = GoalEditForm.defaultDeadline(from: now)
+        XCTAssertEqual(deadline.timeIntervalSince(now), 30 * 86400, accuracy: 1)
+        XCTAssertGreaterThan(deadline, now, "默认期限在未来，创建即逾期不再发生")
+    }
+
+    /// U9 类型横跳保留账户选择：账户两档互转换 kind 不换账户
+    func testLedgerScopeNormalizationKeepsAccountAcrossKindSwitch() {
+        let first = UUID(), second = UUID()
+        let accounts = [first, second]
+        // 累积·指定账户 → 达标：保留账户只换 kind
+        XCTAssertEqual(
+            GoalEditForm.normalizedLedgerScope(
+                current: GoalLedgerScopePayload(kind: .accountDelta, accountID: second),
+                goalKind: .target, accountIDs: accounts),
+            GoalLedgerScopePayload(kind: .accountBalance, accountID: second),
+            "不再静默重置到首个账户")
+        // 达标·账户余额 → 累积：同样保留账户换成净增加
+        XCTAssertEqual(
+            GoalEditForm.normalizedLedgerScope(
+                current: GoalLedgerScopePayload(kind: .accountBalance, accountID: second),
+                goalKind: .cumulative, accountIDs: accounts),
+            GoalLedgerScopePayload(kind: .accountDelta, accountID: second))
+        // 全账本 ↔ 账户档才重置：达标型回落首个账户余额
+        XCTAssertEqual(
+            GoalEditForm.normalizedLedgerScope(
+                current: GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil),
+                goalKind: .target, accountIDs: accounts),
+            GoalLedgerScopePayload(kind: .accountBalance, accountID: first))
+        // 账户已删/归档：重置默认（累积型=全账本）
+        XCTAssertEqual(
+            GoalEditForm.normalizedLedgerScope(
+                current: GoalLedgerScopePayload(kind: .accountDelta, accountID: UUID()),
+                goalKind: .cumulative, accountIDs: accounts),
+            GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil))
+        // 范围与新类型匹配：原样保留
+        XCTAssertEqual(
+            GoalEditForm.normalizedLedgerScope(
+                current: GoalLedgerScopePayload(kind: .accountBalance, accountID: first),
+                goalKind: .target, accountIDs: accounts),
+            GoalLedgerScopePayload(kind: .accountBalance, accountID: first))
+    }
+
+    /// U6 提示行阈值：带单位词 ≥2 触发，裸数字维持 ≥30
+    func testCumulativeHintThresholdWithUnitKeyword() {
+        XCTAssertEqual(GoalEditForm.cumulativeHintThreshold(forTitle: "读完 12 本书"), 2)
+        XCTAssertEqual(GoalEditForm.cumulativeHintThreshold(forTitle: "赚 100 万"), 30)
+        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "读完 12 本书"), 12,
+                       "命中「本」→ 阈值降 2，「读 12 本书」不再被 ≥30 错杀")
+        XCTAssertNil(GoalEditForm.cumulativeHintNumber(inTitle: "每天读 20 分钟书"),
+                     "无单位词、20 < 30：过程型标题不误触发")
+        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "赚 100 万"), 100,
+                       "裸数字大额目标照常触发")
+        XCTAssertEqual(GoalEditForm.cumulativeHintNumber(inTitle: "跑 20 次累计 400 分钟"), 20,
+                       "命中「次」后取首个 ≥2 的数字串")
+
+        var draft = GoalEditForm.emptyDraft()
+        draft.title = "读完 12 本书"
+        XCTAssertTrue(GoalEditForm.showsCumulativeHint(in: draft), "带单位词的小数字目标出现提示行")
+    }
+
+    /// U2/U5 表单账本菜单项带口径词
+    func testLedgerMenuTitleCarriesScopeQualifier() {
+        XCTAssertEqual(GoalEditForm.ledgerMenuTitle(accountName: "旅行", kind: .cumulative), "旅行·净增加")
+        XCTAssertEqual(GoalEditForm.ledgerMenuTitle(accountName: "旅行", kind: .target), "旅行·余额达到")
     }
 }

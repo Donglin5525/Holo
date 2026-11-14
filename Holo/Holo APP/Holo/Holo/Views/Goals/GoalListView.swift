@@ -313,7 +313,8 @@ struct GoalListView: View {
     // MARK: - 卡片长按菜单（规格 A4-A6，S4）
 
     /// 原生 contextMenu：进行中/已暂停=标记完成+暂停·继续+改期限+删除；
-    /// 已完成=再来一轮+删除。删除走确认弹窗（与详情页同文案）
+    /// 已完成=再来一轮+恢复为进行中+删除（红队 U10：误触标记完成可逆）。
+    /// 删除走确认弹窗（与详情页同文案）
     @ViewBuilder
     private func cardContextMenu(for goal: Goal) -> some View {
         if goal.goalStatus == .completed {
@@ -322,6 +323,11 @@ struct GoalListView: View {
                 showManualCreate = true
             } label: {
                 Label("再来一轮", systemImage: "arrow.clockwise")
+            }
+            Button {
+                performStatusChange(goal, to: .active)
+            } label: {
+                Label("恢复为进行中", systemImage: "arrow.uturn.backward")
             }
             Divider()
             deleteMenuButton(for: goal)
@@ -367,7 +373,9 @@ struct GoalListView: View {
     }
 
     /// 「再来一轮」预填草案（规格 A4）：复制标题/类型/数字与来源链路；
-    /// 期限不继承（旧期限多半已过），落库时领域按标题重新认领
+    /// 期限不继承（旧期限多半已过），落库时领域按标题重新认领；
+    /// 达标型不继承旧基线（红队 U3）：旧「现在」多半已过期，预填后开屏 100%，
+    /// 由 GoalEditForm 入场按当前余额/最新记录重取（applyAutoBaselineForPrefilledDraft）
     static func newRoundDraft(from goal: Goal) -> GoalDraft {
         GoalDraft(
             id: UUID().uuidString,
@@ -385,7 +393,7 @@ struct GoalListView: View {
             metricSource: goal.metricSourceEnum,
             metricUnit: goal.metricUnit,
             metricTargetValue: goal.metricTargetValueDouble,
-            metricBaselineValue: goal.baselineValueDouble,
+            metricBaselineValue: nil,
             sourceHabitId: goal.sourceHabitId,
             ledgerScope: goal.metricSourceEnum == .ledger ? goal.ledgerScopePayload : nil
         )
@@ -626,6 +634,9 @@ struct GoalManualCreateSheet: View {
     @State private var draft: GoalDraft
     @State private var isSaving = false
     @State private var saveError: String?
+    /// 是否存在活跃账本账户（红队 U1）：无账户时账本源不可保存（恒 0% 目标）；
+    /// 与 GoalEditForm.loadAccounts 同源，onAppear 取一次不在 body 里反复 fetch
+    @State private var hasActiveLedgerAccounts = true
 
     let onSaved: (GoalDraftSaveResult) -> Void
     let onCancel: () -> Void
@@ -644,12 +655,12 @@ struct GoalManualCreateSheet: View {
     private var canSave: Bool {
         !isSaving
             && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && GoalEditForm.metricFieldsValid(in: draft)
+            && GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: hasActiveLedgerAccounts)
     }
 
-    /// 禁用三态文案（规格 B0）：随输入即时消失
+    /// 禁用文案（规格 B0 + 红队 U1）：随输入即时消失
     private var disabledHint: String? {
-        isSaving ? nil : GoalEditForm.disabledHint(for: draft)
+        isSaving ? nil : GoalEditForm.disabledHint(for: draft, hasActiveLedgerAccounts: hasActiveLedgerAccounts)
     }
 
     var body: some View {
@@ -673,6 +684,9 @@ struct GoalManualCreateSheet: View {
                     .padding(.bottom, 20)
             }
             .scrollDismissesKeyboard(.interactively)
+        }
+        .onAppear {
+            hasActiveLedgerAccounts = !FinanceRepository.shared.getAccounts().isEmpty
         }
         .presentationDetents([.large])
         .alert("保存失败", isPresented: Binding(

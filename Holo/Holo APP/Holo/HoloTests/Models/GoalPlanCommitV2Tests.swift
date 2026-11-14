@@ -490,4 +490,80 @@ final class GoalPlanCommitV2Tests: XCTestCase {
         XCTAssertNil(candidates.habit(ref: "habit:not-a-uuid"))
         XCTAssertNil(candidates.account(ref: refs[0].sourceID), "前缀不匹配不得串用")
     }
+
+    // MARK: - 账本范围三档校验（2026-11-14 全链路补全：accountDelta 放行，账户口径必填授权候选）
+
+    func testValidatorAccountScopedLedgerRequiresAuthorizedCandidate() throws {
+        let accountID = UUID()
+        let candidates = GoalWorkshopAuthorizedCandidates(
+            habits: [],
+            accounts: [GoalWorkshopAccountCandidate(id: accountID, name: "旅行基金", type: "bank", isCreditLiability: false)]
+        )
+        let session = makeSession(candidates: candidates)
+
+        // accountDelta + 授权账户候选：放行
+        let delta = makePlanResponse(session: session) { plan in
+            plan.resultSource = GoalWorkshopResultSourceDraft(sourceType: "ledger", ledgerScope: "account_delta",
+                                                              candidateRef: "account:\(accountID.uuidString)", habitDraftID: nil,
+                                                              unit: "元", aggregation: "sum", comparison: "reach",
+                                                              targetValue: 5000, baselineValue: nil, isPending: nil)
+        }
+        XCTAssertNoThrow(try GoalWorkshopValidator.validate(delta, for: session))
+
+        // accountDelta + 无账户候选：拒绝（该账本净增必须落在具体账户上）
+        let deltaNoAccount = makePlanResponse(session: session) { plan in
+            plan.resultSource = GoalWorkshopResultSourceDraft(sourceType: "ledger", ledgerScope: "account_delta",
+                                                              candidateRef: nil, habitDraftID: nil,
+                                                              unit: "元", aggregation: "sum", comparison: "reach",
+                                                              targetValue: 5000, baselineValue: nil, isPending: nil)
+        }
+        XCTAssertThrowsError(try GoalWorkshopValidator.validate(deltaNoAccount, for: session)) { error in
+            guard case .kindPayloadMismatch? = error as? GoalWorkshopValidationError else {
+                return XCTFail("应为 kindPayloadMismatch：\(error)")
+            }
+        }
+
+        // accountBalance + 无账户候选：同规则拒绝
+        let balanceNoAccount = makePlanResponse(session: session) { plan in
+            plan.resultSource = GoalWorkshopResultSourceDraft(sourceType: "ledger", ledgerScope: "account_balance",
+                                                              candidateRef: nil, habitDraftID: nil,
+                                                              unit: "元", aggregation: "sum", comparison: "reach",
+                                                              targetValue: 5000, baselineValue: nil, isPending: nil)
+        }
+        XCTAssertThrowsError(try GoalWorkshopValidator.validate(balanceNoAccount, for: session)) { error in
+            guard case .kindPayloadMismatch? = error as? GoalWorkshopValidationError else {
+                return XCTFail("应为 kindPayloadMismatch：\(error)")
+            }
+        }
+
+        // wholeLedgerDelta 不需要账户：无候选放行
+        let wholeLedger = makePlanResponse(session: session) { plan in
+            plan.resultSource = GoalWorkshopResultSourceDraft(sourceType: "ledger", ledgerScope: "whole_ledger_delta",
+                                                              candidateRef: nil, habitDraftID: nil,
+                                                              unit: "元", aggregation: "sum", comparison: "reach",
+                                                              targetValue: 5000, baselineValue: nil, isPending: nil)
+        }
+        XCTAssertNoThrow(try GoalWorkshopValidator.validate(wholeLedger, for: session))
+    }
+
+    /// 确认页映射：accountDelta 带授权账户 → ledgerScope 完整落账户 ID（不改写成余额口径）
+    func testConfirmationMapsAccountDeltaWithAuthorizedAccount() throws {
+        let accountID = UUID()
+        let candidates = GoalWorkshopAuthorizedCandidates(
+            habits: [],
+            accounts: [GoalWorkshopAccountCandidate(id: accountID, name: "旅行基金", type: "bank", isCreditLiability: false)]
+        )
+        let session = makeSession(candidates: candidates)
+        let response = makePlanResponse(session: session) { plan in
+            plan.resultSource = GoalWorkshopResultSourceDraft(sourceType: "ledger", ledgerScope: "account_delta",
+                                                              candidateRef: "account:\(accountID.uuidString)", habitDraftID: nil,
+                                                              unit: "元", aggregation: "sum", comparison: "reach",
+                                                              targetValue: 5000, baselineValue: nil, isPending: nil)
+        }
+        let confirmation = GoalPlanConfirmation.from(plan: response.plan!, candidates: candidates, now: Date())
+        XCTAssertEqual(confirmation.resultSource?.ledgerScope,
+                       GoalLedgerScopePayload(kind: .accountDelta, accountID: accountID),
+                       "共创 accountDelta 经确认页映射保真，不归一成账户余额")
+        XCTAssertEqual(confirmation.resultSource?.isPending, false)
+    }
 }

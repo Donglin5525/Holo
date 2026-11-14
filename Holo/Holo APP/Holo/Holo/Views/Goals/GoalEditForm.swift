@@ -4,7 +4,9 @@
 //
 //  目标创建/编辑表单（2026-11-13 目标界面减法重设计 S2+S3，规格 §四；
 //  2026-11-14 真机试用七条可用性修复：单行大输入、卡片化、统一单行选择行、
-//  账本范围选择、账本源单位固定 ¥、过程型说人话文案）
+//  账本范围选择、账本源单位固定 ¥、过程型说人话文案；
+//  2026-11-14 红队一轮：账本口径说明行、菜单项口径词、类型横跳保账户、
+//  无账户拦保存、期限默认+30天、预填达标型自动基线、提示行单位词阈值）
 //  一句话大输入 → 类型三选卡 →（数字提示行，条件）→ 条件数字区（按类型浮现）→ 期限行。
 //  只操作 GoalDraft（值类型），保存动作由调用方决定：
 //    - 创建模式：调 GoalRepository.saveDraft
@@ -102,6 +104,7 @@ struct GoalEditForm: View {
         .onAppear {
             loadHabits()
             loadAccounts()
+            applyAutoBaselineForPrefilledDraft()
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -221,8 +224,15 @@ struct GoalEditForm: View {
     }
 
     /// 提示行数字阈值：标题数字 ≥ 此值才建议切累积型。
-    /// 演示值，后续按单位词表调优（防「每天读 20 分钟书」类过程型标题误触发）
+    /// 裸数字维持 ≥30（防「每天读 20 分钟书」类过程型标题误触发）；
+    /// 标题命中单位词时降为 ≥2（红队 U6：「读 12 本书」是正经累积目标，不该被错杀）
     static let cumulativeHintNumberThreshold = 30
+    static let cumulativeHintUnitNumberThreshold = 2
+
+    /// 按标题是否带单位词选提示阈值：带 → 2，裸数字 → 30（红队 U6）
+    static func cumulativeHintThreshold(forTitle title: String) -> Int {
+        unitKeyword(in: title) == nil ? cumulativeHintNumberThreshold : cumulativeHintUnitNumberThreshold
+    }
 
     /// 标题里首个 ≥ 阈值的数字串取值（只认 ASCII 数字——Character.isNumber 对
     /// 全角数字/罗马数字等也返回 true，中文数字标题不得触发）；nil=无
@@ -239,7 +249,8 @@ struct GoalEditForm: View {
             }
         }
         if let s = start { runs.append(title[s...]) }
-        return runs.lazy.compactMap { Int($0) }.first { $0 >= cumulativeHintNumberThreshold }
+        let threshold = cumulativeHintThreshold(forTitle: title)
+        return runs.lazy.compactMap { Int($0) }.first { $0 >= threshold }
     }
 
     /// 提示行显示条件（规格 B3）：类型停在过程型 + 目标数字未填 + 标题提取到 ≥阈值 数字。
@@ -276,6 +287,9 @@ struct GoalEditForm: View {
             }
             if isLedgerSource {
                 ledgerAccountRow
+            }
+            if let explanation = ledgerScopeExplanationText {
+                ledgerScopeExplanationRow(explanation)
             }
             if let mismatch = aggregationMismatchText {
                 mismatchRow(mismatch)
@@ -504,7 +518,7 @@ struct GoalEditForm: View {
                             .tag(GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil))
                     }
                     ForEach(ledgerAccounts, id: \.id) { account in
-                        Text(account.name).tag(GoalLedgerScopePayload(
+                        Text(Self.ledgerMenuTitle(accountName: account.name, kind: draft.goalKind)).tag(GoalLedgerScopePayload(
                             kind: draft.goalKind == .cumulative ? .accountDelta : .accountBalance,
                             accountID: account.id
                         ))
@@ -548,28 +562,91 @@ struct GoalEditForm: View {
         }
     }
 
-    /// 账本范围与目标类型/账户列表对齐：类型换挡或账户失效（删除/归档）后重置默认；
-    /// 达标型无账户时维持无效值 → 子行走「还没有账户」空态 + 保存拦截
-    private func normalizeLedgerScope() {
-        let scope = draft.ledgerScope
-        let valid: Bool
-        switch scope?.kind {
-        case .some(.wholeLedgerDelta): valid = draft.goalKind == .cumulative
-        case .some(.accountDelta): valid = draft.goalKind == .cumulative && accountExists(scope?.accountID)
-        case .some(.accountBalance): valid = draft.goalKind == .target && accountExists(scope?.accountID)
-        case nil: valid = false
-        }
-        guard !valid else { return }
-        if draft.goalKind == .target, let first = ledgerAccounts.first {
-            draft.ledgerScope = GoalLedgerScopePayload(kind: .accountBalance, accountID: first.id)
-        } else {
-            draft.ledgerScope = GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
-        }
+    /// 账本菜单项文案（红队 U2/U5）：账户名带口径词——累积型=净增加、达标型=余额达到，
+    /// 同名账户选错口径一眼可辨；「全部账本」不变
+    static func ledgerMenuTitle(accountName: String, kind: GoalKind) -> String {
+        let qualifier = kind == .cumulative ? String(localized: "净增加") : String(localized: "余额达到")
+        return "\(accountName)·\(qualifier)"
     }
 
-    private func accountExists(_ id: UUID?) -> Bool {
-        guard let id else { return false }
-        return ledgerAccounts.contains { $0.id == id }
+    /// 账本范围与目标类型/账户列表对齐：类型换挡或账户失效（删除/归档）后归一；
+    /// 达标型无账户时维持无效值 → 子行走「还没有账户」空态 + 保存拦截
+    private func normalizeLedgerScope() {
+        draft.ledgerScope = Self.normalizedLedgerScope(
+            current: draft.ledgerScope,
+            goalKind: draft.goalKind,
+            accountIDs: ledgerAccounts.map(\.id)
+        )
+    }
+
+    /// 账本范围归一纯函数（红队 U9：类型横跳静默丢账户选择）：
+    /// - 当前范围与新类型匹配且账户有效 → 原样保留
+    /// - accountDelta↔accountBalance 互转且账户仍有效 → 保留账户 ID 只换 kind
+    /// - wholeLedgerDelta↔账户档、账户失效或范围为空 → 重置默认
+    ///   （达标型=首个账户余额，累积型/无账户=全账本净增加）
+    static func normalizedLedgerScope(
+        current scope: GoalLedgerScopePayload?,
+        goalKind: GoalKind,
+        accountIDs: [UUID]
+    ) -> GoalLedgerScopePayload {
+        func accountExists(_ id: UUID?) -> Bool {
+            guard let id else { return false }
+            return accountIDs.contains(id)
+        }
+        if let scope {
+            let stillValid: Bool
+            switch scope.kind {
+            case .wholeLedgerDelta: stillValid = goalKind == .cumulative
+            case .accountDelta: stillValid = goalKind == .cumulative && accountExists(scope.accountID)
+            case .accountBalance: stillValid = goalKind == .target && accountExists(scope.accountID)
+            }
+            if stillValid { return scope }
+            if scope.kind != .wholeLedgerDelta, accountExists(scope.accountID) {
+                return GoalLedgerScopePayload(
+                    kind: goalKind == .target ? .accountBalance : .accountDelta,
+                    accountID: scope.accountID
+                )
+            }
+        }
+        if goalKind == .target, let first = accountIDs.first {
+            return GoalLedgerScopePayload(kind: .accountBalance, accountID: first)
+        }
+        return GoalLedgerScopePayload(kind: .wholeLedgerDelta, accountID: nil)
+    }
+
+    // MARK: - 账本口径说明行（红队 U5：口径零解释，还债者在错误口径上建目标）
+
+    /// 说明行文案：全账本=净增加口径、指定账户·净增加=从今天起算；
+    /// 指定账户·余额达到已有基线注释行（「取自「××」当前余额」），不重复加 → nil
+    private var ledgerScopeExplanationText: String? {
+        guard isLedgerSource else { return nil }
+        let scope = draft.ledgerScope ?? GoalLedgerScopePayload(
+            kind: draft.goalKind == .cumulative ? .wholeLedgerDelta : .accountBalance,
+            accountID: nil
+        )
+        let name = scope.accountID.flatMap { id in ledgerAccounts.first { $0.id == id }?.name }
+        return Self.ledgerScopeExplanation(kind: scope.kind, accountName: name)
+    }
+
+    /// 说明行：13pt 次文字左对齐，与基线注释行同款（红队 U5）
+    private func ledgerScopeExplanationRow(_ text: String) -> some View {
+        Text(text)
+            .goalJourneyText(.metadata)
+            .foregroundStyle(Color.holoToolTextSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 账本口径说明条件矩阵（红队 U5）：wholeLedgerDelta=全账本收入减支出、
+    /// accountDelta=从今天起算指定账户净增加；accountBalance 不出说明行 → nil
+    static func ledgerScopeExplanation(kind: GoalLedgerScopeKind, accountName: String?) -> String? {
+        switch kind {
+        case .wholeLedgerDelta:
+            return String(localized: "按全部账本收入减支出的净增加衡量；还债、转账不改变净资产")
+        case .accountDelta:
+            return String(localized: "从今天起算「\(accountName ?? "？")」的净增加，已有余额不计入")
+        case .accountBalance:
+            return nil
+        }
     }
 
     /// 口径错配警示（规格 B0 v2 文案，带「换「××」」动作半句）：整行可点直接弹习惯选择
@@ -614,7 +691,7 @@ struct GoalEditForm: View {
             if draft.deadlineText == nil {
                 Menu {
                     Button(String(localized: "设个期限")) {
-                        deadlineDate = Date()
+                        deadlineDate = Self.defaultDeadline(from: Date())
                     }
                 } label: {
                     pickerRowValue(String(localized: "不设"))
@@ -678,7 +755,8 @@ struct GoalEditForm: View {
     }
 
     /// 达标型+账本：选账户后「现在」自动取该账户当前余额，切换账户即刷新；
-    /// 框下注释「取自「××」当前余额（M/d）」（七条 §5，对齐挂习惯行为）
+    /// 框下注释「取自「××」当前余额（M/d）」（七条 §5，对齐挂习惯行为）；
+    /// 信用负债账户（信用卡）追加还清口径（红队 U5）
     private func applyBaselineFromAccount(_ scope: GoalLedgerScopePayload?) {
         guard draft.goalKind == .target,
               let id = scope?.accountID,
@@ -690,7 +768,38 @@ struct GoalEditForm: View {
         let value = NSDecimalNumber(decimal: balance).doubleValue
         metricBaselineText = GoalMetricEvaluator.formatValue(value)
         draft.metricBaselineValue = value
-        baselineNote = String(localized: "取自「\(account.name)」当前余额（\(Self.shortDayText(asOf))）")
+        baselineNote = Self.accountBaselineNote(
+            accountName: account.name,
+            asOf: asOf,
+            isCreditLiability: account.accountType == .creditCard
+        )
+    }
+
+    /// 达标型账本源基线注释（红队 U5）：信用负债账户（isCreditLiability=信用卡）
+    /// 被选为余额达到时，注释行追加「余额还到 0 即还清」
+    static func accountBaselineNote(accountName: String, asOf: Date, isCreditLiability: Bool) -> String {
+        var note = String(localized: "取自「\(accountName)」当前余额（\(shortDayText(asOf))）")
+        if isCreditLiability {
+            note += String(localized: "；余额还到 0 即还清")
+        }
+        return note
+    }
+
+    /// 预填草案的达标型基线自动补取（红队 U3）：「再来一轮」预填不带旧基线
+    /// （旧「现在」多半已过期），来源=习惯/账本时入场主动取一次自动基线，
+    /// 避免新目标开屏基线空着、保存出「现在=空」的目标；须在 loadHabits/loadAccounts 之后
+    private func applyAutoBaselineForPrefilledDraft() {
+        guard draft.goalKind == .target,
+              draft.metricBaselineValue == nil,
+              draft.metricSource == .habit || draft.metricSource == .ledger else { return }
+        switch draft.metricSource {
+        case .habit:
+            applyBaselineFromHabit(draft.sourceHabitId)
+        case .ledger:
+            applyBaselineFromAccount(draft.ledgerScope)
+        case .manual:
+            break
+        }
     }
 
     /// 源习惯最新一条数值记录（值+日期）。走内存关系而非 HabitRepository.getLatestValue——
@@ -712,6 +821,11 @@ struct GoalEditForm: View {
     }
 
     // MARK: - Deadline 转换
+
+    /// 「设个期限」默认期限：今天 + 30 天（红队 U1：默认写入今天会创建即逾期）
+    static func defaultDeadline(from now: Date, calendar: Calendar = .current) -> Date {
+        calendar.date(byAdding: .day, value: 30, to: now) ?? now
+    }
 
     /// "yyyy-MM-dd" → Date，解析失败回退到今天
     static func parseDeadlineText(_ text: String?) -> Date {
@@ -790,14 +904,19 @@ struct GoalEditForm: View {
         )
     }
 
-    /// 禁用三态文案（规格 B0）：空标题/数字空/累积≤0/现在=目标/账本无可用账户；nil=可保存
-    static func disabledHint(for draft: GoalDraft) -> String? {
+    /// 禁用文案（规格 B0 三/四态 + 红队 U1/U8 补分支）：
+    /// 空标题/数字空/累积≤0/现在=目标/无账户/账本范围不合法/条件已改未确认；nil=可保存
+    static func disabledHint(
+        for draft: GoalDraft,
+        hasActiveLedgerAccounts: Bool,
+        criteriaUnconfirmed: Bool = false
+    ) -> String? {
         if draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return String(localized: "起个名字就能创建")
         }
         switch draft.goalKind {
         case .process:
-            return nil
+            break
         case .cumulative:
             guard let target = draft.metricTargetValue else { return String(localized: "数字还没填完") }
             guard target > 0 else { return String(localized: "目标量要大于 0") }
@@ -806,19 +925,25 @@ struct GoalEditForm: View {
                   let target = draft.metricTargetValue else { return String(localized: "数字还没填完") }
             guard baseline != target else { return String(localized: "现在和目标不能一样") }
         }
-        if draft.metricSource == .ledger, !hasValidLedgerScope(in: draft) {
-            return String(localized: "还没有可用的账本账户")
+        if draft.metricSource == .ledger {
+            guard hasActiveLedgerAccounts else { return String(localized: "还没有账户") }
+            guard hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: hasActiveLedgerAccounts) else {
+                return String(localized: "还没有可用的账本账户")
+            }
+        }
+        if criteriaUnconfirmed {
+            return String(localized: "修改了成功条件——勾选下方确认后可保存")
         }
         return nil
     }
 
-    /// ledger 源的账本范围合法性（七条 §5）：类型与范围 kind 匹配，
-    /// 账户口径必须带账户 ID（无账户时表单走空态、保存拦截）
-    static func hasValidLedgerScope(in draft: GoalDraft) -> Bool {
+    /// ledger 源的账本范围合法性（七条 §5 + 红队 U1）：类型与范围 kind 匹配，
+    /// 账户口径必须带账户 ID；全账本口径也要求存在活跃账户——无账户时算出来恒 0%
+    static func hasValidLedgerScope(in draft: GoalDraft, hasActiveLedgerAccounts: Bool) -> Bool {
         guard draft.metricSource == .ledger, let scope = draft.ledgerScope else { return false }
         switch scope.kind {
         case .wholeLedgerDelta:
-            return draft.goalKind == .cumulative
+            return draft.goalKind == .cumulative && hasActiveLedgerAccounts
         case .accountDelta:
             return draft.goalKind == .cumulative && scope.accountID != nil
         case .accountBalance:
@@ -828,8 +953,8 @@ struct GoalEditForm: View {
 
     /// 量化字段可保存校验：数字有效+标题非空即可保存，单位可不填（显示时省略，规格 B5）；
     /// 量化时目标值必填且 >0；达标型基线必填（允许 0，如引体向上从 0 个起步）；
-    /// habit 源必选一个源习惯；ledger 源账本范围必须合法
-    static func metricFieldsValid(in draft: GoalDraft) -> Bool {
+    /// habit 源必选一个源习惯；ledger 源要求有活跃账户且账本范围合法（红队 U1）
+    static func metricFieldsValid(in draft: GoalDraft, hasActiveLedgerAccounts: Bool) -> Bool {
         guard draft.isQuantitative else { return true }
         guard let target = draft.metricTargetValue, target > 0 else { return false }
         if draft.goalKind == .target {
@@ -839,7 +964,7 @@ struct GoalEditForm: View {
             return false
         }
         if draft.metricSource == .ledger {
-            return hasValidLedgerScope(in: draft)
+            return hasValidLedgerScope(in: draft, hasActiveLedgerAccounts: hasActiveLedgerAccounts)
         }
         return true
     }

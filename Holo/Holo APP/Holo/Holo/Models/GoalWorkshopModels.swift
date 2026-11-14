@@ -245,7 +245,7 @@ struct GoalWorkshopAuthorizedCandidates: Codable, Equatable, Sendable {
 struct GoalWorkshopResultSourceDraft: Codable, Equatable, Sendable {
     /// GoalResultSourceKind.rawValue：manual / habit / ledger
     var sourceType: String
-    /// GoalLedgerScopeKind.rawValue：whole_ledger_delta / account_balance（仅 ledger）
+    /// GoalLedgerScopeKind.rawValue：whole_ledger_delta / account_delta / account_balance（仅 ledger）
     var ledgerScope: String?
     /// 授权候选引用："habit:<uuid>" / "account:<uuid>"
     var candidateRef: String?

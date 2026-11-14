@@ -519,6 +519,11 @@ struct GoalDetailView: View {
                 Button("标记完成") {
                     perform { try repository.updateStatus(goal, status: .completed) }
                 }
+            } else {
+                // 红队 U10：误触「标记完成」可逆——恢复为进行中（completedAt 由模型自动清）
+                Button("恢复为进行中") {
+                    perform { try repository.updateStatus(goal, status: .active) }
+                }
             }
             Button("删除目标", role: .destructive) { showDeleteConfirm = true }
         }
@@ -589,6 +594,9 @@ struct GoalEditSheet: View {
     @State private var isSaving = false
     @State private var saveError: String?
     @State private var criteriaConfirmed = false
+    /// 是否存在活跃账本账户（红队 U1）：无账户时账本源不可保存；
+    /// 与 GoalEditForm.loadAccounts 同源，onAppear 取一次不在 body 里反复 fetch
+    @State private var hasActiveLedgerAccounts = true
     private let baseRevisionID: UUID?
     let onSaved: () -> Void
 
@@ -602,7 +610,7 @@ struct GoalEditSheet: View {
     private var canSave: Bool {
         !isSaving
             && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && GoalEditForm.metricFieldsValid(in: draft)
+            && GoalEditForm.metricFieldsValid(in: draft, hasActiveLedgerAccounts: hasActiveLedgerAccounts)
             && (!criteriaChanged || criteriaConfirmed)
     }
 
@@ -621,20 +629,32 @@ struct GoalEditSheet: View {
             primaryTitle: isSaving ? String(localized: "保存中") : String(localized: "保存"),
             primaryAction: { save() },
             primaryDisabled: !canSave,
-            primaryHint: isSaving ? nil : GoalEditForm.disabledHint(for: draft),
+            primaryHint: isSaving ? nil : GoalEditForm.disabledHint(
+                for: draft,
+                hasActiveLedgerAccounts: hasActiveLedgerAccounts,
+                criteriaUnconfirmed: criteriaChanged && !criteriaConfirmed
+            ),
             primaryActionColor: GoalJourneyStyle.action,
-            footerBackground: GoalJourneyStyle.sheetFooterCream
+            footerBackground: GoalJourneyStyle.sheetFooterCream,
+            primaryAccessory: {
+                // 修改成功条件的确认勾选（红队 U8）：放脚手架恒可见区（保存钮上方），
+                // 不再埋在滚动区里——滚出视口时保存钮静默禁用、找不到原因
+                if criteriaChanged {
+                    Toggle("我确认修改成功条件、来源或期限", isOn: $criteriaConfirmed)
+                        .holoText(.supporting)
+                }
+            }
         ) {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: HoloSpacing.md) {
-                    GoalEditForm(draft: $draft)
-                    if criteriaChanged { Toggle("我确认修改成功条件、来源或期限", isOn: $criteriaConfirmed).holoText(.supporting) }
-                }
-                .padding(.horizontal, HoloSpacing.page)
-                .padding(.top, 4)
-                .padding(.bottom, 20)
+                GoalEditForm(draft: $draft)
+                    .padding(.horizontal, HoloSpacing.page)
+                    .padding(.top, 4)
+                    .padding(.bottom, 20)
             }
             .scrollDismissesKeyboard(.interactively)
+        }
+        .onAppear {
+            hasActiveLedgerAccounts = !FinanceRepository.shared.getAccounts().isEmpty
         }
         .presentationDetents([.large])
         .alert("保存失败", isPresented: Binding(
