@@ -68,6 +68,9 @@ struct MemoryGalleryTimelineView: View {
     let onSelect: (CalendarEvent) -> Void
     let onEnsureData: (Date) -> Void
     let onRetry: () -> Void
+    /// 回到最近·远跳分支：强制刷新今天窗口（ensureTimelineData 的边距守卫会让已覆盖今天的窗口无动作，
+    /// revision 不变→awaitingBackToRecent 永不消费=死按钮；对抗审查 G 必改1）。
+    let onBackToLatestReload: () -> Void
 
     @State private var expandedDay: Date?
     /// 从日期面板/漫步定位来的目标日（原型 is-target 高亮；空白日临时落位）。
@@ -150,7 +153,7 @@ struct MemoryGalleryTimelineView: View {
                 timeline
             }
         }
-        .background(Color.holoToolBackground)
+        .background(Color.galleryPaper)
     }
 
     private var timeline: some View {
@@ -197,6 +200,11 @@ struct MemoryGalleryTimelineView: View {
                         jump(to: latest, proxy: proxy)
                     }
                 }
+                // 定位时数据未到导致「多条自动展开」静默失效：数据到达后补一次（建议7）。
+                if let target = selectedDay, expandedDay == nil,
+                   (eventsByDay[target]?.count ?? 0) > 1 {
+                    expandedDay = target
+                }
             }
             .onChange(of: findDate.backToRecentToken) { _, token in
                 guard token != nil else { return }
@@ -233,7 +241,7 @@ struct MemoryGalleryTimelineView: View {
             jump(to: latest, proxy: proxy)
         } else {
             awaitingBackToRecent = true
-            onEnsureData(today)
+            onBackToLatestReload()
         }
     }
 
@@ -268,18 +276,18 @@ struct MemoryGalleryTimelineView: View {
             Text(month.formatted(.dateTime.month(.wide)))
                 .font(.system(size: monthTitleSize, weight: .bold, design: .serif))
                 .tracking(-1.9)
-                .foregroundStyle(Color.holoToolText)
+                .foregroundStyle(Color.galleryInk)
             Text(String(calendar.component(.year, from: month)))
-                .font(.system(size: monthTitleSize * 0.5625, design: .serif))
-                .foregroundStyle(Color.holoToolTextSecondary)
+                .font(.custom("Georgia", size: monthTitleSize * 0.5625))
+                .foregroundStyle(Color.galleryQuiet)
             Spacer(minLength: 0)
         }
         .padding(.top, topInset + 6)
         .padding(.bottom, 11)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoToolBackground)
+        .background(Color.galleryPaper)
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.holoToolBorder).frame(height: 1)
+            Rectangle().fill(Color.galleryRule).frame(height: 1)
         }
         .accessibilityAddTraits(.isHeader)
     }
@@ -326,32 +334,32 @@ struct MemoryGalleryTimelineView: View {
     private func dayMarker(_ day: Date, highlighted: Bool, isToday: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("\(calendar.component(.day, from: day))")
-                .font(.system(size: dayNumberSize, design: .serif))
+                .font(.custom("Georgia", size: dayNumberSize))
                 .tracking(-1.95)
-                .foregroundStyle(highlighted ? Color.holoPrimary : Color.holoToolText)
+                .foregroundStyle(highlighted ? Color.galleryAccent : Color.galleryInk)
             Text(day.formatted(.dateTime.weekday(.abbreviated)))
                 .font(.system(size: metaSize))
-                .foregroundStyle(Color.holoToolTextSecondary)
+                .foregroundStyle(Color.galleryQuiet)
                 .padding(.top, 5)
             if isToday {
                 Text("今天")
                     .font(.system(size: metaSize))
-                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .foregroundStyle(Color.galleryQuiet)
             }
         }
         .padding(.top, 22)
         .frame(width: 46, alignment: .leading)
         .frame(maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .trailing) {
-            Rectangle().fill(Color.holoToolBorder).frame(width: 1)
+            Rectangle().fill(Color.galleryRule).frame(width: 1)
         }
         .overlay(alignment: .topTrailing) {
             Circle()
-                .fill(highlighted ? Color.holoPrimary : Color.holoToolTextSecondary)
+                .fill(highlighted ? Color.galleryOrange : Color.galleryQuiet)
                 .frame(width: 5, height: 5)
                 .background {
                     if highlighted {
-                        Circle().fill(Color.holoPrimary.opacity(0.18)).frame(width: 11, height: 11)
+                        Circle().fill(Color.galleryTint).frame(width: 11, height: 11)
                     }
                 }
                 .offset(x: 2, y: 35)
@@ -386,7 +394,7 @@ struct MemoryGalleryTimelineView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .rotationEffect(.degrees(isExpanded ? 180 : 0))
                     }
-                    .foregroundStyle(Color.holoPrimary)
+                    .foregroundStyle(Color.galleryAccent)
                     .frame(minHeight: 44, alignment: .leading)
                     .contentShape(Rectangle())
                 }
@@ -397,7 +405,7 @@ struct MemoryGalleryTimelineView: View {
                         ForEach(others) { event in
                             recordRow(event)
                                 .overlay(alignment: .top) {
-                                    Rectangle().fill(Color.holoToolBorder).frame(height: 1)
+                                    Rectangle().fill(Color.galleryRule).frame(height: 1)
                                 }
                         }
                     }
@@ -409,7 +417,7 @@ struct MemoryGalleryTimelineView: View {
         .padding(.bottom, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .top) {
-            Rectangle().fill(Color.holoToolBorder).frame(height: 1)
+            Rectangle().fill(Color.galleryRule).frame(height: 1)
         }
     }
 
@@ -431,7 +439,7 @@ struct MemoryGalleryTimelineView: View {
                 Text(event.title)
                     .font(.system(size: leadHeadlineSize, weight: .bold, design: .serif))
                     .lineSpacing(5)
-                    .foregroundStyle(Color.holoPrimary)
+                    .foregroundStyle(Color.galleryAccent)
                     .multilineTextAlignment(.leading)
                 HStack(spacing: 5) {
                     Image(systemName: event.module.iconName)
@@ -441,7 +449,7 @@ struct MemoryGalleryTimelineView: View {
                         .font(.system(size: 10, weight: .semibold))
                 }
                 .font(.system(size: metaSize))
-                .foregroundStyle(Color.holoToolTextSecondary)
+                .foregroundStyle(Color.galleryQuiet)
                 .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -458,29 +466,29 @@ struct MemoryGalleryTimelineView: View {
             HStack(spacing: 9) {
                 Image(systemName: event.module.iconName)
                     .font(.system(size: minorSize))
-                    .foregroundStyle(Color.holoPrimary)
+                    .foregroundStyle(Color.galleryAccent)
                     .frame(width: 30, height: 30)
-                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.holoToolInset))
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(event.title)
                         .font(.system(size: rowTitleSize, weight: .medium))
-                        .foregroundStyle(Color.holoToolText)
+                        .foregroundStyle(Color.galleryInk)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                     Text(metaText(event))
                         .font(.system(size: metaSize))
-                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .foregroundStyle(Color.galleryQuiet)
                 }
                 Spacer(minLength: 0)
                 if let detail = event.detail, !detail.isEmpty {
                     Text(detail)
                         .font(.system(size: rowValueSize).monospacedDigit())
-                        .foregroundStyle(Color.holoToolText)
+                        .foregroundStyle(Color.galleryInk)
                         .lineLimit(1)
                 } else {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .foregroundStyle(Color.galleryQuiet)
                 }
             }
             .padding(.vertical, 5)
@@ -502,13 +510,13 @@ struct MemoryGalleryTimelineView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(failedModules.isEmpty ? "这一天没有记录" : "这一天暂无已载入的记录")
                 .font(.system(size: rowTitleSize))
-                .foregroundStyle(Color.holoToolTextSecondary)
+                .foregroundStyle(Color.galleryQuiet)
             if let nearest = nearestRecordDay(to: day) {
                 Button("去最近有记录的一天") {
                     findDate.requestJump(to: nearest)
                 }
                 .font(.system(size: minorSize))
-                .foregroundStyle(Color.holoPrimary)
+                .foregroundStyle(Color.galleryAccent)
                 .frame(minHeight: 44, alignment: .leading)
             }
         }
@@ -522,19 +530,19 @@ struct MemoryGalleryTimelineView: View {
         HStack(spacing: 9) {
             Image(systemName: "info.circle")
                 .font(.system(size: minorSize))
-                .foregroundStyle(Color.holoPrimary)
+                .foregroundStyle(Color.galleryAccent)
             Text(failedModules.map(\.displayName).joined(separator: "、") + String(localized: "暂未载入"))
                 .font(.system(size: minorSize))
-                .foregroundStyle(Color.holoToolTextSecondary)
+                .foregroundStyle(Color.galleryQuiet)
             Spacer(minLength: 0)
             Button("重试", action: onRetry)
                 .font(.system(size: minorSize))
                 .frame(minHeight: 44)
-                .foregroundStyle(Color.holoPrimary)
+                .foregroundStyle(Color.galleryAccent)
         }
         .padding(.vertical, 9)
         .overlay(alignment: .bottom) {
-            Rectangle().fill(Color.holoToolBorder).frame(height: 1)
+            Rectangle().fill(Color.galleryRule).frame(height: 1)
         }
     }
 
@@ -543,7 +551,7 @@ struct MemoryGalleryTimelineView: View {
         if reachedEarliest && failedModules.isEmpty && recordDays.count > 1 {
             Text("已到最早的记录")
                 .font(.system(size: minorSize))
-                .foregroundStyle(Color.holoToolTextSecondary)
+                .foregroundStyle(Color.galleryQuiet)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 25)
                 .padding(.bottom, 4)
@@ -558,12 +566,12 @@ struct MemoryGalleryTimelineView: View {
                 Text("回到最近")
                     .font(.system(size: minorSize))
             }
-            .foregroundStyle(Color.holoToolText)
+            .foregroundStyle(Color.galleryInk)
             .padding(.horizontal, 12)
             .frame(minHeight: 44)
-            .background(Capsule().fill(Color.holoToolBackground))
-            .overlay(Capsule().strokeBorder(Color.holoToolBorder, lineWidth: 1))
-            .shadow(color: Color.black.opacity(0.12), radius: 6, y: 3)
+            .background(Capsule().fill(Color.galleryPaper))
+            .overlay(Capsule().strokeBorder(Color.galleryRule, lineWidth: 1))
+            .shadow(color: Color(.sRGB, red: 0.224, green: 0.133, blue: 0.055, opacity: 0.15), radius: 6.5, y: 3)
         }
         .buttonStyle(.plain)
         .padding(.trailing, 16)
@@ -576,26 +584,26 @@ struct MemoryGalleryTimelineView: View {
         VStack(alignment: .leading, spacing: 0) {
             Image(systemName: icon)
                 .font(.system(size: 26))
-                .foregroundStyle(Color.holoPrimary)
+                .foregroundStyle(Color.galleryAccent)
                 .padding(.bottom, 18)
             Text(title)
                 .font(.system(size: stateTitleSize, weight: .bold, design: .serif))
-                .foregroundStyle(Color.holoToolText)
+                .foregroundStyle(Color.galleryInk)
             Text(message)
                 .font(.system(size: rowTitleSize))
-                .foregroundStyle(Color.holoToolTextSecondary)
+                .foregroundStyle(Color.galleryQuiet)
                 .lineSpacing(5)
                 .padding(.top, 8)
             if let action {
                 Button(action: action.handler) {
                     Text(action.title)
                         .font(.system(size: rowTitleSize))
-                        .foregroundStyle(Color.holoPrimary)
+                        .foregroundStyle(Color.galleryAccent)
                         .padding(.horizontal, 14)
                         .frame(minHeight: 44)
-                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.holoToolInset))
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.galleryInset))
                         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(Color.holoToolBorder, lineWidth: 1))
+                            .strokeBorder(Color.galleryRule, lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 .padding(.top, 17)
@@ -617,13 +625,13 @@ private struct MemoryGalleryThumbnail: View {
         if let image = UIImage(data: data) {
             Image(uiImage: image).resizable()
         } else {
-            Color.holoToolInset
+            Color.galleryInset
         }
         #else
         if let image = NSImage(data: data) {
             Image(nsImage: image).resizable()
         } else {
-            Color.holoToolInset
+            Color.galleryInset
         }
         #endif
     }

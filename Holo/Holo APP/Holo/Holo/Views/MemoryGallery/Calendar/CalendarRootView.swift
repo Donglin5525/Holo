@@ -22,6 +22,8 @@ struct CalendarRootView: View {
     @Environment(\.holoContentWidth) private var scaleWindowWidth
     @StateObject private var viewModel = CalendarViewModel()
     @State private var selectedEvent: CalendarEvent?
+    /// 长廊时间线/漫步共用的想法全文阅读事件（2026-11-14 动线自审：看想法不离开长廊）。
+    @State private var timelineThoughtEvent: CalendarEvent?
     @State private var selectedEventGroup: CalendarEventGroup?
     @State private var showWeekNarrative = false
     @State private var showScaleDatePicker = false
@@ -43,21 +45,28 @@ struct CalendarRootView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            navRow
-            if viewModel.hasFailure { failureBanner }
+            // 长廊时间线是唯一主视图：档位切换行按减法设计撤出（日回放并入长廊展开、
+            // 七天网格退役；2026-11-14 东林拍板 1:1）。旧档位代码保留但无界面入口。
+            if viewModel.scale != .gallery {
+                navRow
+                if viewModel.hasFailure { failureBanner }
+            }
             content
         }
-        .background(Color.holoToolBackground)
+        .background(viewModel.scale == .gallery ? Color.galleryPaper : Color.holoToolBackground)
         .task {
             await viewModel.loadInitial()
         }
+        .sheet(item: $timelineThoughtEvent) { event in
+            MemoryWalkThoughtReader(event: event) {
+                timelineThoughtEvent = nil
+                openThoughtInThoughtsModule(event)
+            }
+        }
         .sheet(item: $selectedEvent) { event in
-            CalendarEventDetailSheet(event: event, onShowInTimeline: {
-                withAnimation(HoloAnimation.quick) {
-                    viewModel.focusDay(event.date)
-                    viewModel.scale = .timeline
-                }
-            })
+            // 2026-11-14 对抗审查必改3：撤「在轴上查看排布」——它会复活整排退役档位；
+            // 轴档排布按减法设计归任务模块。
+            CalendarEventDetailSheet(event: event, onShowInTimeline: nil)
         }
         .sheet(item: $selectedEventGroup) { group in
             CalendarEventGroupDetailSheet(group: group)
@@ -113,15 +122,21 @@ struct CalendarRootView: View {
         }
     }
 
-    // MARK: - 事件点击（想法直跳详情，其余弹层）
+    // MARK: - 事件点击（想法面板内读全文，其余弹层）
 
-    /// 想法事件点击直达想法详情页（长廊不再为想法设详情弹层，与册页卡/组弹层行为一致）；
+    /// 想法点击改为长廊内全文阅读（设计文档 J4「关掉详情回到原日期和原展开状态」；
+    /// 2026-11-14 动线自审定谳：不再跳出长廊切想法模块），「在想法中打开」才显式深链；
     /// 记账 / 习惯 / 待办维持原有详情弹层。
     private func handleEventSelect(_ event: CalendarEvent) {
         guard event.module == .thought else {
             selectedEvent = event
             return
         }
+        timelineThoughtEvent = event
+    }
+
+    /// 想法全文阅读页内「在想法中打开」：面板收起后走既有 resolver+深链。
+    private func openThoughtInThoughtsModule(_ event: CalendarEvent) {
         CalendarEventOriginResolver.resolve(event) { target in
             guard let target else {
                 // 卡片文案承诺「轻点查看全文」，回查失败必须有反馈（与组弹层 alert 同口径）
@@ -169,7 +184,11 @@ struct CalendarRootView: View {
             findDate: findDate,
             onSelect: { handleEventSelect($0) },
             onEnsureData: { viewModel.ensureTimelineData(around: $0) },
-            onRetry: { Task { await viewModel.refreshForCurrentScale() } }
+            onRetry: { Task { await viewModel.refreshForCurrentScale() } },
+            onBackToLatestReload: {
+                viewModel.goToToday()
+                Task { await viewModel.refreshForCurrentScale() }
+            }
         )
     }
 

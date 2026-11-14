@@ -240,6 +240,13 @@ final class CalendarViewModel: ObservableObject {
         catch { return }
         guard !Task.isCancelled else { return }
         await fetchTimeline(around: focusedDate, halfSpanDays: preloadHalfSpanDays)
+
+        // 停记超过预载窗口的回流用户：窗口内没有任何记录时向更早补两跳，
+        // 避免长廊误判「还没有记录」（减法设计：时隔几周回来，开场就是最后一次真实记录的日期）。
+        for hopDays in [150, 330] where timelineEvents.isEmpty && !Task.isCancelled {
+            guard let back = Calendar.current.date(byAdding: .day, value: -hopDays, to: focusedDate) else { break }
+            await fetchTimeline(around: back, halfSpanDays: 90)
+        }
     }
 
     /// 聚焦日接近已加载边缘时续载（剩余 < 14 天触发）

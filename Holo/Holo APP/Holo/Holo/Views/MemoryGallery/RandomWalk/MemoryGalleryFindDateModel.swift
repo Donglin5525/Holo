@@ -111,6 +111,10 @@ struct MemoryGalleryFindDateSheet: View {
     @State private var walkDetailEvent: CalendarEvent?
     /// 漫步里点开的想法：面板内全文阅读，不跳出长廊、不清本轮已看集合（交互审查 P0）。
     @State private var walkThoughtEvent: CalendarEvent?
+    @ScaledMetric(relativeTo: .caption) private var weekdaySize: CGFloat = 12
+    @ScaledMetric(relativeTo: .body) private var dayNumberSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .footnote) private var footSize: CGFloat = 13
+    @ScaledMetric(relativeTo: .body) private var launchTitleSize: CGFloat = 15
 
     private var displayedMonth: Date {
         monthAnchor ?? model.readingMonth ?? focusedDate
@@ -142,7 +146,8 @@ struct MemoryGalleryFindDateSheet: View {
         // 日期面板与漫步共用同一档，切换时弹层高度不跳（§2：就地切换、期间固定高度）。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .presentationDetents([.height(620), .large])
-        .presentationDragIndicator(.visible)
+        .presentationDragIndicator(.hidden)
+        .presentationBackground(Color.gallerySurface)
         .sheet(item: $walkDetailEvent) { event in
             CalendarEventDetailSheet(event: event, onShowInTimeline: nil)
         }
@@ -175,23 +180,30 @@ struct MemoryGalleryFindDateSheet: View {
         .padding(.bottom, 12)
     }
 
-    /// 原型 dialog-head：标题「找日期」+ 右侧「关闭」（旁白用户的明确关闭控件）。
+    /// 原型 dialog-head 1:1：衬线标题 + 右侧「关闭」+ 底部细线（padding 13/0/9）。
     private var panelHeader: some View {
         HStack {
             Text("找日期")
-                .font(.headline)
+                .font(.system(size: 20, weight: .bold, design: .serif))
+                .foregroundStyle(Color.galleryInk)
             Spacer()
             Button {
                 model.dismiss()
             } label: {
                 Text("关闭")
-                    .font(.subheadline)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.galleryAccent)
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
             }
             .accessibilityIdentifier("memoryGallery.findDate.close")
         }
         .padding(.horizontal, 20)
+        .padding(.top, 13)
+        .padding(.bottom, 9)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.galleryRule).frame(height: 1)
+        }
     }
 
     private var monthHeader: some View {
@@ -267,18 +279,19 @@ struct MemoryGalleryFindDateSheet: View {
     }
 
     private var weekdayHeader: some View {
-        // 周一首（与 CalendarRangeBuilder 同约定）
+        // 周一首（与 CalendarRangeBuilder 同约定）；原型 weekdays：quiet 12pt、上下 6pt
         let symbols = calendar.veryShortWeekdaySymbols
         let mondayFirst = (0..<7).map { symbols[($0 + 1) % 7] }
         return HStack {
             ForEach(mondayFirst, id: \.self) { symbol in
                 Text(symbol)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: weekdaySize))
+                    .foregroundStyle(Color.galleryQuiet)
                     .frame(maxWidth: .infinity)
             }
         }
         .padding(.horizontal, 20)
+        .padding(.vertical, 6)
     }
 
     private var dayGrid: some View {
@@ -292,7 +305,7 @@ struct MemoryGalleryFindDateSheet: View {
 
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 6) {
             ForEach(0..<startOfWeekdayIndex, id: \.self) { _ in
-                Color.clear.frame(height: 42)
+                Color.clear.frame(height: 44)
             }
             ForEach(days, id: \.self) { day in
                 let startOfDay = calendar.startOfDay(for: day)
@@ -303,25 +316,30 @@ struct MemoryGalleryFindDateSheet: View {
                 } label: {
                     VStack(spacing: 3) {
                         Text("\(calendar.component(.day, from: day))")
-                            .font(.subheadline.monospacedDigit())
-                            .foregroundStyle(isFuture ? Color.secondary.opacity(0.4) : .primary)
+                            .font(.system(size: dayNumberSize).monospacedDigit())
+                            .foregroundStyle(isFuture ? Color.galleryInk.opacity(0.35)
+                                         : (startOfDay == today ? Color.white : Color.galleryInk))
                         Circle()
-                            .fill(isFuture ? Color.clear : (count != nil ? Color.holoPrimary : Color.clear))
-                            .frame(width: 4.5, height: 4.5)
+                            .fill(isFuture ? Color.clear
+                                  : (startOfDay == today ? Color.clear
+                                     : (count != nil ? Color.galleryOrange : Color.clear)))
+                            .frame(width: 5, height: 5)
                     }
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .contentShape(Rectangle())
                     .background {
                         if startOfDay == focused {
-                            Circle()
-                                .fill(Color.holoPrimary.opacity(0.14))
-                                .frame(width: 36, height: 36)
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.galleryTint)
+                                .frame(height: 44)
                         } else if startOfDay == today {
-                            Circle()
-                                .strokeBorder(Color.holoPrimary.opacity(0.5), lineWidth: 1)
-                                .frame(width: 34, height: 34)
+                            // 原型：今天=橙色实底+固定白字（深色下 GallerySurface 是暖深色，判读实抓改 .white）
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.galleryOrange)
+                                .frame(height: 44)
                         }
                     }
+                    .opacity(isFuture ? 0.35 : 1)
                 }
                 .buttonStyle(.plain)
                 .disabled(isFuture)
@@ -350,52 +368,54 @@ struct MemoryGalleryFindDateSheet: View {
         return days
     }
 
+    /// 原型 calendar-foot：左「● 有记录」图例（quiet 12pt）+ 右「回到最近」accent 文字钮。
     private var backToLatestRow: some View {
-        Button {
-            onBackToLatest()
-        } label: {
-            HStack {
-                Image(systemName: "arrow.clockwise.circle")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.holoPrimary)
-                Text("回到最近")
-                    .font(.subheadline)
-                Spacer()
+        HStack {
+            HStack(spacing: 7) {
+                Circle().fill(Color.galleryOrange).frame(width: 5, height: 5)
+                Text("有记录")
+                    .font(.system(size: weekdaySize))
+                    .foregroundStyle(Color.galleryQuiet)
             }
-            .padding(.horizontal, 20)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
+            Spacer()
+            Button {
+                onBackToLatest()
+            } label: {
+                Text("回到最近")
+                    .font(.system(size: footSize))
+                    .foregroundStyle(Color.galleryAccent)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("memoryGallery.findDate.backToLatest")
         }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("memoryGallery.findDate.backToLatest")
+        .padding(.horizontal, 20)
     }
 
-    /// 随机漫步行（§2：36×36 图标容器、12pt 图文间距、≥62pt 行高）。
+    /// 随机漫步行（原型 walk-launch：36pt inset 图标块 + 标题/副文案 + 右箭头，≥62pt 行高）。
     private var randomWalkRow: some View {
         Button {
             model.switchToWalk()
         } label: {
             HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(Color.holoPrimary.opacity(0.12))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Color.holoPrimary)
-                }
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.galleryAccent)
+                    .frame(width: 36, height: 36)
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("随机漫步")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.primary)
+                        .font(.system(size: launchTitleSize, weight: .semibold))
+                        .foregroundStyle(Color.galleryInk)
                     Text("去一个有记录的旧日")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: weekdaySize))
+                        .foregroundStyle(Color.galleryQuiet)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.galleryQuiet)
             }
             .padding(.horizontal, 20)
             .frame(minHeight: 62)
@@ -452,9 +472,16 @@ struct MemoryWalkThoughtReader: View {
             case .loaded(let text, let date):
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
+                        // 附件与文字同页呈现（设计稿：图片和文字指向同一条原记录；对抗审查必改4）
+                        ForEach(Array(event.attachmentThumbnails.enumerated()), id: \.offset) { _, thumb in
+                            MemoryGalleryThumbnail(data: thumb)
+                                .aspectRatio(1.88, contentMode: .fill)
+                                .frame(maxWidth: .infinity)
+                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        }
                         Text(date.formatted(.dateTime.year().month().day().weekday(.wide).hour().minute()))
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.galleryQuiet)
                         Text(text)
                             .font(.body)
                             .lineSpacing(6)
@@ -479,7 +506,7 @@ struct MemoryWalkThoughtReader: View {
                 message("暂时无法载入", retry: true)
             }
         }
-        .background(Color.holoToolBackground)
+        .background(Color.galleryPaper)
         .presentationDetents([.large])
         .task { load() }
     }
@@ -488,10 +515,10 @@ struct MemoryWalkThoughtReader: View {
         VStack(spacing: 14) {
             Image(systemName: "exclamationmark.circle")
                 .font(.title2)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color.galleryQuiet)
             Text(text)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Color.galleryQuiet)
             if retry {
                 Button("重试") { load() }
                     .buttonStyle(.bordered)
@@ -519,5 +546,27 @@ struct MemoryWalkThoughtReader: View {
         } catch {
             state = .failed
         }
+    }
+}
+
+
+/// 附件缩略图（阅读页本地版；UIKit/AppKit 双端）。
+private struct MemoryGalleryThumbnail: View {
+    let data: Data
+
+    var body: some View {
+        #if canImport(UIKit)
+        if let image = UIImage(data: data) {
+            Image(uiImage: image).resizable()
+        } else {
+            Color.galleryInset
+        }
+        #else
+        if let image = NSImage(data: data) {
+            Image(nsImage: image).resizable()
+        } else {
+            Color.galleryInset
+        }
+        #endif
     }
 }
