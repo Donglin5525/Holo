@@ -15,7 +15,7 @@ const PROMPT_VERSIONS = {
   replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
   analysis_prompt: 6,               // v6: 阅读契约放开竖线表格（≤4 列）；v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
   annual_review: 2,
-  thought_voice_summary: 4,                 // v4: 最小编辑，保留叙述视角、语气和独立信息
+  thought_voice_summary: 5,                 // v5: 隔离对话指令，顺畅的短句原样返回
   flexible_query_planner: 4,
   finance_action_parser: 1,
   task_action_parser: 1,

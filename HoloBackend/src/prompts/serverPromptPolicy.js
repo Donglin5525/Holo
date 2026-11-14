@@ -3,9 +3,9 @@ import { getPrompt } from "./promptRegistry.js";
 import defaultPrompts from "./defaultPrompts.json" with { type: "json" };
 
 /**
- * Persona Preamble —— Holo 所有 purpose 共享的人格前置层。
+ * Persona Preamble —— Holo 的通用人格前置层。
  * 真源：docs/_common/PROMPT_GUIDELINES.md 第 2 节。
- * 在每个 system prompt 前 prepend，统一人格底色与表达边界，
+ * 在通用任务的 system prompt 前 prepend，统一人格底色与表达边界，
  * 让各 purpose prompt 不必再各自重复"表达边界"块。
  * 改这段必须同步改 iOS 端 PromptManager.personaPreamble + 文档单一真源。
  */
@@ -108,7 +108,6 @@ const PROFILE_CHANNEL_PURPOSES = new Set([
   "insight",
   "health_insight_generation",
   "weekly_plan_generation",
-  "thought_voice_summary",
   "agent_loop",
   "personal_context_planning",
   "personal_context_request",
@@ -185,6 +184,18 @@ export function injectServerPrompt(purpose, messages, options = {}) {
   }
 
   const systemContent = renderPromptVariables(prompt.content, options.now);
+  // 口述整理的输出是用户自己的正文。旧客户端传来的系统指令和个人档案不参与编辑。
+  if (purpose === "thought_voice_summary") {
+    return {
+      promptType,
+      promptVersion: prompt.version,
+      messages: [
+        { role: "system", content: systemContent },
+        ...messages.filter((message) => message.role === "user"),
+      ],
+    };
+  }
+
   // Persona Preamble 统一 prepend：人格层在前、purpose 任务指令在后。
   // preamble 不含 {{变量}}，无需过 renderPromptVariables。
   let finalSystemContent = PERSONA_PREAMBLE
@@ -205,10 +216,7 @@ export function injectServerPrompt(purpose, messages, options = {}) {
   if (profileMessage) {
     finalMessages.push(profileMessage);
   }
-  // 旧客户端会附带自己的总结指令。口述整理由同一份服务端规则决定，保留输入语言。
-  finalMessages.push(...(purpose === "thought_voice_summary"
-    ? messages.filter((message) => message.role === "user")
-    : messages));
+  finalMessages.push(...messages);
 
   return {
     promptType,

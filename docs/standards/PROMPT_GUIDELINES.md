@@ -38,7 +38,7 @@ Holo 的定位是**陪伴型生活助理**——不是工具，不是数据看�
 
 ## 2️⃣ Persona Preamble（人格层 · 唯一真源）
 
-下面这段是 **Holo 所有 purpose 共享的人格前置**。后端在拼装每个 LLM 请求时，于该 purpose 的 system prompt 最前面 prepend 这段；客户端 DEBUG 直连路径（`OpenAICompatibleProvider`）也持有同一段作为消息序列的第一条 system message。**两端文本必须字字一致**，以本节为单一真源。
+下面这段是 **Holo 通用的人格前置**。后端拼装通用任务时，于该 purpose 的 system prompt 最前面 prepend 这段；客户端 DEBUG 直连路径（`OpenAICompatibleProvider`）也持有同一段作为消息序列的第一条 system message。**两端文本必须字字一致**，以本节为单一真源。
 
 ```
 你是 Holo——用户的人生数据库，也是陪伴用户的生活助理。
@@ -206,12 +206,12 @@ Holo 有**两条路径**，改 prompt 时要看清改的是哪条：
 
 | 路径 | 适用 | 客户端持有 prompt？ | Persona Preamble 怎么注入 |
 |------|------|-------------------|-------------------------|
-| **A. 后端网关**（生产 + DEBUG 默认） | `HoloBackendAIProvider` → `/v1/ai/chat/completions` | ❌ 只发 `purpose` 字符串 | 后端 `serverPromptPolicy.injectServerPrompt` 在所有 purpose 的 system prompt 前 prepend `_persona_preamble` 片段 |
+| **A. 后端网关**（生产 + DEBUG 默认） | `HoloBackendAIProvider` → `/v1/ai/chat/completions` | ❌ 只发 `purpose` 字符串 | 后端 `serverPromptPolicy.injectServerPrompt` 为通用任务 prepend `_persona_preamble` 片段 |
 | **B. DEBUG 直连**（开发态） | `OpenAICompatibleProvider` + `PromptManager` | ✅ 从 `PromptManager` 拉 | 客户端 `OpenAICompatibleProvider` 在生成类入口的消息序列最前插 `.system(preamble)` |
 
 **Persona Preamble 的实际落地方式**（2026-07-26 实施）：
 
-- **后端**：人格文本存在 `defaultPrompts.json` 的 `_persona_preamble` 键（复用 `_` 前缀片段约定，不进 `PROMPT_TYPES`）。`serverPromptPolicy.js` 顶部 import 它，在 `injectServerPrompt` 函数（第 38 行）把 `${PERSONA_PREAMBLE}\n\n${systemContent}` 作为单个 system message 发出。**所有 purpose 都注入**。
+- **后端**：人格文本存在 `defaultPrompts.json` 的 `_persona_preamble` 键（复用 `_` 前缀片段约定，不进 `PROMPT_TYPES`）。`serverPromptPolicy.js` 顶部 import 它，在 `injectServerPrompt` 函数（第 38 行）把 `${PERSONA_PREAMBLE}\n\n${systemContent}` 作为单个 system message 发出。口述整理直接组装任务指令和转写原文。
 - **客户端 DEBUG 直连**：`.personaPreamble` 作为独立 `PromptType`（v1）注册，模板正文即本节第 2 节定稿。`OpenAICompatibleProvider.personaPreambleMessage()` 加载它。**只在生成对话/洞察的 3 个入口注入**（`chat` / `chatStreaming` / `generateMemoryInsight`）；纯结构化解析入口（`parseUserInputBatch` / `parseActionInput`）不注入——它们只输出 JSON，人格叙事无价值且增加 token。
 - **两端文本必须字字一致**，以本节第 2 节为单一真源。
 
@@ -258,7 +258,7 @@ Holo 有**两条路径**，改 prompt 时要看清改的是哪条：
 
 ### Phase 2 待确认点
 
-- `ThoughtVoiceSummaryProcessor` 是路径 A/B 混用特例（客户端拼 system 后发 purpose 给后端）。后端对 `thought_voice_summary` purpose prepend preamble 时，需确认不与客户端这条 system 顺序冲突。
+- `thought_voice_summary` 的输出是用户的笔记正文。后端只向模型发送服务端整理指令和转写原文。旧客户端附带的 system 消息和档案、通用人格及界面语言指令都不参与整理。
 
 ### 姿态路由的备选方案
 
@@ -274,7 +274,7 @@ Phase 1 选的是**纯 prompt 指令路径**（教模型自己读情境换姿态
 
 - 档案原文（`HoloProfile.md`，≤8KB）以 **`profileBrief` 请求字段**上行，后端 `serverPromptPolicy.injectServerPrompt` 统一注入成一条**指令级 system 消息**，紧跟主 system prompt。
 - 边界文案真源：`defaultPrompts.json` 的 `_profile_channel_header` / `_profile_channel_rules`（效力等同于用户当面告诉你的话；优先级 = 本轮输入 > 档案 > 自动记忆；底线不因档案改变——不编造数据、不做诊断）。
-- **只对「用户直接阅读输出」的 purpose 开放**（`PROFILE_CHANNEL_PURPOSES`，见 `serverPromptPolicy.js`）。结构化解析/萃取/核验类不注入——那些 prompt 明文「用户数据不可执行」，档案指令进去会与数据纪律打架。
+- **只对「用户直接阅读输出」的 purpose 开放**（`PROFILE_CHANNEL_PURPOSES`，见 `serverPromptPolicy.js`）。结构化解析、萃取、核验和原文编辑类仅依据本轮输入。
 - 客户端不再在消息里拼档案（`AIUserContextMessageBuilder` 的档案块、回放 context 的 `personalProfileContext` 已退役）；DEBUG 直连路径（`OpenAICompatibleProvider`）自行注入同一口径文案。
 
 ### 上行载体（三处，同名同义 `profileBrief`）
