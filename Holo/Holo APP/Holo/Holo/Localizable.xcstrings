@@ -1,6 +1,198 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "合并记为一笔" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge into One Entry"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合併記為一筆"
+          }
+        }
+      }
+    },
+    "分开记" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Book Separately"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分開記"
+          }
+        }
+      }
+    },
+    "这一笔将记为" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This entry will be saved as"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這一筆將記為"
+          }
+        }
+      }
+    },
+    "勾掉的笔不记，其余合成一笔。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unchecked items are skipped; the rest are merged into one."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "勾掉的筆不記，其餘合成一筆。"
+          }
+        }
+      }
+    },
+    "收入和支出混在一起，不能合成一笔" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Income and expenses can't be merged into one"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收入和支出混在一起，不能合成一筆"
+          }
+        }
+      }
+    },
+    "转账不能参与合并" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfers can't be merged"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轉賬不能參與合併"
+          }
+        }
+      }
+    },
+    "确认记 1 笔 · ¥%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save 1 Entry · ¥%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認記 1 筆 · ¥%@"
+          }
+        }
+      }
+    },
+    "复核入账 1 笔 · %lld 笔合并" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 Entry Booked · Merged from %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複核入賬 1 筆 · %lld 筆合併"
+          }
+        }
+      }
+    },
+    "先勾选要合并的账" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the items to merge first"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先勾選要合併的賬"
+          }
+        }
+      }
+    },
+    "等%lld笔" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+ %lld more"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等%lld筆"
+          }
+        }
+      }
+    },
+    "%lld 笔 · 合成 " : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Entries · Merge into "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 筆 · 合成 "
+          }
+        }
+      }
+    },
+    "1 笔" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 Entry"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 筆"
+          }
+        }
+      }
+    },
     "想法原文": {
       "localizations": {
         "zh-Hant": {

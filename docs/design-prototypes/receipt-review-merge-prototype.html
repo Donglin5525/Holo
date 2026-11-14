@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-zcode-design>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>截图记账 · 多笔合并为一笔 · 交互原型 — Holo</title>
+<style>
+  :root{
+    --primary:#F46D38; --primary-dark:#EA580C; --primary-light:#FED7AA;
+    --success:#22C55E; --success-dark:#16A34A;
+    --error:#EF4444;
+    --bg:#F2F1EE; --card:#FFFFFF; --text:#333333; --text2:#939393; --text3:#B8B8B8;
+    --field:#F5F5F4; --divider:#F1F0EC;
+    --radius:14px; --radius-inner:10px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+  html,body{height:100%;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+    background:#E9E7E1; color:var(--text);
+  }
+
+  /* ========== 舞台（同 11-11 复核页原型：≤1750px 自动竖排，永不裁内容） ========== */
+  .stage{display:flex; min-height:100vh; align-items:stretch;}
+  .phone-wrap{
+    flex:0 0 auto; display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    padding:18px 10px 10px; gap:10px; width:434px; border-right:1px solid #DDD9D2;
+  }
+  .phone-wrap .phone{flex:0 0 auto;}
+  .board-title{font-size:13px; font-weight:800; letter-spacing:.2px; color:#55534E; flex:0 0 auto;}
+  .board-sub{font-size:11px; color:var(--text2); text-align:center; line-height:1.5; flex:0 0 auto;}
+  .notes{flex:1; min-width:0; overflow-y:auto; padding:26px 32px 80px; background:#F4F2ED;}
+  /* 宽度装不下「三画板+说明」时自动竖排：画板依次往下，说明文字完整铺开（不许裁内容） */
+  @media (max-width:1750px){
+    .stage{flex-direction:column;}
+    .phone-wrap{border-right:none; border-bottom:1px solid #DDD9D2; width:100%; padding:18px 10px 26px;}
+    .notes{overflow:visible; padding:26px min(8vw,64px) 80px;}
+  }
+
+  /* ========== 手机框 ========== */
+  .phone{
+    width:390px; height:844px; background:var(--bg); border-radius:48px; position:relative;
+    border:10px solid #1C1C1E; box-shadow:0 24px 60px rgba(0,0,0,.25); overflow:hidden;
+    display:flex; flex-direction:column; flex:0 0 auto;
+  }
+  .statusbar{
+    height:52px; flex:0 0 auto; display:flex; align-items:flex-end; justify-content:space-between;
+    padding:0 28px 6px; font-size:14px; font-weight:600; background:var(--bg);
+  }
+  .statusbar .icons{display:flex; gap:5px; align-items:center; color:var(--text);}
+  .statusbar .icons svg{width:17px;height:17px;}
+  .notch{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%);
+    width:118px; height:28px; background:#1C1C1E; border-radius:0 0 16px 16px; z-index:5;
+  }
+  .navbar{
+    height:44px; flex:0 0 auto; display:flex; align-items:center; justify-content:center;
+    position:relative; background:var(--bg);
+    font-size:16px; font-weight:700;
+  }
+  .navbar .back{
+    position:absolute; left:14px; width:30px; height:30px; border-radius:50%;
+    background:#E8E6E0; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  }
+  .navbar .back svg{width:15px; height:15px;}
+  .app-content{flex:1; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; position:relative;}
+  .app-content::-webkit-scrollbar{display:none;}
+
+  /* ========== 页面元素（同现行复核页） ========== */
+  .meta-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 18px 0; font-size:11.5px; color:var(--text2);
+  }
+  .page-warning{
+    margin:6px 18px 0; font-size:11.5px; color:var(--primary-dark); line-height:1.4;
+  }
+  .rcard{
+    margin:10px 18px 0; background:var(--card); border-radius:var(--radius);
+    padding:16px; box-shadow:0 1px 5px rgba(0,0,0,.04);
+  }
+
+  /* 金额 + 方向（分开记态的展开块用） */
+  .amount-row{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:14px;}
+  .amount-row .amt{display:flex; align-items:baseline; gap:3px; min-width:0;}
+  .amount-row .amt .cur{font-size:21px; font-weight:600;}
+  .amount-row .amt .val{
+    font-family:"SF Pro Rounded",-apple-system,sans-serif;
+    font-size:33px; font-weight:800; letter-spacing:-.5px; font-variant-numeric:tabular-nums;
+  }
+  .seg{
+    width:112px; height:32px; border-radius:999px; background:#E8E6E0; flex:0 0 auto;
+    display:flex; padding:3px; gap:2px;
+  }
+  .seg span{
+    flex:1; border-radius:999px; font-size:12.5px; font-weight:700; color:#8A8880;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .15s;
+  }
+  .seg span.on{background:#fff; color:var(--text); box-shadow:0 1px 4px rgba(0,0,0,.12);}
+  .face-note{margin-top:6px; font-size:10.5px; color:var(--text3); font-variant-numeric:tabular-nums;}
+
+  /* 名称 */
+  .name-field{
+    margin-top:12px; height:44px; border-radius:var(--radius-inner); background:var(--field);
+    display:flex; align-items:center; padding:0 13px; font-size:15px; color:var(--text);
+  }
+  .hr{height:1px; background:var(--divider); margin:14px 0 10px;}
+
+  /* 宫格 chips */
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .chip{
+    height:44px; border-radius:var(--radius-inner); background:var(--field);
+    display:flex; align-items:center; gap:6px; padding:0 11px; min-width:0; cursor:pointer;
+  }
+  .chip svg{width:13px;height:13px; color:var(--text2); flex:0 0 auto;}
+  .chip .k{font-size:11px; color:var(--text2); flex:0 0 auto;}
+  .chip .v{
+    font-size:13px; color:var(--text); font-weight:600; overflow:hidden;
+    text-overflow:ellipsis; white-space:nowrap; min-width:0;
+  }
+  .chip .chev{margin-left:auto; color:var(--text3); font-size:11px; flex:0 0 auto;}
+
+  /* 原图入口行 */
+  .evidence-entry{
+    margin:10px 18px 0; height:38px; border-radius:var(--radius-inner); background:var(--card);
+    display:flex; align-items:center; gap:9px; padding:0 13px; cursor:pointer;
+    box-shadow:0 1px 5px rgba(0,0,0,.04); font-size:13px; font-weight:600;
+  }
+  .evidence-entry svg{width:15px;height:15px; color:var(--text2);}
+  .evidence-entry .sub{font-size:10.5px; color:var(--text3); font-weight:400; margin-left:2px; overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
+  .evidence-entry .chev{margin-left:auto; color:var(--text3);}
+
+  /* 卡头汇总条（现行：笔数 + 合计大字，勾选实时联动） */
+  .sum-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding:4px 0 8px;
+  }
+  .sum-head .cnt{font-size:13px; font-weight:700; color:#6E6C66;}
+  .sum-head .cnt b{color:var(--primary-dark); font-weight:800;}
+  .sum-head .amt{
+    font-family:"SF Pro Rounded",-apple-system,sans-serif;
+    font-size:24px; font-weight:800; letter-spacing:-.3px; line-height:1.1;
+    font-variant-numeric:tabular-nums; color:var(--text);
+  }
+  .sum-head .amt .cur{font-size:15px; font-weight:700; margin-right:1px;}
+  .sum-head .amt.muted{color:var(--text3);}
+
+  /* 紧凑行（两行制） */
+  .item-row{
+    display:flex; align-items:center; gap:10px; padding:10px 0; cursor:pointer; min-width:0;
+  }
+  .check{
+    width:24px; height:24px; border-radius:50%; border:1.6px solid #D4D2CC; flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center; color:#fff; cursor:pointer;
+    transition:all .15s; margin-right:2px; align-self:center;
+  }
+  .check.on{background:var(--primary); border-color:var(--primary);}
+  .check svg{width:13px;height:13px; opacity:0;}
+  .check.on svg{opacity:1;}
+  .row-main{flex:1; min-width:0; display:flex; flex-direction:column; gap:4px;}
+  .row-l1{display:flex; align-items:baseline; justify-content:space-between; gap:10px; min-width:0;}
+  .row-name{
+    font-size:14px; font-weight:600; color:var(--text);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; flex:0 1 auto;
+  }
+  .row-amt{
+    font-size:15px; font-weight:700; font-variant-numeric:tabular-nums; flex:0 0 auto; letter-spacing:-.2px;
+  }
+  .row-l2{display:flex; align-items:center; gap:6px; min-width:0;}
+  .row-dir{
+    font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px; flex:0 0 auto;
+    background:rgba(244,109,56,.13); color:var(--primary-dark);
+  }
+  .row-dir.in{background:rgba(34,197,94,.14); color:var(--success-dark);}
+  .row-sub{
+    font-size:10.5px; color:var(--text3); overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; min-width:0; display:flex; align-items:center; gap:4px;
+  }
+  .row-chev{color:var(--text3); font-size:12px; flex:0 0 auto; transition:transform .2s; align-self:center;}
+  .item-row.excluded{opacity:.42;}
+  .row-divider{height:1px; background:var(--divider);}
+
+  /* 展开编辑块（分开记态） */
+  .expand-block{
+    overflow:hidden; max-height:0; transition:max-height .28s ease;
+    padding:0 0 2px 35px;
+  }
+  .expand-block.open{max-height:400px;}
+  .expand-inner{padding-top:4px;}
+
+  /* ★ 新增：模式切换行（清单卡底部：合并记为一笔 / 分开记） */
+  .mode-row{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    height:38px; margin-top:2px; border-top:1px solid var(--divider);
+    font-size:12.5px; font-weight:700; color:var(--primary-dark); cursor:pointer;
+    border-radius:0 0 var(--radius) var(--radius); user-select:none;
+  }
+  .mode-row:hover{background:#FFF7F2;}
+  .mode-row svg{width:14px; height:14px; flex:0 0 auto;}
+  .mode-row .ic-exit{display:none;}
+  .mode-row.exit .ic-exit{display:block;}
+  .mode-row.exit .ic-merge{display:none;}
+  .mode-row.exit{color:#8A8880;}
+  .mode-row.exit:hover{background:#F7F6F2;}
+  .mode-row.disabled{color:#C6C4BE; cursor:default; background:none;}
+  .merge-hint{
+    padding:0 0 9px; font-size:11px; color:var(--text2); text-align:center; line-height:1.4;
+  }
+  /* 合并态：行尾箭头隐藏（清单只做勾选池，细改都在下方「这一笔」卡）；
+     行副注（科目·账户）也收起——这些信息统一由「这一笔」卡承载，清单只回答「哪几笔、各多少钱」 */
+  .listcard.merged .row-chev{display:none;}
+  .listcard.merged .row-l2{display:none;}
+
+  /* ★ 新增：合并记录编辑卡（「这一笔」） */
+  .mcard{display:none;}
+  .mcard.show{display:block;}
+  .mc-head{display:flex; align-items:center; justify-content:space-between;}
+  .mc-l{display:flex; align-items:center; gap:8px; min-width:0;}
+  .dir-pill{
+    font-size:10.5px; font-weight:700; padding:2.5px 8px; border-radius:7px;
+    background:rgba(244,109,56,.13); color:var(--primary-dark);
+  }
+  .dir-pill.in{background:rgba(34,197,94,.14); color:var(--success-dark);}
+  .mc-head .t{font-size:13px; font-weight:700; color:#6E6C66;}
+  .mc-thumb{
+    width:44px; height:44px; border-radius:var(--radius-inner); overflow:hidden;
+    background:linear-gradient(160deg,#DFF5E3,#C9EBD2);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex:0 0 auto;
+  }
+  .mc-thumb svg{width:24px; height:24px;}
+  .mc-note{margin-top:12px; border-radius:var(--radius-inner); background:var(--field); padding:10px 12px 9px;}
+  .mc-note .k{font-size:10.5px; color:var(--text2); margin-bottom:4px;}
+  .mc-note .txt{
+    font-size:12px; color:var(--text); line-height:1.7; font-variant-numeric:tabular-nums;
+  }
+  .mc-note .txt.empty{color:var(--text3);}
+  .name-field.placeholder{color:var(--text3);}
+
+  /* 底部操作区 */
+  .action-dock{
+    flex:0 0 auto; background:rgba(252,251,248,.86); backdrop-filter:blur(18px);
+    padding:10px 18px 8px; border-top:.5px solid rgba(0,0,0,.05);
+  }
+  .btn-main{
+    height:48px; border-radius:var(--radius); background:var(--primary); color:#fff;
+    font-size:15.5px; font-weight:700; display:flex; align-items:center; justify-content:center;
+    letter-spacing:.2px; font-variant-numeric:tabular-nums; cursor:pointer;
+    transition:background .15s;
+  }
+  .btn-main:hover{background:var(--primary-dark);}
+  .btn-main.disabled{opacity:.4; cursor:default;}
+  .dock-note{font-size:10.5px; color:var(--text3); text-align:center; margin-top:6px;}
+  .dock-links{
+    display:flex; align-items:center; justify-content:center; gap:14px; margin-top:5px;
+    font-size:12.5px;
+  }
+  .dock-links .later{color:#8A8880; cursor:pointer;}
+  .dock-links .dot{color:var(--text3);}
+  .dock-links .del{color:var(--error); cursor:pointer;}
+  .homebar{
+    width:128px; height:5px; border-radius:999px; background:#1C1C1E; opacity:.85;
+    margin:7px auto 3px;
+  }
+
+  /* 原图弹层 */
+  .evidence-overlay{
+    position:absolute; inset:0; z-index:20; background:rgba(20,20,20,.45);
+    display:none; align-items:flex-end;
+  }
+  .evidence-overlay.show{display:flex;}
+  .evo-sheet{
+    width:100%; height:78%; background:#FCFBF8; border-radius:22px 22px 0 0;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .evo-head{
+    display:flex; align-items:center; justify-content:space-between; padding:16px 18px 10px;
+  }
+  .evo-head .t{font-size:16px; font-weight:800;}
+  .evo-head .x{
+    width:28px; height:28px; border-radius:50%; background:#EDEBE5;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; color:#6E6C66;
+  }
+  .evo-body{flex:1; overflow-y:auto; padding:0 18px;}
+  .evo-body .img{
+    width:100%; aspect-ratio:4/3; border-radius:var(--radius-inner);
+    background:linear-gradient(160deg,#DFF5E3,#C9EBD2);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .evo-body .img svg{width:64px; height:64px;}
+  .evo-foot{padding:12px 18px 26px; font-size:10.5px; color:var(--text3);}
+
+  /* 说明栏 */
+  .notes h1{font-size:19px; font-weight:800; margin-bottom:4px; letter-spacing:-.2px;}
+  .notes .date{font-size:11.5px; color:var(--text2); margin-bottom:18px;}
+  .notes h2{
+    font-size:13.5px; font-weight:800; margin:22px 0 8px; color:#4A4842;
+    display:flex; align-items:center; gap:7px;
+  }
+  .notes h2 .n{
+    width:19px; height:19px; border-radius:6px; background:var(--primary); color:#fff;
+    font-size:11px; display:flex; align-items:center; justify-content:center; flex:0 0 auto;
+  }
+  .notes p, .notes li{font-size:13px; line-height:1.75; color:#4A4842;}
+  .notes ul{padding-left:18px;}
+  .notes .idea{
+    background:#fff; border-radius:12px; padding:14px 16px; margin:6px 0 4px;
+    border-left:3px solid var(--primary); font-size:13.5px; line-height:1.8;
+  }
+  .notes .ask{
+    background:#FFF7F2; border-radius:12px; padding:13px 15px; margin:8px 0;
+    font-size:13px; line-height:1.7;
+  }
+  .notes .ask b{color:var(--primary-dark);}
+  .notes .ok{color:var(--success-dark); font-weight:700;}
+  .notes table{width:100%; border-collapse:collapse; margin:8px 0; background:#fff; border-radius:10px; overflow:hidden;}
+  .notes th, .notes td{font-size:12px; padding:7px 10px; text-align:left; line-height:1.5;}
+  .notes th{background:#EFEDE7; font-weight:700; color:#55534E;}
+  .notes td{color:#4A4842; border-top:1px solid #F1EFE9;}
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <!-- ═══════════ 画板① 分开记 · 现行 + 新入口（可交互） ═══════════ -->
+  <div class="phone-wrap">
+    <div class="board-title">① 分开记 · 现行 + 新入口</div>
+    <div class="board-sub">页面就是你 11-12 验收过的样子，只在清单卡底部加一行「合并记为一笔」<br>点圆圈剔除 · 点行展开细改（现行交互照旧） · 点底部新入口切到画板②的形态</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar">
+        <span>17:56</span>
+        <div class="icons">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 9V7a5 5 0 0 0-10 0v2H5v12h14V9h-2zm-8-2a3 3 0 0 1 6 0v2H9V7z"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 8l4-4 4 4H2zm6 0l4-4 4 4H8zm6 0l4-4 4 4h-8zM2 12l4-4 4 4H2zm6 0l4-4 4 4H8zm6 0l4-4 4 4h-8z" opacity=".9"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.67 20.75c-2.53 0-4.59-2.06-4.59-4.59s2.06-4.59 4.59-4.59 4.59 2.06 4.59 4.59-2.06 4.59-4.59 4.59zm0-7.43a2.84 2.84 0 1 0 0 5.68 2.84 2.84 0 0 0 0-5.68zM3 17.5c0-3.67 5.4-6.4 12-6.4 1.14 0 2.24.09 3.27.26l-.34 1.96A25.5 25.5 0 0 0 15 13.03c-5.6 0-9.98 2.15-9.98 4.47 0 .66.43 1.05.8 1.28l-1.1 1.66C3.53 19.9 3 18.83 3 17.5z"/></svg>
+        </div>
+      </div>
+      <div class="navbar">
+        <div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+        确认这几笔账
+      </div>
+      <div class="app-content">
+        <div class="meta-row"><span>识别于 今天 17:56</span></div>
+        <div class="page-warning" id="b1warn">勾掉不想记的，一次入账。</div>
+
+        <div class="evidence-entry" id="b1evrow" onclick="document.getElementById('b1evo').classList.add('show')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>查看原图核对</span><span class="sub">微信支付 · 3 笔支付推送</span>
+          <span class="chev">›</span>
+        </div>
+
+        <div class="rcard listcard" id="b1list" style="padding-top:6px;padding-bottom:0;">
+          <div class="sum-head">
+            <span class="cnt" id="b1cnt">3 笔待确认</span>
+            <span class="amt" id="b1amt"><span class="cur">¥</span>72.60</span>
+          </div>
+          <div class="row-divider"></div>
+
+          <!-- 行1 -->
+          <div class="item-row" id="b1row0" onclick="toggleExpand('b1',0)">
+            <div class="check on" onclick="event.stopPropagation();toggleCheck('b1',0,this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="row-main">
+              <div class="row-l1">
+                <span class="row-name">美团平台商户</span>
+                <span class="row-amt">¥23.80</span>
+              </div>
+              <div class="row-l2">
+                <span class="row-dir">支</span>
+                <span class="row-sub">餐饮 · 农业银行信用卡</span>
+              </div>
+            </div>
+            <span class="row-chev">›</span>
+          </div>
+          <div class="expand-block" id="b1blk0">
+            <div class="expand-inner">
+              <div class="amount-row">
+                <div class="amt"><span class="cur">¥</span><span class="val">23.80</span></div>
+                <div class="seg">
+                  <span class="on">支出</span><span>收入</span>
+                </div>
+              </div>
+              <div class="name-field">美团平台商户</div>
+              <div class="hr"></div>
+              <div class="grid2">
+                <div class="chip"><span class="k">科目</span><span class="v">餐饮</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">账户</span><span class="v">农业银行信用卡</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">项目</span><span class="v">不挂项目</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">日期</span><span class="v">11月14日</span><span class="chev">⌄</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="row-divider"></div>
+
+          <!-- 行2 -->
+          <div class="item-row" id="b1row1" onclick="toggleExpand('b1',1)">
+            <div class="check on" onclick="event.stopPropagation();toggleCheck('b1',1,this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="row-main">
+              <div class="row-l1">
+                <span class="row-name">美团平台商户</span>
+                <span class="row-amt">¥19.80</span>
+              </div>
+              <div class="row-l2">
+                <span class="row-dir">支</span>
+                <span class="row-sub">餐饮 · 农业银行信用卡</span>
+              </div>
+            </div>
+            <span class="row-chev">›</span>
+          </div>
+          <div class="expand-block" id="b1blk1">
+            <div class="expand-inner">
+              <div class="amount-row">
+                <div class="amt"><span class="cur">¥</span><span class="val">19.80</span></div>
+                <div class="seg">
+                  <span class="on">支出</span><span>收入</span>
+                </div>
+              </div>
+              <div class="name-field">美团平台商户</div>
+              <div class="hr"></div>
+              <div class="grid2">
+                <div class="chip"><span class="k">科目</span><span class="v">餐饮</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">账户</span><span class="v">农业银行信用卡</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">项目</span><span class="v">不挂项目</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">日期</span><span class="v">11月14日</span><span class="chev">⌄</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="row-divider"></div>
+
+          <!-- 行3 -->
+          <div class="item-row" id="b1row2" onclick="toggleExpand('b1',2)">
+            <div class="check on" onclick="event.stopPropagation();toggleCheck('b1',2,this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="row-main">
+              <div class="row-l1">
+                <span class="row-name">五代同糖</span>
+                <span class="row-amt">¥29.00</span>
+              </div>
+              <div class="row-l2">
+                <span class="row-dir">支</span>
+                <span class="row-sub">餐饮 · 农业银行信用卡</span>
+              </div>
+            </div>
+            <span class="row-chev">›</span>
+          </div>
+          <div class="expand-block" id="b1blk2">
+            <div class="expand-inner">
+              <div class="amount-row">
+                <div class="amt"><span class="cur">¥</span><span class="val">29.00</span></div>
+                <div class="seg">
+                  <span class="on">支出</span><span>收入</span>
+                </div>
+              </div>
+              <div class="name-field">五代同糖</div>
+              <div class="hr"></div>
+              <div class="grid2">
+                <div class="chip"><span class="k">科目</span><span class="v">餐饮</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">账户</span><span class="v">农业银行信用卡</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">项目</span><span class="v">不挂项目</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">日期</span><span class="v">11月14日</span><span class="chev">⌄</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ★ 新入口：合并记为一笔 -->
+          <div class="mode-row" id="b1mode" onclick="toggleMode('b1')">
+            <svg class="ic-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h4c4 0 6 3 6 7s2 7 6 7"/><path d="M3 19h4c1.6 0 2.9-.5 4-1.3"/><path d="M15.5 8.5L20 12l-4.5 3.5"/></svg>
+            <svg class="ic-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h9a4 4 0 0 1 0 8H8"/><path d="M11 5L8 8l3 3"/></svg>
+            <span id="b1modetext">合并记为一笔</span>
+          </div>
+        </div>
+
+        <!-- ★ 合并记录编辑卡（合并态才显示） -->
+        <div class="rcard mcard" id="b1mcard">
+          <div class="mc-head">
+            <div class="mc-l">
+              <span class="dir-pill">支</span>
+              <span class="t">这一笔将记为</span>
+            </div>
+            <div class="mc-thumb" onclick="document.getElementById('b1evo').classList.add('show')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#5BA86E" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            </div>
+          </div>
+          <div class="name-field" id="b1mname">五代同糖 等3笔</div>
+          <div class="mc-note">
+            <div class="k">备注</div>
+            <div class="txt" id="b1mlines">美团平台商户 ¥23.80；美团平台商户 ¥19.80；五代同糖 ¥29.00</div>
+          </div>
+          <div class="hr"></div>
+          <div class="grid2">
+            <div class="chip"><span class="k">科目</span><span class="v">餐饮</span><span class="chev">⌄</span></div>
+            <div class="chip"><span class="k">账户</span><span class="v">农业银行信用卡</span><span class="chev">⌄</span></div>
+            <div class="chip"><span class="k">项目</span><span class="v">不挂项目</span><span class="chev">⌄</span></div>
+            <div class="chip"><span class="k">日期</span><span class="v">11月14日</span><span class="chev">⌄</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-dock">
+        <div class="btn-main" id="b1btn">确认记 3 笔 · ¥72.60</div>
+
+        <div class="dock-links">
+          <span class="later">稍后处理</span><span class="dot">·</span><span class="del">删除草稿</span>
+        </div>
+        <div class="homebar"></div>
+      </div>
+
+      <div class="evidence-overlay" id="b1evo" onclick="if(event.target===this)this.classList.remove('show')">
+        <div class="evo-sheet">
+          <div class="evo-head">
+            <span class="t">凭证原图</span>
+            <div class="x" onclick="document.getElementById('b1evo').classList.remove('show')">✕</div>
+          </div>
+          <div class="evo-body">
+            <div class="img">
+              <svg viewBox="0 0 24 24" fill="#5BA86E"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM8 9h8v2H8V9zm0-3h5v2H8V6z"/></svg>
+            </div>
+          </div>
+          <div class="evo-foot">微信支付服务号 · 3 笔支付推送 · 仅在本机暂存</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 画板② 合并记为一笔 · 合并态（可交互） ═══════════ -->
+  <div class="phone-wrap">
+    <div class="board-title">② 合并记为一笔 <span style="color:var(--primary-dark)">可交互</span></div>
+    <div class="board-sub">点过「合并记为一笔」后的形态：清单变单行勾选池，下方长出「这一笔」编辑卡（右上角小图=原图）<br>勾选四联动：卡头合计 / 名称自动改写 / 备注明细 / 按钮金额 · 点「分开记」随时退回</div>
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="statusbar">
+        <span>17:56</span>
+        <div class="icons">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 9V7a5 5 0 0 0-10 0v2H5v12h14V9h-2zm-8-2a3 3 0 0 1 6 0v2H9V7z"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 8l4-4 4 4H2zm6 0l4-4 4 4H8zm6 0l4-4 4 4h-8zM2 12l4-4 4 4H2zm6 0l4-4 4 4H8zm6 0l4-4 4 4h-8z" opacity=".9"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.67 20.75c-2.53 0-4.59-2.06-4.59-4.59s2.06-4.59 4.59-4.59 4.59 2.06 4.59 4.59-2.06 4.59-4.59 4.59zm0-7.43a2.84 2.84 0 1 0 0 5.68 2.84 2.84 0 0 0 0-5.68zM3 17.5c0-3.67 5.4-6.4 12-6.4 1.14 0 2.24.09 3.27.26l-.34 1.96A25.5 25.5 0 0 0 15 13.03c-5.6 0-9.98 2.15-9.98 4.47 0 .66.43 1.05.8 1.28l-1.1 1.66C3.53 19.9 3 18.83 3 17.5z"/></svg>
+        </div>
+      </div>
+      <div class="navbar">
+        <div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+        确认这几笔账
+      </div>
+      <div class="app-content">
+        <div class="meta-row"><span>识别于 今天 17:56</span></div>
+        <div class="page-warning" id="b2warn">勾掉不想记的，一次入账。</div>
+
+        <div class="evidence-entry" id="b2evrow" onclick="document.getElementById('b2evo').classList.add('show')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          <span>查看原图核对</span><span class="sub">微信支付 · 3 笔支付推送</span>
+          <span class="chev">›</span>
+        </div>
+
+        <div class="rcard listcard" id="b2list" style="padding-top:6px;padding-bottom:0;">
+          <div class="sum-head">
+            <span class="cnt" id="b2cnt">3 笔待确认</span>
+            <span class="amt" id="b2amt"><span class="cur">¥</span>72.60</span>
+          </div>
+          <div class="row-divider"></div>
+
+          <div class="item-row" id="b2row0" onclick="toggleExpand('b2',0)">
+            <div class="check on" onclick="event.stopPropagation();toggleCheck('b2',0,this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="row-main">
+              <div class="row-l1">
+                <span class="row-name">美团平台商户</span>
+                <span class="row-amt">¥23.80</span>
+              </div>
+              <div class="row-l2">
+                <span class="row-dir">支</span>
+                <span class="row-sub">餐饮 · 农业银行信用卡</span>
+              </div>
+            </div>
+            <span class="row-chev">›</span>
+          </div>
+          <div class="expand-block" id="b2blk0">
+            <div class="expand-inner">
+              <div class="amount-row">
+                <div class="amt"><span class="cur">¥</span><span class="val">23.80</span></div>
+                <div class="seg"><span class="on">支出</span><span>收入</span></div>
+              </div>
+              <div class="name-field">美团平台商户</div>
+              <div class="hr"></div>
+              <div class="grid2">
+                <div class="chip"><span class="k">科目</span><span class="v">餐饮</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">账户</span><span class="v">农业银行信用卡</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">项目</span><span class="v">不挂项目</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">日期</span><span class="v">11月14日</span><span class="chev">⌄</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="row-divider"></div>
+
+          <div class="item-row" id="b2row1" onclick="toggleExpand('b2',1)">
+            <div class="check on" onclick="event.stopPropagation();toggleCheck('b2',1,this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="row-main">
+              <div class="row-l1">
+                <span class="row-name">美团平台商户</span>
+                <span class="row-amt">¥19.80</span>
+              </div>
+              <div class="row-l2">
+                <span class="row-dir">支</span>
+                <span class="row-sub">餐饮 · 农业银行信用卡</span>
+              </div>
+            </div>
+            <span class="row-chev">›</span>
+          </div>
+          <div class="expand-block" id="b2blk1">
+            <div class="expand-inner">
+              <div class="amount-row">
+                <div class="amt"><span class="cur">¥</span><span class="val">19.80</span></div>
+                <div class="seg"><span class="on">支出</span><span>收入</span></div>
+              </div>
+              <div class="name-field">美团平台商户</div>
+              <div class="hr"></div>
+              <div class="grid2">
+                <div class="chip"><span class="k">科目</span><span class="v">餐饮</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">账户</span><span class="v">农业银行信用卡</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">项目</span><span class="v">不挂项目</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">日期</span><span class="v">11月14日</span><span class="chev">⌄</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="row-divider"></div>
+
+          <div class="item-row" id="b2row2" onclick="toggleExpand('b2',2)">
+            <div class="check on" onclick="event.stopPropagation();toggleCheck('b2',2,this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="row-main">
+              <div class="row-l1">
+                <span class="row-name">五代同糖</span>
+                <span class="row-amt">¥29.00</span>
+              </div>
+              <div class="row-l2">
+                <span class="row-dir">支</span>
+                <span class="row-sub">餐饮 · 农业银行信用卡</span>
+              </div>
+            </div>
+            <span class="row-chev">›</span>
+          </div>
+          <div class="expand-block" id="b2blk2">
+            <div class="expand-inner">
+              <div class="amount-row">
+                <div class="amt"><span class="cur">¥</span><span class="val">29.00</span></div>
+                <div class="seg"><span class="on">支出</span><span>收入</span></div>
+              </div>
+              <div class="name-field">五代同糖</div>
+              <div class="hr"></div>
+              <div class="grid2">
+                <div class="chip"><span class="k">科目</span><span class="v">餐饮</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">账户</span><span class="v">农业银行信用卡</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">项目</span><span class="v">不挂项目</span><span class="chev">⌄</span></div>
+                <div class="chip"><span class="k">日期</span><span class="v">11月14日</span><span class="chev">⌄</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mode-row" id="b2mode" onclick="toggleMode('b2')">
+            <svg class="ic-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h4c4 0 6 3 6 7s2 7 6 7"/><path d="M3 19h4c1.6 0 2.9-.5 4-1.3"/><path d="M15.5 8.5L20 12l-4.5 3.5"/></svg>
+            <svg class="ic-exit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h9a4 4 0 0 1 0 8H8"/><path d="M11 5L8 8l3 3"/></svg>
+            <span id="b2modetext">合并记为一笔</span>
+          </div>
+        </div>
+
+        <div class="rcard mcard" id="b2mcard">
+          <div class="mc-head">
+            <div class="mc-l">
+              <span class="dir-pill">支</span>
+              <span class="t">这一笔将记为</span>
+            </div>
+            <div class="mc-thumb" onclick="document.getElementById('b2evo').classList.add('show')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#5BA86E" stroke-width="1.7" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+            </div>
+          </div>
+          <div class="name-field" id="b2mname">五代同糖 等3笔</div>
+          <div class="mc-note">
+            <div class="k">备注</div>
+            <div class="txt" id="b2mlines">美团平台商户 ¥23.80；美团平台商户 ¥19.80；五代同糖 ¥29.00</div>
+          </div>
+          <div class="hr"></div>
+          <div class="grid2">
+            <div class="chip"><span class="k">科目</span><span class="v">餐饮</span><span class="chev">⌄</span></div>
+            <div class="chip"><span class="k">账户</span><span class="v">农业银行信用卡</span><span class="chev">⌄</span></div>
+            <div class="chip"><span class="k">项目</span><span class="v">不挂项目</span><span class="chev">⌄</span></div>
+            <div class="chip"><span class="k">日期</span><span class="v">11月14日</span><span class="chev">⌄</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-dock">
+        <div class="btn-main" id="b2btn">确认记 3 笔 · ¥72.60</div>
+
+        <div class="dock-links">
+          <span class="later">稍后处理</span><span class="dot">·</span><span class="del">删除草稿</span>
+        </div>
+        <div class="homebar"></div>
+      </div>
+
+      <div class="evidence-overlay" id="b2evo" onclick="if(event.target===this)this.classList.remove('show')">
+        <div class="evo-sheet">
+          <div class="evo-head">
+            <span class="t">凭证原图</span>
+            <div class="x" onclick="document.getElementById('b2evo').classList.remove('show')">✕</div>
+          </div>
+          <div class="evo-body">
+            <div class="img">
+              <svg viewBox="0 0 24 24" fill="#5BA86E"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zM8 9h8v2H8V9zm0-3h5v2H8V6z"/></svg>
+            </div>
+          </div>
+          <div class="evo-foot">微信支付服务号 · 3 笔支付推送 · 仅在本机暂存</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 画板③ 边界 · 收支混排 ═══════════ -->
+  <div class="phone-wrap">
+    <div class="board-title">③ 边界 · 收支混排</div>
+    <div class="board-sub">3 笔支出 + 1 笔收入混在一起时：合并入口置灰并说明原因，不弹窗不折腾<br>转账/红包行同理不参与合并（转账不是消费）</div>
+    <div class="phone" style="height:760px;">
+      <div class="notch"></div>
+      <div class="statusbar">
+        <span>17:56</span>
+        <div class="icons">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 9V7a5 5 0 0 0-10 0v2H5v12h14V9h-2zm-8-2a3 3 0 0 1 6 0v2H9V7z"/></svg>
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 8l4-4 4 4H2zm6 0l4-4 4 4H8zm6 0l4-4 4 4h-8zM2 12l4-4 4 4H2zm6 0l4-4 4 4H8zm6 0l4-4 4 4h-8z" opacity=".9"/></svg>
+        </div>
+      </div>
+      <div class="navbar">
+        <div class="back"><svg viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></div>
+        确认这几笔账
+      </div>
+      <div class="app-content">
+        <div class="meta-row"><span>识别于 今天 17:56</span></div>
+        <div class="page-warning">勾掉不想记的，一次入账。</div>
+
+        <div class="rcard listcard" id="b3list" style="padding-top:6px;padding-bottom:0;">
+          <div class="sum-head">
+            <span class="cnt" id="b3cnt">4 笔待确认</span>
+            <span class="amt" id="b3amt" style="display:none;"><span class="cur">¥</span>0.00</span>
+          </div>
+          <div class="row-divider"></div>
+
+          <div class="item-row" id="b3row0" style="cursor:default;">
+            <div class="check on" onclick="event.stopPropagation();toggleCheck('b3',0,this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="row-main">
+              <div class="row-l1">
+                <span class="row-name">美团平台商户</span>
+                <span class="row-amt">¥23.80</span>
+              </div>
+              <div class="row-l2">
+                <span class="row-dir">支</span>
+                <span class="row-sub">餐饮 · 农业银行信用卡</span>
+              </div>
+            </div>
+          </div>
+          <div class="row-divider"></div>
+
+          <div class="item-row" id="b3row1" style="cursor:default;">
+            <div class="check on" onclick="event.stopPropagation();toggleCheck('b3',1,this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="row-main">
+              <div class="row-l1">
+                <span class="row-name">美团平台商户</span>
+                <span class="row-amt">¥19.80</span>
+              </div>
+              <div class="row-l2">
+                <span class="row-dir">支</span>
+                <span class="row-sub">餐饮 · 农业银行信用卡</span>
+              </div>
+            </div>
+          </div>
+          <div class="row-divider"></div>
+
+          <div class="item-row" id="b3row2" style="cursor:default;">
+            <div class="check on" onclick="event.stopPropagation();toggleCheck('b3',2,this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="row-main">
+              <div class="row-l1">
+                <span class="row-name">五代同糖</span>
+                <span class="row-amt">¥29.00</span>
+              </div>
+              <div class="row-l2">
+                <span class="row-dir">支</span>
+                <span class="row-sub">餐饮 · 农业银行信用卡</span>
+              </div>
+            </div>
+          </div>
+          <div class="row-divider"></div>
+
+          <div class="item-row" id="b3row3" style="cursor:default;">
+            <div class="check on" onclick="event.stopPropagation();toggleCheck('b3',3,this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+            </div>
+            <div class="row-main">
+              <div class="row-l1">
+                <span class="row-name">微信红包</span>
+                <span class="row-amt">¥8.00</span>
+              </div>
+              <div class="row-l2">
+                <span class="row-dir in">收</span>
+                <span class="row-sub">红包 · 微信零钱</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="merge-hint">收入和支出混在一起，不能合成一笔</div>
+          <div class="mode-row disabled">
+            <svg class="ic-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h4c4 0 6 3 6 7s2 7 6 7"/><path d="M3 19h4c1.6 0 2.9-.5 4-1.3"/><path d="M15.5 8.5L20 12l-4.5 3.5"/></svg>
+            <span>合并记为一笔</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="action-dock">
+        <div class="btn-main" id="b3btn">确认记 4 笔</div>
+        <div class="dock-note">收支混排时不给合计（加总无意义），与现行口径一致</div>
+        <div class="dock-links">
+          <span class="later">稍后处理</span><span class="dot">·</span><span class="del">删除草稿</span>
+        </div>
+        <div class="homebar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════ 说明栏 ═══════════ -->
+  <div class="notes">
+    <h1>截图记账 · 多笔合并为一笔</h1>
+    <div class="date">2026-11-14 · 已按拍板嵌入：名称=最大笔商家+等N笔 / 明细自动进备注 / 一期只做全勾合成一笔 / 随 1.1.9 · 原型即契约</div>
+
+    <div class="idea">
+      <b>一句话思路：</b>识别照旧一笔一笔认（AI 永远不替你合并金额），要不要把一张截图里的几笔合成一笔，是你在确认页上的主动选择。点「合并记为一笔」后，清单变成勾选池，下方长出「这一笔」编辑卡，勾选实时联动。
+    </div>
+
+    <h2><span class="n">1</span>画板就是你那张截图跑出来的真实场景</h2>
+    <ul>
+      <li>微信支付服务号 3 笔推送：美团 ¥23.80、美团 ¥19.80、五代同糖 ¥29.00，都是农行信用卡支付；</li>
+      <li>合并后 = <b>1 笔 ¥72.60 的支出</b>，名称「五代同糖 等3笔」，备注里留着三行明细，截图原件挂在这一笔上。</li>
+    </ul>
+
+    <h2><span class="n">2</span>交互怎么走（画板①②都能点着试）</h2>
+    <ul>
+      <li><b>分开记（现行）</b>：点圆圈剔除、点行展开细改、底部「确认记 3 笔 · ¥72.60」——和现在一模一样，零学习成本；</li>
+      <li><b>点「合并记为一笔」</b>：清单行收成单行（名称+金额+勾选；科目·账户这些细改集中到下方「这一笔」卡，行不再展开），卡头变「3 笔 · 合成 1 笔」，底部变「确认记 1 笔 · ¥72.60」；原图入口也从独立行并进「这一笔」卡右上角小图——要核对的焦点从「每笔」变成了「这一笔」，入口跟着走；</li>
+      <li><b>勾选四联动</b>：勾掉五代同糖 → 卡头合计变 ¥43.60、名称自动改写成「美团平台商户 等2笔」（规则=金额最大的勾选笔+等N笔）、备注明细同步删掉那行、按钮金额跟着变；</li>
+      <li><b>点「分开记」</b>随时退回，两个方向随便切，勾选状态不丢。</li>
+    </ul>
+
+    <h2><span class="n">3</span>合并后这一笔的字段怎么来（已拍板口径）</h2>
+    <table>
+      <tr><th>字段</th><th>规则</th><th>本例</th></tr>
+      <tr><td>金额</td><td>勾选笔实时合计</td><td>¥72.60</td></tr>
+      <tr><td>名称</td><td>金额最大那笔的商家 + 等 N 笔，可改</td><td>五代同糖 等3笔</td></tr>
+      <tr><td>科目</td><td>金额最大笔的科目候选，可改，落空进待分类</td><td>餐饮</td></tr>
+      <tr><td>账户</td><td>各笔渠道一致自动填；不一致默认第一笔，可改</td><td>农业银行信用卡</td></tr>
+      <tr><td>日期</td><td>最晚一笔；票面没日期回落截图当天</td><td>11月14日</td></tr>
+      <tr><td>备注</td><td>明细逐行自动预填，可改可清空</td><td>美团 ¥23.80；美团 ¥19.80；五代同糖 ¥29.00</td></tr>
+      <tr><td>截图原件</td><td>只挂这一笔（现状是每笔各复制一份，顺带修掉）</td><td>—</td></tr>
+      <tr><td>方向</td><td>跟随所选笔（同向才可合并），合并卡不做方向切换</td><td>支出</td></tr>
+    </table>
+
+    <h2><span class="n">4</span>边界（画板③）</h2>
+    <ul>
+      <li>收入和支出混在一起：合并入口<b>置灰 + 一行说明</b>，不弹窗不折腾（勾掉收入笔后入口自动恢复可用）；</li>
+      <li>转账/红包行不参与合并（转账不是消费，语义不同）；</li>
+      <li>勾到只剩 1 笔：合并态自动等价于单笔记账，无需特判。</li>
+    </ul>
+
+    <h2><span class="n">5</span>落到账本里是什么（通俗版）</h2>
+    <ul>
+      <li>账本里出现 <b>1 条记录</b>：¥72.60 支出 · 餐饮 · 农行信用卡；点开这条记录，能看到备注里的三行明细和那张微信支付截图原件；</li>
+      <li>同一张截图哪怕再识一次，也不会重复入账（防重指纹按合并后的这一笔记账）；</li>
+      <li>「分开记」路径一个字节不动；后端识别<b>零改动、免发版</b>，随 1.1.9。</li>
+    </ul>
+
+    <h2><span class="n">6</span>高度预算（390×844，可用约 627pt）</h2>
+    <table>
+      <tr><th>场景</th><th>内容高度</th><th>结论</th></tr>
+      <tr><td>分开记 · 3 笔全收起</td><td>约 300pt</td><td class="ok">✓ 余量大</td></tr>
+      <tr><td>合并态 · 3 笔（含「这一笔」卡）</td><td>约 610pt</td><td class="ok">✓ 一屏内</td></tr>
+      <tr><td>合并态 · 5 笔</td><td>约 730pt</td><td>轻滚约 100pt</td></tr>
+    </table>
+    <p>合并态比分开记多一张「这一笔」卡，靠两处收纳换回一屏：清单行收成单行（副注的科目·账户由「这一笔」卡统一承载）、原图入口并进卡右上角小图。5 笔起轻滚——合成一笔本来就是想把账记轻，这个代价可接受。</p>
+
+    <h2><span class="n">7</span>什么没动</h2>
+    <ul>
+      <li>后端识别：照旧逐笔认，「禁止 AI 把多笔算成一个金额」的红线原样保持——合并永远发生在你确认的那一下；</li>
+      <li>分开记全链路、幂等防重、科目学习、票根归档逻辑；</li>
+      <li>Holo 视觉语言：同色板、同圆角、同两行制行——新增的只有一行入口和一张「这一笔」卡。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  /* 数据：金额 / 名称 / 方向（0=支 1=收）/ 勾选态；b1 分开记、b2 起始合并态、b3 收支混排边界板 */
+  const B = {
+    b1:{amounts:[23.80,19.80,29.00], names:['美团平台商户','美团平台商户','五代同糖'], dirs:[0,0,0], checks:[true,true,true], merged:false},
+    b2:{amounts:[23.80,19.80,29.00], names:['美团平台商户','美团平台商户','五代同糖'], dirs:[0,0,0], checks:[true,true,true], merged:false},
+    b3:{amounts:[23.80,19.80,29.00,8.00], names:['美团平台商户','美团平台商户','五代同糖','微信红包'], dirs:[0,0,0,1], checks:[true,true,true,true], merged:false, locked:true}
+  };
+  const fmt = n => n.toFixed(2);
+  const included = p => B[p].checks.map((c,i)=>c?i:-1).filter(i=>i>=0);
+
+  function refresh(p){
+    const b = B[p], inc = included(p), cnt = inc.length;
+    const total = inc.reduce((s,i)=>s+b.amounts[i],0);
+    const uniform = cnt>0 && inc.every(i=>b.dirs[i]===b.dirs[inc[0]]);
+
+    const cntEl = document.getElementById(p+'cnt');
+    if(b.merged){ cntEl.innerHTML = cnt===0 ? '先勾选要合并的账' : cnt+' 笔 · 合成 <b>1 笔</b>'; }
+    else { cntEl.textContent = cnt+' 笔待确认'; }
+
+    const amtEl = document.getElementById(p+'amt');
+    if(uniform || cnt===0){
+      amtEl.style.display='';
+      amtEl.innerHTML = '<span class="cur">¥</span>'+fmt(total);
+      amtEl.classList.toggle('muted', cnt===0);
+    } else { amtEl.style.display='none'; }
+
+    const mcard = document.getElementById(p+'mcard');
+    if(mcard){
+      mcard.classList.toggle('show', b.merged);
+      if(b.merged){
+        const nameEl = document.getElementById(p+'mname');
+        if(cnt===0){ nameEl.textContent='先勾选要合并的账'; nameEl.classList.add('placeholder'); }
+        else{
+          let big=inc[0]; inc.forEach(i=>{ if(b.amounts[i]>b.amounts[big]) big=i; });
+          nameEl.textContent = b.names[big] + (cnt>1 ? (' 等'+cnt+'笔') : '');
+          nameEl.classList.remove('placeholder');
+        }
+        const lines = document.getElementById(p+'mlines');
+        if(lines){
+          if(inc.length){
+            lines.classList.remove('empty');
+            lines.textContent = inc.map(i=>b.names[i]+' ¥'+fmt(b.amounts[i])).join('；');
+          } else {
+            lines.classList.add('empty');
+            lines.textContent = '（无）';
+          }
+        }
+      }
+    }
+
+    const btn = document.getElementById(p+'btn');
+    if(cnt===0){ btn.textContent='先勾选要记的账'; btn.classList.add('disabled'); return; }
+    btn.classList.remove('disabled');
+    if(b.merged){
+      btn.textContent = cnt===1 ? ('确认记账 ¥'+fmt(total)) : ('确认记 1 笔 · ¥'+fmt(total));
+    } else {
+      btn.textContent = uniform
+        ? (cnt===1 ? ('确认记账 ¥'+fmt(total)) : ('确认记 '+cnt+' 笔 · ¥'+fmt(total)))
+        : ('确认记 '+cnt+' 笔');
+    }
+  }
+
+  function toggleCheck(p, i, el){
+    const b = B[p];
+    b.checks[i] = !b.checks[i];
+    el.classList.toggle('on', b.checks[i]);
+    const row = document.getElementById(p+'row'+i);
+    if(row) row.classList.toggle('excluded', !b.checks[i]);
+    refresh(p);
+  }
+
+  function toggleExpand(p, i){
+    if(B[p].merged) return;
+    const b = B[p];
+    for(let k=0;k<b.amounts.length;k++){
+      const blk = document.getElementById(p+'blk'+k);
+      if(!blk) continue;
+      const open = blk.classList.contains('open');
+      blk.classList.toggle('open', k===i ? !open : false);
+      const chev = document.querySelector('#'+p+'row'+k+' .row-chev');
+      if(chev) chev.style.transform = blk.classList.contains('open') ? 'rotate(90deg)' : 'none';
+    }
+  }
+
+  function applyMode(p){
+    const b = B[p];
+    document.getElementById(p+'list').classList.toggle('merged', b.merged);
+    const evrow = document.getElementById(p+'evrow');
+    if(evrow) evrow.style.display = b.merged ? 'none' : '';
+    const modeEl = document.getElementById(p+'mode');
+    if(modeEl){
+      modeEl.classList.toggle('exit', b.merged);
+      document.getElementById(p+'modetext').textContent = b.merged ? '分开记' : '合并记为一笔';
+    }
+    document.getElementById(p+'warn').textContent = b.merged ? '勾掉的笔不记，其余合成一笔。' : '勾掉不想记的，一次入账。';
+    for(let k=0;k<b.amounts.length;k++){
+      const blk = document.getElementById(p+'blk'+k);
+      if(blk) blk.classList.remove('open');
+      const chev = document.querySelector('#'+p+'row'+k+' .row-chev');
+      if(chev) chev.style.transform = 'none';
+    }
+    refresh(p);
+  }
+
+  function toggleMode(p){
+    const b = B[p];
+    if(b.locked) return;
+    b.merged = !b.merged;
+    applyMode(p);
+  }
+
+  /* 初始化：b2 直接切到合并态；全部画板刷一遍 */
+  try{
+    ['b1','b2','b3'].forEach(p=>{
+      const b = B[p];
+      b.checks.forEach((c,i)=>{
+        const row = document.getElementById(p+'row'+i);
+        if(row) row.classList.toggle('excluded', !c);
+      });
+      refresh(p);
+    });
+    toggleMode('b2');
+    document.title += ' · JS OK';
+  }catch(e){ /* 自检标记：标题无 · JS OK 即脚本有错 */ }
+</script>
+</body>
+</html>

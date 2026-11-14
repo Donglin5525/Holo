@@ -12,6 +12,10 @@
 //  「看/改分离」——单笔一张卡全字段一屏（四字段 2×2 宫格、日期 chip+弹层、原图 44×44 卡角小图）；
 //  多笔卡头汇总条（笔数+合计大字）+ 52pt 紧凑行手风琴展开细改（一次只展开一笔）。
 //  编辑区/紧凑行/弹层拆出独立文件；确认落账链路零改动。
+//  2026-11-14 多笔合并为一笔（原型即契约 receipt-review-merge-prototype.html）：
+//  多笔列表卡底部新增「合并记为一笔 / 分开记」切换；合并态清单收成单行勾选池，
+//  下方长出「这一笔」编辑卡（ReceiptReviewMergedCard），确认只落一条
+//  （规则内核在 ReceiptReviewMerge.swift）；分开记全链路行为不变。
 //
 
 import SwiftUI
@@ -45,6 +49,13 @@ struct ReceiptReviewDetailView: View {
     @State private var expandedItemID: String?
     @State private var showEvidenceSheet = false
     @State private var activeDateItemID: String?
+
+    // 2026-11-14 多笔合并为一笔：分开记/合并记切换、合并态「这一笔」卡状态
+    @State private var mergeMode = false
+    @State private var mergedState = ReceiptReviewMergedEditState()
+    @State private var mergedSuggestedCategoryTitle = ""
+    @State private var mergedSuggestedCategoryTask: Task<Void, Never>?
+    @State private var mergedDatePickerActive = false
 
     var body: some View {
         ScrollView {
@@ -110,6 +121,7 @@ struct ReceiptReviewDetailView: View {
             for index in itemStates.indices {
                 itemStates[index].suggestedCategoryTask?.cancel()
             }
+            mergedSuggestedCategoryTask?.cancel()
         }
     }
 
@@ -124,10 +136,11 @@ struct ReceiptReviewDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// 多笔：原图入口行（36pt）+ 一张列表卡（汇总条 + 紧凑行 + 展开块）
+    /// 多笔：原图入口行（36pt）+ 一张列表卡（汇总条 + 紧凑行 + 展开块 + 模式切换行）；
+    /// 合并态原图入口并进「这一笔」卡右上角小图，列表卡下方长出「这一笔」卡
     @ViewBuilder
     private var multiItemSection: some View {
-        if evidenceImage != nil {
+        if evidenceImage != nil, !mergeMode {
             evidenceEntryRow
         }
         card {
@@ -140,8 +153,75 @@ struct ReceiptReviewDetailView: View {
                         Divider().overlay(Color.holoDivider)
                     }
                 }
+                mergeModeRow
             }
         }
+        if mergeMode {
+            card {
+                ReceiptReviewMergedCard(
+                    state: $mergedState,
+                    directionIsIncome: includedStates.first?.typeIsIncome ?? false,
+                    includedCount: includedStates.count,
+                    suggestedCategoryTitle: mergedSuggestedCategoryTitle,
+                    evidenceImage: evidenceImage,
+                    accounts: accounts,
+                    projects: projects,
+                    expenseCategories: expenseCategories,
+                    incomeCategories: incomeCategories,
+                    onTapEvidence: { showEvidenceSheet = true },
+                    onTapDateChip: { mergedDatePickerActive = true }
+                )
+            }
+        }
+    }
+
+    /// 模式切换行（清单卡底部，上方细分隔线）：分开记=橙色「合并记为一笔」，
+    /// 合并态=灰色「分开记」；守卫拦下时置灰并在行上方给一行原因说明
+    private var mergeModeRow: some View {
+        VStack(spacing: 0) {
+            if let mergeGuardHint {
+                Text(mergeGuardHint.text)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 9)
+            }
+            Divider().overlay(Color.holoDivider)
+            Button {
+                guard mergeGuardHint == nil else { return }
+                withAnimation(HoloAnimation.standard) {
+                    mergeMode.toggle()
+                    // 切模式收起所有手风琴展开块；勾选状态保留
+                    expandedItemID = nil
+                    if mergeMode {
+                        ReceiptReviewMerge.sync(&mergedState, with: includedStates)
+                        refreshMergedCategorySuggestion()
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: mergeMode ? "arrow.turn.up.left" : "arrow.triangle.merge")
+                        .font(.system(size: 14))
+                    Text(mergeMode ? "分开记" : "合并记为一笔")
+                        .font(.footnote.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .foregroundStyle(modeRowTint)
+            }
+            .buttonStyle(.plain)
+            .disabled(mergeGuardHint != nil)
+        }
+    }
+
+    private var modeRowTint: Color {
+        if mergeGuardHint != nil { return Color.holoTextPlaceholder }
+        return mergeMode ? Color.holoTextSecondary : Color.holoPrimary
+    }
+
+    /// 合并入口守卫：勾选笔方向混排/含转账时不可进入合并态（规则在 ReceiptReviewMerge）
+    private var mergeGuardHint: ReceiptReviewMerge.GuardHint? {
+        ReceiptReviewMerge.guardHint(includedStates)
     }
 
     /// 原图入口行：点开弹层看大图，看完关掉页面位置不动（不再页面内嵌撑开一大块）
@@ -181,12 +261,17 @@ struct ReceiptReviewDetailView: View {
 
     /// 卡头汇总条（东林 11-11 拍板⑦：合计是关键信息，从 meta 小灰字升级至此）：
     /// 左「N 笔待确认」13pt semibold 次级色，右合计 24pt rounded 大字，勾选实时联动；
-    /// 全剔除时金额置灰。收支方向不一致时不给合计（加总无意义，沿用 uniformTotalText 口径）
+    /// 全剔除时金额置灰。收支方向不一致时不给合计（加总无意义，沿用 uniformTotalText 口径）。
+    /// 合并态计数变「N 笔 · 合成 1 笔」（"1 笔"主题橙加粗），0 笔时占位提示
     private var summaryHeader: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text("\(includedStates.count) 笔待确认")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
+            if mergeMode {
+                mergedCountTitle
+            } else {
+                Text("\(includedStates.count) 笔待确认")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
             if showsSummaryTotal {
                 HStack(alignment: .firstTextBaseline, spacing: 1) {
@@ -205,6 +290,23 @@ struct ReceiptReviewDetailView: View {
         .padding(.bottom, 8)
     }
 
+    /// 合并态卡头计数：「N 笔 · 合成 1 笔」，"1 笔"主题橙加粗；0 笔占位
+    @ViewBuilder
+    private var mergedCountTitle: some View {
+        if includedStates.isEmpty {
+            Text("先勾选要合并的账")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+        } else {
+            Text("\(includedStates.count) 笔 · 合成 ")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+            + Text("1 笔")
+                .font(.footnote.weight(.heavy))
+                .foregroundStyle(Color.holoPrimary)
+        }
+    }
+
     private var showsSummaryTotal: Bool {
         uniformTotalText != nil || includedStates.isEmpty
     }
@@ -214,7 +316,8 @@ struct ReceiptReviewDetailView: View {
         return ReceiptBookingCoordinator.formatAmount(Decimal(0))
     }
 
-    /// 单笔紧凑行 + 手风琴展开块（一次只展开一笔，展开块无头行/缩略图）
+    /// 单笔紧凑行 + 手风琴展开块（一次只展开一笔，展开块无头行/缩略图）；
+    /// 合并态收成单行勾选池（不展开），勾选变化联动「这一笔」卡默认值
     private func compactItemRow(for state: Binding<ReceiptReviewItemEditState>) -> some View {
         let itemID = state.wrappedValue.id
         return VStack(spacing: 0) {
@@ -225,6 +328,7 @@ struct ReceiptReviewDetailView: View {
                 expenseCategories: expenseCategories,
                 incomeCategories: incomeCategories,
                 isExpanded: expandedItemID == itemID,
+                mergeMode: mergeMode,
                 onToggleIncluded: {
                     withAnimation(HoloAnimation.standard) {
                         state.wrappedValue.included.toggle()
@@ -233,10 +337,16 @@ struct ReceiptReviewDetailView: View {
                             expandedItemID = nil
                         }
                     }
+                    if mergeMode {
+                        // 勾选四联动：用户没改过的名称/备注/账户/日期跟随勾选重算
+                        ReceiptReviewMerge.sync(&mergedState, with: includedStates)
+                        refreshMergedCategorySuggestion()
+                    }
                 },
                 onToggleExpanded: {
-                    // 剔除行不展开（无编辑内容可改，恢复勾选后再展开）
-                    guard state.wrappedValue.included else { return }
+                    // 剔除行不展开（无编辑内容可改，恢复勾选后再展开）；
+                    // 合并态清单只做勾选池，细改集中在「这一笔」卡
+                    guard !mergeMode, state.wrappedValue.included else { return }
                     withAnimation(HoloAnimation.standard) {
                         expandedItemID = expandedItemID == itemID ? nil : itemID
                     }
@@ -274,15 +384,30 @@ struct ReceiptReviewDetailView: View {
         )
     }
 
-    /// 日期弹层锚定：itemKey 锚到对应笔的 date（弹层内改即改这笔）
+    /// 日期弹层锚定：itemKey 锚到对应笔的 date（弹层内改即改这笔）；
+    /// 合并态锚到「这一笔」卡的合并日期（改过即视为手动指定，不再随勾选联动）
     private var dateSheetPresentation: Binding<Bool> {
         Binding(
-            get: { activeDateItemID != nil },
-            set: { if !$0 { activeDateItemID = nil } }
+            get: { activeDateItemID != nil || mergedDatePickerActive },
+            set: {
+                if !$0 {
+                    activeDateItemID = nil
+                    mergedDatePickerActive = false
+                }
+            }
         )
     }
 
     private var activeDateBinding: Binding<Date>? {
+        if mergedDatePickerActive {
+            return Binding(
+                get: { mergedState.date },
+                set: {
+                    mergedState.date = $0
+                    mergedState.dateDirty = true
+                }
+            )
+        }
         guard let id = activeDateItemID,
               let index = itemStates.firstIndex(where: { $0.id == id }) else {
             return nil
@@ -325,14 +450,6 @@ struct ReceiptReviewDetailView: View {
                 .foregroundStyle(Color.white)
             }
             .disabled(!canCommit || isCommitting)
-
-            // 知情提示：默认开的自动归档必须让用户能预期照片会被保存（开关关时不显示）
-            if ReceiptBookingArchivePolicy.isAutoArchiveEnabled {
-                Text(String(localized: "确认后，凭证照片将自动归档为票根"))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity)
-            }
 
             // 低频操作收一行（2026-10-13 原型画板②：三按钮竖排≈250pt 吃掉小屏首屏）
             HStack(spacing: 22) {
@@ -393,16 +510,24 @@ struct ReceiptReviewDetailView: View {
         if count == 1 {
             return total.map { String(localized: "确认记账 ¥\($0)") } ?? String(localized: "确认记账")
         }
+        // 合并态：勾选再多笔也只落一条（方向已在入口守卫统一，total 必非空）
+        if mergeMode, let total {
+            return String(localized: "确认记 1 笔 · ¥\(total)")
+        }
         return total.map { String(localized: "确认记 \(count) 笔 · ¥\($0)") } ?? String(localized: "确认记 \(count) 笔")
     }
 
     private var canCommit: Bool {
         let included = includedStates
         guard !included.isEmpty else { return false }
-        return included.allSatisfy { state in
+        let amountsValid = included.allSatisfy { state in
             (ReceiptBookingCoordinator.decimal(fromText: state.amountText) ?? 0) > 0
-                && state.selectedAccountID != nil
         }
+        // 合并态：账户以「这一笔」卡为准（逐笔账户仅作默认值来源）
+        if mergeMode {
+            return amountsValid && mergedState.selectedAccountID != nil
+        }
+        return amountsValid && included.allSatisfy { $0.selectedAccountID != nil }
     }
 
     private func itemIndex(of itemKey: String) -> Int? {
@@ -420,7 +545,10 @@ struct ReceiptReviewDetailView: View {
         }
         switch reason {
         case .reviewMultipleTransactions:
-            return String(localized: "勾掉不想记的，一次入账。")
+            // 合并态换口径：勾掉的笔不记，其余合成一笔（原型画板②）
+            return mergeMode
+                ? String(localized: "勾掉的笔不记，其余合成一笔。")
+                : String(localized: "勾掉不想记的，一次入账。")
         case .reviewAmountLowConfidence, .reviewAmountConflict: return String(localized: "金额没认准，请核对。")
         case .reviewDirectionLowConfidence: return String(localized: "收支方向不确定，请选择。")
         case .reviewPaymentStatusLowConfidence: return String(localized: "支付状态不确定。")
@@ -546,11 +674,16 @@ struct ReceiptReviewDetailView: View {
         itemStates[index].suggestedCategoryTitle = ""
     }
 
-    // MARK: - 确认（走公共 CommandService，§25.2；逐笔提交整批完成）
+    // MARK: - 确认（走公共 CommandService，§25.2；逐笔提交整批完成；
+    //          合并态整单只落一条，2026-11-14 多笔合并为一笔）
 
     private func confirm() {
         let included = includedStates
         guard !included.isEmpty else { return }
+        if mergeMode {
+            confirmMerged(included)
+            return
+        }
         isCommitting = true
         errorMessage = nil
 
@@ -682,6 +815,122 @@ struct ReceiptReviewDetailView: View {
                 NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
             }
         }
+    }
+
+    /// 合并确认（2026-11-14 多笔合并为一笔）：勾选笔合成一条 ResolvedTransactionDraft，
+    /// 落库 1 条、票根归档与 billCreated 埋点各一次；重复确认同草稿由
+    /// 幂等键（sourceKey + mergedItemKey）拦截不重复入账
+    private func confirmMerged(_ included: [ReceiptReviewItemEditState]) {
+        guard let accountID = mergedState.selectedAccountID else { return }
+        isCommitting = true
+        errorMessage = nil
+
+        Task { @MainActor in
+            defer { isCommitting = false }
+            let repo = FinanceRepository.shared
+            let resolver = FinanceTransactionDraftResolver.shared
+
+            // 科目建议：用户没改选时用金额最大笔的候选链重解析（确认时重跑，不信任 chip 缓存标题）
+            var suggestedCategory: HoloFinanceCategory?
+            if mergedState.selectedCategoryID == nil,
+               let largest = ReceiptReviewMerge.largestAmountItem(included) {
+                suggestedCategory = try? await resolver.matchCategory(
+                    primaryCategory: nil,
+                    subCategory: nil,
+                    categoryCandidate: largest.item.categoryCandidate,
+                    normalizedCategoryCandidate: largest.item.normalizedCategoryCandidate,
+                    semanticCategoryHint: largest.item.semanticCategoryHint,
+                    note: largest.note.isEmpty ? (largest.item.note ?? draft.merchant ?? "") : largest.note,
+                    type: largest.typeIsIncome ? .income : .expense,
+                    transferKind: largest.item.transferKind
+                )
+            }
+
+            let draftToCommit = ReceiptReviewMerge.buildDraft(
+                included: included,
+                name: mergedState.nameText,
+                remark: mergedState.remarkText,
+                date: mergedState.date,
+                selectedCategoryID: mergedState.selectedCategoryID,
+                suggestedCategory: suggestedCategory,
+                accountID: accountID,
+                projectID: mergedState.selectedProjectID,
+                projectName: projects.first(where: { $0.id == mergedState.selectedProjectID })?.name,
+                sourceKey: draft.sourceKey,
+                paymentStatusOriginalText: draft.paymentStatusOriginalText,
+                repo: repo
+            )
+
+            var committedID: UUID?
+            var duplicateCount = 0
+            do {
+                let result = try FinanceTransactionCommandService.shared.commit(
+                    draft: draftToCommit, postNotification: false
+                )
+                if result.created {
+                    committedID = result.transactionID
+                    // 合并只落一条：埋点与票根归档都只跑一次（开关关时归档方法内直接返回）
+                    HoloProductAnalytics.shared.track(.billCreated, ["source": "receipt"])
+                    await FinanceTransactionCommandService.shared.archiveEvidenceIfNeeded(
+                        draftID: draft.id,
+                        transactionID: result.transactionID
+                    )
+                } else {
+                    duplicateCount = 1
+                }
+            } catch {
+                errorMessage = String(localized: "保存失败，请稍后重试。")
+                return
+            }
+
+            await ReceiptBookingResultStore.shared.append(result: .init(
+                id: UUID(), createdAt: Date(),
+                kind: .booked, reasonCode: nil,
+                summaryText: committedID != nil
+                    ? String(localized: "复核入账 1 笔 · \(included.count) 笔合并")
+                    : summaryText(for: 0, duplicates: 1),
+                transactionID: committedID,
+                additionalTransactionIDs: nil,
+                draftID: nil,
+                undoToken: committedID == nil ? nil : UUID(),
+                usedDefaultAccount: false, undoneAt: nil
+            ))
+            ReceiptBookingCoordinator.discardDraftFiles(draftID: draft.id)
+            onFinished()
+            dismiss()
+            // 弹层收起动画后再广播一次：账本/账户页监听 .financeDataDidChange 即时重算汇总
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 400_000_000)
+                NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+            }
+        }
+    }
+
+    /// 合并态科目建议：金额最大勾选笔走完整分类链（与逐笔 refreshCategorySuggestion 同口径）；
+    /// 勾选变化/切入合并态时刷新，用户改选后仅作 chip 兜底展示（确认时以改选为准）
+    private func refreshMergedCategorySuggestion() {
+        mergedSuggestedCategoryTask?.cancel()
+        guard let largest = ReceiptReviewMerge.largestAmountItem(includedStates) else {
+            mergedSuggestedCategoryTitle = ""
+            return
+        }
+        let type: TransactionType = largest.typeIsIncome ? .income : .expense
+        let task = Task { @MainActor in
+            let category = try? await FinanceTransactionDraftResolver.shared.matchCategory(
+                primaryCategory: nil,
+                subCategory: nil,
+                categoryCandidate: largest.item.categoryCandidate,
+                normalizedCategoryCandidate: largest.item.normalizedCategoryCandidate,
+                semanticCategoryHint: largest.item.semanticCategoryHint,
+                note: largest.note.isEmpty ? (largest.item.note ?? draft.merchant ?? "") : largest.note,
+                type: type,
+                transferKind: largest.item.transferKind
+            )
+            guard !Task.isCancelled else { return }
+            mergedSuggestedCategoryTitle = category?.name ?? String(localized: "待分类")
+        }
+        mergedSuggestedCategoryTask = task
+        mergedSuggestedCategoryTitle = ""
     }
 
     private func summaryText(for committedCount: Int, duplicates: Int) -> String {

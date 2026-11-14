@@ -436,6 +436,7 @@
 		F1AC00000000000000000FC4 /* FinanceProjectWalkthroughUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FC3 /* FinanceProjectWalkthroughUITests.swift */; };
 		F1AC00000000000000000FD2 /* BudgetRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FD1 /* BudgetRepositoryTests.swift */; };
 		F1AC09090000000000000001 /* ReceiptBookingKernelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC09090000000000000002 /* ReceiptBookingKernelTests.swift */; };
+		F1AC0AC30000000000000001 /* ReceiptReviewMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC0AC30000000000000002 /* ReceiptReviewMergeTests.swift */; };
 		F1AC090900000000000000A1 /* SuanTangFeiNiuCategoryReproTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090900000000000000A2 /* SuanTangFeiNiuCategoryReproTests.swift */; };
 		F1AC090900000000000000B1 /* MatchCategoryResilienceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090900000000000000B2 /* MatchCategoryResilienceTests.swift */; };
 		F1AC090A0000000000000001 /* ReceiptBookingForegroundPresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090A0000000000000002 /* ReceiptBookingForegroundPresenterTests.swift */; };
@@ -954,6 +955,7 @@
 		F1AC00000000000000000FC3 /* FinanceProjectWalkthroughUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinanceProjectWalkthroughUITests.swift; sourceTree = "<group>"; };
 		F1AC00000000000000000FD1 /* BudgetRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BudgetRepositoryTests.swift; sourceTree = "<group>"; };
 		F1AC09090000000000000002 /* ReceiptBookingKernelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptBookingKernelTests.swift; sourceTree = "<group>"; };
+		F1AC0AC30000000000000002 /* ReceiptReviewMergeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptReviewMergeTests.swift; sourceTree = "<group>"; };
 		F1AC090900000000000000A2 /* SuanTangFeiNiuCategoryReproTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuanTangFeiNiuCategoryReproTests.swift; sourceTree = "<group>"; };
 		F1AC090900000000000000B2 /* MatchCategoryResilienceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MatchCategoryResilienceTests.swift; sourceTree = "<group>"; };
 		F1AC090A0000000000000002 /* ReceiptBookingForegroundPresenterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptBookingForegroundPresenterTests.swift; sourceTree = "<group>"; };
@@ -1798,6 +1800,7 @@
 				2A7C5E9130B4D6F81C0A5562 /* Schedule */,
 				5B22F6D3C5A01928E4A1F702 /* HoloAgentTimeSemanticsTests.swift */,
 				F1AC09090000000000000002 /* ReceiptBookingKernelTests.swift */,
+				F1AC0AC30000000000000002 /* ReceiptReviewMergeTests.swift */,
 				F1AC090900000000000000A2 /* SuanTangFeiNiuCategoryReproTests.swift */,
 				F1AC090900000000000000B2 /* MatchCategoryResilienceTests.swift */,
 				F1AC090A0000000000000002 /* ReceiptBookingForegroundPresenterTests.swift */,
@@ -2390,6 +2393,7 @@
 				F1FA0A000000000000000001 /* VisionStandaloneTests.swift in Sources */,
 				F1FA0A000000000000000003 /* VisionExtractionContractTests.swift in Sources */,
 				F1AC09090000000000000001 /* ReceiptBookingKernelTests.swift in Sources */,
+				F1AC0AC30000000000000001 /* ReceiptReviewMergeTests.swift in Sources */,
 				F1AC090900000000000000A1 /* SuanTangFeiNiuCategoryReproTests.swift in Sources */,
 				F1AC0A0B0000000000000001 /* IntentRouterHabitRecordNoteTests.swift in Sources */,
 				F1AC090900000000000000B1 /* MatchCategoryResilienceTests.swift in Sources */,
