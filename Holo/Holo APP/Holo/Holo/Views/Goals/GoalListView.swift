@@ -2,7 +2,7 @@
 //  GoalListView.swift
 //  Holo
 //
-//  「我的目标」列表视图
+//  「我的目标」列表视图（2026-11-13 目标界面减法重设计 S1+S4，规格 §三）
 //
 
 import SwiftUI
@@ -30,9 +30,25 @@ struct GoalListView: View {
 
     /// 是否已完成首次加载（避免冷启动时空态先闪现、再被真实列表替换）
     @State private var hasLoadedOnce = false
-    /// 目标闭环：到期待回顾的目标集合（加载路径计算，行渲染只查集合）
+    /// 目标闭环：到期待回顾的目标集合（加载路径计算，卡片只查集合）
     @State private var reviewDueGoalIDs: Set<UUID> = []
-    @State private var factSummaries: [UUID: String] = [:]
+    /// 卡片行2/行3 的真实观测数据（加载路径算好，卡片只读）
+    @State private var cardFacts: [UUID: GoalListCardFacts] = [:]
+    /// 分段「进行中 | 已完成」（规格 A1）
+    @State private var selectedSegment = Segment.ongoing
+
+    /// 长按菜单「改期限」直开编辑 sheet（规格 A4）
+    @State private var editRoute: GoalEditRoute?
+
+    /// 长按菜单「删除」确认弹窗锚点（非空=待确认删除该目标）
+    @State private var deleteConfirmGoalID: UUID?
+
+    /// 长按菜单「再来一轮」的预填草案；nil=普通手动创建（规格 A4）
+    @State private var createPrefillDraft: GoalDraft?
+
+    private enum Segment {
+        case ongoing, completed
+    }
 
     init(
         onPlanGoal: @escaping () -> Void,
@@ -53,27 +69,24 @@ struct GoalListView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: HoloSpacing.md) {
-                if let resumableSession {
-                    resumeBanner(resumableSession)
-                }
-                Group {
-                if goalColumnCount > 1 {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: HoloSpacing.md), count: goalColumnCount), spacing: HoloSpacing.md) {
-                        goalCards
-                    }
+            Group {
+                if !hasLoadedOnce {
+                    // 首次加载前显示轻量占位，避免空态闪现
+                    ProgressView()
+                        .padding(.top, 80)
+                        .frame(maxWidth: .infinity)
+                } else if repository.goals.isEmpty {
+                    emptyState
                 } else {
-                    VStack(spacing: 0) {
-                        goalCards
-                    }
+                    listContent
                 }
-                }
-                .padding(.horizontal, GoalJourneyStyle.pageInset)
-                // 通览型页面对齐长廊 920 口径（通宵冲刺 D7）；iPhone 直通
-                .holoContentColumn(maxWidth: HoloAdaptiveLayout.galleryColumnMaxWidth, paintsBackground: false)
             }
+            // 通览型页面对齐长廊 920 口径（通宵冲刺 D7）；iPhone 直通
+            .holoContentColumn(maxWidth: HoloAdaptiveLayout.galleryColumnMaxWidth, paintsBackground: false)
         }
         .background(Color.holoToolBackground)
+        // 导航栏返回「<」与右上「+」统一模块行动色（规格 A12：全页只有一个橙，R4）
+        .tint(GoalJourneyStyle.action)
         .navigationTitle("我的目标")
         #if canImport(UIKit)
         .navigationBarTitleDisplayMode(.inline)
@@ -91,10 +104,11 @@ struct GoalListView: View {
                     Button {
                         onPlanGoal()
                     } label: {
-                        Label("让 HoloAI 规划", systemImage: "sparkles")
+                        Label("去 AI 对话里规划", systemImage: "sparkles")
                     }
+                    Divider()
                     Button {
-                        showManualCreate = true
+                        openManualCreate(prefill: nil)
                     } label: {
                         Label("手动创建", systemImage: "square.and.pencil")
                     }
@@ -109,13 +123,39 @@ struct GoalListView: View {
         }
         .sheet(isPresented: $showManualCreate) {
             GoalManualCreateSheet(
+                initialDraft: createPrefillDraft,
                 onSaved: { result in
                     showManualCreate = false
+                    createPrefillDraft = nil
                     // 创建后直接跳进详情
                     pendingGoalDetailId = result.goal.id
                 },
-                onCancel: { showManualCreate = false }
+                onCancel: {
+                    showManualCreate = false
+                    createPrefillDraft = nil
+                }
             )
+        }
+        .sheet(item: $editRoute) { route in
+            if let goal = repository.findGoal(by: route.id) {
+                GoalEditSheet(goal: goal) { }
+            }
+        }
+        .confirmationDialog("删除目标", isPresented: Binding(
+            get: { deleteConfirmGoalID != nil },
+            set: { if !$0 { deleteConfirmGoalID = nil } }
+        ), titleVisibility: .visible) {
+            Button("删除目标", role: .destructive) {
+                if let goalId = deleteConfirmGoalID {
+                    requestDelete(goalId)
+                }
+                deleteConfirmGoalID = nil
+            }
+            Button("取消", role: .cancel) {
+                deleteConfirmGoalID = nil
+            }
+        } message: {
+            Text("删除目标后，基于该目标创建的任务和习惯不会被删除，只会解除与该目标的关联。")
         }
         .navigationDestination(item: $selectedGoalRoute) { route in
             if let goal = repository.findGoal(by: route.id) {
@@ -146,6 +186,7 @@ struct GoalListView: View {
             await CoreDataStack.shared.waitUntilReady()
             #if DEBUG && targetEnvironment(simulator)
             GoalProgressUITestSeeder.seedIfNeeded()
+            GoalProgressUITestSeeder.seedListStatesIfNeeded()
             #endif
             repository.loadGoals()
             hasLoadedOnce = true
@@ -160,9 +201,9 @@ struct GoalListView: View {
         .onReceive(Publishers.Merge3(NotificationCenter.default.publisher(for: .habitDataDidChange),
                                     NotificationCenter.default.publisher(for: .financeDataDidChange),
                                     NotificationCenter.default.publisher(for: .todoDataDidChange))
-            .debounce(for: .milliseconds(100), scheduler: RunLoop.main)) { _ in refreshFactSummaries() }
+            .debounce(for: .milliseconds(100), scheduler: RunLoop.main)) { _ in refreshCardFacts() }
         .onReceive(NotificationCenter.default.publisher(for: .goalDataDidChange)) { _ in
-            refreshFactSummaries()
+            refreshCardFacts()
             refreshReviewDueState()
         }
         .onChange(of: goalWorkshopLaunch) { _, _ in
@@ -182,9 +223,333 @@ struct GoalListView: View {
         }
     }
 
+    // MARK: - 列表主体（恢复条 + 分段 + 卡片）
+
+    private var listContent: some View {
+        VStack(spacing: 0) {
+            if let resumableSession {
+                resumeBanner(resumableSession)
+                    .padding(.top, 4)
+            }
+            Picker(String(localized: "目标分段"), selection: $selectedSegment) {
+                Text("进行中").tag(Segment.ongoing)
+                Text("已完成").tag(Segment.completed)
+            }
+            .pickerStyle(.segmented)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+
+            Group {
+                if selectedSegment == .ongoing {
+                    ongoingSegment
+                } else {
+                    completedSegment
+                }
+            }
+            .padding(.top, 12)
+            .animation(.easeInOut(duration: 0.2), value: selectedSegment)
+        }
+        .padding(.horizontal, GoalJourneyStyle.pageInset)
+    }
+
+    @ViewBuilder
+    private var ongoingSegment: some View {
+        let goals = sortedOngoingGoals
+        if goals.isEmpty {
+            // 目标都在已完成段时，进行中段保持空白（无占位文案）
+            EmptyView()
+        } else {
+            cardContainer(goals)
+        }
+    }
+
+    /// 已完成段：completedAt 倒序、无进度条（卡片按状态自裁）；段空一行 13pt 次文字（规格 A3 v2）
+    @ViewBuilder
+    private var completedSegment: some View {
+        if completedGoals.isEmpty {
+            Text("还没有完成的目标")
+                .goalJourneyText(.metadata)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .padding(.vertical, 48)
+                .frame(maxWidth: .infinity)
+        } else {
+            cardContainer(completedGoals)
+        }
+    }
+
+    /// 卡片容器：单列间距 16；iPad 宽屏双列网格沿用现有分档（水平边距对齐 22）
+    @ViewBuilder
+    private func cardContainer(_ goals: [Goal]) -> some View {
+        if goalColumnCount > 1 {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: HoloSpacing.md), count: goalColumnCount),
+                      spacing: HoloSpacing.md) {
+                goalCards(goals)
+            }
+            .padding(.bottom, 40)
+        } else {
+            VStack(spacing: HoloSpacing.md) {
+                goalCards(goals)
+            }
+            .padding(.bottom, 40)
+        }
+    }
+
+    private func goalCards(_ goals: [Goal]) -> some View {
+        ForEach(goals, id: \.id) { goal in
+            Button {
+                selectedGoalRoute = GoalDetailRoute(id: goal.id)
+            } label: {
+                GoalListCard(
+                    goal: goal,
+                    isReviewDue: reviewDueGoalIDs.contains(goal.id),
+                    facts: cardFacts[goal.id] ?? GoalListCardFacts()
+                )
+            }
+            .buttonStyle(HoloPressStyle())
+            .contextMenu { cardContextMenu(for: goal) }
+        }
+    }
+
+    // MARK: - 卡片长按菜单（规格 A4-A6，S4）
+
+    /// 原生 contextMenu：进行中/已暂停=标记完成+暂停·继续+改期限+删除；
+    /// 已完成=再来一轮+删除。删除走确认弹窗（与详情页同文案）
+    @ViewBuilder
+    private func cardContextMenu(for goal: Goal) -> some View {
+        if goal.goalStatus == .completed {
+            Button {
+                createPrefillDraft = Self.newRoundDraft(from: goal)
+                showManualCreate = true
+            } label: {
+                Label("再来一轮", systemImage: "arrow.clockwise")
+            }
+            Divider()
+            deleteMenuButton(for: goal)
+        } else {
+            Button {
+                performStatusChange(goal, to: .completed)
+            } label: {
+                Label("标记完成", systemImage: "checkmark.circle")
+            }
+            Button {
+                performStatusChange(goal, to: goal.goalStatus == .paused ? .active : .paused)
+            } label: {
+                Label(goal.goalStatus == .paused ? "继续" : "暂停",
+                      systemImage: goal.goalStatus == .paused ? "play.circle" : "pause.circle")
+            }
+            Divider()
+            Button {
+                editRoute = GoalEditRoute(id: goal.id)
+            } label: {
+                Label("改期限", systemImage: "calendar")
+            }
+            Divider()
+            deleteMenuButton(for: goal)
+        }
+    }
+
+    private func deleteMenuButton(for goal: Goal) -> some View {
+        Button(role: .destructive) {
+            deleteConfirmGoalID = goal.id
+        } label: {
+            Label("删除", systemImage: "trash")
+        }
+    }
+
+    /// 状态流转走 GoalRepository（completedAt 由模型自动写），成功后重拉列表换段
+    private func performStatusChange(_ goal: Goal, to status: GoalStatus) {
+        do {
+            try repository.updateStatus(goal, status: status)
+            GoalNotificationService.broadcastGoalDataChange()
+        } catch {
+            operationError = error.localizedDescription
+        }
+    }
+
+    /// 「再来一轮」预填草案（规格 A4）：复制标题/类型/数字与来源链路；
+    /// 期限不继承（旧期限多半已过），落库时领域按标题重新认领
+    static func newRoundDraft(from goal: Goal) -> GoalDraft {
+        GoalDraft(
+            id: UUID().uuidString,
+            title: goal.title,
+            summary: nil,
+            domain: goal.goalDomain,
+            iconEmoji: goal.iconEmoji,
+            desiredOutcome: nil,
+            motivation: nil,
+            deadlineText: nil,
+            tasks: [],
+            habits: [],
+            missingInfoWarnings: [],
+            goalKind: goal.goalKindEnum,
+            metricSource: goal.metricSourceEnum,
+            metricUnit: goal.metricUnit,
+            metricTargetValue: goal.metricTargetValueDouble,
+            metricBaselineValue: goal.baselineValueDouble,
+            sourceHabitId: goal.sourceHabitId
+        )
+    }
+
+    // MARK: - 分组与排序（规格 A3；排序抽成纯函数供单测）
+
+    private var sortedOngoingGoals: [Goal] {
+        Self.sortedOngoingGoals(repository.goals, reviewDueIDs: reviewDueGoalIDs, now: Date())
+    }
+
+    private var completedGoals: [Goal] {
+        Self.sortedCompletedGoals(repository.goals)
+    }
+
+    /// 进行中段排序：待回顾置顶 → 有期限未到期近→远 → 无期限 → 已到期 → 已暂停垫底；
+    /// 桶内按创建时间倒序（新建目标置顶，配合创建成功自动 push 详情）
+    static func sortedOngoingGoals(_ goals: [Goal], reviewDueIDs: Set<UUID>, now: Date) -> [Goal] {
+        goals.filter { $0.goalStatus != .completed }.sorted { lhs, rhs in
+            let left = Self.ongoingRank(of: lhs, reviewDueIDs: reviewDueIDs, now: now)
+            let right = Self.ongoingRank(of: rhs, reviewDueIDs: reviewDueIDs, now: now)
+            if left != right { return left < right }
+            if left == 1, let lhsDeadline = lhs.deadline, let rhsDeadline = rhs.deadline,
+               lhsDeadline != rhsDeadline {
+                return lhsDeadline < rhsDeadline
+            }
+            return lhs.createdAt > rhs.createdAt
+        }
+    }
+
+    static func ongoingRank(of goal: Goal, reviewDueIDs: Set<UUID>, now: Date) -> Int {
+        if goal.goalStatus == .paused { return 4 }
+        if reviewDueIDs.contains(goal.id) { return 0 }
+        if let deadline = goal.deadline { return deadline >= now ? 1 : 3 }
+        return 2
+    }
+
+    /// 已完成段排序：completedAt 倒序（无值垫底）
+    static func sortedCompletedGoals(_ goals: [Goal]) -> [Goal] {
+        goals.filter { $0.goalStatus == .completed }
+            .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+    }
+
+    // MARK: - 空态（规格 A4：图标+标题+副文+主按钮+至多两条文字链接，垂直居中）
+
+    private var emptyState: some View {
+        VStack(spacing: 0) {
+            Image(systemName: "target")
+                .font(.system(size: 44))
+                .foregroundStyle(GoalJourneyStyle.action)
+                .padding(.bottom, 18)
+            Text("想先做成什么？")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Color.holoToolText)
+            Text("一句话，捋成能走的目标")
+                .goalJourneyText(.body)
+                .foregroundStyle(Color.holoToolTextSecondary)
+                .padding(.top, 8)
+            Button {
+                if workshopEnabled {
+                    goalWorkshopLaunch = .new(seedText: nil)
+                } else {
+                    onPlanGoal()
+                }
+            } label: {
+                Text(workshopEnabled ? String(localized: "和 Holo 一起想清楚") : String(localized: "让 HoloAI 规划"))
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.holoToolOnAction)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(GoalJourneyStyle.action, in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(HoloPressStyle())
+            .padding(.top, 28)
+            emptyStateLinks
+                .padding(.top, 18)
+        }
+        .padding(.horizontal, GoalJourneyStyle.pageInset)
+        .padding(.top, 80)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    /// 关闸去重（v2）：主按钮已是「让 HoloAI 规划」时链接只留「手动创建」
+    private var emptyStateLinks: some View {
+        HStack(spacing: 22) {
+            if workshopEnabled {
+                Button {
+                    onPlanGoal()
+                } label: {
+                    Text("或让 HoloAI 规划").underline()
+                }
+            }
+            Button {
+                openManualCreate(prefill: nil)
+            } label: {
+                Text("手动创建").underline()
+            }
+        }
+        .font(.system(size: 13))
+        .foregroundStyle(Color.holoToolTextSecondary)
+    }
+
+    // MARK: - 恢复条（规格 A0/A11：行动色 8% 底、圆角 12、继续胶囊 + 小 X 放弃）
+
+    private func resumeBanner(_ session: GoalWorkshopSessionV1) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                goalWorkshopLaunch = .resume(sessionID: session.id)
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("有一个想到一半的目标")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(GoalJourneyStyle.action)
+                    Text(session.originalText.isEmpty ? String(localized: "（未命名的心愿）") : session.originalText)
+                        .font(.system(size: 12))
+                        .foregroundStyle(Color.holoToolTextSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(HoloPressStyle())
+            Button {
+                goalWorkshopLaunch = .resume(sessionID: session.id)
+            } label: {
+                Text("继续")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.holoToolOnAction)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(GoalJourneyStyle.action, in: Capsule())
+            }
+            .buttonStyle(HoloPressStyle())
+            Button {
+                discardWorkshopSession(session)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.holoToolTextSecondary)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(HoloPressStyle())
+            .accessibilityLabel(Text(String(localized: "放弃这个想法")))
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 16)
+        .background(GoalJourneyStyle.action.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    /// 小 X=废弃共创会话，条随刷新消失（GoalWorkshopStore.discard）
+    private func discardWorkshopSession(_ session: GoalWorkshopSessionV1) {
+        do {
+            try GoalWorkshopStore.shared.discard(id: session.id)
+        } catch {
+            operationError = error.localizedDescription
+        }
+        refreshEntryState()
+    }
+
+    // MARK: - 状态刷新
+
     /// 入口显隐 + 恢复条状态统一刷新（onAppear/开关广播/共创页关闭三处共用）
     private func refreshEntryState() {
-        refreshFactSummaries()
+        refreshCardFacts()
         workshopEnabled = HoloAIFeatureFlags.goalWorkshopEnabled
         do {
             resumableSession = try GoalWorkshopStore.shared.listResumable().first
@@ -194,15 +559,19 @@ struct GoalListView: View {
         refreshReviewDueState()
     }
 
-    private func refreshFactSummaries() {
+    private func refreshCardFacts() {
         guard CoreDataStack.shared.isReady else { return }
         for goal in repository.goals where !goal.isDeleted && goal.deletedAt == nil {
-            do { factSummaries[goal.id] = GoalFactsPresentation.result(try GoalReviewCoordinator.shared.loadState(goal: goal).snapshot) }
-            catch { factSummaries[goal.id] = "进展暂时无法读取" }
+            do {
+                cardFacts[goal.id] = GoalListCard.facts(goal: goal, snapshot: try GoalReviewCoordinator.shared.loadState(goal: goal).snapshot)
+            } catch {
+                // 读不到真实观测：行2 整行不渲染，不放「正在读取进展」类占位（规格 A9）
+                cardFacts[goal.id] = GoalListCardFacts()
+            }
         }
     }
 
-    /// 待回顾集合在加载路径计算（不在行渲染里查库）；开关关闭时为空
+    /// 待回顾集合在加载路径计算（不在卡片渲染里查库）；开关关闭时为空
     private func refreshReviewDueState() {
         guard HoloAIFeatureFlags.goalClosedLoopEnabled, CoreDataStack.shared.isReady else {
             reviewDueGoalIDs = []
@@ -213,148 +582,6 @@ struct GoalListView: View {
             .filter { $0.goalStatus == .active }
             .map(\.id)
             .filter { GoalReviewCoordinator.isReviewDue(goalID: $0, in: context) })
-    }
-
-    /// 进行中共创会话恢复条：「进度已保存」在目标页的可见出口
-    private func resumeBanner(_ session: GoalWorkshopSessionV1) -> some View {
-        Button {
-            goalWorkshopLaunch = .resume(sessionID: session.id)
-        } label: {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "lightbulb")
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoPrimary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("有一个想到一半的目标")
-                        .holoText(.metadata)
-                        .foregroundColor(.holoToolText)
-                    Text(session.originalText.isEmpty ? "（未命名的心愿）" : session.originalText)
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoToolTextSecondary)
-                        .lineLimit(1)
-                }
-                Spacer()
-                Text("继续")
-                    .holoText(.metadata)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoPrimary)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11))
-                    .foregroundColor(.holoPrimary)
-            }
-            .padding(HoloSpacing.md)
-            .background(Color.holoPrimary.opacity(0.08), in: RoundedRectangle(cornerRadius: HoloRadius.md))
-        }
-        .buttonStyle(HoloPressStyle())
-        .holoHover()
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.top, HoloSpacing.md)
-    }
-
-    @ViewBuilder
-    private var goalCards: some View {
-        if !hasLoadedOnce {
-            // 首次加载前显示轻量占位，避免空态闪现
-            ProgressView()
-                .padding(.top, 80)
-        } else if repository.goals.isEmpty {
-            emptyState
-        } else {
-            ForEach(repository.goals, id: \.id) { goal in
-                Button {
-                    selectedGoalRoute = GoalDetailRoute(id: goal.id)
-                } label: {
-                    goalRow(goal)
-                }
-                .buttonStyle(HoloPressStyle())
-                .holoHover()
-            }
-        }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: HoloSpacing.lg) {
-            Image(systemName: "target")
-                .font(.system(size: 48))
-                .foregroundColor(.holoPrimary)
-            Text("还没有目标")
-                .holoText(.pageTitle)
-                .foregroundColor(.holoToolText)
-            Text("把模糊的想法变成能走的目标")
-                .holoText(.body)
-                .foregroundColor(.holoToolTextSecondary)
-                .multilineTextAlignment(.center)
-            if workshopEnabled {
-                Button {
-                    goalWorkshopLaunch = .new(seedText: nil)
-                } label: {
-                    Text("和 Holo 一起想清楚第一个目标")
-                        .holoText(.body)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .background(Color.holoPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                }
-                Button {
-                    onPlanGoal()
-                } label: {
-                    Text("或让 HoloAI 直接规划")
-                        .holoText(.metadata)
-                        .foregroundColor(.holoToolTextSecondary)
-                        .underline()
-                }
-            } else {
-                Button {
-                    onPlanGoal()
-                } label: {
-                    Text("让 HoloAI 规划目标")
-                        .holoText(.body)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .background(Color.holoPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                }
-            }
-            Button {
-                showManualCreate = true
-            } label: {
-                Text("或手动创建")
-                    .holoText(.metadata)
-                    .foregroundColor(.holoToolTextSecondary)
-                    .underline()
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 80)
-    }
-
-    private func goalRow(_ goal: Goal) -> some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(goal.title).goalJourneyText(.row).foregroundStyle(Color.holoToolText)
-                Text(factSummaries[goal.id] ?? "正在读取进展")
-                    .goalJourneyText(.detail).foregroundStyle(Color.holoToolTextSecondary)
-            }.frame(maxWidth: .infinity, alignment: .leading)
-            Text(goal.goalStatus == .active && reviewDueGoalIDs.contains(goal.id) ? "待回顾" : goal.goalStatus.displayName)
-                .goalJourneyText(.rowValue).foregroundStyle(Color.holoToolText)
-            Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Color.holoToolTextSecondary)
-        }.padding(.vertical, 13).frame(minHeight: 68).contentShape(Rectangle())
-            .overlay(alignment: .bottom) { Rectangle().fill(Color.holoToolBorder).frame(height: 0.5) }
-    }
-
-    /// 「128/300 km」；达标型显示「已减 2.5/5 kg」基线视角
-    private func metricRowText(goal: Goal, metric: GoalMetricProgress) -> String {
-        let unit = goal.metricUnit.map { " \($0)" } ?? ""
-        if goal.goalKindEnum == .target, let baseline = goal.baselineValueDouble {
-            let target = goal.metricTargetValueDouble ?? 0
-            let verb = target < baseline ? String(localized: "已减") : String(localized: "已增")
-            return "\(verb) \(GoalMetricEvaluator.formatValue(abs(baseline - metric.currentValue)))/\(GoalMetricEvaluator.formatValue(abs(target - baseline)))\(unit)"
-        }
-        return "\(GoalMetricEvaluator.formatValue(metric.currentValue))/\(GoalMetricEvaluator.formatValue(goal.metricTargetValueDouble ?? 0))\(unit)"
     }
 
     private func openPendingGoalIfNeeded() {
@@ -374,23 +601,44 @@ struct GoalListView: View {
             }
         }
     }
+
+    /// 打开手动创建 sheet；prefill 非空=「再来一轮」预填（长按菜单进入）
+    private func openManualCreate(prefill: GoalDraft?) {
+        createPrefillDraft = prefill
+        showManualCreate = true
+    }
 }
 
 private struct GoalDetailRoute: Identifiable, Hashable {
     let id: UUID
 }
 
-// MARK: - 手动创建目标 Sheet
+/// 长按菜单「改期限」的编辑 sheet 路由
+private struct GoalEditRoute: Identifiable {
+    let id: UUID
+}
+
+// MARK: - 手动创建目标 Sheet（HoloSheetScaffold 壳，表单见 GoalEditForm）
 
 struct GoalManualCreateSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var draft: GoalDraft = GoalEditForm.emptyDraft()
-    @State private var allowAIContext = true
+    @State private var draft: GoalDraft
     @State private var isSaving = false
     @State private var saveError: String?
 
     let onSaved: (GoalDraftSaveResult) -> Void
     let onCancel: () -> Void
+
+    /// 预填草案（列表「再来一轮」入口传入）；nil=空白创建
+    init(
+        initialDraft: GoalDraft? = nil,
+        onSaved: @escaping (GoalDraftSaveResult) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self._draft = State(initialValue: initialDraft ?? GoalEditForm.emptyDraft())
+        self.onSaved = onSaved
+        self.onCancel = onCancel
+    }
 
     private var canSave: Bool {
         !isSaving
@@ -398,122 +646,55 @@ struct GoalManualCreateSheet: View {
             && GoalEditForm.metricFieldsValid(in: draft)
     }
 
+    /// 禁用三态文案（规格 B0）：随输入即时消失
+    private var disabledHint: String? {
+        isSaving ? nil : GoalEditForm.disabledHint(for: draft)
+    }
+
     var body: some View {
-        NavigationStack {
+        HoloSheetScaffold(
+            title: String(localized: "新建目标"),
+            onClose: {
+                onCancel()
+                dismiss()
+            },
+            primaryTitle: isSaving ? String(localized: "保存中") : String(localized: "创建"),
+            primaryAction: { save() },
+            primaryDisabled: !canSave,
+            primaryHint: disabledHint,
+            primaryActionColor: GoalJourneyStyle.action,
+            footerBackground: GoalJourneyStyle.sheetFooterCream
+        ) {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: HoloSpacing.lg) {
-                    GoalEditForm(draft: $draft)
-                    aiContextCard
-                }
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.top, HoloSpacing.md)
-                .padding(.bottom, 100)
-            }
-            .background(Color.holoToolBackground)
-            .navigationTitle("创建目标")
-            #if canImport(UIKit)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
-                    Button {
-                        onCancel()
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.holoToolTextSecondary)
-                    }
-                }
-            }
-            .safeAreaInset(edge: .bottom) {
-                bottomActions
-            }
-            .alert("保存失败", isPresented: Binding(
-                get: { saveError != nil },
-                set: { if !$0 { saveError = nil } }
-            )) {
-                Button("知道了", role: .cancel) {}
-            } message: {
-                Text(saveError ?? "")
+                GoalEditForm(draft: $draft)
+                    .padding(.horizontal, HoloSpacing.page)
+                    .padding(.top, 4)
+                    .padding(.bottom, 20)
             }
         }
-    }
-
-    private var aiContextCard: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack(spacing: 8) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 24, height: 24)
-                Text("AI 上下文")
-                    .holoText(.body)
-                    .foregroundColor(.holoToolText)
-                Spacer()
-            }
-
-            CardDivider()
-
-            Toggle(isOn: $allowAIContext) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("允许 HoloAI 参考此目标")
-                        .holoText(.supporting)
-                        .foregroundColor(.holoToolText)
-                    Text("HoloAI 会基于此目标给出更精准的建议")
-                        .holoText(.metadata)
-                        .foregroundColor(.holoToolTextSecondary)
-                }
-            }
-            .tint(.holoPrimary)
+        .presentationDetents([.large])
+        .alert("保存失败", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(saveError ?? "")
         }
-        .padding(HoloSpacing.md)
-        .background(Color.holoToolSurface)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoToolBorder, lineWidth: 1)
-        )
-        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
-    }
-
-    private var bottomActions: some View {
-        Button {
-            save()
-        } label: {
-            HStack(spacing: 6) {
-                if isSaving {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                        .tint(.white)
-                }
-                Text(isSaving ? String(localized: "保存中") : String(localized: "创建目标"))
-                    .holoText(.body)
-                    .foregroundColor(.white)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
-            .background(canSave ? Color.holoPrimary : Color.gray.opacity(0.3))
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        }
-        .disabled(!canSave)
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.vertical, HoloSpacing.md)
-        .background(Color.holoToolSurface)
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: -2)
     }
 
     private func save() {
         isSaving = true
         DispatchQueue.main.async {
             do {
-                // source 在落库时直接标记为 manual（此前先建后补改的绕路写法已移除）
-                let result = try GoalRepository.shared.saveDraft(
-                    draft,
-                    allowAIContext: allowAIContext,
-                    source: "manual"
-                )
+                // source 在落库时直接标记为 manual（此前先建后补改的绕路写法已移除）；
+                // AI 上下文开关已移至目标设置面板，创建流默认允许；
+                // 领域按标题自动认领（S3b，规格 v3）：认领结果落库，认不出=其他
+                var draftToSave = draft
+                draftToSave.domain = GoalDomain.infer(from: draftToSave.title)
+                let result = try GoalRepository.shared.saveDraft(draftToSave, allowAIContext: true, source: "manual")
                 GoalNotificationService.broadcastGoalDataChange()
+                HapticManager.success()
                 onSaved(result)
                 dismiss()
             } catch {

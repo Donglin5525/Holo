@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html data-zcode-design lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Holo · 目标界面减法重设计 · 可交互原型</title>
+<style>
+/* ============ 画布层（工作台背景与控制栏，非 App 界面） ============ */
+:root{
+  /* Holo 目标模块 token（浅色）——来源 GoalJourneyStyle / holoTool* 色板 */
+  --bg-page:#FDFCF8; --surface:#FFFFFF; --inset:#F7F1EA;
+  --text:#333333; --text-2:#6E6E6E; --border:#E9E4DA;
+  --action:#C54A08; --on-action:#FFFFFF;
+  --placeholder:#9CA3AF; --warning:#93450A; --success:#166534; --danger:#C0392B;
+  /* 领域七色（深浅色同值） */
+  --d-learning:#3B82F6; --d-health:#22C55E; --d-career:#EAB308;
+  --d-finance:#F97316; --d-life:#8B5CF6; --d-project:#14B8A6; --d-other:#C084FC;
+  /* 工作台 */
+  --canvas:#141416; --rail:#1E1E21; --rail-line:#333336;
+  --rail-text:#E8E8EA; --rail-sub:#9A9AA0;
+  --seg-track:rgba(120,120,128,.14); --seg-thumb:#FFFFFF;
+}
+[data-theme="dark"]{
+  --bg-page:#0E0E10; --surface:#2C2C2E; --inset:#3A3A3C;
+  --text:#F5F5F5; --text-2:#A8A8A8; --border:#48484A;
+  --action:#FF8A5C; --on-action:#1C1C1E;
+  --placeholder:#6B7280; --warning:#FFBE6A; --success:#86EFAC; --danger:#FF6B5E;
+  --seg-track:rgba(118,118,128,.24); --seg-thumb:#5A5A5E;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html.instant *,html.instant *::before,html.instant *::after{transition:none!important;animation:none!important}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--rail-text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  display:flex; align-items:stretch; gap:28px; padding:28px; min-height:100vh;
+}
+.tnum{font-variant-numeric:tabular-nums}
+svg.ic{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* ---- 控制栏 ---- */
+.rail{width:272px;flex:none;background:var(--rail);border:1px solid var(--rail-line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:18px;align-self:flex-start;position:sticky;top:28px}
+.rail h1{font-size:15px;font-weight:700;letter-spacing:.2px}
+.rail .sub{font-size:12px;color:var(--rail-sub);line-height:1.6;margin-top:4px}
+.rgroup{display:flex;flex-direction:column;gap:8px}
+.rlabel{font-size:11px;font-weight:600;color:var(--rail-sub);letter-spacing:.5px}
+.rseg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:#141416;border:1px solid var(--rail-line);border-radius:9px;padding:2px;gap:2px}
+.rseg button{border:none;background:transparent;color:var(--rail-sub);font-size:12px;font-weight:500;padding:6px 4px;border-radius:7px;cursor:pointer;font-family:inherit}
+.rseg button[aria-pressed="true"]{background:var(--action);color:#fff}
+.rchips{display:flex;flex-wrap:wrap;gap:6px}
+.rchips button{border:1px solid var(--rail-line);background:transparent;color:var(--rail-sub);font-size:12px;padding:5px 10px;border-radius:999px;cursor:pointer;font-family:inherit}
+.rchips button[aria-pressed="true"]{border-color:var(--action);color:var(--action);font-weight:600}
+.rswitch{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--rail-text)}
+.rswitch .tog{width:36px;height:22px;border-radius:999px;background:#141416;border:1px solid var(--rail-line);position:relative;cursor:pointer;transition:background .2s}
+.rswitch .tog::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--rail-sub);transition:transform .2s,background .2s}
+.rswitch .tog[aria-pressed="true"]{background:var(--action);border-color:var(--action)}
+.rswitch .tog[aria-pressed="true"]::after{transform:translateX(14px);background:#fff}
+.rail .foot{font-size:11px;color:var(--rail-sub);line-height:1.7;border-top:1px solid var(--rail-line);padding-top:14px}
+
+/* ---- 舞台与手机框 ---- */
+.stage{flex:1;display:grid;place-items:start center;min-width:0}
+.phone{width:410px;flex:none;background:#3A3A3C;border-radius:54px;padding:10px;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.screen{width:390px;height:844px;background:var(--bg-page);border-radius:44px;overflow:hidden;position:relative;color:var(--text);transition:background .25s}
+
+/* ---- 状态栏 ---- */
+.sbar{position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 30px 10px;font-size:15px;font-weight:600;color:var(--text);z-index:40;pointer-events:none}
+.sbar .icons{display:flex;gap:6px;align-items:center}
+.island{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:122px;height:34px;border-radius:18px;background:#000;z-index:41}
+
+/* ---- 列表页 ---- */
+.navbar{position:absolute;top:54px;left:0;right:0;height:44px;display:flex;align-items:center;padding:0 6px;z-index:30;background:var(--bg-page);transition:background .25s}
+.navbar .back{width:44px;height:44px;display:grid;place-items:center;color:var(--action);border:none;background:transparent;cursor:pointer;font-size:20px}
+.navbar .ttl{position:absolute;left:0;right:0;text-align:center;font-size:17px;font-weight:600;pointer-events:none}
+.navbar .plus{margin-left:auto;width:44px;height:44px;display:grid;place-items:center;color:var(--action);border:none;background:transparent;cursor:pointer;font-size:20px;border-radius:12px}
+.navbar .plus:active{transform:scale(.86);opacity:.6}
+.body-scroll{position:absolute;top:98px;bottom:0;left:0;right:0;overflow-y:auto;overscroll-behavior:contain}
+.body-scroll::-webkit-scrollbar{width:0}
+
+/* 恢复条 */
+.resume{margin:4px 22px 0;padding:14px 16px;border-radius:12px;background:color-mix(in srgb,var(--action) 8%,transparent);display:none;align-items:center;gap:12px;cursor:pointer}
+.resume.show{display:flex}
+.resume .rt{flex:1;min-width:0}
+.resume .rt b{display:block;font-size:13px;font-weight:600;color:var(--action)}
+.resume .rt span{display:block;font-size:12px;color:var(--text-2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.resume .go{flex:none;border:none;background:var(--action);color:var(--on-action);font-size:13px;font-weight:600;padding:7px 14px;border-radius:999px;cursor:pointer;font-family:inherit}
+.resume .go:active{opacity:.82;transform:scale(.97)}
+.resume .rx{flex:none;width:28px;height:28px;margin-left:2px;border:none;background:transparent;color:var(--text-2);display:grid;place-items:center;font-size:11px;cursor:pointer;border-radius:50%}
+.resume .rx:active{opacity:.5}
+.resume .rx svg{font-size:12px}
+
+/* 分段控件（iOS 调型） */
+.seg{margin:8px 22px 4px;height:32px;display:grid;grid-template-columns:1fr 1fr;background:var(--seg-track);border-radius:9px;position:relative;padding:2px;cursor:pointer}
+.seg .thumb{position:absolute;top:2px;bottom:2px;left:2px;width:calc(50% - 4px);background:var(--seg-thumb);border-radius:7px;box-shadow:0 1px 3px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04);transition:transform .22s cubic-bezier(.32,.72,.35,1)}
+.seg button{position:relative;z-index:1;border:none;background:transparent;font-size:13px;font-weight:500;color:var(--text-2);cursor:pointer;font-family:inherit}
+.seg button[aria-pressed="true"]{color:var(--text);font-weight:600}
+.seg[data-sel="done"] .thumb{transform:translateX(100%)}
+
+/* 目标卡 */
+.cards{display:flex;flex-direction:column;gap:16px;padding:12px 22px 40px}
+.gcard{background:var(--surface);border:.5px solid var(--border);border-radius:16px;padding:16px;cursor:pointer;transition:transform .15s,opacity .15s}
+.gcard:active{transform:scale(.98);opacity:.82}
+.grow1{display:flex;align-items:center;gap:12px}
+.gicon{width:40px;height:40px;border-radius:12px;background:color-mix(in srgb,var(--dc) 12%,transparent);display:grid;place-items:center;font-size:20px;flex:none}
+.gtitle{flex:1;min-width:0;font-size:16px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill{flex:none;font-size:11px;font-weight:500;line-height:1;padding:5px 8px;border-radius:999px;white-space:nowrap}
+.pill-warn{color:var(--warning);background:color-mix(in srgb,var(--warning) 12%,transparent)}
+.pill-done{color:var(--success);background:color-mix(in srgb,var(--success) 12%,transparent)}
+.pill-pause{color:var(--text-2);background:color-mix(in srgb,var(--border) 50%,transparent)}
+.grow2{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:6px}
+.gval{font-size:15px;font-weight:500;white-space:nowrap}
+.gsub{font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gdue{font-size:12px;color:var(--text-2);white-space:nowrap;flex:none}
+.gdue.over{color:var(--warning);font-weight:600}
+.gbar{height:4px;border-radius:2px;background:var(--border);margin-top:10px;overflow:hidden}
+.gbar i{display:block;height:100%;border-radius:2px;background:var(--action)}
+
+/* 空态 */
+.empty{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:0 22px;text-align:center}
+.empty.show{display:flex}
+.empty .eic{font-size:44px;color:var(--action);display:grid;place-items:center;margin-bottom:18px}
+.empty .eic svg{width:44px;height:44px;stroke-width:1.5}
+.empty h2{font-size:20px;font-weight:600;color:var(--text)}
+.empty p{font-size:15px;color:var(--text-2);margin-top:8px}
+.empty .ebtn{margin-top:28px;width:100%;border:none;background:var(--action);color:var(--on-action);font-size:16px;font-weight:600;height:48px;border-radius:14px;cursor:pointer;font-family:inherit}
+.empty .ebtn:active{opacity:.82;transform:scale(.98)}
+.elinks{margin-top:18px;display:flex;gap:22px}
+.elinks a{font-size:13px;color:var(--text-2);text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+
+/* + 菜单 */
+.menu{position:absolute;top:100px;right:14px;width:214px;background:var(--surface);border:.5px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:5px;z-index:50;display:none}
+.menu.open{display:block}
+.cmenu{position:fixed;width:190px;background:var(--surface);border:.5px solid var(--border);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.16);padding:5px;z-index:65;display:none}
+.cmenu.open{display:block}
+.menu button,.cmenu button{width:100%;height:42px;border:none;background:transparent;display:flex;align-items:center;gap:11px;padding:0 12px;font-size:13px;color:var(--text);border-radius:9px;cursor:pointer;font-family:inherit}
+.menu button:hover,.cmenu button:hover{background:color-mix(in srgb,var(--text) 5%,transparent)}
+.menu button:active,.cmenu button:active{opacity:.6}
+.menu button svg,.cmenu button svg{font-size:16px;color:var(--text-2)}
+.menu hr,.cmenu hr{border:none;border-top:.5px solid var(--border);margin:5px 10px}
+.menu .danger,.cmenu .danger{color:var(--danger)}
+.menu .danger svg,.cmenu .danger svg{color:var(--danger)}
+.emptydone{display:none;text-align:center;font-size:13px;color:var(--text-2);padding:48px 0}
+.emptydone.show{display:block}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:96px;transform:translateX(-50%) translateY(8px);background:color-mix(in srgb,var(--text) 88%,transparent);color:var(--bg-page);font-size:13px;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .22s,transform .22s;z-index:60;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ---- 新建目标 sheet ---- */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.32);opacity:0;visibility:hidden;transition:opacity .3s;z-index:70}
+.scrim.show{opacity:1;visibility:visible}
+.sheet{position:absolute;left:0;right:0;bottom:0;top:64px;background:var(--bg-page);border-radius:20px 20px 0 0;z-index:71;display:flex;flex-direction:column;transform:translateY(102%);transition:transform .34s cubic-bezier(.32,.72,.35,1);box-shadow:0 -8px 30px rgba(0,0,0,.12)}
+.sheet.present{transform:translateY(0)}
+.grab{width:36px;height:5px;border-radius:2.5px;background:var(--border);margin:8px auto 2px;flex:none}
+.shead{height:52px;display:flex;align-items:center;padding:0 16px;flex:none;position:relative}
+.xbtn{width:32px;height:32px;border-radius:50%;background:color-mix(in srgb,var(--border) 45%,transparent);border:none;display:grid;place-items:center;color:var(--text-2);font-size:13px;cursor:pointer}
+.shead .stt{position:absolute;left:0;right:0;text-align:center;font-size:17px;font-weight:600;pointer-events:none}
+.sbody{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:4px 20px 20px}
+.sbody::-webkit-scrollbar{width:0}
+
+.big-in{width:100%;border:none;outline:none;background:transparent;font-family:inherit;font-size:25px;font-weight:500;letter-spacing:-.6px;color:var(--text);min-height:48px;line-height:1.3;padding:4px 0;resize:none;caret-color:var(--action)}
+.big-in::placeholder{color:var(--placeholder);font-weight:400}
+
+.tlabel{font-size:13px;color:var(--text-2);margin-top:20px}
+.tcards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}
+.tcard{border:.5px solid var(--border);background:var(--surface);border-radius:12px;min-height:60px;padding:10px 4px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;font-family:inherit}
+.tcard b{font-size:14px;font-weight:500;color:var(--text);white-space:nowrap}
+.tcard span{font-size:11px;color:var(--text-2);white-space:nowrap}
+.tcard[aria-pressed="true"]{border:1px solid var(--action);background:color-mix(in srgb,var(--action) 6%,transparent)}
+.tcard[aria-pressed="true"] b{color:var(--action);font-weight:600}
+
+/* P0 提示行：标题带数字 + 过程型 → 建议切量化类型 */
+.numhint{display:none;align-items:flex-start;gap:6px;margin-top:10px;font-size:13px;line-height:1.45;color:var(--action);cursor:pointer;border:none;background:transparent;padding:0;text-align:left;font-family:inherit;width:100%}
+.numhint.show{display:flex}
+.numhint svg{font-size:14px;margin-top:1px}
+.numhint:active{opacity:.6}
+/* 挂习惯时基线来源注释 */
+.srcnote{font-size:12px;color:var(--text-2);margin-top:6px;display:none}
+.srcnote.show{display:block}
+
+/* 条件字段区（量化类型） */
+.fx{display:grid;grid-template-rows:0fr;transition:grid-template-rows .26s cubic-bezier(.32,.72,.35,1);margin-top:0}
+.fx.open{grid-template-rows:1fr;margin-top:20px}
+.fxi{overflow:hidden;opacity:0;transform:translateY(-6px);transition:opacity .22s,transform .22s}
+.fx.open .fxi{opacity:1;transform:none}
+.fsub{transition:opacity .2s}
+.fsub.hide{display:none}
+.nrow{display:flex;align-items:center;gap:8px}
+.nfield{flex:1;display:flex;align-items:center;gap:8px;background:var(--surface);border:.5px solid var(--border);border-radius:12px;padding:12px;min-height:48px}
+.nlab{font-size:13px;color:var(--text-2);flex:none}
+.nfield input{border:none;outline:none;background:transparent;min-width:0;width:0;flex:1;font-family:inherit;font-size:17px;font-weight:500;color:var(--text);caret-color:var(--action)}
+.nfield input::placeholder{color:var(--placeholder);font-weight:400}
+#u-total,#u-goal{flex:none}
+#f-tgt .nfield:first-child{flex:1}
+#f-tgt .nfield.unit{flex:1.18}
+.nfield.unit input.num{flex:0 0 56px;text-align:right}
+.nfield .arrow{font-size:14px;color:var(--action);align-self:center;flex:none;margin:0 2px}
+.prow{min-height:44px;display:flex;align-items:center;justify-content:space-between;gap:10px;cursor:pointer;border:none;background:transparent;width:100%;font-family:inherit;padding:0}
+.prow:active{opacity:.6}
+.prow .plab{font-size:14px;color:var(--text-2)}
+.prow .pval{display:flex;align-items:center;gap:4px;font-size:15px;color:var(--text)}
+.prow .pval svg{font-size:12px;color:var(--text-2)}
+.datefield{display:flex;align-items:center;gap:5px;font-size:15px;color:var(--text);background:color-mix(in srgb,var(--border) 40%,transparent);border-radius:8px;padding:6px 9px}
+.datefield svg{font-size:13px;color:var(--text-2)}
+.qgap{height:14px}
+.warn{font-size:13px;line-height:1.5;color:var(--warning);margin-top:8px;display:none}
+.warn.show{display:block}
+
+/* 底栏 */
+.sfoot{flex:none;padding:10px 20px 30px;display:flex;flex-direction:column;align-items:center;gap:8px;background:color-mix(in srgb,var(--surface) 72%,transparent);backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6);border-top:.5px solid var(--border)}
+.why{font-size:13px;color:var(--text-2);min-height:16px;display:none}
+.why.show{display:block}
+.savebtn{width:100%;height:48px;border:none;border-radius:999px;background:var(--action);color:var(--on-action);font-size:17px;font-weight:600;cursor:pointer;font-family:inherit;transition:transform .15s,opacity .15s}
+.savebtn:active{transform:scale(.98);opacity:.85}
+.savebtn[disabled]{background:var(--inset);color:var(--text-2);cursor:default}
+.savebtn[disabled]:active{transform:none;opacity:1}
+.homebar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:140px;height:5px;border-radius:2.5px;background:color-mix(in srgb,var(--text) 30%,transparent);z-index:80;pointer-events:none}
+
+@media (max-width:860px){
+  body{flex-direction:column;padding:14px;gap:14px}
+  .rail{position:static;width:100%;flex-direction:row;flex-wrap:wrap;align-items:center;gap:12px;padding:14px}
+  .rail h1{width:100%}
+  .rail .sub,.rail .foot{display:none}
+  .rgroup{flex-direction:row;align-items:center}
+  .rail .rlabel{margin-right:2px}
+  .stage{place-items:center}
+}
+@media (max-width:430px){
+  .phone{width:100%;max-width:398px;border-radius:46px;padding:4px}
+  .screen{width:100%;height:820px;border-radius:42px}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-chev-d" viewBox="0 0 24 24"><path d="M6 9.5l6 6 6-6"/></symbol>
+    <symbol id="i-chev-l" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
+    <symbol id="i-arr-r" viewBox="0 0 24 24"><path d="M4 12h15M13.5 5.5L20 12l-6.5 6.5"/></symbol>
+    <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.2"/><circle cx="12" cy="12" r="3.4"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3.5c.65 3.75 2.75 5.85 6.5 6.5-3.75.65-5.85 2.75-6.5 6.5-.65-3.75-2.75-5.85-6.5-6.5 3.75-.65 5.85-2.75 6.5-6.5z"/><circle cx="18.6" cy="18.4" r="1" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9.5 17.5h5M10.3 20.5h3.4M12 3.5a5.6 5.6 0 0 1 3.3 10.1c-.55.42-.85 1-.95 1.65h-4.7c-.1-.65-.4-1.23-.95-1.65A5.6 5.6 0 0 1 12 3.5z"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M11 5H6.5a2 2 0 0 0-2 2v10.5a2 2 0 0 0 2 2H17a2 2 0 0 0 2-2V13M17.9 3.1a1.9 1.9 0 0 1 2.7 2.7l-6.2 6.2-3.6.9.9-3.6 6.2-6.2z"/></symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10.5h16M8.5 3.5v4M15.5 3.5v4"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V5.5a1.5 1.5 0 0 1 1.5-1.5h2a1.5 1.5 0 0 1 1.5 1.5V7M7 7l.8 11.6a2 2 0 0 0 2 1.9h4.4a2 2 0 0 0 2-1.9L17 7M10 11v6M14 11v6"/></symbol>
+    <symbol id="i-redo" viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5L4.5 8.7M4.5 4v5h5"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M5 4.5h6a2.5 2.5 0 0 1 2.5 2.5v12a2 2 0 0 0-2-2H5v-12zM19 4.5h-3.5A2.5 2.5 0 0 0 13 7v12a2 2 0 0 1 2-2h4v-12z"/></symbol>
+    <symbol id="i-run" viewBox="0 0 24 24"><path d="M3 12h3.5l2-5.5 3.5 11 2.5-7 1.5 1.5H21"/></symbol>
+    <symbol id="i-case" viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="11.5" rx="2.5"/><path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5M3.5 12.5h17"/></symbol>
+    <symbol id="i-pie" viewBox="0 0 24 24"><path d="M12 3.5A8.5 8.5 0 1 1 3.5 12H12V3.5z"/><path d="M12 3.5A8.5 8.5 0 0 1 20.5 12H12V3.5z" opacity=".45"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7A2.5 2.5 0 0 1 6 4.5h3.2a2 2 0 0 1 1.6.8l1 1.2H18A2.5 2.5 0 0 1 20.5 9v8A2.5 2.5 0 0 1 18 19.5H6A2.5 2.5 0 0 1 3.5 17V7z"/></symbol>
+  </defs>
+</svg>
+
+<!-- ================= 控制栏 ================= -->
+<aside class="rail">
+  <div>
+    <h1>目标界面减法重设计</h1>
+    <div class="sub">轻卡 + 单进度条 · 表单从「字段表格」改为「一句话开头」<br>token 与 GoalJourney 模块一致 · 390×844</div>
+  </div>
+  <div class="rgroup"><span class="rlabel">主题</span>
+    <div class="rseg" id="r-theme">
+      <button data-v="light" aria-pressed="true">浅色</button>
+      <button data-v="dark" aria-pressed="false">深色</button>
+    </div>
+  </div>
+  <div class="rgroup"><span class="rlabel">画面</span>
+    <div class="rseg" id="r-screen">
+      <button data-v="list" aria-pressed="true">目标列表</button>
+      <button data-v="form" aria-pressed="false">新建目标</button>
+    </div>
+  </div>
+  <div class="rgroup"><span class="rlabel">列表场景</span>
+    <div class="rchips" id="r-list">
+      <button data-v="active" aria-pressed="true">进行中</button>
+      <button data-v="done" aria-pressed="false">已完成</button>
+      <button data-v="empty" aria-pressed="false">空态</button>
+      <button data-v="worst" aria-pressed="false">最惨态</button>
+    </div>
+  </div>
+  <div class="rgroup"><span class="rlabel">表单场景</span>
+    <div class="rchips" id="r-ftype">
+      <button data-v="process" aria-pressed="true">过程型</button>
+      <button data-v="cum" aria-pressed="false">累积型</button>
+      <button data-v="tgt" aria-pressed="false">达标型</button>
+      <button data-v="blank" aria-pressed="false">禁用态</button>
+    </div>
+  </div>
+  <div class="rgroup"><span class="rlabel">演示开关</span>
+    <div class="rswitch">恢复条（未完成共创）<button class="tog" id="r-resume" aria-pressed="false" aria-label="恢复条"></button></div>
+    <div class="rswitch">口径错配提示（习惯源）<button class="tog" id="r-mismatch" aria-pressed="false" aria-label="口径错配"></button></div>
+  </div>
+  <div class="foot">画面内均可交互：分段切换、右上 + 菜单、类型三卡、数据来源循环、期限切换；桌面右键 / 触屏长按目标卡出操作菜单（标记完成／暂停／改期限／删除，已完成卡＝再来一轮）。领域已从表单移除，卡片颜色由 AI 按标题自动认领。URL 参数可直达任意状态（#s=form&amp;t=tgt&amp;theme=dark）。</div>
+</aside>
+
+<!-- ================= 舞台 ================= -->
+<div class="stage">
+<div class="phone">
+<div class="screen" id="screen">
+
+  <div class="island"></div>
+  <div class="sbar">
+    <span class="tnum">9:41</span>
+    <span class="icons">
+      <svg width="17" height="11" viewBox="0 0 17 11" fill="currentColor"><rect x="0" y="7" width="3" height="4" rx="1"/><rect x="4.5" y="4.5" width="3" height="6.5" rx="1"/><rect x="9" y="2" width="3" height="9" rx="1"/><rect x="13.5" y="0" width="3" height="11" rx="1"/></svg>
+      <svg width="16" height="11" viewBox="0 0 16 11" fill="currentColor"><path d="M8 9.2a1.4 1.4 0 1 0 0 2.8 1.4 1.4 0 0 0 0-2.8zM8 5.6c-1.7 0-3.2.7-4.3 1.8l1.3 1.3A4.4 4.4 0 0 1 8 7.4c1.2 0 2.2.5 3 1.3l1.3-1.3A6 6 0 0 0 8 5.6zM8 2C5.4 2 3 3 1.2 4.7l1.3 1.3A7.8 7.8 0 0 1 8 3.8c2.1 0 4 .8 5.5 2.2l1.3-1.3A9.4 9.4 0 0 0 8 2z" transform="translate(0 -2)"/></svg>
+      <svg width="25" height="12" viewBox="0 0 25 12"><rect x=".5" y=".5" width="21" height="11" rx="3" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="15" height="8" rx="1.6" fill="currentColor"/><rect x="22.8" y="3.5" width="1.8" height="5" rx="1" fill="currentColor" opacity=".4"/></svg>
+    </span>
+  </div>
+
+  <!-- ===== 列表页 ===== -->
+  <nav class="navbar">
+    <button class="back" aria-label="返回"><svg class="ic"><use href="#i-chev-l"/></svg></button>
+    <div class="ttl">我的目标</div>
+    <button class="plus" id="btn-plus" aria-label="新建"><svg class="ic"><use href="#i-plus"/></svg></button>
+  </nav>
+
+  <div class="menu" id="menu">
+    <button data-go="workshop"><svg class="ic"><use href="#i-bulb"/></svg>一起想清楚</button>
+    <button data-go="ai"><svg class="ic"><use href="#i-spark"/></svg>让 HoloAI 规划</button>
+    <hr>
+    <button data-go="manual"><svg class="ic"><use href="#i-pen"/></svg>手动创建</button>
+  </div>
+
+  <div class="body-scroll">
+    <div class="resume" id="resume">
+      <div class="rt"><b>有一个想到一半的目标</b><span>「想学英语，但一直没想好学到什么程度…」</span></div>
+      <button class="go">继续</button>
+      <button class="rx" id="btn-rx" aria-label="放弃这个想法"><svg class="ic"><use href="#i-x"/></svg></button>
+    </div>
+
+    <div class="seg" id="seg">
+      <div class="thumb"></div>
+      <button data-v="active" aria-pressed="true">进行中</button>
+      <button data-v="done" aria-pressed="false">已完成</button>
+    </div>
+
+    <!-- 进行中 -->
+    <div class="cards" data-g="active">
+      <article class="gcard" style="--dc:var(--d-learning)">
+        <div class="grow1">
+          <div class="gicon">📚</div>
+          <div class="gtitle">读完产品设计五本书</div>
+          <div class="pill pill-warn">待回顾</div>
+        </div>
+        <div class="grow2"><span class="gsub tnum">3 / 5 本已读</span><span class="gdue tnum">12/31 截止</span></div>
+      </article>
+      <article class="gcard" style="--dc:var(--d-health)">
+        <div class="grow1">
+          <div class="gicon">💪</div>
+          <div class="gtitle">今年跑满 300 公里</div>
+        </div>
+        <div class="grow2"><span class="gval tnum">128 / 300 km</span><span class="gdue tnum">12/31 截止</span></div>
+        <div class="gbar"><i style="width:43%"></i></div>
+      </article>
+      <article class="gcard" style="--dc:var(--d-finance)">
+        <div class="grow1">
+          <div class="gicon">💰</div>
+          <div class="gtitle">存款攒到 5 万</div>
+        </div>
+        <div class="grow2"><span class="gval tnum">已攒 1.28 / 5 万 ¥</span><span class="gdue tnum">6/30 截止</span></div>
+        <div class="gbar"><i style="width:26%"></i></div>
+      </article>
+      <article class="gcard" style="--dc:var(--d-life)">
+        <div class="grow1">
+          <div class="gicon">✨</div>
+          <div class="gtitle">睡前不刷手机</div>
+        </div>
+        <div class="grow2"><span class="gsub tnum">4 / 7 天已确认</span></div>
+      </article>
+      <article class="gcard" style="--dc:var(--d-project)">
+        <div class="grow1">
+          <div class="gicon">🚀</div>
+          <div class="gtitle">Holo 1.2 上线</div>
+          <div class="pill pill-pause">已暂停</div>
+        </div>
+      </article>
+    </div>
+
+    <!-- 已完成 -->
+    <div class="cards" data-g="done" hidden>
+      <article class="gcard" style="--dc:var(--d-health)">
+        <div class="grow1">
+          <div class="gicon">💪</div>
+          <div class="gtitle">跑完半程马拉松</div>
+          <div class="pill pill-done">已完成</div>
+        </div>
+        <div class="grow2"><span class="gval tnum">21.1 / 21.1 km</span><span class="gdue tnum">10/18 达成</span></div>
+      </article>
+      <article class="gcard" style="--dc:var(--d-learning)">
+        <div class="grow1">
+          <div class="gicon">📚</div>
+          <div class="gtitle">考完驾照科目二</div>
+          <div class="pill pill-done">已完成</div>
+        </div>
+        <div class="grow2"><span class="gsub tnum">12 / 12 次练习</span><span class="gdue tnum">9/2 达成</span></div>
+      </article>
+    </div>
+    <div class="emptydone" id="emptydone">还没有完成的目标</div>
+
+    <!-- 最惨态（已到期卡：警示胶囊 + 原期限变灰） -->
+    <div class="cards" data-g="worst" hidden>
+      <article class="gcard" style="--dc:var(--d-health)">
+        <div class="grow1">
+          <div class="gicon">💪</div>
+          <div class="gtitle">三个月把体重从 80kg 减到 70kg 并保持住</div>
+          <div class="pill pill-warn">已到期</div>
+        </div>
+        <div class="grow2"><span class="gval tnum">已减 2.5 / 10 kg</span><span class="gdue tnum">11/8 截止</span></div>
+        <div class="gbar"><i style="width:25%"></i></div>
+      </article>
+      <article class="gcard" style="--dc:var(--d-finance)">
+        <div class="grow1">
+          <div class="gicon">💰</div>
+          <div class="gtitle">还完装修贷款，把阳台的小书房装出来</div>
+          <div class="pill pill-warn">已到期</div>
+        </div>
+        <div class="grow2"><span class="gval tnum">38,000 / 120,000 ¥</span><span class="gdue tnum">10/31 截止</span></div>
+        <div class="gbar"><i style="width:32%"></i></div>
+      </article>
+    </div>
+  </div>
+
+  <!-- 卡片长按菜单（桌面右键 / 触屏长按目标卡） -->
+  <div class="cmenu" id="cmenu"></div>
+
+  <!-- 空态 -->
+  <div class="empty" id="empty">
+    <div class="eic"><svg class="ic"><use href="#i-target"/></svg></div>
+    <h2>想先做成什么？</h2>
+    <p>一句话，捋成能走的目标</p>
+    <button class="ebtn" data-go="workshop">和 Holo 一起想清楚</button>
+    <div class="elinks"><a data-go="ai">或让 HoloAI 规划</a><a data-go="manual">手动创建</a></div>
+  </div>
+
+  <!-- ===== 新建目标 sheet ===== -->
+  <div class="scrim" id="scrim"></div>
+  <section class="sheet" id="sheet" role="dialog" aria-label="新建目标">
+    <div class="grab"></div>
+    <div class="shead">
+      <button class="xbtn" id="btn-x" aria-label="关闭"><svg class="ic"><use href="#i-x"/></svg></button>
+      <div class="stt" id="stt">新建目标</div>
+    </div>
+    <div class="sbody">
+      <textarea class="big-in" id="big-in" rows="1" placeholder="想做成什么？" spellcheck="false"></textarea>
+
+      <div class="tlabel">这个目标怎么算进度？</div>
+      <div class="tcards" id="tcards">
+        <button class="tcard" data-v="process" aria-pressed="true"><b>过程型</b><span>靠行动推进</span></button>
+        <button class="tcard" data-v="cum" aria-pressed="false"><b>累积型</b><span>如 跑 300km</span></button>
+        <button class="tcard" data-v="tgt" aria-pressed="false"><b>达标型</b><span>如 减到 70kg</span></button>
+      </div>
+      <button class="numhint" id="numhint"></button>
+
+      <div class="fx" id="fx">
+        <div class="fxi">
+          <div class="fsub" id="f-cum">
+            <div class="nfield">
+              <span class="nlab">目标</span>
+              <input class="tnum" id="n-total" type="text" inputmode="decimal" placeholder="300" aria-label="目标总量">
+              <input class="unit" id="u-total" type="text" placeholder="km" maxlength="4" aria-label="单位" style="width:56px;text-align:right">
+            </div>
+          </div>
+          <div class="fsub hide" id="f-tgt">
+            <div class="nrow">
+              <div class="nfield"><span class="nlab">现在</span><input class="tnum" id="n-now" type="text" inputmode="decimal" placeholder="75" aria-label="当前值"></div>
+              <svg class="ic arrow"><use href="#i-arr-r"/></svg>
+              <div class="nfield unit"><span class="nlab">目标</span><input class="tnum" id="n-goal" type="text" inputmode="decimal" placeholder="70" aria-label="目标值"><input id="u-goal" type="text" placeholder="kg" maxlength="4" aria-label="单位" style="width:46px;text-align:right"></div>
+            </div>
+            <div class="srcnote" id="srcnote"></div>
+          </div>
+          <div class="qgap"></div>
+          <button class="prow" id="row-src">
+            <span class="plab">数据来源</span>
+            <span class="pval"><span id="v-src">手动记录</span><svg class="ic"><use href="#i-chev-d"/></svg></span>
+          </button>
+          <button class="prow fsub hide" id="row-habit">
+            <span class="plab">习惯</span>
+            <span class="pval"><span id="v-habit">体重 · 每天记最新值</span><svg class="ic"><use href="#i-chev-d"/></svg></span>
+          </button>
+          <div class="warn" id="warn"></div>
+        </div>
+      </div>
+
+      <div style="height:20px"></div>
+      <button class="prow" id="row-due">
+        <span class="plab">期限</span>
+        <span class="pval" id="v-due-w"><span style="color:var(--text-2)">不设</span></span>
+      </button>
+    </div>
+
+    <div class="sfoot">
+      <div class="why" id="why">起个名字就能创建</div>
+      <button class="savebtn" id="btn-save">创建</button>
+    </div>
+    <div class="homebar"></div>
+  </section>
+
+  <div class="homebar" id="homebar-list" style="z-index:35"></div>
+  <div class="toast" id="toast"></div>
+</div>
+</div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var S = {theme:"light", screen:"list", list:"active", ftype:"process", blank:false, edit:false,
+           resume:false, mismatch:false, mismatchRail:false, source:"manual", habit:"weight", due:false};
+
+  var $ = function(id){return document.getElementById(id)};
+  var el = {
+    screen:$("screen"), menu:$("menu"), resume:$("resume"), seg:$("seg"), empty:$("empty"),
+    sheet:$("sheet"), scrim:$("scrim"), big:$("big-in"), fx:$("fx"), fCum:$("f-cum"), fTgt:$("f-tgt"),
+    rowSrc:$("row-src"), rowHabit:$("row-habit"), vSrc:$("v-src"), vHabit:$("v-habit"), warn:$("warn"),
+    srcnote:$("srcnote"), numhint:$("numhint"), vDue:$("v-due-w"), why:$("why"), save:$("btn-save"),
+    stt:$("stt"), toast:$("toast"), cmenu:$("cmenu"), emptydone:$("emptydone"),
+    nTotal:$("n-total"), uTotal:$("u-total"), nNow:$("n-now"), nGoal:$("n-goal"), uGoal:$("u-goal"),
+    homebarList:$("homebar-list")
+  };
+
+  var SCENES = {
+    process:{title:"每天睡前读 20 分钟书"},
+    cum:{title:"今年跑满 300 公里", nums:{t:"300",u:"km"}, due:true},
+    tgt:{title:"把体重减到 70kg", nums:{now:"75",goal:"70",u:"kg"}, source:"habit"},
+    blank:{title:""},
+    edit:{title:"今年跑满 300 公里", nums:{t:"300",u:"km"}, due:true, edit:true}
+  };
+  var HABITS = {weight:"体重 · 每天记最新值", run:"跑步 · 每天累加"};
+  var HABIT_NAME = {weight:"体重", run:"跑步"};
+  var SRC_LABEL = {manual:"手动记录", habit:"数值习惯", ledger:"账本"};
+  var WARN = {
+    run:"「跑步」每天累加，达标只看最新一条 —— 换「体重」这类每天记最新值的习惯",
+    weight:"「体重」每天只记最新值，累计会把它逐日相加 —— 换「跑步」这类每天累加的习惯"
+  };
+
+  function ariaGroup(root, val){ [].forEach.call(root.querySelectorAll("button"), function(b){b.setAttribute("aria-pressed", String(b.dataset.v===val))}) }
+
+  /* 场景预设（控制栏切换/菜单打开表单时才重置内容；画面内切类型卡永不改写用户输入） */
+  function applyScene(key){
+    var sc = SCENES[key] || SCENES.process;
+    S.edit = !!sc.edit;
+    S.ftype = (key==="cum"||key==="tgt") ? key : (sc.edit ? "cum" : "process");
+    S.blank = (key==="blank");
+    el.big.value = sc.title;
+    el.nTotal.value=""; el.uTotal.value=""; el.nNow.value=""; el.nGoal.value=""; el.uGoal.value="";
+    if (sc.nums){
+      if (sc.nums.t!==undefined){ el.nTotal.value=sc.nums.t; el.uTotal.value=sc.nums.u; }
+      else { el.nNow.value=sc.nums.now; el.nGoal.value=sc.nums.goal; el.uGoal.value=sc.nums.u; }
+    }
+    S.source = sc.source || "manual";
+    S.habit = "weight";
+    S.due = !!sc.due;
+    S.mismatch = false;
+    if (S.mismatchRail){ S.source="habit"; S.habit=(S.ftype==="tgt")?"run":"weight"; S.mismatch=true; }
+    autosize();
+  }
+
+  /* 三态禁用原因 */
+  function whyText(){
+    if (el.big.value.trim()==="") return "起个名字就能创建";
+    if (S.ftype==="cum"){
+      if (el.nTotal.value.trim()==="") return "数字还没填完";
+      if (!(+el.nTotal.value>0)) return "目标量要大于 0";
+    }
+    if (S.ftype==="tgt"){
+      if (el.nNow.value.trim()===""||el.nGoal.value.trim()==="") return "数字还没填完";
+      if (+el.nNow.value===+el.nGoal.value) return "现在和目标不能一样";
+    }
+    return "";
+  }
+  function formValid(){ return whyText()===""; }
+
+  function warnText(){
+    if (S.source!=="habit") return "";
+    if (S.ftype==="tgt" && S.habit==="run") return WARN.run;
+    if (S.ftype==="cum" && S.habit==="weight") return WARN.weight;
+    return "";
+  }
+
+  /* P0 提示：过程型 + 标题带数字 → 建议切累积型（阈值 30：过滤「读 20 分钟书」这类过程型数字） */
+  function titleNumber(){ var m = el.big.value.match(/\d+(\.\d+)?/); return (m && +m[0]>=30) ? m[0] : null; }
+  function numhintShow(){ return S.ftype==="process" && !S.edit && titleNumber()!==null; }
+
+  function render(){
+    document.documentElement.setAttribute("data-theme", S.theme);
+    ariaGroup($("r-theme"), S.theme); ariaGroup($("r-screen"), S.screen);
+    ariaGroup($("r-list"), S.list); ariaGroup($("r-ftype"), S.blank?"blank":(S.edit?"cum":S.ftype));
+    $("r-resume").setAttribute("aria-pressed", String(S.resume));
+    $("r-mismatch").setAttribute("aria-pressed", String(S.mismatch));
+
+    /* 列表 */
+    el.seg.dataset.sel = (S.list==="done") ? "done" : "active";
+    ariaGroup(el.seg, S.list==="done"?"done":"active");
+    var segWrap = el.seg.parentElement; // .body-scroll
+    [].forEach.call(document.querySelectorAll(".cards"), function(c){ c.hidden = c.dataset.g !== S.list });
+    segWrap.style.display = (S.list==="empty") ? "none" : "block";
+    el.emptydone.classList.toggle("show", S.list==="done" && !document.querySelector('[data-g="done"] .gcard'));
+    el.resume.classList.toggle("show", S.resume && S.list!=="empty");
+    el.empty.classList.toggle("show", S.list==="empty");
+
+    /* sheet */
+    var open = S.screen==="form";
+    el.sheet.classList.toggle("present", open);
+    el.scrim.classList.toggle("show", open);
+    el.homebarList.style.opacity = open ? "0" : "1";
+    el.stt.textContent = S.edit ? "编辑目标" : "新建目标";
+    el.save.textContent = S.edit ? "保存" : "创建";
+
+    /* 表单 */
+    var q = (S.ftype==="cum"||S.ftype==="tgt");
+    el.fx.classList.toggle("open", q);
+    el.fCum.classList.toggle("hide", S.ftype!=="cum");
+    el.fTgt.classList.toggle("hide", S.ftype!=="tgt");
+    ariaGroup($("tcards"), S.ftype);
+    el.vSrc.textContent = SRC_LABEL[S.source];
+    el.rowHabit.classList.toggle("hide", !(q && S.source==="habit"));
+    el.vHabit.textContent = HABITS[S.habit];
+    var w = warnText();
+    el.warn.textContent = w; el.warn.classList.toggle("show", !!w);
+    el.srcnote.classList.toggle("show", S.ftype==="tgt" && S.source==="habit");
+    el.srcnote.textContent = S.habit==="weight" ? "取自「体重」最新记录（11/12）" : "取自「跑步」最新记录（11/13）";
+    var nh = numhintShow();
+    el.numhint.classList.toggle("show", nh);
+    if (nh) el.numhint.innerHTML = '<svg class="ic"><use href="#i-spark"/></svg><span>标题里有 '+titleNumber()+' —— 点一下切到「累积型」来追踪进度</span>';
+    el.vDue.innerHTML = S.due ? '<span class="datefield"><svg class="ic"><use href="#i-cal"/></svg><span class="tnum">12月31日</span></span>' : '<span style="color:var(--text-2)">不设</span>';
+    el.save.disabled = !formValid();
+    var why = whyText();
+    el.why.classList.toggle("show", !!why);
+    el.why.textContent = why;
+
+    history.replaceState(null,"","#s="+S.screen+"&t="+S.ftype+(S.blank?"&blank=1":"")+(S.edit?"&edit=1":"")+"&list="+S.list+(S.theme==="dark"?"&theme=dark":"")+(S.resume?"&resume=1":"")+(S.mismatch?"&mm=1":""));
+  }
+
+  /* ---- 交互：画面内 ---- */
+  el.seg.addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b)return; S.list=b.dataset.v; render(); });
+  $("btn-plus").addEventListener("click", function(e){ e.stopPropagation(); el.menu.classList.toggle("open"); });
+  document.addEventListener("click", function(e){
+    if(!e.target.closest("#menu")&&!e.target.closest("#btn-plus")) el.menu.classList.remove("open");
+    if(!e.target.closest("#cmenu")) closeCardMenu();
+  });
+  el.menu.addEventListener("click", function(e){
+    var b=e.target.closest("button"); if(!b)return; el.menu.classList.remove("open");
+    if(b.dataset.go==="manual"){ S.screen="form"; applyScene("process"); render(); }
+    else toast(b.dataset.go==="workshop"?"共创流程不在本原型":"AI 规划流程不在本原型");
+  });
+  document.querySelector(".back").addEventListener("click", function(){ toast("返回个人页，不在本原型") });
+  [].forEach.call(document.querySelectorAll(".gcard"), function(c){ c.addEventListener("click", function(){ if(!c.dataset.menu){ toast("目标详情页不在本原型") } }) });
+  [].forEach.call(document.querySelectorAll("[data-go]"), function(b){
+    if(b.closest("#menu"))return;
+    b.addEventListener("click", function(){ if(b.dataset.go==="manual"){S.screen="form";applyScene("process");render()} else toast(b.dataset.go==="workshop"?"共创流程不在本原型":"AI 规划流程不在本原型") });
+  });
+  $("btn-x").addEventListener("click", function(){ S.screen="list"; render(); });
+  el.scrim.addEventListener("click", function(){ S.screen="list"; render(); });
+  el.resume.addEventListener("click", function(e){ if(e.target.closest("#btn-rx"))return; toast("共创恢复流程不在本原型") });
+  $("btn-rx").addEventListener("click", function(e){ e.stopPropagation(); S.resume=false; render(); toast("已放弃这个想法"); });
+
+  /* 类型卡：只切类型，永不改写已输入内容 */
+  $("tcards").addEventListener("click", function(e){
+    var b=e.target.closest(".tcard"); if(!b)return; S.ftype=b.dataset.v; S.blank=false; render();
+  });
+  /* P0 提示行：一键切累积型并预填标题里的数字 */
+  el.numhint.addEventListener("click", function(){
+    var n = titleNumber(); S.ftype="cum";
+    if (el.nTotal.value.trim()==="" && n) el.nTotal.value=n;
+    render();
+  });
+  el.rowSrc.addEventListener("click", function(){
+    var order=["manual","habit","ledger"];
+    S.source = order[(order.indexOf(S.source)+1)%3];
+    if (S.source==="habit" && S.mismatch) S.habit = (S.ftype==="tgt"?"run":"weight");
+    render();
+  });
+  el.rowHabit.addEventListener("click", function(){ S.habit = S.habit==="weight"?"run":"weight"; S.mismatch=false; render(); });
+  el.warn.addEventListener("click", function(){ S.habit = S.habit==="weight"?"run":"weight"; S.mismatch=false; render(); });
+  $("row-due").addEventListener("click", function(){ S.due=!S.due; render(); });
+
+  el.big.addEventListener("input", function(){ autosize(); render(); });
+  el.big.addEventListener("keydown", function(e){ if(e.key==="Enter"){e.preventDefault(); el.big.blur();} });
+  function autosize(){ el.big.style.height="auto"; el.big.style.height=Math.min(el.big.scrollHeight, 66)+"px"; }
+  [el.nTotal,el.nNow,el.nGoal,el.uTotal,el.uGoal].forEach(function(i){ i.addEventListener("input", render); });
+
+  /* ---- 卡片长按菜单（桌面右键 / 触屏长按） ---- */
+  var lp;
+  function openCardMenu(card, x, y){
+    var done = card.closest("[data-g]").dataset.g==="done";
+    el.cmenu.innerHTML = done
+      ? '<button data-act="again"><svg class="ic"><use href="#i-redo"/></svg>再来一轮</button><hr><button data-act="del" class="danger"><svg class="ic"><use href="#i-trash"/></svg>删除</button>'
+      : '<button data-act="done"><svg class="ic"><use href="#i-check"/></svg>标记完成</button><button data-act="pause"><svg class="ic"><use href="#i-pause"/></svg>暂停</button><hr><button data-act="edit"><svg class="ic"><use href="#i-cal"/></svg>改期限</button><hr><button data-act="del" class="danger"><svg class="ic"><use href="#i-trash"/></svg>删除</button>';
+    el.cmenu.classList.add("open");
+    var mw=el.cmenu.offsetWidth, mh=el.cmenu.offsetHeight;
+    var px=Math.min(Math.max(8, x), innerWidth-mw-8), py=Math.min(Math.max(8, y), innerHeight-mh-8);
+    el.cmenu.style.left=px+"px"; el.cmenu.style.top=py+"px";
+    el.cmenu._card=card;
+  }
+  function closeCardMenu(){ el.cmenu.classList.remove("open"); }
+  [].forEach.call(document.querySelectorAll(".gcard"), function(c){
+    c.addEventListener("contextmenu", function(e){ e.preventDefault(); el.menu.classList.remove("open"); openCardMenu(c, e.clientX, e.clientY); });
+    c.addEventListener("touchstart", function(e){ var t=e.touches[0]; lp=setTimeout(function(){ c.dataset.menu="1"; openCardMenu(c, t.clientX, t.clientY); },480); }, {passive:true});
+    c.addEventListener("touchmove", function(){ clearTimeout(lp) }, {passive:true});
+    c.addEventListener("touchend", function(){ clearTimeout(lp); setTimeout(function(){ delete c.dataset.menu }, 80); });
+  });
+  el.cmenu.addEventListener("click", function(e){
+    var b=e.target.closest("button"); if(!b)return;
+    var act=b.dataset.act, card=el.cmenu._card; closeCardMenu();
+    if (act==="edit"){ S.screen="form"; applyScene("edit"); render(); return; }
+    if (act==="del"){ card.remove(); toast("已删除（演示）"); return; }
+    if (act==="done"){
+      card.querySelector(".grow1 .pill") && card.querySelector(".grow1 .pill").remove();
+      var p=document.createElement("div"); p.className="pill pill-done"; p.textContent="已完成";
+      card.querySelector(".grow1").appendChild(p);
+      var grp=document.querySelector('[data-g="done"]'); grp.appendChild(card); grp.hidden=false;
+      toast("已标记完成（演示）"); return;
+    }
+    if (act==="pause"){
+      var gp=card.querySelector(".grow1 .pill");
+      if (gp && gp.classList.contains("pill-pause")){ gp.remove(); toast("已恢复（演示）"); }
+      else { if(gp) gp.remove(); var q2=document.createElement("div"); q2.className="pill pill-pause"; q2.textContent="已暂停"; card.querySelector(".grow1").appendChild(q2); toast("已暂停（演示）"); }
+      return;
+    }
+    if (act==="again"){ S.screen="form"; applyScene("cum"); render(); return; }
+  });
+
+  /* ---- 交互：控制栏 ---- */
+  $("r-theme").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b)return; S.theme=b.dataset.v; render(); });
+  $("r-screen").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b)return; S.screen=b.dataset.v; if(S.screen==="form"){applyScene("process")} render(); });
+  $("r-list").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b)return; S.list=b.dataset.v; S.screen="list"; render(); });
+  $("r-ftype").addEventListener("click", function(e){
+    var b=e.target.closest("button"); if(!b)return;
+    S.screen="form"; applyScene(b.dataset.v); render();
+  });
+  $("r-resume").addEventListener("click", function(){ S.resume=!S.resume; render(); });
+  $("r-mismatch").addEventListener("click", function(){
+    S.mismatch=!S.mismatch; S.mismatchRail=S.mismatch;
+    if (S.mismatch){ S.source="habit"; S.habit=(S.ftype==="tgt")?"run":"weight"; if(S.ftype==="process")S.ftype="tgt"; }
+    else { S.habit="weight"; }
+    render();
+  });
+
+  /* ---- toast ---- */
+  var tt;
+  function toast(msg){ el.toast.textContent=msg; el.toast.classList.add("show"); clearTimeout(tt); tt=setTimeout(function(){el.toast.classList.remove("show")},1600); }
+
+  /* ---- URL 直达 ---- */
+  var h = new URLSearchParams(location.hash.slice(1));
+  if (h.get("instant")) document.documentElement.classList.add("instant");
+  if (h.get("theme")) S.theme=h.get("theme");
+  if (h.get("s")) S.screen=h.get("s");
+  if (h.get("list")) S.list=h.get("list");
+  if (h.get("resume")) S.resume=true;
+  if (h.get("mm")){ S.mismatch=true; S.mismatchRail=true; S.source="habit"; S.habit="run"; if(h.get("t")!=="cum") S.ftype="tgt"; }
+  if (h.get("t")||h.get("blank")||h.get("edit")||h.get("hint")){
+    var key = h.get("edit") ? "edit" : (h.get("blank") ? "blank" : h.get("t"));
+    if (h.get("hint")==="1"){ applyScene("process"); el.big.value="今年跑满 300 公里"; autosize(); }
+    else applyScene(key);
+  }
+  if (h.get("cmenu")) requestAnimationFrame(function(){
+    var card = document.querySelector('[data-g="'+S.list+'"] .gcard') || document.querySelector('[data-g="active"] .gcard');
+    if (card) openCardMenu(card, 640, 420);
+  });
+  render();
+})();
+</script>
+</body>
+</html>

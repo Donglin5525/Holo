@@ -71,6 +71,25 @@ enum GoalDomain: String, Codable, CaseIterable, Identifiable {
         case .other: return "🎯"
         }
     }
+
+    /// 领域自动认领（2026-11-13 目标界面减法重设计 v3，S3b）：
+    /// 表单不再让用户选领域，按标题本地关键词 contains 匹配认领，认不出=其他。
+    /// 纯客户端零后端；career 排 life 前（「跳槽后陪家人」类歧义按职业归）。
+    static func infer(from title: String) -> GoalDomain {
+        let text = title.lowercased()
+        let table: [(GoalDomain, [String])] = [
+            (.health, ["跑", "步", "走", "体重", "公斤", "kg", "睡", "熬", "烟", "酒", "健身", "游泳"]),
+            (.finance, ["存款", "贷款", "攒", "还", "花", "省钱", "预算", "投资", "基金", "股票", "万", "块"]),
+            (.learning, ["读", "书", "学", "考", "证", "雅思", "英语", "日语", "课", "单词"]),
+            (.project, ["上线", "发布", "交付", "项目", "开发", "写完", "做完"]),
+            (.career, ["上班", "跳槽", "简历", "晋升", "绩效", "面试"]),
+            (.life, ["家人", "朋友", "见", "陪", "旅行", "搬"]),
+        ]
+        for (domain, keywords) in table where keywords.contains(where: { text.contains($0) }) {
+            return domain
+        }
+        return .other
+    }
 }
 
 /// 量化目标类型：进度怎么算

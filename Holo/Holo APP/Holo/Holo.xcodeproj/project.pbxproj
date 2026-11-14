@@ -118,6 +118,7 @@
 		79D6E5B7614875801A181738 /* HoloFinanceToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B443967EB0048E751507C6D /* HoloFinanceToolTests.swift */; };
 		7A11E5C2A4B90817D3F2E601 /* HoloAgentTimeSemanticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B22F6D3C5A01928E4A1F702 /* HoloAgentTimeSemanticsTests.swift */; };
 		7A1B2C3D4E5F60718293A4B5 /* AmountMathTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C0D1E2F3A4B5C6D7E8F90A1 /* AmountMathTests.swift */; };
+		7A1C0F11D2E43B5698A0B1C3 /* GoalUIRedesignTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1C0F11D2E43B5698A0B1C4 /* GoalUIRedesignTests.swift */; };
 		7A1D0A2026102000000000A2 /* GoalPlanContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0A2026102000000000A1 /* GoalPlanContractTests.swift */; };
 		7A1D0A2026102000000000A4 /* GoalEvaluationSnapshotBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0A2026102000000000A3 /* GoalEvaluationSnapshotBuilderTests.swift */; };
 		7A1D0A2026102000000000A6 /* GoalPlanCommitV2Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0A2026102000000000A5 /* GoalPlanCommitV2Tests.swift */; };
@@ -436,11 +437,11 @@
 		F1AC00000000000000000FD2 /* BudgetRepositoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC00000000000000000FD1 /* BudgetRepositoryTests.swift */; };
 		F1AC09090000000000000001 /* ReceiptBookingKernelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC09090000000000000002 /* ReceiptBookingKernelTests.swift */; };
 		F1AC090900000000000000A1 /* SuanTangFeiNiuCategoryReproTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090900000000000000A2 /* SuanTangFeiNiuCategoryReproTests.swift */; };
-		F1AC0A0B0000000000000001 /* IntentRouterHabitRecordNoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC0A0B0000000000000002 /* IntentRouterHabitRecordNoteTests.swift */; };
 		F1AC090900000000000000B1 /* MatchCategoryResilienceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090900000000000000B2 /* MatchCategoryResilienceTests.swift */; };
 		F1AC090A0000000000000001 /* ReceiptBookingForegroundPresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090A0000000000000002 /* ReceiptBookingForegroundPresenterTests.swift */; };
 		F1AC090B0000000000000002 /* InstallmentImportStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090B0000000000000001 /* InstallmentImportStandaloneTests.swift */; };
 		F1AC090C0000000000000002 /* HoloProductAnalyticsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC090C0000000000000001 /* HoloProductAnalyticsTests.swift */; };
+		F1AC0A0B0000000000000001 /* IntentRouterHabitRecordNoteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC0A0B0000000000000002 /* IntentRouterHabitRecordNoteTests.swift */; };
 		F1AC0AC20000000000000001 /* ReceiptBookingResultSurfacerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1AC0AC2000000000000002 /* ReceiptBookingResultSurfacerTests.swift */; };
 		F1E0A1B2C3D4E5F607182932 /* FlexibleQueryDateRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */; };
 		F1E0A1B2C3D4E5F607182934 /* FlexibleQueryResultConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */; };
@@ -456,6 +457,7 @@
 		FA10D3C0D4E5F60718296001 /* ThoughtDuplicateRepairStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA10D3C0D4E5F60718296002 /* ThoughtDuplicateRepairStandaloneTests.swift */; };
 		FE1000000000000000000003 /* HoloAcceptanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE1000000000000000000001 /* HoloAcceptanceUITests.swift */; };
 		GATEUI0000000000000001 /* ThoughtGestureGateUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = GATEUI0000000000000002 /* ThoughtGestureGateUITests.swift */; };
+		GRUI000000000000000000A2 /* GoalUIRedesignUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = GRUI000000000000000000A1 /* GoalUIRedesignUITests.swift */; };
 		HBREMTEST0000000000000015 /* HabitReminderContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HBREMTEST0000000000000005 /* HabitReminderContentTests.swift */; };
 		HBV1TEST0000000000000011 /* HabitPresentationProjectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HBV1TEST0000000000000001 /* HabitPresentationProjectorTests.swift */; };
 		HBV1TEST0000000000000012 /* HabitRetroactivePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HBV1TEST0000000000000002 /* HabitRetroactivePolicyTests.swift */; };
@@ -649,6 +651,7 @@
 		72B9CAF239FD35D854D2D22D /* HoloMemoryReceiptCompatibilityStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryReceiptCompatibilityStandaloneTests.swift; sourceTree = "<group>"; };
 		76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageRepositoryOrphanCleanupTests.swift; sourceTree = "<group>"; };
 		77B02553D193169B1FC31AE3 /* HoloEpisodicMemoryStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloEpisodicMemoryStoreTests.swift; sourceTree = "<group>"; };
+		7A1C0F11D2E43B5698A0B1C4 /* GoalUIRedesignTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalUIRedesignTests.swift; sourceTree = "<group>"; };
 		7A1C3E95B4D8F2A6C0E31B74 /* SleepStructureAnalyzerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SleepStructureAnalyzerTests.swift; sourceTree = "<group>"; };
 		7A1D0A2026102000000000A1 /* GoalPlanContractTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalPlanContractTests.swift; sourceTree = "<group>"; };
 		7A1D0A2026102000000000A3 /* GoalEvaluationSnapshotBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalEvaluationSnapshotBuilderTests.swift; sourceTree = "<group>"; };
@@ -952,11 +955,11 @@
 		F1AC00000000000000000FD1 /* BudgetRepositoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BudgetRepositoryTests.swift; sourceTree = "<group>"; };
 		F1AC09090000000000000002 /* ReceiptBookingKernelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptBookingKernelTests.swift; sourceTree = "<group>"; };
 		F1AC090900000000000000A2 /* SuanTangFeiNiuCategoryReproTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuanTangFeiNiuCategoryReproTests.swift; sourceTree = "<group>"; };
-		F1AC0A0B0000000000000002 /* IntentRouterHabitRecordNoteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IntentRouterHabitRecordNoteTests.swift; sourceTree = "<group>"; };
 		F1AC090900000000000000B2 /* MatchCategoryResilienceTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MatchCategoryResilienceTests.swift; sourceTree = "<group>"; };
 		F1AC090A0000000000000002 /* ReceiptBookingForegroundPresenterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptBookingForegroundPresenterTests.swift; sourceTree = "<group>"; };
 		F1AC090B0000000000000001 /* InstallmentImportStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InstallmentImportStandaloneTests.swift; sourceTree = "<group>"; };
 		F1AC090C0000000000000001 /* HoloProductAnalyticsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloProductAnalyticsTests.swift; sourceTree = "<group>"; };
+		F1AC0A0B0000000000000002 /* IntentRouterHabitRecordNoteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = IntentRouterHabitRecordNoteTests.swift; sourceTree = "<group>"; };
 		F1AC0AC2000000000000002 /* ReceiptBookingResultSurfacerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ReceiptBookingResultSurfacerTests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryDateRangeTests.swift; sourceTree = "<group>"; };
 		F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryResultConsistencyTests.swift; sourceTree = "<group>"; };
@@ -974,6 +977,7 @@
 		FE1000000000000000000002 /* HoloUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HoloUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		FF3C3058ABC126953D79D465 /* HoloMemoryCandidateReconcilerStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryCandidateReconcilerStandaloneTests.swift; sourceTree = "<group>"; };
 		GATEUI0000000000000002 /* ThoughtGestureGateUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtGestureGateUITests.swift; sourceTree = "<group>"; };
+		GRUI000000000000000000A1 /* GoalUIRedesignUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GoalUIRedesignUITests.swift; sourceTree = "<group>"; };
 		HBREMTEST0000000000000005 /* HabitReminderContentTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitReminderContentTests.swift; sourceTree = "<group>"; };
 		HBV1TEST0000000000000001 /* HabitPresentationProjectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitPresentationProjectorTests.swift; sourceTree = "<group>"; };
 		HBV1TEST0000000000000002 /* HabitRetroactivePolicyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitRetroactivePolicyTests.swift; sourceTree = "<group>"; };
@@ -1631,6 +1635,7 @@
 				1B9A00130000000000000001 /* Chat */,
 				98C2F2186A5A421A9D79C381 /* MemoryGallery */,
 				83A110F35E80493490927C87 /* Thoughts */,
+				7A1C0F11D2E43B5698A0B1C4 /* GoalUIRedesignTests.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -1905,6 +1910,7 @@
 				P1SMOKE0000000000000002 /* ThoughtP1PerceptionSmokeUITests.swift */,
 				F6245C98D5928399AA166F48 /* GoalWorkshopJourneyUITests.swift */,
 				7A1D0A2026102000000000B5 /* GoalClosedLoopSmokeUITests.swift */,
+				GRUI000000000000000000A1 /* GoalUIRedesignUITests.swift */,
 			);
 			path = HoloUITests;
 			sourceTree = "<group>";
@@ -2302,6 +2308,7 @@
 				F1AC00000000000000000FD2 /* BudgetRepositoryTests.swift in Sources */,
 				F1AC00000000000000000FB3 /* ReceiptAttachmentTests.swift in Sources */,
 				F38D3889CE87698AECF36EAF /* GoalWorkshopStoreTests.swift in Sources */,
+				7A1C0F11D2E43B5698A0B1C3 /* GoalUIRedesignTests.swift in Sources */,
 				WLGT000000000000000000A2 /* WarmLightModelTests.swift in Sources */,
 				WLGT000000000000000000A6 /* WarmLightFrameRenderTests.swift in Sources */,
 				WLGT000000000000000000A8 /* MemoryRandomWalkCoreTests.swift in Sources */,
@@ -2634,6 +2641,7 @@
 				L1FESRC0000000000000011 /* LifeUnderstandingJourneyUITests.swift in Sources */,
 				D91595555CB4DEA96C2B3753 /* GoalWorkshopJourneyUITests.swift in Sources */,
 				7A1D0A2026102000000000B6 /* GoalClosedLoopSmokeUITests.swift in Sources */,
+				GRUI000000000000000000A2 /* GoalUIRedesignUITests.swift in Sources */,
 				C10D0000A1B1C1D1E1F1BB02 /* CalendarPickerWalkUITests.swift in Sources */,
 				C10D0000A1B1C1D1E1F1BB04 /* ReceiptStubSmokeUITests.swift in Sources */,
 				AA11BB22CC33DD44EE550005 /* HoloXhsShotUITests.swift in Sources */,

@@ -26,6 +26,8 @@ struct GoalDetailView: View {
     @State private var showLinkManager = false
     @State private var showMetricLogSheet = false
     @State private var showGoalSettings = false
+    /// 五字段设置面板（说明/期望结果/动机/图标/AI 上下文，S5 接线）
+    @State private var showGoalSettingsEdit = false
     @State private var showGoalReview = false
 
     init(
@@ -88,6 +90,9 @@ struct GoalDetailView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     #endif
                     .toolbar { ToolbarItem(placement: .cancellationAction) { Button("完成") { showGoalSettings = false } } }
+            }
+            .sheet(isPresented: $showGoalSettingsEdit) {
+                GoalSettingsEditSheet(goal: goal)
             }
         .confirmationDialog("删除目标", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("删除目标", role: .destructive) {
@@ -372,7 +377,7 @@ struct GoalDetailView: View {
             Button {
                 onOpenLinkedEntity(.finance)
             } label: {
-                sourceLabelRow(text: String(localized: "数据来自：账本（按全账本净结余计算，含信用卡负债）"))
+                sourceLabelRow(text: String(localized: "数据来自：账本"))
             }
             .buttonStyle(HoloPressStyle())
         }
@@ -498,6 +503,9 @@ struct GoalDetailView: View {
             Button("编辑目标") {
                 showEditForm = true
             }
+            Button("目标设置") {
+                showGoalSettingsEdit = true
+            }
             if goal.goalStatus == .active {
                 Button("暂停目标") {
                     perform { try repository.updateStatus(goal, status: .paused) }
@@ -606,58 +614,34 @@ struct GoalEditSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        HoloSheetScaffold(
+            title: String(localized: "编辑目标"),
+            onClose: { dismiss() },
+            primaryTitle: isSaving ? String(localized: "保存中") : String(localized: "保存"),
+            primaryAction: { save() },
+            primaryDisabled: !canSave,
+            primaryHint: isSaving ? nil : GoalEditForm.disabledHint(for: draft),
+            primaryActionColor: GoalJourneyStyle.action,
+            footerBackground: GoalJourneyStyle.sheetFooterCream
+        ) {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: HoloSpacing.lg) {
+                VStack(spacing: HoloSpacing.md) {
                     GoalEditForm(draft: $draft)
                     if criteriaChanged { Toggle("我确认修改成功条件、来源或期限", isOn: $criteriaConfirmed).holoText(.supporting) }
                 }
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.top, HoloSpacing.md)
-                .padding(.bottom, 100)
+                .padding(.horizontal, HoloSpacing.page)
+                .padding(.top, 4)
+                .padding(.bottom, 20)
             }
-            .background(Color.holoToolBackground)
-            .navigationTitle("编辑目标")
-            #if canImport(UIKit)
-            .navigationBarTitleDisplayMode(.inline)
-            #endif
-            .toolbar {
-                ToolbarItem(placement: HoloToolbarPlacement.navLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.holoToolTextSecondary)
-                    }
-                }
-            }
-            .safeAreaInset(edge: .bottom) {
-                Button {
-                    save()
-                } label: {
-                    Text(isSaving ? String(localized: "保存中") : String(localized: "保存"))
-                        .holoText(.body)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(canSave ? Color.holoPrimary : Color.gray.opacity(0.3))
-                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                }
-                .disabled(!canSave)
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.vertical, HoloSpacing.md)
-                .background(Color.holoToolSurface)
-                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: -2)
-            }
-            .alert("保存失败", isPresented: Binding(
-                get: { saveError != nil },
-                set: { if !$0 { saveError = nil } }
-            )) {
-                Button("知道了", role: .cancel) {}
-            } message: {
-                Text(saveError ?? "")
-            }
+        }
+        .presentationDetents([.large])
+        .alert("保存失败", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(saveError ?? "")
         }
     }
 
@@ -692,6 +676,7 @@ struct GoalEditSheet: View {
                 )
                 isSaving = false
                 GoalNotificationService.broadcastGoalDataChange()
+                HapticManager.success()
                 onSaved()
                 dismiss()
             } catch {
