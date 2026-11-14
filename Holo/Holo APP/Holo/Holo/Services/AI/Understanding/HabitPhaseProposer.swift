@@ -61,7 +61,11 @@ nonisolated struct HabitPhaseProposer: DeterministicProposer {
             if gap >= 2 { breaks += 1 }
         }
 
-        let sufficient = span >= 14 && occ >= 10
+        // 水位判定与闸同源（单一真源：SufficiencyPolicy.phaseState 政策表）——
+        // 直出器不另设标准，调水位只改政策表一处。
+        let phasePolicy = SufficiencyPolicy.policy(for: .phaseState)
+        let sufficient = (phasePolicy.recordedMinSpanDays.map { span >= $0 } ?? true)
+            && (phasePolicy.recordedMinOccurrences.map { occ >= $0 } ?? true)
         var statement = "「\(habitName)」习惯进行中"
         if breaks >= 2 { statement += "，期间有反复" }
         return [ProposalCandidate(
