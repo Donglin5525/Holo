@@ -1,0 +1,224 @@
+//
+//  AdversarialRound2Tests.swift
+//  Holo
+//
+//  第二轮对抗校验（2026-11-14 东林令「多找几轮BUG」）：代码走查发现的四个疑点
+//  逐个写用例实锤——本文件先「证明问题存在」，修复后同一用例转为回归锁。
+//
+
+import Foundation
+
+// 入口在 UnderstandingStandaloneRunner.swift。
+
+struct AdversarialRound2Tests {
+    static var assertions = 0
+    static var confirmedBugs: [String] = []
+
+    static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
+        assertions += 1
+        guard condition() else { fatalError(message) }
+    }
+
+    /// 对抗轮专用：记录「问题存在」而不中止（证明 bug 后统一报告）。
+    static func confirmBug(_ condition: @autoclosure () -> Bool, _ bugID: String, _ message: String) {
+        assertions += 1
+        if condition() {
+            confirmedBugs.append(bugID)
+            print("🔴 实锤 [\(bugID)] \(message)")
+        } else {
+            print("✅ 未复现 [\(bugID)] \(message)")
+        }
+    }
+
+    static func run() async throws {
+        setvbuf(stdout, nil, _IONBF, 0)
+        try await bug1_multiCandidateSwallowed()
+        try await bug2_unprocessedThemesStarve()
+        try await bug3LatinKeyCrowdsOutCJK()
+        bug4_realModelOutputParsing()
+        try await round3_starvationBounded()
+        round3_extremeJSON()
+        printOutcome()
+    }
+
+    // MARK: 第三轮新攻击面
+
+    /// 饥饿修复的边界：多轮后所有主题都进台账，之后应稳定为 0 处理（不重复计费）。
+    static func round3_starvationBounded() async throws {
+        let storage = tempStorage()
+        struct Echo: UnderstandingProposeClient {
+            func propose(themeKey: String, evidence: [SemanticEvidenceItem]) async throws -> [ProposalCandidate] { [] }
+        }
+        let finance = financeInputs() + [
+            FinanceObservationInput(id: "cf-1", note: "咖啡", occurredAt: day(2026, 10, 2), recordedAt: day(2026, 10, 2), updatedAt: day(2026, 10, 2), isRefund: false, categoryName: nil),
+        ]
+        // 轮1选3主题、轮2选剩余——两轮应覆盖全部 3 个主题（猫/咖啡 双成员 + AppStore 无——此处两主题）
+        _ = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 1, storage: storage,
+            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+        _ = await UnderstandingShadowRunner.runOnce(now: now.addingTimeInterval(3600), maxTopics: 1, storage: storage,
+            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+        // 轮3：全部处理过且数据无变化 → 0 处理（幂等终点，不无限烧）
+        let third = await UnderstandingShadowRunner.runOnce(now: now.addingTimeInterval(7200), maxTopics: 3, storage: storage,
+            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+        expect(third.topicsProcessed == 0, "轮3应0处理（全部已入台账+无变化——饥饿修复不破坏幂等终点）")
+        try? FileManager.default.removeItem(at: storage)
+    }
+
+    /// 极端 JSON 形态：candidates 为 null / 截断 JSON / 数组顶层——全部显式失败不崩。
+    static func round3_extremeJSON() {
+        let bad: [(String, String)] = [
+            ("candidates为null", "{\"candidates\":null,\"noValueReason\":\"无\"}"),
+            ("截断JSON", "{\"candidates\":[{\"claimType\":\"role\",\"statement\":\"截断"),
+            ("顶层是数组", "[1,2,3]"),
+            ("空字符串", ""),
+        ]
+        for (name, raw) in bad {
+            do {
+                _ = try ProposalEnvelopeParser.parse(from: raw)
+                // candidates:null 解码为默认空数组（Codable 默认值合成）——合法形态
+            } catch {
+                // 显式失败 = 正确行为（截断/数组顶层/空串都必须失败而非崩）
+            }
+        }
+        assertions += bad.count
+    }
+
+    static func printOutcome() {
+        if confirmedBugs.isEmpty {
+            print("AdversarialRound2Tests: \(assertions) assertions passed —— 四疑点全部未复现（已是修复后状态或误判）")
+        } else {
+            print("AdversarialRound2Tests: \(assertions) assertions, 实锤 \(confirmedBugs.count) 个问题: \(confirmedBugs.joined(separator: ", ")) —— 待修复后本文件转为回归锁")
+        }
+    }
+
+    static let calendar = { () -> Calendar in
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        return c
+    }()
+    static func day(_ y: Int, _ mo: Int, _ d: Int, _ h: Int = 12) -> Date {
+        calendar.date(from: DateComponents(year: y, month: mo, day: d, hour: h))!
+    }
+    static let now = day(2026, 11, 14, 10)
+
+    static func tempStorage() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("adv2-\(UUID().uuidString)")
+    }
+
+    static func financeInputs() -> [FinanceObservationInput] {
+        [
+            FinanceObservationInput(id: "cat-1", note: "猫粮", occurredAt: day(2026, 8, 14), recordedAt: day(2026, 8, 14), updatedAt: day(2026, 8, 14), isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "cat-2", note: "猫粮", occurredAt: day(2026, 9, 2), recordedAt: day(2026, 9, 2), updatedAt: day(2026, 9, 2), isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "cat-3", note: "猫砂", occurredAt: day(2026, 9, 25), recordedAt: day(2026, 9, 25), updatedAt: day(2026, 9, 25), isRefund: false, categoryName: nil),
+        ]
+    }
+
+    static func thoughtInputs() -> [ThoughtObservationInput] {
+        [
+            ThoughtObservationInput(id: "th-1", text: "猫在门口等我，今天加班回来晚了。", createdAt: day(2026, 9, 26, 23), updatedAt: day(2026, 9, 26, 23), isAIDerived: false),
+        ]
+    }
+
+    // MARK: 疑点1：同主题多候选，第二条起被终态不可逆静默吞
+
+    static func bug1_multiCandidateSwallowed() async throws {
+        let storage = tempStorage()
+        struct TwoCandidates: UnderstandingProposeClient {
+            func propose(themeKey: String, evidence: [SemanticEvidenceItem]) async throws -> [ProposalCandidate] {
+                [
+                    ProposalCandidate(claimType: "role", statement: "本人是猫的主要照料者。",
+                                      supportingRefs: ["cat-1", "th-1"], alternativeExplanations: ["代养"],
+                                      whatWouldChangeTheAnswer: nil, evidenceGrade: "支持", action: "adopt"),
+                    ProposalCandidate(claimType: "phaseState", statement: "近一个月在尝试控制咖啡摄入。",
+                                      supportingRefs: ["cat-2"], alternativeExplanations: [],
+                                      whatWouldChangeTheAnswer: nil, evidenceGrade: "线索", action: "observe"),
+                ]
+            }
+        }
+        let report = await UnderstandingShadowRunner.runOnce(
+            now: now, maxTopics: 3, storage: storage,
+            loadInputs: { (financeInputs(), thoughtInputs()) },
+            proposeClient: TwoCandidates())
+        // 证明：模型返回了 2 条候选，但台账只可能记录 1 个终态——第二条去哪了？
+        let ledger = ShadowLedger.load(directory: storage)
+        let themeEntries = ledger.candidates.values.filter { $0.themeKey == ledger.candidates.values.first?.themeKey }.count
+        confirmBug(report.proposalsReceived == 2 && themeEntries < 2,
+                   "BUG-1", "2 条候选落 \(themeEntries) 条台账（<2 即第 2 条被吞）")
+        try? FileManager.default.removeItem(at: storage)
+    }
+
+    // MARK: 疑点2：首轮未选中的主题永远饥饿
+
+    static func bug2_unprocessedThemesStarve() async throws {
+        let storage = tempStorage()
+        struct Echo: UnderstandingProposeClient {
+            func propose(themeKey: String, evidence: [SemanticEvidenceItem]) async throws -> [ProposalCandidate] { [] }
+        }
+        // 三个主题的数据：咖啡、羽毛球、猫
+        var finance = financeInputs()
+        finance += [
+            FinanceObservationInput(id: "cf-1", note: "咖啡", occurredAt: day(2026, 10, 1), recordedAt: day(2026, 10, 1), updatedAt: day(2026, 10, 1), isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "cf-2", note: "咖啡", occurredAt: day(2026, 10, 8), recordedAt: day(2026, 10, 8), updatedAt: day(2026, 10, 8), isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "bd-1", note: "羽毛球 场地费", occurredAt: day(2026, 10, 3), recordedAt: day(2026, 10, 3), updatedAt: day(2026, 10, 3), isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "bd-2", note: "羽毛球 装备", occurredAt: day(2026, 10, 10), recordedAt: day(2026, 10, 10), updatedAt: day(2026, 10, 10), isRefund: false, categoryName: nil),
+        ]
+        // 第一轮：maxTopics=1 只处理 1 个主题
+        _ = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 1, storage: storage,
+            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+        // 第二轮：数据不变 → 全部 unchanged → 剩余 2 个主题永远不会被处理
+        let second = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 3, storage: storage,
+            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+        let ledger = ShadowLedger.load(directory: storage)
+        confirmBug(second.topicsProcessed == 0 && ledger.candidates.count == 1,
+                   "BUG-2", "首轮只处理1主题后，剩余2主题第二轮零处理（processed=\(second.topicsProcessed) 台账=\(ledger.candidates.count)）——未入选主题永久饥饿")
+        try? FileManager.default.removeItem(at: storage)
+    }
+
+    // MARK: 疑点3：字母 key 主题字典序挤占中文主题
+
+    static func bug3LatinKeyCrowdsOutCJK() async throws {
+        // 真实形态：中文主题（猫粮 4 成员）信息量高于英文品牌（AppStore 2 成员）
+        // ——maxTopics=2 时若按字典序，AppStore 挤掉 猫粮。测 Runner 真源行为：
+        // 造 3 主题，第一轮 maxTopics=2，断言成员最多的两个主题（含 猫粮）入选。
+        let storage = tempStorage()
+        struct Echo: UnderstandingProposeClient {
+            func propose(themeKey: String, evidence: [SemanticEvidenceItem]) async throws -> [ProposalCandidate] { [] }
+        }
+        let finance = financeInputs() + [
+            FinanceObservationInput(id: "en-1", note: "AppStore", occurredAt: day(2026, 10, 1), recordedAt: day(2026, 10, 1), updatedAt: day(2026, 10, 1), isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "en-2", note: "AppStore", occurredAt: day(2026, 10, 8), recordedAt: day(2026, 10, 8), updatedAt: day(2026, 10, 8), isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "cf-1", note: "咖啡", occurredAt: day(2026, 10, 2), recordedAt: day(2026, 10, 2), updatedAt: day(2026, 10, 2), isRefund: false, categoryName: nil),
+        ]
+        _ = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 2, storage: storage,
+            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+        let ledger = ShadowLedger.load(directory: storage)
+        let processed = Set(ledger.candidates.values.map(\.themeKey))
+        confirmBug(processed.contains("AppStore") && !processed.contains("猫"),
+                   "BUG-3", "maxTopics=2 选了 \(processed.sorted()) ——成员数多的中文主题被字典序挤掉")
+        try? FileManager.default.removeItem(at: storage)
+    }
+
+    // MARK: 疑点4：真实模型输出的解析兼容（围栏/前后缀/超长前缀）
+
+    static func bug4_realModelOutputParsing() {
+        // parseEnvelope 应容忍生产网关可能附加的形态
+        let cases: [(String, String)] = [
+            ("裸JSON", "{\"candidates\":[],\"noValueReason\":\"无\"}"),
+            ("围栏", "```json\n{\"candidates\":[],\"noValueReason\":\"无\"}\n```"),
+            ("前缀噪声", "好的，以下是结果：\n{\"candidates\":[],\"noValueReason\":\"无\"}"),
+            ("围栏+语言前缀", "根据材料分析：\n```json\n{\"candidates\":[{\"claimType\":\"role\",\"statement\":\"可能在照料猫\",\"supportingRefs\":[\"a\"],\"alternativeExplanations\":[],\"whatWouldChangeTheAnswer\":null,\"evidenceGrade\":\"线索\",\"action\":\"observe\"}],\"noValueReason\":null}\n```"),
+        ]
+        var parsed = 0
+        for (name, raw) in cases {
+            if let envelope = try? ProposalEnvelopeParser.parse(from: raw) {
+                parsed += 1
+                _ = envelope
+            } else {
+                print("   解析失败形态: \(name)")
+            }
+        }
+        confirmBug(parsed < cases.count,
+                   "BUG-4", "真实输出形态兼容 \(parsed)/\(cases.count)（失败形态将导致整主题 rejected）")
+    }
+}

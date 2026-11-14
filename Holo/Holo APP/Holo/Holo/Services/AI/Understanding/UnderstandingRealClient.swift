@@ -28,31 +28,10 @@ struct RealUnderstandingProposeClient: UnderstandingProposeClient {
         return try Self.parseEnvelope(from: raw).candidates
     }
 
-    /// 解析提案输出：容忍 ```json 围栏与前后噪声（对齐生产口径
-    /// HoloPersonalContextValidator.extractJSON——生产网关返回可能带前缀/围栏）。
+    /// 解析提案输出：委托 ProposalEnvelopeParser（轻量独立类型，standalone 可测）。
     static func parseEnvelope(from raw: String) throws -> ProposalEnvelope {
-        var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.hasPrefix("```") {
-            text = text
-                .replacingOccurrences(of: "^```[a-zA-Z]*\\s*", with: "", options: .regularExpression)
-                .replacingOccurrences(of: "```\\s*$", with: "", options: .regularExpression)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        // 首个 { 到最后一个 } 的包围（提案对象无尾随内容场景的最简平衡提取）。
-        if let first = text.firstIndex(of: "{"), let last = text.lastIndex(of: "}"), first < last {
-            text = String(text[first...last])
-        }
-        guard let data = text.data(using: .utf8),
-              let envelope = try? JSONDecoder().decode(ProposalEnvelope.self, from: data) else {
-            throw APIError.serverError("提案输出无法解析为 JSON（前 80 字：\(text.prefix(80))）")
-        }
-        return envelope
+        try ProposalEnvelopeParser.parse(from: raw)
     }
-}
-
-nonisolated struct ProposalEnvelope: Codable, Equatable, Sendable {
-    var candidates: [ProposalCandidate] = []
-    var noValueReason: String?
 }
 
 // MARK: - 真数据源装配（授权门 + 近90天，见 UnderstandingDataSource）

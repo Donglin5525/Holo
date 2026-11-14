@@ -78,10 +78,21 @@ enum UnderstandingShadowRunner {
         let changes = ThemeIndex.detectChanges(old: lastThemes, new: themes)
         saveThemeSnapshot(themes, directory: storage)
 
-        // ④ 选主题：added 优先，其次 updated；上限 maxTopics
-        let pending = changes
-            .filter { $0.kind == .added || $0.kind == .updated }
-            .sorted { ($0.kind == .added ? 0 : 1, $0.key) < ($1.kind == .added ? 0 : 1, $1.key) }
+        // ④ 选主题（2026-11-14 对抗轮 BUG-2 修复）：
+        // a) added/updated 优先；b) 从未登记过的主题（首轮未入选）次之——否则
+        //    首轮落选主题永远 unchanged，永久饥饿；c) 排序按成员数降序——字典序
+        //    会让 ASCII key（AppStore/GPT）系统性挤占 CJK 主题（BUG-3）。
+        let ledgerForSelection = ShadowLedger.load(directory: storage)
+        let processedKeys = Set(ledgerForSelection.candidates.values.map(\.themeKey))
+        let themesByKey = Dictionary(uniqueKeysWithValues: themes.map { ($0.key, $0) })
+        var pendingKeys = changes.filter { $0.kind == .added || $0.kind == .updated }.map(\.key)
+        let neverProcessed = themes
+            .filter { !processedKeys.contains($0.key) && !pendingKeys.contains($0.key) }
+            .map(\.key)
+        pendingKeys += neverProcessed
+        let pending = pendingKeys
+            .compactMap { themesByKey[$0] }
+            .sorted { ($0.memberIDs.count, $0.key) > ($1.memberIDs.count, $1.key) }
             .prefix(maxTopics)
 
         // ⑤ 逐主题全链
@@ -91,11 +102,9 @@ enum UnderstandingShadowRunner {
         var rejections: [String] = []
         var modelFailures: [String] = []
         var proposalsReceived = 0
-        let themesByKey = Dictionary(uniqueKeysWithValues: themes.map { ($0.key, $0) })
         let observationsByRef = Dictionary(uniqueKeysWithValues: allObservations.map { ($0.sourceRef, $0) })
 
-        for change in pending {
-            guard let theme = themesByKey[change.key] else { continue }
+        for theme in pending {
             let candidateID = "theme:\(theme.key):\(theme.fingerprint.prefix(8))"
             guard ledger.register(id: candidateID, themeKey: theme.key, now: now) != nil else { continue }
             _ = ledger.advance(id: candidateID, to: .packaged, now: now)
@@ -126,17 +135,28 @@ enum UnderstandingShadowRunner {
             _ = ownership  // 影子期取证结果进评审包（M2.8 导出携带），不改变闸判定输入
 
             _ = ledger.advance(id: candidateID, to: .verifying, now: now)
-            for candidate in candidates {
+            // 多候选（2026-11-14 对抗轮 BUG-1 修复）：每条候选独立登记一条台账
+            // （id 加候选序号后缀），第 1 条进终态不再吞掉第 2 条的判定。
+            // 主条目（无后缀）承载主题级流转；候选条目只经 register→settle 直达终态。
+            for (candidateIndex, candidate) in candidates.enumerated() {
                 let result = ProposalGate.evaluate(candidate: candidate, observations: Array(observationsByRef.values))
-                let settled = ledger.settle(id: candidateID, gateResult: result, now: now)
+                var settled = ledger.settle(id: candidateID, gateResult: result, now: now)
+                if candidateIndex > 0 {
+                    let subID = candidateID + "#c\(candidateIndex + 1)"
+                    if ledger.register(id: subID, themeKey: theme.key, now: now) != nil {
+                        _ = ledger.advance(id: subID, to: .packaged, now: now)
+                        _ = ledger.advance(id: subID, to: .proposing, now: now)
+                        _ = ledger.advance(id: subID, to: .awaitingLocalEvidence, now: now)
+                        _ = ledger.advance(id: subID, to: .verifying, now: now)
+                        settled = ledger.settle(id: subID, gateResult: result, now: now)
+                    }
+                }
                 if let stage = settled?.stage {
                     outcomes[stage.rawValue, default: 0] += 1
                     if stage == .rejected, let reason = settled?.lastReason {
                         rejections.append("[\(theme.key)] \(reason)")
                     }
                 }
-                // 同主题多候选：首个终态已定，后续候选的闸判定计入结果分布（台账按主题单条，
-                // 影子期以首个为准——多候选细分归 M3 评审迭代）。
             }
             if candidates.isEmpty {
                 _ = ledger.settle(id: candidateID, gateResult: (true, "observe", []), now: now)
