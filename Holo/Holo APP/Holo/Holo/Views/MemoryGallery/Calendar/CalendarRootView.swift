@@ -90,11 +90,18 @@ struct CalendarRootView: View {
                 recordCount: { viewModel.dayEventCounts[$0] },
                 ensureData: { viewModel.ensureTimelineData(around: $0) },
                 onSelectDay: { day in
+                    // 找日期/在长廊看这天：回到长廊时间线并定位到该天（多条自动展开）。
                     viewModel.focusDay(day)
+                    viewModel.switchScale(.gallery)
+                    findDate.requestJump(to: day)
                     findDate.dismiss()
                 },
                 onBackToLatest: {
+                    // 回到最近：真实的最近记录日（已载入窗口内）；没有记录则回今天。
+                    let latest = viewModel.eventsByDay.filter { !$0.value.isEmpty }.keys.max()
                     viewModel.goToToday()
+                    viewModel.switchScale(.gallery)
+                    findDate.requestJump(to: latest ?? Date())
                     findDate.dismiss()
                 },
                 onOpenEvent: { event in
@@ -132,6 +139,7 @@ struct CalendarRootView: View {
     private var content: some View {
         Group {
             switch viewModel.scale {
+            case .gallery: galleryContent.holoScaleTransition(edge: scaleInsertionEdge)
             case .day:   dayContent.holoScaleTransition(edge: scaleInsertionEdge)
             case .week:  weekContent.holoScaleTransition(edge: scaleInsertionEdge)
             case .month: monthlyContent.holoScaleTransition(edge: scaleInsertionEdge)
@@ -142,6 +150,20 @@ struct CalendarRootView: View {
         .onChange(of: viewModel.scale) { _, newScale in
             lastScale = newScale
         }
+    }
+
+    /// 长廊默认页：按日期排列的时间线（长廊减法设计 P2）。
+    private var galleryContent: some View {
+        MemoryGalleryTimelineView(
+            eventsByDay: viewModel.eventsByDay,
+            dataRevision: viewModel.presentationSnapshot.revision,
+            isInitialLoading: viewModel.isInitialLoading,
+            failedModules: viewModel.timelineResult.failedModules,
+            findDate: findDate,
+            onSelect: { handleEventSelect($0) },
+            onEnsureData: { viewModel.ensureTimelineData(around: $0) },
+            onRetry: { Task { await viewModel.refreshForCurrentScale() } }
+        )
     }
 
     /// 轴档：0–24 纵向时间轴，任务时间段与系统日程同轴；历史日程按需拉取不受活跃窗口限制。
@@ -262,6 +284,7 @@ struct CalendarRootView: View {
     private var chapterPrimaryFont: Font {
         let s = HoloAdaptiveLayout.galleryTypeScale(forWindowWidth: scaleWindowWidth)
         switch viewModel.scale {
+        case .gallery: return .system(size: 48 * s, weight: .medium, design: .serif)
         case .day: return .system(size: 48 * s, weight: .medium, design: .serif)
         case .week: return .system(size: 36 * s, weight: .medium, design: .serif)
         case .month: return .system(size: 42 * s, weight: .medium, design: .serif)
@@ -283,18 +306,22 @@ struct CalendarRootView: View {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(spacing: HoloSpacing.xs) {
                     scaleSwitch
-                    HStack(spacing: HoloSpacing.sm) {
-                        periodNavigation
-                        Spacer(minLength: 0)
-                        todayButton
-                        if viewModel.scale == .timeline { datePickerButton }
+                    if viewModel.scale != .gallery {
+                        HStack(spacing: HoloSpacing.sm) {
+                            periodNavigation
+                            Spacer(minLength: 0)
+                            todayButton
+                            if viewModel.scale == .timeline { datePickerButton }
+                        }
                     }
                 }
             } else {
                 HStack(spacing: 6) {
                     scaleSwitch
-                    periodNavigation
-                    todayButton
+                    if viewModel.scale != .gallery {
+                        periodNavigation
+                        todayButton
+                    }
                     if viewModel.scale == .timeline { datePickerButton }
                 }
             }
@@ -305,7 +332,7 @@ struct CalendarRootView: View {
 
     @ViewBuilder
     private var periodNavigation: some View {
-        if viewModel.scale != .day {
+        if viewModel.scale != .day && viewModel.scale != .gallery {
             chevronButton(systemName: "chevron.left") { viewModel.step(by: -1) }
             chevronButton(systemName: "chevron.right") { viewModel.step(by: 1) }
                 .disabled(!viewModel.canStepForward)

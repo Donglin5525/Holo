@@ -22,6 +22,8 @@ enum MonthCellStyle: Hashable {
 /// 日历时间刻度（L1 三档合一）：日=单日回放、周=本周七天网格、月=热力月历。
 /// 三档是同一段生活记录的三种观察距离，共享同一个聚焦日期。
 enum CalendarScale: String, CaseIterable {
+    /// 长廊默认页：按日期排列的时间线（长廊减法设计 P2；迁移期旧档位保留）
+    case gallery
     /// 按日看：单日回放
     case day
     /// 按周看：多日时间网格（本周七天，三日可视窗口）
@@ -33,6 +35,7 @@ enum CalendarScale: String, CaseIterable {
 
     var displayName: String {
         switch self {
+        case .gallery: return String(localized: "长廊")
         case .day: return String(localized: "日")
         case .week: return String(localized: "周")
         case .month: return String(localized: "月")
@@ -50,7 +53,8 @@ final class CalendarViewModel: ObservableObject {
     /// 页面上不再有 anchor / gridCenterDay / selectedDay 等平行日期状态，全部由它派生。
     @Published var focusedDate: Date = Calendar.current.startOfDay(for: Date())
 
-    @Published var scale: CalendarScale = .day
+    /// 长廊默认页（时间线）为默认档；旧档位在迁移期全部保留可达（暖光规格 §8）。
+    @Published var scale: CalendarScale = .gallery
 
     /// 模块筛选（nil = 全部），三档间保持
     @Published var moduleFilter: CalendarModule? = nil
@@ -127,6 +131,7 @@ final class CalendarViewModel: ObservableObject {
     /// 回正按钮按观察尺度命名，避免月档仍写「今天」造成动作语义不清。
     var todayLabel: String {
         switch scale {
+        case .gallery: return String(localized: "今天")
         case .day: return String(localized: "今天")
         case .week: return String(localized: "本周")
         case .month: return String(localized: "本月")
@@ -137,6 +142,7 @@ final class CalendarViewModel: ObservableObject {
     /// 是否已处在当前期（「今天/本周」置灰免点）
     var isAtCurrentPeriod: Bool {
         switch scale {
+        case .gallery: return Calendar.current.isDateInToday(focusedDate)
         case .day:  return Calendar.current.isDateInToday(focusedDate)
         case .week: return CalendarRangeBuilder.weekRange(around: focusedDate).contains(Date())
         case .month: return Calendar.current.isDate(focusedDate, equalTo: Date(), toGranularity: .month)
@@ -192,11 +198,11 @@ final class CalendarViewModel: ObservableObject {
     }
 
     var currentPeriodEvents: [CalendarEvent] {
-        (scale == .day || scale == .timeline) ? focusedDayEvents : (periodPresentation?.events ?? [])
+        (scale == .day || scale == .timeline || scale == .gallery) ? focusedDayEvents : (periodPresentation?.events ?? [])
     }
 
     var chapterPresentation: MemoryTimeChapterPresentation {
-        if scale == .day || scale == .timeline { return selectedDayPresentation.chapter }
+        if scale == .day || scale == .timeline || scale == .gallery { return selectedDayPresentation.chapter }
         if let prepared = periodPresentation { return prepared.chapter }
         let range = scale == .week ? currentWeekRange : currentMonthRange
         return MemoryTimeChapterPresentation.make(
@@ -213,7 +219,7 @@ final class CalendarViewModel: ObservableObject {
     var dayEventCounts: [Date: Int] { index.eventCounts }
 
     var observationSummary: CalendarObservationSummary {
-        if scale == .day || scale == .timeline {
+        if scale == .day || scale == .timeline || scale == .gallery {
             return CalendarObservationSummary.make(events: focusedDayEvents, scope: .day, moduleFilter: moduleFilter)
         }
         return periodPresentation?.observation

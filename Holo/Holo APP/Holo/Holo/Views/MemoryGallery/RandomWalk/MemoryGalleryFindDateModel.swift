@@ -21,6 +21,18 @@ final class MemoryGalleryFindDateModel: ObservableObject {
     @Published var isPresented = false
     @Published private(set) var mode: Mode = .calendar
 
+    /// 长廊时间线的定位请求（找日期选日 / 回到最近 / 在长廊看这天）。
+    /// 时间线页消费后清空；token 保证同一天重复点击也能再次触发滚动。
+    struct GalleryJump: Equatable {
+        let day: Date
+        let token = UUID()
+    }
+    @Published var pendingJump: GalleryJump?
+
+    func requestJump(to day: Date) {
+        pendingJump = GalleryJump(day: Calendar.current.startOfDay(for: day))
+    }
+
     let walkSession = MemoryRandomWalkSession()
 
     /// 顶栏「找日期」：保留长廊当前位置，面板跟随当前阅读章节月份。
@@ -96,7 +108,10 @@ struct MemoryGalleryFindDateSheet: View {
                 calendarPanel
             }
         }
-        .presentationDetents([.medium, .large])
+        // 固定高度档：6 行月历+两行动作需 ~540pt，中等档会把顶部月份标题顶出可视区（冒烟实抓）；
+        // 日期面板与漫步共用同一档，切换时弹层高度不跳（§2：就地切换、期间固定高度）。
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .presentationDetents([.height(580), .large])
         .onAppear {
             if monthAnchor == nil { monthAnchor = focusedDate }
         }
@@ -245,10 +260,17 @@ struct MemoryGalleryFindDateSheet: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(isFuture)
-                .accessibilityLabel(startOfDay == today ? "今天" : "")
+                .accessibilityLabel(dayAccessibilityLabel(startOfDay, isToday: startOfDay == today, hasRecords: count != nil))
             }
         }
         .padding(.horizontal, 20)
+    }
+
+    private func dayAccessibilityLabel(_ day: Date, isToday: Bool, hasRecords: Bool) -> String {
+        var label = day.formatted(.dateTime.month().day())
+        if hasRecords { label += "，" + String(localized: "有记录") }
+        if isToday { label += "，" + String(localized: "今天") }
+        return label
     }
 
     private var monthDays: [Date] {

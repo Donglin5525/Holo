@@ -482,6 +482,7 @@
 		WLGT000000000000000000A2 /* WarmLightModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WLGT000000000000000000A1 /* WarmLightModelTests.swift */; };
 		WLGT000000000000000000A6 /* WarmLightFrameRenderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WLGT000000000000000000A5 /* WarmLightFrameRenderTests.swift */; };
 		WLGT000000000000000000A8 /* MemoryRandomWalkCoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WLGT000000000000000000A7 /* MemoryRandomWalkCoreTests.swift */; };
+		WLGT000000000000000000B2 /* MemoryGalleryTimelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WLGT000000000000000000B1 /* MemoryGalleryTimelineTests.swift */; };
 		WRAGG00000000000000000B1 /* WeeklyReviewAggregatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = WRAGG00000000000000000F1 /* WeeklyReviewAggregatorTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -997,6 +998,7 @@
 		WLGT000000000000000000A1 /* WarmLightModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WarmLightModelTests.swift; sourceTree = "<group>"; };
 		WLGT000000000000000000A5 /* WarmLightFrameRenderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WarmLightFrameRenderTests.swift; sourceTree = "<group>"; };
 		WLGT000000000000000000A7 /* MemoryRandomWalkCoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryRandomWalkCoreTests.swift; sourceTree = "<group>"; };
+		WLGT000000000000000000B1 /* MemoryGalleryTimelineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryGalleryTimelineTests.swift; sourceTree = "<group>"; };
 		WRAGG00000000000000000F1 /* WeeklyReviewAggregatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyReviewAggregatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -1605,6 +1607,7 @@
 				WLGT000000000000000000A1 /* WarmLightModelTests.swift */,
 				WLGT000000000000000000A5 /* WarmLightFrameRenderTests.swift */,
 				WLGT000000000000000000A7 /* MemoryRandomWalkCoreTests.swift */,
+				WLGT000000000000000000B1 /* MemoryGalleryTimelineTests.swift */,
 				AA11BB22CC33DD44EE55FF02 /* HoloMemoryEvidenceRoutingTests.swift */,
 				0B0AF2BDDC43021D85B561D3 /* MemoryInsightActionPromptBuilderTests.swift */,
 			);
@@ -2302,6 +2305,7 @@
 				WLGT000000000000000000A2 /* WarmLightModelTests.swift in Sources */,
 				WLGT000000000000000000A6 /* WarmLightFrameRenderTests.swift in Sources */,
 				WLGT000000000000000000A8 /* MemoryRandomWalkCoreTests.swift in Sources */,
+				WLGT000000000000000000B2 /* MemoryGalleryTimelineTests.swift in Sources */,
 				BC59E00B27BFC9CD15E7DF45 /* GoalWorkshopCommitTests.swift in Sources */,
 				7A1D0A2026102000000000A2 /* GoalPlanContractTests.swift in Sources */,
 				7A1D0A2026102000000000A4 /* GoalEvaluationSnapshotBuilderTests.swift in Sources */,
