@@ -260,6 +260,19 @@ enum UnderstandingShadowRunner {
         return (items, shortToSourceRef)
     }
 
+    /// 时段带（BUG-7）：补账默认午夜 → unknown；按本地时段四分。
+    nonisolated static func timeOfDayBand(of obs: LifeObservation) -> String {
+        if obs.timePrecision == .midnightDefault { return "unknown" }
+        guard let at = obs.occurredAt else { return "unknown" }
+        let hour = Calendar.current.component(.hour, from: at)
+        switch hour {
+        case 5..<11: return "morning"
+        case 11..<17: return "afternoon"
+        case 17..<23: return "evening"
+        default: return "night"
+        }
+    }
+
     nonisolated static func windowLabel(for date: Date, now: Date) -> String {
         let days = Int(now.timeIntervalSince(date) / 86_400)
         if days <= 1 { return "近1-2天" }

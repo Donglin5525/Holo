@@ -44,6 +44,7 @@ struct AdversarialRound2Tests {
         try await habitOnlyUserEndToEnd()
         try await round4_staleUnderstandingNotInvalidated()
         try await bug6_shortIDReferenceRoundTrip()
+        bug7_channelEscalationAndTimeFabrication()
         printOutcome()
     }
 
@@ -235,6 +236,48 @@ struct AdversarialRound2Tests {
         }
         expect(rejected.isEmpty, "短编号引用经回源后必须全部通过（不再因抄写报废）")
         try? FileManager.default.removeItem(at: storage)
+    }
+
+    /// BUG-7 真数据实锤（东林否定「深夜外卖」：美团支付≠外卖、时刻从未上送）：
+    /// 渠道升格词与时段词必须有证据出处，否则降级 observe。
+    static func bug7_channelEscalationAndTimeFabrication() {
+        // 证据：晚间真实消费（occurredAt 19:xx=evening）+ 美团概念；无外卖、无深夜证据
+        let eveningDinner = LifeObservation(
+            domain: .finance, sourceRef: "mt-1", sourceRevision: "r1", sourceKind: "transaction",
+            occurredAt: day(2026, 10, 8, 19), recordedAt: day(2026, 10, 8, 19),
+            timePrecision: .minute, concepts: ["美团平台商户", "晚餐"], action: nil,
+            attribution: .unknown, businessState: .plain, coverage: nil, quote: "美团平台商户/五代同糖")
+        // 补账版：occurredAt 默认午夜 + midnightDefault
+        let backfill = LifeObservation(
+            domain: .finance, sourceRef: "mt-2", sourceRevision: "r1", sourceKind: "transaction",
+            occurredAt: day(2026, 10, 9), recordedAt: day(2026, 10, 9, 22), 
+            timePrecision: .midnightDefault, concepts: ["美团", "晚餐"], action: nil,
+            attribution: .unknown, businessState: .plain,
+            coverage: ObservationCoverageNote(kind: .batchBackfill, note: "补账"), quote: "美团")
+        let obs = [eveningDinner, backfill]
+        // ①「深夜外卖」——外卖无出处 + 深夜无night证据 → 降级 observe
+        let fabricated = ProposalCandidate(
+            claimType: "recurringBehavior",
+            statement: "用户近期存在高频的深夜外卖用餐行为。",
+            supportingRefs: ["mt-1", "mt-2"], alternativeExplanations: [],
+            whatWouldChangeTheAnswer: nil, evidenceGrade: "支持", action: "adopt")
+        let r1 = ProposalGate.evaluate(candidate: fabricated, observations: obs)
+        expect(r1.action == "observe", "「深夜外卖」必须降级 observe（外卖无出处+深夜无证据）实际:\(r1.action)")
+        expect(r1.reasons.contains { $0.contains("外卖") } && r1.reasons.contains { $0.contains("深夜") },
+               "降级理由须同时点名渠道升格与时段脑补")
+        // ②「晚间用餐」——晚间有 evening 证据 + 无渠道词 → 原样通过
+        let honest = ProposalCandidate(
+            claimType: "recurringBehavior",
+            statement: "用户近期多次在晚间通过平台商户用餐。",
+            supportingRefs: ["mt-1", "mt-2"], alternativeExplanations: [],
+            whatWouldChangeTheAnswer: nil, evidenceGrade: "支持", action: "adopt")
+        let r2 = ProposalGate.evaluate(candidate: honest, observations: obs)
+        expect(r2.action == "adopt", "「晚间用餐」有据可查应通过（晚间证据存在），实际:\(r2.action)")
+        // ③ 补账记录时段=unknown 不给模型任何暗示
+        expect(UnderstandingShadowRunner.timeOfDayBand(of: backfill) == "unknown",
+               "补账默认午夜 → 时段 unknown（不给编故事原料）")
+        expect(UnderstandingShadowRunner.timeOfDayBand(of: eveningDinner) == "evening",
+               "真实 19 点消费 → evening")
     }
 
     /// 极端 JSON 形态：candidates 为 null / 截断 JSON / 数组顶层——全部显式失败不崩。

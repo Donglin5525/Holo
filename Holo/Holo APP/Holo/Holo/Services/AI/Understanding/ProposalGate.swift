@@ -75,6 +75,17 @@ nonisolated enum ProposalGate {
     /// 证据不足→降级 observe（不拒——有价值线索保留观察，M1.6 S04-weak 的正确处理）。
     static func evidenceGate(candidate: ProposalCandidate, observations: [LifeObservation]) -> GateVerdict {
         let byRef = Dictionary(uniqueKeysWithValues: observations.map { ($0.sourceRef, $0) })
+        // 便捷时段计算（与 evidence 视图 timeOfDayBand 同口径）
+        func band(of obs: LifeObservation) -> String {
+            if obs.timePrecision == .midnightDefault { return "unknown" }
+            guard let at = obs.occurredAt else { return "unknown" }
+            switch Calendar.current.component(.hour, from: at) {
+            case 5..<11: return "morning"
+            case 11..<17: return "afternoon"
+            case 17..<23: return "evening"
+            default: return "night"
+            }
+        }
         let cited = candidate.supportingRefs.compactMap { byRef[$0] }
         // 引用编造 → 拒（不可回源的候选没有存在资格）。
         if cited.count != candidate.supportingRefs.count {
@@ -95,6 +106,34 @@ nonisolated enum ProposalGate {
             if domains.count < 2 { reasons.append("证据闸[关联类需跨≥2域证据，现\(domains.count)]"); downgrade = true }
         case .phaseState, .preference, .recurringBehavior, nil:
             if independentSources.isEmpty { reasons.append("证据闸[无有效引用]"); downgrade = true }
+        }
+        // BUG-7 细节出处检查（真数据实锤：美团支付记录→「深夜外卖」——渠道升格+
+        // 时段脑补都无证据出处）。时段词须有任一引用证据的 timeOfDay 匹配；
+        // 渠道-方式词（外卖/打车等）须在引用证据的概念或原话中出现。违反 → 降级。
+        let timeWords: [(word: String, band: String)] = [
+            ("深夜", "night"), ("凌晨", "night"), ("夜间", "night"), ("半夜", "night"),
+            ("早上", "morning"), ("清晨", "morning"), ("上午", "morning"),
+            ("下午", "afternoon"), ("傍晚", "evening"), ("晚上", "evening"), ("晚间", "evening"),
+        ]
+        let channelWords = ["外卖", "打车", "代驾", "配送", "上门"]
+        var citedConceptAndQuote = ""
+        for obs in cited {
+            let conceptsText = obs.concepts.joined(separator: " ")
+            let quoteText = obs.quote ?? ""
+            citedConceptAndQuote += conceptsText + " " + quoteText + " "
+        }
+        for pair in timeWords where candidate.statement.contains(pair.word) {
+            let matched = cited.contains { band(of: $0) == pair.band }
+            if !matched {
+                reasons.append("证据闸[时段『\(pair.word)』无对应时段证据——命题细节超出材料]")
+                downgrade = true
+            }
+        }
+        for word in channelWords where candidate.statement.contains(word) {
+            if !citedConceptAndQuote.contains(word) {
+                reasons.append("证据闸[渠道词『\(word)』在证据概念/原话中无出处——支付渠道不得升格为消费方式]")
+                downgrade = true
+            }
         }
         if downgrade {
             return GateVerdict(passed: true, downgradeTo: "observe", reasons: reasons)
