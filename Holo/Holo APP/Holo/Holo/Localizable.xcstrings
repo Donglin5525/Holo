@@ -1,278 +1,6 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "合并记为一笔" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Merge into One Entry"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "合併記為一筆"
-          }
-        }
-      }
-    },
-    "分开记" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Book Separately"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "分開記"
-          }
-        }
-      }
-    },
-    "这一笔将记为" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This entry will be saved as"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這一筆將記為"
-          }
-        }
-      }
-    },
-    "勾掉的笔不记，其余合成一笔。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Unchecked items are skipped; the rest are merged into one."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "勾掉的筆不記，其餘合成一筆。"
-          }
-        }
-      }
-    },
-    "收入和支出混在一起，不能合成一笔" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Income and expenses can't be merged into one"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "收入和支出混在一起，不能合成一筆"
-          }
-        }
-      }
-    },
-    "转账不能参与合并" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Transfers can't be merged"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "轉賬不能參與合併"
-          }
-        }
-      }
-    },
-    "确认记 1 笔 · ¥%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Save 1 Entry · ¥%@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "確認記 1 筆 · ¥%@"
-          }
-        }
-      }
-    },
-    "复核入账 1 笔 · %lld 笔合并" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 Entry Booked · Merged from %lld"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "複核入賬 1 筆 · %lld 筆合併"
-          }
-        }
-      }
-    },
-    "先勾选要合并的账" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Check the items to merge first"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "先勾選要合併的賬"
-          }
-        }
-      }
-    },
-    "等%lld笔" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "+ %lld more"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "等%lld筆"
-          }
-        }
-      }
-    },
-    "%lld 笔 · 合成 " : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld Entries · Merge into "
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%lld 筆 · 合成 "
-          }
-        }
-      }
-    },
-    "1 笔" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 Entry"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 筆"
-          }
-        }
-      }
-    },
-    "想法原文": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "想法原文"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Note Text"
-          }
-        }
-      }
-    },
-    "在想法中打开": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在想法中打開"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open in Notes"
-          }
-        }
-      }
-    },
-    "这条记录暂时无法查看": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這條記錄暫時無法查看"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This record can't be viewed right now"
-          }
-        }
-      }
-    },
-    "暂时无法载入": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暫時無法載入"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't load"
-          }
-        }
-      }
-    },
-    "暂时找不到旧日记录": {
-      "localizations": {
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暫時找不到舊日記錄"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Couldn't find past records"
-          }
-        }
-      }
-    },
     "" : {
       "localizations" : {
         "en" : {
@@ -1066,6 +794,9 @@
           }
         }
       }
+    },
+    "；余额还到 0 即还清" : {
+
     },
     "；原计划继续有效，稍后可重试。" : {
 
@@ -6316,6 +6047,22 @@
         }
       }
     },
+    "%lld 笔 · 合成 " : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld Entries · Merge into "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 筆 · 合成 "
+          }
+        }
+      }
+    },
     "%lld 笔 · 当前日期范围" : {
       "localizations" : {
         "en" : {
@@ -8094,6 +7841,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 次/天"
+          }
+        }
+      }
+    },
+    "1 笔" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 Entry"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 筆"
           }
         }
       }
@@ -14642,6 +14405,9 @@
         }
       }
     },
+    "不用填数字——创建后到详情页拆成任务和习惯" : {
+
+    },
     "不用想“该去哪记”——直接告诉 Holo 一件事，比如“午饭花了 35 元”，它会帮你记好。右边是记忆长廊，你的记录会自动汇成那里。" : {
       "localizations" : {
         "en" : {
@@ -19836,6 +19602,9 @@
         }
       }
     },
+    "从今天起算「%@」的净增加，已有余额不计入" : {
+
+    },
     "从今天隐藏，保留全部历史" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -21696,6 +21465,9 @@
         }
       }
     },
+    "余额达到" : {
+
+    },
     "你" : {
       "localizations" : {
         "en" : {
@@ -22307,6 +22079,7 @@
       }
     },
     "你的每条记录都会自动汇到这里，按日、周、月回看生活；右侧「洞察」是 Holo 对你的理解档案。" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -23731,6 +23504,9 @@
     "修改" : {
 
     },
+    "修改了成功条件——勾选下方确认后可保存" : {
+
+    },
     "修改待办" : {
       "localizations" : {
         "en" : {
@@ -24991,6 +24767,22 @@
         }
       }
     },
+    "先勾选要合并的账" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the items to merge first"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先勾選要合併的賬"
+          }
+        }
+      }
+    },
     "先勾选要记的账" : {
       "localizations" : {
         "en" : {
@@ -25612,10 +25404,10 @@
         }
       }
     },
-    "全账本净结余增加" : {
+    "全账本净增" : {
 
     },
-    "全账本净结余增加（旧口径）" : {
+    "全账本净结余增加" : {
 
     },
     "全账本净结余自 %@ 起的变化" : {
@@ -25964,6 +25756,9 @@
           }
         }
       }
+    },
+    "全部账本" : {
+
     },
     "全部跳过" : {
       "localizations" : {
@@ -28847,6 +28642,9 @@
         }
       }
     },
+    "净增加" : {
+
+    },
     "净投入（支出−收入）" : {
       "localizations" : {
         "en" : {
@@ -29251,6 +29049,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分享這個想法"
+          }
+        }
+      }
+    },
+    "分开记" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Book Separately"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分開記"
           }
         }
       }
@@ -32524,6 +32338,22 @@
         }
       }
     },
+    "勾掉的笔不记，其余合成一笔。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unchecked items are skipped; the rest are merged into one."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "勾掉的筆不記，其餘合成一筆。"
+          }
+        }
+      }
+    },
     "勾选你认可的项：优先结果会建为目标，行动卡会创建对应的任务或习惯。你决定接受哪些——不勾的就是拒绝，拒绝会帮我下次做得更好。" : {
       "localizations" : {
         "en" : {
@@ -34786,6 +34616,16 @@
         }
       }
     },
+    "取自「%@」当前余额（%@）" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "取自「%1$@」当前余额（%2$@）"
+          }
+        }
+      }
+    },
     "变化" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -35867,6 +35707,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "合併失敗：%@"
+          }
+        }
+      }
+    },
+    "合并记为一笔" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merge into One Entry"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "合併記為一筆"
           }
         }
       }
@@ -38709,6 +38565,9 @@
     "在原模块查看" : {
 
     },
+    "在哪个账户里净增加" : {
+
+    },
     "在左侧轻点任务，详情和编辑会在这里展开" : {
       "localizations" : {
         "en" : {
@@ -38803,6 +38662,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在待辦列表裡建立一條提醒任務"
+          }
+        }
+      }
+    },
+    "在想法中打开" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Notes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在想法中打開"
           }
         }
       }
@@ -39868,6 +39743,22 @@
         }
       }
     },
+    "复核入账 1 笔 · %lld 笔合并" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 Entry Booked · Merged from %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複核入賬 1 筆 · %lld 筆合併"
+          }
+        }
+      }
+    },
     "复用这个账户%@已有的预算 %@" : {
       "localizations" : {
         "en" : {
@@ -40469,6 +40360,7 @@
       }
     },
     "如 跑 300km" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -40483,6 +40375,9 @@
           }
         }
       }
+    },
+    "如 跑满 300km" : {
+
     },
     "如：妈妈的生日" : {
       "localizations" : {
@@ -53177,6 +53072,9 @@
         }
       }
     },
+    "恢复为进行中" : {
+
+    },
     "恢复习惯" : {
       "localizations" : {
         "en" : {
@@ -53924,6 +53822,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "想法載入失敗"
+          }
+        }
+      }
+    },
+    "想法原文" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note Text"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想法原文"
           }
         }
       }
@@ -56937,6 +56851,9 @@
         }
       }
     },
+    "拆成任务和习惯" : {
+
+    },
     "拆成任务和习惯，靠行动推进" : {
       "localizations" : {
         "en" : {
@@ -57549,6 +57466,9 @@
       }
     },
     "按全账本收支净额计算，不是专项旅行资金" : {
+
+    },
+    "按全部账本收入减支出的净增加衡量；还债、转账不改变净资产" : {
 
     },
     "按公历年年重复" : {
@@ -60972,6 +60892,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "收入不能掛項目，未入賬。打開 Holo 確認。"
+          }
+        }
+      }
+    },
+    "收入和支出混在一起，不能合成一笔" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Income and expenses can't be merged into one"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "收入和支出混在一起，不能合成一筆"
           }
         }
       }
@@ -67101,6 +67037,22 @@
         }
       }
     },
+    "暂时找不到旧日记录" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't find past records"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時找不到舊日記錄"
+          }
+        }
+      }
+    },
     "暂时无法录音" : {
       "localizations" : {
         "en" : {
@@ -67180,6 +67132,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "暫時無法讀取這份規劃，原記錄已保留。請稍後重試。"
+          }
+        }
+      }
+    },
+    "暂时无法载入" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫時無法載入"
           }
         }
       }
@@ -73310,7 +73278,11 @@
         }
       }
     },
+    "查看这句的来源" : {
+
+    },
     "查看这句的来源 ›" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -74324,6 +74296,7 @@
 
     },
     "欢迎来到记忆长廊" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -84456,6 +84429,7 @@
       }
     },
     "确认后，凭证照片将自动归档为票根" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -84860,6 +84834,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認記 %lld 筆 · ¥%@"
+          }
+        }
+      }
+    },
+    "确认记 1 笔 · ¥%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save 1 Entry · ¥%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認記 1 筆 · ¥%@"
           }
         }
       }
@@ -86598,6 +86588,22 @@
     },
     "等 %lld 条" : {
 
+    },
+    "等%lld笔" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+ %lld more"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等%lld筆"
+          }
+        }
+      }
     },
     "等你开始，这里会慢慢丰富起来。" : {
 
@@ -93484,6 +93490,9 @@
         }
       }
     },
+    "设个期限" : {
+
+    },
     "设为今天关注的目标" : {
 
     },
@@ -94782,6 +94791,12 @@
           }
         }
       }
+    },
+    "该账本净增" : {
+
+    },
+    "该账本净结余增加" : {
+
     },
     "该项目下 %lld 笔交易会保留，只是不再算进这个项目；项目本身可随时重新创建。" : {
       "localizations" : {
@@ -96689,6 +96704,19 @@
         }
       }
     },
+    "账户「%@」净结余增加" : {
+
+    },
+    "账户「%@」净结余自 %@ 起的变化" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "账户「%1$@」净结余自 %2$@ 起的变化"
+          }
+        }
+      }
+    },
     "账户不存在，请重新选择来源" : {
 
     },
@@ -96708,6 +96736,9 @@
           }
         }
       }
+    },
+    "账户余额" : {
+
     },
     "账户匹配" : {
       "localizations" : {
@@ -98418,6 +98449,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "轉賬"
+          }
+        }
+      }
+    },
+    "转账不能参与合并" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfers can't be merged"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轉賬不能參與合併"
           }
         }
       }
@@ -100849,6 +100896,9 @@
     "还没有可用标签" : {
 
     },
+    "还没有可用的账本账户" : {
+
+    },
     "还没有安排今天的任务" : {
       "localizations" : {
         "en" : {
@@ -101690,6 +101740,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這一步未儲存，內容已保留，請重試。"
+          }
+        }
+      }
+    },
+    "这一笔将记为" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This entry will be saved as"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這一筆將記為"
           }
         }
       }
@@ -103636,6 +103702,22 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這條記錄已變化，請到詳情確認"
+          }
+        }
+      }
+    },
+    "这条记录暂时无法查看" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This record can't be viewed right now"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這條記錄暫時無法查看"
           }
         }
       }
@@ -110244,6 +110326,7 @@
       }
     },
     "靠行动推进" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
