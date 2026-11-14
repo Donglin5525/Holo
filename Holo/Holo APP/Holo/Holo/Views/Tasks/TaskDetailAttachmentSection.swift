@@ -191,6 +191,7 @@ struct TaskDetailAttachmentSection: View {
                 Spacer()
             }
             .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

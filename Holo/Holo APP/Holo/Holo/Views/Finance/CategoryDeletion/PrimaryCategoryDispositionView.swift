@@ -291,6 +291,7 @@ struct PrimaryCategoryDispositionView: View {
                     .font(.system(size: 20))
                     .foregroundColor(mode == value ? .holoPrimary : .holoTextPlaceholder)
             }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)

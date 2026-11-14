@@ -790,6 +790,7 @@ struct ThoughtKnowledgeTreeView: View {
                 }
             }
             .padding(.horizontal, HoloSpacing.xs)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -814,6 +815,7 @@ struct ThoughtKnowledgeTreeView: View {
                     .foregroundColor(.holoTextSecondary.opacity(0.6))
             }
             .padding(.horizontal, HoloSpacing.xs)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .sheet(isPresented: $showOrganizationSettings) {

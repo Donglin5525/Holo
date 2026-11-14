@@ -209,6 +209,7 @@ struct FinanceAnalysisView: View {
                             .frame(height: 2)
                     }
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

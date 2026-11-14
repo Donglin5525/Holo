@@ -240,6 +240,7 @@ struct DatePickerRow: View {
                         .foregroundColor(.holoToolTextSecondary)
                         .rotationEffect(.degrees(showPicker ? 180 : 0))
                 }
+                .contentShape(Rectangle())
             }
             
             if showPicker {

@@ -534,6 +534,7 @@ extension AddTransactionSheet {
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }
@@ -602,6 +603,7 @@ extension AddTransactionSheet {
                             }
                             .padding(.horizontal, 16)
                             .padding(.vertical, 11)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
 
@@ -638,6 +640,7 @@ extension AddTransactionSheet {
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 11)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityIdentifier("projectPopup.option.\(project.name)")

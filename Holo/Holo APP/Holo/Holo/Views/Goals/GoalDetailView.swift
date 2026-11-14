@@ -550,6 +550,7 @@ struct GoalDetailView: View {
                     .foregroundColor(.holoToolTextSecondary)
             }
             .padding(.vertical, HoloSpacing.sm)
+            .contentShape(Rectangle())
         }
         .buttonStyle(HoloPressStyle())
     }

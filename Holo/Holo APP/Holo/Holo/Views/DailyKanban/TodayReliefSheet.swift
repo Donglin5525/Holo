@@ -351,6 +351,7 @@ struct TodayReliefSheet: View {
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             if showConstraints {
