@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html data-zcode-design lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Holo iPad · 想法 · 可交互原型</title>
+<style>
+/* ============ 画布层（工作台，非 App 界面） ============ */
+:root{
+  /* Holo Tool 色板（来源 docs/standards/设计规范.md，Light/Dark 两套） */
+  --bg-page:#FDFCF8; --surface:#FFFFFF; --inset:#F7F1EA;
+  --text:#333333; --text-2:#6E6E6E; --border:#E9E4DA; --divider:#F1F5F9;
+  --action:#EA580C; --on-action:#FFFFFF;
+  --placeholder:#9CA3AF; --warning:#93450A; --success:#166534; --danger:#B91C1C; --ai:#6D28D9;
+  --brand:#F46D38; --brand-light:#FED7AA; --brand-dark:#EA580C;
+  /* 画布 */
+  --canvas:#141416; --rail:#1D1D20; --rail-line:#333336;
+  --rail-text:#E8E8EA; --rail-sub:#9A9AA0;
+  --seg-track:rgba(120,120,128,.14); --seg-thumb:#FFFFFF;
+  --amber:#D97706;
+  /* 信纸字体（原型回退栈；实现用随包 HoloNoteHand/HoloNoteSerif） */
+  --f-hand:"Kaiti SC","STKaiti","KaiTi",serif;
+  --f-serif:"Songti SC","STSong",serif;
+}
+[data-theme="dark"]{
+  --bg-page:#0E0E10; --surface:#2C2C2E; --inset:#3A3A3C;
+  --text:#F5F5F5; --text-2:#A8A8A8; --border:#48484A; --divider:#38383A;
+  --action:#FF8A5C; --on-action:#1C1C1E;
+  --placeholder:#6B7280; --warning:#FFBE6A; --success:#86EFAC; --danger:#FCA5A5; --ai:#C4B5FD;
+  --seg-track:rgba(118,118,128,.24); --seg-thumb:#5A5A5E;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html.instant *,html.instant *::before,html.instant *::after{transition:none!important;animation:none!important}
+html,body{height:100%}
+body{
+  background:var(--canvas); color:var(--rail-text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  display:flex; align-items:stretch; gap:28px; padding:28px; min-height:100vh; overflow:hidden;
+}
+.tnum{font-variant-numeric:tabular-nums}
+svg.ic{width:1em;height:1em;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* ---- 控制栏 ---- */
+.rail{width:272px;flex:none;background:var(--rail);border:1px solid var(--rail-line);border-radius:16px;padding:20px;display:flex;flex-direction:column;gap:16px;align-self:flex-start;max-height:calc(100vh - 56px);overflow-y:auto}
+.rail h1{font-size:15px;font-weight:700;letter-spacing:.2px}
+.rail .sub{font-size:12px;color:var(--rail-sub);line-height:1.6;margin-top:4px}
+.rlabel{font-size:11px;font-weight:600;color:var(--rail-sub);letter-spacing:.5px;margin-bottom:6px}
+.rseg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;background:#141416;border:1px solid var(--rail-line);border-radius:9px;padding:2px;gap:2px}
+.rseg button{border:none;background:transparent;color:var(--rail-sub);font-size:12px;font-weight:500;padding:6px 4px;border-radius:7px;cursor:pointer;font-family:inherit}
+.rseg button[aria-pressed="true"]{background:var(--action);color:#fff}
+.rchips{display:flex;flex-direction:column;gap:6px}
+.rchips button{border:1px solid var(--rail-line);background:transparent;color:var(--rail-sub);font-size:12.5px;padding:8px 12px;border-radius:10px;cursor:pointer;font-family:inherit;text-align:left}
+.rchips button[aria-pressed="true"]{border-color:var(--action);color:var(--action);font-weight:600}
+.rail .foot{font-size:11px;color:var(--rail-sub);line-height:1.7;border-top:1px solid var(--rail-line);padding-top:12px}
+.rail .foot b{color:var(--rail-text)}
+.ptag{display:inline-block;font-size:10px;font-weight:700;color:#FBBF24;background:rgba(217,119,6,.16);border-radius:5px;padding:0 5px;margin-left:4px;vertical-align:1px}
+/* ---- 舞台与 iPad 机身 ---- */
+.stage{flex:1;display:grid;place-items:center;min-width:0;min-height:0}
+.frameWrap{transform-origin:center center}
+.ipad{background:#3A3A3C;border-radius:38px;padding:14px;box-shadow:0 30px 80px rgba(0,0,0,.55)}
+.screen{width:1194px;height:834px;background:var(--bg-page);border-radius:26px;overflow:hidden;position:relative;color:var(--text);display:flex;flex-direction:column;transition:background .25s}
+.screen.pt{width:834px;height:1194px}
+/* 状态栏 */
+.sbar{flex:none;height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-size:12px;font-weight:600;color:var(--text);opacity:.9}
+.sbar .ic{font-size:12px}
+/* ---- App 壳层 ---- */
+.app{flex:1;display:flex;min-height:0;position:relative}
+/* 侧边栏 */
+.sidebar{width:232px;flex:none;background:var(--inset);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:10px 10px 12px;transition:width .2s}
+.screen.minisb .sidebar{width:68px}
+.sb-top{display:flex;align-items:center;gap:8px;padding:4px 8px 10px}
+.sb-btn{width:32px;height:32px;border:none;background:transparent;color:var(--text-2);border-radius:8px;display:grid;place-items:center;cursor:pointer;font-size:16px}
+.sb-btn:hover{background:rgba(120,120,128,.12)}
+.sb-title{font-size:17px;font-weight:700;color:var(--text)}
+.screen.minisb .sb-title{display:none}
+.sb-list{display:flex;flex-direction:column;gap:2px;margin-top:2px}
+.sb-item{display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border:none;background:transparent;border-radius:10px;color:var(--text);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;text-align:left;position:relative}
+.sb-item svg.ic{font-size:17px;color:var(--text-2)}
+.sb-item .k{margin-left:auto;font-size:10.5px;color:var(--text-2);opacity:.7;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.sb-item:hover{background:rgba(120,120,128,.10)}
+.sb-item.on{background:color-mix(in srgb,var(--action) 12%,transparent);color:var(--action);font-weight:600}
+.sb-item.on svg.ic{color:var(--action)}
+.screen.minisb .sb-item{justify-content:center;padding:0}
+.screen.minisb .sb-item span,.screen.minisb .sb-item .k{display:none}
+.sb-div{height:1px;background:var(--border);margin:8px 10px}
+.screen.minisb .sb-div{margin:8px 6px}
+.sb-bottom{margin-top:auto;display:flex;flex-direction:column;gap:8px}
+.sb-quick{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border:none;background:var(--action);color:var(--on-action);border-radius:12px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit}
+.sb-quick:active{transform:scale(.97);opacity:.9}
+.sb-quick .k{margin-left:auto;font-size:10.5px;opacity:.8;font-family:ui-monospace,"SF Mono",Menlo,monospace}
+.screen.minisb .sb-quick{justify-content:center;padding:0}
+.screen.minisb .sb-quick span,.screen.minisb .sb-quick .k{display:none}
+/* 竖屏覆盖式侧边栏 */
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.32);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.sbov{position:absolute;top:0;bottom:0;left:0;width:232px;background:var(--inset);border-right:1px solid var(--border);z-index:41;padding:10px 10px 12px;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform .22s cubic-bezier(.32,.72,.35,1);border-radius:0 18px 18px 0;box-shadow:12px 0 40px rgba(0,0,0,.12)}
+.screen.sbov-open .scrim{opacity:1;pointer-events:auto}
+.screen.sbov-open .sbov{transform:translateX(0)}
+/* ---- 内容区 ---- */
+.content{flex:1;min-width:0;position:relative;overflow:hidden}
+.scene{position:absolute;inset:0;display:none;flex-direction:column}
+.screen[data-scene="flow"] .scene-flow,.screen[data-scene="filter"] .scene-flow,.screen[data-scene="empty"] .scene-flow{display:flex}
+.screen[data-scene="tree"] .scene-tree,.screen[data-scene="merge"] .scene-tree{display:flex}
+.screen[data-scene="editor"] .scene-editor,.screen[data-scene="editorkb"] .scene-editor,.screen[data-scene="styles"] .scene-editor{display:flex}
+.screen[data-scene="queue"] .scene-queue{display:flex}
+.screen[data-scene="topic"] .scene-topic{display:flex}
+.screen[data-scene="readpt"] .scene-readpt{display:flex}
+.scroll{flex:1;overflow-y:auto;overscroll-behavior:contain;padding-bottom:52px}
+.scroll::-webkit-scrollbar{width:0}
+kbd{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:10.5px;background:var(--surface);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--text-2);white-space:nowrap}
+.canvas-cap{position:absolute;left:0;right:0;bottom:4px;text-align:center;font-size:11px;letter-spacing:.3px;color:#9A9AA0;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.note{position:absolute;z-index:45;font-size:11px;line-height:1.55;color:#7C2D12;background:#FDE8D7;border:1px solid #FDBA74;border-radius:10px;padding:7px 10px;max-width:210px;box-shadow:0 6px 20px rgba(0,0,0,.15)}
+[data-theme="dark"] .note{color:#FDBA74;background:rgba(217,119,6,.12);border-color:rgba(253,186,116,.4)}
+.screen.pt .note{display:none}
+/* 通用小件 */
+.btn-ghost{height:34px;padding:0 14px;border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:10px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px}
+.btn-ghost:active{transform:scale(.97);opacity:.85}
+.btn-primary{height:36px;padding:0 16px;border:none;background:var(--action);color:var(--on-action);border-radius:11px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:7px}
+.btn-primary:active{transform:scale(.97);opacity:.9}
+.topbar{flex:none;height:52px;display:flex;align-items:center;gap:10px;padding:0 24px}
+.topbar .ttl{font-size:24px;font-weight:700;letter-spacing:.2px}
+.topbar .sub{font-size:13px;color:var(--text-2)}
+.topbar .sp{flex:1}
+.iconbtn{width:34px;height:34px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:10px;display:grid;place-items:center;cursor:pointer;font-size:15px;flex:none}
+.iconbtn:active{transform:scale(.95);opacity:.85}
+.chip{font-size:12px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:6px 12px;cursor:pointer;font-family:inherit}
+.chip.on{border-color:var(--action);color:var(--action);font-weight:600}
+.chip.sm{font-size:11.5px;padding:4px 10px}
+.seg{display:inline-flex;background:var(--seg-track);border-radius:9px;padding:2px;gap:2px}
+.seg button{border:none;background:transparent;color:var(--text-2);font-size:12.5px;font-weight:500;padding:5px 14px;border-radius:7px;cursor:pointer;font-family:inherit}
+.seg button[aria-pressed="true"]{background:var(--seg-thumb);color:var(--text);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.badge-ai{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:600;color:var(--ai);background:color-mix(in srgb,var(--ai) 11%,transparent);border-radius:999px;padding:2px 8px;cursor:pointer;white-space:nowrap}
+.tgl{width:42px;height:25px;border-radius:13px;background:var(--seg-track);position:relative;cursor:pointer;flex:none;transition:background .15s}
+.tgl i{position:absolute;top:2.5px;left:2.5px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s}
+.tgl.on{background:var(--success)}
+.tgl.on i{left:19.5px}
+/* ---- 信纸纸模（色板来自 Thought*Paper/Ink/Accent/Border colorset） ---- */
+.pp{--pp:#FFFDF8;--pi:#344A56;--pa:#526777;--pb:#E3E4DD}   /* 邮笺 Post */
+.pp-f{--pp:#FAFBF4;--pi:#354A39;--pa:#61765D;--pb:#E0E6D8} /* 观察 Field */
+.pp-t{--pp:#FFF9EF;--pi:#493F33;--pa:#92653E;--pb:#E7DFD0} /* 票根 Ticket */
+.pp-c{--pp:#FFFCF6;--pi:#4A3B37;--pa:#805355;--pb:#E5DDDA;--pf:var(--f-serif)} /* 日历 Calendar */
+.pp-o{--pp:#FBFAF6;--pi:#4C5546;--pa:#68715B;--pb:#E1E4DB;--pf:var(--f-hand)}  /* 对折 Fold */
+.pp-m{--pp:#FBFBF8;--pi:#373B38;--pa:#64716B;--pb:#E0E4DF} /* 胶片 Film */
+.pp-b{--pp:#FFFDF9;--pi:#414943;--pa:#61756F;--pb:#E1E5DE;--pf:var(--f-serif)} /* 书签 Bookmark */
+.pp-d{--pp:#FDFCF8;--pi:#4C4A3D;--pa:#77715B;--pb:#E5E3DA} /* 点阵 Dots */
+.pp-plain{--pp:var(--surface);--pi:var(--text);--pa:var(--action);--pb:var(--border);--pf:inherit} /* 原样 */
+[data-theme="dark"] .pp{--pp:#272A27;--pi:#DCE5E4;--pa:#B3C6CE;--pb:#424943}
+[data-theme="dark"] .pp-f{--pp:#252C25;--pi:#E2E7D7;--pa:#BAC9A7;--pb:#414C3D}
+[data-theme="dark"] .pp-t{--pp:#2D2A23;--pi:#EEE4D3;--pa:#D6B190;--pb:#4E473B}
+[data-theme="dark"] .pp-c{--pp:#2C2725;--pi:#ECE1D7;--pa:#D5ADA8;--pb:#50423F}
+[data-theme="dark"] .pp-o{--pp:#292C27;--pi:#E0E6D6;--pa:#B1BBA4;--pb:#454B40}
+[data-theme="dark"] .pp-m{--pp:#262826;--pi:#E2E6DD;--pa:#B0BEB4;--pb:#444C45}
+[data-theme="dark"] .pp-b{--pp:#292A27;--pi:#E7E7DC;--pa:#B5C7BD;--pb:#424A42}
+[data-theme="dark"] .pp-d{--pp:#282924;--pi:#E6E4D3;--pa:#C5BEA5;--pb:#4B493E}
+[data-theme="dark"] .pp-plain{--pp:var(--surface);--pi:var(--text);--pa:var(--action);--pb:var(--border)}
+/* 模板小图标（列表只留小图标提示） */
+.tpic{width:16px;height:16px;flex:none;color:var(--pa);opacity:.9}
+/* ---- 想法卡（纸张底色卡） ---- */
+.th-card{background:var(--pp);color:var(--pi);border:1px solid var(--pb);border-left:3px solid var(--pa);border-radius:16px;padding:13px 16px 12px;cursor:pointer;display:flex;flex-direction:column;gap:8px;transition:transform .15s,box-shadow .15s;text-align:left;font-family:inherit}
+.th-card:active{transform:scale(.985)}
+.th-card.sel{box-shadow:0 0 0 2.5px color-mix(in srgb,var(--action) 55%,transparent),0 6px 18px rgba(0,0,0,.08)}
+.th-card .hd{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--pi);opacity:.72}
+.th-card .hd .pin{color:var(--pa);display:inline-flex;align-items:center;gap:3px;font-weight:600;opacity:1}
+.th-card .hd .sp{flex:1}
+.th-card .bd{font-size:13.5px;line-height:1.68;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+.th-card .bd .qrow{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--pa);margin-bottom:6px;padding-left:8px;border-left:2.5px solid var(--pa);line-height:1.4}
+.th-card .tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tagchip{font-size:11px;color:var(--pa);background:color-mix(in srgb,var(--pa) 11%,transparent);border-radius:999px;padding:2.5px 9px;white-space:nowrap}
+.th-card .ft{display:flex;align-items:center;gap:8px}
+.th-card .ft .sp{flex:1}
+.th-card .ft .lp{font-size:10.5px;color:var(--pi);opacity:.45}
+/* ---- 场景：想法流（宽档三栏：抽屉180 + 流440 + 阅读余量） ---- */
+.tgrid{flex:1;display:flex;min-height:0}
+.tdrawer{width:180px;flex:none;border-right:1px solid var(--border);background:color-mix(in srgb,var(--inset) 62%,transparent);display:flex;flex-direction:column;padding:14px 10px 12px;overflow-y:auto}
+.tdrawer::-webkit-scrollbar{width:0}
+.screen.pt .tdrawer{display:none}
+.tdrawer .dgrp{font-size:10.5px;font-weight:600;color:var(--text-2);letter-spacing:.5px;margin:12px 8px 5px}
+.tdrawer .dgrp:first-child{margin-top:0}
+.ditem{display:flex;align-items:center;gap:8px;height:32px;padding:0 9px;border:none;background:transparent;border-radius:9px;color:var(--text);font-size:13px;cursor:pointer;font-family:inherit;text-align:left;width:100%}
+.ditem svg.ic{font-size:14px;color:var(--text-2)}
+.ditem .cnt{margin-left:auto;font-size:10.5px;color:var(--text-2)}
+.ditem.on{background:color-mix(in srgb,var(--action) 12%,transparent);color:var(--action);font-weight:600}
+.ditem.on svg.ic,.ditem.on .cnt{color:var(--action)}
+.ditem.tagitem{font-size:12.5px;height:28px}
+.dnote{font-size:10.5px;color:var(--text-2);line-height:1.5;margin:8px 8px 0;display:none}
+.dcluster{margin:12px 6px 0;background:color-mix(in srgb,var(--amber) 10%,transparent);border:1px dashed color-mix(in srgb,var(--amber) 45%,transparent);border-radius:10px;padding:8px 10px;font-size:11px;line-height:1.5;color:var(--warning);cursor:pointer}
+.dcluster b{display:flex;align-items:center;gap:5px;font-size:11.5px}
+.dfoot{margin-top:auto;display:flex;flex-direction:column;gap:2px;padding-top:10px;border-top:1px solid var(--border)}
+.dfoot .ditem{height:30px;font-size:12px;color:var(--text-2)}
+.screen[data-scene="empty"] .cnt{display:none}
+.screen[data-scene="empty"] .empty-hide{display:none}
+.empty-show{display:none}
+.screen[data-scene="empty"] .empty-show{display:block}
+/* 流列 */
+.flowcol{width:440px;flex:none;border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.screen.pt .flowcol{flex:1;width:auto;border-right:none}
+.fhead{flex:none;padding:12px 16px 10px;display:flex;flex-direction:column;gap:9px;border-bottom:1px solid var(--border)}
+.fhead .r1{display:flex;align-items:center;gap:8px}
+.fhead .r2{display:flex;align-items:center;gap:8px}
+.fsearch{flex:1;height:34px;display:flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0 10px;min-width:0}
+.fsearch svg.ic{color:var(--text-2);font-size:14px;flex:none}
+.fsearch input{flex:1;min-width:0;border:none;outline:none;background:transparent;font-size:13px;color:var(--text);font-family:inherit}
+.fsearch input::placeholder{color:var(--placeholder)}
+.fsearch kbd{flex:none}
+.fbanner{display:flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--amber) 10%,transparent);border:1px solid color-mix(in srgb,var(--amber) 32%,transparent);border-radius:11px;padding:8px 12px;font-size:12px;color:var(--warning);cursor:pointer}
+.fbanner svg.ic{flex:none}
+.fbanner .go{margin-left:auto;font-weight:600;white-space:nowrap}
+.fcards{flex:1;overflow-y:auto;padding:14px 16px 20px;display:flex;flex-direction:column;gap:12px}
+.fcards::-webkit-scrollbar{width:0}
+.fcount{font-size:11.5px;color:var(--text-2)}
+.flow-empty{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;text-align:center}
+.screen[data-scene="empty"] .flow-empty{display:flex}
+.screen[data-scene="empty"] .fcards,.screen[data-scene="empty"] .fbanner{display:none}
+.flow-empty .feic{width:64px;height:64px;border-radius:20px;background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action);display:grid;place-items:center;font-size:30px;margin-bottom:4px}
+.flow-empty b{font-size:17px;font-weight:700}
+.flow-empty p{font-size:12.5px;color:var(--text-2);line-height:1.7;max-width:280px}
+/* 阅读右栏 */
+.readcol{flex:1;min-width:0;display:flex;flex-direction:column;position:relative}
+.screen.pt .readcol{display:none}
+.rhead{flex:none;height:48px;display:flex;align-items:center;gap:8px;padding:0 18px;border-bottom:1px solid var(--border)}
+.rhead .rd{font-size:12.5px;color:var(--text-2)}
+.rhead .sp{flex:1}
+.rbody{flex:1;overflow-y:auto;padding:18px 22px 90px}
+.rbody::-webkit-scrollbar{width:0}
+.read-default{flex:1;display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--text-2);text-align:center;padding:24px}
+.read-default .dic{width:58px;height:58px;border-radius:18px;background:var(--inset);display:grid;place-items:center;font-size:26px;color:var(--text-2);margin-bottom:6px}
+.read-default b{font-size:15px;color:var(--text);font-weight:600}
+.read-default span{font-size:12.5px}
+.screen[data-scene="empty"] .read-default{display:flex}
+.screen[data-scene="empty"] .rbody{display:none}
+/* 纸面（阅读/编辑共用） */
+.paper{background:var(--pp);color:var(--pi);border:1px solid var(--pb);border-radius:18px;box-shadow:0 10px 30px rgba(0,0,0,.10);position:relative;overflow:hidden;font-family:var(--pf,inherit)}
+.paper .pdate{font-size:12px;color:var(--pa);letter-spacing:.5px}
+.paper .pbody{font-size:15px;line-height:1.95;white-space:pre-wrap}
+.paper .pbody .hash{color:var(--pa);font-weight:600}
+.paper .ptags{display:flex;flex-wrap:wrap;gap:7px}
+.paper .pfoot{font-size:11px;color:var(--pa);opacity:.75;display:flex;align-items:center;gap:6px}
+.paper .pfoot .sp{flex:1}
+/* 阅读右栏区块 */
+.rblock{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:13px 15px;margin-top:14px}
+.rblock h4{font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px}
+.rblock h4 svg.ic{color:var(--ai)}
+.rblock .cap{font-size:11px;color:var(--text-2);margin-top:6px;line-height:1.5}
+.whyrow{display:flex;align-items:flex-start;gap:8px;margin-top:9px;font-size:12px;line-height:1.6;color:var(--text)}
+.whyrow .vq{color:var(--ai);font-weight:600;white-space:nowrap;flex:none}
+.refrow{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:8px 0;border-bottom:1px solid var(--divider);cursor:pointer;color:var(--text)}
+.refrow:last-of-type{border-bottom:none}
+.refrow svg.ic{color:var(--text-2);flex:none;font-size:13px}
+.refrow .dir{font-size:11px;color:var(--text-2);white-space:nowrap}
+.refrow .tt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.relrow{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px solid var(--divider);cursor:pointer}
+.relrow:last-of-type{border-bottom:none}
+.relrow .pc{width:26px;height:32px;border-radius:5px;border:1px solid var(--pb);flex:none;display:grid;place-items:center;font-size:11px;color:var(--pa)}
+.relrow .rt{flex:1;min-width:0;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.relrow .rm{font-size:10.5px;color:var(--text-2);white-space:nowrap}
+.relrow .un{font-size:11px;color:var(--text-2);border:none;background:transparent;cursor:pointer;font-family:inherit;padding:2px 4px;border-radius:6px}
+.relrow .un:hover{color:var(--danger)}
+.ractions{position:absolute;left:0;right:0;bottom:0;padding:12px 16px 44px;display:flex;gap:10px;background:linear-gradient(transparent,var(--bg-page) 30%)}
+.ractions .btn-primary{flex:1.6;justify-content:center;min-width:156px;white-space:nowrap;padding:0 12px}
+.ractions .btn-ghost{flex:1;justify-content:center;white-space:nowrap;padding:0 10px;height:36px}
+.ractions .iconbtn{width:36px;height:36px;flex:none}
+/* ---- 场景：知识树 ---- */
+.treegrid{flex:1;overflow-y:auto;padding:16px 24px 26px;display:flex;flex-direction:column;gap:16px}
+.treegrid::-webkit-scrollbar{width:0}
+.tree-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:start}
+.screen.pt .tree-cols{grid-template-columns:repeat(2,1fr)}
+.topic-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:15px 16px;cursor:pointer;display:flex;flex-direction:column;gap:9px;text-align:left;font-family:inherit;color:var(--text)}
+.topic-card:active{transform:scale(.985)}
+.topic-card .tc-h{display:flex;align-items:center;gap:10px}
+.topic-card .tc-ic{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;font-size:18px;background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action);flex:none}
+.topic-card .tc-n b{font-size:15px;font-weight:700;display:block}
+.topic-card .tc-n span{font-size:11.5px;color:var(--text-2)}
+.topic-card .tc-prev{font-size:12.5px;color:var(--text-2);line-height:1.55;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.topic-card .tc-tags{display:flex;flex-wrap:wrap;gap:6px}
+.tree-banner{display:flex;align-items:center;gap:12px;background:color-mix(in srgb,var(--amber) 9%,transparent);border:1px solid color-mix(in srgb,var(--amber) 30%,transparent);border-radius:14px;padding:12px 16px}
+.tree-banner .bic{width:34px;height:34px;border-radius:10px;background:color-mix(in srgb,var(--amber) 16%,transparent);color:var(--warning);display:grid;place-items:center;font-size:17px;flex:none}
+.tree-banner .bt{flex:1;min-width:0}
+.tree-banner .bt b{font-size:13px;font-weight:700;color:var(--warning);display:flex;align-items:center;gap:6px}
+.tree-banner .bt span{font-size:11.5px;color:var(--text-2);display:block;margin-top:2px}
+.tree-sec{font-size:12.5px;font-weight:700;color:var(--text-2);display:flex;align-items:center;gap:7px;margin-top:4px}
+.tree-sec .cap{font-weight:400;font-size:11px}
+/* ---- 全屏页（队列 / 主题详情 / 竖屏阅读） ---- */
+.pagebar{flex:none;height:52px;display:flex;align-items:center;gap:10px;padding:0 22px}
+.pagebar .ttl{font-size:28px;font-weight:700}
+.pagebar .sub{font-size:12.5px;color:var(--text-2)}
+.pagebar .sp{flex:1}
+.col720{width:720px;max-width:calc(100% - 48px);margin:0 auto}
+.qhead{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.qhead p{font-size:13px;line-height:1.7;color:var(--text)}
+.qcard{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:15px 18px;display:flex;flex-direction:column;gap:10px}
+.qcard .qc-h{display:flex;align-items:center;gap:8px}
+.qcard .qc-h b{font-size:14.5px;font-weight:700}
+.qcard .qc-h .conf{font-size:11px;color:var(--ai);background:color-mix(in srgb,var(--ai) 10%,transparent);border-radius:999px;padding:2px 8px;font-weight:600}
+.qcard .qc-h .newt{font-size:11px;color:var(--warning);background:color-mix(in srgb,var(--amber) 12%,transparent);border-radius:999px;padding:2px 8px;font-weight:600}
+.qprev{background:var(--inset);border-radius:11px;padding:9px 12px;font-size:12.5px;color:var(--text);line-height:1.6;display:flex;gap:8px}
+.qprev svg.ic{flex:none;color:var(--text-2);margin-top:2px}
+.qacts{display:flex;gap:8px}
+.qacts .btn-primary{height:32px;font-size:12.5px;padding:0 14px;border-radius:9px}
+.qacts .btn-ghost{height:32px;font-size:12.5px;padding:0 12px;border-radius:9px}
+.qacts .un{height:32px;border:none;background:transparent;color:var(--text-2);font-size:12.5px;cursor:pointer;font-family:inherit;padding:0 8px;border-radius:9px}
+/* 主题详情 */
+.topic-head{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:20px 22px;display:flex;flex-direction:column;gap:12px}
+.topic-head .th-h{display:flex;align-items:center;gap:14px}
+.topic-head .th-ic{width:52px;height:52px;border-radius:16px;background:color-mix(in srgb,var(--action) 10%,transparent);color:var(--action);display:grid;place-items:center;font-size:24px;flex:none}
+.topic-head .th-n b{font-size:20px;font-weight:700;display:block}
+.topic-head .th-n span{font-size:12.5px;color:var(--text-2)}
+.topic-desc{background:var(--inset);border-radius:12px;padding:11px 14px;font-size:12.5px;line-height:1.7;color:var(--text)}
+.topic-desc b{font-size:12px;color:var(--text-2);display:flex;align-items:center;gap:5px;margin-bottom:4px}
+.topic-tags{display:flex;flex-wrap:wrap;gap:7px}
+.tsum{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:10px 14px;font-size:12px;line-height:1.6;color:var(--text-2)}
+.tsum b{color:var(--text);font-size:12px}
+/* ---- 弹层（居中 sheet 560） ---- */
+.tsheet{position:absolute;inset:0;background:rgba(0,0,0,.36);z-index:50;display:none;align-items:center;justify-content:center}
+.screen[data-scene="filter"] .filter-sheet,.screen[data-scene="merge"] .merge-sheet{display:flex}
+.sheet{width:560px;background:var(--bg-page);border-radius:24px;box-shadow:0 30px 80px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden;max-height:82%}
+.sheet-grab{width:36px;height:5px;border-radius:3px;background:var(--border);margin:10px auto 0;flex:none}
+.sheet-head{padding:12px 24px 0;display:flex;align-items:center;gap:12px}
+.sheet-head h2{font-size:20px;font-weight:700;flex:1}
+.sheet-x{border:none;background:var(--inset);color:var(--text-2);width:32px;height:32px;border-radius:50%;cursor:pointer;display:grid;place-items:center;font-size:13px;flex:none}
+.sheet-body{padding:16px 24px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:16px}
+.sheet-body::-webkit-scrollbar{width:0}
+.sheet-foot{padding:14px 24px 20px;border-top:1px solid var(--divider);display:flex;gap:10px;align-items:center}
+.sheet-foot .btn-primary{flex:1;height:44px;justify-content:center;font-size:14.5px;border-radius:12px}
+.sheet-foot .btn-ghost{height:44px;font-size:14.5px;border-radius:12px;padding:0 18px}
+.fsec{display:flex;flex-direction:column;gap:9px}
+.fsec .fs-t{font-size:12px;font-weight:700;color:var(--text-2);display:flex;align-items:center;gap:8px}
+.fsec .fs-t .clr{margin-left:auto;font-size:11.5px;font-weight:500;color:var(--action);border:none;background:transparent;cursor:pointer;font-family:inherit}
+/* 归并对比 */
+.mgrid{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:stretch}
+.mtopic{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.mtopic b{font-size:15px;font-weight:700;display:flex;align-items:center;gap:7px}
+.mtopic .m-c{font-size:11.5px;color:var(--text-2)}
+.mtopic .m-tags{display:flex;flex-wrap:wrap;gap:5px}
+.mvs{align-self:center;width:34px;height:34px;border-radius:50%;background:var(--inset);color:var(--text-2);display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+/* ---- 编辑器（P2：纸面居中 680 + 浮动工具栏） ---- */
+.edwrap{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;background:color-mix(in srgb,var(--inset) 72%,var(--bg-page));overflow:hidden}
+.ed-top{position:absolute;top:0;left:0;right:0;height:48px;display:flex;align-items:center;gap:8px;padding:0 16px;z-index:10}
+.ed-top .sp{flex:1}
+.ed-paper{width:680px;margin:64px 0 96px;flex:none;padding:112px 48px 30px;display:flex;flex-direction:column;gap:14px}
+.screen.pt .ed-paper{width:min(680px,calc(100% - 40px))}
+/* 邮笺邮票装饰（每张纸只保留一处主要特征） */
+.ed-stamp{position:absolute;top:18px;right:26px;width:64px;height:78px;border:1.5px dashed var(--pa);border-radius:6px;display:grid;place-items:center;color:var(--pa);transform:rotate(2.5deg);opacity:.85;background:color-mix(in srgb,var(--pa) 5%,transparent)}
+.ed-stamp svg{width:40px;height:40px}
+.ed-postmark{position:absolute;top:44px;right:62px;width:54px;height:54px;border:1.5px solid var(--pa);border-radius:50%;color:var(--pa);opacity:.5;display:grid;place-items:center;font-size:8.5px;font-weight:700;letter-spacing:1px;transform:rotate(-12deg);text-align:center;line-height:1.3}
+.ed-postmark i{font-style:normal}
+/* 引用行 */
+.ed-ref{display:flex;align-items:center;gap:8px;border-left:3px solid var(--pa);padding:7px 12px;background:color-mix(in srgb,var(--pa) 7%,transparent);border-radius:0 10px 10px 0;font-size:13px;color:var(--pa);cursor:pointer}
+.ed-ref .rm{margin-left:auto;font-size:11px;opacity:.75;white-space:nowrap}
+/* 浮动工具栏 */
+.ed-tools{position:absolute;left:50%;transform:translateX(-50%);bottom:20px;display:flex;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:6px;box-shadow:0 12px 34px rgba(0,0,0,.16);z-index:12}
+.ed-tools .tb{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:56px;padding:6px 8px;border:none;background:transparent;color:var(--text);border-radius:11px;cursor:pointer;font-family:inherit;font-size:10.5px;font-weight:500}
+.ed-tools .tb svg.ic{font-size:18px;color:var(--text-2)}
+.ed-tools .tb:active{background:rgba(120,120,128,.12)}
+.ed-tools .tb .ai{color:var(--ai);font-weight:700}
+.ed-tools .div{width:1px;height:30px;background:var(--divider);margin:0 2px}
+/* 软键盘弹出态 */
+.ed-kb{position:absolute;left:0;right:0;bottom:0;z-index:11;display:none;flex-direction:column;background:color-mix(in srgb,var(--inset) 88%,var(--bg-page));border-top:1px solid var(--border)}
+.screen[data-scene="editorkb"] .ed-kb{display:flex}
+.screen[data-scene="editorkb"] .ed-paper{margin-top:26px;margin-bottom:0;flex:none}
+.screen[data-scene="editorkb"] .edwrap{overflow-y:auto}
+.screen[data-scene="editorkb"] .ed-tools{bottom:288px;box-shadow:0 12px 30px rgba(0,0,0,.22)}
+.kb-cand{display:flex;align-items:center;height:44px;border-bottom:1px solid var(--divider);padding:0 10px;gap:2px;font-size:15px}
+.kb-cand span{flex:1;text-align:center;color:var(--text);padding:6px 0;border-radius:8px}
+.kb-cand span:first-child{color:var(--action);font-weight:600}
+.kb-cand .kdiv{width:1px;height:22px;background:var(--divider);flex:none}
+.kb-rows{padding:8px 8px 14px;display:flex;flex-direction:column;gap:8px}
+.kb-row{display:flex;gap:6px;justify-content:center}
+.kb-key{flex:1;max-width:72px;height:42px;background:var(--surface);border:1px solid var(--border);border-bottom-width:2px;border-radius:6px;display:grid;place-items:center;font-size:15.5px;color:var(--text);box-shadow:0 1px 0 rgba(0,0,0,.12)}
+.kb-key.wide{max-width:96px;flex:1.6}
+.kb-key.space{flex:5;max-width:none}
+.kb-key.fn{background:color-mix(in srgb,var(--inset) 70%,var(--surface));color:var(--text-2);font-size:12.5px}
+.kb-key.go{background:var(--action);border-color:var(--action);color:var(--on-action);font-size:13px;font-weight:600}
+.kb-key svg.ic{font-size:15px}
+/* 「…」菜单 与 样式面板 */
+.ed-menu{position:absolute;top:44px;right:16px;width:216px;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.2);z-index:46;display:none;flex-direction:column;padding:5px}
+.ed-menu.show{display:flex}
+.ed-menu button{display:flex;align-items:center;gap:9px;border:none;background:transparent;padding:9px 11px;border-radius:9px;font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;text-align:left}
+.ed-menu button svg.ic{color:var(--text-2);font-size:15px}
+.ed-menu button.danger{color:var(--danger)}
+.ed-menu button.danger svg.ic{color:var(--danger)}
+.ed-menu button:hover{background:rgba(120,120,128,.10)}
+.style-pop{position:absolute;top:54px;right:16px;width:600px;background:var(--bg-page);border:1px solid var(--border);border-radius:18px;box-shadow:0 24px 60px rgba(0,0,0,.24);z-index:46;display:none;flex-direction:column;overflow:hidden}
+.screen[data-scene="styles"] .style-pop{display:flex}
+.style-pop .sp-h{padding:14px 18px 4px}
+.style-pop .sp-h h3{font-size:16px;font-weight:700}
+.style-pop .sp-h p{font-size:11.5px;color:var(--text-2);margin-top:3px}
+.sp-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:12px 18px}
+.stc{position:relative;border-radius:12px;border:1.5px solid var(--pb);background:var(--pp);color:var(--pi);padding:12px 9px 8px;height:118px;cursor:pointer;display:flex;flex-direction:column;gap:5px;overflow:hidden;font-family:inherit;text-align:left}
+.stc .ln{display:block;height:3px;border-radius:2px;background:color-mix(in srgb,var(--pi) 42%,transparent);margin-top:5px}
+.stc .ln:nth-child(odd){width:88%}
+.stc .ln.short{width:56%}
+.stc .nm{margin-top:auto;font-size:11px;font-weight:600;color:var(--pi);display:flex;align-items:center;gap:4px}
+.stc .nm .cur{font-size:9px;color:var(--action);font-weight:700}
+.stc.sel{outline:2.5px solid var(--action);outline-offset:1px}
+.stc .ok{position:absolute;top:5px;right:5px;width:17px;height:17px;border-radius:50%;background:var(--action);color:var(--on-action);display:none;place-items:center;font-size:10px}
+.stc.sel .ok{display:grid}
+/* 九宫格特征图形 */
+.stc.st-post::before{content:"";position:absolute;top:6px;right:6px;width:15px;height:18px;border:1.3px dashed var(--pa);border-radius:2px}
+.stc.st-field::before{content:"";position:absolute;left:0;top:0;bottom:0;width:7px;background:repeating-linear-gradient(to bottom,transparent 0 7px,color-mix(in srgb,var(--pa) 55%,transparent) 7px 9px)}
+.stc.st-ticket::before{content:"";position:absolute;top:0;bottom:0;right:16px;border-right:1.4px dashed var(--pa)}
+.stc.st-ticket::after{content:"";position:absolute;top:8px;right:4px;width:9px;height:9px;border-radius:50%;background:color-mix(in srgb,var(--pa) 30%,transparent)}
+.stc.st-cal::before{content:"14";position:absolute;top:4px;right:9px;font-family:var(--f-serif);font-size:17px;font-weight:700;color:var(--pa)}
+.stc.st-fold::before{content:"";position:absolute;top:0;left:0;width:22px;height:22px;background:linear-gradient(135deg,transparent 47%,color-mix(in srgb,var(--pa) 55%,transparent) 47%,color-mix(in srgb,var(--pa) 55%,transparent) 52%,transparent 52%)}
+.stc.st-film::before,.stc.st-film::after{content:"";position:absolute;left:0;right:0;height:6px;background-image:radial-gradient(circle,color-mix(in srgb,var(--pa) 50%,transparent) 1.8px,transparent 2.2px);background-size:11px 6px;background-position:2px 0}
+.stc.st-film::before{top:2px}
+.stc.st-film::after{bottom:2px}
+.stc.st-bookmark::before{content:"";position:absolute;top:0;left:50%;transform:translateX(-50%);width:11px;height:17px;background:var(--pa);clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)}
+.stc.st-dots{background-image:radial-gradient(color-mix(in srgb,var(--pa) 45%,transparent) 1px,transparent 1.3px);background-size:9px 9px}
+.style-pop .sp-f{padding:10px 18px 16px;border-top:1px solid var(--divider);display:flex;gap:10px;align-items:center}
+.style-pop .sp-f .cap{font-size:10.5px;color:var(--text-2);flex:1;line-height:1.5}
+/* 抽屉覆盖层（竖屏） */
+.dov-scrim{position:absolute;inset:0;background:rgba(0,0,0,.30);z-index:44;opacity:0;pointer-events:none;transition:opacity .2s}
+.dov{position:absolute;top:0;bottom:0;left:0;width:264px;background:var(--bg-page);border-right:1px solid var(--border);z-index:45;transform:translateX(-105%);transition:transform .22s cubic-bezier(.32,.72,.35,1);border-radius:0 18px 18px 0;box-shadow:12px 0 40px rgba(0,0,0,.14);display:flex;flex-direction:column;padding:14px 12px 14px;overflow-y:auto}
+.dov::-webkit-scrollbar{width:0}
+.screen.drawer-open .dov-scrim{opacity:1;pointer-events:auto}
+.screen.drawer-open .dov{transform:translateX(0)}
+.dov .dhead{font-size:16px;font-weight:700;padding:0 8px 10px}
+.pt-only{display:none}
+.screen.pt .pt-only{display:inline-flex}
+/* toast */
+.toast{position:absolute;left:50%;bottom:26px;transform:translateX(-50%) translateY(8px);background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:9px 16px;font-size:12.5px;box-shadow:0 8px 30px rgba(0,0,0,.18);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:60;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* 竖屏阅读页 */
+.readpt-body{flex:1;overflow-y:auto;padding:10px 24px 130px}
+.readpt-body::-webkit-scrollbar{width:0}
+.readpt-body .paper{margin-bottom:14px}
+/* ---- 修复轮新增：说明下沉卡列尾部 / 空态计数口径 / 编辑器便签收窄入左栏 ---- */
+.fcap{font-size:11px;color:var(--text-2);line-height:1.7;padding:2px 4px 0}
+.fcap b{color:var(--text);font-weight:600;margin-right:6px}
+.fempty{display:none}
+.screen[data-scene="empty"] .fdata{display:none}
+.screen[data-scene="empty"] .fempty{display:inline}
+.screen[data-scene="empty"] .tdrawer .cnt{display:none!important}
+.note-ed{max-width:118px}
+.screen[data-scene="editorkb"] .note-edkb{display:none}
+</style>
+</head>
+<body>
+
+<!-- ============ 控制栏 ============ -->
+<aside class="rail">
+  <div>
+    <h1>Holo iPad · 想法</h1>
+    <div class="sub">宽档三栏工作台（抽屉 + 流 + 阅读右栏）· 知识树 · 信纸编辑器（P2）· 八套主题纸 · AI 归类与待确认链路。</div>
+  </div>
+  <div>
+    <div class="rlabel">朝向</div>
+    <div class="rseg" id="segOri">
+      <button data-v="lsz" aria-pressed="true">横屏 1194×834</button>
+      <button data-v="pt" aria-pressed="false">竖屏 834×1194</button>
+    </div>
+  </div>
+  <div>
+    <div class="rlabel">深浅色</div>
+    <div class="rseg" id="segTheme">
+      <button data-v="light" aria-pressed="true">浅色</button>
+      <button data-v="dark" aria-pressed="false">深色</button>
+    </div>
+  </div>
+  <div>
+    <div class="rlabel">场景</div>
+    <div class="rchips" id="sceneChips">
+      <button data-v="flow" aria-pressed="true">想法流 · 三栏工作台（横屏默认）</button>
+      <button data-v="editor" aria-pressed="false">编辑器 · 纸面居中（拍板点 P2）</button>
+      <button data-v="editorkb" aria-pressed="false">编辑器 · 软键盘弹出态</button>
+      <button data-v="styles" aria-pressed="false">记录样式 · 八套信纸面板</button>
+      <button data-v="tree" aria-pressed="false">知识树 · 主题卡墙</button>
+      <button data-v="merge" aria-pressed="false">归并确认 · 居中弹层</button>
+      <button data-v="queue" aria-pressed="false">待确认队列 · AI 归属确认</button>
+      <button data-v="topic" aria-pressed="false">主题详情</button>
+      <button data-v="filter" aria-pressed="false">筛选面板 · 居中弹层</button>
+      <button data-v="empty" aria-pressed="false">最惨空态 · 无任何想法</button>
+      <button data-v="readpt" aria-pressed="false">竖屏阅读态（自动切竖屏）</button>
+    </div>
+  </div>
+  <div class="foot">
+    可操作：点想法卡换右栏纸面 / 竖屏点左上「抽屉」开覆盖抽屉 / 编辑器「…」菜单 / 工具栏「模板」开样式面板 / 弹层 <b>Esc</b> 关闭。<br>
+    快捷键：<b>⌘F</b> 搜索 · <b>⌘N</b> 新想法（分流进编辑器）· <b>Esc</b> 关弹层。<br>
+    <span class="ptag">P2</span> 编辑器=纸面居中 680+浮动工具栏（本文件主场景）；<span class="ptag">P1</span> 锚定 popover 仅适用列表页小选择器；编辑器样式面板=固定右上面板。<br>
+    新拍板点：<span class="ptag">P9</span> 工具栏直达「记录样式」；<span class="ptag">P10</span> 宽档三栏配比（流 440 / 阅读余量 342，纸面阅读偏窄）——细则见文件底注。
+  </div>
+</aside>
+
+<!-- ============ 舞台 ============ -->
+<div class="stage" id="stage">
+  <div class="frameWrap" id="frameWrap">
+    <div class="ipad">
+      <div class="screen" id="screen" data-scene="flow">
+
+        <div class="sbar">
+          <span class="tnum">23:47</span>
+          <span style="display:flex;gap:6px;align-items:center">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M7.8 15.6a6 6 0 0 1 8.4 0M10.6 18.4a2.2 2.2 0 0 1 2.8 0"/></svg>
+            <svg class="ic" viewBox="0 0 24 24"><rect x="2.5" y="8" width="17" height="8" rx="2.5"/><path d="M21.5 11v2"/><rect x="4.5" y="10" width="11" height="4" rx="1" fill="currentColor" stroke="none"/></svg>
+          </span>
+        </div>
+
+        <div class="app">
+          <!-- 侧边栏（常驻 232 / 图标条 68） -->
+          <nav class="sidebar" id="sidebar">
+            <div class="sb-top">
+              <button class="sb-btn" id="sbToggle" title="收起/展开侧边栏（⌘⌥S）"><svg class="ic" viewBox="0 0 24 24" id="sbToggleIc"><path d="M9.5 6.5 5 12l4.5 5.5M14.5 6.5 19 12l-4.5 5.5" opacity=".35"/><rect x="3" y="4.5" width="18" height="15" rx="3"/></svg></button>
+              <span class="sb-title">Holo</span>
+            </div>
+            <div class="sb-list">
+              <button class="sb-item" data-goto="home"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6"/></svg><span>今天</span><span class="k">⌘1</span></button>
+              <button class="sb-item on" data-goto="thoughts"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5M9 15h3"/></svg><span>想法</span><span class="k">⌘2</span></button>
+              <button class="sb-item" data-module="finance"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16.5 15h1.5"/></svg><span>财务</span><span class="k">⌘3</span></button>
+              <button class="sb-item" data-module="tasks"><svg class="ic" viewBox="0 0 24 24"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="M4 6.5l1 1 1.8-1.8M4 12l1 1 1.8-1.8M4 17.5l1 1 1.8-1.8"/></svg><span>任务</span><span class="k">⌘4</span></button>
+              <button class="sb-item" data-module="habits"><svg class="ic" viewBox="0 0 24 24"><path d="M4 12a8 8 0 0 1 13.6-5.7M20 12a8 8 0 0 1-13.6 5.7"/><path d="M17.5 3v3.5H14M6.5 21v-3.5H10"/></svg><span>习惯</span><span class="k">⌘5</span></button>
+              <button class="sb-item" data-module="gallery"><svg class="ic" viewBox="0 0 24 24"><rect x="4" y="4.5" width="16" height="15" rx="2.5"/><path d="M4 9.5h16M9.5 4.5v15"/></svg><span>记忆长廊</span><span class="k">⌘6</span></button>
+              <button class="sb-item" data-module="health"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 12h4l2-4.5 3.5 9 2-4.5h5.5"/></svg><span>健康</span><span class="k">⌘7</span></button>
+              <button class="sb-item" data-module="ai"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/><path d="M18.6 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg><span>AI 对话</span><span class="k">⌘8</span></button>
+            </div>
+            <div class="sb-div"></div>
+            <div class="sb-list">
+              <button class="sb-item" data-module="personal"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.3-3.4 4-5 7-5s5.7 1.6 7 5"/></svg><span>个人</span><span class="k">⌘9</span></button>
+              <button class="sb-item" data-module="settings"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.8l1 2.5a6.6 6.6 0 0 1 2.3 1l2.6-.6 1.6 2.8-1.8 1.9a6.7 6.7 0 0 1 0 2.6l1.8 1.9-1.6 2.8-2.6-.6a6.6 6.6 0 0 1-2.3 1l-1 2.5h-3.2"/></svg><span>设置</span><span class="k">⌘,</span></button>
+            </div>
+            <div class="sb-bottom">
+              <button class="sb-quick" id="quickAdd"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>快速记录</span><span class="k">⌘N</span></button>
+            </div>
+          </nav>
+
+          <!-- 竖屏覆盖式侧边栏 -->
+          <div class="scrim" id="sbovScrim"></div>
+          <nav class="sbov" id="sbov">
+            <div class="sb-top"><span class="sb-title">Holo</span></div>
+            <div class="sb-list" id="sbovList"></div>
+          </nav>
+
+          <!-- 内容区 -->
+          <main class="content">
+
+            <!-- ======== 场景：想法流 · 三栏工作台 ======== -->
+            <section class="scene scene-flow">
+              <div class="tgrid">
+
+                <!-- 抽屉 180 -->
+                <nav class="tdrawer" id="tdrawer">
+                  <div class="dgrp">全部</div>
+                  <button class="ditem on"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5M9 15h3"/></svg>全部想法<span class="cnt tnum">128</span></button>
+                  <button class="ditem"><svg class="ic" viewBox="0 0 24 24"><path d="M9 3.75h6M10 3.75v3.4L7.25 11.25h9.5L14 7.15V3.75M12 11.25v7M9.25 20.25h5.5"/></svg>置顶<span class="cnt tnum">4</span></button>
+                  <div class="dgrp empty-hide">主题</div>
+                  <button class="ditem empty-hide"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>产品灵感<span class="cnt tnum">23</span></button>
+                  <button class="ditem empty-hide"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>生活观察<span class="cnt tnum">61</span></button>
+                  <button class="ditem empty-hide"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>读书笔记<span class="cnt tnum">17</span></button>
+                  <div class="dgrp empty-hide">我的 #标签</div>
+                  <button class="ditem tagitem empty-hide"># iPad重构<span class="cnt tnum">12</span></button>
+                  <button class="ditem tagitem empty-hide"># 散步<span class="cnt tnum">9</span></button>
+                  <button class="ditem tagitem empty-hide"># 家人<span class="cnt tnum">7</span></button>
+                  <div class="dnote empty-show">主题会从你的想法里长出来。先自由记录，Holo 会留意反复出现的方向。</div>
+                  <button class="ditem"><svg class="ic" viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="13" rx="2"/><path d="M8 7.5V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1.5M3.5 12.5h17"/></svg>已归档<span class="cnt tnum">26</span></button>
+                  <div class="dcluster empty-hide" data-goto-scene="tree"><b><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.4 3.6 3.6 1.4-3.6 1.4L12 13.5l-1.4-3.6L7 8.5l3.6-1.4z"/></svg>4 条想法形成新脉络</b>去知识树看看要不要建主题</div>
+                  <div class="dfoot">
+                    <button class="ditem" data-act="topicMgmt"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8.5c0-1.1.9-2 2-2h3.5l2 2.5H18a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M9.5 12.5h5M12 10v5" opacity=".6"/></svg>主题管理</button>
+                    <button class="ditem" data-act="dataClean"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12h7"/></svg>数据清理…</button>
+                  </div>
+                </nav>
+
+                <!-- 想法流 440 -->
+                <div class="flowcol">
+                  <div class="fhead">
+                    <div class="r1">
+                      <button class="iconbtn pt-only" id="drawerBtn" title="打开抽屉"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
+                      <div class="fsearch">
+                        <svg class="ic" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M15.8 15.8 20 20"/></svg>
+                        <input id="searchInput" placeholder="搜索想法，也搜大意…" aria-label="搜索想法">
+                        <kbd>⌘F</kbd>
+                      </div>
+                      <button class="iconbtn" id="filterBtn" title="筛选"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M7 12h10M10 17h4"/><circle cx="9" cy="7" r="1.7" fill="var(--surface)"/><circle cx="14" cy="12" r="1.7" fill="var(--surface)"/><circle cx="17" cy="17" r="1.7" fill="var(--surface)"/></svg></button>
+                      <button class="btn-primary" id="newThought" style="height:34px"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>新想法 <kbd style="background:transparent;border-color:rgba(255,255,255,.4);color:inherit">⌘N</kbd></button>
+                    </div>
+                    <div class="r2">
+                      <div class="seg" id="modeSeg">
+                        <button data-v="flow" aria-pressed="true">想法流</button>
+                        <button data-v="tree">知识树</button>
+                      </div>
+                      <span class="sp" style="flex:1"></span>
+                      <span class="fcount tnum fdata">128 条 · 按时间</span>
+                      <span class="fcount fempty">还没有想法</span>
+                    </div>
+                    <div class="fbanner" data-goto-scene="queue">
+                      <svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>
+                      AI 有 3 条主题归属想跟你确认
+                      <span class="go">去看 ›</span>
+                    </div>
+                  </div>
+                  <div class="fcards" id="fcards">
+
+                    <article class="th-card pp sel" data-read="r1" tabindex="0">
+                      <div class="hd">
+                        <span class="pin"><svg class="ic" viewBox="0 0 24 24" style="font-size:11px"><path d="M9 3.75h6M10 3.75v3.4L7.25 11.25h9.5L14 7.15V3.75M12 11.25v7M9.25 20.25h5.5"/></svg>置顶</span>
+                        <span class="tnum">今天 09:12</span>
+                        <svg class="tpic" viewBox="0 0 24 24" title="邮笺"><rect x="8" y="7" width="8" height="10" rx="1" stroke-dasharray="2 1.6"/><path d="M10.5 11.5h3M10 14h4" opacity=".7"/></svg>
+                        <span class="sp"></span>
+                        <span class="lp">长按 · 菜单</span>
+                      </div>
+                      <div class="bd">楼下早餐店的甜咸豆浆是按座位坐的：靠窗两排永远点甜，靠里那排全是咸的。老板娘说这规律比天气预报准。没人规定过谁坐哪儿——用户自己会长出用法，产品也是。</div>
+                      <div class="tags">
+                        <span class="tagchip"># 生活观察</span>
+                        <span class="tagchip"># 散步</span>
+                        <span class="badge-ai" data-goto-scene="flow" title="为什么归这里"><svg class="ic" viewBox="0 0 24 24" style="font-size:10px"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>AI · 生活观察</span>
+                      </div>
+                    </article>
+
+                    <article class="th-card pp-t" data-read="r4" tabindex="0">
+                      <div class="hd">
+                        <span class="tnum">昨天 21:40</span>
+                        <svg class="tpic" viewBox="0 0 24 24" title="票根"><path d="M4.5 8.5h15v7h-15z"/><path d="M14.5 8.5v7" stroke-dasharray="2 1.6"/><circle cx="17.5" cy="12" r="1" opacity=".7"/></svg>
+                        <span class="sp"></span>
+                      </div>
+                      <div class="bd">iPad 重构：详情都不许再弹层。摊开工作台的意思是——点哪张纸，哪张纸就待在右边不动，清单永远在左边。像阅览桌，不像借还窗口。</div>
+                      <div class="tags">
+                        <span class="tagchip"># 产品灵感</span>
+                        <span class="tagchip"># iPad重构</span>
+                        <span class="badge-ai"><svg class="ic" viewBox="0 0 24 24" style="font-size:10px"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>AI · 产品灵感</span>
+                      </div>
+                    </article>
+
+                    <article class="th-card pp-c" data-read="r3" tabindex="0">
+                      <div class="hd">
+                        <span class="tnum">11月12日</span>
+                        <svg class="tpic" viewBox="0 0 24 24" title="日历"><rect x="4.5" y="5.5" width="15" height="14" rx="2"/><path d="M4.5 10h15M9 3.5v3M15 3.5v3"/></svg>
+                        <span class="sp"></span>
+                      </div>
+                      <div class="bd">《置身事内》读到一半，最大的感受是「土地财政」四个字背后全是普通人的房贷。合上书看窗外，突然理解了小区为什么十年不修路灯——不是没钱，是钱有别的去处。</div>
+                      <div class="tags">
+                        <span class="tagchip"># 读书笔记</span>
+                        <span class="tagchip"># 置身事内</span>
+                        <span class="badge-ai"><svg class="ic" viewBox="0 0 24 24" style="font-size:10px"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>AI · 读书笔记</span>
+                      </div>
+                    </article>
+
+                    <article class="th-card pp-d" data-read="r2" tabindex="0">
+                      <div class="hd">
+                        <span class="tnum">11月11日</span>
+                        <svg class="tpic" viewBox="0 0 24 24" title="点阵"><circle cx="7" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="17" cy="8" r=".9" fill="currentColor" stroke="none"/><circle cx="7" cy="13" r=".9" fill="currentColor" stroke="none"/><circle cx="12" cy="13" r=".9" fill="currentColor" stroke="none"/><circle cx="17" cy="13" r=".9" fill="currentColor" stroke="none"/></svg>
+                        <span class="sp"></span>
+                      </div>
+                      <div class="bd"><span class="qrow"><svg class="ic" viewBox="0 0 24 24" style="font-size:11px"><path d="M9.5 14.5c-2 0-3.5-1.4-3.5-3.2 0-1.7 1.3-3 3-3 .3-1.8 1.8-3.1 3.6-3.1 2 0 3.6 1.5 3.6 3.5 1.4.2 2.3 1.3 2.3 2.7 0 1.7-1.4 3.1-3.2 3.1z"/><path d="M12 10.5v6M9.5 13 12 10.5l2.5 2.5"/></svg>引用 · 10月28日「要不要养猫」</span>跟那条接上：今天路过猫咖坐了一小时，确认了一件事——我喜欢猫，但更喜欢回家后家里没有猫毛。</div>
+                      <div class="tags">
+                        <span class="tagchip"># 生活观察</span>
+                        <span class="tagchip"># 猫</span>
+                        <span class="badge-ai"><svg class="ic" viewBox="0 0 24 24" style="font-size:10px"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>AI · 生活观察</span>
+                      </div>
+                    </article>
+
+                    <article class="th-card pp-f" data-read="r5" tabindex="0">
+                      <div class="hd">
+                        <span class="tnum">11月10日</span>
+                        <svg class="tpic" viewBox="0 0 24 24" title="观察"><path d="M5 5v3M8 5v5M11 5v3M14 5v6M17 5v3M20 5v4"/></svg>
+                        <span class="sp"></span>
+                      </div>
+                      <div class="bd">电梯里闻到有人喷了我大学时用的那款香水，愣了两秒。气味真是不讲道理，先于记忆到达。</div>
+                      <div class="tags">
+                        <span class="tagchip"># 生活观察</span>
+                        <span class="badge-ai"><svg class="ic" viewBox="0 0 24 24" style="font-size:10px"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>AI · 生活观察</span>
+                      </div>
+                    </article>
+
+                    <article class="th-card pp-b" data-read="r6" tabindex="0">
+                      <div class="hd">
+                        <span class="tnum">11月9日</span>
+                        <svg class="tpic" viewBox="0 0 24 24" title="书签"><path d="M8 4.5h8v15l-4-3-4 3z"/></svg>
+                        <span class="sp"></span>
+                      </div>
+                      <div class="bd">给妈妈打电话，她说阳台的三角梅今年开疯了。我说拍照看看，她拍了九张，每一张都是糊的，但每一张都想留着。</div>
+                      <div class="tags">
+                        <span class="tagchip"># 家人</span>
+                        <span class="badge-ai" style="color:var(--text-2);background:var(--inset)">AI 正在整理…</span>
+                      </div>
+                    </article>
+
+                    <div class="fcap"><span class="ptag">AI 信任</span><b>归类徽章可点开</b>「为什么归这里」：给判定值和逐字依据，判得不对就 ✗，AI 下次避开。</div>
+                    <div class="fcap"><b>长按卡片</b>记录样式 · 转任务 · 生成分享卡 · 移入主题 · 查看引用 · 重新整理 · 删除</div>
+                  </div>
+                  <div class="flow-empty">
+                    <span class="feic"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5M9 15h3"/></svg></span>
+                    <b>写下第一个想法</b>
+                    <p>不用想格式，也不用想给谁看。碎念头、半句话、一个还没答案的问题，都先放进来——同类想法攒多了，Holo 会帮你归到一起。</p>
+                    <button class="btn-primary" id="emptyNew" style="margin-top:6px"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>新建想法 <kbd style="background:transparent;border-color:rgba(255,255,255,.4);color:inherit">⌘N</kbd></button>
+                    <span style="font-size:11px;color:var(--text-2)">外接键盘直接 <kbd>⌘N</kbd> 也能开一张新纸</span>
+                  </div>
+                </div>
+
+                <!-- 阅读右栏（余量） -->
+                <div class="readcol">
+                  <div class="rhead">
+                    <span class="rd" id="rdate">11月14日 · 周六</span>
+                    <span class="sp"></span>
+                    <button class="iconbtn" style="width:30px;height:30px;border:none;background:transparent" data-act="menu" title="更多"><svg class="ic" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg></button>
+                  </div>
+                  <div class="rbody" id="readBody"></div>
+                  <div class="read-default">
+                    <span class="dic"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5M9 15h3"/></svg></span>
+                    <b>选一条想法打开</b>
+                    <span>在左侧轻点卡片，在这里展开编辑</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ======== 场景：知识树 ======== -->
+            <section class="scene scene-tree">
+              <div class="topbar">
+                <span class="ttl">想法</span>
+                <div class="seg" id="treeSeg">
+                  <button data-goto-scene="flow">想法流</button>
+                  <button data-v="tree" aria-pressed="true">知识树</button>
+                </div>
+                <span class="sp"></span>
+                <button class="btn-ghost" data-act="org"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8.5c0-1.1.9-2 2-2h3.5l2 2.5H18a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5h5"/></svg>整理设置</button>
+                <button class="btn-primary" id="treeNew"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>新想法</button>
+              </div>
+              <div class="scroll">
+                <div class="treegrid">
+
+                  <div class="tree-banner">
+                    <span class="bic"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.4 3.6 3.6 1.4-3.6 1.4L12 13.5l-1.4-3.6L7 8.5l3.6-1.4z"/></svg></span>
+                    <span class="bt">
+                      <b>发现新主题 · 最近有 5 条想法形成了新的脉络<span class="tnum" style="color:var(--text-2);font-weight:400">10-28 – 11-14</span></b>
+                      <span>AI 从未归类想法中归纳潜在新主题，经你确认后创建 · 预览：「气味与记忆」— 电梯里的香水 / 外婆的樟木箱 / 猫咖那两秒</span>
+                    </span>
+                    <button class="btn-primary" style="height:32px;font-size:12.5px;border-radius:9px" data-act="create-topic">建立主题</button>
+                    <button class="btn-ghost" style="height:32px;font-size:12.5px;border-radius:9px" data-act="rename-topic">改个名字</button>
+                    <button class="btn-ghost" style="height:32px;font-size:12.5px;border:none;background:transparent;border-color:transparent;color:var(--text-2)" data-act="later">以后再说</button>
+                  </div>
+
+                  <div class="tree-sec">主题卡墙<span class="cap">点主题进详情</span></div>
+                  <div class="tree-cols">
+                    <button class="topic-card" data-goto-scene="topic">
+                      <span class="tc-h">
+                        <span class="tc-ic"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="15" rx="2"/><path d="M9 9h6M9 12.5h6M9 16h3.5"/></svg></span>
+                        <span class="tc-n"><b>产品灵感</b><span class="tnum">23 条 · 最近 11-13</span></span>
+                      </span>
+                      <span class="tc-prev">「iPad 重构：详情都不许再弹层。摊开工作台的意思是——点哪张纸，哪张纸就待在右边不动。」</span>
+                      <span class="tc-tags"><span class="tagchip"># iPad重构 ×12</span><span class="tagchip"># 工作台 ×7</span></span>
+                    </button>
+                    <button class="topic-card" data-goto-scene="topic">
+                      <span class="tc-h">
+                        <span class="tc-ic" style="background:color-mix(in srgb,#3B82F6 10%,transparent);color:#3B82F6"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8.5C4 6 6 4.5 8.2 4.5c1.6 0 3 .9 3.8 2.2.8-1.3 2.2-2.2 3.8-2.2C18 4.5 20 6 20 8.5c0 4-8 11-8 11s-8-7-8-11z"/></svg></span>
+                        <span class="tc-n"><b>生活观察</b><span class="tnum">61 条 · 最近 今天</span></span>
+                      </span>
+                      <span class="tc-prev">「甜咸豆浆是按座位坐的：靠窗两排永远点甜，靠里那排全是咸的。这规律比天气预报准。」</span>
+                      <span class="tc-tags"><span class="tagchip"># 散步 ×9</span><span class="tagchip"># 家人 ×7</span></span>
+                    </button>
+                    <button class="topic-card" data-goto-scene="topic">
+                      <span class="tc-h">
+                        <span class="tc-ic" style="background:color-mix(in srgb,#8B5CF6 10%,transparent);color:#8B5CF6"><svg class="ic" viewBox="0 0 24 24"><path d="M5 4.5h6a2 2 0 0 1 2 2v13a1.8 1.8 0 0 0-1.8-1.8H5z"/><path d="M19 4.5h-6a2 2 0 0 0-2 2v13a1.8 1.8 0 0 1 1.8-1.8H19z" opacity=".55"/></svg></span>
+                        <span class="tc-n"><b>读书笔记</b><span class="tnum">17 条 · 最近 11-12</span></span>
+                      </span>
+                      <span class="tc-prev">「土地财政四个字背后全是普通人的房贷。不是没钱，是钱有别的去处。」</span>
+                      <span class="tc-tags"><span class="tagchip"># 置身事内 ×6</span><span class="tagchip"># 随记 ×4</span></span>
+                    </button>
+                  </div>
+
+                  <div class="tree-sec">自动合集<span class="cap">AI 按时段自动聚的短线索 · 可解散</span></div>
+                  <div class="tree-cols">
+                    <div class="topic-card" style="cursor:default" data-act="collection">
+                      <span class="tc-h">
+                        <span class="tc-ic" style="background:color-mix(in srgb,var(--ai) 9%,transparent);color:var(--ai)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg></span>
+                        <span class="tc-n"><b>双十一比价</b><span class="tnum">6 条 · 11-02 – 11-11</span></span>
+                      </span>
+                      <span class="tc-prev">购物车清单、价格快照、到手价对比——散着记的比价，被收进同一张桌。</span>
+                    </div>
+                    <div class="topic-card" style="cursor:default" data-act="collection">
+                      <span class="tc-h">
+                        <span class="tc-ic" style="background:color-mix(in srgb,var(--ai) 9%,transparent);color:var(--ai)"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg></span>
+                        <span class="tc-n"><b>周末探店</b><span class="tnum">4 条 · 10月底 – 11月初</span></span>
+                      </span>
+                      <span class="tc-prev">咖啡、面馆、旧书店——都是周六下午走出去的那几步。</span>
+                    </div>
+                    <div style="display:flex;align-items:center;font-size:11.5px;color:var(--text-2);line-height:1.6;padding:0 6px">合集只在有明确时间段线索时出现；拆散不会丢想法，每条都还在原处。</div>
+                  </div>
+
+                  <div class="tree-sec">未归类<span class="cap">还没找到书架的想法</span></div>
+                  <div class="tree-cols">
+                    <div class="topic-card" style="cursor:default">
+                      <span class="tc-h">
+                        <span class="tc-ic" style="background:var(--inset);color:var(--text-2)"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5"/></svg></span>
+                        <span class="tc-n"><b>未归入主题</b><span class="tnum">18 条</span></span>
+                      </span>
+                      <span class="tc-prev">「电梯里的香水那两秒」「三角梅九张糊照」「先租一只周末试试」……</span>
+                      <span class="tc-tags"><span class="chip sm" data-goto-scene="merge">查看归并建议 ›</span></span>
+                    </div>
+                    <div class="topic-card" style="cursor:default" data-act="archived">
+                      <span class="tc-h">
+                        <span class="tc-ic" style="background:var(--inset);color:var(--text-2)"><svg class="ic" viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="17" height="13" rx="2"/><path d="M8 7.5V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v1.5M3.5 12.5h17"/></svg></span>
+                        <span class="tc-n"><b>已归档</b><span class="tnum">26 条</span></span>
+                      </span>
+                      <span class="tc-prev">先收起来，不代表不要了。想删的时候再删。</span>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+              <div class="note" style="right:30px;top:96px;max-width:190px">建议簇、归并都<b>经你确认才生效</b>——AI 不自动改你的分类体系。</div>
+            </section>
+
+            <!-- ======== 场景：主题详情 ======== -->
+            <section class="scene scene-topic">
+              <div class="pagebar">
+                <button class="iconbtn" data-goto-scene="flow" title="返回（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
+                <span class="ttl">产品灵感</span>
+                <span class="sub tnum">23 条 · 最近 11-13</span>
+                <span class="sp"></span>
+                <button class="iconbtn" data-act="rename-topic" title="重命名"><svg class="ic" viewBox="0 0 24 24"><path d="M5 18.5 6 15l9-9 3 3-9 9z"/><path d="M13 8l3 3"/></svg></button>
+                <button class="iconbtn" data-act="menu" title="更多"><svg class="ic" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg></button>
+              </div>
+              <div class="scroll">
+                <div class="col720" style="display:flex;flex-direction:column;gap:14px;padding-top:2px">
+                  <div class="topic-head">
+                    <div class="th-h">
+                      <span class="th-ic"><svg class="ic" viewBox="0 0 24 24"><rect x="5" y="4.5" width="14" height="15" rx="2"/><path d="M9 9h6M9 12.5h6M9 16h3.5"/></svg></span>
+                      <span class="th-n"><b>产品灵感</b><span>建于 9月2日 · 由 12 条想法自然聚成</span></span>
+                    </div>
+                    <div class="topic-desc">
+                      <b><svg class="ic" viewBox="0 0 24 24" style="font-size:11px"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>这个主题收什么</b>
+                      收关于 Holo 本身的一切念头——需求、反例、灵感碎片。AI 根据你放进来的笔记代写 · 点开可改；不改它，它也只跟着你的动作学。
+                    </div>
+                    <div class="topic-tags">
+                      <span class="tagchip" style="background:var(--inset);color:var(--text-2)">成员里你用过的 #标签：</span>
+                      <span class="chip sm"># iPad重构 ×12</span>
+                      <span class="chip sm"># 工作台 ×7</span>
+                      <span class="chip sm"># 原型 ×4</span>
+                    </div>
+                  </div>
+                  <div class="tsum"><b>这段时间的变化 · AI 摘要 · 可重建</b><br>11 月上旬集中在想 iPad 的信息架构，「详情不弹层」出现 4 次，方向收敛到「摊开的工作台」。</div>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <span class="chip sm on">全部</span>
+                    <span class="chip sm">本月</span>
+                    <span class="chip sm">带引用</span>
+                    <span class="chip sm">含已归档</span>
+                    <span style="flex:1"></span>
+                    <span class="fcount tnum">23 条</span>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:12px">
+                    <article class="th-card pp-t" style="cursor:default">
+                      <div class="hd"><span class="tnum">昨天 21:40</span><svg class="tpic" viewBox="0 0 24 24"><path d="M4.5 8.5h15v7h-15z"/><path d="M14.5 8.5v7" stroke-dasharray="2 1.6"/><circle cx="17.5" cy="12" r="1" opacity=".7"/></svg><span class="sp"></span></div>
+                      <div class="bd">iPad 重构：详情都不许再弹层。摊开工作台的意思是——点哪张纸，哪张纸就待在右边不动，清单永远在左边。像阅览桌，不像借还窗口。</div>
+                      <div class="tags"><span class="tagchip"># iPad重构</span><span class="tagchip"># 工作台</span></div>
+                    </article>
+                    <article class="th-card pp-plain" style="cursor:default">
+                      <div class="hd"><span class="tnum">11月8日</span><span class="sp"></span></div>
+                      <div class="bd">阅读右栏的纸不要铺满余量，限个最长行长。大屏读长文，视线跑不完一行才最累。</div>
+                      <div class="tags"><span class="tagchip"># iPad重构</span></div>
+                    </article>
+                    <article class="th-card pp" style="cursor:default">
+                      <div class="hd"><span class="tnum">11月2日</span><svg class="tpic" viewBox="0 0 24 24"><rect x="8" y="7" width="8" height="10" rx="1" stroke-dasharray="2 1.6"/><path d="M10.5 11.5h3M10 14h4" opacity=".7"/></svg><span class="sp"></span></div>
+                      <div class="bd">侧边栏收窄成图标条之后，快捷键就是导航本身——⌘1 到 ⌘8 要像琴键一样能盲按。</div>
+                      <div class="tags"><span class="tagchip"># iPad重构</span><span class="tagchip"># 键盘</span></div>
+                    </article>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ======== 场景：待确认队列 ======== -->
+            <section class="scene scene-queue">
+              <div class="pagebar">
+                <button class="iconbtn" data-goto-scene="flow" title="返回（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
+                <span class="ttl">待确认</span>
+                <span class="sub tnum">已确认 2 / 6</span>
+                <span class="sp"></span>
+                <button class="btn-ghost" style="border:none;background:transparent;color:var(--text-2)" data-act="skip-all">全部跳过</button>
+              </div>
+              <div class="scroll">
+                <div class="col720" style="display:flex;flex-direction:column;gap:14px">
+                  <div class="qhead">
+                    <p>AI 对下面 6 条想法的主题归属不太有把握，选一下它们该去的书架。确认后，类似内容会更准。</p>
+                    <p style="color:var(--text-2);font-size:12px">不选也没关系——「忽略」的想法保持未归类，AI 不会再拿同一条来烦你。</p>
+                  </div>
+
+                  <div class="qcard">
+                    <div class="qc-h">
+                      <b>建议归入「生活观察」</b>
+                      <span class="conf tnum">把握 72%</span>
+                      <span style="flex:1"></span>
+                      <span style="font-size:11px;color:var(--text-2)">不确定？换一个 →</span>
+                    </div>
+                    <div class="qprev"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5"/></svg>电梯里闻到有人喷了我大学时用的那款香水，愣了两秒。气味真是不讲道理……</div>
+                    <div class="qprev"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5"/></svg>三角梅今年开疯了，九张照片全糊，但每一张都想留着……</div>
+                    <div class="qacts">
+                      <button class="btn-primary" data-act="confirm-q">放这里</button>
+                      <button class="btn-ghost" data-act="rename-q">改个名字</button>
+                      <button class="un" data-act="ignore-q">忽略</button>
+                    </div>
+                  </div>
+
+                  <div class="qcard">
+                    <div class="qc-h">
+                      <b>建议建立新主题「气味与记忆」</b>
+                      <span class="newt">AI 建议 · 新主题</span>
+                      <span class="conf tnum">把握 64%</span>
+                    </div>
+                    <div class="qprev"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5"/></svg>外婆的樟木箱一打开就是整个暑假——樟脑、晒过的棉被、旧报纸……</div>
+                    <div class="qprev"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5"/></svg>面包房飘出来的那股甜，永远比闹钟叫得醒……</div>
+                    <div class="qacts">
+                      <button class="btn-primary" data-act="confirm-q">就建这个</button>
+                      <button class="btn-ghost" data-act="rename-q">改个名字</button>
+                      <button class="un" data-act="ignore-q">忽略</button>
+                    </div>
+                  </div>
+
+                  <div style="text-align:center;font-size:11.5px;color:var(--text-2);padding:6px 0 2px">都确认完了，这里会自动关掉 · 你的确认只会让分类越来越准</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ======== 场景：编辑器（P2 主场景） ======== -->
+            <section class="scene scene-editor">
+              <div class="edwrap">
+                <div class="ed-top">
+                  <button class="iconbtn" id="edBack" title="返回想法流（草稿已自动保存）"><svg class="ic" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
+                  <span class="sub" style="font-size:12px;color:var(--text-2)">已自动保存 23:41</span>
+                  <span class="sp"></span>
+                  <button class="iconbtn" id="edMenuBtn" title="更多"><svg class="ic" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg></button>
+                  <button class="iconbtn" id="edSend" title="收进想法流（纸飞机关闭）" style="background:var(--action);border-color:var(--action);color:var(--on-action)"><svg class="ic" viewBox="0 0 24 24"><path d="M21 3.5 3.5 10.8l6.8 2.4L12.7 20z"/><path d="M21 3.5 10.3 13.2"/></svg></button>
+                </div>
+
+                <div class="ed-menu" id="edMenu">
+                  <button data-act="style"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4.5a7.5 7.5 0 1 0 0 15c1.1 0 1.8-.9 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8h1.6a3.3 3.3 0 0 0 3.3-3.3c0-3.2-3.4-5.7-7.5-5.7z"/><circle cx="8.2" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="15.8" cy="10" r="1" fill="currentColor" stroke="none"/></svg>记录样式</button>
+                  <button data-act="to-task"><svg class="ic" viewBox="0 0 24 24"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="M4 6.5l1 1 1.8-1.8M4 12l1 1 1.8-1.8M4 17.5l1 1 1.8-1.8"/></svg>转为任务</button>
+                  <button data-act="share"><svg class="ic" viewBox="0 0 24 24"><path d="M12 14.5V4M8.5 7 12 3.5 15.5 7"/><path d="M5 12.5v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>生成分享卡</button>
+                  <button data-act="move-topic"><svg class="ic" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>移入主题</button>
+                  <button data-act="refs"><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 14.5 14.5 9.5"/><path d="M8 12 5.5 14.5a3.5 3.5 0 0 0 5 5L13 17M16 12l2.5-2.5a3.5 3.5 0 0 0-5-5L11 7"/></svg>查看引用</button>
+                  <button class="danger" data-act="del"><svg class="ic" viewBox="0 0 24 24"><path d="M5 7h14M9.5 7V5.5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 7M7 7l1 13h8l1-13"/></svg>删除想法</button>
+                </div>
+
+                <!-- 样式面板（编辑器内固定右上面板 · 八套信纸 + 原样；P1 锚定 popover 仅适用列表页小选择器） -->
+                <div class="style-pop" id="stylePop">
+                  <div class="sp-h">
+                    <h3>选择样式</h3>
+                    <p>模板只属于本条。预览不写入；要留在这条想法上，点下面的「使用」才保存。</p>
+                  </div>
+                  <div class="sp-grid">
+                    <button class="stc pp-plain" data-act="pick-style"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4 4 9-9"/></svg></span><span class="ln"></span><span class="ln"></span><span class="ln short"></span><span class="nm">原样</span></button>
+                    <button class="stc pp st-post sel" data-act="pick-style"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4 4 9-9"/></svg></span><span class="ln"></span><span class="ln"></span><span class="ln short"></span><span class="nm">邮笺<span class="cur">当前</span></span></button>
+                    <button class="stc pp-f st-field" data-act="pick-style"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4 4 9-9"/></svg></span><span class="ln"></span><span class="ln"></span><span class="ln short"></span><span class="nm">观察</span></button>
+                    <button class="stc pp-t st-ticket" data-act="pick-style"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4 4 9-9"/></svg></span><span class="ln"></span><span class="ln"></span><span class="ln short"></span><span class="nm">票根</span></button>
+                    <button class="stc pp-c st-cal" data-act="pick-style"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4 4 9-9"/></svg></span><span class="ln"></span><span class="ln"></span><span class="ln short"></span><span class="nm">日历</span></button>
+                    <button class="stc pp-o st-fold" data-act="pick-style"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4 4 9-9"/></svg></span><span class="ln" style="margin-left:14px"></span><span class="ln" style="margin-left:14px"></span><span class="ln short" style="margin-left:14px"></span><span class="nm">对折</span></button>
+                    <button class="stc pp-m st-film" data-act="pick-style"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4 4 9-9"/></svg></span><span class="ln" style="margin-top:10px"></span><span class="ln"></span><span class="ln short"></span><span class="nm">胶片</span></button>
+                    <button class="stc pp-b st-bookmark" data-act="pick-style"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4 4 9-9"/></svg></span><span class="ln" style="margin-top:9px"></span><span class="ln"></span><span class="ln short"></span><span class="nm">书签</span></button>
+                    <button class="stc pp-d st-dots" data-act="pick-style"><span class="ok"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12.5l4 4 9-9"/></svg></span><span class="ln" style="background:transparent"></span><span class="ln"></span><span class="ln short"></span><span class="nm">点阵</span></button>
+                  </div>
+                  <div class="sp-f">
+                    <span class="cap">分享成图固定浅色纸面；App 内随深浅色适配。字体跟纸走：邮笺/观察/对折手写感，日历/书签宋体，其余系统体。</span>
+                    <button class="btn-primary" id="styleUse" style="height:36px">使用「邮笺」</button>
+                  </div>
+                </div>
+
+                <!-- 纸面 -->
+                <div class="ed-paper paper pp" id="edPaper">
+                  <div class="ed-stamp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="2.2"/><path d="M4 17.5 9.5 11l3 3.4 2.4-2.7 5.1 5.8z"/></svg></div>
+                  <div class="ed-postmark"><span><i>HOLO</i><br><i>11.14</i></span></div>
+                  <div class="ed-ref" data-act="open-ref"><svg class="ic" viewBox="0 0 24 24" style="font-size:13px"><path d="M9.5 14.5c-2 0-3.5-1.4-3.5-3.2 0-1.7 1.3-3 3-3 .3-1.8 1.8-3.1 3.6-3.1 2 0 3.6 1.5 3.6 3.5 1.4.2 2.3 1.3 2.3 2.7 0 1.7-1.4 3.1-3.2 3.1z"/><path d="M12 10.5v6M9.5 13 12 10.5l2.5 2.5"/></svg>10月28日 · 要不要养猫<span class="rm">点开回看那条 ›</span></div>
+                  <div class="pdate tnum">11月14日 · 周六 · 晨</div>
+                  <div class="pbody" style="font-family:var(--f-hand)">替同事喂了三天猫，10月那条「要不要养猫」的答案比预想的来得快——<span class="hash">#生活观察</span>
+
+猫砂每天铲两次，可以接受；凌晨五点的踩奶，不行。喜欢是心跳，养是心跳之后的日程表。
+
+先租一只周末试试。要是连周末都嫌吵，这条想法就归档，不遗憾。<span class="hash">#猫</span><span class="caret" style="display:inline-block;width:2px;height:1.05em;background:var(--action);vertical-align:-0.15em;margin-left:2px;animation:caret 1.1s steps(1) infinite"></span></div>
+                  <div class="ptags">
+                    <span class="tagchip"># 生活观察</span>
+                    <span class="tagchip"># 猫</span>
+                  </div>
+                  <div class="pfoot"><span class="tnum">112 字</span><span>·</span><span class="tnum">已自动保存 23:41</span><span class="sp"></span><span>邮笺</span></div>
+                </div>
+
+                <!-- 浮动工具栏 -->
+                <div class="ed-tools">
+                  <button class="tb" data-act="text-style"><svg class="ic" viewBox="0 0 24 24"><path d="M5 6.5V5h14v1.5M12 5v14M9 19h6"/></svg>样式</button>
+                  <button class="tb" id="tbStyle"><svg class="ic" viewBox="0 0 24 24"><path d="M6 3.5h9.5a2 2 0 0 1 2 2V17a3.5 3.5 0 0 1-3.5 3.5H6z"/><path d="M9 8h5.5M9 11.5h5.5M9 15h3"/></svg>模板</button>
+                  <span class="div"></span>
+                  <button class="tb" data-act="scan"><svg class="ic" viewBox="0 0 24 24"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M4 12h16"/></svg>扫描文字</button>
+                  <button class="tb" data-act="voice"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/></svg>语音插入</button>
+                  <span class="div"></span>
+                  <button class="tb" data-act="why"><span class="ai" style="display:flex;align-items:center;gap:3px;font-size:12.5px"><svg class="ic" viewBox="0 0 24 24" style="font-size:15px"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>AI · 生活观察</span>为什么归这里</button>
+                </div>
+
+                <!-- 软键盘弹出态 -->
+                <div class="ed-kb" id="edKb">
+                  <div class="kb-cand"><span>试试</span><span class="kdiv"></span><span>先天</span><span class="kdiv"></span><span>周末</span></div>
+                  <div class="kb-rows">
+                    <div class="kb-row"><span class="kb-key fn">1</span><span class="kb-key fn">2</span><span class="kb-key fn">3</span><span class="kb-key fn">4</span><span class="kb-key fn">5</span><span class="kb-key fn">6</span><span class="kb-key fn">7</span><span class="kb-key fn">8</span><span class="kb-key fn">9</span><span class="kb-key fn">0</span><span class="kb-key fn" style="flex:1.4;max-width:96px"><svg class="ic" viewBox="0 0 24 24"><path d="M8 8 4 12l4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg></span></div>
+                    <div class="kb-row"><span class="kb-key">Q</span><span class="kb-key">W</span><span class="kb-key">E</span><span class="kb-key">R</span><span class="kb-key">T</span><span class="kb-key">Y</span><span class="kb-key">U</span><span class="kb-key">I</span><span class="kb-key">O</span><span class="kb-key">P</span></div>
+                    <div class="kb-row"><span class="kb-key" style="flex:1.2;max-width:86px;background:transparent;border:none;box-shadow:none"></span><span class="kb-key">A</span><span class="kb-key">S</span><span class="kb-key">D</span><span class="kb-key">F</span><span class="kb-key">G</span><span class="kb-key">H</span><span class="kb-key">J</span><span class="kb-key">K</span><span class="kb-key">L</span><span class="kb-key" style="flex:1.2;max-width:86px;background:transparent;border:none;box-shadow:none"></span></div>
+                    <div class="kb-row"><span class="kb-key wide"><svg class="ic" viewBox="0 0 24 24"><path d="M8 7.5 3.5 12 8 16.5M8 7.5v9h8a4.5 4.5 0 0 0 0-9z"/></svg></span><span class="kb-key">Z</span><span class="kb-key">X</span><span class="kb-key">C</span><span class="kb-key">V</span><span class="kb-key">B</span><span class="kb-key">N</span><span class="kb-key">M</span><span class="kb-key wide"><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 8.5 12 14l5.5-5.5M6.5 15h11" opacity=".0"/><path d="M9 6.5h6M12 6.5v6M8 14.5a4 4 0 0 0 8 0" opacity=".0"/><path d="M17.5 7.5 7 18M7 13.5V18h4.5"/></svg></span></div>
+                    <div class="kb-row"><span class="kb-key wide fn"><svg class="ic" viewBox="0 0 24 24"><circle cx="12.5" cy="12" r="8"/><path d="M5 9.5h5M5 14.5h5M14.5 8.5a10 10 0 0 0 0 7M17 8.5a10 10 0 0 1 0 7"/></svg></span><span class="kb-key wide fn">123</span><span class="kb-key space">空 格</span><span class="kb-key wide fn"><svg class="ic" viewBox="0 0 24 24"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/></svg></span><span class="kb-key go">换行</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="note note-ed" style="left:14px;top:56px"><span class="ptag">P2</span> 纸面 680 居中摊在桌面，工具栏贴底浮动。纸飞机关闭，「…」收全套菜单。</div>
+              <div class="note note-ed note-edkb" style="left:14px;bottom:14px"><span class="ptag">P9</span> 工具栏直达「记录样式」；手机版只在「…」内。取舍见文件底注。</div>
+            </section>
+
+            <!-- ======== 场景：竖屏阅读态 ======== -->
+            <section class="scene scene-readpt">
+              <div class="pagebar">
+                <button class="iconbtn" data-goto-scene="flow" title="返回想法流（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg></button>
+                <span class="ttl">想法</span>
+                <span class="sub">单列流 · 点卡推入阅读页</span>
+                <span class="sp"></span>
+                <button class="iconbtn" data-act="menu" title="更多"><svg class="ic" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg></button>
+              </div>
+              <div class="readpt-body" id="readptBody"></div>
+              <div class="note" style="left:26px;bottom:170px">竖屏（标准档 766）：抽屉收成覆盖层，流单列；点卡片推入本页，返回保留列表位置。</div>
+            </section>
+
+            <!-- ======== 弹层：筛选面板（居中 560） ======== -->
+            <div class="tsheet filter-sheet">
+              <div class="sheet" role="dialog" aria-label="筛选">
+                <div class="sheet-grab"></div>
+                <div class="sheet-head">
+                  <button class="sheet-x" data-act="close-sheet" title="关闭（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                  <h2>筛选</h2>
+                </div>
+                <div class="sheet-body">
+                  <div class="fsec">
+                    <div class="fs-t">时间范围<button class="clr" data-act="clear">清除</button></div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                      <span class="chip sm">全部时间</span>
+                      <span class="chip sm on">本月</span>
+                      <span class="chip sm">最近 7 天</span>
+                      <span class="chip sm">自定义…</span>
+                    </div>
+                  </div>
+                  <div class="fsec">
+                    <div class="fs-t">标签 · 可多选</div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                      <span class="chip sm on"># iPad重构</span>
+                      <span class="chip sm on"># 散步</span>
+                      <span class="chip sm"># 家人</span>
+                      <span class="chip sm"># 读书笔记</span>
+                      <span class="chip sm"># 猫</span>
+                      <span class="chip sm">更多 6 个 ›</span>
+                    </div>
+                  </div>
+                  <div class="fsec">
+                    <div class="fs-t">主题 · 单选</div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                      <span class="chip sm on">全部主题</span>
+                      <span class="chip sm">产品灵感</span>
+                      <span class="chip sm">生活观察</span>
+                      <span class="chip sm">读书笔记</span>
+                    </div>
+                  </div>
+                  <div class="fsec">
+                    <div class="fs-t">整理状态</div>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                      <span class="chip sm on">全部</span>
+                      <span class="chip sm">已归类</span>
+                      <span class="chip sm">未归类</span>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="font-size:13px">含已归档</span>
+                    <span class="tgl" data-toggle><i></i></span>
+                    <span style="font-size:11.5px;color:var(--text-2)">默认只在未归档里找</span>
+                  </div>
+                </div>
+                <div class="sheet-foot">
+                  <button class="btn-ghost" data-act="reset">重置</button>
+                  <button class="btn-primary" data-act="apply">应用 · 21 条符合</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- ======== 弹层：归并确认（居中 560） ======== -->
+            <div class="tsheet merge-sheet">
+              <div class="sheet" role="dialog" aria-label="归并确认">
+                <div class="sheet-grab"></div>
+                <div class="sheet-head">
+                  <button class="sheet-x" data-act="close-sheet" title="关闭（Esc）"><svg class="ic" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></button>
+                  <h2 style="font-size:19px;line-height:1.4">发现这些想法可能在说同一件事</h2>
+                </div>
+                <div class="sheet-body">
+                  <p style="font-size:12.5px;color:var(--text-2);line-height:1.7;margin-top:-6px">「装修记账」和「装修日记」有 5 条想法重叠。确认归并后合为一处，想法一条不丢，标签和引用都保留。</p>
+                  <div class="mgrid">
+                    <div class="mtopic">
+                      <b><svg class="ic" viewBox="0 0 24 24" style="color:var(--action)"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>装修记账</b>
+                      <span class="m-c tnum">9 条 · 10月中 – 11-12</span>
+                      <div class="m-tags"><span class="tagchip"># 装修 ×9</span><span class="tagchip"># 预算 ×5</span><span class="tagchip"># 工地 ×3</span></div>
+                      <span style="font-size:11.5px;color:var(--text-2)">最近：「瓷砖补了半平方，工费 80」</span>
+                    </div>
+                    <span class="mvs">重叠 5</span>
+                    <div class="mtopic">
+                      <b><svg class="ic" viewBox="0 0 24 24" style="color:var(--action)"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>装修日记</b>
+                      <span class="m-c tnum">7 条 · 10月底 – 11-13</span>
+                      <div class="m-tags"><span class="tagchip"># 装修 ×7</span><span class="tagchip"># 验收 ×2</span></div>
+                      <span style="font-size:11.5px;color:var(--text-2)">最近：「验收那天师傅比我还紧张」</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="sheet-foot" style="flex-direction:column;align-items:stretch;gap:8px">
+                  <div style="display:flex;gap:10px">
+                    <button class="btn-primary" data-act="merge-ok">确认归并</button>
+                    <button class="btn-ghost" data-act="close-sheet" style="flex:1;justify-content:center">保留分开</button>
+                  </div>
+                  <button style="border:none;background:transparent;color:var(--text-2);font-size:11.5px;cursor:pointer;font-family:inherit" data-act="never">不再建议这一组</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="toast" id="toast"></div>
+          </main>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <div class="canvas-cap" id="canvasCap">底表 E · 想法流 · 宽档三栏（抽屉180 + 流440 + 阅读余量）/ 竖屏单列 + 点卡推入</div>
+</div>
+
+<script>
+(function(){
+  var screen = document.getElementById('screen');
+  var stage  = document.getElementById('stage');
+  var wrap   = document.getElementById('frameWrap');
+  var toast  = document.getElementById('toast');
+  var toastTimer = null;
+
+  function say(msg){
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 2200);
+  }
+
+  /* ===== 阅读纸面模板（列表卡 → 右栏纸面 1:1 展开） ===== */
+  function paperHTML(id){
+    var M = {
+      r1:{cls:'pp',name:'邮笺',date:'11月14日 · 周六 · 晨',body:'楼下早餐店的甜咸豆浆是按座位坐的：靠窗两排永远点甜，靠里那排全是咸的。老板娘说这规律比天气预报准。她没学过什么用户研究，但她每天五点半站在人群里看。\n\n没人规定过谁坐哪儿。座位是自己长出来的，用法也是。做产品总想教用户「正确」的用法，其实正确的用法从来都是长出来的，不是设计出来的。',tags:['# 生活观察','# 散步'],foot:'137 字 · 已同步',font:'var(--f-hand)'},
+      r2:{cls:'pp-d',name:'点阵',date:'11月11日 · 周二 · 夜',body:'10月28日写过「要不要养猫」，今天替答案跑了一趟腿：路过猫咖，进去坐了一个小时。\n\n猫是好的，我也喜欢猫。可一想到回家后沙发上的猫毛、凌晨五点的踩奶，喜欢就先停在喜欢这里。合适这件事，从来不由喜欢单方面决定。\n\n先把这条放在这，明年春天再翻出来看看。',tags:['# 生活观察','# 猫'],foot:'112 字 · 已同步',font:'inherit'},
+      r3:{cls:'pp-c',name:'日历',date:'11月12日 · 周四',body:'《置身事内》读到一半，最大的感受是「土地财政」四个字背后全是普通人的房贷。合上书看窗外，突然理解了小区为什么十年不修路灯——不是没钱，是钱有别的去处。\n\n下周把剩下三章读完，顺手把「分税制」那条笔记补上。',tags:['# 读书笔记','# 置身事内'],foot:'98 字 · 已同步',font:'var(--f-serif)'},
+      r4:{cls:'pp-t',name:'票根',date:'11月13日 · 周五 · 夜',body:'详情都不许再弹层。摊开工作台的意思是——点哪张纸，哪张纸就待在右边不动，清单永远在左边。像阅览桌，不像借还窗口。\n\n下一步：把「详情不弹层」写进 01 文档的弹层政策表。',tags:['# 产品灵感','# iPad重构'],foot:'96 字 · 已同步',font:'inherit'},
+      r5:{cls:'pp-f',name:'观察',date:'11月10日 · 周一 · 晚高峰',body:'电梯里闻到有人喷了我大学时用的那款香水，愣了两秒。气味真是不讲道理，先于记忆到达。\n\n香水瓶还在货架上，没买。有些记忆闻一下就够了。',tags:['# 生活观察'],foot:'64 字 · 已同步',font:'var(--f-hand)'},
+      r6:{cls:'pp-b',name:'书签',date:'11月9日 · 周日',body:'给妈妈打电话，她说阳台的三角梅今年开疯了。我说拍照看看，她拍了九张，每一张都是糊的，但每一张都想留着。\n\n九张糊照片已经让她发过来了。挑一张最糊的设成屏保。',tags:['# 家人'],foot:'89 字 · 已同步',font:'var(--f-serif)'}
+    }[id] || {};
+    if(!M.date){ return ''; }
+    var tags = M.tags.map(function(t){ return '<span class="tagchip">'+t+'</span>'; }).join('');
+    return '<article class="paper '+M.cls+'" style="padding:26px 30px 20px;display:flex;flex-direction:column;gap:13px">'
+      + '<div class="pdate tnum">'+M.date+'</div>'
+      + '<div class="pbody" style="font-family:'+M.font+'">'+M.body.replace(/\n/g,'<br>')+'</div>'
+      + '<div class="ptags">'+tags+'</div>'
+      + '<div class="pfoot"><span class="tnum">'+M.foot+'</span><span class="sp"></span><span>'+M.name+'</span></div>'
+      + '</article>';
+  }
+  /* 右栏公共区块（信任界面 + 引用 + 相关 + 动作） */
+  var BLOCKS =
+    '<div class="rblock"><h4><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>为什么归这里<button style="margin-left:auto;border:none;background:transparent;color:var(--danger);font-size:11px;cursor:pointer;font-family:inherit" data-act="wrong">不太对 ✗</button></h4>'
+    + '<div class="whyrow"><span class="vq">生活观察 · 82%</span><span>与「生活观察」里 61 条想法的用词相近（日常 · 此刻 · 没有结论）。逐字依据可回源，不硬造。</span></div></div>'
+    + '<div class="rblock"><h4><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 14.5 14.5 9.5"/><path d="M8 12 5.5 14.5a3.5 3.5 0 0 0 5 5L13 17M16 12l2.5-2.5a3.5 3.5 0 0 0-5-5L11 7"/></svg>引用关系</h4>'
+    + '<div class="refrow"><span class="dir">引用了</span><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 14.5 14.5 9.5M8 12 5.5 14.5a3.5 3.5 0 0 0 5 5L13 17M16 12l2.5-2.5a3.5 3.5 0 0 0-5-5L11 7"/></svg><span class="tt">10月28日 · 要不要养猫</span></div>'
+    + '<div class="refrow"><span class="dir">被 2 条引用</span><svg class="ic" viewBox="0 0 24 24"><path d="M9.5 14.5 14.5 9.5M8 12 5.5 14.5a3.5 3.5 0 0 0 5 5L13 17M16 12l2.5-2.5a3.5 3.5 0 0 0-5-5L11 7"/></svg><span class="tt">猫咖一小时 / 替同事喂猫三日</span></div></div>'
+    + '<div class="rblock"><h4><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>帮我想想<span style="margin-left:auto;font-size:11px;font-weight:400;color:var(--text-2)">基于本条本机向量召回</span></h4>'
+    + '<div class="relrow"><span class="pc pp-t"><svg class="ic" viewBox="0 0 24 24"><path d="M4.5 8.5h15v7h-15z"/></svg></span><span class="rt">「别教用户正确的用法——先看他自然怎么用」</span><span class="rm">产品灵感 · 10-20</span><button class="un" data-act="unrelated">不相关</button></div>'
+    + '<div class="relrow"><span class="pc pp-f"><svg class="ic" viewBox="0 0 24 24"><path d="M5 5v3M8 5v5M11 5v3M14 5v6M17 5v3"/></svg></span><span class="rt">「阳台改造清单：先量光照，再谈买什么」</span><span class="rm">生活观察 · 10-05</span><button class="un" data-act="unrelated">不相关</button></div>'
+    + '<div class="cap">按内容相关推荐，不代表观点一致</div></div>';
+  var ACTIONS =
+    '<div class="ractions">'
+    + '<button class="btn-ghost" data-act="to-task"><svg class="ic" viewBox="0 0 24 24"><path d="M8.5 6.5H20M8.5 12H20M8.5 17.5H20"/><path d="M4 6.5l1 1 1.8-1.8M4 12l1 1 1.8-1.8M4 17.5l1 1 1.8-1.8"/></svg>转任务</button>'
+    + '<button class="btn-primary" data-act="ask-holo"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3.5l1.6 4.2 4.2 1.6-4.2 1.6L12 15.1l-1.6-4.2L6.2 9.3l4.2-1.6z"/></svg>就这条问问 Holo</button>'
+    + '<button class="iconbtn" data-act="share" title="分享卡"><svg class="ic" viewBox="0 0 24 24"><path d="M12 14.5V4M8.5 7 12 3.5 15.5 7"/><path d="M5 12.5v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></button>'
+    + '</div>';
+
+  function renderRead(id, host){
+    host.innerHTML = paperHTML(id) + BLOCKS + ACTIONS;
+  }
+  var readBody = document.getElementById('readBody');
+  var readptBody = document.getElementById('readptBody');
+  renderRead('r1', readBody);
+  renderRead('r1', readptBody);
+
+  /* ===== 场景切换 ===== */
+  var chips = document.getElementById('sceneChips');
+  var segOri = document.getElementById('segOri');
+  function markChip(v){
+    chips.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v===v ? 'true':'false'); });
+  }
+  /* 场景 → 画布底缘说明（canvas-cap，照 05 做法） */
+  var CAPS = {
+    flow:'底表 E · 想法流 · 宽档三栏（抽屉180 + 流440 + 阅读余量）/ 竖屏单列 + 点卡推入',
+    filter:'底表 E · 筛选面板 · 居中 sheet 560 · 左上关闭 · Esc',
+    empty:'底表 E · 最惨空态 · 无任何想法 · 空态四件套 + ⌘N',
+    tree:'底表 E · 知识树 · 主题卡墙3列 / 竖屏2列 · 自动合集 · 未归类 · 发现新主题',
+    merge:'底表 E · 归并确认 · 居中 sheet 560 · 两个候选主题对比 · 左上关闭',
+    editor:'底表 E · 想法编辑器 · P2 纸面居中680 + 浮动工具栏 · 邮笺 + 引用行 + #标签',
+    editorkb:'底表 E · 编辑器 · 软键盘弹出态 · 工具栏贴键盘上缘、纸面上移不跳动',
+    styles:'底表 E · 记录样式面板 · 八套信纸 · 编辑器内固定右上面板（P1 锚定 popover 仅列表页小选择器）',
+    queue:'底表 E · 待确认队列 · 建议簇卡：预览 + 确认/改名/忽略',
+    topic:'底表 E · 主题详情 · 主题头 + 收什么 + 成员标签 + 想法流 + 筛选',
+    readpt:'底表 E · 竖屏阅读态 · push 详情页，返回保留列表状态'
+  };
+  function setCap(v){
+    var cap = document.getElementById('canvasCap');
+    if(cap){ cap.textContent = CAPS[v] || ''; }
+  }
+  function setScene(v, opts){
+    opts = opts || {};
+    screen.classList.remove('drawer-open');
+    closeEdMenu();
+    screen.setAttribute('data-scene', v);
+    if(v === 'readpt' && !screen.classList.contains('pt')){ setOri('pt'); }
+    markChip(v);
+    setCap(v);
+    if(!opts.keepEmpty){ /* empty 由 data-scene 直接表达 */ }
+    fit();
+  }
+
+  chips.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    setScene(b.dataset.v);
+  });
+
+  /* 朝向 */
+  function setOri(v){
+    segOri.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v===v ? 'true':'false'); });
+    screen.classList.toggle('pt', v === 'pt');
+    if(v === 'pt'){ screen.classList.add('minisb'); }
+    else { screen.classList.remove('minisb','sbov-open'); }
+    fit();
+  }
+  segOri.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    setOri(b.dataset.v);
+  });
+
+  /* 深浅色 */
+  var segTheme = document.getElementById('segTheme');
+  segTheme.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    segTheme.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x===b ? 'true':'false'); });
+    document.documentElement.setAttribute('data-theme', b.dataset.v);
+  });
+
+  /* 流列内模式切换 想法流 ↔ 知识树 */
+  var modeSeg = document.getElementById('modeSeg');
+  modeSeg.addEventListener('click', function(e){
+    var b = e.target.closest('button'); if(!b) return;
+    if(b.dataset.v === 'tree'){ setScene('tree'); }
+    else { modeSeg.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x===b ? 'true':'false'); }); }
+  });
+
+  /* 点想法卡：横屏换右栏纸面；竖屏推入阅读页 */
+  document.getElementById('fcards').addEventListener('click', function(e){
+    var card = e.target.closest('.th-card'); if(!card) return;
+    if(screen.classList.contains('pt')){ renderRead(card.dataset.read || 'r1', readptBody); setScene('readpt'); return; }
+    document.querySelectorAll('#fcards .th-card').forEach(function(x){ x.classList.toggle('sel', x===card); });
+    renderRead(card.dataset.read || 'r1', readBody);
+    document.getElementById('rdate').textContent = (card.dataset.read === 'r1' ? '11月14日 · 周六' : '已选中 · 右栏展开');
+  });
+
+  /* 全局 goto 钩子（横幅/抽屉/主题卡/返回键） */
+  document.addEventListener('click', function(e){
+    var g = e.target.closest('[data-goto-scene]');
+    if(g){ setScene(g.dataset.gotoScene); return; }
+  });
+
+  /* 侧边栏：想法=本模块；其余占位提示分文件 */
+  function labelOf(key){
+    return ({thoughts:'想法',finance:'财务',tasks:'任务',habits:'习惯',gallery:'记忆长廊',health:'健康',ai:'AI 对话',personal:'个人',settings:'设置',home:'今天'})[key] || key;
+  }
+  document.addEventListener('click', function(e){
+    var m = e.target.closest('[data-module]');
+    if(m){ say('「' + labelOf(m.dataset.module) + '」模块原型见对应分文件（index.html 可跳转）'); return; }
+    var t = e.target.closest('[data-goto]');
+    if(t){
+      if(t.dataset.goto === 'thoughts'){ setScene('flow'); }
+      else { say('「' + labelOf(t.dataset.goto) + '」在壳层样板件（00-壳层与今天.html）'); }
+    }
+  });
+
+  /* 竖屏抽屉覆盖层 */
+  document.getElementById('drawerBtn').addEventListener('click', function(){
+    screen.classList.add('drawer-open');
+  });
+  var dovScrim = document.createElement('div');
+  dovScrim.className = 'dov-scrim';
+  screen.querySelector('.scene-flow').appendChild(dovScrim);
+  dovScrim.addEventListener('click', function(){ screen.classList.remove('drawer-open'); });
+  var dov = document.createElement('nav');
+  dov.className = 'dov';
+  dov.innerHTML = '<div class="dhead">想法 · 抽屉</div>';
+  screen.querySelector('.scene-flow').appendChild(dov);
+  dov.addEventListener('click', function(e){
+    if(e.target.closest('.ditem') || e.target.closest('.dcluster')){ screen.classList.remove('drawer-open'); }
+  });
+  function syncDrawerOv(){ dov.innerHTML = '<div class="dhead">想法 · 抽屉</div>' + document.getElementById('tdrawer').innerHTML; }
+  syncDrawerOv();
+
+  /* 快速记录 ⌘N / 新想法：按模块分流 → 编辑器 */
+  function openEditor(msg){ setScene('editor'); say(msg || '新想法 · 已铺开一张新纸（⌘N 想法分流进编辑器）'); }
+  document.getElementById('quickAdd').addEventListener('click', function(){ openEditor('⌘N 快速记录：想法模块分流 → 打开编辑器'); });
+  document.getElementById('newThought').addEventListener('click', function(){ openEditor(); });
+  document.getElementById('treeNew').addEventListener('click', function(){ openEditor(); });
+  document.getElementById('emptyNew').addEventListener('click', function(){ openEditor(); });
+
+  /* 搜索 ⌘F */
+  var searchInput = document.getElementById('searchInput');
+  document.getElementById('filterBtn').addEventListener('click', function(){ setScene('filter'); });
+
+  /* 编辑器 */
+  var edMenu = document.getElementById('edMenu');
+  function closeEdMenu(){ edMenu.classList.remove('show'); }
+  document.getElementById('edMenuBtn').addEventListener('click', function(e){
+    e.stopPropagation();
+    edMenu.classList.toggle('show');
+  });
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('#edMenu') && !e.target.closest('#edMenuBtn')){ closeEdMenu(); }
+  });
+  document.getElementById('edBack').addEventListener('click', function(){ setScene('flow'); say('草稿已自动保存，随时回来'); });
+  document.getElementById('edSend').addEventListener('click', function(){ setScene('flow'); say('已收进想法流 · 纸飞机起飞'); });
+  document.getElementById('tbStyle').addEventListener('click', function(){ setScene('styles'); });
+  document.getElementById('styleUse').addEventListener('click', function(){ setScene('editor'); say('已使用「邮笺」样式 · 只属于这一条'); });
+  document.querySelectorAll('.stc').forEach(function(c){
+    c.addEventListener('click', function(){
+      document.querySelectorAll('.stc').forEach(function(x){ x.classList.toggle('sel', x===c); });
+      var nm = c.querySelector('.nm').childNodes[0].textContent;
+      document.getElementById('styleUse').textContent = '使用「' + nm + '」';
+    });
+  });
+
+  /* 筛选面板交互 */
+  document.querySelectorAll('.chip.sm').forEach(function(c){
+    c.addEventListener('click', function(){
+      var sec = c.parentElement;
+      var multi = sec.textContent.indexOf('可多选') > -1;
+      if(multi){ c.classList.toggle('on'); }
+      else { sec.querySelectorAll('.chip.sm').forEach(function(x){ x.classList.toggle('on', x===c); }); }
+    });
+  });
+  document.querySelectorAll('[data-toggle]').forEach(function(t){
+    t.addEventListener('click', function(){ t.classList.toggle('on'); });
+  });
+
+  /* 通用动作 → toast（原型不给全量行为，给语义确认） */
+  var ACT_MSG = {
+    'style':'记录样式 · 打开样式面板（也可点工具栏「模板」）',
+    'text-style':'文本样式：字体 / 颜色 / 加粗斜体（只属于本条）',
+    'scan':'扫描文字：系统实况文本识别，只收文字进正文',
+    'voice':'语音插入：说完自动转写进正文',
+    'why':'为什么归这里：判定值 + 逐字依据，可回源',
+    'to-task':'转为任务：提取这条想法里的可做项',
+    'share':'生成分享卡：固定浅色纸面出图',
+    'move-topic':'移入主题：选一个书架放进去',
+    'refs':'查看引用：这条想法的引用往来',
+    'del':'删除想法会进「最近删除」，30 天内可恢复',
+    'open-ref':'跳到 10月28日「要不要养猫」原文',
+    'close-sheet':'已关闭（Esc 也可以）',
+    'reset':'已重置筛选',
+    'apply':'筛选已应用 · 21 条符合',
+    'clear':'已清除该条件',
+    'merge-ok':'已归并为「装修记账」· 想法一条不丢',
+    'never':'好，这组以后不再建议',
+    'create-topic':'已建立主题（可先「改个名字」）',
+    'rename-topic':'改个名字：以你的名字建，AI 不会自动改',
+    'later':'好，先放着 · 以后再说',
+    'org':'整理设置：AI 分析范围 · 批量整理 · 频率',
+    'collection':'自动合集：拆散不丢想法，每条还在原处',
+    'archived':'已归档 26 条 · 想删的时候再删',
+    'topicMgmt':'主题管理：重命名 / 删除 / 换图标（删除的主题下想法回到未归类）',
+    'dataClean':'数据清理：清空想法数据需二次确认',
+    'confirm-q':'已放这里 · 确认让分类越来越准',
+    'rename-q':'改个名字：这个主题叫什么由你定',
+    'ignore-q':'已忽略 · 这条保持未归类，AI 不再重复问',
+    'skip-all':'已全部跳过 · 未归类的想法还在流里',
+    'wrong':'收到，这条归类不对 · AI 下次避开',
+    'unrelated':'已标为不相关 · 同版本不再重复推荐',
+    'ask-holo':'已把这条想法带给 Holo · 聊天现场已预填',
+    'menu':'更多：记录样式 / 转任务 / 分享卡 / 移入主题 / 引用',
+    'reset-flow':'已清除筛选'
+  };
+  document.addEventListener('click', function(e){
+    var a = e.target.closest('[data-act]');
+    if(a && ACT_MSG[a.dataset.act]){ say(ACT_MSG[a.dataset.act]); }
+  });
+
+  /* 侧边栏收起/展开（横屏） */
+  document.getElementById('sbToggle').addEventListener('click', function(){
+    screen.classList.toggle('minisb');
+    fit();
+  });
+
+  /* 竖屏：图标条点 Holo 展开覆盖侧边栏 */
+  document.getElementById('sidebar').addEventListener('dblclick', function(){
+    if(screen.classList.contains('pt')){ screen.classList.add('sbov-open'); }
+  });
+  document.getElementById('sbovScrim').addEventListener('click', function(){
+    screen.classList.remove('sbov-open');
+  });
+  var sbovList = document.getElementById('sbovList');
+  sbovList.innerHTML = document.querySelector('.sidebar .sb-list').outerHTML +
+                       '<div class="sb-div"></div>' +
+                       document.querySelectorAll('.sidebar .sb-list')[1].outerHTML +
+                       '<div class="sb-bottom" style="margin-top:auto"><button class="sb-quick" id="quickAdd2"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>快速记录</span><span class="k">⌘N</span></button></div>';
+  document.getElementById('quickAdd2').addEventListener('click', function(){
+    screen.classList.remove('sbov-open');
+    openEditor('⌘N 快速记录：想法模块分流 → 打开编辑器');
+  });
+
+  /* 键盘：Esc 链路 = 关弹层 → 退键盘 → 退页 */
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){
+      if(screen.classList.contains('sbov-open')){ screen.classList.remove('sbov-open'); return; }
+      if(screen.classList.contains('drawer-open')){ screen.classList.remove('drawer-open'); return; }
+      var sc = screen.getAttribute('data-scene');
+      if(sc === 'merge' || sc === 'filter'){ setScene(sc === 'merge' ? 'tree' : 'flow'); return; }
+      if(sc === 'styles'){ setScene('editor'); return; }
+      if(edMenu.classList.contains('show')){ closeEdMenu(); return; }
+      if(sc === 'editorkb'){ setScene('editor'); return; }
+      if(sc === 'editor' || sc === 'readpt' || sc === 'topic' || sc === 'queue'){ setScene('flow'); return; }
+      if(sc === 'tree'){ setScene('flow'); return; }
+    }
+    if((e.metaKey || e.ctrlKey) && (e.key === 'f' || e.key === 'F')){
+      e.preventDefault();
+      if(screen.getAttribute('data-scene') === 'flow' || screen.getAttribute('data-scene') === 'empty'){ searchInput.focus(); }
+      else { say('⌘F：回到想法流后聚焦搜索'); }
+    }
+    if((e.metaKey || e.ctrlKey) && (e.key === 'n' || e.key === 'N')){
+      e.preventDefault();
+      openEditor('⌘N · 新想法');
+    }
+  });
+
+  /* 自适应缩放：整台 iPad 永远在舞台里看得全 */
+  function fit(){
+    var r = screen.getBoundingClientRect();
+    var w = r.width, h = r.height;
+    var availW = stage.clientWidth - 16, availH = stage.clientHeight - 16;
+    var s = Math.min(1, availW / w, availH / h);
+    wrap.style.transform = 'scale(' + s + ')';
+  }
+  window.addEventListener('resize', fit);
+  fit();
+
+  /* URL hash 初始化（渲染截图用）：#scene=…&ori=lsz|pt&theme=light|dark&sb=mini&debug=1 */
+  (function(){
+    var q = {};
+    location.hash.replace(/^#/, '').split('&').forEach(function(kv){
+      var p = kv.split('='); if(p[0]) q[p[0]] = p[1];
+    });
+    if(q.theme || q.ori || q.scene || q.sb){ document.documentElement.classList.add('instant'); }
+    if(q.theme === 'dark'){
+      document.documentElement.setAttribute('data-theme','dark');
+      segTheme.querySelectorAll('button').forEach(function(x){ x.setAttribute('aria-pressed', x.dataset.v==='dark' ? 'true':'false'); });
+    }
+    if(q.ori === 'pt'){ setOri('pt'); }
+    if(q.sb === 'mini'){ screen.classList.add('minisb'); }
+    var valid = ['flow','editor','editorkb','styles','tree','merge','queue','topic','filter','empty','readpt'];
+    if(q.scene && valid.indexOf(q.scene) > -1){
+      screen.setAttribute('data-scene', q.scene);
+      markChip(q.scene);
+      setCap(q.scene);
+      if(q.scene === 'readpt'){ setOri('pt'); }
+    }
+    if(q.debug === '1'){
+      var sbar = document.querySelector('.sbar');
+      document.title = 'DBG screen=' + getComputedStyle(screen).backgroundColor +
+        ' sbar=' + getComputedStyle(sbar).backgroundColor +
+        ' sbarColor=' + getComputedStyle(sbar).color +
+        ' theme=' + document.documentElement.getAttribute('data-theme');
+    }
+    fit();
+  })();
+})();
+</script>
+<style>
+@keyframes caret{0%,49%{opacity:1}50%,100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.caret{animation:none}}
+</style>
+<!-- ============ 文件底注 · 新拍板点 ============
+  P9（本模块新设）：iPad 编辑器浮动工具栏直达「模板/记录样式」。
+    背景：手机版口径（设计规范·想法主题纸）是样式入口只放「… → 记录样式」、不在正文上方占行；
+    iPad 纸面居中后正文上方没有行可占，浮动工具栏是唯一常驻操作位，故把入口放工具栏，
+    「…」菜单内保留同名项作为回退。二选一由东林拍板：工具栏直达（本稿）vs 严格沿用手机口径（仅「…」内）。
+  P10（本模块新设）：宽档三栏配比。侧边栏 232 + 抽屉 180 + 流 440 后，阅读右栏实得 342，
+    纸面阅读宽度低于「阅读正文限长 640」的舒适线。备选：a) 流 400 换阅读 382；b) 阅读右栏固定 460、
+    流收窄至 380；c) 保持 342（与手机阅读宽度同构，长文仍有 ⌘W/竖屏全宽路径）。
+    本稿按任务书取 440/余量 342，实现前需拍板。
+================================================= -->
+</body>
+</html>

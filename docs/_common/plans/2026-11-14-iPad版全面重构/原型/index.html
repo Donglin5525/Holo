@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html data-zcode-design lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Holo · iPad 版全面重构 · 原型总入口</title>
+<style>
+:root{
+  --canvas:#141416; --panel:#1D1D20; --line:#333336;
+  --text:#E8E8EA; --sub:#9A9AA0;
+  --brand:#EA580C; --brand-soft:#FF8A5C;
+  --paper:#FDFCF8; --ink:#333333;
+  --amber:#D97706; --green:#16A34A;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--canvas);color:var(--text)}
+body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;line-height:1.6;padding:48px 40px 80px;max-width:1080px;margin:0 auto}
+.tnum{font-variant-numeric:tabular-nums}
+a{color:var(--brand-soft);text-decoration:none}
+a:hover{text-decoration:underline}
+kbd{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:11.5px;background:#26262A;border:1px solid #3D3D41;border-bottom-width:2px;border-radius:6px;padding:1px 7px;color:var(--text);white-space:nowrap}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:8px}
+h1{font-size:26px;font-weight:700;letter-spacing:.3px}
+h1 .ipad{color:var(--brand-soft)}
+.meta{font-size:13px;color:var(--sub)}
+.lede{font-size:14.5px;color:var(--sub);max-width:760px;margin:10px 0 36px}
+.lede b{color:var(--text);font-weight:600}
+.rule{height:1px;background:var(--line);margin:36px 0}
+h2{font-size:15px;font-weight:700;letter-spacing:.4px;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+h2 .en{font-size:11px;font-weight:500;color:var(--sub);letter-spacing:.8px;text-transform:uppercase}
+/* 方向宣言 */
+.dir{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 24px;margin-bottom:36px}
+.dir .q{font-size:17px;font-weight:600;line-height:1.7}
+.dir .q em{font-style:normal;color:var(--brand-soft)}
+.dir .sub{font-size:13px;color:var(--sub);margin-top:10px}
+/* 状态总览 */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(236px,1fr));gap:12px}
+.mod{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;text-decoration:none;transition:border-color .15s,transform .15s}
+a.mod:hover{border-color:var(--brand);text-decoration:none;transform:translateY(-1px)}
+.mod .ic{width:34px;height:34px;border-radius:10px;background:#26262A;display:grid;place-items:center;color:var(--brand-soft);flex:none}
+.mod .ic svg{width:18px;height:18px;stroke-width:1.7;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}
+.mod .t{flex:1;min-width:0}
+.mod .t b{display:block;font-size:13.5px;font-weight:600;color:var(--text)}
+.mod .t span{display:block;font-size:11px;color:var(--sub);margin-top:1px}
+.badge{flex:none;font-size:10.5px;font-weight:600;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.b-ready{color:#FDE8D7;background:rgba(234,88,12,.18)}
+.b-wait{color:var(--sub);background:#26262A}
+.b-doing{color:var(--amber);background:rgba(217,119,6,.14)}
+/* 壳层示意 */
+.shell{display:grid;grid-template-columns:1.05fr .95fr;gap:24px;align-items:start}
+.shellbox{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px}
+.shot{border-radius:10px;overflow:hidden;border:1px solid #3D3D41;display:grid;grid-template-columns:64px 1fr;height:150px;font-size:10px}
+.shot .sb{background:#202023;border-right:1px solid #3D3D41;padding:8px 6px;display:flex;flex-direction:column;gap:5px}
+.shot .sb i{display:block;height:12px;border-radius:4px;background:#2E2E32}
+.shot .sb i.on{background:rgba(234,88,12,.4)}
+.shot .ct{background:var(--paper);padding:10px;display:grid;grid-template-columns:1fr 1.3fr;gap:8px}
+.shot .ct .c1{background:#fff;border:.5px solid #E9E4DA;border-radius:6px}
+.shot .ct .c2{background:#fff;border:.5px solid #E9E4DA;border-radius:6px;position:relative}
+.shot .ct .c2::after{content:"详情";position:absolute;inset:0;display:grid;place-items:center;font-size:10px;color:#C0B9AE}
+.shot .ct .c1::after{content:"列表";position:absolute;inset:0;display:grid;place-items:center;font-size:10px;color:#C0B9AE}
+.shot .ct .c1,.shot .ct .c2{position:relative}
+.shellbox ul{list-style:none;font-size:13px;color:var(--sub);display:flex;flex-direction:column;gap:9px}
+.shellbox ul b{color:var(--text);font-weight:600}
+.tiers{display:grid;gap:8px;margin-top:14px}
+.tier{display:grid;grid-template-columns:64px 1fr;gap:12px;align-items:center;font-size:12.5px}
+.tier .bar{height:26px;border-radius:7px;position:relative}
+.tier .bar i{position:absolute;top:0;bottom:0;border-radius:7px}
+.tier span{color:var(--sub)}
+/* 表格 */
+table{width:100%;border-collapse:collapse;font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+th{font-size:11px;font-weight:600;color:var(--sub);letter-spacing:.5px;text-align:left;padding:10px 14px;border-bottom:1px solid var(--line);background:#202023}
+td{padding:9px 14px;border-bottom:1px solid #2A2A2E;color:var(--text)}
+tr:last-child td{border-bottom:none}
+td .dim{color:var(--sub)}
+.p-tag{display:inline-block;font-size:10.5px;font-weight:700;color:var(--amber);background:rgba(217,119,6,.14);border-radius:6px;padding:1px 7px;margin-right:8px}
+.foot{font-size:12px;color:var(--sub);margin-top:40px;line-height:1.8}
+</style>
+</head>
+<body>
+
+<div class="head">
+  <h1>Holo · <span class="ipad">iPad 版全面重构</span> · 原型总入口</h1>
+  <div class="meta tnum">2026-11-14 · v1.1 · 全模块产出 · 东林验收包</div>
+</div>
+<p class="lede">
+  目标：让 Holo 的 iPad 版达到<b>可对外交付</b>的水准。本包是第一阶段产物——全部模块的 iPad 高保真原型（横竖屏 + 键盘态 + 最惨稀疏态），按<b>「原型即契约」</b>惯例，东林确认后逐模块 1:1 落进 SwiftUI。功能一项不删、一页不漏，覆盖度以<a href="../00-页面功能底表.md">页面功能底表</a>为账本逐项打勾。
+</p>
+
+<div class="dir">
+  <div class="q">设计方向：把 Holo iPad 版做成<em>「摊在桌面上的生活工作台」</em>——手机上「一页一事」，iPad 上<em>「一屏一事一上下文」</em>：任何对象打开时，它的清单、上下文和下一步动作同屏常驻。</div>
+  <div class="sub">保留：光球（永转）· 品牌橙 · 暖纸 Tool 色板 · 卡片语言 · 44pt 热区 · 全部功能。重构：导航密度 · 列表-详情 · 弹层策略 · 键盘 · 横竖屏。规则细则见 <a href="../01-设计语言与布局规则.md">01-设计语言与布局规则.md</a>。</div>
+</div>
+
+<h2>壳层与布局规则 <span class="en">Shell &amp; Layout</span></h2>
+<div class="shell">
+  <div class="shellbox">
+    <div class="shot">
+      <div class="sb"><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i style="margin-top:auto;background:rgba(234,88,12,.25)"></i></div>
+      <div class="ct"><div class="c1"></div><div class="c2"></div></div>
+    </div>
+    <div class="tiers">
+      <div class="tier"><div class="bar" style="background:#26262A"><i style="left:0;width:19%;background:#3A5A3F"></i><i style="left:19%;right:0;background:#2E2E32"></i></div><span>横屏 1194：侧边栏 232 + 内容 962 → <b style="color:var(--text)">宽档·双栏</b></span></div>
+      <div class="tier"><div class="bar" style="background:#26262A"><i style="left:0;width:8%;background:#3A5A3F"></i><i style="left:8%;right:0;background:#2E2E32"></i></div><span>竖屏 834：图标条 68 + 内容 766 → <b style="color:var(--text)">标准档·单列限宽</b></span></div>
+      <div class="tier"><div class="bar" style="background:#26262A"><i style="left:0;width:17%;background:#3A5A3F"></i><i style="left:17%;right:0;background:#2E2E32"></i></div><span>13" 竖屏 1032：图标条 68 + 内容 964 → <b style="color:var(--text)">宽档·双栏</b></span></div>
+    </div>
+  </div>
+  <div class="shellbox">
+    <ul>
+      <li><b>宽档 ≥1024（实得宽度）</b>：列表 360 + 详情右栏，切换对象只刷右栏，正文限长 640。</li>
+      <li><b>标准档 680–1023</b>：单列内容限宽 720 居中；网格/看板 2 列。</li>
+      <li><b>窄档 &lt;680</b>：单列，与手机同构。</li>
+      <li><b>竖屏侧边栏</b>：收成 68pt 图标条（内容优先）【拍板点 P5】。</li>
+      <li><b>旋转/分屏</b>：只换布局档位，不清空选中、筛选、草稿、聊天现场。</li>
+      <li><b>深链 28 条</b>：先选中侧边栏目的地，再落到模块内位置；逐条对照表随验收包交付。</li>
+    </ul>
+  </div>
+</div>
+
+<div class="rule"></div>
+
+<h2>模块原型 <span class="en">Prototypes</span></h2>
+<div class="grid">
+  <a class="mod" href="00-壳层与今天.html"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M18.5 5.5l-1.7 1.7M7.2 16.8l-1.7 1.7"/></svg></span><span class="t"><b>00 · 壳层与今天</b><span>侧边栏 / 首页光球 / 今日看板 · 样板件</span></span><span class="badge b-ready">已产出</span></a>
+  <a class="mod" href="01-任务与纪念日.html"><span class="ic"><svg viewBox="0 0 24 24"><path d="M8 6h11M8 12h11M8 18h11"/><path d="M3.5 6l1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"/></svg></span><span class="t"><b>01 · 任务与纪念日</b><span>三视图 / 详情双栏 / 弹层族 / 统计</span></span><span class="badge b-ready">已产出</span></a>
+  <a class="mod" href="02-财务.html"><span class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="12" rx="2.5"/><path d="M3 10.5h18M7 15h4"/></svg></span><span class="t"><b>02 · 财务</b><span>账本双栏 / 记一笔 / 统计 / 识图记账</span></span><span class="badge b-ready">已产出</span></a>
+  <a class="mod" href="03-想法.html"><span class="ic"><svg viewBox="0 0 24 24"><path d="M5 4.5h14M5 9h14M5 13.5h9"/><path d="M5 18.5l3-1.5 9.5-9a1.8 1.8 0 0 0-2.6-2.6l-9.4 9.5z"/></svg></span><span class="t"><b>03 · 想法</b><span>流 + 右栏 / 抽屉 / 知识树 / 信纸编辑器</span></span><span class="badge b-ready">已产出</span></a>
+  <a class="mod" href="04-习惯与健康.html"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 21C7 17 3.5 13.6 3.5 9.8A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8.5 2.8C20.5 13.6 17 17 12 21z"/></svg></span><span class="t"><b>04 · 习惯与健康</b><span>磁贴网格 / 打卡 / 指标双栏 / 睡眠</span></span><span class="badge b-ready">已产出</span></a>
+  <a class="mod" href="05-记忆长廊.html"><span class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2.5"/><path d="M4 9.5h16M9 5v14M9 9.5V19"/></svg></span><span class="t"><b>05 · 记忆长廊</b><span>日历四档 + 细节双栏 / 洞察 / 随机漫步</span></span><span class="badge b-ready">已产出</span></a>
+  <a class="mod" href="06-AI对话.html"><span class="ic"><svg viewBox="0 0 24 24"><path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7z"/><path d="M18.5 15l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9zM5 16.5l.7 1.6 1.6.7-1.6.7-.7 1.6-.7-1.6-1.6-.7 1.6-.7z"/></svg></span><span class="t"><b>06 · AI 对话</b><span>聊天 680 列 / 报告右栏 / 语音 / 一个发现</span></span><span class="badge b-ready">已产出</span></a>
+  <a class="mod" href="07-目标与记忆中心.html"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></svg></span><span class="t"><b>07 · 目标与记忆中心</b><span>目标共创 / 记忆管理 / 确认队列</span></span><span class="badge b-ready">已产出</span></a>
+  <a class="mod" href="08-个人与会员.html"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.3-3.4 4-5 7-5s5.7 1.6 7 5"/></svg></span><span class="t"><b>08 · 个人与会员</b><span>个人页 / Plus 会员 / 付费墙 / 每周回顾</span></span><span class="badge b-ready">已产出</span></a>
+  <a class="mod" href="09-设置与系统.html"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3.5l1 2.6a6.8 6.8 0 0 1 2.4 1l2.7-.6 1.7 2.9-1.9 2a6.9 6.9 0 0 1 0 2.7l1.9 2-1.7 2.9-2.7-.6a6.8 6.8 0 0 1-2.4 1l-1 2.6h-3.4"/></svg></span><span class="t"><b>09 · 设置与系统</b><span>设置双栏 / 通知 / 导入导出 / 回收站 / 引导链</span></span><span class="badge b-ready">已产出</span></a>
+</div>
+
+<div class="rule"></div>
+
+<h2>键盘 <span class="en">Keyboard</span></h2>
+<table>
+  <tr><th style="width:220px">按键</th><th>动作</th><th style="width:130px">来源</th></tr>
+  <tr><td><kbd>⌘</kbd>–<kbd>1</kbd>…<kbd>8</kbd> / <kbd>⌘9</kbd> / <kbd>⌘,</kbd></td><td>模块直跳 / 个人 / 设置（侧边栏联动选中）</td><td class="dim">已有，保留</td></tr>
+  <tr><td><kbd>⌘N</kbd></td><td>快速记录（按当前模块分流：财务→记一笔、想法→编辑器、任务→新建）</td><td class="dim">已有，保留</td></tr>
+  <tr><td><kbd>⌘F</kbd> / <kbd>⌘W</kbd></td><td>当前模块搜索 / 关闭当前模块回首页</td><td class="dim">已有，保留</td></tr>
+  <tr><td><kbd>Esc</kbd></td><td>关弹层 / 退出搜索 / 收起覆盖式侧边栏</td><td><span class="p-tag">P3</span>新增</td></tr>
+  <tr><td><kbd>Tab</kbd> / <kbd>⇧Tab</kbd></td><td>弹层表单字段间移动</td><td><span class="p-tag">P3</span>新增</td></tr>
+  <tr><td><kbd>↑</kbd><kbd>↓</kbd></td><td>双栏时列表键位导航，右栏跟随选中</td><td><span class="p-tag">P3</span>新增</td></tr>
+  <tr><td><kbd>⌘⌥S</kbd></td><td>侧边栏收起 / 展开</td><td><span class="p-tag">P3</span>新增</td></tr>
+</table>
+
+<div class="rule"></div>
+
+<h2>待拍板点 <span class="en">Decisions</span></h2>
+<table>
+  <tr><th style="width:60px">#</th><th>拍板点</th><th>我的推荐</th></tr>
+  <tr><td class="tnum">P1</td><td>小选择器（日期/优先级/重复规则）iPad 改 popover 锚定触发点</td><td>改 popover，符合 iPad 惯例</td></tr>
+  <tr><td class="tnum">P2</td><td>想法编辑器 iPad 版式：纸面居中 680 + 浮动工具栏 vs 全屏</td><td>纸面居中</td></tr>
+  <tr><td class="tnum">P3</td><td>新增标准键盘语义（Esc / Tab / ↑↓ / ⌘⌥S）</td><td>全加</td></tr>
+  <tr><td class="tnum">P4</td><td>习惯宽档「今天 + 回顾」是否同屏两栏</td><td>同屏两栏</td></tr>
+  <tr><td class="tnum">P5</td><td>竖屏侧边栏默认收成 68pt 图标条</td><td>收成图标条（内容优先）</td></tr>
+  <tr><td class="tnum">P6</td><td>今日看板从全屏覆盖改为「今天」页内视图（侧边栏保持可达）</td><td>改页内视图</td></tr>
+  <tr><td class="tnum">P7–P26</td><td>模块级拍板点 20 条（日历双栏/统计子Tab/编辑器版式/三栏配比/戒除习惯口径/磁贴排序/长廊右栏默认选中/确认队列入口/暖光入口/inspector 宽度/报告Tab分工/目标菜单/确信度呈现/历史分析门卡/竖屏转场/付费墙形态/新用户个人页/设置竖屏导航/危险确认分级/通知详情形态）</td><td>逐条见对应文件琥珀角标与验收包汇总</td></tr>
+</table>
+
+<div class="foot">
+  验收口径：每模块过「挑刺儿三问」（外行第一眼看得懂 / 最惨稀疏态体面 / 与 Holo 气质协调）+ 底表逐项打勾 + 28 条深链落点走查。<br>
+  真源：<a href="../04-验收包.md">04-验收包.md（从这里开始看）</a> · <a href="../00-页面功能底表.md">00-页面功能底表.md</a> · <a href="../01-设计语言与布局规则.md">01-设计语言与布局规则.md v1.1</a> · <a href="../03-深链落点对照.md">03-深链落点对照.md</a> · 上游规范 docs/standards/设计规范.md（色板/字体/间距/组件全部沿用）
+</div>
+
+</body>
+</html>
