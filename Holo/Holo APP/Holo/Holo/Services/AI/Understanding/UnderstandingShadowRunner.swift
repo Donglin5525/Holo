@@ -114,6 +114,8 @@ enum UnderstandingShadowRunner {
         for theme in pending {
             let candidateID = "theme:\(theme.key):\(theme.fingerprint.prefix(8))"
             guard ledger.register(id: candidateID, themeKey: theme.key, now: now) != nil else { continue }
+            // 数据驱动失效（BUG-5）：同主题旧版本终态条目撤下，评审只看当前版本。
+            _ = ledger.markSuperseded(themeKey: theme.key, excluding: candidateID, now: now)
             _ = ledger.advance(id: candidateID, to: .packaged, now: now)
             _ = ledger.advance(id: candidateID, to: .proposing, now: now)
 

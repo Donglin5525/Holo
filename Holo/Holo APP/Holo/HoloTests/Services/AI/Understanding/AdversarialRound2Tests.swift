@@ -42,6 +42,7 @@ struct AdversarialRound2Tests {
         userJourneyFixC_revisionDigestSyncSafe()
         habitDomainProjectionAndTheme()
         try await habitOnlyUserEndToEnd()
+        try await round4_staleUnderstandingNotInvalidated()
         printOutcome()
     }
 
@@ -158,6 +159,47 @@ struct AdversarialRound2Tests {
         let processed = Set(ledger.candidates.values.map(\.themeKey))
         expect(report.habitObservations == 5 && processed.contains("夜跑"),
                "只打卡用户：夜跑主题被处理（report.habit=\(report.habitObservations) 处理=\(processed.sorted())）——画像5价值为零问题闭环")
+        try? FileManager.default.removeItem(at: storage)
+    }
+
+    /// 时间序列攻击·画像5翻转（用户把「猫粮」改成「猫粮 帮同事带的」）：
+    /// 旧 adoptable 理解必须失效——工程稿 §6.1「来源修订触发依赖它的理解失效」。
+    static func round4_staleUnderstandingNotInvalidated() async throws {
+        let storage = tempStorage()
+        struct Once: UnderstandingProposeClient {
+            var good = true
+            func propose(themeKey: String, evidence: [SemanticEvidenceItem]) async throws -> [ProposalCandidate] {
+                good
+                    ? [ProposalCandidate(claimType: "role", statement: "本人是猫的主要照料者。",
+                                         supportingRefs: ["cat-1", "th-1"], alternativeExplanations: ["代养"],
+                                         whatWouldChangeTheAnswer: nil, evidenceGrade: "支持", action: "adopt")]
+                    : [ProposalCandidate(claimType: "role", statement: "可能在照料猫。",
+                                         supportingRefs: ["cat-1"], alternativeExplanations: [],
+                                         whatWouldChangeTheAnswer: nil, evidenceGrade: "线索", action: "observe")]
+            }
+        }
+        // 第一轮：证据充分 → adoptable
+        var client = Once(good: true)
+        let financeV1 = [
+            FinanceObservationInput(id: "cat-1", note: "猫粮", occurredAt: day(2026, 9, 2), recordedAt: day(2026, 9, 2), updatedAt: day(2026, 9, 2), isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "cat-2", note: "猫砂", occurredAt: day(2026, 9, 20), recordedAt: day(2026, 9, 20), updatedAt: day(2026, 9, 20), isRefund: false, categoryName: nil),
+        ]
+        _ = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 3, storage: storage,
+            loadInputs: { (financeV1, thoughtInputs(), []) }, proposeClient: client)
+        var ledger = ShadowLedger.load(directory: storage)
+        expect(ledger.snapshot(stage: .adoptable).count == 1, "第一轮 adoptable")
+        // 第二轮：用户改备注翻转归属（代购）→ 主题指纹变 → 重提案 → 弱证据降级 observe
+        client = Once(good: false)
+        let financeV2 = [
+            FinanceObservationInput(id: "cat-1", note: "猫粮 帮同事带的", occurredAt: day(2026, 9, 2), recordedAt: day(2026, 9, 2), updatedAt: day(2026, 10, 1), isRefund: false, categoryName: nil),
+            FinanceObservationInput(id: "cat-2", note: "猫砂 帮同事带的", occurredAt: day(2026, 9, 20), recordedAt: day(2026, 9, 20), updatedAt: day(2026, 10, 1), isRefund: false, categoryName: nil),
+        ]
+        _ = await UnderstandingShadowRunner.runOnce(now: now.addingTimeInterval(86400), maxTopics: 3, storage: storage,
+            loadInputs: { (financeV2, thoughtInputs(), []) }, proposeClient: client)
+        ledger = ShadowLedger.load(directory: storage)
+        let stale = ledger.snapshot(stage: .adoptable)
+        confirmBug(!stale.isEmpty,
+                   "BUG-5", "归属翻转后旧 adoptable 仍 \(stale.count) 条未失效（工程稿§6.1 要求来源修订触发失效；用户已说代购,引擎仍持『很可能照料猫』）")
         try? FileManager.default.removeItem(at: storage)
     }
 

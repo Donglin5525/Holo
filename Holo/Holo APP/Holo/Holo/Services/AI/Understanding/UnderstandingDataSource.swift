@@ -26,6 +26,8 @@ nonisolated enum UnderstandingDataSource {
         guard let windowStart = calendar.date(byAdding: .day, value: -90, to: now) else { return [] }
         let repository = FinanceRepository.shared
         guard let transactions = try? await repository.getAllTransactions() else { return [] }
+        // 窗口过滤在内存做（getAllTransactions 无窗口参数；重度库 1.2 万笔量级
+        // 全量 fetch 百毫秒内，暂不加专用 predicate 通道——性能挂账观察项）。
         return transactions.compactMap { transaction in
             guard transaction.transactionType == .expense,
                   !transaction.isRefund,

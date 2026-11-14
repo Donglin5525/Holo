@@ -105,6 +105,23 @@ nonisolated struct ShadowLedger: Codable, Sendable, Equatable {
         return fresh
     }
 
+    /// 数据驱动失效（2026-11-14 时间序列对抗实锤 BUG-5 / 工程稿 §6.1）：
+    /// 同主题重提案时，旧终态条目（上一版 adoptable/observing/…）标记 invalidated
+    /// ——用户改备注翻转归属后，旧「很可能照料猫」必须撤下。这不是状态机自然
+    /// 流转（外部来源事实变化），故直接改写 stage，不走 advance 的转移校验。
+    @discardableResult
+    mutating func markSuperseded(themeKey: String, excluding survivorID: String, now: Date) -> Int {
+        var count = 0
+        for (id, candidate) in candidates
+        where candidate.themeKey == themeKey && id != survivorID && candidate.stage != .invalidated {
+            candidates[id]?.stage = .invalidated
+            candidates[id]?.enteredStageAt = now
+            candidates[id]?.lastReason = "来源修订：已被新证据版本取代"
+            count += 1
+        }
+        return count
+    }
+
     // MARK: - 滞留超时降级（P1-5）
 
     /// 中间态停留超时限：回炉 newEvidence；回炉次数达上限转 rejected。
