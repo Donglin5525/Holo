@@ -10,6 +10,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import CoreData
 
 @MainActor
 final class MemoryGalleryFindDateModel: ObservableObject {
@@ -29,8 +30,26 @@ final class MemoryGalleryFindDateModel: ObservableObject {
     }
     @Published var pendingJump: GalleryJump?
 
+    /// 时间线当前阅读章节月（吸顶月头）；找日期面板初始月份跟随它（§2）。
+    @Published var readingMonth: Date?
+    /// 时间线当前阅读日（视口最新可见日）；旧档位从长廊切走时的落点。
+    @Published var readingDay: Date?
+
     func requestJump(to day: Date) {
         pendingJump = GalleryJump(day: Calendar.current.startOfDay(for: day))
+    }
+
+    /// 回到最近（面板行/悬浮钮共用）：由时间线消费，统一处理远跳后的窗口回补。
+    @Published var backToRecentToken: UUID?
+
+    func requestBackToRecent() {
+        backToRecentToken = UUID()
+    }
+
+    /// 弹层整体消失（含下拉手势）：结束当前取数/动效（§2「关闭或下拉收起」）。
+    func handleSheetDismissed() {
+        walkSession.close()
+        mode = .calendar
     }
 
     let walkSession = MemoryRandomWalkSession()
@@ -87,9 +106,14 @@ struct MemoryGalleryFindDateSheet: View {
 
     @State private var monthAnchor: Date?
     @State private var showYearMenu = false
+    /// 漫步里点开的非想法记录：在面板内部嵌套弹层呈现，漫步状态原地保留
+    /// （同一视图链并发两个 sheet 会被丢弃/顶掉——交互审查 P0）。
+    @State private var walkDetailEvent: CalendarEvent?
+    /// 漫步里点开的想法：面板内全文阅读，不跳出长廊、不清本轮已看集合（交互审查 P0）。
+    @State private var walkThoughtEvent: CalendarEvent?
 
     private var displayedMonth: Date {
-        monthAnchor ?? focusedDate
+        monthAnchor ?? model.readingMonth ?? focusedDate
     }
 
     var body: some View {
@@ -102,7 +126,13 @@ struct MemoryGalleryFindDateSheet: View {
                     onOpenInGallery: { day in
                         onSelectDay(day)
                     },
-                    onOpenEvent: onOpenEvent
+                    onOpenEvent: { event in
+                        if event.module == .thought {
+                            walkThoughtEvent = event
+                        } else {
+                            walkDetailEvent = event
+                        }
+                    }
                 )
             } else {
                 calendarPanel
@@ -111,9 +141,21 @@ struct MemoryGalleryFindDateSheet: View {
         // 固定高度档：6 行月历+两行动作需 ~540pt，中等档会把顶部月份标题顶出可视区（冒烟实抓）；
         // 日期面板与漫步共用同一档，切换时弹层高度不跳（§2：就地切换、期间固定高度）。
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .presentationDetents([.height(580), .large])
+        .presentationDetents([.height(620), .large])
+        .presentationDragIndicator(.visible)
+        .sheet(item: $walkDetailEvent) { event in
+            CalendarEventDetailSheet(event: event, onShowInTimeline: nil)
+        }
+        .sheet(item: $walkThoughtEvent) { event in
+            MemoryWalkThoughtReader(event: event) {
+                // 显式「在想法中打开」：用户主动离开漫步，整面板收起后再深链。
+                walkThoughtEvent = nil
+                model.dismiss()
+                onOpenEvent(event)
+            }
+        }
         .onAppear {
-            if monthAnchor == nil { monthAnchor = focusedDate }
+            if monthAnchor == nil { monthAnchor = model.readingMonth ?? focusedDate }
         }
     }
 
@@ -121,6 +163,7 @@ struct MemoryGalleryFindDateSheet: View {
 
     private var calendarPanel: some View {
         VStack(spacing: 12) {
+            panelHeader
             monthHeader
             weekdayHeader
             dayGrid
@@ -128,8 +171,27 @@ struct MemoryGalleryFindDateSheet: View {
             backToLatestRow
             randomWalkRow
         }
-        .padding(.top, 14)
+        .padding(.top, 6)
         .padding(.bottom, 12)
+    }
+
+    /// 原型 dialog-head：标题「找日期」+ 右侧「关闭」（旁白用户的明确关闭控件）。
+    private var panelHeader: some View {
+        HStack {
+            Text("找日期")
+                .font(.headline)
+            Spacer()
+            Button {
+                model.dismiss()
+            } label: {
+                Text("关闭")
+                    .font(.subheadline)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityIdentifier("memoryGallery.findDate.close")
+        }
+        .padding(.horizontal, 20)
     }
 
     private var monthHeader: some View {
@@ -148,6 +210,8 @@ struct MemoryGalleryFindDateSheet: View {
             } label: {
                 Text(monthTitle)
                     .font(.headline)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("memoryGallery.findDate.title")
@@ -245,7 +309,8 @@ struct MemoryGalleryFindDateSheet: View {
                             .fill(isFuture ? Color.clear : (count != nil ? Color.holoPrimary : Color.clear))
                             .frame(width: 4.5, height: 4.5)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 42)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .contentShape(Rectangle())
                     .background {
                         if startOfDay == focused {
                             Circle()
@@ -338,5 +403,121 @@ struct MemoryGalleryFindDateSheet: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("memoryGallery.randomWalk")
+    }
+}
+
+// MARK: - 漫步内想法全文阅读（面板内呈现，不跳出长廊）
+
+/// 漫步里点开想法：读可见全文（方案 §6——想法详情必须显示完整可见原文，
+/// 不能用只含标题的弹层冒充；也不跳出长廊清本轮状态）。
+/// 失效与故障分态：记录不存在/已删/归档 → 「这条记录暂时无法查看」；读取出错 → 「暂时无法载入」+ 重试。
+struct MemoryWalkThoughtReader: View {
+    let event: CalendarEvent
+    /// 显式「在想法中打开」：由宿主收面板后深链跳转。
+    let onOpenInThoughts: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var state: LoadState = .loading
+
+    private enum LoadState: Equatable {
+        case loading
+        case loaded(text: String, date: Date)
+        case unavailable
+        case failed
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("想法原文")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Text("关闭")
+                        .font(.subheadline)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 7)
+            .padding(.bottom, 9)
+
+            switch state {
+            case .loading:
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            case .loaded(let text, let date):
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(date.formatted(.dateTime.year().month().day().weekday(.wide).hour().minute()))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Text(text)
+                            .font(.body)
+                            .lineSpacing(6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
+                }
+                Button(action: onOpenInThoughts) {
+                    Text("在想法中打开")
+                        .font(.subheadline.weight(.medium))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+            case .unavailable:
+                message("这条记录暂时无法查看", retry: false)
+            case .failed:
+                message("暂时无法载入", retry: true)
+            }
+        }
+        .background(Color.holoToolBackground)
+        .presentationDetents([.large])
+        .task { load() }
+    }
+
+    private func message(_ text: LocalizedStringKey, retry: Bool) -> some View {
+        VStack(spacing: 14) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.title2)
+                .foregroundStyle(.tertiary)
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            if retry {
+                Button("重试") { load() }
+                    .buttonStyle(.bordered)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// 按可见性回查：区分「确实失效」与「读取故障」（方案 §6）。
+    private func load() {
+        state = .loading
+        let context = CoreDataStack.shared.viewContext
+        do {
+            guard let thought = try context.existingObject(with: event.originID) as? Thought else {
+                state = .unavailable
+                return
+            }
+            if thought.deletedAt != nil || thought.isArchived {
+                state = .unavailable
+                return
+            }
+            let text = thought.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            state = .loaded(text: text.isEmpty ? event.title : text, date: thought.createdAt)
+        } catch {
+            state = .failed
+        }
     }
 }

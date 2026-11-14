@@ -74,6 +74,7 @@ private struct WarmLightPlate: View {
         }
         .compositingGroup()
         .clipped()
+        .contentShape(Rectangle())
         .opacity(frame.compositeAlpha)
     }
 }

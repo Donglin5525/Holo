@@ -224,19 +224,23 @@ final class MemoryRandomWalkSession: ObservableObject {
         }
 
         let isRoundStart = visited.isEmpty || pendingRoundReset
-        var lastErrorDraw = false
-        var chosen: Date?
+        var pool = candidates
+        var exclude = visited
+        // 本轮候选已全部看过：自动开新一轮（UI 的「重新漫步」语义兜底，避免死路空态）。
+        if !pool.isEmpty && pool.allSatisfy({ exclude.contains($0) }) {
+            exclude = []
+            pendingRoundReset = true
+        }
         // 候选加载成功但已无可见记录时移除该候选继续抽；有效候选耗尽为止。
-        for _ in 0..<max(1, candidates.count) {
+        for _ in 0..<max(1, pool.count) {
             try Task.checkCancellation()
             guard self.requestID == requestID else { throw CancellationError() }
-            guard let day = sampler.draw(candidates: candidates,
-                                         excluding: visited,
+            guard let day = sampler.draw(candidates: pool,
+                                         excluding: exclude,
                                          today: now(),
                                          calendar: calendar,
-                                         isFirstOfRound: isRoundStart,
+                                         isFirstOfRound: isRoundStart || pool.allSatisfy({ exclude.contains($0) }),
                                          lastSeen: arrival?.day) else {
-                lastErrorDraw = true
                 break
             }
             let range = CalendarRangeBuilder.dayRange(day)
@@ -246,16 +250,15 @@ final class MemoryRandomWalkSession: ObservableObject {
                 index.isConsistent(CalendarEventKey(module: event.module, id: event.id), with: day)
             }
             if events.isEmpty {
-                candidates.removeAll { $0 == day }
+                pool.removeAll { $0 == day }
                 continue
             }
-            chosen = day
             return try buildArrival(requestID: requestID, day: day, today: today, events: events)
         }
-        // 候选全部失效或抽完：如实区分空态与失败。
-        if lastErrorDraw, candidates.isEmpty {
-            phase = .empty
-        } else if candidates.isEmpty {
+        // 抽不到时按来源完整性分态：索引不完整给重试，否则如实空态（§5.2）。
+        if indexIncomplete {
+            phase = .failed(String(localized: "暂时找不到旧日记录"))
+        } else {
             phase = .empty
         }
         throw CancellationError()

@@ -18,7 +18,15 @@ struct MemoryGalleryView: View {
     /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
     @Environment(\.holoDismiss) private var holoDismiss
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
-    private var close: () -> Void { holoDismiss ?? { dismiss() } }
+    /// 关闭=离开长廊会话：清随机漫步本轮已看集合（§5.2）。
+    /// 注意不走 onDisappear——想法深链等临时离开不应清轮次（交互审查 P0）。
+    private var close: () -> Void {
+        let leave = holoDismiss ?? { dismiss() }
+        return {
+            findDateModel.endGallerySession()
+            leave()
+        }
+    }
 
     // MARK: - State
 
@@ -91,11 +99,6 @@ struct MemoryGalleryView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
-        // 长廊会话结束：清随机漫步本轮已看集合（§5.2：本轮状态仅驻留本次长廊会话）。
-        // 切 tab 不触发（两 tab 常驻只隐藏），只有长廊整体收起/离开才清。
-        .onDisappear {
-            findDateModel.endGallerySession()
-        }
         .sheet(isPresented: $showGrowth) {
             NavigationStack {
                 HoloGrowthView(onOpenModule: { target in

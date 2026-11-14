@@ -82,7 +82,10 @@ struct CalendarRootView: View {
                 onCommit: { viewModel.focusDay(pickerDate) }
             )
         }
-        .sheet(isPresented: $findDate.isPresented) {
+        .sheet(isPresented: $findDate.isPresented, onDismiss: {
+            // 下拉手势关闭同样结束当前取数/动效（§2：关闭或下拉收起）。
+            findDate.handleSheetDismissed()
+        }) {
             MemoryGalleryFindDateSheet(
                 model: findDate,
                 calendar: .current,
@@ -97,11 +100,10 @@ struct CalendarRootView: View {
                     findDate.dismiss()
                 },
                 onBackToLatest: {
-                    // 回到最近：真实的最近记录日（已载入窗口内）；没有记录则回今天。
-                    let latest = viewModel.eventsByDay.filter { !$0.value.isEmpty }.keys.max()
+                    // 回到最近：统一交时间线处理（远跳后先回今天补窗口再定位）。
                     viewModel.goToToday()
                     viewModel.switchScale(.gallery)
-                    findDate.requestJump(to: latest ?? Date())
+                    findDate.requestBackToRecent()
                     findDate.dismiss()
                 },
                 onOpenEvent: { event in
@@ -148,6 +150,11 @@ struct CalendarRootView: View {
         }
         .onAppear { lastScale = viewModel.scale }
         .onChange(of: viewModel.scale) { _, newScale in
+            // 从长廊时间线切旧档位：落在当前阅读位置（走查缺陷1：切「周」落到旧聚焦周）。
+            if lastScale == .gallery, newScale != .gallery,
+               let readingDay = findDate.readingDay {
+                viewModel.focusDay(readingDay)
+            }
             lastScale = newScale
         }
     }

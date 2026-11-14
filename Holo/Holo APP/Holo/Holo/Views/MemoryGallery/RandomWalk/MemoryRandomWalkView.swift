@@ -94,8 +94,15 @@ struct MemoryRandomWalkView: View {
     @ViewBuilder
     private var content: some View {
         switch session.phase {
-        case .idle, .loading:
+        case .idle:
             loadingView
+        case .loading:
+            // 「再走一天」取数期间旧抵达页继续显示（§3：旧页可在加载时继续显示），首次才给加载态。
+            if let arrival = session.arrival {
+                arrivalPage(arrival)
+            } else {
+                loadingView
+            }
         case .traveling, .landing, .arrived:
             if let arrival = session.arrival {
                 arrivalPage(arrival)
@@ -222,6 +229,9 @@ struct MemoryRandomWalkView: View {
             Text(dateText(arrival.day))
                 .font(.system(.largeTitle, design: .serif).weight(.semibold))
                 .accessibilityIdentifier("memoryWalk.arrivalDate")
+                // 旁白读完整日期（§3：焦点落到「2026 年 5 月 21 日，星期四」）
+                .accessibilityLabel(arrival.day.formatted(.dateTime.year().month().day().weekday(.wide)))
+                .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($axFocus, equals: .arrivalDate)
             Text("距今天 \(arrival.distanceDays) 天")
                 .font(.subheadline)
@@ -251,7 +261,7 @@ struct MemoryRandomWalkView: View {
                 } label: {
                     Text(session.indexIncomplete ? "在长廊看这天" : "在长廊看全部 \(total) 条")
                         .font(.footnote.weight(.medium))
-                        .frame(maxWidth: .infinity, minHeight: 40)
+                        .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(Color.holoPrimary)
@@ -351,6 +361,8 @@ private struct WarmWalkThumbnail: View {
                 Text("查看这句的来源 ›")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(Color.holoPrimary)
+                    .frame(minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
             }
             .accessibilityIdentifier("memoryWalk.readingSource")
         }

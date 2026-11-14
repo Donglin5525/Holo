@@ -75,6 +75,20 @@ struct MemoryGalleryTimelineView: View {
     @State private var isFirstRowVisible = true
     @State private var extendRequestedFor: Date?
     @State private var reachedEarliest = false
+    /// 视口内可见的日期行（LazyVStack 懒加载边界近似）；最新一枚=当前阅读日。
+    @State private var visibleDays: Set<Date> = []
+    /// 远跳后「回到最近」等今天窗口重载完成再定位。
+    @State private var awaitingBackToRecent = false
+
+    // 字号随 Dynamic Type 缩放（§2：字号随 Dynamic Type 缩放；交互审查 P1）。
+    @ScaledMetric(relativeTo: .largeTitle) private var monthTitleSize: CGFloat = 32
+    @ScaledMetric(relativeTo: .title) private var dayNumberSize: CGFloat = 30
+    @ScaledMetric(relativeTo: .title3) private var leadHeadlineSize: CGFloat = 20
+    @ScaledMetric(relativeTo: .body) private var rowTitleSize: CGFloat = 15
+    @ScaledMetric(relativeTo: .subheadline) private var rowValueSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .caption) private var metaSize: CGFloat = 12
+    @ScaledMetric(relativeTo: .footnote) private var minorSize: CGFloat = 13
+    @ScaledMetric(relativeTo: .title2) private var stateTitleSize: CGFloat = 26
 
     private let calendar = Calendar.current
 
@@ -163,7 +177,7 @@ struct MemoryGalleryTimelineView: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 if showBackToRecent {
-                    backToRecentButton { jump(to: mostRecentDay, proxy: proxy) }
+                    backToRecentButton { performBackToRecent(proxy: proxy) }
                 }
             }
             .onChange(of: findDate.pendingJump) { _, request in
@@ -176,6 +190,18 @@ struct MemoryGalleryTimelineView: View {
                 if let requested = extendRequestedFor, requested == recordDays.last {
                     reachedEarliest = true
                 }
+                // 远跳后的回到最近：今天窗口重载完成，定位到最新记录日。
+                if awaitingBackToRecent {
+                    awaitingBackToRecent = false
+                    if let latest = mostRecentDay {
+                        jump(to: latest, proxy: proxy)
+                    }
+                }
+            }
+            .onChange(of: findDate.backToRecentToken) { _, token in
+                guard token != nil else { return }
+                findDate.backToRecentToken = nil
+                performBackToRecent(proxy: proxy)
             }
             .onAppear {
                 if let request = findDate.pendingJump {
@@ -187,6 +213,29 @@ struct MemoryGalleryTimelineView: View {
     }
 
     // MARK: 定位
+
+    /// 视口最新可见日 → 找日期面板的初始月份/旧档位的落点（§2：月份跟随当前阅读章节）。
+    private func syncReadingChapter() {
+        guard let readingDay = visibleDays.max() else { return }
+        let comps = calendar.dateComponents([.year, .month], from: readingDay)
+        if let month = calendar.date(from: comps), findDate.readingDay != readingDay {
+            findDate.readingMonth = month
+            findDate.readingDay = readingDay
+        }
+    }
+
+    /// 回到最近：近段已在窗口内直接定位；远跳后先回今天补窗口，数据回来再定位。
+    private func performBackToRecent(proxy: ScrollViewProxy) {
+        let today = calendar.startOfDay(for: Date())
+        if let latest = mostRecentDay,
+           let gap = calendar.dateComponents([.day], from: latest, to: today).day,
+           gap <= 62 {
+            jump(to: latest, proxy: proxy)
+        } else {
+            awaitingBackToRecent = true
+            onEnsureData(today)
+        }
+    }
 
     private func jump(to day: Date?, proxy: ScrollViewProxy) {
         guard let day else { return }
@@ -217,11 +266,11 @@ struct MemoryGalleryTimelineView: View {
     private func monthHeader(_ month: Date, topInset: CGFloat) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(month.formatted(.dateTime.month(.wide)))
-                .font(.system(size: 32, weight: .bold, design: .serif))
+                .font(.system(size: monthTitleSize, weight: .bold, design: .serif))
                 .tracking(-1.9)
                 .foregroundStyle(Color.holoToolText)
             Text(String(calendar.component(.year, from: month)))
-                .font(.system(size: 18, design: .serif))
+                .font(.system(size: monthTitleSize * 0.5625, design: .serif))
                 .foregroundStyle(Color.holoToolTextSecondary)
             Spacer(minLength: 0)
         }
@@ -247,7 +296,13 @@ struct MemoryGalleryTimelineView: View {
             dayContent(day: day, events: events, featured: split.featured, others: split.others)
         }
         .onAppear {
-            if day == mostRecentDay { isFirstRowVisible = true }
+            visibleDays.insert(day)
+            syncReadingChapter()
+            if day == mostRecentDay {
+                isFirstRowVisible = true
+                // 远跳后窗口被替换：从最新边缘向今天方向续载回近段历史。
+                onEnsureData(day)
+            }
             if day == recordDays.last {
                 // 滚到已载入的最早一天：向更早续载。
                 extendRequestedFor = day
@@ -255,6 +310,8 @@ struct MemoryGalleryTimelineView: View {
             }
         }
         .onDisappear {
+            visibleDays.remove(day)
+            syncReadingChapter()
             if day == mostRecentDay { isFirstRowVisible = false }
         }
         .accessibilityElement(children: .contain)
@@ -269,16 +326,16 @@ struct MemoryGalleryTimelineView: View {
     private func dayMarker(_ day: Date, highlighted: Bool, isToday: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("\(calendar.component(.day, from: day))")
-                .font(.system(size: 30, design: .serif))
+                .font(.system(size: dayNumberSize, design: .serif))
                 .tracking(-1.95)
                 .foregroundStyle(highlighted ? Color.holoPrimary : Color.holoToolText)
             Text(day.formatted(.dateTime.weekday(.abbreviated)))
-                .font(.system(size: 12))
+                .font(.system(size: metaSize))
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .padding(.top, 5)
             if isToday {
                 Text("今天")
-                    .font(.system(size: 12))
+                    .font(.system(size: metaSize))
                     .foregroundStyle(Color.holoToolTextSecondary)
             }
         }
@@ -324,7 +381,7 @@ struct MemoryGalleryTimelineView: View {
                 } label: {
                     HStack(spacing: 8) {
                         Text(isExpanded ? "收起当天" : "当天 \(events.count) 条记录")
-                            .font(.system(size: 13))
+                            .font(.system(size: minorSize))
                         Image(systemName: "chevron.down")
                             .font(.system(size: 11, weight: .semibold))
                             .rotationEffect(.degrees(isExpanded ? 180 : 0))
@@ -372,7 +429,7 @@ struct MemoryGalleryTimelineView: View {
                         .padding(.bottom, 11)
                 }
                 Text(event.title)
-                    .font(.system(size: 20, weight: .bold, design: .serif))
+                    .font(.system(size: leadHeadlineSize, weight: .bold, design: .serif))
                     .lineSpacing(5)
                     .foregroundStyle(Color.holoPrimary)
                     .multilineTextAlignment(.leading)
@@ -383,7 +440,7 @@ struct MemoryGalleryTimelineView: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
                 }
-                .font(.system(size: 12))
+                .font(.system(size: metaSize))
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .padding(.top, 4)
             }
@@ -400,24 +457,24 @@ struct MemoryGalleryTimelineView: View {
         } label: {
             HStack(spacing: 9) {
                 Image(systemName: event.module.iconName)
-                    .font(.system(size: 13))
+                    .font(.system(size: minorSize))
                     .foregroundStyle(Color.holoPrimary)
                     .frame(width: 30, height: 30)
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.holoToolInset))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(event.title)
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.system(size: rowTitleSize, weight: .medium))
                         .foregroundStyle(Color.holoToolText)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                     Text(metaText(event))
-                        .font(.system(size: 12))
+                        .font(.system(size: metaSize))
                         .foregroundStyle(Color.holoToolTextSecondary)
                 }
                 Spacer(minLength: 0)
                 if let detail = event.detail, !detail.isEmpty {
                     Text(detail)
-                        .font(.system(size: 14).monospacedDigit())
+                        .font(.system(size: rowValueSize).monospacedDigit())
                         .foregroundStyle(Color.holoToolText)
                         .lineLimit(1)
                 } else {
@@ -444,13 +501,13 @@ struct MemoryGalleryTimelineView: View {
     private func chosenEmpty(_ day: Date) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(failedModules.isEmpty ? "这一天没有记录" : "这一天暂无已载入的记录")
-                .font(.system(size: 15))
+                .font(.system(size: rowTitleSize))
                 .foregroundStyle(Color.holoToolTextSecondary)
             if let nearest = nearestRecordDay(to: day) {
                 Button("去最近有记录的一天") {
                     findDate.requestJump(to: nearest)
                 }
-                .font(.system(size: 13))
+                .font(.system(size: minorSize))
                 .foregroundStyle(Color.holoPrimary)
                 .frame(minHeight: 44, alignment: .leading)
             }
@@ -464,14 +521,15 @@ struct MemoryGalleryTimelineView: View {
     private var failureNotice: some View {
         HStack(spacing: 9) {
             Image(systemName: "info.circle")
-                .font(.system(size: 13))
+                .font(.system(size: minorSize))
                 .foregroundStyle(Color.holoPrimary)
             Text(failedModules.map(\.displayName).joined(separator: "、") + String(localized: "暂未载入"))
-                .font(.system(size: 13))
+                .font(.system(size: minorSize))
                 .foregroundStyle(Color.holoToolTextSecondary)
             Spacer(minLength: 0)
             Button("重试", action: onRetry)
-                .font(.system(size: 13))
+                .font(.system(size: minorSize))
+                .frame(minHeight: 44)
                 .foregroundStyle(Color.holoPrimary)
         }
         .padding(.vertical, 9)
@@ -484,7 +542,7 @@ struct MemoryGalleryTimelineView: View {
     private var tailView: some View {
         if reachedEarliest && failedModules.isEmpty && recordDays.count > 1 {
             Text("已到最早的记录")
-                .font(.system(size: 13))
+                .font(.system(size: minorSize))
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 25)
@@ -498,11 +556,11 @@ struct MemoryGalleryTimelineView: View {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 11, weight: .semibold))
                 Text("回到最近")
-                    .font(.system(size: 13))
+                    .font(.system(size: minorSize))
             }
             .foregroundStyle(Color.holoToolText)
             .padding(.horizontal, 12)
-            .frame(minHeight: 36)
+            .frame(minHeight: 44)
             .background(Capsule().fill(Color.holoToolBackground))
             .overlay(Capsule().strokeBorder(Color.holoToolBorder, lineWidth: 1))
             .shadow(color: Color.black.opacity(0.12), radius: 6, y: 3)
@@ -521,17 +579,17 @@ struct MemoryGalleryTimelineView: View {
                 .foregroundStyle(Color.holoPrimary)
                 .padding(.bottom, 18)
             Text(title)
-                .font(.system(size: 26, weight: .bold, design: .serif))
+                .font(.system(size: stateTitleSize, weight: .bold, design: .serif))
                 .foregroundStyle(Color.holoToolText)
             Text(message)
-                .font(.system(size: 15))
+                .font(.system(size: rowTitleSize))
                 .foregroundStyle(Color.holoToolTextSecondary)
                 .lineSpacing(5)
                 .padding(.top, 8)
             if let action {
                 Button(action: action.handler) {
                     Text(action.title)
-                        .font(.system(size: 15))
+                        .font(.system(size: rowTitleSize))
                         .foregroundStyle(Color.holoPrimary)
                         .padding(.horizontal, 14)
                         .frame(minHeight: 44)
