@@ -40,6 +40,8 @@ struct AdversarialRound2Tests {
         round3_extremeJSON()
         try await userJourneyFixA_categoryOnlyThemesSkipped()
         userJourneyFixC_revisionDigestSyncSafe()
+        habitDomainProjectionAndTheme()
+        try await habitOnlyUserEndToEnd()
         printOutcome()
     }
 
@@ -56,12 +58,12 @@ struct AdversarialRound2Tests {
         ]
         // 轮1选3主题、轮2选剩余——两轮应覆盖全部 3 个主题（猫/咖啡 双成员 + AppStore 无——此处两主题）
         _ = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 1, storage: storage,
-            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+            loadInputs: { (finance, thoughtInputs(), []) }, proposeClient: Echo())
         _ = await UnderstandingShadowRunner.runOnce(now: now.addingTimeInterval(3600), maxTopics: 1, storage: storage,
-            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+            loadInputs: { (finance, thoughtInputs(), []) }, proposeClient: Echo())
         // 轮3：全部处理过且数据无变化 → 0 处理（幂等终点，不无限烧）
         let third = await UnderstandingShadowRunner.runOnce(now: now.addingTimeInterval(7200), maxTopics: 3, storage: storage,
-            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+            loadInputs: { (finance, thoughtInputs(), []) }, proposeClient: Echo())
         expect(third.topicsProcessed == 0, "轮3应0处理（全部已入台账+无变化——饥饿修复不破坏幂等终点）")
         try? FileManager.default.removeItem(at: storage)
     }
@@ -86,7 +88,7 @@ struct AdversarialRound2Tests {
             FinanceObservationInput(id: "cat-b", note: "猫砂", occurredAt: day(2026, 10, 12), recordedAt: day(2026, 10, 12), updatedAt: day(2026, 10, 12), isRefund: false, categoryName: nil),
         ]
         let report = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 3, storage: storage,
-            loadInputs: { (finance, []) }, proposeClient: Echo())
+            loadInputs: { (finance, [], []) }, proposeClient: Echo())
         let ledger = ShadowLedger.load(directory: storage)
         let processed = Set(ledger.candidates.values.map(\.themeKey))
         expect(!processed.contains("餐饮"), "纯类目巨主题（30笔无备注）不得进提案池——第一笔模型费不买废话")
@@ -108,6 +110,55 @@ struct AdversarialRound2Tests {
             occurredAt: base.occurredAt, recordedAt: base.recordedAt,
             updatedAt: base.updatedAt, isRefund: false, categoryName: base.categoryName)
         expect(base.revisionDigest != edited.revisionDigest, "真实编辑（备注变化）必须触发重投影")
+    }
+
+    // MARK: habit 域接入（2026-11-14 东林排期：只打卡用户价值为零 → 第三观察来源）
+
+    static func habitDomainProjectionAndTheme() {
+        let inputs = [
+            HabitObservationInput(recordID: "hr-1", habitID: "h-1", habitName: "羽毛球", isNumeric: false, isCompleted: true, note: nil, occurredAt: day(2026, 10, 3, 19), updatedAt: day(2026, 10, 3, 19)),
+            HabitObservationInput(recordID: "hr-2", habitID: "h-1", habitName: "羽毛球", isNumeric: false, isCompleted: true, note: nil, occurredAt: day(2026, 10, 10, 19), updatedAt: day(2026, 10, 10, 19)),
+            HabitObservationInput(recordID: "hr-3", habitID: "h-1", habitName: "羽毛球", isNumeric: false, isCompleted: true, note: "双打赢了", occurredAt: day(2026, 10, 17, 19), updatedAt: day(2026, 10, 17, 19)),
+            HabitObservationInput(recordID: "hr-4", habitID: "h-2", habitName: "冥想", isNumeric: false, isCompleted: false, note: nil, occurredAt: day(2026, 10, 18, 8), updatedAt: day(2026, 10, 18, 8)),
+        ]
+        let obs = HabitObservationProjector.project(inputs)
+        expect(obs.count == 4, "四条打卡全投影")
+        expect(obs[0].domain == .habit && obs[0].concepts == ["羽毛球"] && obs[0].attribution == .self_ && obs[0].businessState == .done,
+               "打卡观察：域/概念=习惯名/归属本人/完成态")
+        expect(obs[3].businessState == .negation, "未完成打卡=negation（中断也是信号）")
+        expect(obs[2].quote == "双打赢了", "打卡备注作quote")
+        // 主题：羽毛球 3 成员聚出且语义豁免
+        var index = ObservationIndex()
+        _ = index.merge(obs)
+        let themes = ThemeIndex.buildThemes(from: index.observations.values.map { $0 })
+        let badminton = themes.first { $0.key == "羽毛球" }
+        expect(badminton != nil && badminton!.memberIDs.count >= 3, "羽毛球主题聚出（3打卡）")
+        expect(UnderstandingShadowRunner.hasSemanticValue(badminton!, index: index),
+               "habit 域语义豁免：纯打卡（1条备注/3）不因无备注被门槛误杀")
+        // 修订摘要：updatedAt（同步刷新）不变语义
+        let a = inputs[0]
+        let b = HabitObservationInput(recordID: a.recordID, habitID: a.habitID, habitName: a.habitName, isNumeric: a.isNumeric, isCompleted: a.isCompleted, note: a.note, occurredAt: a.occurredAt, updatedAt: now)
+        expect(a.revisionDigest == b.revisionDigest, "habit修订摘要同步安全（画像4同口径）")
+    }
+
+    /// 只打卡不记账用户（画像5）端到端：habit-only 数据产生主题并进提案池。
+    static func habitOnlyUserEndToEnd() async throws {
+        let storage = tempStorage()
+        struct Echo: UnderstandingProposeClient {
+            var seen: [String] = []
+            func propose(themeKey: String, evidence: [SemanticEvidenceItem]) async throws -> [ProposalCandidate] { [] }
+        }
+        let habit: [HabitObservationInput] = (0..<5).map { i in
+            HabitObservationInput(recordID: "run-\(i)", habitID: "h-run", habitName: "夜跑", isNumeric: false, isCompleted: true, note: nil,
+                                  occurredAt: day(2026, 10, 1 + i * 3, 21), updatedAt: day(2026, 10, 1 + i * 3, 21))
+        }
+        let report = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 3, storage: storage,
+            loadInputs: { ([], [], habit) }, proposeClient: Echo())
+        let ledger = ShadowLedger.load(directory: storage)
+        let processed = Set(ledger.candidates.values.map(\.themeKey))
+        expect(report.habitObservations == 5 && processed.contains("夜跑"),
+               "只打卡用户：夜跑主题被处理（report.habit=\(report.habitObservations) 处理=\(processed.sorted())）——画像5价值为零问题闭环")
+        try? FileManager.default.removeItem(at: storage)
     }
 
     /// 极端 JSON 形态：candidates 为 null / 截断 JSON / 数组顶层——全部显式失败不崩。
@@ -184,7 +235,7 @@ struct AdversarialRound2Tests {
         }
         let report = await UnderstandingShadowRunner.runOnce(
             now: now, maxTopics: 3, storage: storage,
-            loadInputs: { (financeInputs(), thoughtInputs()) },
+            loadInputs: { (financeInputs(), thoughtInputs(), []) },
             proposeClient: TwoCandidates())
         // 证明：模型返回了 2 条候选，但台账只可能记录 1 个终态——第二条去哪了？
         let ledger = ShadowLedger.load(directory: storage)
@@ -211,10 +262,10 @@ struct AdversarialRound2Tests {
         ]
         // 第一轮：maxTopics=1 只处理 1 个主题
         _ = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 1, storage: storage,
-            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+            loadInputs: { (finance, thoughtInputs(), []) }, proposeClient: Echo())
         // 第二轮：数据不变 → 全部 unchanged → 剩余 2 个主题永远不会被处理
         let second = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 3, storage: storage,
-            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+            loadInputs: { (finance, thoughtInputs(), []) }, proposeClient: Echo())
         let ledger = ShadowLedger.load(directory: storage)
         confirmBug(second.topicsProcessed == 0 && ledger.candidates.count == 1,
                    "BUG-2", "首轮只处理1主题后，剩余2主题第二轮零处理（processed=\(second.topicsProcessed) 台账=\(ledger.candidates.count)）——未入选主题永久饥饿")
@@ -237,7 +288,7 @@ struct AdversarialRound2Tests {
             FinanceObservationInput(id: "cf-1", note: "咖啡", occurredAt: day(2026, 10, 2), recordedAt: day(2026, 10, 2), updatedAt: day(2026, 10, 2), isRefund: false, categoryName: nil),
         ]
         _ = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 2, storage: storage,
-            loadInputs: { (finance, thoughtInputs()) }, proposeClient: Echo())
+            loadInputs: { (finance, thoughtInputs(), []) }, proposeClient: Echo())
         let ledger = ShadowLedger.load(directory: storage)
         let processed = Set(ledger.candidates.values.map(\.themeKey))
         confirmBug(processed.contains("AppStore") && !processed.contains("猫"),

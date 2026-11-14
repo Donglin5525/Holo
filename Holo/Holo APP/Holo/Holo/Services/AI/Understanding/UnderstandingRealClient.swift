@@ -44,9 +44,10 @@ enum UnderstandingRealEntry {
             now: now,
             maxTopics: 3,
             loadInputs: {
-                let finance = await UnderstandingDataSource.financeInputs(now: now)
-                let thought = await UnderstandingDataSource.thoughtInputs(now: now)
-                return (finance, thought)
+                async let finance = UnderstandingDataSource.financeInputs(now: now)
+                async let thought = UnderstandingDataSource.thoughtInputs(now: now)
+                async let habit = UnderstandingDataSource.habitInputs(now: now)
+                return await (finance, thought, habit)
             },
             proposeClient: RealUnderstandingProposeClient()
         )

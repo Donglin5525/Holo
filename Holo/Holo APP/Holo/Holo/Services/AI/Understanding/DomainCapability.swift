@@ -72,6 +72,17 @@ nonisolated enum DomainCapabilityCatalog {
         supportedOperations: [] // 样板期待接：comparePeriods/alignEvents/checkCoverage
     )
 
+    /// habit 域（2026-11-14 接入）：打卡/数值习惯的完成事件。打卡序列支持
+    /// 频次比较与相关检索；具体 value 留本机不进观察（数据边界）。
+    static let habit = DomainCapability(
+        domain: .habit,
+        version: 1,
+        supportedFields: ["concept", "action", "attribution", "occurredAt", "isCompleted"],
+        timePrecision: .minute,
+        coverageSemantics: [.manualEntry],
+        supportedOperations: [.retrieveRelated, .comparePeriods, .searchCounterEvidence]
+    )
+
     static let placeholder = DomainCapability(
         domain: .task,
         version: 0,
@@ -87,7 +98,8 @@ nonisolated enum DomainCapabilityCatalog {
         case .finance: return finance
         case .thought: return thought
         case .health: return health
-        case .task, .habit, .goal, .chat: return nil
+        case .habit: return habit
+        case .task, .goal, .chat: return nil
         }
     }
 }

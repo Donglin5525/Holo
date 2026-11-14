@@ -43,8 +43,8 @@ struct ShadowRunnerStandaloneTests {
             .appendingPathComponent("shadow-runner-test-\(UUID().uuidString)")
     }
 
-    /// fixture 数据源：caseA 猫主题（财务 4 + 想法 2 + 任务 1 的等价简化——财务+想法即可成跨域主题）。
-    static func fixtureInputs() -> ([FinanceObservationInput], [ThoughtObservationInput]) {
+    /// fixture 数据源：caseA 猫主题（财务 4 + 想法 2；habit 空）。
+    static func fixtureInputs3() -> ([FinanceObservationInput], [ThoughtObservationInput], [HabitObservationInput]) {
         let finance = [
             FinanceObservationInput(id: "cat-1", note: "猫粮", occurredAt: day(2026, 8, 14, 19), recordedAt: day(2026, 8, 14, 19), updatedAt: day(2026, 8, 14, 19), isRefund: false, categoryName: nil),
             FinanceObservationInput(id: "cat-2", note: "猫粮 5kg", occurredAt: day(2026, 9, 2, 20), recordedAt: day(2026, 9, 2, 20), updatedAt: day(2026, 9, 2, 20), isRefund: false, categoryName: nil),
@@ -53,7 +53,7 @@ struct ShadowRunnerStandaloneTests {
         let thought = [
             ThoughtObservationInput(id: "th-1", text: "今晚加班回家，猫在门口等我。", createdAt: day(2026, 9, 26, 23), updatedAt: day(2026, 9, 26, 23), isAIDerived: false),
         ]
-        return (finance, thought)
+        return (finance, thought, [])
     }
 
     /// fixture 提案客户端：返回 M1.2 A-semantic 等价好候选（refs 对应 fixture 数据的 sourceRef）。
@@ -78,7 +78,7 @@ struct ShadowRunnerStandaloneTests {
         let storage = tempStorage()
         let report = await UnderstandingShadowRunner.runOnce(
             now: now, maxTopics: 3, storage: storage,
-            loadInputs: { fixtureInputs() },
+            loadInputs: { fixtureInputs3() },
             proposeClient: FixtureProposeClient(candidates: [goodCandidate], error: nil))
         expect(report.financeObservations == 3 && report.thoughtObservations == 1, "观察计数=数据源计数")
         expect(report.themesTotal >= 1, "猫主题聚出（财务+想法跨域）")
@@ -94,10 +94,10 @@ struct ShadowRunnerStandaloneTests {
     static func secondRunIdempotent() async throws {
         let storage = tempStorage()
         _ = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 3, storage: storage,
-            loadInputs: { fixtureInputs() },
+            loadInputs: { fixtureInputs3() },
             proposeClient: FixtureProposeClient(candidates: [goodCandidate], error: nil))
         let second = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 3, storage: storage,
-            loadInputs: { fixtureInputs() },
+            loadInputs: { fixtureInputs3() },
             proposeClient: FixtureProposeClient(candidates: [goodCandidate], error: nil))
         expect(second.topicsProcessed == 0 && second.proposalsReceived == 0,
                "同数据二轮零主题零调用（指纹 unchanged=预算保护，不重复计费）")
@@ -110,7 +110,7 @@ struct ShadowRunnerStandaloneTests {
         let storage = tempStorage()
         struct Boom: Error {}
         let report = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 3, storage: storage,
-            loadInputs: { fixtureInputs() },
+            loadInputs: { fixtureInputs3() },
             proposeClient: FixtureProposeClient(candidates: [], error: Boom()))
         expect(report.modelFailures.count == 1, "失败主题入 modelFailures 留诊断")
         expect(report.outcomes["rejected"] == 1, "提案失败→rejected（不重试不空转）")
@@ -148,7 +148,7 @@ struct ShadowRunnerStandaloneTests {
     static func persistenceArtifacts() async throws {
         let storage = tempStorage()
         _ = await UnderstandingShadowRunner.runOnce(now: now, maxTopics: 3, storage: storage,
-            loadInputs: { fixtureInputs() },
+            loadInputs: { fixtureInputs3() },
             proposeClient: FixtureProposeClient(candidates: [goodCandidate], error: nil))
         expect(FileManager.default.fileExists(atPath: storage.appendingPathComponent("index.json").path),
                "索引落盘")

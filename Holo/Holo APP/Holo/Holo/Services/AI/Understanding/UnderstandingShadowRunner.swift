@@ -34,6 +34,7 @@ nonisolated struct ShadowRunReport: Codable, Equatable, Sendable {
     var ranAt: Date
     var financeObservations: Int
     var thoughtObservations: Int
+    var habitObservations: Int
     var themesTotal: Int
     var topicsProcessed: Int
     var proposalsReceived: Int
@@ -59,16 +60,17 @@ enum UnderstandingShadowRunner {
     static func runOnce(now: Date = Date(),
                         maxTopics: Int = 3,
                         storage: URL? = nil,
-                        loadInputs: () async -> ([FinanceObservationInput], [ThoughtObservationInput]),
+                        loadInputs: () async -> ([FinanceObservationInput], [ThoughtObservationInput], [HabitObservationInput]),
                         proposeClient: UnderstandingProposeClient) async -> ShadowRunReport {
         // ① 取数（真入口走 UnderstandingDataSource：授权门内；未授权→空，静默不跑）
-        let (financeInputs, thoughtInputs) = await loadInputs()
+        let (financeInputs, thoughtInputs, habitInputs) = await loadInputs()
 
         // ② 投影 + 索引（域全量替换=失效扇出）
         let storage = storage ?? storageDirectory()
         var index = ObservationIndex.load(directory: storage)
         _ = index.replaceDomain(.finance, with: FinanceObservationProjector.project(financeInputs))
         _ = index.replaceDomain(.thought, with: ThoughtObservationProjector.project(thoughtInputs))
+        _ = index.replaceDomain(.habit, with: HabitObservationProjector.project(habitInputs))
         try? index.save(to: storage)
         let allObservations = index.observations.values.map { $0 }
 
@@ -174,6 +176,7 @@ enum UnderstandingShadowRunner {
             ranAt: now,
             financeObservations: financeInputs.count,
             thoughtObservations: thoughtInputs.count,
+            habitObservations: habitInputs.count,
             themesTotal: themes.count,
             topicsProcessed: pending.count,
             proposalsReceived: proposalsReceived,
@@ -205,6 +208,9 @@ enum UnderstandingShadowRunner {
         for id in theme.memberIDs {
             guard let obs = index.observations[id] else { continue }
             if obs.domain == .thought { return true }
+            // habit 域豁免：习惯名是用户自建语义实体（非系统类目聚合），
+            // 打卡无备注是常态（0.7% 才带备注）——不算「纯类目废话」。
+            if obs.domain == .habit { return true }
             if let quote = obs.quote, !quote.isEmpty { return true }
         }
         return false

@@ -12,6 +12,7 @@
 //
 
 import Foundation
+import CoreData
 
 nonisolated enum UnderstandingDataSource {
 
@@ -70,6 +71,50 @@ nonisolated enum UnderstandingDataSource {
                 updatedAt: thought.updatedAt,
                 isAIDerived: false
             )
+        }
+    }
+}
+
+// MARK: - 真实取数
+
+extension UnderstandingDataSource {
+    /// 习惯打卡真实取数：近 90 天、活跃习惯（排除归档/软删）、完成与未完成都取。
+    /// 数值型习惯的 value 不取（数据边界：数值留本机）。
+    @MainActor
+    static func habitInputs(now: Date = Date()) async -> [HabitObservationInput] {
+        guard HoloAIDataProcessingConsent.shared.isGranted else { return [] }
+        let calendar = Calendar.current
+        guard let windowStart = calendar.date(byAdding: .day, value: -90, to: now) else { return [] }
+        return await MainActor.run {
+            let context = CoreDataStack.shared.viewContext
+            var result: [HabitObservationInput] = []
+            context.performAndWait {
+                let habitsRequest = Habit.fetchRequest()
+                habitsRequest.predicate = NSPredicate(format: "isArchived == NO AND deletedAt == nil")
+                let habits = (try? context.fetch(habitsRequest)) ?? []
+                let habitByID = Dictionary(uniqueKeysWithValues: habits.map { ($0.id, $0) })
+                let recordsRequest = HabitRecord.fetchRequest()
+                recordsRequest.predicate = NSPredicate(format: "date >= %@", windowStart as NSDate)
+                recordsRequest.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
+                recordsRequest.fetchLimit = 2000
+                for record in (try? context.fetch(recordsRequest)) ?? [] {
+                    guard let habit = habitByID[record.habitId] else { continue }
+                    let date = record.date
+                    let name = habit.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !name.isEmpty else { continue }
+                    result.append(HabitObservationInput(
+                        recordID: record.id.uuidString,
+                        habitID: record.habitId.uuidString,
+                        habitName: name,
+                        isNumeric: habit.type == HabitType.numeric.rawValue,
+                        isCompleted: record.isCompleted,
+                        note: record.note,
+                        occurredAt: date,
+                        updatedAt: record.createdAt ?? date
+                    ))
+                }
+            }
+            return result
         }
     }
 }

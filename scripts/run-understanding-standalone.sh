@@ -24,6 +24,7 @@ swiftc -module-cache-path "$OUT/module-cache" -o "$BIN" \
   "$APP/Services/AI/Understanding/ShadowRuntime.swift" \
   "$APP/Services/AI/Understanding/UnderstandingShadowRunner.swift" \
   "$APP/Services/AI/Understanding/ProposalEnvelopeParser.swift" \
+  "$APP/Services/AI/Understanding/UnderstandingHabitIntegration.swift" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/AdversarialRound2Tests.swift" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/ShadowRunnerStandaloneTests.swift" \
   "$ROOT/Holo/Holo APP/Holo/HoloTests/Services/AI/Understanding/ShadowRuntimeStandaloneTests.swift" \
