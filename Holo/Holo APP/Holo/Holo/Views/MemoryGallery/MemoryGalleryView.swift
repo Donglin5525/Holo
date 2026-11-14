@@ -151,22 +151,37 @@ struct MemoryGalleryView: View {
                     // 否则进得去出不来；此态下「找日期」对洞察无意义故不显示（对抗审查必改2）。
                     MemoryViewToggleSwitch(selectedTab: $selectedTab)
                 } else {
-                    Button {
-                        findDateModel.open()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 16, weight: .medium))
-                            Text("找日期")
-                                .font(.system(size: 13))
+                    HStack(spacing: 2) {
+                        // 随机漫步直达（11-15 东林实报「藏太深」）：顶栏常驻，面板内入口保留
+                        Button {
+                            findDateModel.openWalkDirectly()
+                        } label: {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundStyle(Color.galleryAccent)
+                                .frame(width: 40, height: 44)
+                                .contentShape(Rectangle())
                         }
-                        .foregroundStyle(Color.galleryAccent)
-                        .padding(.horizontal, 5)
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("随机漫步")
+                        .accessibilityIdentifier("memoryGallery.randomWalkEntry")
+                        Button {
+                            findDateModel.open()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 16, weight: .medium))
+                                Text("找日期")
+                                    .font(.system(size: 13))
+                            }
+                            .foregroundStyle(Color.galleryAccent)
+                            .padding(.horizontal, 5)
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("memoryGallery.findDate")
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("memoryGallery.findDate")
                 }
             }
             .padding(.horizontal, 12)

@@ -431,20 +431,19 @@ struct MemoryGalleryTimelineView: View {
         } label: {
             VStack(alignment: .leading, spacing: 0) {
                 if let thumb = event.attachmentThumbnails.first {
-                    MemoryGalleryThumbnail(data: thumb)
-                        .aspectRatio(1.88, contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    // 等比裁切（11-15 东林实报「比例被压缩」）：定长槽位+fill+clipped，
+                    // 禁用会拉伸的 aspectRatio(.fill) 直挂（在档坑：钳 fill 唯一可靠手段是定长 frame）
+                    MemoryGalleryCroppedBanner(data: thumb, ratio: 1.88, cornerRadius: 9)
                         .padding(.bottom, 11)
                 }
                 Text(event.title)
                     .font(.system(size: leadHeadlineSize, weight: .bold, design: .serif))
                     .lineSpacing(5)
-                    .foregroundStyle(Color.galleryAccent)
+                    .foregroundStyle(Color.galleryInk)
                     .multilineTextAlignment(.leading)
                 HStack(spacing: 5) {
-                    Image(systemName: event.module.iconName)
-                        .font(.system(size: 11))
+                    Image(systemName: linearIcon(event.module))
+                        .font(.system(size: 11, weight: .light))
                     Text(metaText(event))
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
@@ -465,7 +464,7 @@ struct MemoryGalleryTimelineView: View {
             onSelect(event)
         } label: {
             HStack(spacing: 9) {
-                Image(systemName: event.module.iconName)
+                Image(systemName: linearIcon(event.module))
                     .font(.system(size: minorSize))
                     .foregroundStyle(Color.galleryAccent)
                     .frame(width: 30, height: 30)
@@ -649,5 +648,33 @@ private struct MemoryGalleryThumbnail: View {
             Color.galleryInset
         }
         #endif
+    }
+}
+
+/// 原型图标语言＝1.5pt 线性描边：长廊内把模块的 .fill 实心图标换成线性形（想法=笔）。
+func linearIcon(_ module: CalendarModule) -> String {
+    switch module {
+    case .thought: return "pencil"
+    case .finance: return "creditcard"
+    case .habit: return "checkmark.circle"
+    case .todo: return "checklist"
+    case .health: return "heart"
+    }
+}
+
+/// 等比裁切横幅：GeometryReader 定长槽位 + scaledToFill + clipped（不拉伸、不压比例）。
+struct MemoryGalleryCroppedBanner: View {
+    let data: Data
+    let ratio: CGFloat
+    var cornerRadius: CGFloat = 9
+
+    var body: some View {
+        GeometryReader { geo in
+            MemoryGalleryThumbnail(data: data)
+                .frame(width: geo.size.width, height: geo.size.width / ratio)
+                .clipped()
+        }
+        .aspectRatio(ratio, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }
 }

@@ -138,10 +138,15 @@ enum MemoryRandomWalkDayIndexBuilder {
             logger.error("漫步索引·待办失败：\(String(describing: error))")
         }
 
-        // 想法：直接走 ThoughtRepository.fetchThoughts（归档/软删/副本语义零漂移）
+        // 想法：轻量直查（同 fetchThoughts 谓词语义：createdAt 半开区间 + 软删/归档排除；
+        // 不走仓库避免全历史 topics 预取——3235 天库首次索引的 CPU 大头，11-15 东林实报漫步卡）。
+        // 副本去重同规则（DuplicateRowFilter 最小物理行号），口径由
+        // MemoryRandomWalkCoreTests 的 fixture 对拍防线兜住。
         do {
-            let repo = ThoughtRepository(context: context)
-            let thoughts = try repo.fetchThoughts(from: .distantPast, to: end)
+            let request = Thought.fetchRequest()
+            request.predicate = NSPredicate(format: "createdAt >= %@ AND createdAt < %@ AND deletedAt == nil AND isArchived == NO",
+                                            NSDate.distantPast as NSDate, end as NSDate)
+            let thoughts = DuplicateRowFilter.deduplicatingCopies(try context.fetch(request))
             absorb(thoughts.map { (CalendarEventKey(module: .thought, id: $0.id), $0.createdAt) })
         } catch {
             failed.insert(.thought)

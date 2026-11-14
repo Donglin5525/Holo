@@ -62,9 +62,10 @@ private struct WarmLightPlate: View {
             WarmLightStamp(content: arrival, alpha: frame.arrivalAlpha)
         }
         .background {
-            WarmLightGlowCanvas(stops: WarmLightGlowPalette.denseStops())
-                .frame(width: canvas.width * WarmLightTimeline.extendedBoxFactor,
-                       height: canvas.height * WarmLightTimeline.extendedBoxFactor)
+            // 渐变只栅格化一次（ShapeStyle 层），动画帧只改 scale/offset/opacity 三个
+            // GPU 变换——此前 Canvas 每帧重录 51 色标渐变，真机 120Hz 下卡成幻灯片
+            //（11-15 东林实报「动画很卡/没加载出来」根因）。
+            WarmLightGlowLayer(canvas: canvas)
                 .scaleEffect(frame.glowScale, anchor: .center)
                 .offset(x: frame.glowOffset.width, y: frame.glowOffset.height)
                 .opacity(frame.glowAlpha)
@@ -81,33 +82,43 @@ private struct WarmLightPlate: View {
 
 // MARK: - 椭圆光晕
 
-/// 椭圆径向渐变。CSS `farthest-corner` 的半径按暖光规格换算为
-/// `√2 × (0.53·Gw, 0.55·Gh)`，先归一化到单位圆再由上下文变换拉成椭圆。
-private struct WarmLightGlowCanvas: View {
-    let stops: [WarmLightGradientStop]
+/// 椭圆径向渐变（静态层）。规格同前：椭圆心在扩展框 (0.47Gw, 0.45Gh)，
+/// 半轴 √2×(0.53Gw, 0.55Gh)。实现＝单位圆径向渐变（RadialGradient ShapeStyle，
+/// 只栅格化一次）＋非等比 scaleEffect 拉成椭圆，动画帧零重绘。
+private struct WarmLightGlowLayer: View {
+    let canvas: CGSize
+
+    /// 圆渐变的边长：直径取水平半轴的两倍；垂直方向由 scaleEffect 压到 0.55Gh/0.53Gw。
+    private var squareSide: CGFloat { 2.0.squareRoot() * 1.06 * canvas.width * WarmLightTimeline.extendedBoxFactor }
+    private var yAxisRatio: CGFloat {
+        let gw = canvas.width * WarmLightTimeline.extendedBoxFactor
+        let gh = canvas.height * WarmLightTimeline.extendedBoxFactor
+        return gh / gw * 0.55 / 0.53
+    }
 
     var body: some View {
-        Canvas { context, size in
-            let center = CGPoint(x: 0.47 * size.width, y: 0.45 * size.height)
-            let radiusWidth = 2.0.squareRoot() * 0.53 * size.width
-            let radiusHeight = 2.0.squareRoot() * 0.55 * size.height
-            var transformed = context
-            transformed.translateBy(x: center.x, y: center.y)
-            transformed.scaleBy(x: radiusWidth, y: radiusHeight)
-            let gradient = Gradient(stops: stops.map { stop in
+        let gw = canvas.width * WarmLightTimeline.extendedBoxFactor
+        let gh = canvas.height * WarmLightTimeline.extendedBoxFactor
+        let side = squareSide
+        RadialGradient(
+            gradient: Gradient(stops: WarmLightGlowPalette.denseStops().map { stop in
                 Gradient.Stop(color: Color(.sRGB,
-                                            red: stop.red,
-                                            green: stop.green,
-                                            blue: stop.blue,
-                                            opacity: stop.alpha),
+                                           red: stop.red,
+                                           green: stop.green,
+                                           blue: stop.blue,
+                                           opacity: stop.alpha),
                               location: stop.position)
-            })
-            transformed.fill(Path(ellipseIn: CGRect(x: -1, y: -1, width: 2, height: 2)),
-                             with: .radialGradient(gradient,
-                                                   center: .zero,
-                                                   startRadius: 0,
-                                                   endRadius: 1))
-        }
+            }),
+            center: .center,
+            startRadius: 0,
+            endRadius: side / 2
+        )
+        .frame(width: side, height: side)
+        .scaleEffect(x: 1, y: yAxisRatio, anchor: .center)
+        // 椭圆心定位到扩展框 (0.47Gw, 0.45Gh)：锚点居中后偏移即中心点。
+        .offset(x: 0.47 * gw - side / 2,
+                y: 0.45 * gh - side / 2)
+        .frame(width: gw, height: gh, alignment: .topLeading)
     }
 }
 

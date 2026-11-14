@@ -46,6 +46,15 @@ final class MemoryGalleryFindDateModel: ObservableObject {
         backToRecentToken = UUID()
     }
 
+    /// 顶栏直达：打开弹层并直接进入随机漫步（11-15 东林实报「藏太深」，面板行保留）。
+    func openWalkDirectly() {
+        mode = .walk
+        isPresented = true
+        if walkSession.phase == .idle {
+            walkSession.start()
+        }
+    }
+
     /// 弹层整体消失（含下拉手势）：结束当前取数/动效（§2「关闭或下拉收起」）。
     func handleSheetDismissed() {
         walkSession.close()
@@ -149,6 +158,7 @@ struct MemoryGalleryFindDateSheet: View {
         .presentationDetents([.height(620), .large])
         .presentationDragIndicator(.hidden)
         .presentationBackground(Color.gallerySurface)
+        .presentationCornerRadius(24)
         .sheet(item: $walkDetailEvent) { event in
             CalendarEventDetailSheet(event: event, onShowInTimeline: nil)
         }
@@ -170,12 +180,13 @@ struct MemoryGalleryFindDateSheet: View {
     private var calendarPanel: some View {
         VStack(spacing: 12) {
             panelHeader
+            // 随机漫步置顶（11-15 东林实报「藏太深」+设计审查方案A：挑一天和随机去一天是邻居）
+            randomWalkRow
             monthHeader
             weekdayHeader
             dayGrid
             Divider().padding(.horizontal, 20)
             backToLatestRow
-            randomWalkRow
         }
         .padding(.top, 6)
         .padding(.bottom, 12)
@@ -475,17 +486,14 @@ struct MemoryWalkThoughtReader: View {
                     VStack(alignment: .leading, spacing: 12) {
                         // 附件与文字同页呈现（设计稿：图片和文字指向同一条原记录；对抗审查必改4）
                         ForEach(Array(event.attachmentThumbnails.enumerated()), id: \.offset) { _, thumb in
-                            MemoryGalleryThumbnail(data: thumb)
-                                .aspectRatio(1.88, contentMode: .fill)
-                                .frame(maxWidth: .infinity)
-                                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                            MemoryGalleryCroppedBanner(data: thumb, ratio: 1.88, cornerRadius: 9)
                         }
                         Text(date.formatted(.dateTime.year().month().day().weekday(.wide).hour().minute()))
                             .font(.footnote)
                             .foregroundStyle(Color.galleryQuiet)
                         Text(text)
-                            .font(.body)
-                            .lineSpacing(6)
+                            .font(.system(size: 16))
+                            .lineSpacing(16 * 0.7)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
                     }

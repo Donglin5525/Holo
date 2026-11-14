@@ -41,6 +41,8 @@ struct MemoryRandomWalkView: View {
     @State private var loadingTimer: Task<Void, Never>?
     /// 原型 is-arriving 的上浮淡入（walk-reveal）：抵达瞬间记录列表 250ms ease-out、
     /// 回看一句延迟 45ms 再 280ms；新一次旅行开始时复位。
+    /// 内容实测高度（驱动 sheet 自适应，避免少量记录时整屏空膛）
+    @State private var contentHeight: CGFloat = 560
     @State private var revealRecords = false
     @State private var revealEcho = false
 
@@ -53,6 +55,16 @@ struct MemoryRandomWalkView: View {
             if session.phase == .arrived { actions }
         }
         .background(Color.gallerySurface)
+        .presentationCornerRadius(24)
+        .presentationDetents([.height(min(max(contentHeight + 24, 480), 720)), .large])
+        .background {
+            // iOS 17 兼容的内容测高（onGeometryChange 是 18+，编译闸门实抓）
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { contentHeight = geo.size.height }
+                    .onChange(of: geo.size.height) { _, height in contentHeight = height }
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             session.handleScenePhase(phase)
         }
@@ -340,15 +352,12 @@ struct MemoryRandomWalkView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // 想法附件：约 2.45:1 横幅（§2：图片来自所点想法）
                 if let thumb = event.attachmentThumbnails.first {
-                    WarmWalkThumbnail(data: thumb)
-                        .aspectRatio(2.45, contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    MemoryGalleryCroppedBanner(data: thumb, ratio: 2.45, cornerRadius: 9)
                         .padding(.top, 8)
                 }
                 HStack(spacing: 9) {
-                    Image(systemName: event.module.iconName)
-                        .font(.system(size: 14))
+                    Image(systemName: linearIcon(event.module))
+                        .font(.system(size: 15, weight: .light))
                         .foregroundStyle(Color.galleryAccent)
                         .frame(width: 36, height: 36)
                         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
