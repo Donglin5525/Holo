@@ -242,6 +242,10 @@ nonisolated final class HoloProductAnalytics {
     static var buildChannel: String {
         #if DEBUG
         "debug"
+        #elseif targetEnvironment(simulator)
+        // 模拟器即使跑 Release 配置（无 DEBUG 标记）也强制 debug 渠道：
+        // 开发测试数据绝不冒充正式渠道污染生产留存分析（11-06 build36、11-13 两次实踩后的根治）
+        "debug"
         #else
         "release"
         #endif
