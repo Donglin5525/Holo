@@ -217,11 +217,21 @@ enum UnderstandingPromotion {
                 createdAt: now,
                 updatedAt: now)
             record.personalContext = HoloPersonalContextPayloadEnvelope(v1: payload)
-            try record.validate()
-            guard let adopted = HoloMemoryActivationPolicy.apply(to: record, now: now) else { return nil }
-            try adopted.validate()
+            do { try record.validate() } catch {
+                NSLog("[UnderstandingPromotion] validate 拒: \(error) | \(statement.prefix(40))")
+                return nil
+            }
+            guard let adopted = HoloMemoryActivationPolicy.apply(to: record, now: now) else {
+                NSLog("[UnderstandingPromotion] 激活策略拒(discard/attach失败) | \(statement.prefix(40))")
+                return nil
+            }
+            do { try adopted.validate() } catch {
+                NSLog("[UnderstandingPromotion] 激活后 validate 拒: \(error) | \(statement.prefix(40))")
+                return nil
+            }
             return adopted
         } catch {
+            NSLog("[UnderstandingPromotion] 构造拒: \(error) | \(statement.prefix(40))")
             return nil
         }
     }
