@@ -363,7 +363,8 @@ struct MemoryRandomWalkView: View {
                         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(event.title)
-                            .font(.system(size: rowTitleSize, weight: .medium))
+                            .font(.system(size: rowTitleSize, weight: .semibold,
+                                          design: event.module == .thought ? .serif : .default))
                             .foregroundStyle(Color.galleryInk)
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)

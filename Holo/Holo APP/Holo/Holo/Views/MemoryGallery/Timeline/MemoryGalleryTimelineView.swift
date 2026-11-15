@@ -85,7 +85,9 @@ struct MemoryGalleryTimelineView: View {
     //（2026-11-14 东林真机实报「字体跟原型对不上」定谳：@ScaledMetric 在非默认字号设备上全偏）。
     private let monthTitleSize: CGFloat = 32
     private let dayNumberSize: CGFloat = 30
-    private let leadHeadlineSize: CGFloat = 20
+    /// 想法标题=老长廊规格 15pt semibold 衬线（2026-11-15 东林拍板：与旧版同规格，
+    /// 覆盖原型 20pt 粗衬线——大号衬线在真机上「廉价」）。
+    private let leadHeadlineSize: CGFloat = 15
     private let rowTitleSize: CGFloat = 15
     private let rowValueSize: CGFloat = 14
     private let metaSize: CGFloat = 12
@@ -437,8 +439,8 @@ struct MemoryGalleryTimelineView: View {
                         .padding(.bottom, 11)
                 }
                 Text(event.title)
-                    .font(.system(size: leadHeadlineSize, weight: .bold, design: .serif))
-                    .lineSpacing(5)
+                    .font(.system(size: leadHeadlineSize, weight: .semibold,
+                                  design: event.module == .thought ? .serif : .default))
                     .foregroundStyle(Color.galleryInk)
                     .multilineTextAlignment(.leading)
                 HStack(spacing: 5) {
@@ -471,7 +473,8 @@ struct MemoryGalleryTimelineView: View {
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.galleryInset))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(event.title)
-                        .font(.system(size: rowTitleSize, weight: .medium))
+                        .font(.system(size: rowTitleSize, weight: .semibold,
+                                      design: event.module == .thought ? .serif : .default))
                         .foregroundStyle(Color.galleryInk)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
