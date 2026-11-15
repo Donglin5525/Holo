@@ -1,0 +1,31 @@
+{
+  "source": "generate-relate-schema4-fixtures.mjs 经 HoloBackend 真实 app 路由捕获（场景取自 tests/thought-semantic-v4.test.js / thought-semantic-v3.test.js）",
+  "note": "definition 241 UTF-16（119 BMP + 61 个 🏃）→ 后端 400 INVALID_REQUEST；供 Swift 断言 schema4RulePayload 同口径拒绝",
+  "request": {
+    "schemaVersion": 4,
+    "operationId": "op-fixture-schema4-definition-boundary",
+    "textRevision": "r-1",
+    "engineVersion": "thought_semantic_v4.0",
+    "target": {
+      "ref": "T0",
+      "text": "整理了今天的站会记录，没有别的想法。"
+    },
+    "candidates": [
+      {
+        "ref": "P0",
+        "title": "会议纪要",
+        "kind": "category",
+        "definitionSource": "user",
+        "definition": "记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记记🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃🏃",
+        "representatives": []
+      }
+    ]
+  },
+  "status": 400,
+  "response": {
+    "error": {
+      "code": "INVALID_REQUEST",
+      "message": "请求参数无效"
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "source": "generate-relate-schema4-fixtures.mjs 经 HoloBackend 真实 app 路由捕获（场景取自 tests/thought-semantic-v4.test.js / thought-semantic-v3.test.js）",
+  "note": "schema 3 回归：fits_category（definition 依据逐字回源，无 sharedSubject 字段）+ thread none",
+  "request": {
+    "schemaVersion": 3,
+    "operationId": "op-fixture-schema3",
+    "textRevision": "r-1",
+    "engineVersion": "thought_semantic_v3.2",
+    "target": {
+      "ref": "T0",
+      "text": "工具顺手了，判断力反而要刻意练习，记一下这个感受。"
+    },
+    "candidates": [
+      {
+        "ref": "P0",
+        "title": "碎碎念",
+        "kind": "category",
+        "definition": "个人生活片段、即时感受、吐槽，以及由生活或工作触发的个人观察与反思。",
+        "representatives": [
+          {
+            "ref": "R0",
+            "text": "食堂两个肉菜 53 块，这定价是认真的吗。"
+          }
+        ]
+      },
+      {
+        "ref": "P1",
+        "title": "产品思考",
+        "kind": "thread",
+        "representatives": [
+          {
+            "ref": "R1",
+            "text": "Agent 时代的决策力：人还是拍板的人。"
+          }
+        ]
+      }
+    ]
+  },
+  "status": 200,
+  "response": {
+    "schemaVersion": 3,
+    "operationId": "op-fixture-schema3",
+    "textRevision": "r-1",
+    "decisions": [
+      {
+        "candidateRef": "P0",
+        "relation": "fits_category",
+        "quote": "判断力反而要刻意练习",
+        "rangeUTF16": [
+          6,
+          16
+        ],
+        "representativeRef": "definition",
+        "representativeQuote": "个人观察与反思"
+      },
+      {
+        "candidateRef": "P1",
+        "relation": "none",
+        "quote": null,
+        "rangeUTF16": null
+      }
+    ],
+    "usage": {
+      "inputTokens": 100,
+      "outputTokens": 30,
+      "estimatedCostCNY": 0.00057,
+      "dailyBudgetCNY": 0
+    }
+  }
+}

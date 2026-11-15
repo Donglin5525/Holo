@@ -1,0 +1,51 @@
+{
+  "source": "generate-relate-schema4-fixtures.mjs 经 HoloBackend 真实 app 路由捕获（场景取自 tests/thought-semantic-v4.test.js / thought-semantic-v3.test.js）",
+  "note": "HOLO_THOUGHT_SCOPE_RULES_ENABLED 默认关闭：任何 schema 4 请求拿同一稳定错误码",
+  "request": {
+    "schemaVersion": 4,
+    "operationId": "op-fixture-schema4-success",
+    "textRevision": "r-1",
+    "engineVersion": "thought_semantic_v4.0",
+    "target": {
+      "ref": "T0",
+      "text": "整理了今天的站会记录，没有别的想法。"
+    },
+    "candidates": [
+      {
+        "ref": "P0",
+        "title": "会议纪要",
+        "kind": "category",
+        "definitionSource": "user",
+        "definition": "只收带我个人反思的记录，纯会议纪要一律排除。",
+        "representatives": []
+      },
+      {
+        "ref": "P1",
+        "title": "纯纪要归档",
+        "kind": "category",
+        "definitionSource": "user",
+        "definition": "收录全部会议纪要；纯纪要也要。",
+        "representatives": []
+      },
+      {
+        "ref": "P2",
+        "title": "产品思考",
+        "kind": "thread",
+        "definitionSource": "none",
+        "representatives": [
+          {
+            "ref": "R0",
+            "text": "方案的裁剪标准要先对齐用户的真实场景。"
+          }
+        ]
+      }
+    ]
+  },
+  "status": 503,
+  "response": {
+    "error": {
+      "code": "THOUGHT_SCOPE_RULES_DISABLED",
+      "message": "自动归类规则暂未开放"
+    }
+  }
+}

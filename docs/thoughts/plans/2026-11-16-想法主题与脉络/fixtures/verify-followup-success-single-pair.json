@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "operationId": "9f2bb45b-5dd4-457d-88cc-d619aad2eba7",
+  "policyVersion": "thought-followup-1",
+  "decisions": [
+    {
+      "otherRef": "N0",
+      "relation": "revises",
+      "reason": "把自动决策收紧为高影响时先确认",
+      "anchorEvidence": {
+        "windowRef": "W0",
+        "quote": "我修改了自动决定的原则。高影响决定要先确认。",
+        "rangeUTF16": [
+          0,
+          22
+        ]
+      },
+      "otherEvidence": {
+        "windowRef": "W0",
+        "quote": "我原先想让 AI 自动做决定。",
+        "rangeUTF16": [
+          0,
+          15
+        ]
+      }
+    },
+    {
+      "otherRef": "N1",
+      "relation": "insufficient",
+      "reason": null,
+      "anchorEvidence": null,
+      "otherEvidence": null
+    }
+  ],
+  "thread": null
+}

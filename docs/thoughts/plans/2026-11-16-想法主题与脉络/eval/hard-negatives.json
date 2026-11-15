@@ -1,0 +1,160 @@
+{
+  "meta": {
+    "name": "W4 硬负例组 · 全合成",
+    "allSynthetic": true,
+    "convention": "noteIds 顺序为[较晚笔记,较早笔记],与语料 groundTruth 中关系所在方向一致;expected 为该对照评阅时的正确判定,对应 §5 C1 枚举。成立关系错出展示计「关系准确」错误,负例错出(把本组标为成立关系)计「硬负例错出」,放行线为 ≤1/12。",
+    "specRef": "§2 A05(桥接簇)、§2 A06(同词/转述/反问/计划/假设误读)、§5 C1、§9 R13/R16"
+  },
+  "groups": [
+    {
+      "id": "H01",
+      "noteIds": ["N44", "N16"],
+      "trapType": "转述他人观点(A06)",
+      "looksRelated": "两段都在表达「AI 不要独自决定,人要过一道」;N44 的原则与老周团队的规矩内容几乎同义,极易判成同一判断的呼应。",
+      "whyShouldNot": "N16 是转述老周团队的规矩,本人只写了「我觉得有道理,先记下来」,不是本人的判断记录。把它当作本人旧立场会虚构「你改了主意」的叙事。",
+      "expected": "none",
+      "correctAction": "不生成卡片;至多有来源的普通相关,说明里不得写「你改了主意」。",
+      "specRef": "§1 演示样例约束 / §2 A06 / §5 C1 revises 行"
+    },
+    {
+      "id": "H02",
+      "noteIds": ["N44", "N41"],
+      "trapType": "引用他人原则不能标 revises(A06)",
+      "looksRelated": "《决策拆解》的「委托不是放弃,是换一种检查方式」与 N44 定型的原则精神一致,像是本人立场得到印证或升华。",
+      "whyShouldNot": "N41 是书的内容摘录,且原文自己都写了「放到 AI 上未必一一对应」。引文与本人原则一致只构成有来源的普通相关,不能作为 revises 或立场确认的证据。",
+      "expected": "none",
+      "correctAction": "不生成卡片;不把书引当成 N44 原则的来源或验证。",
+      "specRef": "§1 / §2 A06 / §5 C1"
+    },
+    {
+      "id": "H03",
+      "noteIds": ["N44", "N14"],
+      "trapType": "同词不同事:「确认」(A06)",
+      "looksRelated": "N44 讲「高影响先确认」,N14 通篇是「确认」(合同确认会、纪要里写了八次),字面重叠极高。",
+      "whyShouldNot": "N14 的「确认」是合同条款核对会议的纪要用语,与「决策前先问人」的确认原则是完全不同的两件事。",
+      "expected": "none",
+      "correctAction": "不生成卡片;同关键词、同场景词但不同问题按 none 处理。",
+      "specRef": "§5 C1 none 行 / §9 R13"
+    },
+    {
+      "id": "H04",
+      "noteIds": ["N44", "N20"],
+      "trapType": "同词不同事:「AI 自动」(A06)",
+      "looksRelated": "都在讲「AI 自动」的体验,N20 还给了「没出过错」的正例,像是对 N44 边界原则的佐证。",
+      "whyShouldNot": "N20 的对象是手机相册的人物相册,N44 的对象是想法的自动整理;同样是提到 AI,话题相近但没有延续或对照。",
+      "expected": "none",
+      "correctAction": "不生成卡片;同样提到 AI 但对象不同按 none 处理。",
+      "specRef": "§2 A06 / §5 C1"
+    },
+    {
+      "id": "H05",
+      "noteIds": ["N44", "N37"],
+      "trapType": "同词不同事:「边界」(A06)",
+      "looksRelated": "两段都出现「边界」并都在「定边界」,字面结构几乎平行。",
+      "whyShouldNot": "N37 的边界是产品功能范围(不做社交、不加时间线),N44 的边界是 AI 决策的分级;同词不同义。",
+      "expected": "none",
+      "correctAction": "不生成卡片。",
+      "specRef": "§2 A06 / §5 C1"
+    },
+    {
+      "id": "H06",
+      "noteIds": ["N44", "N12"],
+      "trapType": "反问被误读为立场(A06)",
+      "looksRelated": "N12 问「是想要效率还是怕做决定」,N44 的原则像是对这个疑问的回答,时间也确实是晚回答早。",
+      "whyShouldNot": "反问与自我怀疑不是立场陈述,晚到的结论没有「回应并修正」任何旧立场;把它当 contrasts 或 revises 都是把疑问句当成了断言。",
+      "expected": "none",
+      "correctAction": "不生成卡片;反问句不得计为立场,更不得声称「你改了主意」。",
+      "specRef": "§2 A06 / §5 C1 / §9 R16"
+    },
+    {
+      "id": "H07",
+      "noteIds": ["N44", "N33"],
+      "trapType": "假设被误读为立场(A06)",
+      "looksRelated": "N33 假设「每次都问我可能就不用了」,N50 之后的规则是「高影响才问我」,像是一问一答的修正链。",
+      "whyShouldNot": "N33 是假设性推演,且其内容(每次都问)与 N44/N50 的原则(分级确认)并不相同;假设不能当作被修正或被验证的本人立场。",
+      "expected": "none",
+      "correctAction": "不生成卡片;假设句不得当事实或立场。",
+      "specRef": "§2 A06 / §5 C1 / §9 R16"
+    },
+    {
+      "id": "H08",
+      "noteIds": ["N44", "N39"],
+      "trapType": "信息不足应当留空(A06)",
+      "looksRelated": "老张「也在用 AI 整理笔记」「怎么定边界」,主题词与 T1 完全同域,像是同题讨论的旁证。",
+      "whyShouldNot": "对话只进行了一半,老张怎么定边界没有内容,出处、对象、归因全部缺失;正确动作是留空而不是猜。",
+      "expected": "insufficient",
+      "correctAction": "不生成卡片,判 insufficient;不得基于缺失内容脑补共同问题。",
+      "specRef": "§5 C1 insufficient 行 / §9 R15 尾句"
+    },
+    {
+      "id": "H09",
+      "noteIds": ["N27", "N18"],
+      "trapType": "未来计划被误读为立场(A06)",
+      "looksRelated": "N18 计划「把自动整理打开试一周」,N27 却「把它关掉」,时间上晚事件对早计划,像被推翻的立场,极易判 contrasts。",
+      "whyShouldNot": "计划不是立场陈述,事件(出错后关闭)也不是对计划的回应或修正;计划与现实事件的落差不能构成「对同一问题给出不同判断」。",
+      "expected": "none",
+      "correctAction": "不生成卡片;不得把「计划 vs 后来发生的事」判成 contrasts/revises。",
+      "specRef": "§2 A06 / §5 C1 contrasts 行 / §9 R16"
+    },
+    {
+      "id": "H10",
+      "noteIds": ["N40", "N27"],
+      "trapType": "桥接簇 A~B(A05)",
+      "looksRelated": "两条都是「自动功能出错 → 先关掉改手动」,形态与结论完全同构,像是同一脉络的两名成员。",
+      "whyShouldNot": "A(N27)的对象是想法自动整理,B(N40)的对象是邮件自动回复;形态相似但不是同一具体问题,各自也没有共同回答的问题证据。",
+      "expected": "none",
+      "correctAction": "不生成卡片;不得仅凭「同形态」把两个对象的自动化事故串成一个脉络。",
+      "specRef": "§2 A05 / §5 B2 / §9 R13"
+    },
+    {
+      "id": "H11",
+      "noteIds": ["N42", "N27"],
+      "trapType": "桥接簇 A~C 错连(A05)",
+      "looksRelated": "经由 N40 桥接:N27~N40 形态相似(出错关掉)、N40~N42 同对象(邮件自动回复),桥接后 N27 与 N42 被拉进同一候选脉络。",
+      "whyShouldNot": "A(N27 自动整理)与 C(N42 邮件自动回复)根本不是同一问题;桥接簇必须每个成员直接回答同一问题,逐对核查后 A~C 与 A~B 均不成立,整簇不应形成脉络。",
+      "expected": "none",
+      "correctAction": "不生成卡片;B~C(N40~N42)的真实子关系只有两条,达不到 ≥3 条独立支撑,脉络必须为空。",
+      "specRef": "§2 A05 / §5 B2 / §9 R12/R13"
+    },
+    {
+      "id": "H12",
+      "noteIds": ["N31", "N28"],
+      "trapType": "同词不同事:「迭代」(A05/A06)",
+      "looksRelated": "N31 复盘通篇讲迭代节奏,N28 也在「迭代到第 4 版」,词面完全相同,像同一线索的两端。",
+      "whyShouldNot": "N28 是健身计划的迭代,与产品发版复盘分属两个问题域;同词不同事,不能因词面重叠并入产品迭代脉络。",
+      "expected": "none",
+      "correctAction": "不生成卡片;健身迭代不得计入「发版与砍功能的判断」脉络成员。",
+      "specRef": "§2 A05/A06 / §5 C1 none 行"
+    },
+    {
+      "id": "H13",
+      "noteIds": ["N38", "N36"],
+      "trapType": "同词不同事:「整理」(A06)",
+      "looksRelated": "N36 抱怨回顾时「全在整理格式」,N38 记录「把房间整理了一遍」,动词相同、时间相邻。",
+      "whyShouldNot": "一个是回顾方法问题,一个是生活家务记录;同词不同事,无延续无对照。",
+      "expected": "none",
+      "correctAction": "不生成卡片。",
+      "specRef": "§5 C1 none 行"
+    },
+    {
+      "id": "H14",
+      "noteIds": ["N50", "N16"],
+      "trapType": "转述他人观点(A06)",
+      "looksRelated": "N50 的「高影响先问我」与老周规矩「人不点头不落地」语义接近,且 N50 是当天锚点笔记,近邻检索极易带回 N16。",
+      "whyShouldNot": "N16 仍是转述;即便 N50 的动作与转述内容一致,也只构成有来源的普通相关,不能写成呼应本人旧判断或立场演化。",
+      "expected": "none",
+      "correctAction": "不生成卡片;不把转述内容渲染成本人观点的前身。",
+      "specRef": "§1 / §2 A06"
+    },
+    {
+      "id": "H15",
+      "noteIds": ["N50", "N42"],
+      "trapType": "同形不同对象(A05)",
+      "looksRelated": "两条都是「重新打开自动功能 + 加了条件」,句式与叙事几乎平行,像是同一天在收尾两件同类的事。",
+      "whyShouldNot": "对象不同:一个重开想法自动整理,一个重开邮件自动回复;同形不同事,不能互相并入对方的问题。",
+      "expected": "none",
+      "correctAction": "不生成卡片;两个「重开」各自只能在各自对象线内找关系。",
+      "specRef": "§2 A05 / §5 C1 none 行"
+    }
+  ]
+}

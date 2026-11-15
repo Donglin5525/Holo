@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "operationId": "9f2bb45b-5dd4-457d-88cc-d619aad2eba7",
+  "policyVersion": "thought-followup-1",
+  "decisions": [
+    {
+      "otherRef": "N0",
+      "relation": "revises",
+      "reason": "把自动决策收紧为高影响时先确认",
+      "anchorEvidence": {
+        "windowRef": "W0",
+        "quote": "我修改了自动决定的原则。高影响决定要先确认。",
+        "rangeUTF16": [
+          0,
+          22
+        ]
+      },
+      "otherEvidence": {
+        "windowRef": "W0",
+        "quote": "我原先想让 AI 自动做决定。",
+        "rangeUTF16": [
+          0,
+          15
+        ]
+      }
+    },
+    {
+      "otherRef": "N1",
+      "relation": "continues",
+      "reason": "针对自动决定出错后的问题加了一项确认条件",
+      "anchorEvidence": {
+        "windowRef": "W0",
+        "quote": "高影响决定要先确认。",
+        "rangeUTF16": [
+          12,
+          22
+        ]
+      },
+      "otherEvidence": {
+        "windowRef": "W0",
+        "quote": "我发现自动决定出了错难以纠正。",
+        "rangeUTF16": [
+          0,
+          15
+        ]
+      }
+    }
+  ],
+  "thread": {
+    "title": "AI 做决定的边界",
+    "question": "哪些决定可以交给 AI 自动执行？",
+    "memberRefs": [
+      "N2",
+      "N0",
+      "N1"
+    ]
+  }
+}

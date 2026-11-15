@@ -1,0 +1,46 @@
+{
+  "source": "generate-relate-schema4-fixtures.mjs 经 HoloBackend 真实 app 路由捕获（场景取自 tests/thought-semantic-v4.test.js / thought-semantic-v3.test.js）",
+  "note": "representativeQuote 无法回源用户规则原文 → 502 MODEL_OUTPUT_INVALID（excludes_category_evidence_incomplete），不生成空结果回执",
+  "request": {
+    "schemaVersion": 4,
+    "operationId": "op-fixture-schema4-exclusion-evidence",
+    "textRevision": "r-1",
+    "engineVersion": "thought_semantic_v4.0",
+    "target": {
+      "ref": "T0",
+      "text": "整理了今天的站会记录，没有别的想法。"
+    },
+    "candidates": [
+      {
+        "ref": "P0",
+        "title": "会议纪要",
+        "kind": "category",
+        "definitionSource": "user",
+        "definition": "只收带我个人反思的记录，纯会议纪要一律排除。",
+        "representatives": []
+      }
+    ]
+  },
+  "modelOutput": {
+    "decisions": [
+      {
+        "candidateRef": "P0",
+        "relation": "excludes_category",
+        "quote": "整理了今天的站会记录",
+        "rangeUTF16": [
+          0,
+          10
+        ],
+        "representativeRef": "definition",
+        "representativeQuote": "规则原文里不存在的句子"
+      }
+    ]
+  },
+  "status": 502,
+  "response": {
+    "error": {
+      "code": "MODEL_OUTPUT_INVALID",
+      "message": "整理结果异常，稍后会自动重试"
+    }
+  }
+}
