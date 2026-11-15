@@ -54,6 +54,7 @@
 		3DD38C609064927B374A8A67 /* HoloMemoryConsumerPolicyIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01D12F979B323B1B7D656B4D /* HoloMemoryConsumerPolicyIntegrationTests.swift */; };
 		3E810E90A87EF5F2442B4601 /* WaveformSampleMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 439BD0F9196830BEB35DD79D /* WaveformSampleMapperTests.swift */; };
 		3E8A1C94D7B25F60A1174C9E /* CalendarTimelineSmokeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F9B2D85E6C37A81D20596BC /* CalendarTimelineSmokeUITests.swift */; };
+		AA11BB22CC33DD44EE55FF0 /* RandomWalkWarmLightUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF1 /* RandomWalkWarmLightUITests.swift */; };
 		3F7BF18E2C8C2851AC559873 /* HabitPerformanceModelsStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50FB12E724759712715FAF5F /* HabitPerformanceModelsStandaloneTests.swift */; };
 		3F7DC9C460BEA9906478A67B /* HoloMemoryDecisionContractStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668C23F8A267CEAEB3CC2B06 /* HoloMemoryDecisionContractStandaloneTests.swift */; };
 		3F9C04B6A4A90A7A96D14DAE /* HoloDomainMemoryObserverIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 976992B49B18745C696A05F9 /* HoloDomainMemoryObserverIntegrationTests.swift */; };
@@ -603,6 +604,7 @@
 		4E0BE186B40FA3BA8EB12E20 /* HoloMemoryLifecycleStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryLifecycleStandaloneTests.swift; sourceTree = "<group>"; };
 		4E8A1D6C3F5B7920E4A6D8C1 /* HoloMemoryManagementProjectionStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryManagementProjectionStandaloneTests.swift; sourceTree = "<group>"; };
 		4F9B2D85E6C37A81D20596BC /* CalendarTimelineSmokeUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CalendarTimelineSmokeUITests.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF1 /* RandomWalkWarmLightUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RandomWalkWarmLightUITests.swift; sourceTree = "<group>"; };
 		50BD1A30F4413A5FA65CE4E6 /* ThoughtTagPresentationStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtTagPresentationStandaloneTests.swift; sourceTree = "<group>"; };
 		50FB12E724759712715FAF5F /* HabitPerformanceModelsStandaloneTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitPerformanceModelsStandaloneTests.swift; sourceTree = "<group>"; };
 		53D13BB9A969837DFE63D4C0 /* HoloAgentResponseParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentResponseParserTests.swift; sourceTree = "<group>"; };
@@ -1886,6 +1888,7 @@
 			isa = PBXGroup;
 			children = (
 				4F9B2D85E6C37A81D20596BC /* CalendarTimelineSmokeUITests.swift */,
+				AA11BB22CC33DD44EE55FF1 /* RandomWalkWarmLightUITests.swift */,
 				C10D0000A1B1C1D1E1F1BB01 /* CalendarPickerWalkUITests.swift */,
 				C10D0000A1B1C1D1E1F1BB03 /* ReceiptStubSmokeUITests.swift */,
 				FE1000000000000000000001 /* HoloAcceptanceUITests.swift */,
@@ -2647,6 +2650,7 @@
 				AA11BB22CC33DD44EE550002 /* HoloAcceptanceR4UITests.swift in Sources */,
 				C10D0000A1B1C1D1E1F1AA02 /* HoloCloudAnalysisQAUITests.swift in Sources */,
 				3E8A1C94D7B25F60A1174C9E /* CalendarTimelineSmokeUITests.swift in Sources */,
+				AA11BB22CC33DD44EE55FF0 /* RandomWalkWarmLightUITests.swift in Sources */,
 				DD170000000000000000A102 /* AICrashDeviceReproUITests.swift in Sources */,
 				GATEUI0000000000000001 /* ThoughtGestureGateUITests.swift in Sources */,
 				P1SMOKE0000000000000001 /* ThoughtP1PerceptionSmokeUITests.swift in Sources */,
@@ -3070,6 +3074,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
+				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.app.holoUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
@@ -3089,6 +3094,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
+				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				PRODUCT_BUNDLE_IDENTIFIER = com.holo.app.holoUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;

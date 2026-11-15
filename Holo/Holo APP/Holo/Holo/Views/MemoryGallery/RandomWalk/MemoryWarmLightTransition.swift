@@ -33,16 +33,42 @@ struct MemoryWarmLightTransition: View {
         // 限 60fps：ProMotion 真机不限频会按 120Hz 全量求值+下发渲染，压力翻倍；
         // 柔和光效 60fps 视觉无差（CSS 动画同基准）。11-15 东林真机实报「卡一下
         // 动画不出」的配套减负——主线程每帧成本不变的前提下帧预算翻倍。
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in
-            GeometryReader { proxy in
-                let frame = timeline.frame(at: elapsed(), canvas: proxy.size)
-                WarmLightPlate(departure: departure,
-                               arrival: arrival,
-                               frame: frame,
-                               canvas: proxy.size)
-            }
+        //
+        // 11-15 四报定谳：.animation schedule 在漫步 sheet 里不逐帧驱动（录屏实证
+        // 首帧后文案/光晕 1 秒零变化，2.3s 后整层被 phase 流转移除）——Sheet 弹层
+        // 环境下帧驱动调度停更（TimelineView stops updating 已知行为类别）。
+        // 改 .periodic 显式周期调度（墙钟驱动，不依赖 display link 判活），
+        // 60Hz 与限频目标一致。UITEST_WARM_LIGHT_ANIMATION 可切回旧调度做 A/B 对照。
+        let usePeriodic = !ProcessInfo.processInfo.arguments.contains("UITEST_WARM_LIGHT_ANIMATION")
+        TimelineViewContent(departure: departure,
+                            arrival: arrival,
+                            timeline: timeline,
+                            elapsed: elapsed,
+                            usePeriodic: usePeriodic)
+            .accessibilityHidden(true)
+    }
+}
+
+/// schedule 选择器：.animation（帧驱动）与 .periodic（墙钟周期）类型不同，走分支。
+private struct TimelineViewContent: View {
+    let departure: MemoryWarmLightTransition.StampContent
+    let arrival: MemoryWarmLightTransition.StampContent
+    let timeline: WarmLightTimeline
+    let elapsed: () -> TimeInterval
+    let usePeriodic: Bool
+
+    var body: some View {
+        let plate = GeometryReader { proxy in
+            WarmLightPlate(departure: departure,
+                           arrival: arrival,
+                           frame: timeline.frame(at: elapsed(), canvas: proxy.size),
+                           canvas: proxy.size)
         }
-        .accessibilityHidden(true)
+        if usePeriodic {
+            TimelineView(.periodic(from: .now, by: 1.0 / 60.0)) { _ in plate }
+        } else {
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { _ in plate }
+        }
     }
 }
 
