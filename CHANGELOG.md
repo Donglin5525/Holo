@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-11-16] 随机漫步「一束暖光」过场动画 1:1 复刻原型——Core Animation Render-Server 直驱 + 交接零闪跳
+
+真机（iPhone 17 Pro / iOS 26.3.1）Build 57 实测通过：点「记忆长廊 → 随机漫步」后的 1.66 秒暖光过场与 HTML 原型（`holo-memory-gallery-random-walk.html`）保持 1:1 一致，120Hz 全程丝滑、交接无卡顿无跳变。纯客户端改动，免后端发版。
+
+- **Render-Server 直驱（MemoryWarmLightTransition / WarmLightHostUIView）**：放弃 SwiftUI `TimelineView` 逐帧重绘方案（每帧重建视图树 + 重算 49 色标 `RadialGradient` + `.compositingGroup()` 离屏渲染，且 `.periodic(1/60)` 与 120Hz ProMotion 不同步），改为 `UIViewRepresentable` + `CALayer`：将预乘插值椭圆光晕一次性预渲染为 `CGImage`，在单次 `CATransaction` 内提交 `CABasicAnimation` / `CAKeyframeAnimation`（`warm-memory-light` `cubic-bezier(0,0,0.58,1)`、`light-depart` `0→12→34%`、`light-arrive` `0→30→67%`、`is-landing` 1450ms 起 210ms 淡出），动画期间主线程零每帧开销；同时保留 `WarmLightPlate` 静态帧路径供 `WarmLightFrameRenderTests` 离屏对拍。
+- **交接零闪跳与 Sheet 稳高（MemoryRandomWalkView）**：移除与外层 `MemoryGalleryFindDateSheet` 冲突的 `.presentationDetents` 及动态测高；在 `traveling` / `landing` 期间预先保留底部动作区占位，并将暖光遮罩覆盖至 `divider` 以下整片区域（与原型 `.time-travel` 一致）；将记录与「回看一句」的上浮淡入（`walk-reveal`：`8pt` → `0`，250ms / +45ms 280ms）从 `arrived`（1660ms）提前到 `landing`（1450ms）与暖光淡出同步触发，消除 1660ms 瞬间的透明度闪回与 Sheet 高度跳变。
+- **验证**：`WarmLightModelTests`（19 项）+ `WarmLightFrameRenderTests`（7 项）+ `MemoryRandomWalkCoreTests`（11 项）共 37 项单测全绿；真机 Build 57 实测通过。
+
 ## [2026-11-15] 图表视觉 V4「纸本调性」与 11 项图表能力增强——横向现金流瀑布根治存量撑爆、全宽构成比例条、降饱和纸本色板
 
 真机验收反馈「现金流瀑布所有内容堆叠到一块儿、图表整体缺少审美与调性」后，重定图表视觉契约 V4「纸本调性」（`docs/design-prototypes/Holo图表视觉V4-纸本调性.html`）并连同 11 项图表能力增强一次性收口：图表像一页安静的手账，先给结论再给图，存量与流量分轴，标签各归其列永不相撞。纯客户端改动，免后端发版、免 CloudKit 改动。
